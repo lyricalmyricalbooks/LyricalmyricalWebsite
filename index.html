@@ -59,6 +59,37 @@
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,500;1,600;1,700&family=Inter:wght@400;500;600&family=Anton&family=Archivo:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,500;1,600;1,700&family=Inter:wght@400;500;600&family=Anton&family=Archivo:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" /></noscript>
 
+    <!--
+      Stale-page recovery. A page cached from an earlier deploy can point at CSS/JS files that the
+      newer deploy replaced, leaving an unstyled page. If the site's own stylesheet or script fails
+      to load (or a lazy page chunk does), reload once to fetch the current page. At most once a minute.
+    -->
+    <script>
+      (function () {
+        var KEY = 'lm:stale-asset-reload';
+        function ownAsset(url) { return typeof url === 'string' && url.indexOf('/assets/') !== -1 && url.indexOf(location.origin) === 0; }
+        function reloadOnce() {
+          try {
+            var last = Number(sessionStorage.getItem(KEY) || 0);
+            if (Date.now() - last < 60000) return false;
+            sessionStorage.setItem(KEY, String(Date.now()));
+          } catch (e) { return false; }
+          location.reload();
+          return true;
+        }
+        window.addEventListener('error', function (event) {
+          var el = event.target;
+          if (!el || el === window) return;
+          if ((el.tagName === 'LINK' && ownAsset(el.href)) || (el.tagName === 'SCRIPT' && ownAsset(el.src))) reloadOnce();
+        }, true);
+        window.addEventListener('vite:preloadError', function (event) { if (reloadOnce()) event.preventDefault(); });
+        window.addEventListener('load', function () {
+          var links = document.querySelectorAll('link[rel="stylesheet"]');
+          for (var i = 0; i < links.length; i++) if (ownAsset(links[i].href) && !links[i].sheet) { reloadOnce(); return; }
+        });
+      })();
+    </script>
+
     <style>
       html, body { height: 100%; margin: 0; background: #030213; }
       #root { height: 100%; }
