@@ -48,10 +48,12 @@ import { studioHash } from "../lib/studioLocation";
 
 import { BookSeoPane } from "./BookSeoPane";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/site/preorder";
+import { DEFAULT_CUSTOMS_DESCRIPTION, DEFAULT_HS_CODE, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
 import { MediaLibraryDialog, WeightField } from "./BookEditorFields";
-import { editorDirty, fillEmpty, isbnWarning, lookupIsbn, needsPublishReview, slugClash } from "./bookEditorState";
+import { editorDirty, fillEmpty, isbnWarning, lookupIsbn, needsPublishReview, slugClash, slugFollowsTitle, slugLocked, slugifyTitle } from "./bookEditorState";
 import { LOW_STOCK } from "./catalogList";
+import { releaseArrived } from "../features/site/liveBook";
 import { addOnProblems, bundleProblems, giftCardProblems, isBoxSet, isGiftCardProduct, productForSave, saleStatus, saleWindowProblem } from "./productExtras";
 
 const MAX_BOOK_PHOTOS = 20;
@@ -158,6 +160,8 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   const [categoryParents, setCategoryParents] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [slugUnlocked, setSlugUnlocked] = useState(false);
+  const [confirmSlug, setConfirmSlug] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [photoInput, setPhotoInput] = useState("");
@@ -375,7 +379,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   // Aggregate stock calculation
   useEffect(() => {
     if (Array.isArray(formData.variants) && formData.variants.length > 0) {
-      const totalStock = formData.variants.reduce((sum: number, v: Variant) => sum + (Number((v as any).stock ?? (v as any).stockLevel) || 0), 0);
+      const totalStock = formData.variants.reduce((sum: number, v: Variant) => sum + (Number((v as any).stockLevel ?? (v as any).stock) || 0), 0);
       if (totalStock !== formData.stockLevel) {
         setFormData((prev: any) => ({ ...prev, stockLevel: totalStock }));
       }
@@ -427,8 +431,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     
     setFormData((prev: any) => {
       const newData = { ...prev, [name]: val };
-      if (name === "title" && (!prev.slug || prev.slug === prev.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""))) {
-        newData.slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      // A published book keeps its web address when the title is edited (old links would break).
+      if (name === "title" && slugFollowsTitle(prev, slugLocked(initialData, slugUnlocked))) {
+        newData.slug = slugifyTitle(value);
       }
       return newData;
     });
@@ -496,17 +501,13 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     try {
       if (book) {
         // Pass what the editor loaded so untouched stock keeps its live value.
-        await adminApi.updateBook(book.id, toSave, initialData);
+        const saved: any = await adminApi.updateBook(book.id, toSave, initialData, { removeMissing: true });
         toast.success("Book updated successfully");
-        // Pre-order switch or release date changed: paid, unsent pre-orders follow the new date.
-        if (!!(book as any).preorder !== !!formData.preorder || ((book as any).preorder || formData.preorder) && String((book as any).publishDate || "") !== String(formData.publishDate || "")) {
-          try {
-            const n = await adminApi.syncPreorderOrders(book.id, formData);
-            if (n) toast.success(`Release date updated on ${n} paid pre-order${n === 1 ? "" : "s"}.`);
-          } catch {
-            toast.error("Book saved, but its paid pre-orders couldn't be updated. Save again to retry.");
-          }
-        }
+        // Pre-order switch or release date changed: updateBook carried the new date onto paid, unsent pre-orders.
+        const sync = saved?.preorderSync;
+        if (sync?.failed) toast.error("Book saved, but its paid pre-orders couldn't be updated. Save again to retry.");
+        else if (sync?.updated) toast.success(`Release date updated on ${sync.updated} paid pre-order${sync.updated === 1 ? "" : "s"}.`);
+        setSlugUnlocked(false);
         setBook({ ...(book as any), ...toSave, id: book.id });
       } else {
         const created = await adminApi.createBook(toSave);
@@ -760,7 +761,8 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   const salePct = formData.isOnSale && num(formData.retailPrice) > 0 ? Math.round((1 - num(formData.salePrice) / num(formData.retailPrice)) * 100) : 0;
   const cover = formData.photos?.[0]?.url as string | undefined;
   const isbnWarn = isbnWarning(formData.isbn) || undefined;
-  const slugWarn = slugClash(formData.slug, book?.id, recommendationCatalog);
+  const addressLocked = slugLocked(initialData, slugUnlocked);
+  const slugWarn =slugClash(formData.slug, book?.id, recommendationCatalog);
   const lowStock = formData.trackInventory && !hasVariants && num(formData.stockLevel) <= LOW_STOCK;
 
   const checklist = [
@@ -850,6 +852,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
           <ul className="mt-2 list-disc pl-5">{validationErrors.map((m) => <li key={m}>{m}</li>)}</ul>
         </div>
       )}
+      <ConfirmDialog open={confirmSlug} appearance="light" title="Change this book's web address?" confirmLabel="Change web address"
+        message="Links people already have to this book (search results, emails, social posts, bookmarks) will stop working, and the site cannot redirect them. Only continue if the old address was wrong."
+        onConfirm={() => { setConfirmSlug(false); setSlugUnlocked(true); }} onCancel={() => setConfirmSlug(false)} />
       <ConfirmDialog open={confirmDiscard} appearance="light" title="Discard unsaved changes?" confirmLabel="Discard changes"
         message="You have edits that haven't been saved. Closing now will lose them."
         onConfirm={() => { setConfirmDiscard(false); onClose(); }} onCancel={() => setConfirmDiscard(false)} />
@@ -873,9 +878,12 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                   <TextField label="Author / contributors (display)" name="subtitle" value={formData.subtitle} onChange={handleChange} placeholder="e.g. Zoe Moss, Lucia Bellemare" />
                   <div className="be-span-2">
                     <TextField label="Web address (URL slug)" name="slug" value={formData.slug} onChange={handleChange} placeholder="the-book-slug"
-                      hint={`/books/${formData.slug || "your-book"}`} error={slugWarn || undefined} />
+                      readOnly={addressLocked}
+                      hint={addressLocked ? `/books/${formData.slug || "your-book"} — locked while the book is published, so existing links keep working.` : `/books/${formData.slug || "your-book"}`} error={slugWarn || undefined} />
                     <div className="be-inline-actions">
-                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => set("slug", slugify(formData.title || ""))}><RefreshCw size={13} aria-hidden /> Regenerate from title</button>
+                      {addressLocked
+                        ? <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => setConfirmSlug(true)}><RefreshCw size={13} aria-hidden /> Change web address</button>
+                        : <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => set("slug", slugify(formData.title || ""))}><RefreshCw size={13} aria-hidden /> Regenerate from title</button>}
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}${import.meta.env.BASE_URL}books/${formData.slug}`); toast.success("Link copied"); }} disabled={!formData.slug}><Copy size={13} aria-hidden /> Copy link</button>
                     </div>
                   </div>
@@ -907,6 +915,16 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                   {!giftCard && <TextField label="Dimensions" name="dimensions" value={formData.dimensions || ""} onChange={handleChange} placeholder="6 x 9 in" />}
                   {!giftCard && <WeightField label="Weight" value={formData.weight || ""} onChange={(w) => set("weight", w)} hint={boxSetOn ? "Used for weight-based shipping. Leave blank to use the books inside added together." : "Used for weight-based shipping."} />}
                 </div>
+                {!giftCard && !isDigital && (
+                  <div className="be-grid" style={{ marginTop: 12 }}>
+                    <TextField label="Customs description" name="customsDescription" value={formData.customsDescription || ""} onChange={handleChange} placeholder={DEFAULT_CUSTOMS_DESCRIPTION} hint="Printed on the customs form of international labels. Blank = “Printed books”." />
+                    <TextField label="Tariff (HS) code" name="hsTariffNumber" value={formData.hsTariffNumber || ""} onChange={handleChange} placeholder={DEFAULT_HS_CODE}
+                      error={formData.hsTariffNumber && !validHsCode(formData.hsTariffNumber) ? "Use 4 to 10 digits, like 4901.99." : undefined}
+                      hint="Customs code for international parcels. Blank = 4901.99 (printed books)." />
+                    <TextField label="Country of origin" name="customsOriginCountry" value={formData.customsOriginCountry || ""} onChange={handleChange} placeholder="CA" maxLength={2}
+                      hint="Where the book was printed (2-letter code). Blank = your shipping-from country." />
+                  </div>
+                )}
                 {isbnResult && (
                   <div role="status" className="be-note">
                     {isbnResult.text}
@@ -1052,7 +1070,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                       {" "}Pre-orders use the stock above: {formData.trackInventory ? (formData.allowBackorder ? "backorders are on, so pre-orders never run out." : "they stop when stock reaches 0 — enter how many copies you'll accept (e.g. your print run), or turn on backorders.") : "inventory isn't tracked, so pre-orders are unlimited."}
                     </p>
                     {formData.status !== "published" && <p className="be-warn" role="status">⚠ Pre-orders only show in the shop once the book's Status is Published.</p>}
-                    {formData.scheduleDate && String(formData.scheduleDate) > new Date().toISOString() && <p className="be-warn" role="status">⚠ This book is scheduled to appear later, so shoppers can't pre-order it until then. Clear the schedule to open pre-orders now.</p>}
+                    {formData.scheduleDate && !releaseArrived(formData.scheduleDate) && <p className="be-warn" role="status">⚠ This book is scheduled to appear later, so shoppers can't pre-order it until then. Clear the schedule to open pre-orders now.</p>}
                   </>
                 )}
               </SectionCard>}
@@ -1104,7 +1122,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                   <fieldset key={v.id} className="be-variant">
                     <legend>{giftCard ? "Amount" : "Edition"} {i + 1}{v.name ? ` — ${v.name}` : ""}</legend>
                     <div className="be-variant-tools">
-                      {!giftCard && stockBadge(num(v.stock))}
+                      {!giftCard && stockBadge(num((v as any).stockLevel ?? v.stock))}
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => duplicateVariant(v.id)}><Copy size={13} aria-hidden /> Duplicate</button>
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => removeVariant(v.id)} aria-label={`Remove ${giftCard ? "amount" : "edition"} ${v.name || i + 1}`}><Trash2 size={13} aria-hidden /> Remove</button>
                     </div>
@@ -1122,7 +1140,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                       <TextField label="Price (CAD)" type="number" min={0} step="0.01" value={v.price} onChange={(e) => updateVariant(v.id, "price", e.target.value === "" ? "" : Number(e.target.value))} />
                       <TextField label="Price (USD)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).usdPrice ?? 0} onChange={(e) => updateVariant(v.id, "usdPrice", Number(e.target.value))} />
                       <TextField label="Price (EUR)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).eurPrice ?? 0} onChange={(e) => updateVariant(v.id, "eurPrice", Number(e.target.value))} />
-                      <TextField label="Stock" type="number" min={0} value={v.stock ?? (v as any).stockLevel ?? 0} onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))} />
+                      <TextField label="Stock" type="number" min={0} value={(v as any).stockLevel ?? v.stock ?? 0} onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))} />
                       <TextField label="Shelf location" placeholder="e.g. B2" value={(v as any).shelfLocation || ""} onChange={(e) => updateVariant(v.id, "shelfLocation", e.target.value)} hint="Packing checklist; blank = the book's." />
                     </div>
                     )}

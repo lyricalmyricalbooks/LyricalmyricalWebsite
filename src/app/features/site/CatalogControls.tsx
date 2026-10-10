@@ -4,10 +4,12 @@ import { regionProps } from "./storefrontRegions";
 import { displayPrice } from "./displayPrice";
 import { quickAddChoice } from "./buyable";
 import { matchesSearch } from "./bookSearch";
+import { compareShopOrder } from "./shopOrder";
 
-export type SortKey = "newest" | "price_asc" | "price_desc" | "title_az" | "title_za";
+export type SortKey = "featured" | "newest" | "price_asc" | "price_desc" | "title_az" | "title_za";
 
 export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: "featured", label: "Featured" },
   { key: "newest", label: "Newest" },
   { key: "price_asc", label: "Price ↑" },
   { key: "price_desc", label: "Price ↓" },
@@ -127,6 +129,8 @@ export function applyCatalogControls(
       case "price_desc": return pb - pa;
       case "title_az": return (a.title || "").localeCompare(b.title || "");
       case "title_za": return (b.title || "").localeCompare(a.title || "");
+      // The publisher's arrangement (Admin › Books › Shop order); unarranged books follow, newest first.
+      case "featured": return compareShopOrder(a, b) || (b.createdAt || "").localeCompare(a.createdAt || "");
       case "newest":
       default:
         return (b.createdAt || "").localeCompare(a.createdAt || "");

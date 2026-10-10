@@ -110,7 +110,7 @@ describe("private book fields", () => {
     // Covered structurally: the public update deletes legacyInventoryKey and the private document gets it.
     const source = (await import("node:fs")).readFileSync(new URL("./api.ts", import.meta.url), "utf8");
     expect(source).toMatch(/legacyInventoryKey: deleteField\(\)/);
-    expect(source).toMatch(/batch\.set\(privateBookRef\(bookDoc\.id\), \{ legacyInventoryKey: legacyKey/);
+    expect(source).toMatch(/tx\.set\(privateBookRef\(m\.bookId\), \{ legacyInventoryKey: m\.legacyKey/);
   });
 });
 

@@ -385,6 +385,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
     fields: [
       { key: "filterSearchPlaceholder", label: "Filter box placeholder", default: "Search by title, author, category…" },
       { key: "filterClearAria", label: "Clear button — screen-reader label", default: "Clear search" },
+      { key: "sort_featured", label: "Sort: shop order (Admin › Books › Shop order)", default: "Featured" },
       { key: "sort_newest", label: "Sort: newest", default: "Newest" },
       { key: "sort_price_asc", label: "Sort: price low→high", default: "Price ↑" },
       { key: "sort_price_desc", label: "Sort: price high→low", default: "Price ↓" },
@@ -422,6 +423,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "trackBoxSetIncludes", label: "Box set contents", default: "Includes {items}", hint: "Use {items} for the books, e.g. “2 × Title, 1 × Title”." },
       { key: "trackReturnHeading", label: "Return progress heading", default: "Your return" },
       { key: "trackReturn_approved", label: "Return approved", default: "Return approved — follow the instructions below." },
+      { key: "trackReturn_closed", label: "Return closed", default: "This return request has been closed. No refund is due; contact us if you have questions." },
       { key: "trackReturn_rejected", label: "Return rejected", default: "Return request declined — see the explanation below." },
       { key: "trackReturn_received", label: "Return received", default: "Return parcel received." },
       { key: "trackReturn_inspected", label: "Return inspected", default: "Books inspected — awaiting refund." },

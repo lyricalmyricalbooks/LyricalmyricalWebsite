@@ -1,6 +1,7 @@
 import { duplicateBookData } from "./catalogList";
-import { changedBookFields } from "./bookStockMerge";
-import { mergeBookPrivate, privateKeysIn, splitBookPrivate } from "./bookPrivate";
+import { changedBookFields, removedBookFields, sameValue } from "./bookStockMerge";
+import { planLegacySync, readLegacyStock } from "./legacyInventorySync";
+import { PRIVATE_BOOK_KEYS, mergeBookPrivate, privateKeysIn, splitBookPrivate } from "./bookPrivate";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
 import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
@@ -9,7 +10,7 @@ import { deleteRefusal } from "./orderListHelpers";
 import { restampPreorderItems } from "../features/site/preorder";
 import { themeWrite } from "./themeWrite";
 import { draftFieldUpdate, readDraftField } from "./themeStore";
-import { splitWebsiteSecrets, splitNotificationSecrets, type SecretPatch } from "./privateKeys";
+import { splitWebsiteSecrets, splitNotificationSecrets, resendKeyProblem, type SecretPatch } from "./privateKeys";
 import { toCountryCodes } from "./shippingCountries";
 
 // Blank / invalid / negative -> null (rule off); otherwise the number.
@@ -221,13 +222,26 @@ export const adminApi = {
    * changed in the editor are written (changedBookFields) — a field changed elsewhere while
    * the editor was open (another tab, the catalog list, an import) keeps its live value.
    */
-  updateBook: async (id: string, book: any, loaded?: any) => {
+  // `options.removeMissing`: `book` is the editor's complete form, so a field that was on the loaded book and is
+  // gone from the form was removed on purpose and is deleted. Partial writes (bulk edits, CSV import) leave it off.
+  updateBook: async (id: string, book: any, loaded?: any, options: { removeMissing?: boolean } = {}) => {
     const docRef = doc(db, "books", id);
     let dataToSave = { ...book };
     delete dataToSave.id;
     delete dataToSave._lastDoc;
 
     const privRef = privateBookRef(id);
+    // Fields the owner took away in the editor are deleted, not left behind (a save only adds or changes keys).
+    const removed = loaded && options.removeMissing ? removedBookFields(dataToSave, loaded) : [];
+    const removalsFor = (keys: string[]) => {
+      const pubRemoved: Record<string, any> = {};
+      const privRemoved: Record<string, any> = {};
+      for (const key of keys) {
+        if ((PRIVATE_BOOK_KEYS as readonly string[]).includes(key)) { privRemoved[key] = deleteField(); pubRemoved[key] = deleteField(); }
+        else pubRemoved[key] = deleteField();
+      }
+      return { pubRemoved, privRemoved };
+    };
     if (loaded) {
       dataToSave = await runTransaction(db, async tx => {
         const snap = await tx.get(docRef);
@@ -241,10 +255,15 @@ export const adminApi = {
         const changes = changedBookFields(dataToSave, loaded, live);
         const updatedAt = new Date().toISOString();
         const { pub, priv } = splitBookPrivate(changes);
-        tx.update(docRef, { ...pub, ...scrubPrivateKeys(priv), updatedAt });
-        if (Object.keys(priv).length) tx.set(privRef, { ...priv, updatedAt }, { mergeFields: [...Object.keys(priv), "updatedAt"] });
+        const { pubRemoved, privRemoved } = removalsFor(removed);
+        tx.update(docRef, { ...pub, ...scrubPrivateKeys(priv), ...pubRemoved, updatedAt });
+        if (Object.keys(priv).length || Object.keys(privRemoved).length) {
+          tx.set(privRef, { ...priv, ...privRemoved, updatedAt }, { mergeFields: [...Object.keys(priv), ...Object.keys(privRemoved), "updatedAt"] });
+        }
         // What the book is now: the live record with this save's changes on top.
-        return { ...live, ...changes, updatedAt };
+        const now: Record<string, any> = { ...live, ...changes, updatedAt };
+        for (const key of removed) delete now[key];
+        return now;
       });
     } else {
       const { pub, priv } = splitBookPrivate(dataToSave);
@@ -253,7 +272,26 @@ export const adminApi = {
       if (Object.keys(priv).length) await setDoc(privRef, { ...priv, updatedAt }, { mergeFields: [...Object.keys(priv), "updatedAt"] });
     }
     await adminApi.recordAuditLog("catalog", `Updated book: ${dataToSave.title}`);
-    return { id, ...dataToSave };
+    // The pre-order switch or release date changed: paid, unsent pre-orders follow it, whichever screen saved
+    // (editor, CSV import). `preorderSync` says how that went so the caller can tell the owner.
+    let preorderSync: { updated: number; failed: boolean } | undefined;
+    const touched = ["preorder", "publishDate"].some(k => k in book && (!loaded || !sameValue(book[k], loaded[k])));
+    if (touched) {
+      try { preorderSync = { updated: await adminApi.syncPreorderOrders(id, dataToSave), failed: false }; }
+      catch { preorderSync = { updated: 0, failed: true }; }
+    }
+    return { id, ...dataToSave, ...(preorderSync ? { preorderSync } : {}) };
+  },
+
+  /** Books › Shop order: writes only `sortOrder` (+ updatedAt) on the books whose place changed. */
+  saveBookOrder: async (writes: { id: string; sortOrder: number }[]) => {
+    const updatedAt = new Date().toISOString();
+    for (let i = 0; i < writes.length; i += 400) {
+      const batch = writeBatch(db);
+      for (const w of writes.slice(i, i + 400)) batch.update(doc(db, "books", w.id), { sortOrder: w.sortOrder, updatedAt });
+      await batch.commit();
+    }
+    if (writes.length) await adminApi.recordAuditLog("catalog", `Rearranged the shop order (${writes.length} book${writes.length === 1 ? "" : "s"} moved)`);
   },
 
   // The publisher changed a book's pre-order switch or Publication date: carry the new release date
@@ -592,6 +630,7 @@ export const adminApi = {
     }
     const flags = await adminApi.getPrivateKeyFlags();
     merged.payments = { ...merged.payments, stripe: { ...(merged.payments?.stripe || {}), secretKeyStored: flags.stripeLive, testSecretKeyStored: flags.stripeTest, ...(flags.stripeMigrated ? { keysWerePublic: true } : {}) } };
+    merged.payments = { ...merged.payments, paypal: { ...(merged.payments?.paypal || {}), clientSecretStored: flags.paypalLive, testClientSecretStored: flags.paypalTest } };
     merged.communications = { ...merged.communications, resendApiKeyStored: flags.resend };
     // Older designs never chose a themeStyle: render them in Riso Noir (content untouched).
     if (merged.design) merged.design = withRisoNoirDefault(merged.design);
@@ -948,7 +987,14 @@ export const adminApi = {
         message = `Dispatched via ${tracking.trackingCarrier}. Tracking: ${tracking.trackingNumber}`;
       } else if (action === "edit_tracking") {
         if (fulfillmentMethod(o) !== "shipping" || queueOf(o) !== "In transit") throw new Error("Tracking can only be corrected while the parcel is in transit.");
-        if (o.labelUrl) {
+        if (o.labelUrl && payload.replaceLabel === true) {
+          // The label was voided or replaced: record the real carrier and number (the Shippo webhook finds the
+          // order by number) and keep the old label in the private history.
+          const tracking = trackingFields(payload);
+          tx.update(ref, { ...tracking, labelUrl: deleteField(), updatedAt: now });
+          operations.labelHistory = [...(operations.labelHistory || []), { trackingNumber: o.trackingNumber || null, trackingCarrier: o.trackingCarrier || null, labelUrl: o.labelUrl, replacedAt: now, replacedBy: "admin" }];
+          message = `Label #${o.trackingNumber || ""} replaced: tracking is now ${tracking.trackingCarrier} · ${tracking.trackingNumber}`;
+        } else if (o.labelUrl) {
           // Shippo owns the carrier and number (its webhook finds the order by number); only the link may change.
           const { trackingUrl } = trackingFields({ trackingCarrier: o.trackingCarrier || "Carrier", trackingNumber: o.trackingNumber || "-", trackingUrl: payload.trackingUrl });
           tx.update(ref, { trackingUrl, updatedAt: now });
@@ -1051,6 +1097,20 @@ export const adminApi = {
     return { deleted, failed, refused };
   },
 
+  // Archive keeps the order (and its payment/stock history) but takes it out of the work queues.
+  archiveOrders: async (orderIds: string[], archived = true) => {
+    let changed = 0;
+    const failed: string[] = [];
+    for (const id of orderIds) {
+      try {
+        await updateDoc(doc(db, "orders", id), archived ? { archivedAt: new Date().toISOString() } : { archivedAt: deleteField() });
+        changed += 1;
+      } catch { failed.push(id); }
+    }
+    if (changed) { try { await adminApi.recordAuditLog("orders", `${archived ? "Archived" : "Restored"} ${changed} order${changed === 1 ? "" : "s"}`); } catch { /* best effort */ } }
+    return { changed, failed };
+  },
+
   registerStripePaymentDomain: async (origin: string) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
@@ -1062,6 +1122,18 @@ export const adminApi = {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Couldn't register the domain with Stripe.");
     return result as { domain: string; applePay: string; googlePay: string };
+  },
+
+  // Deletes a stored PayPal client secret (admin-only adminSecrets/paypal). Live then falls back to the Functions secret.
+  removePaypalSecret: async (mode: "live" | "test") => {
+    await setDoc(doc(db, "adminSecrets", "paypal"), { [mode === "live" ? "clientSecret" : "testClientSecret"]: deleteField(), updatedAt: serverTimestamp() }, { merge: true });
+    await adminApi.recordAuditLog("payments", `Removed the stored PayPal ${mode} client secret`);
+  },
+
+  // Deletes the stored Resend key (admin-only adminSecrets/resend); email then uses the RESEND_API_KEY Functions secret.
+  removeResendKey: async () => {
+    await setDoc(doc(db, "adminSecrets", "resend"), { apiKey: deleteField(), updatedAt: serverTimestamp() }, { merge: true });
+    await adminApi.recordAuditLog("notifications", "Removed the stored Resend API key");
   },
 
   // Deletes a stored Stripe secret key (admin-only adminSecrets/stripe). Live then
@@ -1389,8 +1461,12 @@ export const adminApi = {
 
   // Secret API keys live only in the admin-only adminSecrets collection.
   writePrivateKeys: async (secrets: SecretPatch) => {
+    // The server prefers this stored key over its own, so a wrong one would silently stop the backup sender.
+    const resendProblem = secrets.resend ? resendKeyProblem(secrets.resend.apiKey || "") : "";
+    if (resendProblem) throw new Error(resendProblem);
     if (secrets.stripe) await setDoc(doc(db, "adminSecrets", "stripe"), { ...secrets.stripe, updatedAt: serverTimestamp() }, { merge: true });
     if (secrets.resend) await setDoc(doc(db, "adminSecrets", "resend"), { ...secrets.resend, updatedAt: serverTimestamp() }, { merge: true });
+    if (secrets.paypal) await setDoc(doc(db, "adminSecrets", "paypal"), { ...secrets.paypal, updatedAt: serverTimestamp() }, { merge: true });
   },
 
   getRecentEmailLog: async (count = 5) => {
@@ -1400,9 +1476,10 @@ export const adminApi = {
 
   getPrivateKeyFlags: async () => {
     const read = async (id: string) => { try { const s = await getDoc(doc(db, "adminSecrets", id)); return s.exists() ? s.data() as any : {}; } catch { return {}; } };
-    const [stripe, resend] = await Promise.all([read("stripe"), read("resend")]);
+    const [stripe, resend, paypal] = await Promise.all([read("stripe"), read("resend"), read("paypal")]);
     return {
       stripeLive: !!stripe.secretKey, stripeTest: !!stripe.testSecretKey, resend: !!resend.apiKey,
+      paypalLive: !!paypal.clientSecret, paypalTest: !!paypal.testClientSecret,
       // Set when a key was found in the public settings and moved here: only then is "rotate it" advice shown.
       stripeMigrated: stripe.migratedFromPublic === true, resendMigrated: resend.migratedFromPublic === true,
     };
@@ -1437,6 +1514,20 @@ export const adminApi = {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Failed to load Canada Post rates.");
+    return result;
+  },
+
+  // Void a bought label that has not left the shop (Shippo refunds it) so a new one can be bought.
+  voidLabel: async (orderId: string, confirmedElsewhere = false) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createShippingLabel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ orderId, mode: "voidLabel", confirmedElsewhere }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Couldn't void the label.");
     return result;
   },
 
@@ -1727,105 +1818,52 @@ export const adminApi = {
 
     const rawBooks = snapshot.val() as Record<string, { data: string; ts: number }>;
 
-    // Build a simple map:  legacyKey → stock
-    const stockMap: Record<string, number> = {};
-    for (const [bookId, payload] of Object.entries(rawBooks)) {
+    // Counts must be whole numbers of 0 or more; anything else is reported, never turned into 0.
+    const { stockMap, invalid } = readLegacyStock(rawBooks as any);
+
+    // 3.  The website catalog (with the private legacy-match key merged in), then an exact-match plan.
+    const books = await adminApi.getAllBooks();
+    const plan = planLegacySync(stockMap, books);
+
+    // 4.  One transaction per book: re-read it, refuse if it became an edition book, then copy the count.
+    const results: Array<{ id: string; title: string; slug: string; legacyKey: string; stock: number; matched: boolean }> = [];
+    const failed: Array<{ bookId: string; title: string; reason: string }> = [];
+    const syncedAt = new Date().toISOString();
+    for (const m of plan.matches) {
       try {
-        const parsed = JSON.parse(payload.data || "{}");
-        stockMap[bookId] = typeof parsed.stock === "number" ? parsed.stock : 0;
-      } catch {
-        stockMap[bookId] = 0;
+        await runTransaction(db, async (tx) => {
+          const ref = doc(db, "books", m.bookId);
+          const snap = await tx.get(ref);
+          if (!snap.exists()) throw new Error("the book no longer exists");
+          const live: any = snap.data();
+          if (Array.isArray(live.variants) && live.variants.length) throw new Error("the book is now sold in editions");
+          tx.update(ref, { stockLevel: m.stock, updatedAt: syncedAt, lastInventorySync: syncedAt, legacyInventoryKey: deleteField() });
+          tx.set(privateBookRef(m.bookId), { legacyInventoryKey: m.legacyKey, updatedAt: syncedAt }, { mergeFields: ["legacyInventoryKey", "updatedAt"] });
+        });
+        results.push({ id: m.bookId, title: m.title, slug: m.slug, legacyKey: m.legacyKey, stock: m.stock, matched: true });
+      } catch (err: any) {
+        failed.push({ bookId: m.bookId, title: m.title, reason: err?.message || "not saved" });
       }
     }
+    const updateCount = results.length;
 
-    // 3.  Fetch all website books from Firestore
-    const booksSnap = await getDocs(collection(db, "books"));
-
-    type SyncResult = {
-      id: string;
-      title: string;
-      slug: string;
-      legacyKey: string;
-      stock: number;
-      matched: boolean;
-    };
-
-    const results: SyncResult[] = [];
-    const batch = writeBatch(db);
-    let updateCount = 0;
-
-    for (const bookDoc of booksSnap.docs) {
-      const data = bookDoc.data();
-      const slug = (data.slug || "").toLowerCase().trim();
-      const title = (data.title || "").toLowerCase().trim();
-
-      // Match priority:
-      //   1. Exact slug match ("hound" === "hound")
-      //   2. Case-insensitive title contains or is contained in legacy key
-      let legacyKey: string | undefined = Object.keys(stockMap).find(
-        (k) => k.toLowerCase().trim() === slug
-      );
-
-      if (!legacyKey && title) {
-        legacyKey = Object.keys(stockMap).find((k) => {
-          const lk = k.toLowerCase().trim();
-          return lk.includes(title) || title.includes(lk);
-        });
-      }
-
-      if (legacyKey !== undefined) {
-        const newStock = stockMap[legacyKey];
-        batch.update(doc(db, "books", bookDoc.id), {
-          stockLevel: newStock,
-          updatedAt: new Date().toISOString(),
-          lastInventorySync: new Date().toISOString(),
-          legacyInventoryKey: deleteField(), // lives in the private document now
-        });
-        batch.set(privateBookRef(bookDoc.id), { legacyInventoryKey: legacyKey, updatedAt: new Date().toISOString() }, { mergeFields: ["legacyInventoryKey", "updatedAt"] });
-        updateCount++;
-        results.push({
-          id: bookDoc.id,
-          title: data.title,
-          slug: data.slug,
-          legacyKey,
-          stock: newStock,
-          matched: true,
-        });
-      } else {
-        results.push({
-          id: bookDoc.id,
-          title: data.title,
-          slug: data.slug,
-          legacyKey: "",
-          stock: data.stockLevel ?? 0,
-          matched: false,
-        });
-      }
-    }
-
-    if (updateCount > 0) await batch.commit();
-
-    // 4.  Persist sync metadata so the UI can show "Last synced"
+    // 5.  Persist sync metadata so the UI can show "Last synced" (counts only: the old shop's names stay private).
     await setDoc(
       doc(db, "settings", "website"),
-      {
-        inventory: {
-          lastSync: new Date().toISOString(),
-          lastSyncCount: updateCount,
-          legacyBooks: Object.keys(stockMap),
-        },
-      },
+      { inventory: { lastSync: syncedAt, lastSyncCount: updateCount } },
       { merge: true }
     );
 
-    await adminApi.recordAuditLog("inventory", `Synchronized inventory with legacy core. ${updateCount} records updated.`);
+    await adminApi.recordAuditLog("inventory", `Synchronized inventory with legacy core. ${updateCount} records updated, ${plan.skipped.length + failed.length + invalid.length} skipped.`);
 
     return {
       synced: updateCount,
-      unmatched: results.filter((r) => !r.matched).length,
-      legacyTotal: Object.keys(stockMap).length,
+      unmatched: plan.unmatched,
+      legacyTotal: Object.keys(stockMap).length + invalid.length,
       stockMap,
       results,
+      skipped: [...plan.skipped, ...failed],
+      invalid,
     };
   },
 

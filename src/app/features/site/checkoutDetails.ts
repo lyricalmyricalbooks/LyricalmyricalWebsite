@@ -4,7 +4,7 @@ import { COUNTRIES } from "./shippingZones";
 import { regionsFor } from "./postalRegion";
 
 // Countries whose addresses have no postal code. Asking for one would turn valid shoppers away.
-const NO_POSTAL_CODE = new Set([
+export const NO_POSTAL_CODE = new Set([
   "AO", "AG", "AW", "BS", "BZ", "BJ", "BW", "BF", "BI", "CM", "CF", "KM", "CG", "CD", "CK", "CI", "DJ", "DM", "ER", "FJ",
   "GM", "GH", "GD", "GY", "HK", "KI", "MO", "ML", "MR", "NR", "NU", "QA", "RW", "KN", "LC", "ST", "SC", "SL", "SB", "SR",
   "SY", "TL", "TG", "TK", "TO", "TT", "TV", "UG", "VU", "YE", "ZW", "AE",
