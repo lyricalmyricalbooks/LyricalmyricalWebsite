@@ -139,7 +139,11 @@ service cloud.firestore {
         && resource.data.get('reconciliationPending', null) == null
         && resource.data.get('paymentMismatch', null) == null
         && resource.data.get('giftCardConflict', null) == null
-        && resource.data.get('duplicatePayments', []).size() == 0));
+        && resource.data.get('duplicatePayments', []).size() == 0
+        && (resource.data.get('status', '') == 'cancelled' || (
+          resource.data.get('stripePaymentIntentId', null) == null
+          && resource.data.get('stripeCheckoutSessionId', null) == null
+          && resource.data.get('paypalOrderId', null) == null))));
     }
     // Server-only counters for the public-endpoint rate limits (functions/rateLimit.js).
     match /rate-limits/{id} {

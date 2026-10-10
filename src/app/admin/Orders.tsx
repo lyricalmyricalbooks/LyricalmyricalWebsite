@@ -7,7 +7,8 @@ import toast from "react-hot-toast";
 import { WORK_QUEUES, queueOf, packingKey, daysInTransit, isOverdueInTransit } from "./fulfillment";
 import { printOrders } from "./orderPrint";
 import { mergeOrder } from "./ordersDesk";
-import { buildCatalogSearchIndex, orderMatches, type CatalogSearchIndex } from "./orderSearch";
+import { buildCatalogSearchIndex, type CatalogSearchIndex } from "./orderSearch";
+import { tabCountsFor, tabOrders } from "./ordersTable";
 import { batchDispatchFields, listDate, orderDate, orderMoney, orderTime, splitDeletable } from "./orderListHelpers";
 import { orderApi } from "../lib/commerce";
 import {
@@ -45,7 +46,7 @@ const listMemory: {
 
 // Orders waiting on the publisher (shown as the nav badge and on the Overview).
 export const ACTION_QUEUES = ["Needs attention", "Ready to pack", "Ready to ship", "Ready for pickup", "Ready for local delivery"];
-export const ordersNeedingWork = (orders: any[]) => orders.filter((o) => o.isTest !== true && ACTION_QUEUES.includes(queueOf(o))).length;
+export const ordersNeedingWork = (orders: any[]) => orders.filter((o) => o.isTest !== true && !o.archivedAt && ACTION_QUEUES.includes(queueOf(o))).length;
 
 // Loads every order (with fulfillment records) and keeps it for the list's instant return.
 export async function refreshOrdersCache() {
@@ -236,6 +237,18 @@ export function Orders({
     loadOrders();
   };
 
+  // Keep the order and its payment history, but take it out of the work queues.
+  const handleArchiveSelected = async () => {
+    const ids = selectedArr;
+    setConfirmDeleteOrders(false);
+    if (!ids.length) return;
+    const { changed, failed } = await adminApi.archiveOrders(ids);
+    if (changed) toast.success(`Archived ${changed} order${changed === 1 ? "" : "s"}. They still show under All orders.`);
+    if (failed.length) toast.error(`Could not archive ${failed.length} order${failed.length === 1 ? "" : "s"}`);
+    setSelected(new Set(failed));
+    loadOrders();
+  };
+
   const handleBulkUpdate = async (kind: BatchKind) => {
     setConfirmBatch(false);
     if (busy) return;
@@ -289,47 +302,18 @@ export function Orders({
   // ⚡ Bolt: Memoize filtered orders and hoist search query lowercasing to prevent
   // O(N) redundant string allocations and array iteration on every render.
   // Measured impact: Significantly reduces main thread blocking during active typing in search.
+  const filters = useMemo(() => ({ orderType, range, query: searchQuery, catalog }), [orderType, range, searchQuery, catalog]);
   const filteredOrders = useMemo(() => {
-    return orders
-      .filter((o) => {
-        const matchesTab =
-          activeTab === "All orders" || queueOf(o) === activeTab;
-
-        const matchesOrderType =
-          orderType === "all" ||
-          (orderType === "test" && o.isTest === true) ||
-          (orderType === "production" && o.isTest !== true);
-
-        if (!matchesTab || !matchesOrderType) return false;
-        if (
-          range !== "all" &&
-          Date.now() - orderTime(o) >
-            Number(range) * 86400000
-        )
-          return false;
-
-        return orderMatches(o, searchQuery, catalog);
-      })
-      .sort((a, b) => {
-        if (sort === "total-desc") return (b.total || 0) - (a.total || 0);
-        if (sort === "total-asc") return (a.total || 0) - (b.total || 0);
-        const d = orderTime(a) - orderTime(b);
-        return sort === "oldest" ? d : -d;
-      });
-  }, [orders, activeTab, searchQuery, orderType, range, sort, catalog]);
-
-  const tabCounts = useMemo(() => {
-    const c: Record<string, number> = {};
-    const base = orders.filter(
-      (o) =>
-        orderType === "all" ||
-        (orderType === "test" ? o.isTest === true : o.isTest !== true),
-    );
-    WORK_QUEUES.forEach((t) => {
-      c[t] = base.filter((o) => t === "All orders" || queueOf(o) === t).length;
+    return tabOrders(orders, filters, activeTab).sort((a, b) => {
+      if (sort === "total-desc") return (b.total || 0) - (a.total || 0);
+      if (sort === "total-asc") return (a.total || 0) - (b.total || 0);
+      const d = orderTime(a) - orderTime(b);
+      return sort === "oldest" ? d : -d;
     });
-    return c;
-  }, [orders, orderType]);
+  }, [orders, activeTab, filters, sort]);
+
+  // Same date range, search and order type as the rows, so a tab's count matches what opens.
+  const tabCounts = useMemo(() => tabCountsFor(orders, filters), [orders, filters]);
 
   const PAGE_SIZE = 25;
   const pageCount = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
@@ -846,6 +830,11 @@ export function Orders({
             <SecondaryButton data-autofocus onClick={() => setConfirmDeleteOrders(false)}>
               Cancel
             </SecondaryButton>
+            {deleteSplit.refused.length > 0 && (
+              <SecondaryButton onClick={handleArchiveSelected}>
+                {`Archive ${selectedArr.length} instead`}
+              </SecondaryButton>
+            )}
             <DestructiveButton disabled={!deleteSplit.allowed.length} onClick={handleDeleteOrders}>
               {`Delete ${deleteSplit.allowed.length} order${deleteSplit.allowed.length === 1 ? "" : "s"}`}
             </DestructiveButton>
@@ -861,7 +850,7 @@ export function Orders({
           {deleteSplit.refused.length > 0 && (
             <>
               <p style={{ margin: 0 }}>
-                {`${deleteSplit.refused.length} will be kept — paid, refunded and shipped orders stay for your records (refund or cancel them instead):`}
+                {`${deleteSplit.refused.length} will be kept — paid, refunded, shipped and in-progress orders stay for your records. Archive them to tidy the queues, or refund or cancel them first:`}
               </p>
               <ul style={{ margin: 0, maxHeight: 160, overflowY: "auto" }}>
                 {deleteSplit.refused.slice(0, 20).map(({ order, reason }) => (

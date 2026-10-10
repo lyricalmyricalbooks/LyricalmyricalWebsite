@@ -422,7 +422,7 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
       setShippoConfig(config);
       setShippoApiKey("");
       setShowShippoApiKey(false);
-      setShippoMessage({ type: "success", text: "Shippo API key saved and synced to Firebase." });
+      setShippoMessage({ type: "success", text: `Shippo accepted the key. Saved as a ${config?.mode === "test" ? "TEST" : "LIVE"} key.` });
     } catch (err: any) {
       setShippoMessage({ type: "error", text: err.message || "Could not save the Shippo API key." });
     } finally {
@@ -868,15 +868,20 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
 
         {shippingView === "carrier" && (
         <SectionCard title="Shippo connection" description="Address verification, live carrier rates and shipping labels."
-          actions={!shippoLoading && <StatusBadge tone={shippoConnected ? "success" : "warning"}>{shippoConnected ? "Connected" : "Not connected"}</StatusBadge>}>
+          actions={!shippoLoading && <StatusBadge tone={!shippoConnected ? "warning" : shippoConfig?.mode === "test" ? "warning" : "success"}>{!shippoConnected ? "Not connected" : shippoConfig?.mode === "test" ? "Connected · TEST key" : shippoConfig?.mode === "live" ? "Connected · LIVE" : "Connected"}</StatusBadge>}>
           {!shippoLoading && !shippoConnected && (
             <p role="alert" style={{ margin: "0 0 16px", padding: 12, background: "var(--rp-warning-tint)", border: "1px solid var(--rp-warning)", color: "var(--rp-warning)" }}>
               ⚠ Shippo isn't connected, so customer addresses aren't verified and live carrier rates are unavailable. Flat profile rates still apply.
             </p>
           )}
+          {shippoConnected && shippoConfig?.mode === "test" && (
+            <p role="alert" style={{ margin: "0 0 16px", padding: 12, background: "var(--rp-warning-tint)", border: "1px solid var(--rp-warning)", color: "var(--rp-warning)" }}>
+              ⚠ This is a Shippo TEST key. Sandbox labels have no real postage and their tracking numbers never track, so real orders can't buy labels until you save your live key (it starts with shippo_live_).
+            </p>
+          )}
           {shippoConnected && (
             <div className="rp-stack" style={{ gap: 12, marginBottom: 16 }}>
-              <p className="rp-hint" style={{ margin: 0 }}>Active key ending in <span className="rp-mono">••••{shippoConfig.lastFour}</span>{shippoConfig.source === "environment" && " (Firebase secret)"}</p>
+              <p className="rp-hint" style={{ margin: 0 }}>Active {shippoConfig.mode ? `${shippoConfig.mode} ` : ""}key ending in <span className="rp-mono">••••{shippoConfig.lastFour}</span>{shippoConfig.source === "environment" && " (Firebase secret)"}{shippoConfig.verifiedAt ? ` · checked with Shippo ${new Date(shippoConfig.verifiedAt).toLocaleDateString()}` : ""}</p>
               <Toggle label="Live carrier rates at checkout" checked={shippoConfig?.dynamicRatesEnabled ?? false}
                 onChange={async (enabled) => {
                   try {

@@ -47,6 +47,8 @@ type Props = {
   onReleasePreorder?: () => void;
   /** Owner checked Shippo after an uncertain label purchase: unlock buying a new label. */
   onClearLabelLock?: () => void;
+  /** The label is wrong (weight, address, service): void it and buy another before the parcel leaves. */
+  onReplaceLabel?: () => void;
 };
 export function FulfillmentWorkbench({
   order,
@@ -67,6 +69,7 @@ export function FulfillmentWorkbench({
   onRelease,
   onReleasePreorder,
   onClearLabelLock,
+  onReplaceLabel,
   books,
 }: Props) {
   const queue = queueOf(order);
@@ -382,6 +385,9 @@ export function FulfillmentWorkbench({
                   Open Shippo
                 </a>{" "}
                 before trying again.
+                {order.operations?.shippoTransactionId && (
+                  <> Shippo transaction: <span className="rp-mono">{order.operations.shippoTransactionId}</span> (search for it under Shippo › Labels).</>
+                )}
               </p>
               {onClearLabelLock && (
                 <div className="fw-actions">
@@ -420,6 +426,11 @@ export function FulfillmentWorkbench({
                       <PrimaryButton onClick={onDispatch} disabled={busy}>
                         Parcel handed over — mark shipped
                       </PrimaryButton>
+                      {onReplaceLabel && (
+                        <SecondaryButton disabled={busy} onClick={onReplaceLabel}>
+                          Wrong label? Replace it
+                        </SecondaryButton>
+                      )}
                     </>
                   ) : (
                     <>
@@ -493,7 +504,7 @@ export function FulfillmentWorkbench({
                   )}
                   {onEditTracking && (
                     <SecondaryButton disabled={busy} onClick={onEditTracking}>
-                      {order.labelUrl ? "Edit tracking link" : "Edit tracking"}
+                      {order.labelUrl ? "Edit tracking link or number" : "Edit tracking"}
                     </SecondaryButton>
                   )}
                 </div>

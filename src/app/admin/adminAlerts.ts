@@ -1,3 +1,4 @@
+import { physicalItems } from "./fulfillment";
 import { currentRows } from "./emailLogDisplay";
 import { waitingPreorderLines, preorderClockStart } from "../features/site/preorder";
 // Admin-wide alerts shown above every admin page (AdminAlerts.tsx). Pure, tested.
@@ -106,7 +107,7 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
   if (oversold.length) out.push(alert("oversold", "warning", `${plural(oversold.length, "paid order was", "paid orders were")} oversold`,
     `More copies were sold than were in stock: ${list(oversold)}. Restock or contact the customer.`, oversold));
 
-  const late = orders.filter((o) => o.paymentStatus === "paid" && !isFinished(o) && !waitingPreorderLines(o, o.operations || {}, new Date(now)).length && shipAge(o, now) >= SHIP_LATE_MS);
+  const late = orders.filter((o) => o.paymentStatus === "paid" && !isFinished(o) && !o.isTest && (!o.items?.length || physicalItems(o).length > 0) && !waitingPreorderLines(o, o.operations || {}, new Date(now)).length && shipAge(o, now) >= SHIP_LATE_MS);
   if (late.length) out.push(alert("ship-late", "warning", `${plural(late.length, "paid order has", "paid orders have")} waited over 3 days to ship`,
     `Oldest first: ${list(late.sort((a, b) => shipAge(b, now) - shipAge(a, now)))}.`, late));
 

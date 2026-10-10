@@ -422,6 +422,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "trackBoxSetIncludes", label: "Box set contents", default: "Includes {items}", hint: "Use {items} for the books, e.g. “2 × Title, 1 × Title”." },
       { key: "trackReturnHeading", label: "Return progress heading", default: "Your return" },
       { key: "trackReturn_approved", label: "Return approved", default: "Return approved — follow the instructions below." },
+      { key: "trackReturn_closed", label: "Return closed", default: "This return request has been closed. No refund is due; contact us if you have questions." },
       { key: "trackReturn_rejected", label: "Return rejected", default: "Return request declined — see the explanation below." },
       { key: "trackReturn_received", label: "Return received", default: "Return parcel received." },
       { key: "trackReturn_inspected", label: "Return inspected", default: "Books inspected — awaiting refund." },
