@@ -38,7 +38,7 @@ const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shippingGeo");
 const { emailIdentity, openClaims, limitReached } = require("./discountClaims");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck, failedRefundId } = require("./stripeRecovery");
-const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences } = require("./emailMoney");
+const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences, forDigitalOnlyOrder } = require("./emailMoney");
 const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { runReviewRequests, REVIEW_REQUEST_TEMPLATE } = require("./reviewRequests");
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines } = require("./paymentGuards");
@@ -49,7 +49,8 @@ const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = requir
 const { hitLimit, LIMITS, clientIpOf } = require("./rateLimit");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner } = require("./stockHolds");
 const { preorderActive, preorderLine, preorderEmailLines } = require("./preorder");
-const { claimEmailSend, reminderFirstName, nextDailyCount } = require("./emailThrottle");
+const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCount } = require("./emailThrottle");
+const { hasOwnershipProof } = require("./emailProof");
 const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
 const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
 
@@ -379,6 +380,9 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
   // so a reply lost after Resend accepted the message can't turn into a second copy.
   const queueId = outboxId || (queue ? crypto.randomBytes(12).toString("hex") : "");
   const okExtra = { ...(queue ? { kind: String(queue) } : {}), ...(outboxId ? { outboxId } : {}), ...(attempt > 1 ? { attempt } : {}), ...aboutOrder };
+  // Callers that forgot to pass the Functions secret still get it (every function that can
+  // send mail declares RESEND_API_KEY): resendSecretValue() reads "" when it isn't declared.
+  secret = secret || resendSecretValue();
   let apiKey = secret;
   let keySource = secret ? "secret" : "none";
   let fromName = "Lyricalmyrical Books";
@@ -2545,6 +2549,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
     if (duplicateAlert) {
       await sendEmail({
         queue: "paidTwiceAlert",
+        secret: RESEND_API_KEY.value(),
         to: ADMIN_TO,
         subject: `⚠ Order ${duplicateAlert.orderId} was paid twice`,
         html: `<p>Stripe took a second payment (${escapeHtml(duplicateAlert.paymentIntentId || "")}, ${(Number(duplicateAlert.amount) / 100).toFixed(2)} ${escapeHtml(String(duplicateAlert.currency || "").toUpperCase())}) for order <strong>${escapeHtml(duplicateAlert.orderId)}</strong>, which was already paid.</p><p>Refund the second payment in the Stripe Dashboard. The order keeps its first payment.</p>`,
@@ -3102,7 +3107,7 @@ async function handleTrackingLink(req, res) {
       const settings = (await db.collection("settings").doc("website").get()).data() || {};
       const copy = settings.design?.copy || {};
       const url = siteLink(`/track?orderId=${encodeURIComponent(orderId)}&key=${order.trackingKey}`);
-      await sendEmail({ to: order.customer.email,
+      await sendEmail({ to: order.customer.email, secret: RESEND_API_KEY.value(),
         subject: String(copy.trackLinkEmailSubject ?? "Your secure order link"),
         html: `<p>${escapeHtml(copy.trackLinkEmailIntro ?? "Use this private link to view your order and delivery updates.")}</p><p><a href="${escapeHtml(url)}">${escapeHtml(copy.trackLinkEmailButton ?? "View my order")}</a></p>` });
     }
@@ -3175,8 +3180,10 @@ async function handleOrderRequest(req, res) {
       return;
     }
     const request = order.customerRequest;
-    await sendEmail({
+    // The request itself is saved on the order; the shop-wide email budget only decides whether it is also mailed.
+    if (await claimEmailSend(db, "orderRequestNotify", orderId, { failOpen: true })) await sendEmail({
       queue: "orderRequest",
+      secret: RESEND_API_KEY.value(),
       to: ADMIN_TO,
       subject: `${request.type === "cancel" ? "Cancellation" : "Return"} request · order ${orderId}`,
       html: `<p>${escapeHtml(order.customer?.name || order.customer?.email || "A customer")} asked to <strong>${request.type === "cancel" ? "cancel" : "return"}</strong> order <strong>${escapeHtml(orderId)}</strong>.</p>${request.message ? `<blockquote>${escapeHtml(request.message)}</blockquote>` : ""}<p>Open it in Admin › Orders (Needs me). Refunds and cancellations are done from the order as usual; mark the request handled when you have replied.</p>`,
@@ -3203,9 +3210,22 @@ async function handlePrivacyRequest(req, res) {
     return;
   }
   try {
+    // Anyone can type any address: the same address asking again within a day adds neither a
+    // second record nor a second email, and the shop-wide email budget caps the rest. A request
+    // over the budget is still recorded (Settings › General › Privacy requests) but not mailed.
+    const claim = await claimEmailSendDetailed(db, "privacyNotify", record.email, { failOpen: true });
+    if (!claim.allowed && claim.reason === "address") {
+      res.status(200).json({ ok: true });
+      return;
+    }
     await db.collection("privacyRequests").add(record);
+    if (!claim.allowed) {
+      res.status(200).json({ ok: true });
+      return;
+    }
     await sendEmail({
       queue: "privacyRequest",
+      secret: RESEND_API_KEY.value(),
       to: ADMIN_TO,
       subject: `Privacy request (${record.type === "delete" ? "delete data" : "copy of data"}) · ${record.email}`,
       html: `<p><strong>${escapeHtml(record.email)}</strong> asked for ${record.type === "delete" ? "their personal data to be deleted" : "a copy of their personal data"}.</p>${record.message ? `<blockquote>${escapeHtml(record.message)}</blockquote>` : ""}<p>Confirm the request by email with that address first, then open Admin › Settings › General › Privacy requests.</p>`,
@@ -3294,7 +3314,7 @@ async function handlePrivacyAdmin(req, res) {
 // 2. HTTP Endpoint: Stripe Payment Webhook (Secure)
 // ──────────────────────────────────────────────────────────────
 exports.stripeWebhook = onRequest(
-  { secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET] },
+  { secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY] },
   async (req, res) => {
     if (req.method !== "POST") {
       res.status(405).send("Method Not Allowed");
@@ -3987,6 +4007,8 @@ function deliveryDetails(order) {
   };
 }
 
+const isPhysicalAny = order => (order?.items || []).some(item => item && isPhysicalItem(item));
+
 // Public storefront address for links in emails. Override with the SITE_URL env var
 // (functions/.env) when the shop moves to its own domain.
 const SITE_URL = String(process.env.SITE_URL || "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial").replace(/\/+$/, "");
@@ -4275,11 +4297,13 @@ exports.onOrderUpdated = onDocumentUpdated(
         paymentConfirmedSection = `
           <div style="margin-top:28px;padding:24px;background:#ecfdf5;border-radius:16px;border:1px solid #10b98120;">
             <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#10b981;">Payment Verified</h3>
-            <p style="font-size:12px;color:#065f46;margin-bottom:0;line-height:1.6;">We have verified your payment via <strong>${escapeHtml(order.paymentMethod)}</strong>. Your order is now confirmed and being prepared for shipment.</p>
+            <p style="font-size:12px;color:#065f46;margin-bottom:0;line-height:1.6;">We have verified your payment via <strong>${escapeHtml(order.paymentMethod)}</strong>. Your order is now confirmed${isPhysicalAny(order) ? " and being prepared for shipment" : ""}.</p>
           </div>
         `;
       }
       const delivery = deliveryDetails(order);
+      // Nothing physical in the order: no "preparing it for shipment" / "we'll email when it ships".
+      const digitalOnlyOrder = (order.items || []).length > 0 && (order.items || []).every(item => !item || !isPhysicalItem(item));
       const deliverySection = delivery.heading ? `
           <div style="margin-top:28px;padding:20px 24px;border:2px solid #111;">
             <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">${escapeHtml(delivery.heading)}</h3>
@@ -4294,7 +4318,9 @@ exports.onOrderUpdated = onDocumentUpdated(
           </div>` : "";
       const combinedSection = [preorderSection, deliverySection, paymentConfirmedSection, downloadSection].filter(Boolean).join("\n");
 
-      const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
+      const confirmationSettings = digitalOnlyOrder ? { ...notificationSettings, order_confirmation: { ...notificationSettings.order_confirmation,
+        body: forDigitalOnlyOrder(notificationSettings.order_confirmation?.body || DEFAULT_NOTIFICATIONS.order_confirmation.body, { hasDownloads: digitalItems.length > 0 }) } } : notificationSettings;
+      const compiled = compileEmailTemplate("order_confirmation", confirmationSettings, {
         customer_name: order.customer.name || "there",
         order_id: order.orderId || orderId,
         shipping_method: delivery.method,
@@ -4313,7 +4339,7 @@ exports.onOrderUpdated = onDocumentUpdated(
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
           <h2 style="margin-top:0;color:#16a34a;">&#10003; Payment Received</h2>
           <p><strong>Order:</strong> ${escapeHtml(order.orderId || orderId)} &nbsp;·&nbsp; <strong>${escapeHtml(chargedTotalFmt(order))}</strong></p>
-          <p style="margin:16px 0 20px;"><a href="${adminOrderUrl}" style="display:inline-block;background:#111;color:#fff;padding:12px 24px;text-decoration:none;font-size:14px;font-weight:bold;">Fulfil this order &rarr;</a></p>
+          ${risoButton(adminOrderUrl, "Fulfil this order &rarr;", notificationSettings.brand?.brandColor, notificationSettings.brand?.emailTheme)}
           <p><strong>Customer:</strong> ${escapeHtml(order.customer.name)} &lt;${escapeHtml(order.customer.email)}&gt;${order.customer.phone ? ` · ${escapeHtml(order.customer.phone)}` : ""}</p>
           <p><strong>Ship to:</strong> ${escapeHtml(adminAddr)}</p>
           <p><strong>Payment:</strong> ${escapeHtml(order.paymentMethod || "Stripe")}</p>
@@ -4655,6 +4681,13 @@ exports.abandonedCartSweep = onSchedule(
     const notificationSettings = await loadNotificationSettings();
     // Settings › Notifications › Abandoned Cart can switch these reminders off.
     if (notificationSettings.abandoned_cart?.enabled === false) return;
+    // Marketing email must carry the shop's postal address (Settings › General › Location);
+    // without one the footer would leave it out, so no reminders go until it is saved.
+    const websiteForAddress = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
+    if (!footerAddress(websiteForAddress.location)) {
+      console.warn("Abandoned-cart reminders skipped: no postal address saved in Settings › General › Location");
+      return;
+    }
     const unsubscribeKey = await marketingUnsubscribeKey();
     const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const snap = await db
@@ -4674,6 +4707,11 @@ exports.abandonedCartSweep = onSchedule(
       return bookCache.get(id);
     };
     const emailedThisRun = new Set();
+    const proofCache = new Map();
+    const ownershipProofOnce = email => {
+      if (!proofCache.has(email)) proofCache.set(email, hasOwnershipProof(db, admin.auth(), email));
+      return proofCache.get(email);
+    };
 
     const promises = pending.map(async (doc) => {
       const c = doc.data();
@@ -4681,6 +4719,9 @@ exports.abandonedCartSweep = onSchedule(
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
       // Someone who unsubscribed never gets another reminder.
       if ((await db.collection("marketing-optout").doc(optOutId(email)).get()).exists) return;
+      // Carts are written by anonymous browsers: only an address with proof of an owner (a
+      // checkout attempt or a verified account) is ever emailed. Others stay unsent and age out.
+      if (!(await ownershipProofOnce(email))) return;
 
       const lines = [];
       for (const item of (Array.isArray(c.items) ? c.items : []).slice(0, ABANDONED_CART_MAX_ITEMS)) {
@@ -4722,7 +4763,8 @@ exports.abandonedCartSweep = onSchedule(
         tx.set(dailyRef, next);
         return true;
       }).catch(() => false);
-      if (!underCap) {
+      // The shop-wide hourly/daily budget for anonymous-triggered email also applies.
+      if (!underCap || !(await claimEmailSend(db, "abandonedCart", "", { failOpen: false }))) {
         await (previousThrottle ? throttleRef.set(previousThrottle) : throttleRef.delete()).catch(() => {});
         return;
       }
@@ -5557,7 +5599,7 @@ exports.onOrderCreated = onDocumentCreated(
       const adminHtml = `
         <p>A new order has been placed: <strong>${escapeHtml(order.orderId || orderId)}</strong> · ${moneyFmt(order.total)}</p>
         <p>It's waiting for a manual payment (${escapeHtml(order.paymentMethod || "manual")}). Once the money arrives, confirm it in the order and ship it.</p>
-        <p style="margin:16px 0 20px;"><a href="${siteLink(`/admin#orders/${orderId}`)}" style="display:inline-block;background:#111;color:#fff;padding:12px 24px;text-decoration:none;font-size:14px;font-weight:bold;">Open this order &rarr;</a></p>
+        ${risoButton(siteLink(`/admin#orders/${orderId}`), "Open this order &rarr;", notificationSettings.brand?.brandColor, notificationSettings.brand?.emailTheme)}
         <p><strong>Customer:</strong> ${escapeHtml(order.customer.name)} &lt;${escapeHtml(order.customer.email)}&gt;</p>
         <p><strong>Payment Method:</strong> ${escapeHtml(order.paymentMethod || "Stripe")}</p>
         <p><strong>Shipping Method:</strong> ${escapeHtml(order.shippingMethod || "Standard")}</p>
@@ -5637,6 +5679,9 @@ exports.onContactMessage = onDocumentCreated(
   async event => {
     const m = event.data?.data() || {};
     if (!m.email || !m.message) return;
+    // Anyone can write this document: a "from" that isn't one plain address (a list, a name in
+    // angle brackets, a header break) is never mailed to or counted against the budget.
+    const senderOk = !!cleanRecipients(m.email) && cleanRecipients(m.email).length === 1;
     const html = `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
         <h2 style="margin-top:0;">New message from your website</h2>
@@ -5647,8 +5692,10 @@ exports.onContactMessage = onDocumentCreated(
       </div>`;
     // A flood from one sender can't burn the shop's sending quota: past the hourly cap the
     // message still waits in Messages (status stays "new"), it just isn't emailed.
-    const notifyOwner = await claimEmailSend(db, "ownerNotify", m.email, { failOpen: true });
-    if (!notifyOwner) console.warn("Contact message not emailed to the shop: sender over the hourly limit");
+    // The shop-wide hourly/daily budget (claimEmailSend) also applies, so rotating fake sender
+    // addresses can't drain the Gmail quota either.
+    const notifyOwner = await claimEmailSend(db, "ownerNotify", senderOk ? m.email : "invalid-sender", { failOpen: true });
+    if (!notifyOwner) console.warn("Contact message not emailed to the shop: sender or shop-wide email limit reached");
     if (notifyOwner) try {
       await sendEmail({
         queue: "contactNotify",
@@ -5673,7 +5720,7 @@ exports.onContactMessage = onDocumentCreated(
     // one per address per day, and none of the visitor's own text (subject/message) is echoed
     // back; only the name, escaped and shortened. Older saved templates that still use
     // {{subject}}/{{message}} get blanks.
-    if (!(await claimEmailSend(db, "visitorReply", m.email))) return;
+    if (!senderOk || !(await claimEmailSend(db, "visitorReply", m.email))) return;
     // compileEmailTemplate escapes and keeps "$" literal itself.
     const safe = (v) => String(v == null ? "" : v);
     const compiled = compileEmailTemplate("contact_reply", notificationSettings, {
@@ -6119,6 +6166,7 @@ exports.onBookRestocked = onDocumentUpdated(
     const emailedThisRun = new Set();
 
     const link = siteLink(`/books/${encodeURIComponent(after.slug || bookId)}`);
+    const restockSettings = await loadNotificationSettings();
     const esc = t => String(t || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
     for (const doc of snap.docs) {
@@ -6138,6 +6186,12 @@ exports.onBookRestocked = onDocumentUpdated(
         return true;
       });
       if (!claimed) continue;
+      // Anyone can sign up (new guests included), so no proof is required, but every send takes
+      // from the shop-wide budget. Over it, the signup keeps waiting for the next restock.
+      if (!(await claimEmailSend(db, "backInStock", "", { failOpen: false }))) {
+        await doc.ref.update({ status: "waiting" }).catch(() => {});
+        continue;
+      }
       try {
         const title = esc(after.title || alert.bookTitle);
         const variant = alert.variantName ? ` (${esc(alert.variantName)})` : "";
@@ -6149,7 +6203,7 @@ exports.onBookRestocked = onDocumentUpdated(
           html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
             <h2 style="margin-top:0;">It's back!</h2>
             <p style="font-size:15px;line-height:1.6;"><strong>${title}</strong>${variant} is available again. Stock is limited, so grab your copy while you can.</p>
-            <p><a href="${link}" style="display:inline-block;background:#111;color:#fff;padding:12px 22px;text-decoration:none;font-weight:bold;">Shop now</a></p>
+            ${risoButton(link, "Shop now", restockSettings.brand?.brandColor, restockSettings.brand?.emailTheme)}
             <p style="font-size:12px;color:#888;">You received this because you asked to be notified. This is a one-time message.</p>
           </div>`,
           secret: RESEND_API_KEY.value(),

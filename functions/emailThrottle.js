@@ -5,12 +5,28 @@
 // pattern as the abandoned-cart reminder throttle.
 const crypto = require("crypto");
 
-// Visitor "we got your message" copy: at most one per address per day, so the form can't be
-// used to send mail to a stranger's inbox over and over. Owner notification: at most a few per
-// sender per hour, so a flood from one address can't burn the shop's daily sending quota.
+// Per-purpose limits. `perAddress` purposes are also counted per typed address (sha256), so one
+// sender can't flood one inbox. Visitor "we got your message" copy: one per address per day, so
+// the form can't mail a stranger over and over. Owner notification: a few per sender per hour.
 const CONTACT_LIMITS = {
-  visitorReply: { max: 1, windowMs: 24 * 60 * 60 * 1000 },
-  ownerNotify: { max: 5, windowMs: 60 * 60 * 1000 },
+  visitorReply: { max: 1, windowMs: 24 * 60 * 60 * 1000, perAddress: true },
+  ownerNotify: { max: 5, windowMs: 60 * 60 * 1000, perAddress: true },
+  // A privacy request is emailed to the shop once per address per day (the record is kept either way).
+  privacyNotify: { max: 1, windowMs: 24 * 60 * 60 * 1000, perAddress: true },
+  // Customer cancel/return requests: the shop hears about each order a few times an hour at most.
+  orderRequestNotify: { max: 3, windowMs: 60 * 60 * 1000, perAddress: true },
+  // Reminder / alert emails to addresses the shop only knows because a visitor typed them.
+  abandonedCart: { perAddress: false },
+  backInStock: { perAddress: false },
+};
+
+// One budget shared by EVERY anonymous-triggered email. The per-address counters above are keyed on
+// text the visitor chooses, so rotating fake addresses gets a fresh allowance every time; this cap
+// does not care who is typed. It keeps the shop's Gmail quota (about 500 recipients a day) for
+// order, shipping and refund email. Past it, the message simply waits in Messages / is not mailed.
+const GLOBAL_EMAIL_BUDGET = {
+  hour: { max: 40, windowMs: 60 * 60 * 1000 },
+  day: { max: 150, windowMs: 24 * 60 * 60 * 1000 },
 };
 
 const normaliseEmail = email => String(email || "").trim().toLowerCase();
@@ -25,24 +41,37 @@ function nextEmailWindow(saved, nowMs, { max, windowMs }) {
   return { allowed: true, record: { windowStart: start, count: count + 1 } };
 }
 
-// Claims one send for `purpose` to/from `email`. Resolves true when the email may go out.
+// Claims one send for `purpose` (to/from `email` where the purpose is per-address) and takes one
+// from the shop-wide hourly and daily budget, all in one transaction so a refused send uses
+// nothing. Resolves { allowed, reason } with reason "address" | "budget" | "error" when refused.
 // `failOpen` decides what a Firestore failure means (false = don't send).
-async function claimEmailSend(db, purpose, email, { now = Date.now(), failOpen = false } = {}) {
+async function claimEmailSendDetailed(db, purpose, email, { now = Date.now(), failOpen = false } = {}) {
   const limits = CONTACT_LIMITS[purpose];
-  if (!limits || !normaliseEmail(email)) return false;
-  const ref = db.collection("contact-email-throttle").doc(`${purpose}_${emailKey(email)}`);
+  if (!limits || (limits.perAddress && !normaliseEmail(email))) return { allowed: false, reason: "address" };
+  const coll = db.collection("contact-email-throttle");
+  const addressRef = limits.perAddress ? coll.doc(`${purpose}_${emailKey(email)}`) : null;
+  const hourRef = coll.doc("_global_hour");
+  const dayRef = coll.doc("_global_day");
   try {
     return await db.runTransaction(async tx => {
-      const snap = await tx.get(ref);
-      const { allowed, record } = nextEmailWindow(snap.exists ? snap.data() : null, now, limits);
-      if (allowed) tx.set(ref, { ...record, purpose, expiresAt: new Date(record.windowStart + limits.windowMs * 2) });
-      return allowed;
+      const [addressSnap, hourSnap, daySnap] = await Promise.all([addressRef ? tx.get(addressRef) : null, tx.get(hourRef), tx.get(dayRef)]);
+      const own = addressRef ? nextEmailWindow(addressSnap.exists ? addressSnap.data() : null, now, limits) : { allowed: true };
+      if (!own.allowed) return { allowed: false, reason: "address" };
+      const hour = nextEmailWindow(hourSnap.exists ? hourSnap.data() : null, now, GLOBAL_EMAIL_BUDGET.hour);
+      const day = nextEmailWindow(daySnap.exists ? daySnap.data() : null, now, GLOBAL_EMAIL_BUDGET.day);
+      if (!hour.allowed || !day.allowed) return { allowed: false, reason: "budget" };
+      if (addressRef) tx.set(addressRef, { ...own.record, purpose, expiresAt: new Date(own.record.windowStart + limits.windowMs * 2) });
+      tx.set(hourRef, { ...hour.record, purpose: "global", expiresAt: new Date(hour.record.windowStart + GLOBAL_EMAIL_BUDGET.hour.windowMs * 2) });
+      tx.set(dayRef, { ...day.record, purpose: "global", expiresAt: new Date(day.record.windowStart + GLOBAL_EMAIL_BUDGET.day.windowMs * 2) });
+      return { allowed: true, reason: "" };
     });
   } catch (err) {
     console.warn(`Email throttle unavailable (${purpose}):`, err.message);
-    return failOpen;
+    return { allowed: failOpen, reason: "error" };
   }
 }
+
+const claimEmailSend = async (db, purpose, email, options) => (await claimEmailSendDetailed(db, purpose, email, options)).allowed;
 
 // Abandoned-cart reminders go to an address any visitor can type, so the email carries nothing
 // they wrote except a plain first name ("Hi Sam"); anything else reads "Hi there".
@@ -61,4 +90,4 @@ function nextDailyCount(saved, day, cap = ABANDONED_CART_DAILY_CAP) {
   return count >= cap ? null : { day, count: count + 1 };
 }
 
-module.exports = { reminderFirstName, ABANDONED_CART_DAILY_CAP, nextDailyCount, CONTACT_LIMITS, emailKey, normaliseEmail, nextEmailWindow, claimEmailSend };
+module.exports = { GLOBAL_EMAIL_BUDGET, claimEmailSendDetailed, reminderFirstName, ABANDONED_CART_DAILY_CAP, nextDailyCount, CONTACT_LIMITS, emailKey, normaliseEmail, nextEmailWindow, claimEmailSend };

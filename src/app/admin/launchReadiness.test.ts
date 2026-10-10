@@ -5,6 +5,7 @@ const goodSettings = {
   payments: { testMode: false, stripe: { connected: true, publicKey: "pk_live_" + "a".repeat(24), secretKeyStored: true } },
   policies: { shipping: "x", returns: "x", privacy: "x", terms: "x" },
   taxes: { rates: [{ country: "CA", rate: 13 }] },
+  location: { street: "1 Main St", city: "Toronto", state: "ON", country: "Canada" },
 };
 const goodBook = { title: "A", status: "published", retailPrice: 20, photos: [{ url: "u" }], description: "d" };
 const status = (items: any[], id: string) => items.find(i => i.id === id)?.status;
@@ -114,5 +115,14 @@ describe("readiness evidence boundaries", () => {
     expect(status(launchReadiness({ ...base, emailLog: [{ status: "queued", error: "Gmail refused" }] }), "email")).toBe("block");
     expect(status(launchReadiness({ ...base, emailLog: [{ status: "cancelled" }, { status: "failed" }] }), "email")).toBe("block");
     expect(status(launchReadiness({ ...base, emailLog: [{ status: "cancelled" }, { status: "sent" }] }), "email")).toBe("warn");
+  });
+});
+
+describe("launchReadiness postal address", () => {
+  it("blocks while no postal address is saved, and passes once one is", () => {
+    const base = { books: [], shippingProfiles: [], emailLog: [], orders: [] };
+    expect(status(launchReadiness({ settings: {}, ...base }), "mailing-address")).toBe("block");
+    expect(status(launchReadiness({ settings: { location: { street: "  " } }, ...base }), "mailing-address")).toBe("block");
+    expect(status(launchReadiness({ settings: { location: { city: "Toronto" } }, ...base }), "mailing-address")).toBe("ok");
   });
 });

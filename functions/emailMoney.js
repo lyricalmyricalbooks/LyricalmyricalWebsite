@@ -75,4 +75,18 @@ function withoutTrackingLines(body) {
     .trim();
 }
 
-module.exports = { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences };
+// An order with nothing physical in it (e-books, audiobooks, gift cards) is never "shipped":
+// drop every sentence about shipping, dispatch or tracking from the confirmation body, and say
+// where the files are when there are download links to point at.
+function forDigitalOnlyOrder(body, { hasDownloads = false } = {}) {
+  let dropped = false;
+  const text = String(body || "").split("\n").map(line => line.split(/(?<=[.!?])\s+/)
+    .filter(sentence => {
+      const drop = /\b(ship|shipped|shipping|shipment|dispatch|dispatched|tracking|deliver(?:y|ed)?)\b/i.test(sentence);
+      dropped = dropped || drop;
+      return !drop;
+    }).join(" ")).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return dropped && hasDownloads ? `${text}${text ? " " : ""}Your download links are below.` : text;
+}
+
+module.exports = { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences, forDigitalOnlyOrder };

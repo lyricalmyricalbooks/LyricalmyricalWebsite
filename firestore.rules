@@ -328,7 +328,9 @@ service cloud.firestore {
       allow create: if request.resource.data.keys().hasOnly(["name", "email", "phone", "subject", "message", "page", "status", "createdAt"])
         && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 120
         && request.resource.data.email is string && request.resource.data.email.size() <= 254
-        && request.resource.data.email.matches(".+@.+\\..+")
+        // One plain address: no commas, semicolons, spaces or angle brackets, so the shop's
+        // "message received" reply can never be addressed to a list of strangers.
+        && request.resource.data.email.matches("[^@/\\s,;<>]+@[^@/\\s,;<>]+\\.[^@/\\s,;<>]+")
         && request.resource.data.phone is string && request.resource.data.phone.size() <= 40
         && request.resource.data.subject is string && request.resource.data.subject.size() <= 200
         && request.resource.data.message is string && request.resource.data.message.size() > 0 && request.resource.data.message.size() <= 5000
