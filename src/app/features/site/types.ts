@@ -64,6 +64,8 @@ export type SiteSettings = {
   localFulfillment?: LocalFulfillmentConfig;
   announcements?: Array<{ message: string }>;
   maintenance?: { enabled: boolean; message: string };
+  /** Most copies one shopper can have set aside at checkout (functions/stockHolds.js). */
+  stockHolds?: { perBook: number; units: number; orders: number };
   domain?: { subdomain: string; custom: string };
   info?: { name: string; description: string; website: string };
   inventory?: { tracking: boolean; overselling: boolean };

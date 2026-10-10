@@ -43,3 +43,18 @@ export function mayHaveGoneThrough(errorType: string | undefined): boolean {
 export function paymentSettled(status: string | undefined): boolean {
   return status === "complete" || status === "processing";
 }
+
+/**
+ * Everything on the order that a retry must match to reuse the earlier unpaid order. The gift
+ * message / order note is included: an edited note must make a fresh order rather than silently
+ * paying for the old text.
+ */
+export function cardAttemptKey(parts: {
+  items: unknown; total: unknown; customer: unknown; currency: string; fulfillmentSelection: unknown;
+  discountCode?: string | null; giftCardCodes?: string[]; orderNote?: string | null; addressVerified?: boolean;
+}): string {
+  return JSON.stringify([
+    parts.items, parts.total, parts.customer, parts.currency, parts.fulfillmentSelection,
+    parts.discountCode || null, parts.giftCardCodes || [], parts.orderNote || "", Boolean(parts.addressVerified),
+  ]);
+}

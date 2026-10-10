@@ -2,10 +2,11 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { COUNTRIES } from "./shippingZones";
 import { flagEmoji, matchCountries, orderedCountries } from "./countryPicker";
+import { comboboxInputProps, optionId } from "./comboboxAria";
 
 // ─── Country picker: pinned favourites, type-to-search, keyboard friendly ─────
-export function CountryField({ value, onChange, label = "Country", pinnedCodes, showFlags, words }: {
-  value: string; onChange: (v: string) => void; label?: string;
+export function CountryField({ value, onChange, label = "Country", pinnedCodes, showFlags, words, id, error }: {
+  value: string; onChange: (v: string) => void; label?: string; id?: string; error?: string;
   pinnedCodes: string[]; showFlags: boolean;
   words: { search: string; popular: string; all: string; none: (q: string) => string };
 }) {
@@ -37,10 +38,11 @@ export function CountryField({ value, onChange, label = "Country", pinnedCodes, 
     <div className="relative" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { setOpen(false); setQuery(""); } }}>
       <input
         ref={inputRef}
-        role="combobox"
-        aria-expanded={open}
+        id={id}
+        {...comboboxInputProps({ open, listId, activeIndex: active, count: results.length })}
         aria-controls={listId}
-        aria-autocomplete="list"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error && id ? `${id}-error` : undefined}
         aria-label={label}
         autoComplete="country-name"
         value={open ? query : `${selected ? flag(selected.code) : ""}${value}`}
@@ -67,15 +69,16 @@ export function CountryField({ value, onChange, label = "Country", pinnedCodes, 
       />
       <label className="absolute left-3.5 top-2 text-xs text-slate-500 pointer-events-none">{label}</label>
       <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-xs">▾</span>
+      {error && id && <p id={`${id}-error`} data-studio-target="copy:Checkout" data-studio-label="Field error" className="mt-1 text-xs leading-5" style={{ color: "var(--danger, #b4271a)" }}><span aria-hidden="true">✕ </span>{error}</p>}
       {open && (
         <ul ref={listRef} id={listId} role="listbox" aria-label={label} data-studio-target="style:checkout" data-studio-label="Country list"
           className="fm-address-suggest absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-lg border border-slate-300 bg-white py-1 shadow-lg">
-          {results.length === 0 && <li className="px-3.5 py-3 text-sm text-slate-500">{words.none(query.trim())}</li>}
+          {results.length === 0 && <li role="presentation" className="px-3.5 py-3 text-sm text-slate-500">{words.none(query.trim())}</li>}
           {results.map((c, i) => (
-            <li key={c.code}>
+            <li key={c.code} role="presentation">
               {!query.trim() && i === 0 && pinned.length > 0 && <p className="px-3.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{words.popular}</p>}
               {!query.trim() && i === pinned.length && pinned.length > 0 && <p className="mt-1 border-t border-slate-200 px-3.5 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{words.all}</p>}
-              <button type="button" role="option" aria-selected={c.name === value} data-index={i} tabIndex={-1}
+              <button type="button" role="option" id={optionId(listId, i)} aria-selected={i === active} data-index={i} tabIndex={-1}
                 onMouseDown={e => e.preventDefault()} onMouseEnter={() => setActive(i)} onClick={() => choose(c.name)}
                 className={`flex w-full items-center justify-between px-3.5 py-2 text-left text-sm text-slate-900 ${i === active ? "bg-slate-100" : ""}`}>
                 <span>{flag(c.code)}{c.name}</span>

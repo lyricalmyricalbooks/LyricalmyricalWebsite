@@ -1583,3 +1583,20 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   50 pending reviews at a time with a server-side total and fetches a reviewer's email only on **Show email** (`admin/reviewQueue.ts`;
   needs the `reviews (status, createdAt desc)` index). All CSV exports guard leading tab/CR as well as `= + - @`.
 
+## Checkout experience + stock-hold tuning (10 October 2026)
+
+- **Field errors:** `features/site/checkoutDetails.ts` `checkoutDetailProblems` is the one rule for what Pay needs (email, name,
+  country, street, city; state only where `regionsFor(country)` lists them; postal code unless `postalCodeOptional`; e-book-only bags
+  need only country + listed province). The page is a `<form noValidate>`; each problem shows under its box (`aria-invalid`,
+  `aria-describedby`, words `coErrField*`) and focus moves to the first. The same problems keep Apple/Google Pay off (`expressWalletEnabled`).
+  Keep CLAUDE.md's submission-lock rules: `createCheckoutSubmission().reset()` runs only from `onPageRestored` (browser Back from PayPal).
+- **Retry key:** `cardAttemptKey` (`cardAttempt.ts`) includes the order note and address-check result; add any new order field the shopper can edit to it.
+- **Live rates:** `getShippoRates` answers are dropped unless they belong to the newest request (`createLatestGuard`) and give up after
+  `RATES_TIMEOUT_MS`, falling back to profile rates. Exchange rates come from `exchangeRates.ts` `loadRates` (5 s timeout, 6 h session cache,
+  `ratesSource` = live | cached | fallback on `useCurrency()` and `<html data-rates-source>`).
+- **No third-party IP lookup:** checkout starts on `guessCountryName()` (browser language); address suggestions (Photon) stay. Do not re-add an IP-to-country call in the browser.
+- **Stock holds:** `settings/website.stockHolds` `{ perBook, units, orders }` (Settings › General › **Checkout stock holds**, defaults 10 / 50 / 3)
+  is read by the server (`holdLimitsFrom`, `loadHoldLimits`); connection caps are twice / 3x those, never below today's. The bag warns before Pay
+  (`holdLimits.ts` `holdWarnings`, region `checkoutHoldWarning`, words `coHoldWarning*`). A payment-time renewal keeps the order's `holders`
+  so releasing frees the shopper's count; IPv6 clients are counted by /64 (`rateLimit.js` `ipKey`, also used by `hitLimit`).
+- Server `validateAddress` still requires state and ZIP; for countries without them it answers 400 and the order is taken as `verification_unavailable`.
