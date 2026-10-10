@@ -461,6 +461,10 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
   };
 
   useSettingsDirty("notifications", !loading && !loadFailed && JSON.stringify(data) !== original);
+  // Every hook runs before the early returns below: a hook after them crashes the page once loading ends.
+  useEffect(() => {
+    if (focus === "sender" && !loading) document.getElementById("email-sender")?.scrollIntoView({ block: "start" });
+  }, [focus, loading]);
   if (loading) return <LoadingState label="Loading notification templates…" />;
   if (loadFailed) return <ErrorState title="Your email templates couldn't be loaded" description="Nothing has been changed. Saving is switched off until they load, so the defaults can't replace your saved emails." onRetry={() => { void loadSettings(); }} />;
 
@@ -549,9 +553,6 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
       setSavingSender(false);
     }
   }
-  useEffect(() => {
-    if (focus === "sender" && !loading) document.getElementById("email-sender")?.scrollIntoView({ block: "start" });
-  }, [focus, loading]);
 
   async function removeResendKey() {
     if (!(await confirm({ title: "Remove the stored Resend key?", message: "The backup sender will use the RESEND_API_KEY set in Firebase Functions (if any) until you enter a new key.", confirmLabel: "Remove key" }))) return;
