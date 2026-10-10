@@ -2,6 +2,7 @@ import { displayPrice } from "./features/site/displayPrice";
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 import { saleActive } from "./features/site/promotions";
+import { FALLBACK_RATES, loadRates, type RatesSource } from "./features/site/exchangeRates";
 
 export type Currency = "CAD" | "USD" | "EUR";
 
@@ -9,6 +10,8 @@ interface CurrencyContextType {
   currency: Currency;
   setCurrency: (c: Currency) => void;
   rates: Record<Currency, number>;
+  /** live · cached · fallback (the feed was unreachable, so prices use fixed rates). */
+  ratesSource: RatesSource;
   convertPrice: (priceInCAD: number) => number;
   formatPrice: (priceInCAD: number) => string;
   getBookPrice: (book: any, ignoreSale?: boolean) => number;
@@ -19,12 +22,6 @@ interface CurrencyContextType {
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
 
-// Initial fallback rates based on recent exchange constants
-const FALLBACK_RATES: Record<Currency, number> = {
-  CAD: 1.0,
-  USD: 0.73,
-  EUR: 0.67,
-};
 
 const CURRENCY_SYMBOLS: Record<Currency, string> = {
   CAD: "CA$ ",
@@ -53,6 +50,7 @@ export function currencyForTimeZone(tz: string): Currency {
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [currency, setCurrencyState] = useState<Currency>("CAD");
   const [rates, setRates] = useState<Record<Currency, number>>(FALLBACK_RATES);
+  const [ratesSource, setRatesSource] = useState<RatesSource>("fallback");
 
   const setCurrency = (c: Currency) => {
     setCurrencyState(c);
@@ -76,26 +74,18 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Fetch live exchange rates from Open Exchange Rates API (free, no key required)
+  // Live exchange rates, with a timeout and a per-session cache (features/site/exchangeRates.ts).
+  // `ratesSource` says whether the numbers are live, cached, or the fixed fallback.
   useEffect(() => {
-    async function fetchRates() {
-      try {
-        const res = await fetch("https://open.er-api.com/v6/latest/CAD");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.rates) {
-            setRates({
-              CAD: 1.0,
-              USD: data.rates.USD || FALLBACK_RATES.USD,
-              EUR: data.rates.EUR || FALLBACK_RATES.EUR,
-            });
-          }
-        }
-      } catch (err) {
-        console.warn("Could not fetch live exchange rates, using static fallbacks:", err);
-      }
-    }
-    fetchRates();
+    let cancelled = false;
+    loadRates().then(({ rates: next, source }) => {
+      if (cancelled) return;
+      setRates(next);
+      setRatesSource(source);
+      if (source === "fallback") console.warn("Exchange-rate feed unreachable: showing the fixed fallback rates.");
+      try { document.documentElement.dataset.ratesSource = source; } catch { /* no document */ }
+    });
+    return () => { cancelled = true; };
   }, []);
 
   const convertPrice = (priceInCAD: number) => {
@@ -143,6 +133,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
       currency, 
       setCurrency, 
       rates, 
+      ratesSource,
       convertPrice, 
       formatPrice,
       getBookPrice,

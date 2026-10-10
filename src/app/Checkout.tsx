@@ -5,12 +5,12 @@ import { consentAllows } from "./lib/consent";
 import { trackLink } from "./features/site/orderStatus";
 import { liveCheckoutRates } from "./features/site/canadaPostRates";
 import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
-import { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useId } from "react";
 import { Link } from "react-router";
 import { useCart, catalogUnitPrice, repriceCart } from "./CartContext";
 import { sameOrderLines } from "./features/site/orderLines";
 import { amountIn, orderMoney, orderChargedTotal, totalNeedsConfirming } from "./features/site/orderMoney";
-import { intentIdOf, mayHaveGoneThrough, paymentSettled, reusableCardOrder, type PendingCardOrder } from "./features/site/cardAttempt";
+import { cardAttemptKey, intentIdOf, mayHaveGoneThrough, paymentSettled, reusableCardOrder, type PendingCardOrder } from "./features/site/cardAttempt";
 import { POLICY_KEYS, policySlug, policyTitle } from "./features/site/policyPages";
 import {
   ChevronLeft, Tag, ShieldCheck, X, AlertCircle, CreditCard,
@@ -35,7 +35,11 @@ import { DEFAULT_SETTINGS } from "./features/site/constants";
 import { orderAccessHeaders, rememberOrderAccess } from "./lib/orderAccessClient";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
-import { isStripePublishableKey, stripeCheckoutState, createCheckoutSubmission } from "./features/site/stripeLifecycle";
+import { isStripePublishableKey, stripeCheckoutState, createCheckoutSubmission, onPageRestored } from "./features/site/stripeLifecycle";
+import { checkoutDetailProblems, detailInputId, expressWalletEnabled, postalCodeOptional, type DetailField } from "./features/site/checkoutDetails";
+import { comboboxInputProps, optionId } from "./features/site/comboboxAria";
+import { createLatestGuard, signalWithTimeout, RATES_TIMEOUT_MS } from "./features/site/latestRequest";
+import { holdLimitsFrom, holdWarnings } from "./features/site/holdLimits";
 import { searchAddresses, type AddressSuggestion } from "./features/site/addressSuggest";
 import { arrivalDateLabel, freeShippingGap } from "./features/site/checkoutNudges";
 import { guessCountryName, parsePinned } from "./features/site/countryPicker";
@@ -57,7 +61,7 @@ import { componentsSummary } from "./features/site/orderLineNotes";
 import { FulfillmentMethodPicker, bestFirst, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
 
 // ─── State / province drop-down for countries with a fixed list ──────────────
-function RegionField({ value, onChange, label, choose, regions }: { value: string; onChange: (v: string) => void; label: string; choose: string; regions: [string, string][] }) {
+function RegionField({ value, onChange, label, choose, regions, id, error }: { value: string; onChange: (v: string) => void; label: string; choose: string; regions: [string, string][]; id?: string; error?: string }) {
   // Saved addresses may hold the full name ("Ontario"); match it to its code.
   const match = regions.find(([code, name]) => code === value.toUpperCase() || name.toLowerCase() === value.toLowerCase());
   // A saved value that isn't on the list (typo, other country) would show "Choose…" yet still
@@ -66,9 +70,13 @@ function RegionField({ value, onChange, label, choose, regions }: { value: strin
   return (
     <div className="relative">
       <select
+        id={id}
         value={match ? match[0] : ""}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
+        aria-required="true"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error && id ? `${id}-error` : undefined}
         autoComplete="address-level1"
         required
         className="peer w-full rounded-lg border border-slate-300 bg-white px-3.5 pb-2 pt-6 text-sm text-slate-900 outline-none transition focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)] appearance-none cursor-pointer"
@@ -80,24 +88,38 @@ function RegionField({ value, onChange, label, choose, regions }: { value: strin
       </select>
       <label className="absolute left-3.5 top-2 text-xs text-slate-500 pointer-events-none">{label}</label>
       <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-xs">▾</span>
+      <FieldError id={id} error={error} />
     </div>
+  );
+}
+
+// The words under a box that needs fixing; the box points at it with aria-describedby.
+function FieldError({ id, error }: { id?: string; error?: string }) {
+  if (!error || !id) return null;
+  return (
+    <p id={`${id}-error`} data-studio-target="copy:Checkout" data-studio-label="Field error" className="mt-1 text-xs leading-5" style={{ color: "var(--danger, #b4271a)" }}>
+      <span aria-hidden="true">✕ </span>{error}
+    </p>
   );
 }
 
 
 // ─── Reusable input ───────────────────────────────────────────────────────────
 function Field({
-  label, type = "text", value, onChange, placeholder, autoComplete, inputMode, required
+  label, type = "text", value, onChange, placeholder, autoComplete, inputMode, required, id, error, inputProps
 }: {
   label: string; type?: string; value: string;
   onChange: (v: string) => void; placeholder?: string;
   autoComplete?: string; inputMode?: any; required?: boolean;
+  id?: string; error?: string; inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
 }) {
   const [focused, setFocused] = useState(false);
   const filled = value.length > 0;
   return (
     <div className="relative">
       <input
+        {...inputProps}
+        id={id}
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -107,6 +129,9 @@ function Field({
         autoComplete={autoComplete}
         inputMode={inputMode}
         required={required}
+        aria-required={required ? true : undefined}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error && id ? `${id}-error` : undefined}
         aria-label={label}
         className="peer w-full rounded-lg border border-slate-300 bg-white px-3.5 pb-2 pt-6 text-sm text-slate-900 outline-none transition focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)] placeholder-transparent"
       />
@@ -117,16 +142,18 @@ function Field({
         }`}>
         {label}
       </label>
+      <FieldError id={id} error={error} />
     </div>
   );
 }
 
 // ─── Street address with suggestions while typing ────────────────────────────
-function AddressField({ label, value, country, onChange, onPick, listLabel, attribution }: {
+function AddressField({ label, value, country, onChange, onPick, listLabel, attribution, id, error }: {
   label: string; value: string; country: string;
   onChange: (v: string) => void; onPick: (s: AddressSuggestion) => void;
-  listLabel: string; attribution: string;
+  listLabel: string; attribution: string; id?: string; error?: string;
 }) {
+  const listId = useId();
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -155,19 +182,20 @@ function AddressField({ label, value, country, onChange, onPick, listLabel, attr
         else if (e.key === "Escape") setOpen(false);
       }}
       onBlur={() => setTimeout(() => setOpen(false), 150)}>
-      <Field label={label} value={value} onChange={v => { typed.current = true; onChange(v); }} autoComplete="street-address" required />
+      <Field label={label} value={value} onChange={v => { typed.current = true; onChange(v); }} autoComplete="address-line1" required id={id} error={error}
+        inputProps={comboboxInputProps({ open: open && items.length > 0, listId, activeIndex: active, count: items.length })} />
       {open && (
-        <ul role="listbox" aria-label={listLabel} data-studio-target="style:checkout" data-studio-label="Address suggestions"
+        <ul id={listId} role="listbox" aria-label={listLabel} data-studio-target="style:checkout" data-studio-label="Address suggestions"
           className="fm-address-suggest absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-lg border border-slate-300 bg-white shadow-lg">
           {items.map((s, i) => (
-            <li key={s.label} role="option" aria-selected={i === active}>
-              <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => pick(s)}
+            <li key={s.label} id={optionId(listId, i)} role="option" aria-selected={i === active}>
+              <button type="button" tabIndex={-1} role="presentation" onMouseDown={e => e.preventDefault()} onClick={() => pick(s)}
                 className={`block w-full px-3.5 py-2.5 text-left text-sm text-slate-900 ${i === active ? "bg-slate-100" : "hover:bg-slate-50"}`}>
                 {s.label}
               </button>
             </li>
           ))}
-          {attribution && <li className="px-3.5 py-1.5 text-[10px] text-slate-500">{attribution}</li>}
+          {attribution && <li role="presentation" className="px-3.5 py-1.5 text-[10px] text-slate-500">{attribution}</li>}
         </ul>
       )}
     </div>
@@ -220,6 +248,9 @@ export function Checkout() {
   const purchaseNavigating = useRef(false);
   const serverSaysFree = useRef(false);
   const [orderNote, setOrderNote] = useState("");
+  // Per-field problems found when the shopper pressed Pay (cleared as each is fixed).
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<DetailField, string>>>({});
+  const ratesGuard = useRef(createLatestGuard());
   // Announced inline message (replaces alert()); tone drives colour, glyph + words carry the meaning.
   const [notice, setNotice] = useState<null | { tone: "error" | "info"; text: string }>(null);
   const [isSuccess, setIsSuccess]       = useState(false);
@@ -530,31 +561,7 @@ export function Checkout() {
     return () => { cancelled = true; };
   }, [catalogState, settings?.design?.categories]);
 
-  useEffect(() => {
-    async function detectCountry() {
-      try {
-        const res = await fetch("https://ipapi.co/json/");
-        if (res.ok) {
-          const data = await res.json();
-          // Prefer the country code (names differ between services) and only
-          // fill a still-untouched form: never override a saved address, a
-          // recovered cart or the shopper's own choice that arrived first.
-          const match = COUNTRIES.find(c => c.code === String(data.country_code || "").toUpperCase())
-            || COUNTRIES.find(c => c.name.toLowerCase() === String(data.country_name || "").toLowerCase());
-          if (match) {
-            setCustomer(prev => {
-              const untouched = prev.address.country === initialCountry.current
-                && !prev.address.street && !prev.address.city && !prev.address.zip;
-              return untouched ? { ...prev, address: { ...prev.address, country: match.name } } : prev;
-            });
-          }
-        }
-      } catch (err) {
-        console.warn("Could not geolocate client IP country, defaulting to United States:", err);
-      }
-    }
-    detectCountry();
-  }, []);
+  // The starting country comes from the browser language (guessCountryName). No lookup sends the shopper's IP to a third party.
 
   const validateDiscountRestrictions = (discount: any, email: string, cartItems: any[], catalogMap: Map<string, any>, currentCartCount: number, currentCartTotal: number) => {
     // 1. Min quantity / min order amount
@@ -823,10 +830,15 @@ export function Checkout() {
       return;
     }
 
+    // Only the newest request may change the quotes or the loading state: an older answer for a
+    // previous address is dropped, and a carrier that never answers is given up on.
+    const ticket = ratesGuard.current.next();
+    const request = signalWithTimeout(RATES_TIMEOUT_MS);
     const delayDebounce = setTimeout(async () => {
       setShippoRatesLoading(true);
       try {
         const res = await functionFetch("getShippoRates", {
+          signal: request.signal,
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -847,8 +859,10 @@ export function Checkout() {
           })
         });
 
+        if (!ratesGuard.current.isCurrent(ticket)) return;
         if (res.ok) {
           const data = await res.json();
+          if (!ratesGuard.current.isCurrent(ticket)) return;
           const liveRates = Array.isArray(data.rates) ? liveCheckoutRates(data.rates) : [];
           if (liveRates.length > 0) {
             setAvailableRates(liveRates.map((rate: any) => ({ ...rate, id: rate.name })));
@@ -857,16 +871,24 @@ export function Checkout() {
           }
         }
       } catch (err) {
+        if (!ratesGuard.current.isCurrent(ticket)) return;
         console.error("Failed to fetch Shippo rates:", err);
       } finally {
-        setShippoRatesLoading(false);
+        request.done();
+        if (ratesGuard.current.isCurrent(ticket)) setShippoRatesLoading(false);
       }
 
-      // Fallback
-      calculateStaticProfileRates();
+      // Fallback (also after a timeout): the shop's own profile rates.
+      if (ratesGuard.current.isCurrent(ticket)) calculateStaticProfileRates();
     }, 1500);
 
-    return () => clearTimeout(delayDebounce);
+    return () => {
+      clearTimeout(delayDebounce);
+      request.done();
+      ratesGuard.current.invalidate();
+      request.abort();
+      setShippoRatesLoading(false);
+    };
   }, [customer.address.street, customer.address.unit, customer.address.city, customer.address.state, customer.address.zip, customer.address.country, cart, shippingProfiles, cartTotal, catalogItems, freeGift?.id]);
 
 
@@ -1159,6 +1181,27 @@ export function Checkout() {
     return message ?new CopyError(checkoutDesign, "coServerRefused", { reason: message }) : null;
   };
 
+  const needsDeliveryAddress = !digitalOnly && (fulfillmentSelection.method !== "pickup" || pickupNeedsAddress);
+  // Live: the express wallet waits on it, and Pay lists it field by field.
+  const detailProblems = useMemo(() => checkoutDetailProblems({
+    name: customer.name, email: customer.email, address: customer.address, digitalOnly, needsDeliveryAddress,
+  }), [customer.name, customer.email, customer.address, digitalOnly, needsDeliveryAddress]);
+  // Bags the server will refuse at Pay (functions/stockHolds.js caps): say so before the card is typed.
+  const holdIssues = useMemo(
+    () => (catalogState === "ready" ? holdWarnings(cart, booksMap, holdLimitsFrom(settings)) : []),
+    [cart, booksMap, settings?.stockHolds, catalogState],
+  );
+  // A field's message goes away as soon as it is fixed.
+  useEffect(() => {
+    setFieldErrors(prev => {
+      const keys = Object.keys(prev) as DetailField[];
+      if (!keys.length) return prev;
+      const open = new Set(detailProblems.map(problem => problem.field));
+      const kept = keys.filter(key => open.has(key));
+      return kept.length === keys.length ? prev : Object.fromEntries(kept.map(key => [key, prev[key]]));
+    });
+  }, [detailProblems]);
+
   const completePurchase = async () => {
     if (catalogState !== "ready") {
       setNotice({ tone: "error", text: c(catalogState === "failed" ? "coCatalogFailed" : "coCatalogLoading") });
@@ -1172,25 +1215,20 @@ export function Checkout() {
       setNotice({ tone: "error", text: c("coStripeLoadError") });
       return;
     }
-    const needsDeliveryAddress = !digitalOnly && (fulfillmentSelection.method !== "pickup" || pickupNeedsAddress);
-    // An e-book-only order still needs where the buyer is (country, and province/state where
-    // there's a fixed list) because that sets the sales tax.
-    const validDestination = digitalOnly
-      ? Boolean(String(customer.address.country || "").trim()) && (!regionsFor(customer.address.country) || Boolean(String(customer.address.state || "").trim()))
-      : !needsDeliveryAddress || [customer.address.street, customer.address.city, customer.address.state, customer.address.zip, customer.address.country].every(value => String(value || "").trim());
     const validBilling = fulfillmentSelection.method !== "pickup" || pickupNeedsAddress || [customer.billingAddress.country, customer.billingAddress.state].every(value => String(value || "").trim());
     const selectedOptionExists = !physicalItems.length || (fulfillmentSelection.method === "shipping"
       ? availableRates.some(rate => rate.id === fulfillmentSelection.optionId || rate.name === fulfillmentSelection.optionId)
       : localQuotes.some(quote => quote.id === fulfillmentSelection.optionId && quote.method === fulfillmentSelection.method));
-    if (!customer.name || !customer.email || !validDestination) {
+    // Name every field that needs fixing next to its box, then move to the first (a mistyped
+    // email means no confirmation and no e-book link).
+    if (detailProblems.length) {
+      setFieldErrors(Object.fromEntries(detailProblems.map(problem => [problem.field, c(problem.copyKey)])));
       setNotice({ tone: "error", text: c("coErrShippingFields") });
+      const first = detailProblems[0].field;
+      setTimeout(() => document.getElementById(detailInputId(first))?.focus(), 0);
       return;
     }
-    // A mistyped address means no confirmation and no e-book link.
-    if (!EMAIL_PATTERN.test(String(customer.email).trim())) {
-      setNotice({ tone: "error", text: c("coErrEmailFormat") });
-      return;
-    }
+    setFieldErrors({});
     if (!validBilling) {
       setNotice({ tone: "error", text: c("coErrPickupBillingFields") });
       return;
@@ -1298,7 +1336,7 @@ export function Checkout() {
       localStorage.setItem("last_customer_email", customer.email);
       
       // The code is part of the key: removing a refused code must make a fresh order, even when the total is unchanged.
-      const cardKey = JSON.stringify([orderData.items, orderData.total, orderData.customer, currency, fulfillmentSelection, orderData.appliedDiscount?.code || null, giftCards.map(card => card.code)]);
+      const cardKey = cardAttemptKey({ items: orderData.items, total: orderData.total, customer: orderData.customer, currency, fulfillmentSelection, discountCode: orderData.appliedDiscount?.code || null, giftCardCodes: giftCards.map(card => card.code), orderNote: (orderData as any).orderNote, addressVerified });
       // Same bag = same order; its PaymentIntent only while the server's holds are still alive.
       const reuse = payingByCardForm ? reusableCardOrder(pendingCardOrder.current, cardKey) : null;
       let orderId: string;
@@ -1540,6 +1578,14 @@ export function Checkout() {
       if (!purchaseNavigating.current) setIsCompleting(false);
     }
   });
+
+  // Browser Back from PayPal restores this page (state intact) with Pay still locked for the
+  // navigation that never finished: unlock it.
+  useEffect(() => onPageRestored(window, () => {
+    purchaseNavigating.current = false;
+    submitPurchase.current.reset();
+    setIsCompleting(false);
+  }), []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1864,7 +1910,7 @@ export function Checkout() {
 
       <div className="mx-auto grid min-h-[calc(100vh-77px)] max-w-6xl grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
         <main {...regionProps("checkoutForm")} className="px-5 py-8 sm:px-8 sm:py-12 lg:border-r lg:border-slate-200 lg:pr-14">
-          <div className="mx-auto max-w-2xl space-y-10">
+          <form noValidate onSubmit={e => { e.preventDefault(); void handleCompletePurchase(); }} className="mx-auto max-w-2xl space-y-10">
             <div {...regionProps("checkoutProgress")} className="flex items-center gap-2 text-sm text-slate-500" aria-label={c("coProgressAria")}>
               <span className="font-medium text-[color:var(--accent)]">{c("coStepInfo")}</span>
               <span aria-hidden="true">›</span>
@@ -1892,10 +1938,10 @@ export function Checkout() {
                   {c("coGoogle")}
                 </button>
               )}
-              <Field label={c("coEmail")} type="email" value={customer.email} onChange={v => setCustomer({ ...customer, email: v })} autoComplete="email" inputMode="email" required />
+              <Field label={c("coEmail")} type="email" value={customer.email} onChange={v => setCustomer({ ...customer, email: v })} autoComplete="email" inputMode="email" required id={detailInputId("email")} error={fieldErrors.email} />
               <p className="mt-2 text-xs leading-5 text-slate-500">{c("coEmailNote")}</p>
               <div className="mt-3 space-y-3">
-                <Field label={c("coName")} value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
+                <Field label={c("coName")} value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required id={detailInputId("name")} error={fieldErrors.name} />
                 <Field label={c("coPhone")} type="tel" value={customer.phone} onChange={v => setCustomer({ ...customer, phone: v })} autoComplete="tel" inputMode="tel" />
               </div>
             </section>
@@ -1904,28 +1950,29 @@ export function Checkout() {
               <StepBadge n={c("coStepOf", { n: 2 })} label={c("coDelivery")} />
               <div className="space-y-3">
                 {(fulfillmentSelection.method !== "pickup" || pickupNeedsAddress) && <>
-                <CountryField label={c("coCountry")}
+                <CountryField label={c("coCountry")} id={detailInputId("country")} error={fieldErrors.country}
                   pinnedCodes={pinnedCountryCodes} showFlags={!checkoutDesign.hideCountryFlags}
                   words={{ search: c("coCountrySearch"), popular: c("coCountryPopular"), all: c("coCountryAll"), none: (q: string) => c("coCountryNone", { query: q }) }}
                   value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v, state: v === customer.address.country ? customer.address.state : "" } })} />
                 {!digitalOnly && (checkoutDesign.hideAddressSuggestions
-                  ? <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
-                  : <AddressField label={c("coAddress")} value={customer.address.street} country={customer.address.country}
+                  ? <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="address-line1" required id={detailInputId("street")} error={fieldErrors.street} />
+                  : <AddressField label={c("coAddress")} value={customer.address.street} country={customer.address.country} id={detailInputId("street")} error={fieldErrors.street}
                       listLabel={c("coAddressSuggestions")} attribution={c("coAddressAttribution")}
                       onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: v } }))}
                       onPick={sug => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: sug.street, city: sug.city || prev.address.city, state: sug.state || prev.address.state, zip: sug.zip || prev.address.zip, country: sug.country || prev.address.country } }))} />)}
                 {!digitalOnly && !checkoutDesign.hideCheckoutAddressUnit && <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Apartment or unit"><Field label={c("coAddressUnit")} value={customer.address.unit} onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, unit: v } }))} autoComplete="address-line2" /></div>}
                 <div className={`grid grid-cols-1 gap-3 ${digitalOnly ? "" : "sm:grid-cols-3"}`}>
-                  {!digitalOnly && <Field label={c("coCity")} value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required />}
+                  {!digitalOnly && <Field label={c("coCity")} value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required id={detailInputId("city")} error={fieldErrors.city} />}
                   {regionsFor(customer.address.country)
-                    ? <RegionField label={c("coState")} choose={c("coStateChoose")} regions={regionsFor(customer.address.country)!} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} />
-                    : <Field label={c("coState")} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" required />}
-                  {!digitalOnly && <Field label={c("coZip")} value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" required />}
+                    ? <RegionField id={detailInputId("state")} error={fieldErrors.state} label={c("coState")} choose={c("coStateChoose")} regions={regionsFor(customer.address.country)!} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} />
+                    : <Field label={c("coState")} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" id={detailInputId("state")} error={fieldErrors.state} />}
+                  {!digitalOnly && <Field label={c("coZip")} value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" required={!postalCodeOptional(customer.address.country)} id={detailInputId("zip")} error={fieldErrors.zip} />}
                 </div>
                 </>}
               </div>
             </section>
 
+            {!digitalOnly && (
             <section>
               <div className="mb-5">
                 <h2 className="text-xl font-semibold tracking-tight text-slate-900">{c("coShipMethod")}</h2>
@@ -1970,6 +2017,7 @@ export function Checkout() {
                 {selectedLocalQuote?.address && <p className="text-xs text-slate-600">{c("coFulfillmentTaxLocation")} {selectedLocalQuote.address.city}, {selectedLocalQuote.address.state}</p>}
               </section>}
             </section>
+            )}
 
             {checkoutDesign.showOrderNote && (
               <section data-studio-target="style:checkout|copy:Checkout" data-studio-label="Order note">
@@ -2019,7 +2067,7 @@ export function Checkout() {
                       onStateChange={setCardState}
                       expressText={c("coExpressCheckout")}
                       showExpress={!checkoutDesign.hideCheckoutExpressWallets}
-                      expressEnabled={!isCompleting && stripeRoute.canPay && !needsDeliveryChoice && catalogState === "ready" && finalTotal > 0}
+                      expressEnabled={expressWalletEnabled({ isCompleting, canPay: stripeRoute.canPay, needsDeliveryChoice, catalogReady: catalogState === "ready", total: finalTotal, problems: detailProblems })}
                       onExpressConfirm={async () => { await handleCompletePurchase(); return purchaseNavigating.current; }}
                       fontName={checkoutDesign.checkoutFieldFont || checkoutDesign.checkoutFont || checkoutDesign.font || checkoutDesign.bodyFont || undefined}
                       fieldBackground={checkoutDesign.checkoutFieldBg || undefined}
@@ -2062,6 +2110,15 @@ export function Checkout() {
             </section>
 
             <div className="border-t border-slate-200 pt-6">
+              {holdIssues.length > 0 && (
+                <div {...regionProps("checkoutHoldWarning")} role="status" className="mb-4 space-y-2 rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--warning, #b45309)", color: "var(--warning, #b45309)" }}>
+                  {holdIssues.map(issue => (
+                    <p key={issue.kind === "perBook" ? issue.id : "units"}><span aria-hidden="true">⚠ </span>{issue.kind === "perBook"
+                      ? c("coHoldWarning", { count: issue.count, title: issue.title, limit: issue.limit })
+                      : c("coHoldWarningUnits", { count: issue.count, limit: issue.limit })}</p>
+                  ))}
+                </div>
+              )}
               {notice && (
                 <div role={notice.tone === "error" ? "alert" : "status"} className="mb-4 rounded-lg border px-4 py-3 text-sm"
                   style={{ borderColor: notice.tone === "error" ? "var(--danger, #b4271a)" : "var(--muted, #94a3b8)", color: notice.tone === "error" ? "var(--danger, #b4271a)" : "inherit", background: notice.tone === "error" ? "rgba(var(--danger-rgb, 232, 64, 42), .08)" : "transparent" }}>
@@ -2072,8 +2129,7 @@ export function Checkout() {
                 <p role="alert" className="mb-4 text-sm" style={{ color: "var(--danger, #b4271a)" }}>{c("coCatalogFailed")}</p>
               )}
               <button
-                type="button"
-                onClick={handleCompletePurchase}
+                type="submit"
                 disabled={isCompleting || catalogState !== "ready" || (finalTotal > 0 && selectedPaymentMethod === "stripe" && !stripeRoute.canPay) || (finalTotal > 0 && !hasStripe && !hasPaypal && enabledManualMethods.length === 0)}
                 className="flex w-full items-center justify-center gap-2 rounded-lg fm-accent-bg px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -2105,7 +2161,7 @@ export function Checkout() {
               <span>{c("coTrust2")}</span>
               <span>{c("coTrust3")}</span>
             </footer>
-          </div>
+          </form>
         </main>
 
         <aside {...regionProps("checkoutSummary")} className="order-first border-b border-slate-200 bg-slate-50 px-5 py-7 sm:px-8 lg:order-none lg:border-b-0 lg:px-10 lg:py-12">

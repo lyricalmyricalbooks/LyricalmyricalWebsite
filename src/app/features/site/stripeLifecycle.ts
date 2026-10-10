@@ -27,11 +27,24 @@ export function stripeCheckoutState({ keyValid, cardState, paymentStarted }: {
 /** Lock synchronously, including validation; retain it once navigation starts. */
 export function createCheckoutSubmission() {
   let locked = false;
-  return async (submit: () => Promise<boolean>) => {
+  const run = async (submit: () => Promise<boolean>) => {
     if (locked) return;
     locked = true;
     let navigating = false;
     try { navigating = await submit(); }
     finally { if (!navigating) locked = false; }
   };
+  /** The shopper came back from the provider (browser Back): the lock kept for navigation is stale. */
+  run.reset = () => { locked = false; };
+  return run;
+}
+
+/**
+ * Calls `onRestored` when the browser shows this page again from its back/forward cache (React state
+ * intact, but the provider page we left for is gone). Returns the unsubscribe.
+ */
+export function onPageRestored(target: Pick<EventTarget, "addEventListener" | "removeEventListener">, onRestored: () => void) {
+  const handler = (event: Event) => { if ((event as { persisted?: boolean }).persisted) onRestored(); };
+  target.addEventListener("pageshow", handler);
+  return () => target.removeEventListener("pageshow", handler);
 }
