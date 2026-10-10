@@ -1550,6 +1550,40 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   `getShippoRates` / `cartShippingPreview` server). The bag's free-shipping bar counts printed books only (`shippableBagTotal`).
 - Gift-card `adjust` history stores the applied change (`requestedMinor` kept when clamped). `createPayPalOrder` binds `STRIPE_SECRET_KEY`.
 
+## Orders, returns and Shippo labels (round 2, PR 8, 10 October 2026)
+
+- **Returns:** `returnTransition` accepts `closed` from approved/received/inspected (ReturnWorkbench › *Close return without a refund*); the request becomes `handled`, nothing is refunded or restocked, `returnProgress.state` is `closed` (customer words `trackReturn_closed`).
+- **Shipped means shipped:** a bought label puts `trackingNumber` on the order while the parcel is still in the shop, so `orderRequestProblem`, `dispatched()` (returns), the refund restock default and the shopper's request options use `fulfillmentStatus`/`status` only, never `trackingNumber`.
+- **Label purchase (`createShippingLabel`):** `callShippo` has a 15 s timeout (45 s for the purchase) and sets `error.shippoStatus`. HTTP 4xx (except 408) is a definite refusal (`shippoDefiniteRefusal`): the lock is released with a history entry; 5xx/timeouts/network keep it. `buyRate` saves `shippoTransactionId` (+ status/rate) in `order-operations` BEFORE the order write; `recordLabel` writes the order and releases the lock in one transaction; transactions and shipments carry `metadata: "Order <id>"`. A test key (`shippo_test_`) may rehearse a purchase: the label is stored with `order-operations.labelTest: true` and the workbench shows a TEST label badge. `mode: "voidLabel"` (admin) refunds the label with Shippo (`refunds/`) or, with `confirmedElsewhere`, just drops it; the old label goes to `order-operations.labelHistory`. After dispatch, `edit_tracking` with `replaceLabel: true` records a replacement carrier/number.
+- **Customs:** parcels whose destination country differs from the shop's origin get Shippo customs items + a declaration (`functions/customs.js`, per physical line; value = what was paid in CAD, discount shared out). Per-book answers `customsDescription`, `hsTariffNumber`, `customsOriginCountry` (Books › edit › Details; blank = Printed books / 4901.99 / shipping-from country; `admin/customsFields.ts`).
+- **Label rates:** `labelRatesFor` offers the cheapest quote of the service checkout sold (`order.shippingMethod`, any carrier) first, then Canada Post; `isPurchasableRate` is the purchase check.
+- **Shippo key:** `saveShippoConfig` requires a `shippo_live_`/`shippo_test_` prefix and a successful Shippo call (401/403 = not saved); stores `mode`/`verifiedAt`; Settings › Shipping › Carrier & labels shows LIVE/TEST.
+- **Tracking never moves back:** `advancesTracking` (fulfillmentGuard.js); the Shippo webhook updates inside a transaction and emails only when it advanced.
+- **Paid-order trigger:** `onOrderUpdated` sends its emails first; `checkAddressAfterPayment` (the Shippo address check) runs afterwards in a `finally`.
+- **Address rules:** `functions/addressRules.js` ↔ `features/site/addressRules.ts` (`addressRules.parity.test.ts`): street, city, country always; province/state only for CA/US; postal code unless the country has none (same no-postcode list as the checkout form). Used by `validateAddress`, `autoApproveShippingAddress`, label purchase and `addressIssues`.
+- **Orders list:** `ordersTable.ts` is the one filter behind the table rows and tab counts. Orders can be **archived** (`archivedAt`, `adminApi.archiveOrders`): they leave the work queues/badge but stay in *All orders*. Delete is also refused (client `deleteRefusal` + `firestore.rules`) for unpaid orders with a started card/PayPal payment unless cancelled. The desk's *Shipped* tab excludes terminal (cancelled/refunded/refund-pending) orders. The ship-late alert counts printed orders only.
+- Deploy `firestore.rules` + Functions with the frontend.
+
+## Privacy and newsletter (10 October 2026)
+
+- **Owner decision (closed, don't re-raise in audits):** analytics/marketing tracking keeps its default of running before the
+  cookie banner is answered. Do not change the consent defaults in `lib/consent.ts`.
+- **Privacy export/erase** (`functions/privacyData.js`, `personalDataFor` / `handlePrivacyAdmin`): addresses match in any
+  capitalisation (exact lower-case query plus a bounded field-only scan for older mixed-case rows); browser writes of contact
+  messages, review contacts and saved carts now lower-case the email. Export and erase also cover `giftCards` (purchaser/recipient;
+  erase blanks names, emails, message but keeps the balance), `emailLog` (`to` may list several recipients), and admin-only
+  `order-operations` for the person's orders. Erase blanks the customer block of never-paid orders (`neverPaid`), deletes their
+  order-operations, blanks private notes on kept paid orders, and takes `reviewAction` (`anonymize` | `unpublish` | `remove-text`,
+  Settings › General › Privacy requests › *When deleting, their reviews*). `emailLog` rows are pruned after 90 days in `runEmailOutbox`.
+- **Newsletter double opt-in** (`functions/newsletter.js`, actions `newsletterSignup` / `newsletterConfirm` on
+  `createStripeCheckoutSession`): signup stores `newsletter/<email>` as `status: "pending"` with `consentText`, `requestedAt`, and mails
+  a signed confirm link (`purposeToken`, budget `claimEmailSend("newsletterConfirm")`); the link sets `status: "confirmed"`. Browsers
+  can no longer write `newsletter` (`firestore.rules`). Older rows with no `status` count as subscribed. `action: "unsubscribe"`
+  (the shared signed link, `/track?unsubscribe=1`) now also deletes the newsletter row. Pending rows older than 30 days are pruned.
+  Anything that mails or counts subscribers must skip `status === "pending"` (`mayMail`). The confirmation email text is fixed in code
+  (not an editable template) so its consent wording can't be edited away; storefront words are Text & labels › Newsletter / Order tracking.
+- **Email-link sign-in** (`features/site/emailLinkSignIn.ts`): a failed attempt forgets the saved address and keeps the "confirm your email" card.
+
 ## Round-2 security: private book fields, public endpoints, rules (10 October 2026)
 
 - **`books` is public for published books only.** `firestore.rules`: `allow read: if isAdmin() || resource.data.status == "published"`.
@@ -1635,3 +1669,30 @@ order-confirmation email both use them. Emailed download links stay outside brow
 - **File:** signed URL has `responseDisposition: attachment; filename="<title>.<ext>"` (the upload's epoch prefix dropped) and
   `responseType` from the extension (pdf, epub, mp3, m4a, zip).
 - Deploy Functions with the frontend. No rule or index change (`downloadCounts` is written by Functions and by the admin).
+
+## Round-2 catalog and settings (10 October 2026)
+
+- **Book saves (`adminApi.updateBook(id, form, loaded, { removeMissing })`):** still diff-only (`changedBookFields`). Three additions in
+  `admin/bookStockMerge.ts`: (1) `WRITE_ONCE_DEFAULTS` (status, trackInventory, chargeTax, allowBackorder) are written when the stored book
+  has none, so a legacy book matches what the editor showed; (2) a book with editions never gets the editor's own stock total — its count
+  is the sum of the merged live editions, computed inside the transaction; (3) `removedBookFields` lists keys that were on the loaded book
+  and are gone from the form, and `updateBook` deletes them (`deleteField()`, also in the private document) **only when the caller passes
+  `removeMissing: true` — the book editor, which sends the whole form**. Bulk edits and the CSV import send partial objects and must not.
+- **Pre-order sync lives in `updateBook`:** when `preorder` or `publishDate` is in the write and differs from `loaded`, it calls
+  `syncPreorderOrders` itself and returns `preorderSync { updated, failed }` (the editor toasts it; the CSV import gets it too).
+- **Web address freeze:** a published book with an address keeps it (`slugLocked`, `slugFollowsTitle` in `bookEditorState.ts`); Books › edit
+  › Details › **Change web address** asks first, then unlocks until the next save. Old links cannot be redirected on GitHub Pages.
+- **Old-shop stock copy:** `admin/legacyInventorySync.ts` (`readLegacyStock`, `planLegacySync`): whole numbers >= 0 only, exact slug or saved
+  `legacyInventoryKey` match, shared names and editioned books skipped and listed, one transaction per book, public settings keep counts only.
+- **PayPal:** `functions/paypalCredentials.js` picks the credentials per request mode. Live = Settings › Payments › PayPal Live client ID +
+  private Live client secret (`adminSecrets/paypal`) when both exist, else the `PAYPAL_CLIENT_*` Functions secrets. Test = Test client ID +
+  Test client secret only, never the live pair (PayPal refuses live credentials on the sandbox). Secrets use `SecretField` and
+  `adminApi.removePaypalSecret`. The webhook still verifies with the one `PAYPAL_WEBHOOK_ID` secret (a sandbox webhook id is not separate yet).
+- **Resend key:** `resendKeyProblem` (`privateKeys.ts`) is enforced in `writePrivateKeys`; Notifications › Advanced has **Remove stored key**
+  (`adminApi.removeResendKey`), after which sending uses the `RESEND_API_KEY` Functions secret again.
+- **Email sender:** Settings › **Email sender** (`#settings/communications`) is a card at the top of the Notifications page
+  (`admin/senderSettings.ts`): sender name, reply-to, Resend backup address, saved into `settings/website.communications` (whole map kept).
+- **Notifications load failure:** the editor shows an error with Try again and refuses to save; it never treats defaults as the saved copy.
+- Items 16, 37, 38, 64, 66 and 138 of the round-2 list were already fixed on this branch (`inventoryApi.adjustStock`, `taxRatesEdit`,
+  `checkoutClosed`, `planPriceChange`/`eachBook`, the Location postal code/country) and are pinned by `settingsRound2.test.ts`.
+- **Deploy:** Functions with the frontend. No Firestore rule or index changes (`adminSecrets/{doc}` already admin-only).

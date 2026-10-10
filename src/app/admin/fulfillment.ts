@@ -1,8 +1,9 @@
+import { addressMissing, regionRequired, postalRequired } from "../features/site/addressRules";
 import { cleanTrackingLink } from "../lib/tracking";
 import { waitingPreorderLines, shipDateOf } from "../features/site/preorder";
 // Publisher workflow state is private; public order/payment records remain authoritative.
 export const WORK_QUEUES = ["Needs attention", "Ready to pack", "Ready to ship", "Ready for pickup", "Ready for local delivery", "Awaiting release", "In transit", "Completed", "Unpaid", "All orders"];
-const terminal = (o: any) => o.status === "cancelled" || ["refunded", "refund_pending"].includes(o.paymentStatus) || ["cancelled", "refunded"].includes(o.fulfillmentStatus);
+export const terminal = (o: any) => o.status === "cancelled" || ["refunded", "refund_pending"].includes(o.paymentStatus) || ["cancelled", "refunded"].includes(o.fulfillmentStatus);
 // Firestore does not guarantee map key order. Compare the address fields that
 // drive shipping in a fixed order so equivalent addresses do not look stale.
 export const addressKey = (o: any) => {
@@ -15,7 +16,8 @@ export const packingKey = (o: any) => JSON.stringify((o.items || []).map((i: any
 export function addressIssues(o: any): string[] {
  const a = o.customer?.address || {};
  const issues: string[] = [];
- if (![a.street, a.city, a.state, a.zip, a.country].every(v => String(v || "").trim())) issues.push("Complete the street, city, province/state, postal code and country.");
+ // Only the boxes this country uses: no province outside Canada/US, no postal code where there is none.
+ if (addressMissing(a).length) issues.push("Complete the street, city, country" + (regionRequired(a.country) ? ", province/state" : "") + (postalRequired(a.country) ? " and postal code." : "."));
  const country = String(a.country || "").trim().toUpperCase();
  const ca = ["CA", "CANADA"].includes(country);
  const us = ["US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA"].includes(country);

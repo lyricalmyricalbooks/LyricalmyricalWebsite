@@ -20,6 +20,7 @@ export const NAV: NavEntry[] = [
     { id: "taxes", label: "Taxes" },
     { id: "designer", label: "Design" },
     { id: "notifications", label: "Notifications" },
+    { id: "communications", label: "Email sender" },
   ] },
 ];
 

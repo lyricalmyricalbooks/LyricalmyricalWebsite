@@ -39,7 +39,7 @@ export function InventorySyncPanel({ lastSync }: { lastSync?: string }) {
     <div className="rp-stack">
       <p className="rp-hint" style={{ margin: 0 }}>
         Copies each book's stock count from the old shop's inventory into this shop. Last copied: <span className="rp-mono">{fmtTime(lastSyncTime)}</span>.
-        Books are matched by their web address (slug) or title, so a book's web address must equal its name in the old shop.
+        Books are matched exactly by their web address (slug) or the old-shop name saved on them, so a book's web address must equal its name in the old shop. Books sold in editions, ambiguous names and unreadable old records are skipped and listed here.
       </p>
       <div><PrimaryButton onClick={() => setConfirming(true)} disabled={syncing}>{syncing ? "Copying…" : "Copy stock from the old shop"}</PrimaryButton></div>
       {error && (
@@ -52,9 +52,13 @@ export function InventorySyncPanel({ lastSync }: { lastSync?: string }) {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <StatusBadge tone="success">{result.synced} books updated</StatusBadge>
             {result.unmatched > 0 && <StatusBadge tone="warning">{result.unmatched} not matched</StatusBadge>}
+            {(result.skipped?.length || 0) > 0 && <StatusBadge tone="warning">{result.skipped.length} skipped</StatusBadge>}
+            {(result.invalid?.length || 0) > 0 && <StatusBadge tone="warning">{result.invalid.length} unreadable in the old shop</StatusBadge>}
             <StatusBadge>{result.legacyTotal} books in the old shop</StatusBadge>
           </div>
           <DataTable caption="Stock copy results" columns={columns} rows={result.results} rowKey={(r: any) => r.id} />
+          {(result.skipped?.length || 0) > 0 && <ul className="rp-hint" style={{ margin: 0 }}>{result.skipped.map((x: any) => <li key={x.bookId}>{x.title}: {x.reason}</li>)}</ul>}
+          {(result.invalid?.length || 0) > 0 && <ul className="rp-hint" style={{ margin: 0 }}>{result.invalid.map((x: any) => <li key={x.key}>Old shop “{x.key}”: {x.reason} — left unchanged</li>)}</ul>}
           {result.unmatched > 0 && <p className="rp-hint" style={{ margin: 0 }}>For a book that didn't match, change its web address in Books to its name in the old shop, then copy again.</p>}
         </div>
       )}

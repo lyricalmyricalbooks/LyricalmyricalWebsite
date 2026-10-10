@@ -254,7 +254,28 @@ export function OrderDetail({
     } catch { /* storage blocked: ticks just aren't remembered */ }
   }, [checked, ticksKey]);
 
-  const hasLabel = !!(order?.labelUrl && order?.trackingNumber);
+  // "The label was voided or replaced": the owner types the real carrier and number instead of the label's.
+  const [labelReplaced, setLabelReplaced] = useState(false);
+  const rawLabel = !!(order?.labelUrl && order?.trackingNumber);
+  const hasLabel = rawLabel && !labelReplaced;
+  const [showReplaceLabel, setShowReplaceLabel] = useState(false);
+  const [voidedElsewhere, setVoidedElsewhere] = useState(false);
+  const [replacing, setReplacing] = useState(false);
+  const replaceLabel = async () => {
+    setReplacing(true);
+    try {
+      await adminApi.voidLabel(orderId, voidedElsewhere);
+      setShowReplaceLabel(false);
+      setVoidedElsewhere(false);
+      await loadOrder();
+      toast.success("Label voided. Press Buy Shippo label to get a new one.");
+    } catch (err: any) {
+      toast.error(err?.message || "Couldn't void the label.");
+      await loadOrder();
+    } finally {
+      setReplacing(false);
+    }
+  };
   const markAsShipped = async () => {
     if (!hasLabel && (!trackingNumber.trim() || !carrierName)) {
       toast.error("Enter the carrier and tracking number.");
@@ -268,6 +289,7 @@ export function OrderDetail({
         trackingCarrier: hasLabel ? order.trackingCarrier || "Canada Post" : carrierName,
         trackingNumber: hasLabel ? order.trackingNumber : trackingNumber,
         trackingUrl: trackingLink,
+        ...(editing && rawLabel && labelReplaced ? { replaceLabel: true } : {}),
       });
       setShowShipForm(false);
       toast.success(
@@ -736,12 +758,15 @@ export function OrderDetail({
           onLabel={() => setShowParcel(true)}
           onDispatch={() => {
             fillTracking(order);
+            setLabelReplaced(false);
             setShowShipForm("dispatch");
           }}
           onEditTracking={() => {
             fillTracking(order);
+            setLabelReplaced(false);
             setShowShipForm("edit");
           }}
+          onReplaceLabel={() => { setVoidedElsewhere(false); setShowReplaceLabel(true); }}
           onDeliveryStatus={setDeliveryStatus}
           onResendEmail={() => setConfirmResend(true)}
           onCheckAll={(indices) => setChecked(new Set(indices))}
@@ -1191,7 +1216,7 @@ export function OrderDetail({
       <Dialog
         open={!!showShipForm}
         onClose={() => !isShipping && setShowShipForm(false)}
-        title={showShipForm === "edit" ? (hasLabel ? "Edit tracking link" : "Correct tracking") : "Confirm dispatch"}
+        title={showShipForm === "edit" ? (hasLabel ? "Edit tracking link or number" : "Correct tracking") : "Confirm dispatch"}
         description={
           showShipForm === "edit"
             ? hasLabel
@@ -1226,6 +1251,13 @@ export function OrderDetail({
         }
       >
         <div className="rp-stack">
+          {showShipForm === "edit" && rawLabel && (
+            <Checkbox
+              label="This label was voided or replaced — enter the real carrier and tracking number"
+              checked={labelReplaced}
+              onChange={(event: any) => setLabelReplaced(event.target.checked)}
+            />
+          )}
           {hasLabel ? (
             <p className="fw-summary" style={{ margin: 0 }}>
               <strong>Shippo label:</strong> {order.trackingCarrier || "Carrier"} · {order.trackingNumber}
@@ -1527,7 +1559,7 @@ export function OrderDetail({
       <Dialog
         open={showLabelRates}
         onClose={() => !isBuyingLabel && setShowLabelRates(false)}
-        title="Choose a Canada Post label"
+        title="Choose a label"
         description="The service the customer paid for is pre-selected. Buying a label charges your Shippo account. The customer is emailed only when you confirm dispatch."
         footer={
           <>
@@ -1548,12 +1580,12 @@ export function OrderDetail({
       >
         {labelRates.length === 0 ? (
           <EmptyState
-            title="No Canada Post rates available"
-            description="Canada Post did not return a service for this parcel and address. Check the address or parcel details, then try again."
+            title="No label rates available"
+            description="Neither Canada Post nor the service the customer chose came back for this parcel and address. Check the address or parcel details, then try again."
           />
         ) : (
           <fieldset style={{ margin: 0, padding: 0, border: 0 }}>
-            <legend className="rp-sr-only">Canada Post label choices</legend>
+            <legend className="rp-sr-only">Label choices</legend>
             {order.shippingMethod && (
               <p className="rp-hint" style={{ margin: "0 0 10px" }}>
                 Customer chose <strong>{order.shippingMethod}</strong> and paid {money(order.shipping)} for shipping.
@@ -1602,7 +1634,7 @@ export function OrderDetail({
                       onChange={() => setSelectedLabelRate(rate.id)}
                     />
                     <span>
-                      <strong style={{ display: "block" }}>{rate.name}</strong>
+                      <strong style={{ display: "block" }}>{rate.name}{rate.carrier && !String(rate.name).toLowerCase().includes(String(rate.carrier).toLowerCase()) ? ` · ${rate.carrier}` : ""}</strong>
                       <span className="rp-hint">
                         {days}
                         {rate.durationTerms ? ` · ${rate.durationTerms}` : ""}
@@ -1679,6 +1711,31 @@ export function OrderDetail({
         onConfirm={runConfirmed}
         onCancel={() => setConfirmAction(null)}
       />
+      <Dialog
+        open={showReplaceLabel}
+        onClose={() => !replacing && setShowReplaceLabel(false)}
+        title="Replace this label?"
+        description="Use this when the label was bought for the wrong weight, address or service and the parcel has not left the shop."
+        footer={
+          <>
+            <SecondaryButton disabled={replacing} onClick={() => setShowReplaceLabel(false)}>Cancel</SecondaryButton>
+            <DestructiveButton disabled={replacing} onClick={replaceLabel}>
+              {replacing ? "Voiding…" : voidedElsewhere ? "Forget this label" : "Void label in Shippo"}
+            </DestructiveButton>
+          </>
+        }
+      >
+        <div className="rp-stack">
+          <p style={{ margin: 0 }}>
+            Label <span className="rp-mono">{order.trackingNumber || ""}</span> will be voided with Shippo (unused labels are refunded to your Shippo balance) and removed from this order. You can then buy a new one. Nothing is emailed to the customer.
+          </p>
+          <Checkbox
+            label="I already voided it in Shippo — just remove it from this order"
+            checked={voidedElsewhere}
+            onChange={(event: any) => setVoidedElsewhere(event.target.checked)}
+          />
+        </div>
+      </Dialog>
       <ConfirmDialog
         open={confirmClearLabelLock}
         title="Allow a new label?"

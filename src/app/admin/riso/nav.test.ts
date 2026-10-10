@@ -11,9 +11,9 @@ describe("admin navigation", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("keeps nested Settings navigation (general, shipping, payments, taxes, design, notifications)", () => {
+  it("keeps nested Settings navigation (general, shipping, payments, taxes, design, notifications, email sender)", () => {
     const settings = NAV.find((n) => n.id === "settings");
-    expect(settings?.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "designer", "notifications"]);
+    expect(settings?.children?.map((c) => c.id)).toEqual(["general", "shipping", "payments", "taxes", "designer", "notifications", "communications"]);
   });
 
   it("has a title and description for every module", () => {
