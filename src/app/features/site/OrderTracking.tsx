@@ -1,3 +1,4 @@
+import { orderChargedTotal } from "./orderMoney";
 import { lineIsDigital } from "./digitalLine";
 import { orderLineNotes } from "./orderLineNotes";
 import { orderAccessHeaders, rememberOrderAccess, savedOrderAccess } from "../../lib/orderAccessClient";
@@ -315,7 +316,7 @@ function OrderTrackingContent() {
                   <div className="flex md:flex-col items-end justify-between md:justify-end gap-3 border-t-2 md:border-t-0 fm-track-rule pt-6 md:pt-0">
                     <div className="text-left md:text-right">
                       <p className="fm-track-mono">{getCopy(settings?.design, "trackTotalPayable")}</p>
-                      <p className="fm-track-display text-4xl sm:text-5xl mt-1">{orderFormatPrice(order.total)}</p>
+                      <p className="fm-track-display text-4xl sm:text-5xl mt-1">{orderChargedTotal(order, formatPrice)}</p>
                     </div>
                     <span className="fm-track-stamp" data-state={stampState}>
                       <span aria-hidden="true">{stampState === "paid" ? "✓" : stampState === "ended" ? "✕" : "○"}</span>
@@ -466,7 +467,7 @@ function OrderTrackingContent() {
                   {order.discount > 0 && <div className="fm-track-row fm-success-text"><span className="fm-track-mono">{getCopy(settings?.design, "summaryDiscount")}</span><span className="font-mono">−{orderFormatPrice(order.discount)}</span></div>}
                   <div className="fm-track-row"><span className="fm-track-mono">{getCopy(settings?.design, "summaryShipping")}</span><span className="font-mono">{order.shipping > 0 ? orderFormatPrice(order.shipping) : getCopy(settings?.design, "coFree")}</span></div>
                   {order.tax > 0 && <div className="fm-track-row"><span className="fm-track-mono">{getCopy(settings?.design, "summaryTax")}</span><span className="font-mono">{orderFormatPrice(order.tax)}</span></div>}
-                  <div className="fm-track-total"><span className="fm-track-mono">{getCopy(settings?.design, "summaryTotal")}</span><span className="fm-track-display text-3xl sm:text-4xl">{orderFormatPrice(order.total)}</span></div>
+                  <div className="fm-track-total"><span className="fm-track-mono">{getCopy(settings?.design, "summaryTotal")}</span><span className="fm-track-display text-3xl sm:text-4xl">{orderChargedTotal(order, formatPrice)}</span></div>
                 </div>
               </section>
 

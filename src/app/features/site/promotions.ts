@@ -3,6 +3,7 @@
 // (signed copy, inscription, gift wrap), box sets / bundles and gift-card products.
 // The server re-prices every line from the catalog; these only decide what shoppers see.
 import { shopDate } from "./preorder";
+import { parseWeightGrams } from "./shippingEngine";
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -112,6 +113,26 @@ export function bundleComponents(book: any): BundlePart[] {
 }
 
 export const isBundle = (book: any): boolean => bundleComponents(book).length > 0;
+
+/**
+ * A box set with no weight of its own weighs what its books weigh (each part at its chosen edition's
+ * weight, times its quantity); null when any part has no weight. Mirrors the server (functions/index.js
+ * `priceOrder` / `getShippoRates`), so the quote shown at checkout is the quote that is charged.
+ */
+export function bundleWeightGrams(book: any, booksById: { get(id: string): any }): number | null {
+  const parts = bundleComponents(book);
+  if (!parts.length) return null;
+  let total = 0;
+  for (const part of parts) {
+    const partBook: any = booksById.get(part.id);
+    if (!partBook) return null;
+    const variant = part.variantId ? (partBook.variants || []).find((v: any) => v.id === part.variantId) : null;
+    const grams = parseWeightGrams(variant?.weight) ?? parseWeightGrams(partBook.weight);
+    if (grams == null) return null;
+    total += grams * part.quantity;
+  }
+  return total;
+}
 
 function partStock(book: any, variantId: string | null): number {
   if (!book) return 0;

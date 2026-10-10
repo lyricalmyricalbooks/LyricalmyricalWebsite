@@ -1507,7 +1507,7 @@ export const adminApi = {
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "The gift card couldn't be updated.");
-    return result as { ok?: boolean; id?: string; code?: string; last4?: string; balanceMinor?: number; emailError?: string };
+    return result as { ok?: boolean; id?: string; code?: string; last4?: string; balanceMinor?: number; emailError?: string; appliedMinor?: number; clamped?: boolean };
   },
 
   validateDiscount: async (code: string) => {

@@ -112,7 +112,9 @@ function AdjustDialog({ card, onClose, onDone }: { card: any; onClose: () => voi
     setSaving(true); setError("");
     try {
       const result = await adminApi.giftCardAdmin("adjust", { id: card.id, deltaMinor: delta, reason: reason.trim() });
-      toast.success(`Balance is now ${formatMinor(result.balanceMinor)}`);
+      toast.success(result.clamped
+        ? `Only ${formatMinor(Math.abs(result.appliedMinor || 0))} could be ${(result.appliedMinor || 0) < 0 ? "removed" : "added"}. Balance is now ${formatMinor(result.balanceMinor)}`
+        : `Balance is now ${formatMinor(result.balanceMinor)}`);
       onDone();
     } catch (err: any) {
       setError(err?.message || "The balance couldn't be changed.");

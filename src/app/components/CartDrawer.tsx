@@ -15,7 +15,7 @@ import { googleFontHref } from "../features/site/fonts";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { publicApi } from "../lib/publicApi";
 import { catalogFulfillmentItems } from "../features/site/checkoutFulfillment";
-import { bagFreeShipThreshold } from "../features/site/freeShipThreshold";
+import { bagFreeShipThreshold, shippableBagTotal } from "../features/site/freeShipThreshold";
 
 // Shipping rules are read once per visit (public collection) the first time the bag opens.
 let shippingProfilesLoad: Promise<any[] | null> | null = null;
@@ -94,8 +94,10 @@ export function CartDrawer() {
   const fulfillmentItems = useMemo(() => catalogFulfillmentItems(cart, booksMap), [cart, booksMap]);
   const hasPhysicalItems = fulfillmentItems ? fulfillmentItems.some((item) => item.physical) : cart.length > 0;
   const FREE_SHIP_THRESHOLD = bagFreeShipThreshold(shippingProfiles, hasPhysicalItems);
-  const remaining = FREE_SHIP_THRESHOLD ? Math.max(0, FREE_SHIP_THRESHOLD - cartTotal) : 0;
-  const progress = FREE_SHIP_THRESHOLD ? Math.min(100, (cartTotal / FREE_SHIP_THRESHOLD) * 100) : 100;
+  // Only printed books count: checkout charges shipping on physical lines, so e-books and gift cards can't fill the bar.
+  const shippableTotal = shippableBagTotal(fulfillmentItems, cartTotal);
+  const remaining = FREE_SHIP_THRESHOLD ? Math.max(0, FREE_SHIP_THRESHOLD - shippableTotal) : 0;
+  const progress = FREE_SHIP_THRESHOLD ? Math.min(100, (shippableTotal / FREE_SHIP_THRESHOLD) * 100) : 100;
   const pad2 = (n: number) => String(n).padStart(2, "0");
   const goCheckout = () => { setIsCartOpen(false); navigate("/checkout"); };
 

@@ -113,9 +113,16 @@ const REVERSAL_WINDOW_MS = 120 * 24 * 60 * 60 * 1000; // refunds/disputes can ar
 
 // Paid Stripe orders whose refund/dispute state should be re-read from Stripe now
 // (safety net for missed charge.refunded / charge.dispute.* webhooks), oldest check first.
+// A refund Stripe reported as succeeded can still be rejected by the card issuer days later, so a
+// recently "refunded" Stripe order is re-read for a while too (see revertFailedRefund).
+const FAILED_REFUND_WINDOW_MS = 45 * 24 * 60 * 60 * 1000;
+function refundedMayStillFail(o, nowMs) {
+  return o.paymentStatus === "refunded" && o.refund?.provider === "stripe" && o.refund?.status !== "failed"
+    && nowMs - Date.parse(o.refundedAt || o.refund?.createdAt || "") <= FAILED_REFUND_WINDOW_MS;
+}
 function ordersDueReversalCheck(orders, nowMs = Date.now(), limit = 40) {
   return (orders || [])
-    .filter((o) => o && (o.paymentStatus === "paid" || o.paymentStatus === "refund_pending") && o.isTest !== true
+    .filter((o) => o && (o.paymentStatus === "paid" || o.paymentStatus === "refund_pending" || refundedMayStillFail(o, nowMs)) && o.isTest !== true
       && typeof o.stripePaymentIntentId === "string" && o.stripePaymentIntentId.startsWith("pi_")
       && nowMs - Date.parse(o.paidAt || o.createdAt || "") <= REVERSAL_WINDOW_MS
       && !(nowMs - Date.parse(o.stripeCheckedAt || "") < REVERSAL_RECHECK_MS))
@@ -128,7 +135,9 @@ function ordersDueReversalCheck(orders, nowMs = Date.now(), limit = 40) {
 // or null while any refund on the charge is still pending or went through.
 const FAILED_REFUND = ["failed", "canceled"];
 function failedRefundId(order, charge, refunds) {
-  if (!order || order.paymentStatus !== "refund_pending") return null;
+  if (!order) return null;
+  const refundedByStripe = order.paymentStatus === "refunded" && order.refund && order.refund.provider === "stripe" && order.refund.status !== "failed";
+  if (order.paymentStatus !== "refund_pending" && !refundedByStripe) return null;
   if (!charge || Number(charge.amount_refunded) !== 0) return null;
   const list = (refunds || []).filter(Boolean);
   if (list.some((r) => !FAILED_REFUND.includes(String(r.status)))) return null;

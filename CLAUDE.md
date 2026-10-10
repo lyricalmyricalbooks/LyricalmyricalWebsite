@@ -1501,3 +1501,22 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   (`TaxesSettings.tsx`, shape unchanged). Shop alerts (Notifications › Shop alerts) = `shopAlerts.newOrder` / `.shipped` / `.dailyOrderDigest` (older `new_order_admin.enabled` is the newOrder fallback).
   `{{items_table}}` placement via mirrored `placeItemsTable`. `adminSecrets/*.migratedFromPublic` gates "rotate key" warnings.
 - **Deploy** Firestore rules + indexes + Functions with this frontend. A second admin email was not added (owner must name it).
+
+## Round-2 payment fixes (10 October 2026)
+
+- **Manual orders** (`createManualLocalOrder`) pass `addOns` / `giftCardDetails` through to `priceOrder` and hold the
+  *priced* lines (`trusted.items`: box-set parts, free gift), like the card/PayPal paths.
+- **Failed refunds:** `revertFailedRefund` also undoes a Stripe `refunded` order (refund id match, or the caller read the
+  charge as unrefunded: `chargeUnrefunded`); the 15-minute sweep re-reads Stripe refunds ≤45 days old. A reverted order has
+  `refund.status: "failed"` → Orders **Needs attention** (`refundFailed`), an admin alert (`refund-failed`) and an email
+  (`onOrderUpdated`). A retry uses `refundRetrySuffix` in the Stripe/PayPal idempotency key. `applyOrderRefund` without an
+  explicit/saved restock choice does not restock dispatched orders. The `status` action on a paid order calls `checkStripeReversal`.
+- **Discount claims:** `functions/discountClaims.js` — one-use / usage-limit checks (`assertDiscountNotUsedByCustomer`) match the
+  mailbox (`emailIdentity`: `+tag`, Gmail dots) and count paid, manual `pending` and live (≤35 min) card/PayPal orders.
+- **Duplicate-order guard:** `previous_attempt_paid` only when the new order's lines equal the paid one (`sameOrderLines`,
+  server `paymentGuards.js` / client `features/site/orderLines.ts`). `createPayPalOrder` also returns `amount`/`currency`
+  and checkout confirms a changed total. Shop-facing totals use `orderChargedTotal` (`expectedAmountMinor` is a public order field).
+- **Shipping:** live carrier selection can't be satisfied by a profile rate while live rates exist; a carrier outage says
+  "temporarily unavailable". Box-set weight = parts at their edition weights (`bundleWeightGrams` client, `priceOrder` /
+  `getShippoRates` / `cartShippingPreview` server). The bag's free-shipping bar counts printed books only (`shippableBagTotal`).
+- Gift-card `adjust` history stores the applied change (`requestedMinor` kept when clamped). `createPayPalOrder` binds `STRIPE_SECRET_KEY`.
