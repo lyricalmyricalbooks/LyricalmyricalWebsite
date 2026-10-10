@@ -23,3 +23,12 @@ test('the footer address skips blank parts', () => {
 test('a mangled unsubscribe token is refused, not a crash', () => {
   expect(tokenMatches('ada@example.com', 'é'.repeat(40), 'k1')).toBe(false);
 });
+
+test('a newsletter confirm token is not an unsubscribe token (the purpose is signed)', async () => {
+  const { purposeToken, purposeTokenMatches, unsubscribeToken, tokenMatches } = createRequire(import.meta.url)('./marketingOptOut');
+  const confirm = purposeToken('Ada@Example.com ', 'k1', 'newsletter-confirm');
+  expect(purposeTokenMatches('ada@example.com', confirm, 'k1', 'newsletter-confirm')).toBe(true);
+  expect(tokenMatches('ada@example.com', confirm, 'k1')).toBe(false);
+  expect(purposeTokenMatches('ada@example.com', unsubscribeToken('ada@example.com', 'k1'), 'k1', 'newsletter-confirm')).toBe(false);
+  expect(purposeTokenMatches('bob@example.com', confirm, 'k1', 'newsletter-confirm')).toBe(false);
+});
