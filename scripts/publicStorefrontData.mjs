@@ -18,21 +18,37 @@ export async function readPublicStorefront() {
   const project = config.match(/projectId:\s*"([^"]+)"/)?.[1];
   if (!project) throw new Error('Firebase project ID missing');
   const endpoint = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/`;
-  async function collection(name) {
-    const documents = [];
-    let token;
-    do {
-      const url = new URL(endpoint + name);
-      url.searchParams.set('pageSize', '300');
-      if (token) url.searchParams.set('pageToken', token);
-      const data = await publicRead(url);
-      documents.push(...(data.documents || []).map(decodeDocument));
-      token = data.nextPageToken;
-    } while (token);
-    return documents;
-  }
-  const [books, pages, settings] = await Promise.all([collection('books'), readPublishedPages(endpoint), publicRead(endpoint + 'settings/website').then(decodeDocument)]);
+  const [books, pages, settings] = await Promise.all([readPublishedBooks(endpoint), readPublishedPages(endpoint), publicRead(endpoint + 'settings/website').then(decodeDocument)]);
   return { books, pages, settings };
+}
+// firestore.rules let the public read only books whose status is "published" (private fields live in books/{id}/private/admin),
+// so an unfiltered listing is refused: ask for exactly those, a page of `size` at a time by document name.
+export const publishedBooksQuery = (afterName = '', size = 300) => ({
+  structuredQuery: {
+    from: [{ collectionId: 'books' }],
+    where: { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'published' } } },
+    orderBy: [{ field: { fieldPath: '__name__' }, direction: 'ASCENDING' }],
+    limit: size,
+    ...(afterName ? { startAt: { values: [{ referenceValue: afterName }], before: false } } : {}),
+  },
+});
+export async function readPublishedBooks(endpoint, fetchImpl = fetch, size = 300) {
+  const books = [];
+  let after = '';
+  for (;;) {
+    const response = await fetchImpl(endpoint.replace(/\/$/, '') + ':runQuery', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(publishedBooksQuery(after, size)),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok) throw new Error(`Public data read failed: ${response.status}`);
+    const rows = await response.json();
+    const documents = (Array.isArray(rows) ? rows : []).filter(row => row && row.document).map(row => row.document);
+    books.push(...documents.map(decodeDocument));
+    if (documents.length < size) return books;
+    after = documents.at(-1).name;
+  }
 }
 // firestore.rules let the public read only published pages, so an unfiltered listing of
 // `pages` is refused: ask for exactly the published ones (a status == "published" query).

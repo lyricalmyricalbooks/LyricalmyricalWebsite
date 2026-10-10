@@ -2,6 +2,12 @@
 // unlocks the e-book. A paperback of a book that also sells an e-book does not.
 const DIGITAL_FORMAT = /digital|ebook|e-book|epub|pdf|audiobook/i;
 
+/**
+ * Stand-in for a book shoppers can no longer read (archived or drafted after they bought it: the catalog only serves
+ * published books). The order line's recorded format still says "e-book", and the server decides on download.
+ */
+export const UNREADABLE_BOOK = { digitalFileName: "(not readable)" };
+
 export function lineIsDigital(line: any, book: any): boolean {
   // Gift cards are digital but have nothing to download: their code is emailed.
   if (!line || line.giftCard === true || book?.productType === "giftCard" || !book?.digitalFileName) return false;

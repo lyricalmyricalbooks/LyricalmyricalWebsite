@@ -9,7 +9,7 @@ import { findScheme, schemeList } from "../features/site/colorSchemes";
 import { resolveSectionSharedBlocks } from "../features/site/sharedBlocks";
 import { UP_TO } from "../features/site/breakpoints";
 import { SectionDesignContext, useSectionPage } from "./sectionCopy";
-import { resolveDynamicSettings } from "../features/site/dynamicSources";
+import { HTML_SETTING_KEYS, resolveDynamicSettings } from "../features/site/dynamicSources";
 import { sectionsSurface } from "../features/site/templateAlternates";
 import { SectionPriorityContext, sectionHasPriority } from "./ResponsiveImage";
 import {
@@ -251,7 +251,7 @@ export function SectionList({
 
         // Connected fields (Studio 2.7 dynamic sources) become plain values for this page; "Hide when empty"
         // leaves the section out where its connected details are missing.
-        const dyn = resolveDynamicSettings(resolveSectionSharedBlocks(section.settings || {}, sharedBlocks), pageContext, { preview });
+        const dyn = resolveDynamicSettings(resolveSectionSharedBlocks(section.settings || {}, sharedBlocks), pageContext, { preview, htmlKeys: HTML_SETTING_KEYS[section.type] });
         if (dyn.hidden) return null;
         const s = { ...dyn.settings, __sectionId: section.id, __sharedBlocks: sharedBlocks };
         // Style tab › Colour scheme. `data-scheme` picks up the scheme's variables (schemeCss, emitted by

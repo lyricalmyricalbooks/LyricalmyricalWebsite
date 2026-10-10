@@ -120,7 +120,7 @@ export function mapHeadings(headings: string[]): { fields: (ImportField | null)[
 // ── Values ────────────────────────────────────────────────────────
 
 /** Undo the export's spreadsheet-formula guard ('=…, '+…, '-…, '@…). */
-const unguard = (value: string) => value.trim().replace(/^'([=+\-@])/, "$1");
+const unguard = (value: string) => value.trim().replace(/^'([=+\-@\t\r])/, "$1");
 
 export const normalizeIsbn = (value: unknown) => String(value ?? "").toUpperCase().replace(/[^0-9X]/g, "");
 

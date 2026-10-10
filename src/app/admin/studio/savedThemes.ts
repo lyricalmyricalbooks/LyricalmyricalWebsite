@@ -50,11 +50,36 @@ export const themeFileName = (t: Pick<SavedTheme, "name">) =>
 export const serializeThemeFile = (t: Pick<SavedTheme, "name" | "design">, now = new Date()) =>
   JSON.stringify({ kind: FILE_KIND, version: 1, name: t.name, exportedAt: now.toISOString(), design: clone(t.design) }, null, 2);
 
+/** Design keys whose content runs as script/markup on every public page (Studio › Style › Custom code). */
+const SCRIPT_KEYS: [string, string][] = [["customHeadHtml", "Extra <head> HTML"], ["customFooterScripts", "Footer scripts"]];
+
+/**
+ * A theme file comes from outside, so it must not carry code into the storefront: the head HTML and footer
+ * scripts are removed (at the top level and inside page/surface overrides) and named so Studio can say so.
+ * The owner's own saved themes keep their custom code; only imports go through here (#118).
+ */
+export function stripImportedCustomCode(design: any): { design: any; removed: string[] } {
+  const removed = new Set<string>();
+  const clean = (node: any): any => {
+    const out = { ...node };
+    for (const [key, label] of SCRIPT_KEYS) {
+      if (key in out) { if (String(out[key] ?? "").trim()) removed.add(label); delete out[key]; }
+    }
+    return out;
+  };
+  const top = clean(design);
+  for (const [key, value] of Object.entries(top)) {
+    if (value && typeof value === "object" && !Array.isArray(value)) top[key] = clean(value);
+  }
+  return { design: top, removed: [...removed] };
+}
+
 /** Reads a downloaded theme file. Returns an error string instead of throwing so the UI can show it. */
-export function parseThemeFile(text: string): { name: string; design: any } | { error: string } {
+export function parseThemeFile(text: string): { name: string; design: any; strippedCustomCode?: string[] } | { error: string } {
   let raw: any;
   try { raw = JSON.parse(text); } catch { return { error: "That file isn't valid JSON." }; }
   const design = raw && raw.kind === FILE_KIND ? raw.design : raw?.design ?? null;
   if (!design || typeof design !== "object" || Array.isArray(design)) return { error: "That file isn't a Lyricalmyrical theme export." };
-  return { name: String(raw.name || "Imported theme").slice(0, 60), design };
+  const { design: safe, removed } = stripImportedCustomCode(design);
+  return { name: String(raw.name || "Imported theme").slice(0, 60), design: safe, ...(removed.length ? { strippedCustomCode: removed } : {}) };
 }

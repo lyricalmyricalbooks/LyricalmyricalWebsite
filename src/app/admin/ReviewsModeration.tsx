@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { collection, getDocs, query, orderBy, limit, where } from "firebase/firestore";
 import { Check, MessageSquare, Pin, PinOff, Star, Trash2, X } from "lucide-react";
 import { adminApi } from "./api";
 import { filterReviews, isVerifiedPurchase, moderationOutcome, purchaseIndex, reviewStats } from "./reviewInsights";
 import { resolveProductRoutes } from "../features/site/productRoutes";
 import { db } from "../../lib/firebase";
 import { reviewsApi, type Review } from "../lib/reviews";
+import { loadMorePending, loadReviewQueue, PENDING_PAGE, type QueueDoc } from "./reviewQueue";
 import {
   Checkbox, ConfirmDialog, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState, MetricCard, PrimaryButton,
   SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast, type BadgeTone,
@@ -40,25 +40,47 @@ function Queue() {
   const [orders, setOrders] = useState<any[]>([]);
   const [replying, setReplying] = useState<Review | null>(null);
   const [replyText, setReplyText] = useState("");
-  // The browse list is capped at the newest 200 (pending ones are always all loaded).
+  // The browse list is capped at the newest 200; pending reviews load one page at a time (reviewQueue.ts).
   const [capped, setCapped] = useState(false);
+  const [pendingTotal, setPendingTotal] = useState<number | null>(null);
+  const [cursor, setCursor] = useState<QueueDoc | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // Reviewer emails are read one review at a time, only when the owner asks to see one.
+  const [emails, setEmails] = useState<Record<string, string>>({});
 
   async function load() {
     setLoading(true); setError(false);
     try {
-      // Newest 200 for browsing, plus every pending review so older ones never drop out of the queue.
-      const [snap, pendingSnap] = await Promise.all([
-        getDocs(query(collection(db, "reviews"), orderBy("createdAt", "desc"), limit(200))),
-        getDocs(query(collection(db, "reviews"), where("status", "==", "pending"))),
-      ]);
-      setCapped(snap.docs.length >= 200);
+      // Newest 200 for browsing, plus the newest page of pending reviews (more on request) and the true pending count.
+      const page = await loadReviewQueue(db);
+      setCapped(page.recent.length >= 200);
+      setPendingTotal(page.pendingTotal);
+      setCursor(page.cursor);
       const byId = new Map<string, Review>();
-      for (const d of [...snap.docs, ...pendingSnap.docs]) byId.set(d.id, { id: d.id, ...(d.data() as any) });
-      const list: Review[] = [...byId.values()].sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
-      // Reviewer emails are kept in the admin-only reviewContacts collection.
-      const contacts = await reviewsApi.contactsFor(list).catch(() => ({} as Record<string, string>));
-      setReviews(list.map((r) => ({ ...r, email: contacts[r.id] || undefined })));
+      for (const d of [...page.recent, ...page.pending]) byId.set(d.id, { id: d.id, ...(d.data() as any) });
+      setReviews([...byId.values()].sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))));
     } catch { setError(true); } finally { setLoading(false); }
+  }
+
+  async function morePending() {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const next = await loadMorePending(db, cursor);
+      setCursor(next.cursor);
+      setReviews((current) => {
+        const byId = new Map(current.map((r) => [r.id, r] as const));
+        for (const d of next.docs) byId.set(d.id, { id: d.id, ...(d.data() as any) });
+        return [...byId.values()].sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+      });
+    } catch { toast("Could not load more pending reviews."); } finally { setLoadingMore(false); }
+  }
+
+  async function showEmail(r: Review) {
+    try {
+      const found = await reviewsApi.contactsFor([r]);
+      setEmails((current) => ({ ...current, [r.id]: found[r.id] || "(no email left)" }));
+    } catch { toast("Could not load the reviewer's email."); }
   }
   useEffect(() => { load(); }, []);
   // Book titles are a nicety: if they fail to load, fall back to the raw book ID.
@@ -77,7 +99,7 @@ function Queue() {
   const stats = useMemo(() => reviewStats(reviews), [reviews]);
 
   const counts = useMemo(() => ({
-    pending: reviews.filter((r) => r.status === "pending").length,
+    pending: pendingTotal ?? reviews.filter((r) => r.status === "pending").length,
     approved: reviews.filter((r) => r.status === "approved").length,
     rejected: reviews.filter((r) => r.status === "rejected").length,
     all: reviews.length,
@@ -148,7 +170,7 @@ function Queue() {
         <MetricCard label="Awaiting a reply" value={stats.unanswered} footer="Approved with no owner reply" />
       </div>
       {stats.total > 0 && (
-        <SectionCard title="Rating spread" description={capped ? "Newest 200 reviews plus every pending one" : "All reviews"}>
+        <SectionCard title="Rating spread" description={capped ? "Newest 200 reviews plus the pending ones loaded" : "All reviews"}>
           <ul aria-label="Reviews by star rating" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
             {[5, 4, 3, 2, 1].map((n) => {
               const count = stats.distribution[n - 1] || 0;
@@ -215,11 +237,12 @@ function Queue() {
                         </div>
                         {r.title && <h3 style={{ margin: "0 0 4px", fontSize: "var(--rp-text-base)", fontWeight: 600 }}>{r.title}</h3>}
                         <p style={{ margin: "0 0 8px", lineHeight: 1.55, overflowWrap: "anywhere" }}>{r.body}</p>
-                        <p className="rp-hint" style={{ margin: 0 }}>{r.authorName}{r.email ? ` · ${r.email}` : ""} · Book <a href={bookUrl(r.bookId)} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>{titles[r.bookId] || r.bookId}</a></p>
+                        <p className="rp-hint" style={{ margin: 0 }}>{r.authorName}{emails[r.id] ? ` · ${emails[r.id]}` : ""} · Book <a href={bookUrl(r.bookId)} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>{titles[r.bookId] || r.bookId}</a></p>
                         {r.reply?.body && <p className="rp-hint" style={{ margin: "8px 0 0", borderLeft: "2px solid var(--rp-border-strong)", paddingLeft: 8 }}>Your reply: {r.reply.body}</p>}
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 4 }}>
+                      {!emails[r.id] && <SecondaryButton size="sm" onClick={() => showEmail(r)}>Show email</SecondaryButton>}
                       <IconButton label={`${r.reply?.body ? "Edit reply to" : "Reply to"} review by ${r.authorName}`} onClick={() => { setReplying(r); setReplyText(r.reply?.body || ""); }}><MessageSquare size={18} aria-hidden /></IconButton>
                       <IconButton label={`${r.featured ? "Unpin" : "Pin to top"} review by ${r.authorName}`} onClick={() => toggleFeatured(r)}>{r.featured ? <PinOff size={18} aria-hidden /> : <Pin size={18} aria-hidden />}</IconButton>
                       {r.status !== "approved" && <IconButton tone="success" label={`Approve review by ${r.authorName}`} onClick={() => moderate([r.id], "approved")}><Check size={18} aria-hidden /></IconButton>}
@@ -231,6 +254,13 @@ function Queue() {
               ))}
             </ul>
           )}
+        {cursor && !loading && !error && filter === "pending" && (
+          <div style={{ padding: 12 }}>
+            <SecondaryButton size="sm" disabled={loadingMore} onClick={morePending}>
+              {loadingMore ? "Loading…" : `Load ${PENDING_PAGE} more pending reviews`}
+            </SecondaryButton>
+          </div>
+        )}
       </SectionCard>
 
       <Dialog open={!!replying} onClose={() => setReplying(null)} title="Reply publicly" description="Shown under the review on the book page once the review is approved. Leave empty to remove your reply."

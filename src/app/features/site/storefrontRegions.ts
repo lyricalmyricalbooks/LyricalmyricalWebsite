@@ -77,7 +77,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "searchAuthor", label: "Result author" },
   ] },
   { id: "reviewsLayout", title: "Reviews · layout & elements", copy: "Reviews", files: ["features/site/ReviewsSection.tsx"], regions: [
-    { id: "reviewsHeading", label: "Reviews heading" }, { id: "reviewsList", label: "Published reviews" },
+    { id: "reviewsHeading", label: "Reviews heading" }, { id: "reviewsList", label: "Published reviews" }, { id: "reviewsMore", label: "Show more reviews button" },
     { id: "reviewsEmpty", label: "Reviews loading & empty state" }, { id: "reviewsTitle", label: "Review title" },
     { id: "reviewsBody", label: "Review body" }, { id: "reviewsAuthor", label: "Review author" }, { id: "reviewsDate", label: "Review date" },
     { id: "reviewsVerified", label: "Verified purchase badge" }, { id: "reviewsFeatured", label: "Featured review label" },
