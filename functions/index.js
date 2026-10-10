@@ -42,7 +42,7 @@ const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId,
 const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences, forDigitalOnlyOrder } = require("./emailMoney");
 const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { runReviewRequests, REVIEW_REQUEST_TEMPLATE } = require("./reviewRequests");
-const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines } = require("./paymentGuards");
+const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines, shopDate } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
 const { refundRetrySuffix, refundPlan, refundedSoFar, restockLinesFor, withoutRestocked, partialRefundKey } = require("./partialRefund");
@@ -50,7 +50,8 @@ const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = requir
 const { hitLimit, LIMITS, clientIpOf, serverGeoCountry } = require("./rateLimit");
 const { publicErrorMessage } = require("./publicErrors");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
-const { preorderActive, preorderLine, preorderEmailLines } = require("./preorder");
+const { preorderActive, preorderLine, preorderEmailLines, releaseDateOf } = require("./preorder");
+const digitalDelivery = require("./digitalDelivery");
 const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCount } = require("./emailThrottle");
 const { hasOwnershipProof } = require("./emailProof");
 const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
@@ -3808,18 +3809,21 @@ exports.downloadDigitalAsset = onRequest(
         return;
       }
 
-      if (order.paymentStatus !== "paid") {
-        res.status(402).send("Order has not been paid yet");
+      const refusal = digitalDelivery.downloadRefusal(order);
+      if (refusal) {
+        res.status(refusal.status).send(refusal.message);
         return;
       }
 
-      const lines = (order.items || []).filter(i => i.id === itemId);
-      if (!lines.length) {
+      // The order's own lines for this book, plus box-set parts (a part's book id is a valid itemId).
+      const variantParam = req.query.variantId === undefined ? undefined : String(req.query.variantId);
+      const candidates = digitalDelivery.deliveryCandidates(order, String(itemId), variantParam);
+      if (!candidates.length) {
         res.status(404).send("Item not found in this order");
         return;
       }
 
-      const bookDoc = await db.collection("books").doc(itemId).get();
+      const bookDoc = await db.collection("books").doc(String(itemId)).get();
       if (!bookDoc.exists) {
         res.status(404).send("Product details not found");
         return;
@@ -3828,32 +3832,34 @@ exports.downloadDigitalAsset = onRequest(
       const book = bookDoc.data();
       // Only a digital edition unlocks the file: a paperback of the same book does not.
       // Older orders saved no format, so their line is checked against the catalog.
-      const boughtDigital = lines.some(line => {
-        const recorded = line.digital !== undefined || line.isDigital !== undefined || line.format !== undefined;
+      const bought = candidates.filter(({ line, variantId, bundle }) => {
+        const recorded = !bundle && (line.digital !== undefined || line.isDigital !== undefined || line.format !== undefined);
         if (recorded) return !isPhysicalItem(line);
-        const variant = line.variantId ? (book.variants || []).find(v => v.id === line.variantId) || null : null;
+        const variant = variantId ? (book.variants || []).find(v => v.id === variantId) || null : null;
         return catalogDigital(book, variant);
       });
-      if (!boughtDigital) {
+      if (!bought.length) {
         res.status(403).send("This order does not include the digital edition.");
         return;
       }
       // A pre-ordered e-book unlocks on its publication date (the live catalog decides, so a
       // release the publisher brings forward unlocks early too). Only lines bought as a
       // pre-order wait: turning pre-order on later for a new edition never locks earlier buyers out.
-      const boughtAsPreorder = lines.some(line => line.preorder === true && !isPhysicalItem(line));
-      if (boughtAsPreorder && preorderActive(book)) {
+      const ready = bought.filter(({ line, bundle }) => !((bundle ? bundle.preorder : line.preorder) === true && preorderActive(book)));
+      if (!ready.length) {
         res.status(403).send(book.publishDate ? `This pre-order can be downloaded from ${String(book.publishDate).slice(0, 10)}.` : "This pre-order can be downloaded once the book is released.");
         return;
       }
-      if (!book.digitalFileName) {
+      // One file per digital edition: the edition's own file, else the book's.
+      const target = ready.find(c => digitalDelivery.pickFileName(book, c.variantId)) || ready[0];
+      const fileName = digitalDelivery.pickFileName(book, target.variantId);
+      if (!fileName) {
         res.status(400).send("This publication does not have a digital download configured.");
         return;
       }
 
-      // Generate signed Storage URL expiring in 24 hours
       const bucket = admin.storage().bucket();
-      const file = bucket.file(`digital-assets/${book.digitalFileName}`);
+      const file = bucket.file(`digital-assets/${fileName}`);
 
       const exists = await file.exists();
       if (!exists[0]) {
@@ -3861,9 +3867,29 @@ exports.downloadDigitalAsset = onRequest(
         return;
       }
 
+      // Each book + edition on the order can be fetched a limited number of times (counted atomically);
+      // Order detail › Reset downloads gives the buyer a fresh allowance.
+      const orderRef = db.collection("orders").doc(String(orderId));
+      const key = digitalDelivery.countKey(target.bookId, target.variantId);
+      const claim = await db.runTransaction(async tx => {
+        const fresh = await tx.get(orderRef);
+        const current = fresh.exists ? fresh.data() : {};
+        const decision = digitalDelivery.nextDownloadCount(current.downloadCounts, key);
+        if (decision.ok) tx.update(orderRef, { downloadCounts: decision.next });
+        return decision;
+      });
+      if (!claim.ok) {
+        res.status(429).send(`This download has been used ${claim.used} times, which is the limit. Please reply to your order email and we will reset it.`);
+        return;
+      }
+
+      // A fresh, short-lived link per click, saved as an attachment named after the book.
+      const filename = digitalDelivery.downloadFilename(book.title || target.line.title, fileName);
       const [signedUrl] = await file.getSignedUrl({
         action: "read",
-        expires: Date.now() + 24 * 60 * 60 * 1000,
+        expires: Date.now() + digitalDelivery.SIGNED_URL_MINUTES * 60 * 1000,
+        responseDisposition: digitalDelivery.contentDisposition(filename),
+        responseType: digitalDelivery.contentTypeFor(fileName),
       });
 
       res.redirect(signedUrl);
@@ -4292,21 +4318,29 @@ exports.onOrderUpdated = onDocumentUpdated(
 
       // Compile digital items download section if any digital formats exist
       // Same digital rule as downloads, returns and labels ("Ebook", "Digital edition", digital: true).
-      const digitalItems = (order.items || []).filter(item => item && item.giftCard !== true && !isPhysicalItem(item));
+      // Box sets contribute their e-book parts; pre-ordered e-books get no live link until release.
+      const digitalItems = await digitalDelivery.emailDigitalEntries(order, {
+        loadBook: async id => { const snap = await db.collection("books").doc(String(id)).get(); return snap.exists ? snap.data() : null; },
+        isPhysical: isPhysicalItem, catalogDigital, preorderActive, releaseDateOf, today: shopDate(),
+      });
 
       let downloadSection = "";
       if (digitalItems.length > 0) {
+        const linkFor = item => `https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/downloadDigitalAsset?orderId=${encodeURIComponent(orderId)}&itemId=${encodeURIComponent(item.itemId)}${item.variantId ? `&variantId=${encodeURIComponent(item.variantId)}` : ""}&token=${encodeURIComponent(order.downloadToken || "")}`;
+        const note = String(notificationSettings.order_confirmation?.downloadNote || digitalDelivery.DEFAULT_DOWNLOAD_NOTE);
         downloadSection = `
           <div style="margin-top:28px;padding:24px;background:#f8f6ff;border-radius:16px;border:1px solid #7c3aed20;">
             <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">Digital Library Access</h3>
-            <p style="font-size:11px;color:#666;margin-bottom:16px;line-height:1.5;">Click the links below to download your digital books. For security, these download links are active for 24 hours.</p>
+            <p style="font-size:11px;color:#666;margin-bottom:16px;line-height:1.5;">${escapeHtml(note)}</p>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               ${digitalItems.map(item => `
                 <tr>
                   <td style="padding:8px 0;border-bottom:1px solid #7c3aed10;"><strong>${escapeHtml(item.title)}</strong></td>
                   <td style="padding:8px 0;text-align:right;border-bottom:1px solid #7c3aed10;">
-                    <a href="https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/downloadDigitalAsset?orderId=${encodeURIComponent(orderId)}&itemId=${encodeURIComponent(item.id)}&token=${encodeURIComponent(order.downloadToken || "")}"
-                       style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">Download File</a>
+                    ${item.pendingUntil
+                      ? `<span style="font-size:11px;color:#666;">${item.pendingUntil === "announced" ? "Available once the book is released" : `Available from ${escapeHtml(item.pendingUntil)}`}</span>`
+                      : `<a href="${linkFor(item)}"
+                       style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">Download File</a>`}
                   </td>
                 </tr>
               `).join("")}

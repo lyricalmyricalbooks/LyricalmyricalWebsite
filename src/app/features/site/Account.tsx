@@ -1,5 +1,5 @@
 import { orderChargedTotal } from "./orderMoney";
-import { lineIsDigital, UNREADABLE_BOOK } from "./digitalLine";
+import { digitalEntries, downloadBookIds, UNREADABLE_BOOK, type DigitalEntry } from "./digitalLine";
 import { publicApi } from "../../lib/publicApi";
 import { orderLineNotes } from "./orderLineNotes";
 import { regionProps } from "./storefrontRegions";
@@ -80,7 +80,7 @@ function AccountContent() {
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [loadingData, setLoadingData] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
-  const [digitalItems, setDigitalItems] = useState<Record<string, Record<string, boolean>>>({});
+  const [digitalItems, setDigitalItems] = useState<Record<string, DigitalEntry[]>>({});
   
   // Auth states
   const [emailLinkInput, setEmailLinkInput] = useState("");
@@ -251,15 +251,13 @@ function AccountContent() {
   // Scan order items for secure digital eBook versions
   // ⚡ Bolt: Eliminate N+1 queries by gathering unique book IDs and fetching them concurrently.
   async function checkDigitalAssets(loadedOrders: any[], uid: string) {
-    const assetMap: Record<string, Record<string, boolean>> = {};
+    const assetMap: Record<string, DigitalEntry[]> = {};
 
     // 1. Gather unique item IDs
     const uniqueItemIds = new Set<string>();
     for (const order of loadedOrders) {
       if (order.paymentStatus === "paid") {
-        for (const item of order.items || []) {
-          uniqueItemIds.add(item.id);
-        }
+        for (const id of downloadBookIds(order)) uniqueItemIds.add(id);
       }
     }
 
@@ -269,7 +267,7 @@ function AccountContent() {
       Array.from(uniqueItemIds).map(async (id) => {
         try {
           const book: any = await publicApi.getBook(id).catch(() => null);
-          booksById[id] = book && book.digitalFileName ? book : UNREADABLE_BOOK;
+          booksById[id] = book || UNREADABLE_BOOK;
         } catch (err) {
           console.warn("E-Book metadata scan error:", err);
         }
@@ -279,16 +277,8 @@ function AccountContent() {
     // 3. Map back to orders
     for (const order of loadedOrders) {
       if (order.paymentStatus !== "paid") continue;
-      const orderDigitalItems: Record<string, boolean> = {};
-      for (const item of order.items || []) {
-        // Only the e-book edition's line gets a download button (the server checks the same).
-        if (lineIsDigital(item, booksById[item.id])) {
-          orderDigitalItems[item.id] = true;
-        }
-      }
-      if (Object.keys(orderDigitalItems).length > 0) {
-        assetMap[order.id] = orderDigitalItems;
-      }
+      const entries = digitalEntries(order, booksById);
+      if (entries.length > 0) assetMap[order.id] = entries;
     }
     if (activeUid.current === uid) setDigitalItems(assetMap);
   }
@@ -357,13 +347,13 @@ function AccountContent() {
     }
   }
 
-  const handleDownloadDigitalAsset = (order: any, itemId: string) => {
+  const handleDownloadDigitalAsset = (order: any, itemId: string, variantId = "") => {
     if (!order.downloadToken) {
       toast.error(getCopy(settings?.design, "accountDownloadError"));
       return;
     }
     window.open(
-      `${functionUrl("downloadDigitalAsset")}?orderId=${encodeURIComponent(order.id || order.orderId)}&itemId=${encodeURIComponent(itemId)}&token=${encodeURIComponent(order.downloadToken)}`,
+      `${functionUrl("downloadDigitalAsset")}?orderId=${encodeURIComponent(order.id || order.orderId)}&itemId=${encodeURIComponent(itemId)}${variantId ? `&variantId=${encodeURIComponent(variantId)}` : ""}&token=${encodeURIComponent(order.downloadToken)}`,
       "_blank"
     );
   };
@@ -739,7 +729,7 @@ function AccountContent() {
             <ul className="space-y-6">
               {orders.map(o => {
                 const isExpanded = expandedOrderId === o.id;
-                const orderDigitalAssets = digitalItems[o.id] || {};
+                const orderDigitalAssets = digitalItems[o.id] || [];
                 
                 return (
                   <li key={o.id} className="glass-card border border-white/5 rounded-[2rem] overflow-hidden transition-all duration-300 hover:border-white/10">
@@ -843,7 +833,7 @@ function AccountContent() {
                         </Link>
                         
                         {/* E-book downloads section */}
-                        {Object.keys(orderDigitalAssets).length > 0 && o.paymentStatus === 'paid' && (
+                        {orderDigitalAssets.length > 0 && o.paymentStatus === 'paid' && (
                           <div {...regionProps("accountDownloads")}
                             className="border p-6 rounded-2xl space-y-4"
                             style={{ backgroundColor: "rgba(var(--accent-rgb), 0.08)", borderColor: "rgba(var(--accent-rgb), 0.2)" }}
@@ -853,17 +843,16 @@ function AccountContent() {
                               <p className="text-[10px] fm-muted mt-1 leading-relaxed">{getCopy(settings?.design, "accountDigitalText")}</p>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {o.items.map((item: any, i: number, all: any[]) => {
-                                // One download per book, even when two editions of it were ordered.
-                                if (!orderDigitalAssets[item.id] || all.findIndex((other: any) => other.id === item.id) !== i) return null;
+                              {orderDigitalAssets.map((item) => {
+                                // One download per book and edition (box-set parts included).
                                 return (
-                                  <div key={item.id} className="fm-surface-2 border border-white/5 rounded-xl p-4 flex justify-between items-center">
+                                  <div key={`${item.itemId}|${item.variantId}`} className="fm-surface-2 border border-white/5 rounded-xl p-4 flex justify-between items-center">
                                     <div className="truncate pr-4">
                                       <p className="text-[10px] font-bold text-white uppercase truncate">{item.title}</p>
                                       <p className="text-[8px] fm-muted uppercase tracking-widest mt-1">{getCopy(settings?.design, "accountEbook")}</p>
                                     </div>
                                     <button
-                                      onClick={() => handleDownloadDigitalAsset(o, item.id)}
+                                      onClick={() => handleDownloadDigitalAsset(o, item.itemId, item.variantId)}
                                       className="text-white p-2.5 rounded-lg transition-all flex items-center justify-center shrink-0 active:scale-95"
                                       style={{ backgroundColor: "var(--accent)" }}
                                       title={getCopy(settings?.design, "accountDownload")}

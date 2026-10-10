@@ -26,13 +26,17 @@ export function splitBookPrivate(book: Rec): { pub: Rec; priv: Rec } {
   }
   if (Array.isArray(pub.variants)) {
     const shelf: Rec = {};
+    const files: Rec = {};
     pub.variants = pub.variants.map((variant: Rec) => {
       if (!variant || typeof variant !== "object") return variant;
-      const { shelfLocation, ...rest } = variant;
+      // An edition's own download file: the name stays public (like the book's), the Storage path is private.
+      const { shelfLocation, digitalFilePath, ...rest } = variant;
       if (variant.id && typeof shelfLocation === "string" && shelfLocation.trim()) shelf[variant.id] = shelfLocation.trim();
+      if (variant.id && typeof digitalFilePath === "string" && digitalFilePath.trim()) files[variant.id] = digitalFilePath.trim();
       return rest;
     });
     priv.variantShelf = shelf;
+    if (Object.keys(files).length) priv.variantFiles = files;
   }
   return { pub, priv };
 }
@@ -42,9 +46,14 @@ export function mergeBookPrivate(book: Rec, priv: Rec | null | undefined): Rec {
   if (!priv) return book;
   const out: Rec = { ...book };
   for (const key of PRIVATE_BOOK_KEYS) if (priv[key] !== undefined) out[key] = priv[key];
-  if (priv.variantShelf && Array.isArray(out.variants)) {
-    out.variants = out.variants.map((variant: Rec) =>
-      variant && variant.id && priv.variantShelf[variant.id] !== undefined ? { ...variant, shelfLocation: priv.variantShelf[variant.id] } : variant);
+  if ((priv.variantShelf || priv.variantFiles) && Array.isArray(out.variants)) {
+    out.variants = out.variants.map((variant: Rec) => {
+      if (!variant || !variant.id) return variant;
+      const next: Rec = { ...variant };
+      if (priv.variantShelf && priv.variantShelf[variant.id] !== undefined) next.shelfLocation = priv.variantShelf[variant.id];
+      if (priv.variantFiles && priv.variantFiles[variant.id] !== undefined) next.digitalFilePath = priv.variantFiles[variant.id];
+      return next;
+    });
   }
   return out;
 }

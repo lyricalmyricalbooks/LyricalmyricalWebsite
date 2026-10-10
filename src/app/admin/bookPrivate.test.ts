@@ -42,3 +42,13 @@ describe("mergeBookPrivate during the transition", () => {
     expect(privateKeysIn({ costPrice: 1, variantShelf: {} })).toEqual(["costPrice"]);
   });
 });
+
+describe("per-edition download file (#115)", () => {
+  it("keeps the file name public and the Storage path private, and merges it back", () => {
+    const book = { title: "T", variants: [{ id: "e", digital: true, digitalFileName: "1-a.epub", digitalFilePath: "digital-assets/1-a.epub" }] };
+    const { pub, priv } = splitBookPrivate(book);
+    expect(pub.variants[0]).toEqual({ id: "e", digital: true, digitalFileName: "1-a.epub" });
+    expect(priv.variantFiles).toEqual({ e: "digital-assets/1-a.epub" });
+    expect(mergeBookPrivate(pub, priv).variants[0].digitalFilePath).toBe("digital-assets/1-a.epub");
+  });
+});

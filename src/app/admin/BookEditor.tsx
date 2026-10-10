@@ -165,6 +165,10 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   const [initialData, setInitialData] = useState<any>(null);
   const [uploadingDigital, setUploadingDigital] = useState(false);
   const digitalFileInputRef = useRef<HTMLInputElement>(null);
+  // One download file per digital edition: the edition being uploaded for, and its hidden picker.
+  const variantFileInputRef = useRef<HTMLInputElement>(null);
+  const variantFileTarget = useRef<string>("");
+  const [uploadingVariantFile, setUploadingVariantFile] = useState("");
   const [tab, setTab] = useState<BookTab>("details");
   const [dragOver, setDragOver] = useState(false);
   const [tagInput, setTagInput] = useState("");
@@ -622,6 +626,28 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     } finally {
       setUploadingDigital(false);
       if (digitalFileInputRef.current) digitalFileInputRef.current.value = "";
+    }
+  };
+
+  const handleVariantDigitalUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const variantId = variantFileTarget.current;
+    if (!file || !variantId) return;
+    setUploadingVariantFile(variantId);
+    try {
+      const fileName = `${Date.now()}-${file.name}`;
+      const path = await adminApi.uploadStoragePath(file, `digital-assets/${fileName}`);
+      setFormData((prev: any) => ({
+        ...prev,
+        variants: (prev.variants || []).map((v: any) => v.id === variantId ? { ...v, digital: true, digitalFileName: fileName, digitalFilePath: path } : v),
+      }));
+      toast.success("Edition file uploaded");
+    } catch (err: any) {
+      console.error("Edition file upload error:", err);
+      toast.error("Failed to upload the edition file. Please try again.");
+    } finally {
+      setUploadingVariantFile("");
+      if (variantFileInputRef.current) variantFileInputRef.current.value = "";
     }
   };
 
@@ -1099,6 +1125,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                 </div>
               )}
               {!hasVariants && <p className="be-note">{giftCard ? "No amounts yet. Add at least one." : "No special editions. The base price and stock on the Pricing and Inventory tabs apply."}</p>}
+              <input type="file" ref={variantFileInputRef} onChange={handleVariantDigitalUpload} accept=".pdf,.epub,.mp3,.m4a,.zip" className="hidden" aria-hidden="true" tabIndex={-1} />
               <div className="be-variants">
                 {(formData.variants || []).map((v: Variant, i: number) => (
                   <fieldset key={v.id} className="be-variant">
@@ -1124,6 +1151,25 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                       <TextField label="Price (EUR)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).eurPrice ?? 0} onChange={(e) => updateVariant(v.id, "eurPrice", Number(e.target.value))} />
                       <TextField label="Stock" type="number" min={0} value={v.stock ?? (v as any).stockLevel ?? 0} onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))} />
                       <TextField label="Shelf location" placeholder="e.g. B2" value={(v as any).shelfLocation || ""} onChange={(e) => updateVariant(v.id, "shelfLocation", e.target.value)} hint="Packing checklist; blank = the book's." />
+                      <div style={{ gridColumn: "1 / -1" }}>
+                        <Toggle label="Digital edition (buyers download a file)" checked={(v as any).digital === true} onChange={(on) => updateVariant(v.id, "digital", on)} />
+                        {(v as any).digital === true && (
+                          <div className="be-inline-actions" role="group" aria-label={`Download file for ${v.name || "this edition"}`}>
+                            {(v as any).digitalFileName ? (
+                              <>
+                                <span className="be-label-xs">This edition's file</span> <code>{String((v as any).digitalFileName).replace(/^\d{10,}-/, "")}</code>
+                                <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => setFormData((prev: any) => ({ ...prev, variants: (prev.variants || []).map((x: any) => x.id === v.id ? { ...x, digitalFileName: "", digitalFilePath: "" } : x) }))}><Trash2 size={13} aria-hidden /> Remove</button>
+                              </>
+                            ) : (
+                              <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={!!uploadingVariantFile}
+                                onClick={() => { variantFileTarget.current = v.id; variantFileInputRef.current?.click(); }}>
+                                <Upload size={13} aria-hidden /> {uploadingVariantFile === v.id ? "Uploading…" : "Upload this edition's file"}
+                              </button>
+                            )}
+                            <span className="be-note">{(v as any).digitalFileName ? "Buyers of this edition get this file." : "No file yet: buyers of this edition get the book's main digital file, if it has one."}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     )}
                     <div className="be-variant-img">

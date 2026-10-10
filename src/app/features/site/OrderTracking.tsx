@@ -1,5 +1,5 @@
 import { orderChargedTotal } from "./orderMoney";
-import { lineIsDigital, UNREADABLE_BOOK } from "./digitalLine";
+import { digitalEntries, downloadBookIds, UNREADABLE_BOOK, type DigitalEntry } from "./digitalLine";
 import { publicApi } from "../../lib/publicApi";
 import { orderLineNotes } from "./orderLineNotes";
 import { orderAccessHeaders, rememberOrderAccess, savedOrderAccess } from "../../lib/orderAccessClient";
@@ -38,7 +38,7 @@ function OrderTrackingContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [linkSent, setLinkSent] = useState(false);
-  const [digitalItems, setDigitalItems] = useState<Record<string, boolean>>({});
+  const [digitalItems, setDigitalItems] = useState<DigitalEntry[]>([]);
   // How the shopper proved the order is theirs (email typed, or the emailed link key); requests reuse it.
   const [access, setAccess] = useState<{ email?: string; key?: string }>({});
   
@@ -51,21 +51,18 @@ function OrderTrackingContent() {
     if (!order) return;
     // ⚡ Bolt: Eliminate sequential DB reads by fetching all items in the order concurrently.
     async function checkDigitalAssets() {
-      const digitalMap: Record<string, boolean> = {};
+      const booksById: Record<string, any> = {};
       await Promise.all(
-        (order.items || []).map(async (item: any) => {
+        downloadBookIds(order).map(async (id) => {
           try {
-            const book: any = await publicApi.getBook(item.id).catch(() => null);
-            // Only the e-book edition's line gets a download button (the server checks the same).
-            if (lineIsDigital(item, book?.digitalFileName ? book : UNREADABLE_BOOK)) {
-              digitalMap[item.id] = true;
-            }
+            booksById[id] = (await publicApi.getBook(id).catch(() => null)) || UNREADABLE_BOOK;
           } catch (err) {
             console.warn("Could not retrieve book metadata for digital check", err);
           }
         })
       );
-      setDigitalItems(digitalMap);
+      // One download per book and edition; box-set parts included (the server checks the same).
+      setDigitalItems(digitalEntries(order, booksById));
     }
     checkDigitalAssets();
   }, [order]);
@@ -151,12 +148,12 @@ function OrderTrackingContent() {
     }
   };
 
-  const handleDownload = (itemId: string) => {
+  const handleDownload = (itemId: string, variantId = "") => {
     if (!order || !order.downloadToken) return;
     // The download endpoint authorizes via the secret token issued at
     // payment time, not the (guessable) customer email.
     window.open(
-      `${functionUrl("downloadDigitalAsset")}?orderId=${encodeURIComponent(order.id || order.orderId)}&itemId=${encodeURIComponent(itemId)}&token=${encodeURIComponent(order.downloadToken)}`,
+      `${functionUrl("downloadDigitalAsset")}?orderId=${encodeURIComponent(order.id || order.orderId)}&itemId=${encodeURIComponent(itemId)}${variantId ? `&variantId=${encodeURIComponent(variantId)}` : ""}&token=${encodeURIComponent(order.downloadToken)}`,
       "_blank"
     );
   };
@@ -413,23 +410,21 @@ function OrderTrackingContent() {
                 );
               })()}
 
-              {Object.keys(digitalItems).length > 0 && order.paymentStatus === "paid" && (
+              {digitalItems.length > 0 && order.paymentStatus === "paid" && (
                 <section {...regionProps("trackingDownloads")} className="fm-track-card p-6 sm:p-8 space-y-5">
                   <div>
                     <p className="fm-track-display text-2xl">{getCopy(settings?.design, "trackDigitalTitle")}</p>
                     <p className="text-sm fm-muted mt-2">{getCopy(settings?.design, "trackDigitalText")}</p>
                   </div>
                   <ul className="list-none p-0 m-0">
-                    {order.items.map((item: any, i: number, all: any[]) => {
-                      // One download per book, even when two editions of it were ordered.
-                      if (!digitalItems[item.id] || all.findIndex((other: any) => other.id === item.id) !== i) return null;
+                    {digitalItems.map((item) => {
                       return (
-                        <li key={item.id} className="flex items-center justify-between gap-4 py-3 border-b fm-track-rule">
+                        <li key={`${item.itemId}|${item.variantId}`} className="flex items-center justify-between gap-4 py-3 border-b fm-track-rule">
                           <div className="min-w-0">
                             <p className="text-sm font-bold uppercase truncate">{item.title}</p>
                             <p className="fm-track-mono mt-1">{getCopy(settings?.design, "trackDigitalFormat")}</p>
                           </div>
-                          <button type="button" onClick={() => handleDownload(item.id)} className="fm-track-btn" aria-label={getCopy(settings?.design, "trackDownload")} title={getCopy(settings?.design, "trackDownload")}>
+                          <button type="button" onClick={() => handleDownload(item.itemId, item.variantId)} className="fm-track-btn" aria-label={getCopy(settings?.design, "trackDownload")} title={getCopy(settings?.design, "trackDownload")}>
                             <Download size={16} aria-hidden="true" />
                           </button>
                         </li>

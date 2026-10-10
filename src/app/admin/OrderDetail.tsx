@@ -1,4 +1,5 @@
 import { ReturnWorkbench } from "./ReturnWorkbench";
+import { DOWNLOAD_LIMIT } from "../features/site/digitalLine";
 import { FulfillmentWorkbench } from "./FulfillmentWorkbench";
 import { CARRIERS, cleanTrackingLink, getTrackingUrl } from "../lib/tracking";
 import {
@@ -142,7 +143,7 @@ export function OrderDetail({
   const [refundAmount, setRefundAmount] = useState("");
   const [refundOther, setRefundOther] = useState("");
   const [refundRestockLines, setRefundRestockLines] = useState<Record<number, number>>({});
-  const [confirmAction, setConfirmAction] = useState<null | "markPaid" | "mismatch" | "resendConfirmation">(null);
+  const [confirmAction, setConfirmAction] = useState<null | "markPaid" | "mismatch" | "resendConfirmation" | "resetDownloads">(null);
   const [timelineFilter, setTimelineFilter] = useState<
     "all" | "event" | "note"
   >("all");
@@ -443,6 +444,9 @@ export function OrderDetail({
       } else if (action === "mismatch") {
         await adminApi.resolvePaymentMismatch(orderId);
         toast.success("Marked as refunded");
+      } else if (action === "resetDownloads") {
+        await adminApi.updateOrder(orderId, { downloadCounts: {} });
+        toast.success("Download limits reset: the buyer can download each digital book again");
       } else {
         await adminApi.fulfillmentAction(orderId, "resend_confirmation_email");
         toast.success(`Order confirmation sent again to ${order?.customer?.email || "the customer"}`);
@@ -634,6 +638,10 @@ export function OrderDetail({
                     : []),
                   ...(paid && !order.isTest
                     ? [{ label: "Resend order confirmation", onSelect: () => setConfirmAction("resendConfirmation") }]
+                    : []),
+                  // Each digital book can be downloaded a limited number of times; this gives the buyer a fresh allowance.
+                  ...(paid && (order.items || []).some((item: any) => item && item.giftCard !== true && (item.bundle === true || isDigitalItem(item)))
+                    ? [{ label: "Reset download limits", onSelect: () => setConfirmAction("resetDownloads") }]
                     : []),
                   ...(paid &&
                   [
@@ -1650,6 +1658,14 @@ export function OrderDetail({
         title="Mark this payment refunded?"
         confirmLabel="Mark refunded"
         message="Only continue after you've refunded the unexpected payment in Stripe or PayPal. This clears the warning from Needs attention; it does not send any money."
+        onConfirm={runConfirmed}
+        onCancel={() => setConfirmAction(null)}
+      />
+      <ConfirmDialog
+        open={confirmAction === "resetDownloads"}
+        title="Reset download limits?"
+        confirmLabel="Reset downloads"
+        message={`Each digital book on this order can be downloaded ${DOWNLOAD_LIMIT} times. This gives ${order.customer?.email || "the customer"} a fresh ${DOWNLOAD_LIMIT} downloads of each. Nothing is emailed.`}
         onConfirm={runConfirmed}
         onCancel={() => setConfirmAction(null)}
       />
