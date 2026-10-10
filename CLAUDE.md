@@ -433,6 +433,13 @@ section/block contract, and the Studio 2.0 roadmap.
 > black → overlay/page colour, hues → accent/success/warning/danger). `designerCoverage.test.ts` fails
 > on an unlisted or unmappable class — add it to the list rather than hard-coding a colour.
 
+**Page pictures (October 2026):** Studio › Pages edits the body with `studio/PageBodyEditor.tsx` (Quill + an `hr` divider blot,
+video embeds, align/indent). Pictures (Add pictures, Choose from library, paste, drag-and-drop) upload through
+`uploadPagePicture` (media library when on, else `uploadStudioImage`) onto their own line; never store `data:` pictures —
+Save uploads any left (`features/site/pageBody.ts` `pastedImageSources`/`replaceImageSources`). Selecting a picture edits its
+`width` (`IMAGE_SIZES`), line `align` and `alt`. `page.seoImage` (Sharing image) feeds `useSEO` in `PageView`, else the body's
+first picture (`firstBodyImage`). `PageContentSection` styles Quill's `ql-align-*`/`ql-indent-*`, `iframe`, `hr` and `s`.
+
 **Custom pages share one look:** Studio › Style › **Custom pages** (`page*` design keys, `sitePageStyle`
 in `PageView.tsx`) sets eyebrow, title size/case/colour, text size/colour, alignment and column
 width for every custom page. Each "Page content" section follows it unless its **Style this page on

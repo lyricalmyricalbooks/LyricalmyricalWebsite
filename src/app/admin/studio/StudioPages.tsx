@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, LayoutTemplate, Plus, Trash2 } from "lucide-react";
-import ReactQuill from "react-quill";
-import "react-quill/dist/quill.snow.css";
 import { adminApi } from "../api";
 import { duplicatePage, movePage, seoHints } from "../pageInsights";
+import { dataUrlToFile, firstBodyImage, pastedImageSources, replaceImageSources } from "../../features/site/pageBody";
+import { PageBodyEditor, uploadPagePicture } from "./PageBodyEditor";
+import { ImageUploadButton } from "./ImageUploadButton";
+import { mainUrl } from "./mediaLibrary";
+import { useMediaPicker } from "./mediaPicker";
+import { uploadErrorMessage } from "./mediaUpload";
 import type { Page } from "../../features/site/types";
 import { reconcileSavedPage } from "./studioWorkflow";
 import { useConfirm } from "../riso/components";
@@ -17,9 +21,6 @@ const input = "w-full border border-neutral-200 rounded-lg px-3 h-9 text-xs";
 
 const toSlug = (t: string) => t.toLowerCase().replace(/[^a-z0-9 -]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();
 const publicUrl = (slug?: string) => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/page/${slug || ""}`;
-const QUILL_MODULES = {
-  toolbar: [[{ header: [1, 2, 3, false] }], ["bold", "italic", "underline"], [{ list: "ordered" }, { list: "bullet" }], ["link", "blockquote"], ["clean"]],
-};
 
 type Say = (kind: "ok" | "err", text: string) => void;
 
@@ -38,6 +39,8 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
   onRetryLoad?: () => void;
 }) {
   const [askConfirm, confirmNode] = useConfirm();
+  const media = useMediaPicker();
+  const [uploading, setUploading] = useState(false);
   const [editing, setEditing] = useState<Partial<Page> | null>(null);
   const [original, setOriginal] = useState("");
   const [isNew, setIsNew] = useState(false);
@@ -51,7 +54,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
   const ordered = useMemo(() => [...pages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)), [pages]);
 
   const open = (p: Partial<Page>, fresh: boolean) => { setEditing(p); setOriginal(JSON.stringify(p)); setIsNew(fresh); setSlugEdited(!fresh); setError(""); };
-  const openNew = () => open({ title: "", slug: "", body: "", status: "published", showInNav: true, order: pages.length, seoTitle: "", metaDescription: "" }, true);
+  const openNew = () => open({ title: "", slug: "", body: "", status: "published", showInNav: true, order: pages.length, seoTitle: "", metaDescription: "", seoImage: "" }, true);
   useEffect(() => {
     if (!openSlug) return;
     const page = pages.find((p) => p.slug === openSlug.slug);
@@ -65,12 +68,25 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
 
   async function save() {
     if (!editing || locked.current) return;
+    if (uploading) return setError("Wait for the pictures to finish uploading.");
     if (!editing.title?.trim()) return setError("Give the page a title.");
     if (!editing.slug?.trim()) return setError("A URL slug is required.");
     if (pages.some((p) => p.slug === editing.slug && p.id !== editing.id)) return setError("Another page already uses this slug.");
     const captured = JSON.parse(JSON.stringify(editing));
     locked.current = true; setError(""); setSaving(true); onBusy?.(true);
     try {
+      // Pasted pictures arrive as data: text; upload them so the page record stays small and loads fast.
+      const pasted = pastedImageSources(captured.body || "");
+      if (pasted.length) {
+        const swaps: Record<string, string> = {};
+        for (const [i, src] of pasted.entries()) {
+          const file = dataUrlToFile(src, `${captured.slug || "page"}-picture-${i + 1}`);
+          if (!file) throw new Error("A pasted picture couldn't be read. Remove it and add it again with Add pictures.");
+          try { swaps[src] = (await uploadPagePicture(media, file)).url; }
+          catch (err) { throw new Error(uploadErrorMessage(err)); }
+        }
+        captured.body = replaceImageSources(captured.body, swaps);
+      }
       let next: Page;
       if (isNew) { next = await adminApi.createPage(captured); setPages((prev) => [...prev, next]); setIsNew(false); setSlugEdited(true); }
       else { next = await adminApi.updatePage(captured.id!, captured); setPages((prev) => prev.map((p) => (p.id === next.id ? next : p))); }
@@ -132,7 +148,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
         </label>
         <div>
           <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block mb-1">Body</span>
-          <ReactQuill theme="snow" value={editing.body || ""} onChange={(v) => set({ body: v })} modules={QUILL_MODULES} placeholder="Write your page content…" />
+          <PageBodyEditor value={editing.body || ""} onChange={(v) => set({ body: v })} onUploading={setUploading} />
         </div>
         <div className="space-y-2 border-t border-neutral-200 pt-3">
           <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editing.status === "published"} onChange={(e) => set({ status: e.target.checked ? "published" : "draft" })} /> Published <span className="font-normal text-neutral-500">(drafts are hidden from the shop)</span></label>
@@ -143,6 +159,30 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
           <input className={input} value={editing.seoTitle || ""} placeholder={editing.title || "SEO title"} aria-label="SEO title" onChange={(e) => set({ seoTitle: e.target.value })} />
           <textarea className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-xs" rows={3} maxLength={320} aria-label="Meta description"
             value={editing.metaDescription || ""} placeholder="A brief summary for search engines…" onChange={(e) => set({ metaDescription: e.target.value })} />
+          <div className="space-y-1">
+            <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block">Sharing image</span>
+            <div className="flex items-start gap-2">
+              {(editing.seoImage || firstBodyImage(editing.body || "")) ? (
+                <img src={editing.seoImage || firstBodyImage(editing.body || "")} alt="" className="w-20 h-12 object-cover rounded border border-neutral-200 shrink-0" />
+              ) : <div className="w-20 h-12 rounded border border-dashed border-neutral-300 shrink-0" aria-hidden />}
+              <p className="text-[11px] text-neutral-600">
+                {editing.seoImage ? "Shown when this page is shared on social media and in search results."
+                  : firstBodyImage(editing.body || "") ? "Using the first picture on the page. Pick another to change it."
+                  : "None yet — the shop's share image (Theme settings › Logo & wordmark) is used."}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-start gap-2">
+              <ImageUploadButton label="Upload sharing image" disabled={saving}
+                onUploaded={(url) => set({ seoImage: url })} />
+              {media && media.status === "ready" && (
+                <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={saving}
+                  onClick={async () => { try { const item = await media.choose("Choose a sharing image"); if (item) set({ seoImage: mainUrl(item) }); } catch (err) { setError(uploadErrorMessage(err)); } }}>
+                  Choose from library
+                </button>
+              )}
+              {editing.seoImage && <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={saving} onClick={() => set({ seoImage: "" })}>Use the page's first picture</button>}
+            </div>
+          </div>
           <ul className="text-[11px] text-neutral-600 space-y-0.5">
             {seoHints(editing.title || "", editing.seoTitle || "", editing.metaDescription || "").map((h) => (
               <li key={h.text}>{h.level === "good" ? "✓ " : "⚠ "}{h.text}</li>
@@ -150,7 +190,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
           </ul>
         </div>
         <div className="flex flex-wrap items-center gap-2 border-t border-neutral-200 pt-3 sticky bottom-0 bg-white pb-2">
-          <button className={btnPrimary} onClick={save} disabled={saving || (!dirty && !isNew)}>{saving ? "Saving…" : isNew ? "Create page" : "Save page"}</button>
+          <button className={btnPrimary} onClick={save} disabled={saving || uploading || (!dirty && !isNew)}>{saving ? "Saving…" : uploading ? "Uploading pictures…" : isNew ? "Create page" : "Save page"}</button>
           {!isNew && editing.slug && <button className={btn} disabled={saving} onClick={() => onEditSections(editing.slug!)}><LayoutTemplate size={13} /> Design sections</button>}
           {!isNew && <button className={`${btn} text-red-700`} disabled={saving} onClick={() => remove(editing)}><Trash2 size={13} /> Delete</button>}
           {dirty && <span className="text-[11px] text-neutral-500">Unsaved changes</span>}
