@@ -12,7 +12,6 @@ import { Link } from "react-router";
 import { ArrowLeft, Package, Truck, CheckCircle2, MapPin, Loader2, Download, ExternalLink } from "lucide-react";
 import { TRACKING_CSS } from "./trackingStyle";
 import { m, AnimatePresence } from "motion/react";
-import { adminApi } from "../../admin/api";
 import { functionUrl, functionFetch } from "../../lib/functionsBase";
 import { newsletterLinkAction } from "./newsletterSignup";
 import { useCurrency } from "../../CurrencyContext";
@@ -99,7 +98,7 @@ function OrderTrackingContent() {
     if (!key) return;
     let cancelled = false;
     setLoading(true);
-    adminApi.getPublicOrder(linkedId, { key })
+    publicApi.getPublicOrder(linkedId, { key })
       .then((found: any) => { if (!cancelled && found) { setOrder(found); setAccess({ key }); } })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -110,9 +109,9 @@ function OrderTrackingContent() {
   const findOrder = async (input: string, email: string) => {
     const typed = normalizeOrderNumber(input);
     if (!typed) return null;
-    const exact = await adminApi.getPublicOrder(typed, { email });
+    const exact = await publicApi.getPublicOrder(typed, { email });
     if (exact || typed === typed.toUpperCase()) return exact;
-    return adminApi.getPublicOrder(typed.toUpperCase(), { email });
+    return publicApi.getPublicOrder(typed.toUpperCase(), { email });
   };
 
   const handleTrack = async (e: React.FormEvent) => {
@@ -184,7 +183,7 @@ function OrderTrackingContent() {
       if (!response.ok) throw new CopyError(settings?.design, "trackError");
       const result = await response.json();
       setAwaitingWebhook(result.awaitingWebhook === true);
-      const fresh: any = await adminApi.getPublicOrder(orderKey, access);
+      const fresh: any = await publicApi.getPublicOrder(orderKey, access);
       if (fresh) setOrder(fresh);
     } catch (err) {
       setRecheckError(copyErrorText(err, settings?.design, "trackError"));

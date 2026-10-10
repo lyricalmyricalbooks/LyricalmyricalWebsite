@@ -117,11 +117,11 @@ describe("calendar-day periods", () => {
   });
   it("splits orders by day key: boundary days land on the right side", () => {
     const orders = [
-      order({ id: "today", createdAt: "2026-09-29T00:30:00Z" }),
+      order({ id: "today", createdAt: "2026-09-29T12:30:00Z" }),
       order({ id: "first", createdAt: "2026-08-31T23:59:00Z" }),
       order({ id: "lastPrev", createdAt: "2026-08-30T10:00:00Z" }),
       order({ id: "tooOld", createdAt: "2026-07-31T10:00:00Z" }),
-      order({ id: "future", createdAt: "2026-09-30T01:00:00Z" }),
+      order({ id: "future", createdAt: "2026-09-30T05:00:00Z" }),
       order({ id: "nodate" }),
     ];
     const p = splitPeriods(orders, 30, NOW);

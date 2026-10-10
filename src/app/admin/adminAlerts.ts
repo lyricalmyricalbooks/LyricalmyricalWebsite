@@ -1,5 +1,6 @@
 import { physicalItems } from "./fulfillment";
 import { currentRows } from "./emailLogDisplay";
+import { describeBackup, type BackupRecord } from "./backupStatus";
 import { waitingPreorderLines, preorderClockStart } from "../features/site/preorder";
 // Admin-wide alerts shown above every admin page (AdminAlerts.tsx). Pure, tested.
 // Payment problems come first: money that arrived but isn't recorded, or vice versa.
@@ -11,7 +12,7 @@ export type AdminAlert = {
   title: string;
   detail: string;
   orderIds: string[];
-  action: "order" | "orders" | "webhook" | "notifications" | "payments";
+  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry";
 };
 
 export type WebhookStatus = { lastReceivedAt?: string | null; lastFailureAt?: string | null; lastFailure?: string | null } | null;
@@ -124,6 +125,23 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
   const failedEmails = current.filter(e => ["failed", "bounced", "complained"].includes(e.status) && now - Date.parse(e.at || "") <= 7 * DAY);
   if (failedEmails.length) out.push({ id: "email-failed", tone: "warning", title: `${plural(failedEmails.length, "recent email needs", "recent emails need")} attention`, detail: "Review Notifications delivery attempts and provider events. Resolve the cause before resending; sent status only proves provider acceptance.", orderIds: failedEmails.map(e => String(e.id || e.at)), action: "notifications" });
   return out;
+}
+
+// The nightly backup failed or is overdue (systemStatus/backup, written by nightlyFirestoreBackup).
+// "Not recorded yet" is not an alarm: the first run after deploying records it.
+export function backupAlert(record: BackupRecord | undefined, now = Date.now()): AdminAlert | null {
+  if (!record) return null;
+  const view = describeBackup(record, now);
+  if (view.tone !== "danger" && view.tone !== "warning") return null;
+  return { id: "backup", tone: view.tone === "danger" ? "danger" : "warning", title: view.label, detail: view.detail, orderIds: [], action: "general" };
+}
+
+// A refresh that could not read part of what the alerts need must say so: an empty list would
+// otherwise look like "nothing is wrong".
+export function checkFailedAlert(failedParts: string[]): AdminAlert | null {
+  if (!failedParts.length) return null;
+  return { id: "alerts-check-failed", tone: "warning", title: "Couldn't finish checking for problems",
+    detail: `The alerts could not read ${failedParts.join(" and ")}, so a payment, dispute or backup problem may not be shown. Check your connection and try again.`, orderIds: [], action: "retry" };
 }
 
 // Alerts from the saved store settings (not orders): test mode left on refuses real cards.

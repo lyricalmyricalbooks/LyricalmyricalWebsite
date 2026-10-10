@@ -75,6 +75,17 @@ export function mergeOrder(list: any[] | null, order: any): any[] | null {
   return next;
 }
 
+/**
+ * The newest page of orders (already with their private records) merged into the remembered list: the
+ * page replaces its own orders and keeps every older order as it was. A full reload later catches an old
+ * order that changed (e.g. a webhook settling it).
+ */
+export function mergeNewestPage(previous: any[] | null, page: any[]): any[] {
+  if (!previous) return page;
+  const fresh = new Set(page.map((o) => o?.id));
+  return [...page, ...previous.filter((o) => !fresh.has(o?.id))];
+}
+
 /** Why an order sits in "Needs attention" before packing, in the shop's words. */
 export function attentionReason(o: any): string {
   if (!o?.items?.length) return "⚠ No books on this order";

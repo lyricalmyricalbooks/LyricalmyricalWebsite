@@ -10,7 +10,7 @@ describe("discountPerformance", () => {
       { paymentStatus: "paid", total: 5, isTest: true, appliedDiscount: { code: "SAVE10" } },
       { paymentStatus: "paid", total: 5 },
     ]);
-    expect(m.get("SAVE10")).toEqual({ orders: 2, revenue: 100, discountGiven: 20, avgOrder: 50 });
+    expect(m.get("SAVE10")).toEqual({ orders: 2, revenue: 100, discountGiven: 20, avgOrder: 50, label: "SAVE10" });
     expect(m.size).toBe(1);
   });
   it("duplicates as an inactive, uniquely coded copy without usage", () => {

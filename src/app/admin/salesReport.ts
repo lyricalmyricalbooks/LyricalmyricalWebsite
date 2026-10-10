@@ -1,6 +1,6 @@
 // Overview › "Download sales report (CSV)": the selected period's paid, non-test orders, day by day,
 // then the period's best sellers. CAD, net of partial refunds. Pure and CSV-injection safe.
-import { bestSellers, dayOf, refundedAmount, type Order } from "./overviewInsights";
+import { bestSellers, orderDay, refundedAmount, type Order } from "./overviewInsights";
 
 const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""').replace(/^([=+\-@\t\r])/, "'$1")}"`;
 const row = (vals: unknown[]) => vals.map(cell).join(",");
@@ -13,7 +13,7 @@ export function salesReportCsv(current: Order[], startKey: string, endKey: strin
     days.set(new Date(t).toISOString().slice(0, 10), { gross: 0, refunded: 0, orders: 0, tax: 0, shipping: 0, discounts: 0, copies: 0 });
   }
   for (const o of current) {
-    const d = days.get(dayOf(o.createdAt) || new Date(o.createdAt).toISOString().slice(0, 10));
+    const d = days.get(orderDay(o.createdAt));
     if (!d) continue;
     d.orders += 1;
     d.gross += Number(o.total) || 0;

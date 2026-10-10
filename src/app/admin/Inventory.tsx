@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, History, Minus, Plus } from "lucide-react";
 import { adminApi } from "./api";
+import { getOrdersCached } from "./ordersCache";
 import { inventoryApi, type InventoryLogEntry } from "./inventoryApi";
 import { InventorySyncPanel } from "./InventorySyncPanel";
 import {
@@ -69,7 +70,7 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
     setFailed(false); setLoading(true);
     try {
       const [b, o, s, c] = await Promise.all([
-        adminApi.getAllBooks(), adminApi.getOrders(500),
+        adminApi.getAllBooks(), getOrdersCached(),
         inventoryApi.lowStockSetting().catch(() => ({})), inventoryApi.costs().catch(() => ({})),
       ]);
       setBooks(b); setOrders(o.filter((x: any) => x.paymentStatus === "paid" && x.isTest !== true));

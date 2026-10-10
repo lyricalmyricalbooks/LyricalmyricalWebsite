@@ -3,6 +3,7 @@
 // orders collection is the heaviest read in the admin, so it happens once and is reused for a minute.
 // A load already on its way is shared, never started twice. Call invalidateOrders() after changing an order.
 import { adminApi } from "./api";
+import { mergeOrder } from "./ordersDesk";
 
 export const ORDERS_CACHE_MS = 60_000;
 
@@ -33,6 +34,11 @@ export function invalidateOrders() {
   cached = null;
   inFlight = null;
   generation++;
+}
+
+/** One order just reloaded on its own page: keep the shared copy in step, so nothing re-reads every order. */
+export function patchCachedOrder(order: any) {
+  if (cached && order?.id) cached = { ...cached, orders: mergeOrder(cached.orders, order) || cached.orders };
 }
 
 /** The copy on hand right now, without loading (null when none). */

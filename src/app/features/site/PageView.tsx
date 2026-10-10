@@ -53,7 +53,7 @@ const isStudioPreview = () => typeof window !== "undefined" && new URLSearchPara
 
 export function PageView() {
   const { slug } = useParams<{ slug: string }>();
-  const { settings, books, pages, loading: siteLoading, fresh } = useSiteData();
+  const { settings, books, pages, loading: siteLoading, fresh, loadError, retry } = useSiteData();
   // The shared storefront snapshot already contains full published page bodies.
   // Resolve from it on every slug change instead of clearing the screen for a
   // second Firestore request. Studio snapshots and background refreshes still
@@ -110,6 +110,19 @@ export function PageView() {
   const shown = page || policyPage;
   // A page published after this browser cached the site isn't in that cache yet:
   // keep showing "Loading" until the fresh read, rather than a false 404.
+  if (!shown && loadError) {
+    // The read failed: an error with Retry, not a false 404.
+    return (
+      <div data-fm-store data-studio-target="pages|copy:Custom pages & 404" data-studio-label="Page" className="min-h-screen fm-page flex flex-col">
+        <StorefrontThemeStyle design={settings?.design} />
+        <StoreHeader design={settings?.design} pages={pages} books={books} />
+        <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 text-center">
+          <p role="alert">{getCopy(settings?.design, "catalogLoadError")}</p>
+          <button type="button" onClick={retry} className="fm-btn px-6 py-3 uppercase tracking-[0.3em] text-[10px]" style={{ border: "1px solid currentColor" }}>{getCopy(settings?.design, "catalogRetry")}</button>
+        </div>
+      </div>
+    );
+  }
   if (!shown && (siteLoading || !fresh)) {
     return (
       <div data-fm-store data-studio-target="pages|copy:Custom pages & 404" data-studio-label="Page" className="min-h-screen fm-page flex flex-col">

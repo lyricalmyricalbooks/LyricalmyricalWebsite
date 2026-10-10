@@ -14,7 +14,7 @@ import {
   bestSellers, customerMix, dormantStock, newestSales, newsletterSummary, orderStatusWords, orderTodos, reprintWatch, reviewSummary,
   splitPeriods, stockValue, titleStock, toFulfil, totals, REORDER_COVER_DAYS,
 } from "./overviewInsights";
-import { buildSeries, conversionRate, dailyWindow, funnelRates, funnelTotals, sumField, type SeriesPoint } from "./overviewTraffic";
+import { buildSeries, conversionRate, dailyDocsNeeded, dailyWindow, funnelRates, funnelTotals, sumField, type SeriesPoint } from "./overviewTraffic";
 import { Figure, ReadinessPanel, RunRow, Trend, money, percent } from "./OverviewParts";
 import { leadStory } from "./overviewStory";
 import { OverviewSales } from "./OverviewSales";
@@ -54,20 +54,24 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const [daily, setDaily] = useState<{ rows: any[] | null; error: boolean }>({ rows: null, error: false });
   const [allOrders, setAllOrders] = useState<{ orders: any[] | null; error: boolean }>({ orders: null, error: false });
   const [stock, setStock] = useState<{ books: any[] | null; error: boolean }>({ books: null, error: false });
-  const [audience, setAudience] = useState<{ data: { reviews: any[]; subscribers: any[]; pendingReviews?: number | null } | null; error: boolean }>({ data: null, error: false });
+  const [audience, setAudience] = useState<{ data: { reviews: any[]; subscribers: any[]; pendingReviews?: number | null; approvedReviews?: { count: number; average: number | null } | null } | null; error: boolean }>({ data: null, error: false });
   // Unread messages and open privacy requests for the run sheet (null = couldn't be counted).
   const [counts, setCounts] = useState<{ unreadMessages: number | null; openPrivacyRequests: number | null } | null>(null);
   const chartTabIds = useRef({ revenue: "ov-chart-tab-revenue", traffic: "ov-chart-tab-traffic" });
   const [launch, setLaunch] = useState<{ parts: any | null; error: boolean }>({ parts: null, error: false });
 
+  // Enough daily traffic docs for the period AND the equally long block before it (a 1-year view needs ~2 years).
+  const needDays = dailyDocsNeeded((PERIODS.find(p => p.id === period) || PERIODS[2]).days);
   const loadDaily = useCallback(() => {
     setDaily(d => ({ rows: d.rows, error: false }));
-    adminApi.getDailyAnalytics().then((rows: any[]) => setDaily({ rows, error: false }))
+    adminApi.getDailyAnalytics(needDays).then((rows: any[]) => setDaily({ rows, error: false }))
       .catch((err: unknown) => { console.error(err); setDaily({ rows: null, error: true }); toast.error("Traffic figures could not be loaded"); });
-  }, []);
+  }, [needDays]);
+
+  // Traffic reloads when the period needs more history (or on Refresh), not with every other source.
+  useEffect(() => { loadDaily(); }, [reloadKey, loadDaily]);
 
   useEffect(() => {
-    loadDaily();
     Promise.all([
       adminApi.getSettings(),
       adminApi.getShippingProfiles(),
@@ -82,7 +86,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     adminApi.getAudienceSnapshot().then((d: any) => setAudience({ data: d, error: false }))
       .catch(() => setAudience({ data: null, error: true }));
     adminApi.getAdminBadgeCounts().then(setCounts).catch(() => setCounts({ unreadMessages: null, openPrivacyRequests: null }));
-  }, [reloadKey, loadDaily]);
+  }, [reloadKey]);
 
   const refresh = () => {
     setAllOrders({ orders: null, error: false }); setStock({ books: null, error: false });
@@ -140,7 +144,12 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     if (!audience.data) return null;
     const s = reviewSummary(audience.data.reviews);
     // The server count sees every pending review, not just the newest 200.
-    return typeof audience.data.pendingReviews === "number" ? { ...s, pending: audience.data.pendingReviews } : s;
+    const server = {
+      ...(typeof audience.data.pendingReviews === "number" ? { pending: audience.data.pendingReviews } : {}),
+      // Approved count and average come from every approved review, not the newest 200.
+      ...(audience.data.approvedReviews ? { approved: audience.data.approvedReviews.count, average: audience.data.approvedReviews.average } : {}),
+    };
+    return { ...s, ...server };
   }, [audience.data]);
   const todos = useMemo(() => (allOrders.orders ? orderTodos(allOrders.orders) : null), [allOrders.orders]);
   const subs = audience.data && periods ? newsletterSummary(audience.data.subscribers, periods.start) : null;

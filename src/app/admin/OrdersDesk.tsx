@@ -39,7 +39,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   const refresh = () => {
     if (refreshing.current) return refreshing.current;
     lastRefresh.current = Date.now();
-    refreshing.current = refreshOrdersCache()
+    refreshing.current = refreshOrdersCache({ incremental: true })
       .then((data) => { setOrders(data); setFailed(false); })
       .catch(() => setFailed(true))
       .finally(() => { refreshing.current = null; });

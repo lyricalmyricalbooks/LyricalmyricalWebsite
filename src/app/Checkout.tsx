@@ -1107,7 +1107,7 @@ export function Checkout() {
 
   // Track funnel + abandoned cart on email entry
   useEffect(() => {
-    funnelApi.track("checkout_start");
+    funnelApi.trackCheckoutStart();
     if (typeof window !== "undefined" && window.location.search.includes("preview=true")) {
       window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
     }
@@ -1688,7 +1688,7 @@ export function Checkout() {
             // purchase in progress: leave it alone and don't count the old order's purchase again.
             if (isPreviousPaid && !sameOrderLines(cartRef.current, order.items)) return;
             clearCart();
-            funnelApi.track("purchase");
+            funnelApi.trackPurchase(oid, order);
             const email = order.customer?.email || localStorage.getItem("last_customer_email") || "";
             const recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id") || `active_${email.toLowerCase()}`;
             abandonedCartApi.markRecovered(recoveryCartId);
@@ -1698,7 +1698,7 @@ export function Checkout() {
           if (order?.paymentStatus === "pending") {
             clearCart();
             forgetAttempt(oid);
-            funnelApi.track("purchase");
+            funnelApi.trackPurchase(oid, order);
             const email = order.customer?.email || localStorage.getItem("last_customer_email") || "";
             const recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id") || `active_${email.toLowerCase()}`;
             abandonedCartApi.markRecovered(recoveryCartId);

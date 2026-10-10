@@ -2,7 +2,7 @@ import { useLocation } from "react-router";
 import { consentAllows, CONSENT_EVENT } from "../../lib/consent";
 import { isLiveBook } from "./liveBook";
 import { resolveSurfaceDesign } from "./surfaceDesign";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { publicApi } from "../../lib/publicApi";
 import { funnelApi } from "../../lib/commerce";
 import { DEFAULT_SETTINGS } from "./constants";
@@ -66,9 +66,14 @@ export function useSiteData() {
   const [loading, setLoading] = useState(!cached && !snap);
   // True once this mount's own load has finished (cached content may be shown before that).
   const [fresh, setFresh] = useState(false);
+  // The read failed (offline, blocked, refused): shown as an error with Retry, never as "not found".
+  const [loadError, setLoadError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => { setLoadError(false); setFresh(false); setLoading(true); setAttempt(a => a + 1); }, []);
 
   useEffect(() => {
     let cancelled = false;
+    let failed = false;
 
     async function loadData() {
       try {
@@ -117,9 +122,12 @@ export function useSiteData() {
         }
       } catch {
         if (cancelled) return;
+        failed = true;
         console.warn("Using fallback data - backend connection unavailable.");
+        setLoadError(true);
       } finally {
-        if (!cancelled) { setLoading(false); setFresh(true); }
+        // A failed read is not a fresh answer: pages must not turn into "not found" (and noindex) because of it.
+        if (!cancelled) { setLoading(false); setFresh(!failed); }
       }
     }
 
@@ -191,7 +199,7 @@ export function useSiteData() {
       window.removeEventListener("message", handleMessage);
       try { bc?.close(); } catch { /* already closed */ }
     };
-  }, []);
+  }, [attempt]);
 
   // Site name / default title / share image (Studio › Text & labels › Site & sharing) feed every page's <head>.
   useEffect(() => { setSiteIdentity(settings.design); }, [settings.design]);
@@ -218,7 +226,7 @@ export function useSiteData() {
     return resolveProductRoutes(withBundleStock(visible, books)).map(applyBackorderPolicy);
   }, [books, studioPreview]);
 
-  return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading, fresh };
+  return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading, fresh, loadError, retry };
 }
 
 /**

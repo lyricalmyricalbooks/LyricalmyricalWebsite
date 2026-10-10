@@ -1665,6 +1665,30 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   so releasing frees the shopper's count; IPv6 clients are counted by /64 (`rateLimit.js` `ipKey`, also used by `hitLimit`).
 - Server `validateAddress` still requires state and ZIP; for countries without them it answers 400 and the order is taken as `verification_unavailable`.
 
+## Reports, analytics and performance (10 October 2026)
+
+- **Days:** Overview periods, the chart, the sales report and the Orders CSV put each order on its **Toronto** day (`lib/shopDay.ts`
+  `orderDay` / `shopDayKey`; `periodKeys`). Daily traffic stays on the **UTC** days `analytics/<date>` is keyed by
+  (`trafficPeriodKeys`, `dailyWindow`) because `firestore.rules` fix those ids to today ±1 — a day's visitors can differ from its orders
+  by the evening hours; don't change the write keying without the rules. The CSV keeps raw `Date`/`PaidAt` and adds `ShopDate`/`PaidShopDate`.
+- **Shopper bundle:** `lib/analyticsKeys.ts` (`analyticsKey`, `deviceOf`, `cleanSearchTerm`) and `lib/shopDay.ts` are pure and shared; `lib/commerce.ts`
+  must not import `admin/*` (`lib/shopperBundle.test.ts`). `/track` reads orders with `publicApi.getPublicOrder` (Lite SDK; `adminApi` re-exports it).
+  The catalog is read `CATALOG_PAGE_SIZE` (300) books per request, published books only.
+- **Sources:** an order's `referralSource` is normalised with `analyticsKey` so it joins the visit stored under the same key. Funnel `purchase` is counted once
+  per real order (`funnelApi.trackPurchase`, never `isTest`/`sandboxPayment`) and `checkout_start` once per session; `publicApi.recordVisit` uses `trackingAllowed()`.
+- **Overview figures:** "waiting to ship" (`toFulfil`) excludes Awaiting release and Ready for pickup and ages from payment/release; Where the money goes shows gift cards
+  used/sold and a net without sales tax; automatic offers show `appliedDiscount.title`; reviews average/approved use server aggregates; the Overview loads `dailyDocsNeeded(days)` traffic docs.
+- **Admin reads:** the Orders desk and nav badge refresh the newest 100 orders incrementally (`getRecentFulfillmentOrders`, `mergeNewestPage`) and fully every
+  `FULL_REFRESH_MS` (10 min); an order page patches the shared copy (`patchCachedOrder`). Alert refresh failures show **Couldn't finish checking for problems → Try again**
+  (`checkFailedAlert`); a failed/overdue nightly backup shows an alert (`backupAlert`, `systemStatus/backup`).
+- **Storefront load errors:** `useSiteData` returns `loadError` + `retry`; product, custom pages and Home show Text & labels › Header › `catalogLoadError` / `catalogRetry`
+  with a button, and a failed read is never `fresh` (so no "not found"/noindex).
+- **Background jobs (`functions/sweepLimits.js`):** `runInBatches` runs work a few at a time and stops at a deadline. `onBookRestocked` (300 s) marks alerts `restockPending`
+  and sends in batches; `backInStockSweep` (every 15 min, new) finishes leftovers while the book is still in stock. `unpaidPaymentSweep` alerts the owner before its slow checks.
+  `dailyOrderDigest` reads the last 180 days (≤1500 orders) and `order-operations` only for open orders; `abandonedCartSweep` reads only the 7-day window (≤500) and
+  `pruneOldCarts` deletes carts older than 30 days. `nightlyFirestoreBackup` deletes `backups/<day>/` folders older than 30 days (needs Storage delete on the bucket;
+  a failure is recorded as `pruneError`). No new Firestore rules or indexes. Deploy Functions with the frontend.
+
 ## Round-2 digital downloads (10 October 2026)
 
 `downloadDigitalAsset` rules live in `functions/digitalDelivery.js` (pure, `digitalDownloads.test.js`); the endpoint and the

@@ -1,8 +1,11 @@
 import { queueOf } from "./fulfillment";
+import { preorderClockStart } from "../features/site/preorder";
 import { isSoldOut, trackedStockRows, type StockRow } from "./stockRules";
 // Pure publisher-insight calculations for the admin Overview.
 // Only recorded data is used: paid, non-test orders, the book catalog, reviews
 // and newsletter signups. Nothing here is estimated or simulated.
+
+import { SHOP_TZ, addDays, orderDay, shopDayKey } from "../lib/shopDay";
 
 const DAY = 86_400_000;
 export const REORDER_COVER_DAYS = 30;
@@ -17,6 +20,8 @@ const ts = (v: any) => { const t = new Date(v).getTime(); return Number.isNaN(t)
 
 /** UTC calendar day ("2026-09-29") — the same key the daily `analytics/<date>` docs use. */
 export const dateKey = (t: number) => new Date(t).toISOString().slice(0, 10);
+
+export { SHOP_TZ, shopDayKey, addDays, orderDay };
 /** Normalises a stored date ("2026-09-29" or an ISO string) to its day key; "" when unreadable. */
 export const dayOf = (v: unknown) => { const s = String(v ?? ""); return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : ""; };
 
@@ -25,6 +30,12 @@ export const dayOf = (v: unknown) => { const s = String(v ?? ""); return /^\d{4}
  * Orders and traffic both use these keys so "30 days" and "today" mean the same thing everywhere.
  */
 export function periodKeys(days: number, now = Date.now()) {
+  const endKey = shopDayKey(now);
+  return { endKey, startKey: addDays(endKey, -(days - 1)), prevStartKey: addDays(endKey, -(2 * days - 1)) };
+}
+
+/** The same window counted on UTC days, which is how the daily traffic docs are keyed. */
+export function trafficPeriodKeys(days: number, now = Date.now()) {
   return {
     endKey: dateKey(now),
     startKey: dateKey(now - (days - 1) * DAY),
@@ -36,11 +47,11 @@ export function periodKeys(days: number, now = Date.now()) {
 export function splitPeriods(orders: Order[], days: number, now = Date.now()) {
   const paid = orders.filter(isRealPaidOrder);
   const { startKey, prevStartKey, endKey } = periodKeys(days, now);
-  const inRange = (o: Order, from: string, to: string) => { const k = dayOf(o.createdAt) || (ts(o.createdAt) ? dateKey(ts(o.createdAt)) : ""); return k !== "" && k >= from && k <= to; };
+  const inRange = (o: Order, from: string, to: string) => { const k = orderDay(o.createdAt); return k !== "" && k >= from && k <= to; };
   return {
     paid,
     current: paid.filter(o => inRange(o, startKey, endKey)),
-    previous: paid.filter(o => inRange(o, prevStartKey, dateKey(Date.parse(`${startKey}T00:00:00Z`) - DAY))),
+    previous: paid.filter(o => inRange(o, prevStartKey, addDays(startKey, -1))),
     start: Date.parse(`${startKey}T00:00:00Z`),
     startKey, prevStartKey, endKey,
   };
@@ -63,6 +74,10 @@ export function refundedAmount(o: Order): number {
 export interface PeriodTotals {
   orders: number; revenue: number; refunded: number; net: number; units: number; aov: number;
   shipping: number; tax: number; subtotal: number; discounts: number; discountRate: number;
+  /** Part of the orders' value paid with gift cards (not in `revenue`, which is the card/PayPal part). */
+  giftCards: number;
+  /** Gift cards sold in the period: money taken in but not earned until the card is spent. */
+  giftCardsSold: number;
 }
 
 /** `revenue` is what customers paid; `net` takes partial refunds off it. Average order uses `net`. */
@@ -76,8 +91,10 @@ export function totals(orders: Order[]): PeriodTotals {
   const tax = sumOf(o => Number(o.tax) || 0);
   const discounts = sumOf(o => Number(o.discount) || 0);
   const subtotal = sumOf(o => Number(o.subtotal) || 0);
+  const giftCards = sumOf(o => Number(o.giftCardAmount) || 0);
+  const giftCardsSold = sumOf(o => (o.items || []).reduce((n: number, i: any) => n + (i?.giftCard === true ? (Number(i.price) || 0) * (Number(i.quantity) || 0) : 0), 0));
   return {
-    orders: orders.length, revenue, refunded, net, units, shipping, tax, subtotal, discounts,
+    orders: orders.length, revenue, refunded, net, units, shipping, tax, subtotal, discounts, giftCards, giftCardsSold,
     aov: orders.length ? net / orders.length : 0,
     discountRate: subtotal > 0 ? (discounts / subtotal) * 100 : 0,
   };
@@ -201,10 +218,14 @@ export function stockValue(books: Book[]) {
 /** Paid orders still waiting to ship, oldest first, with age in days. */
 export function toFulfil(orders: Order[], now = Date.now()) {
   // Same rule as the Orders work queues: anything not in transit, completed or unpaid
-  // (so digital-only orders, collected pickups and out-for-delivery parcels drop off).
-  return orders.filter(o => isRealPaidOrder(o) && !["In transit", "Completed", "Unpaid"].includes(queueOf(o)))
-    .map(o => ({ ...o, ageDays: Math.max(0, Math.floor((now - ts(o.createdAt)) / DAY)) }))
-    .sort((a, b) => ts(a.createdAt) - ts(b.createdAt));
+  // (so digital-only orders, collected pickups and out-for-delivery parcels drop off). Pre-orders waiting for
+  // their release date (counted on their own in orderTodos) and parcels already packed for the customer to collect are not waiting to ship.
+  // The wait is counted from when the order could first ship: payment, or a pre-order's release if later
+  // (the same clock the daily digest and the admin alerts use).
+  const start = (o: Order) => Math.max(ts(o.paidAt) || ts(o.createdAt), preorderClockStart(o, o.operations || {}));
+  return orders.filter(o => isRealPaidOrder(o) && !["In transit", "Completed", "Unpaid", "Awaiting release", "Ready for pickup"].includes(queueOf(o)))
+    .map(o => ({ ...o, ageDays: Math.max(0, Math.floor((now - start(o)) / DAY)) }))
+    .sort((a, b) => start(a) - start(b));
 }
 
 /** Run-sheet counts read from orders: open cancel/return requests, gift cards not issued, pre-orders awaiting release. */

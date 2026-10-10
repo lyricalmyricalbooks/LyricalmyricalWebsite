@@ -41,4 +41,12 @@ function buildOrderDigest(orders, operationsById = new Map(), now = Date.now()) 
   return { unshipped: unshipped.sort(byAge), stuck: stuck.sort(byAge), labelChecks, total: unshipped.length + stuck.length + labelChecks.length };
 }
 
-module.exports = { buildOrderDigest, UNSHIPPED_DAYS, TRANSIT_DAYS };
+// The digest reads a bounded window instead of every paid order the shop ever took.
+const DIGEST_WINDOW_DAYS = 180;
+const DIGEST_ORDER_LIMIT = 1500;
+const digestSince = (now = Date.now()) => new Date(now - DIGEST_WINDOW_DAYS * DAY).toISOString();
+/** Only an order that can still appear in the digest needs its private record read. */
+const digestNeedsOperations = order => !!order && !order.isTest && order.status !== "cancelled"
+  && !["cancelled", "refunded", "delivered"].includes(order.fulfillmentStatus);
+
+module.exports = { buildOrderDigest, UNSHIPPED_DAYS, TRANSIT_DAYS, DIGEST_WINDOW_DAYS, DIGEST_ORDER_LIMIT, digestSince, digestNeedsOperations };
