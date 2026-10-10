@@ -16,10 +16,10 @@ function figmaAssetResolver() {
   }
 }
 
-// On GitHub Pages the site lives under /LyricalmyricalWebsiteTrial/.
+// On GitHub Pages the site lives under /LyricalmyricalWebsite/.
 // In dev (and on a custom domain) it lives at the root.
 // SITE_BASE can be overridden via env (e.g. for a future custom domain).
-const SITE_BASE = process.env.SITE_BASE ?? '/LyricalmyricalWebsiteTrial/'
+const SITE_BASE = process.env.SITE_BASE ?? '/LyricalmyricalWebsite/'
 
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? SITE_BASE : '/',

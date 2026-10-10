@@ -15,7 +15,7 @@ import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { BootSplash } from "./components/BootSplash";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
-// import.meta.env.BASE_URL is the Vite `base` config (e.g. "/LyricalmyricalWebsiteTrial/").
+// import.meta.env.BASE_URL is the Vite `base` config (e.g. "/LyricalmyricalWebsite/").
 // Strip the trailing slash so React Router treats it as a basename.
 const ROUTER_BASENAME = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
 

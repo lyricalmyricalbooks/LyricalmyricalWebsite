@@ -1,6 +1,6 @@
 import { appendFile } from 'node:fs/promises';
 import { readPublicStorefront, publishedFingerprint } from './publicStorefrontData.mjs';
-const siteUrl = (process.env.SITE_URL || 'https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial').replace(/\/$/, '');
+const siteUrl = (process.env.SITE_URL || 'https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite').replace(/\/$/, '');
 const fingerprint = publishedFingerprint(await readPublicStorefront());
 let previous = '';
 try {

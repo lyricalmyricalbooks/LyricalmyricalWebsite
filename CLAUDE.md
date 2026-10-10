@@ -630,9 +630,12 @@ draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
 ## Deployment
 
 - **Frontend** → GitHub Pages via `.github/workflows/deploy-pages.yml` on push
-  to `main`. Pages serves under `/LyricalmyricalWebsiteTrial/`, so Vite `base`
+  to `main`. Pages serves under `/LyricalmyricalWebsite/`, so Vite `base`
   and the router basename are set accordingly (`vite.config.ts`, `App.tsx`).
   Override with `SITE_BASE=/` for a root/custom domain.
+  The repository was renamed from `LyricalmyricalWebsiteTrial` (October 2026); `deploy-pages.yml`'s **Site address**
+  step now sets `SITE_URL`/`SITE_BASE` from the repository name (or the `SITE_URL` repository variable for a custom
+  domain), so a rename can't leave assets on a sub-path that 404s. Keep the code defaults in step with it.
 - **Firebase** (Firestore rules/indexes, Storage rules, Functions) →
   `.github/workflows/deploy-firebase.yml` (needs `FIREBASE_SERVICE_ACCOUNT`
   secret), or manually: `npx firebase-tools deploy --only

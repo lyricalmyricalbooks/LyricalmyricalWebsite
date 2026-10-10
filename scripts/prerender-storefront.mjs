@@ -10,7 +10,7 @@ import { publicRoutes, routeOutputPath, captureDocument } from './prerenderHtml.
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = resolve(root, 'dist');
-const siteUrl = (process.env.SITE_URL || 'https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial').replace(/\/$/, '');
+const siteUrl = (process.env.SITE_URL || 'https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite').replace(/\/$/, '');
 const base = (process.env.SITE_BASE ?? new URL(siteUrl).pathname).replace(/\/+$/, '');
 const template = await readFile(resolve(dist, 'index.html'), 'utf8');
 const routes = publicRoutes(await readFile(resolve(dist, 'prerender-routes.xml'), 'utf8'), siteUrl);
