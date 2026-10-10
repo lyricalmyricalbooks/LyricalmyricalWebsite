@@ -28,3 +28,11 @@ describe("regionsFor", () => {
     expect(regionsFor("France")).toBeNull();
   });
 });
+
+describe("#78 ZIP 201 is Virginia, not DC", () => {
+  it("fills Northern Virginia ZIPs with VA and keeps DC's own ranges", () => {
+    for (const zip of ["20147", "20166", "20190", "20101"]) expect(provinceFromPostal("United States", zip)).toBe("VA");
+    for (const zip of ["20001", "20500", "20005"]) expect(provinceFromPostal("United States", zip)).toBe("DC");
+    expect(provinceFromPostal("United States", "20601")).toBe("MD");
+  });
+});

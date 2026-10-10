@@ -5,6 +5,8 @@ import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../features/site/risoNoir";
 export const defaultSettings = (): any => ({
   localFulfillment: { enabled: false, pickupLocations: [], deliveryZones: [] },
   announcements: [{ message: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA" }],
+  // Settings › General › Checkout stock holds: most copies one shopper can have set aside while checking out.
+  stockHolds: { perBook: 10, units: 50, orders: 3 },
   maintenance: { enabled: false, message: "WE ARE UPDATING OUR ARCHIVE. PLEASE CHECK BACK SOON." },
   domain: { subdomain: "lyricalmyrical", custom: "www.lyricalmyricalbooks.com" },
   info: { 
