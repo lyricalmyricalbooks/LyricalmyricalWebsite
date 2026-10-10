@@ -48,6 +48,7 @@ import { studioHash } from "../lib/studioLocation";
 
 import { BookSeoPane } from "./BookSeoPane";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/site/preorder";
+import { DEFAULT_CUSTOMS_DESCRIPTION, DEFAULT_HS_CODE, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
 import { MediaLibraryDialog, WeightField } from "./BookEditorFields";
 import { editorDirty, fillEmpty, isbnWarning, lookupIsbn, needsPublishReview, slugClash } from "./bookEditorState";
@@ -907,6 +908,16 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                   {!giftCard && <TextField label="Dimensions" name="dimensions" value={formData.dimensions || ""} onChange={handleChange} placeholder="6 x 9 in" />}
                   {!giftCard && <WeightField label="Weight" value={formData.weight || ""} onChange={(w) => set("weight", w)} hint={boxSetOn ? "Used for weight-based shipping. Leave blank to use the books inside added together." : "Used for weight-based shipping."} />}
                 </div>
+                {!giftCard && !isDigital && (
+                  <div className="be-grid" style={{ marginTop: 12 }}>
+                    <TextField label="Customs description" name="customsDescription" value={formData.customsDescription || ""} onChange={handleChange} placeholder={DEFAULT_CUSTOMS_DESCRIPTION} hint="Printed on the customs form of international labels. Blank = “Printed books”." />
+                    <TextField label="Tariff (HS) code" name="hsTariffNumber" value={formData.hsTariffNumber || ""} onChange={handleChange} placeholder={DEFAULT_HS_CODE}
+                      error={formData.hsTariffNumber && !validHsCode(formData.hsTariffNumber) ? "Use 4 to 10 digits, like 4901.99." : undefined}
+                      hint="Customs code for international parcels. Blank = 4901.99 (printed books)." />
+                    <TextField label="Country of origin" name="customsOriginCountry" value={formData.customsOriginCountry || ""} onChange={handleChange} placeholder="CA" maxLength={2}
+                      hint="Where the book was printed (2-letter code). Blank = your shipping-from country." />
+                  </div>
+                )}
                 {isbnResult && (
                   <div role="status" className="be-note">
                     {isbnResult.text}

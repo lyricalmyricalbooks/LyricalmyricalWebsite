@@ -19,7 +19,9 @@ function orderRequestProblem(order, type) {
   const payment = String(order.paymentStatus || "").toLowerCase();
   if (status === "cancelled" || status === "refunded" || payment.startsWith("refund")) return "closed";
   const fulfillment = String(order.fulfillmentStatus || "").toLowerCase();
-  const shipped = SHIPPED.includes(fulfillment) || SHIPPED.includes(status) || !!order.trackingNumber;
+  // A bought label puts a tracking number on the order while the parcel is still in the shop,
+  // so only the order's own status says whether it has left.
+  const shipped = SHIPPED.includes(fulfillment) || SHIPPED.includes(status);
   if (type === "cancel" && shipped) return "already_shipped";
   if (type === "return" && payment !== "paid") return "not_paid";
   return null;

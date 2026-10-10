@@ -5,7 +5,7 @@ function physicalLines(order) {
   return (order.items || []).map((item, index) => ({ ...item, index })).filter(item => isPhysicalItem({ ...item, format: item.format || item.variantName || "" }));
 }
 function returnTransition(order, current, action, input, now, actor) {
-  if (!["approved", "rejected", "received", "inspected"].includes(action)) fail("Invalid return action.");
+  if (!["approved", "rejected", "received", "inspected", "closed"].includes(action)) fail("Invalid return action.");
   if (order.customerRequest?.type !== "return") fail("This order has no return request.");
   // A request the shop already closed (marked handled or declined) is never reopened by a later click.
   if (order.customerRequest.status !== "open" && !(current?.state === action)) fail("This return request is closed. Refresh the order.");
@@ -13,6 +13,12 @@ function returnTransition(order, current, action, input, now, actor) {
   if (order.refundRequest) fail("A refund has already been requested. Reconcile it before changing the return.");
   const state = current?.state || "requested";
   if (action === state) return current;
+  // Close an approved/received/inspected return with no refund (parcel never came, or nothing to refund).
+  // Money and stock are untouched; the request leaves Needs attention. A refund can still be made later.
+  if (action === "closed") {
+    if (!["approved", "received", "inspected"].includes(state)) fail("Only an approved return can be closed this way. Decline or close a new request instead.");
+    return { ...(current || {}), state: "closed", updatedAt: now, actor, closedAt: now, closedFrom: state };
+  }
   const next = { ...(current || {}), state: action, updatedAt: now, actor };
   if (action === "approved" && state === "requested") {
     if (!physicalLines(order).length) fail("This order has no physical books to return. Use the refund workflow instead.");
@@ -45,14 +51,14 @@ function returnTransition(order, current, action, input, now, actor) {
   fail("The return changed or this step is out of order. Refresh the order.");
 }
 function publicReturn(current) {
-  return Object.fromEntries(["state", "instructions", "approvedAt", "rejectedAt", "receivedAt", "inspectedAt", "updatedAt"].filter(key => current?.[key] !== undefined).map(key => [key, current[key]]));
+  return Object.fromEntries(["state", "instructions", "approvedAt", "rejectedAt", "closedAt", "receivedAt", "inspectedAt", "updatedAt"].filter(key => current?.[key] !== undefined).map(key => [key, current[key]]));
 }
 const DISPATCHED = ["shipped", "out_for_delivery", "delivered", "completed", "picked_up", "collected"];
-const dispatched = order => DISPATCHED.includes(String(order.fulfillmentStatus || "").toLowerCase()) || DISPATCHED.includes(String(order.status || "").toLowerCase()) || !!order.trackingNumber;
+const dispatched = order => DISPATCHED.includes(String(order.fulfillmentStatus || "").toLowerCase()) || DISPATCHED.includes(String(order.status || "").toLowerCase());
 function returnRestockItems(order, returnCase) {
   const openReturn = order.customerRequest?.type === "return" && order.customerRequest.status === "open";
   // No return in progress, a declined one, or books that never left the shop: the admin's restock choice covers every line.
-  if (order.returnProgress?.state === "rejected" || (!order.returnProgress && (!openReturn || !dispatched(order)))) return order.items || [];
+  if (["rejected", "closed"].includes(order.returnProgress?.state) || (!order.returnProgress && (!openReturn || !dispatched(order)))) return order.items || [];
   if (returnCase?.state !== "inspected") return [];
   // A box set goes back as the books inside it (the order line keeps its components).
   return (returnCase.inspection || []).map(row => {

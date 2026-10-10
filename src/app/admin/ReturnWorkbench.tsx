@@ -17,6 +17,7 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
   const [busy, setBusy] = useState(false);
   const [confirmRefund, setConfirmRefund] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [confirmCloseApproved, setConfirmCloseApproved] = useState(false);
   const lines = (order.items || []).map((item: any, index: number) => ({ ...item, index })).filter((item: any) => !isDigitalItem({ ...item, format: item.format || item.variantName }));
   // After inspection: did every copy come back? Then the full order is refunded (as before); otherwise the returned books' value.
   const inspected: any[] = Array.isArray(saved?.inspection) ? saved.inspection : [];
@@ -44,7 +45,7 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
           return { index: item.index, quantity: whole(row.quantity), condition: row.condition, ...(row.condition === "mixed" ? { restockQuantity: whole(row.restockQuantity) } : {}) };
         }),
       });
-      toast.success(action === "refund" ? "Refund recorded; provider status determines completion." : action === "close" ? "Request closed." : "Return updated.");
+      toast.success(action === "refund" ? "Refund recorded; provider status determines completion." : action === "close" || action === "closed" ? "Request closed." : "Return updated.");
       await onUpdated();
     } catch (error: any) { toast.error(error.message || "Could not update return."); }
     finally { setBusy(false); }
@@ -100,6 +101,8 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
             hint={`Suggested from the returned books' prices: ${formatMinor(suggested, currency)}. Up to ${formatMinor(refundableMinor(order), currency)} can be refunded.`} />
           <PrimaryButton disabled={busy || !!amountError} onClick={() => setConfirmRefund(true)}>Refund returned books and restock eligible copies</PrimaryButton>
         </>)}
+      {["approved", "received", "inspected"].includes(state) && <SecondaryButton disabled={busy} onClick={() => setConfirmCloseApproved(true)}>Close return without a refund</SecondaryButton>}
+      {state === "closed" && <p role="status">Closed without a refund. Nothing was restocked.</p>}
       {state === "refund_pending" && <p role="status">The provider is processing the refund. Inventory has already been handled; do not refund again.</p>}
       {state === "completed" && <p role="status">Refund completed. Returned inventory has been handled once.</p>}
     </div>
@@ -109,6 +112,9 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
         ? "The full payment will be refunded. Inspected resellable physical copies will be returned to inventory once; damaged copies will stay out of stock. For cash or e-Transfer, send the money back first: this action only records the manual refund."
         : `${formatMinor(amountMinor || 0, currency)} will be refunded and the order stays paid. Inspected resellable copies go back to stock once. For cash or e-Transfer, send the money back first: this only records it.`}
       confirmLabel={everythingBack ? "Refund full order" : "Refund returned books"} onCancel={() => setConfirmRefund(false)} onConfirm={() => { setConfirmRefund(false); run("refund"); }} />
+    <ConfirmDialog open={confirmCloseApproved} title="Close this return without a refund?" confirmLabel="Close return"
+      message="Use this when the parcel never arrived or you decided not to refund. The request leaves Needs attention and the customer is told it is closed. No money moves and nothing is restocked; you can still refund from More order actions later."
+      onCancel={() => setConfirmCloseApproved(false)} onConfirm={() => { setConfirmCloseApproved(false); run("closed"); }} />
     <ConfirmDialog open={confirmClose} title="Close this request without a return?" confirmLabel="Close request"
       message="The customer's request is marked handled and can't be reopened. No money moves and nothing is restocked — refund from More order actions first if you agreed to one."
       onCancel={() => setConfirmClose(false)} onConfirm={() => { setConfirmClose(false); run("close"); }} />

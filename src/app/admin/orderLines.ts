@@ -135,6 +135,7 @@ export function returnStepLabel(state: string): string {
     case "inspected": return "Step 4 of 4 — refund the customer";
     case "refund_pending": return "Refund sent — waiting for the payment provider";
     case "completed": return "Done — refunded";
+    case "closed": return "Closed without a refund";
     case "rejected": return "Declined — the customer has been told why";
     default: return String(state || "").replace(/_/g, " ");
   }

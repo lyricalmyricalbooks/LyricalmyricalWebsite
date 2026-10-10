@@ -948,7 +948,14 @@ export const adminApi = {
         message = `Dispatched via ${tracking.trackingCarrier}. Tracking: ${tracking.trackingNumber}`;
       } else if (action === "edit_tracking") {
         if (fulfillmentMethod(o) !== "shipping" || queueOf(o) !== "In transit") throw new Error("Tracking can only be corrected while the parcel is in transit.");
-        if (o.labelUrl) {
+        if (o.labelUrl && payload.replaceLabel === true) {
+          // The label was voided or replaced: record the real carrier and number (the Shippo webhook finds the
+          // order by number) and keep the old label in the private history.
+          const tracking = trackingFields(payload);
+          tx.update(ref, { ...tracking, labelUrl: deleteField(), updatedAt: now });
+          operations.labelHistory = [...(operations.labelHistory || []), { trackingNumber: o.trackingNumber || null, trackingCarrier: o.trackingCarrier || null, labelUrl: o.labelUrl, replacedAt: now, replacedBy: "admin" }];
+          message = `Label #${o.trackingNumber || ""} replaced: tracking is now ${tracking.trackingCarrier} · ${tracking.trackingNumber}`;
+        } else if (o.labelUrl) {
           // Shippo owns the carrier and number (its webhook finds the order by number); only the link may change.
           const { trackingUrl } = trackingFields({ trackingCarrier: o.trackingCarrier || "Carrier", trackingNumber: o.trackingNumber || "-", trackingUrl: payload.trackingUrl });
           tx.update(ref, { trackingUrl, updatedAt: now });
@@ -1049,6 +1056,20 @@ export const adminApi = {
       }
     }
     return { deleted, failed, refused };
+  },
+
+  // Archive keeps the order (and its payment/stock history) but takes it out of the work queues.
+  archiveOrders: async (orderIds: string[], archived = true) => {
+    let changed = 0;
+    const failed: string[] = [];
+    for (const id of orderIds) {
+      try {
+        await updateDoc(doc(db, "orders", id), archived ? { archivedAt: new Date().toISOString() } : { archivedAt: deleteField() });
+        changed += 1;
+      } catch { failed.push(id); }
+    }
+    if (changed) { try { await adminApi.recordAuditLog("orders", `${archived ? "Archived" : "Restored"} ${changed} order${changed === 1 ? "" : "s"}`); } catch { /* best effort */ } }
+    return { changed, failed };
   },
 
   registerStripePaymentDomain: async (origin: string) => {
@@ -1437,6 +1458,20 @@ export const adminApi = {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Failed to load Canada Post rates.");
+    return result;
+  },
+
+  // Void a bought label that has not left the shop (Shippo refunds it) so a new one can be bought.
+  voidLabel: async (orderId: string, confirmedElsewhere = false) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createShippingLabel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ orderId, mode: "voidLabel", confirmedElsewhere }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Couldn't void the label.");
     return result;
   },
 

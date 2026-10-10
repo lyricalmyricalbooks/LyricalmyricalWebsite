@@ -21,7 +21,7 @@ const PUBLIC_FIELDS = ["preorderReleasedAt", "orderId", "createdAt", "updatedAt"
 const pick = (value, keys) => Object.fromEntries(keys.filter(k => value && Object.hasOwn(value, k)).map(k => [k, value[k]]));
 function publicOrderView(id, order) {
   const out = { id, ...pick(order, PUBLIC_FIELDS) };
-  if (order.returnProgress) out.returnProgress = pick(order.returnProgress, ["state", "instructions", "approvedAt", "receivedAt", "inspectedAt", "rejectedAt", "updatedAt"]);
+  if (order.returnProgress) out.returnProgress = pick(order.returnProgress, ["state", "instructions", "approvedAt", "receivedAt", "inspectedAt", "rejectedAt", "closedAt", "updatedAt"]);
   out.customer = pick(order.customer, ["name", "email", "phone"]);
   out.customer.address = pick(order.customer?.address, ["street", "unit", "city", "state", "zip", "country"]);
   out.items = (order.items || []).map(item => pick(item, ["id", "variantId", "variantName", "title", "price", "quantity", "photoUrl", "preorder", "releaseDate", "digital", "isDigital", "format", "addOns", "bundle", "components", "giftCard", "giftCardDetails", "promoGift"]));

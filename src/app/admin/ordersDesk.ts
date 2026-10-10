@@ -1,8 +1,8 @@
 // Orders desk (split view): which orders show in each view, in what order, and
 // which one opens next. Pure; the queues themselves come from fulfillment.queueOf.
-import { queueOf, preorderShipDate, disputeOpen, addressIssues, addressKey, fulfillmentMethod } from "./fulfillment";
+import { queueOf, terminal, preorderShipDate, disputeOpen, addressIssues, addressKey, fulfillmentMethod } from "./fulfillment";
 import { orderMatches, type CatalogSearchIndex } from "./orderSearch";
-import { orderTime } from "./orderListHelpers";
+import { isArchived, orderTime } from "./orderListHelpers";
 
 export type DeskView = "needs" | "preorders" | "shipped" | "all";
 
@@ -22,8 +22,12 @@ export const awaitingWebhook = (o: any) =>
 /** The desk's queue: fulfillment.queueOf, except money waiting on the webhook needs a look too. */
 export const deskQueue = (o: any) => (awaitingWebhook(o) ? "Needs attention" : queueOf(o));
 
+/** Sent, delivered or fully fulfilled. Cancelled, refunded and refund-pending orders never count. */
+const shippedOut = (o: any) => SHIPPED_QUEUES.includes(queueOf(o)) && !terminal(o);
+
 export function deskOrders(orders: any[], view: DeskView, query = "", showTest = false, catalog?: CatalogSearchIndex | null): any[] {
-  const base = (orders || []).filter((o) => o && (showTest || o.isTest !== true) && orderMatches(o, query, catalog));
+  // Archived orders stay in "All"; they leave the work queues.
+  const base = (orders || []).filter((o) => o && (showTest || o.isTest !== true) && (view === "all" || !isArchived(o)) && orderMatches(o, query, catalog));
   if (view === "needs") {
     return base
       .filter((o) => NEEDS_ME_QUEUES.includes(deskQueue(o)))
@@ -32,7 +36,7 @@ export function deskOrders(orders: any[], view: DeskView, query = "", showTest =
   }
   // Paid pre-orders waiting for their release date, soonest release first.
   if (view === "preorders") return base.filter((o) => queueOf(o) === "Awaiting release").sort((a, b) => (preorderShipDate(a) || "9999").localeCompare(preorderShipDate(b) || "9999") || time(a) - time(b));
-  if (view === "shipped") return base.filter((o) => SHIPPED_QUEUES.includes(queueOf(o))).sort((a, b) => time(b) - time(a));
+  if (view === "shipped") return base.filter(shippedOut).sort((a, b) => time(b) - time(a));
   return base.slice().sort((a, b) => time(b) - time(a));
 }
 
@@ -103,6 +107,8 @@ export function rowStatus(o: any): { tone: "danger" | "warning" | "info" | "succ
   if (q === "Awaiting release") return { tone: "info", text: preorderShipDate(o) ? `◷ Pre-order · ships ${preorderShipDate(o)}` : "◷ Pre-order · date to be announced" };
   if (q === "In transit") return { tone: "info", text: "● On the way" };
   if (o.paymentStatus === "refunded") return { tone: "neutral", text: "✕ Refunded" };
+  if (o.paymentStatus === "refund_pending") return { tone: "warning", text: "◷ Refund in progress" };
+  if (o.status === "cancelled" || ["cancelled", "refunded"].includes(o.fulfillmentStatus)) return { tone: "neutral", text: "✕ Cancelled" };
   if (q === "Completed") return { tone: "success", text: "✓ Done" };
   if (o.paymentStatus === "pending") return { tone: "neutral", text: "○ Waiting on payment" };
   return { tone: "neutral", text: "○ Not paid" };

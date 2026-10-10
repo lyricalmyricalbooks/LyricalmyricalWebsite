@@ -19,7 +19,23 @@ test("mixed-condition lines restock only the confirmed resellable count", () => 
 
 test("books that never left the shop follow the admin's restock choice", () => {
   expect(returnRestockItems(order, null)).toEqual(order.items);
-  expect(returnRestockItems({ ...order, trackingNumber: "TRACK1" }, null)).toEqual([]);
+  expect(returnRestockItems({ ...order, fulfillmentStatus: "shipped", trackingNumber: "TRACK1" }, null)).toEqual([]);
+  // Fault 136: a label bought but not yet handed over has a tracking number; the books are still on the shelf.
+  expect(returnRestockItems({ ...order, trackingNumber: "TRACK1", labelUrl: "https://label" }, null)).toEqual(order.items);
+});
+
+// Fault 25: an approved return could never be closed.
+test("an approved, received or inspected return can be closed without a refund", () => {
+  const approved = advance(null, "approved", { instructions: "Send it back" });
+  for (const current of [approved, advance(approved, "received")]) {
+    const closed = advance(current, "closed");
+    expect(closed.state).toBe("closed");
+    expect(closed.closedAt).toBe("now");
+    expect(publicReturn(closed)).toMatchObject({ state: "closed", closedAt: "now" });
+  }
+  expect(() => advance(null, "closed")).toThrow("approved return");
+  // Nothing is refunded or restocked by closing, and the admin's own restock choice covers a later refund.
+  expect(returnRestockItems({ ...order, returnProgress: { state: "closed" } }, { state: "closed" })).toEqual(order.items);
 });
 
 test("a closed request is never reopened, but repeating the closing step is harmless", () => {

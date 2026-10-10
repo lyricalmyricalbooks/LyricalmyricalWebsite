@@ -1550,6 +1550,20 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   `getShippoRates` / `cartShippingPreview` server). The bag's free-shipping bar counts printed books only (`shippableBagTotal`).
 - Gift-card `adjust` history stores the applied change (`requestedMinor` kept when clamped). `createPayPalOrder` binds `STRIPE_SECRET_KEY`.
 
+## Orders, returns and Shippo labels (round 2, PR 8, 10 October 2026)
+
+- **Returns:** `returnTransition` accepts `closed` from approved/received/inspected (ReturnWorkbench › *Close return without a refund*); the request becomes `handled`, nothing is refunded or restocked, `returnProgress.state` is `closed` (customer words `trackReturn_closed`).
+- **Shipped means shipped:** a bought label puts `trackingNumber` on the order while the parcel is still in the shop, so `orderRequestProblem`, `dispatched()` (returns), the refund restock default and the shopper's request options use `fulfillmentStatus`/`status` only, never `trackingNumber`.
+- **Label purchase (`createShippingLabel`):** `callShippo` has a 15 s timeout (45 s for the purchase) and sets `error.shippoStatus`. HTTP 4xx (except 408) is a definite refusal (`shippoDefiniteRefusal`): the lock is released with a history entry; 5xx/timeouts/network keep it. `buyRate` saves `shippoTransactionId` (+ status/rate) in `order-operations` BEFORE the order write; `recordLabel` writes the order and releases the lock in one transaction; transactions and shipments carry `metadata: "Order <id>"`. A test key (`shippo_test_`) may rehearse a purchase: the label is stored with `order-operations.labelTest: true` and the workbench shows a TEST label badge. `mode: "voidLabel"` (admin) refunds the label with Shippo (`refunds/`) or, with `confirmedElsewhere`, just drops it; the old label goes to `order-operations.labelHistory`. After dispatch, `edit_tracking` with `replaceLabel: true` records a replacement carrier/number.
+- **Customs:** parcels whose destination country differs from the shop's origin get Shippo customs items + a declaration (`functions/customs.js`, per physical line; value = what was paid in CAD, discount shared out). Per-book answers `customsDescription`, `hsTariffNumber`, `customsOriginCountry` (Books › edit › Details; blank = Printed books / 4901.99 / shipping-from country; `admin/customsFields.ts`).
+- **Label rates:** `labelRatesFor` offers the cheapest quote of the service checkout sold (`order.shippingMethod`, any carrier) first, then Canada Post; `isPurchasableRate` is the purchase check.
+- **Shippo key:** `saveShippoConfig` requires a `shippo_live_`/`shippo_test_` prefix and a successful Shippo call (401/403 = not saved); stores `mode`/`verifiedAt`; Settings › Shipping › Carrier & labels shows LIVE/TEST.
+- **Tracking never moves back:** `advancesTracking` (fulfillmentGuard.js); the Shippo webhook updates inside a transaction and emails only when it advanced.
+- **Paid-order trigger:** `onOrderUpdated` sends its emails first; `checkAddressAfterPayment` (the Shippo address check) runs afterwards in a `finally`.
+- **Address rules:** `functions/addressRules.js` ↔ `features/site/addressRules.ts` (`addressRules.parity.test.ts`): street, city, country always; province/state only for CA/US; postal code unless the country has none (same no-postcode list as the checkout form). Used by `validateAddress`, `autoApproveShippingAddress`, label purchase and `addressIssues`.
+- **Orders list:** `ordersTable.ts` is the one filter behind the table rows and tab counts. Orders can be **archived** (`archivedAt`, `adminApi.archiveOrders`): they leave the work queues/badge but stay in *All orders*. Delete is also refused (client `deleteRefusal` + `firestore.rules`) for unpaid orders with a started card/PayPal payment unless cancelled. The desk's *Shipped* tab excludes terminal (cancelled/refunded/refund-pending) orders. The ship-late alert counts printed orders only.
+- Deploy `firestore.rules` + Functions with the frontend.
+
 ## Privacy and newsletter (10 October 2026)
 
 - **Owner decision (closed, don't re-raise in audits):** analytics/marketing tracking keeps its default of running before the
