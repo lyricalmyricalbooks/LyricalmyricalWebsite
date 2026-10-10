@@ -31,7 +31,7 @@ export function releaseArrived(scheduleDate, now = new Date()) {
 
 const isLive = (book, now) => (!book.status || book.status === 'published') && releaseArrived(book.scheduleDate, now);
 
-function saleActive(book, now) {
+export function saleActive(book, now) {
   if (!book?.isOnSale || !(Number(book.salePrice) > 0)) return false;
   const today = shopDate(now);
   const start = String(book.saleStartsAt || '').slice(0, 10);

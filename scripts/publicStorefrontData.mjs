@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { saleActive, preorderDate } from '../src/app/features/site/merchantFeed.mjs';
 
 export function decodeValue(value = {}) {
   if ('mapValue' in value) return Object.fromEntries(Object.entries(value.mapValue.fields || {}).map(([key, child]) => [key, decodeValue(child)]));
@@ -18,8 +19,8 @@ export async function readPublicStorefront() {
   const project = config.match(/projectId:\s*"([^"]+)"/)?.[1];
   if (!project) throw new Error('Firebase project ID missing');
   const endpoint = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/`;
-  const [books, pages, settings] = await Promise.all([readPublishedBooks(endpoint), readPublishedPages(endpoint), publicRead(endpoint + 'settings/website').then(decodeDocument)]);
-  return { books, pages, settings };
+  const [books, pages, settings, reviews] = await Promise.all([readPublishedBooks(endpoint), readPublishedPages(endpoint), publicRead(endpoint + 'settings/website').then(decodeDocument), readApprovedReviews(endpoint)]);
+  return { books, pages, settings, reviews };
 }
 // firestore.rules let the public read only books whose status is "published" (private fields live in books/{id}/private/admin),
 // so an unfiltered listing is refused: ask for exactly those, a page of `size` at a time by document name.
@@ -69,6 +70,35 @@ export async function readPublishedPages(endpoint, fetchImpl = fetch) {
   const rows = await response.json();
   return (Array.isArray(rows) ? rows : []).filter(row => row && row.document).map(row => decodeDocument(row.document));
 }
+// Approved reviews are the only public ones (firestore.rules) and feed each book page's aggregateRating JSON-LD,
+// so an approval must rebuild the snapshots even though no book, page or settings document changed.
+export const approvedReviewsQuery = (afterName = '', size = 300) => ({
+  structuredQuery: {
+    from: [{ collectionId: 'reviews' }],
+    where: { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'approved' } } },
+    orderBy: [{ field: { fieldPath: '__name__' }, direction: 'ASCENDING' }],
+    limit: size,
+    ...(afterName ? { startAt: { values: [{ referenceValue: afterName }], before: false } } : {}),
+  },
+});
+export async function readApprovedReviews(endpoint, fetchImpl = fetch, size = 300) {
+  const reviews = [];
+  let after = '';
+  for (;;) {
+    const response = await fetchImpl(endpoint.replace(/\/$/, '') + ':runQuery', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(approvedReviewsQuery(after, size)),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok) throw new Error(`Public data read failed: ${response.status}`);
+    const rows = await response.json();
+    const documents = (Array.isArray(rows) ? rows : []).filter(row => row && row.document).map(row => row.document);
+    reviews.push(...documents.map(decodeDocument));
+    if (documents.length < size) return reviews;
+    after = documents.at(-1).name;
+  }
+}
 const stable = value => Array.isArray(value) ? value.map(stable) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().filter(key => !['updatedAt', '_updateTime'].includes(key)).map(key => [key, stable(value[key])])) : value;
 // Only the published design counts: scheduled designs and campaigns are published into `design` by the server
 // scheduler (functions/themeSchedule.js, Studio 3.5). A leftover `scheduledPublish` field is ignored.
@@ -87,9 +117,19 @@ export function releaseArrived(scheduleDate, nowISO = new Date().toISOString()) 
   const at = Date.parse(value);
   return Number.isFinite(at) ? at <= Date.parse(nowISO) : value <= nowISO;
 }
-export function publishedFingerprint({ books, pages, settings }, now = new Date().toISOString()) {
+// What the page shows on a given day that no document edit changes: a sale window opening or closing and a
+// pre-order reaching its publication date (Toronto calendar days, the same rules as the checkout and the feed).
+export function dateDrivenState(book, nowISO) {
+  const now = new Date(nowISO);
+  return { sale: saleActive(book, now), preorder: preorderDate(book, now) };
+}
+export function publishedFingerprint({ books, pages, settings, reviews = [] }, now = new Date().toISOString()) {
   const publishedSettings = effectivePublishedSettings(settings, now);
   const live = books.filter(book => (!book.status || book.status === 'published') && releaseArrived(book.scheduleDate, now));
-  const snapshot = { books: [...live].sort((a, b) => a.id.localeCompare(b.id)), pages: pages.filter(page => page.status === 'published').sort((a, b) => a.id.localeCompare(b.id)), settings: publishedSettings };
+  const liveIds = new Set(live.map(book => book.id));
+  const ratings = reviews.filter(review => review.status === 'approved' && liveIds.has(review.bookId))
+    .map(({ id, bookId, rating, title, body, authorName, createdAt }) => ({ id, bookId, rating, title, body, authorName, createdAt }))
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  const snapshot = { dated: Object.fromEntries(live.map(book => [book.id, dateDrivenState(book, now)])), reviews: ratings, books: [...live].sort((a, b) => a.id.localeCompare(b.id)), pages: pages.filter(page => page.status === 'published').sort((a, b) => a.id.localeCompare(b.id)), settings: publishedSettings };
   return createHash('sha256').update(JSON.stringify(stable(snapshot))).digest('hex');
 }

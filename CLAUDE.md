@@ -640,6 +640,23 @@ draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
 - If adding a custom domain, update `ALLOWED_ORIGINS` in `functions/index.js`
   and OAuth redirect URIs.
 
+**Deploy ordering contract (October 2026).** Rules, indexes and Functions go live before the frontend that needs them.
+`deploy-pages.yml`'s `firebase-first` job, on a push to `main`, lists the changed files (GitHub compare API) and, when any
+path watched by `deploy-firebase.yml` changed (keep its regex identical to that workflow's `on.push.paths`), waits for the
+`deploy-firebase.yml` run of the same commit and fails unless it succeeded; the `deploy` job `needs` it. A failed Firebase
+deploy therefore stops the frontend; fix the backend and re-run, or start Pages by hand (`workflow_dispatch` and the schedule
+skip the wait). A later push that changes no backend file is not held back by an earlier push's Firebase deploy.
+`deploy-firebase.yml` pins `firebase-tools` (`FIREBASE_TOOLS_VERSION`) and no longer passes `--force`, so it never deletes
+console-made indexes or functions missing from the repo (delete deliberately: edit `firestore.indexes.json`, or
+`firebase functions:delete`). The one thing `--force` used to do for CI, the Artifact Registry cleanup policy, is a separate
+best-effort step (`functions:artifacts:setpolicy`). **Scheduled refresh keep-alive:** GitHub disables scheduled workflows in
+a public repo after 60 days without repository activity, and Studio/admin edits are not repo activity.
+`keep-refresh-alive.yml` runs monthly and calls `PUT /actions/workflows/{id}/enable` (needs `actions: write`) for
+`deploy-pages.yml` and itself, warning when it finds one disabled. Prerender: a book/page slug that cannot be a file name
+(`scripts/routeSafety.mjs`) is skipped with a warning and left out of the sitemap instead of failing the build. The
+published-content fingerprint (`publicStorefrontData.mjs`) also covers Toronto-date sale/pre-order state and approved
+reviews. Workflow changes can only be verified by their first real run.
+
 ### Release banner (removed)
 
 The admin Overview no longer shows a "System status & recent release" card, so there is
