@@ -14,6 +14,7 @@ import { StoreHeader } from "./StoreHeader";
 import { googleFontHref } from "./fonts";
 import { useSEO } from "../../lib/seo";
 import { breadcrumbData } from "../../lib/bookSeo";
+import { firstBodyImage } from "./pageBody";
 
 
 /**
@@ -69,6 +70,8 @@ export function PageView() {
     title: seoPage ? seoPage.seoTitle || seoPage.title : undefined,
     description: seoPage ? seoPage.metaDescription || String(seoPage.body || "").replace(/<[^>]+>/g, " ").replace(/[#*]/g, "").replace(/\s+/g, " ").trim().substring(0, 160) : undefined,
     type: "article",
+    // The page's own sharing image, else its first uploaded picture; seo.ts falls back to the shop's share image.
+    image: seoPage ? seoPage.seoImage || firstBodyImage(String(seoPage.body || "")) || undefined : undefined,
     jsonLd: seoPage ? (() => {
       const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
       return breadcrumbData([

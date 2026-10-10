@@ -144,4 +144,6 @@ export type Page = {
   // SEO fields
   seoTitle?: string;
   metaDescription?: string;
+  /** Sharing image (social cards, search); blank = the page's first picture, else the site's share image. */
+  seoImage?: string;
 };

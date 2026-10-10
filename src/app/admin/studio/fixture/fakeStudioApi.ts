@@ -124,7 +124,7 @@ export function installFakeStudioApi(api: Record<string, any>, fixture: StudioFi
       fixture.versions = fixture.versions.filter(v => v.id !== id);
     },
     createPage: async (page: any) => { record("createPage", page); const created = { ...page, id: `p${fixture.pages.length + 1}` }; fixture.pages.push(created); return created; },
-    updatePage: async (id: string, page: any) => { record("updatePage", id, page); fixture.pages = fixture.pages.map(p => p.id === id ? { ...p, ...page } : p); },
+    updatePage: async (id: string, page: any) => { record("updatePage", id, page); fixture.pages = fixture.pages.map(p => p.id === id ? { ...p, ...page } : p); return clone(fixture.pages.find(p => p.id === id)); },
     deletePage: async (id: string) => { record("deletePage", id); fixture.pages = fixture.pages.filter(p => p.id !== id); },
     updateCategoryBooks: async (...args: any[]) => { record("updateCategoryBooks", ...args); return []; },
     uploadFile: async (_file: File, path: string) => { record("uploadFile", path); return `https://example.invalid/${path}`; },

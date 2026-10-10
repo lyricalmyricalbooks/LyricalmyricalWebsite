@@ -2496,7 +2496,12 @@ export function PageContentSection({ settings: own, enableAnimations }: any) {
                 [&_h3]:text-xl [&_h3]:font-bold [&_h3]:mb-4 [&_h3]:mt-8 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-6 [&_li]:mb-2
                 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-6 [&_strong]:font-bold [&_em]:italic [&_img]:my-8 [&_img]:max-w-full
                 [&_a]:underline [&_a]:underline-offset-4 [&_a]:text-[var(--accent)] [&_a]:hover:opacity-80
-                [&_blockquote]:border-l-4 [&_blockquote]:border-current/20 [&_blockquote]:pl-6 [&_blockquote]:italic [&_blockquote]:opacity-80 [&_blockquote]:my-8`}
+                [&_blockquote]:border-l-4 [&_blockquote]:border-current/20 [&_blockquote]:pl-6 [&_blockquote]:italic [&_blockquote]:opacity-80 [&_blockquote]:my-8
+                [&_h4]:text-lg [&_h4]:font-bold [&_h4]:mb-3 [&_h4]:mt-6 [&_s]:line-through [&_img]:inline-block [&_img]:h-auto
+                [&_.ql-align-center]:text-center [&_.ql-align-right]:text-right [&_.ql-align-justify]:text-justify
+                [&_.ql-indent-1]:pl-8 [&_.ql-indent-2]:pl-16 [&_.ql-indent-3]:pl-24 [&_.ql-indent-4]:pl-32
+                [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:my-8 [&_iframe]:border-0
+                [&_hr]:my-10 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-current/20`}
               style={{ ...bStyle(settings), ...(settings.textMeasure === "readable" ? { maxWidth: "62ch", ...(settings.align === "center" ? { marginInline: "auto" } : {}) } : {}) }}
               dangerouslySetInnerHTML={{ __html: body }}
             />

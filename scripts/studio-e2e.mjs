@@ -810,6 +810,37 @@ await check("Schedule publishing saves a campaign in Toronto time and lists it, 
   await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "cancelThemeSchedule"));
 });
 
+await check("a custom page takes uploaded and pasted pictures, with size, position and description", desktop, async page => {
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await page.getByRole("button", { name: "Edit About" }).click();
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP4z8DAwMDAxMDAwAAAGQAD/7+5zQAAAABJRU5ErkJggg==", "base64");
+  await page.locator('input[aria-label="Upload pictures"]').setInputFiles({ name: "spread.png", mimeType: "image/png", buffer: png });
+  const tools = page.getByRole("group", { name: "Selected picture" });
+  await tools.waitFor({ timeout: 10000 });
+  await tools.getByRole("button", { name: "Medium" }).click();
+  await tools.getByRole("button", { name: "Line up centre" }).click();
+  await tools.getByLabel("Description (alt text)").pressSequentially("Open book spread");
+  if (await tools.getByLabel("Description (alt text)").inputValue() !== "Open book spread") throw new Error("typing a description closed the picture tools");
+  // A pasted picture is uploaded too, never kept as data: text.
+  await page.locator(".studio-page-body .ql-editor").click();
+  await page.evaluate(b64 => {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const data = new DataTransfer();
+    data.items.add(new File([bytes], "pasted.png", { type: "image/png" }));
+    document.querySelector(".studio-page-body .ql-editor").dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, png.toString("base64"));
+  await page.waitForFunction(() => document.querySelectorAll(".studio-page-body .ql-editor img").length === 2, null, { timeout: 10000 });
+  await expectText(page, "2 pictures");
+  await page.getByRole("button", { name: "Save page" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "updatePage"), null, { timeout: 10000 });
+  const body = (await calls(page)).find(c => c.method === "updatePage").args[1].body;
+  if (/src="data:/.test(body)) throw new Error("a picture was saved inline as data: text");
+  const placed = body.match(/<p class="ql-align-center"><img [^>]*alt="Open book spread"[^>]*><\/p>/)?.[0] || "";
+  if (!/src="https:\/\/example\.invalid\//.test(placed) || !placed.includes('alt="Open book spread"') || !placed.includes('width="50%"')) throw new Error(`saved body ${body}`);
+  if (!body.startsWith("<p>We publish books.</p>")) throw new Error(`the picture's position moved the text: ${body}`);
+  if ((body.match(/<img /g) || []).length !== 2) throw new Error(`expected two pictures in ${body}`);
+});
+
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
