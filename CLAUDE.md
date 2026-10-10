@@ -703,6 +703,8 @@ If tokens change there, update `riso.css` to match.
   own icon, `section: "Settings"` heading); `NAV` keeps the nested shape for page titles and admin search. What's new
   (`admin/WhatsNew.tsx`) is a one-line sidebar button (latest title, unread dot via localStorage `lm:whats-new-seen`)
   that opens every note in a Dialog.
+  Settings › **Email sender** is the one email page (`settingsTab: "notifications"`, `NotificationEditor`); the old
+  `communications` id/route (`#settings/communications`) opens the same page and is no longer a separate menu item.
 
 **Admin address bar:** the page on screen lives in the hash (`admin/adminRoute.ts`, pure + tested): `#orders/<id>`,
 `#settings/payments`, `#customers`, `#gift-cards/<id>`, `#designer?…` (Studio). `Dashboard.tsx` reads it at boot and on

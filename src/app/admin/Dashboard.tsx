@@ -23,7 +23,7 @@ import { GlobalSearch, ActivityLogDialog } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, sidebarItems } from "./riso/nav";
-import { adminDocumentTitle, hashForRoute, routeFromHash, sameSection } from "./adminRoute";
+import { adminDocumentTitle, hashForRoute, routeFromHash, sameSection, settingsPageOf } from "./adminRoute";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
@@ -282,7 +282,7 @@ export function Dashboard() {
 
   // Name the browser tab after the page, so several admin tabs (and Back's history list) are told apart.
   const isSettingsPage = activeTab === "settings" || activeTab === "shipping" || activeTab === "payments";
-  const settingsChild = activeTab === "shipping" || activeTab === "payments" ? activeTab : settingsTab;
+  const settingsChild = activeTab === "shipping" || activeTab === "payments" ? activeTab : settingsPageOf(settingsTab);
   const pageTitle = isSettingsPage
     ? NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === settingsChild)?.label || "Settings"
     : (PAGE_COPY[activeTab] || PAGE_COPY.overview).title;
@@ -354,7 +354,8 @@ export function Dashboard() {
 
   // Shipping/Payments can also be entered as top-level tabs by ShopSettings.
   const navActive = activeTab === "shipping" || activeTab === "payments" ? "settings" : activeTab === "analytics" ? "overview" : activeTab;
-  const navChild = activeTab === "shipping" || activeTab === "payments" ? activeTab : settingsTab;
+  // An old page id (e.g. Email sender's "communications" from older What's new shortcuts) highlights the page it opens.
+  const navChild = activeTab === "shipping" || activeTab === "payments" ? activeTab : settingsPageOf(settingsTab);
   // A Settings page picked straight from the sidebar: leaves the book editor / an open order too.
   const openSettingsPage = async (child: string) => {
     if (!(isSettingsPage && child === navChild) && !(await leaveSettings())) return;

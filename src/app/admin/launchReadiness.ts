@@ -96,13 +96,13 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   // "cancelled" = the owner stopped a queued email: it says nothing about the sending setup.
   const lastEmail = (emailLog || []).find(e => e?.status !== "fallback" && e?.status !== "cancelled");
   items.push(!lastEmail
-    ? { id: "email", label: "No emails sent yet", detail: "Send a test from Notifications, then verify receipt in the destination inbox.", status: "warn", tab: "notifications", action: "Open Notifications" }
+    ? { id: "email", label: "No emails sent yet", detail: "Send a test from Settings › Email sender, then verify receipt in the destination inbox.", status: "warn", tab: "notifications", action: "Open Email sender" }
     : lastEmail.status === "failed" || lastEmail.status === "queued"
-      ? { id: "email", label: lastEmail.status === "queued" ? "The last email could not be sent and is waiting to retry" : "The last email failed to send", detail: String(lastEmail.error || "See Recent deliveries for the reason."), status: "block", tab: "notifications", action: "Open Notifications" }
+      ? { id: "email", label: lastEmail.status === "queued" ? "The last email could not be sent and is waiting to retry" : "The last email failed to send", detail: String(lastEmail.error || "See Recent deliveries for the reason."), status: "block", tab: "notifications", action: "Open Email sender" }
       // Resend's test sender only delivers to the Resend account owner: customers get nothing.
       : String(lastEmail.from || "").toLowerCase() === "onboarding@resend.dev"
-        ? { id: "email", label: "Emails only reach you, not customers", detail: "The last email went out from Resend's test address, which only delivers to your own inbox. Add the Gmail app password (Notifications › Gmail sending) or verify your domain in Resend.", status: "block", tab: "notifications", action: "Open Notifications" }
-      : { id: "email", label: "Email accepted; inbox delivery unverified", detail: "The provider accepted the latest message. Check the destination inbox and provider delivery events; acceptance does not prove delivery.", status: "warn", tab: "notifications", action: "Open Notifications" });
+        ? { id: "email", label: "Emails only reach you, not customers", detail: "The last email went out from Resend's test address, which only delivers to your own inbox. Add the Gmail app password (Settings › Email sender › Gmail sending) or verify your domain in Resend.", status: "block", tab: "notifications", action: "Open Email sender" }
+      : { id: "email", label: "Email accepted; inbox delivery unverified", detail: "The provider accepted the latest message. Check the destination inbox and provider delivery events; acceptance does not prove delivery.", status: "warn", tab: "notifications", action: "Open Email sender" });
 
   // End-to-end proof
   items.push((orders || []).some(isRealPaidOrder)

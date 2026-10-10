@@ -1320,7 +1320,7 @@ export function OrderDetail({
             <p className="rp-hint" role="status" style={{ margin: 0 }}>
               {emailOn("shipping_confirmation")
                 ? `Customer will be emailed: Shipping confirmation to ${order.customer?.email || "their address"}, with the tracking link.`
-                : "The Shipping confirmation email is switched off (Settings › Notifications), so the customer will not be emailed."}
+                : "The Shipping confirmation email is switched off (Settings › Email sender), so the customer will not be emailed."}
             </p>
           )}
         </div>
@@ -1398,7 +1398,7 @@ export function OrderDetail({
         <p className="rp-hint" style={{ margin: 0 }}>
           {emailOn("shipping_confirmation")
             ? `${order.trackingCarrier || "Carrier"} · ${order.trackingNumber || "No tracking recorded"}`
-            : "The Shipping confirmation email is switched off in Settings › Notifications."}
+            : "The Shipping confirmation email is switched off in Settings › Email sender."}
         </p>
       </Dialog>
       <Dialog
@@ -1707,7 +1707,7 @@ export function OrderDetail({
         confirmLabel="Resend email"
         message={emailOn("order_confirmation")
           ? `Sends the Order confirmed email to ${order.customer?.email || "the customer"} again. The shop's new-order email is not repeated.`
-          : "The Order confirmation email is switched off in Settings › Notifications, so nothing will be sent."}
+          : "The Order confirmation email is switched off in Settings › Email sender, so nothing will be sent."}
         onConfirm={runConfirmed}
         onCancel={() => setConfirmAction(null)}
       />
