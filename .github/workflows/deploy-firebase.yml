@@ -21,6 +21,11 @@ on:
       - .github/workflows/deploy-firebase.yml
   workflow_dispatch:
 
+# The CLI is pinned to an exact version: this job holds the Firebase Admin key, so a new release must not run
+# with it unreviewed. Bump the version here on purpose (and read the release notes) rather than via `latest`.
+env:
+  FIREBASE_TOOLS_VERSION: 15.32.1
+
 concurrency:
   group: firebase-deploy
   cancel-in-progress: false
@@ -46,6 +51,21 @@ jobs:
           case "$APP_CHECK_MODE" in off|monitor|enforce) ;; *) echo "::error::Invalid APP_CHECK_MODE"; exit 1 ;; esac
           printf 'APP_CHECK_MODE=%s\n' "$APP_CHECK_MODE" > functions/.env.lyricalmyrical-web-v2
 
+      - name: Keep old function images from piling up (best effort)
+        # Without `--force` a non-interactive deploy exits non-zero when the Artifact Registry repository has no
+        # cleanup policy ("Functions successfully deployed but could not set up cleanup policy"). Set that one
+        # policy here with the narrow command instead of putting `--force` on the whole deploy. Needs the CI
+        # account to hold artifactregistry.repositories.update; if it cannot, run the same command once by hand.
+        continue-on-error: true
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          [ -n "$FIREBASE_SERVICE_ACCOUNT" ] || exit 0
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
+          npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" functions:artifacts:setpolicy \
+            --project lyricalmyrical-web-v2 --location us-central1 --days 30 --force --non-interactive
+
       - name: Deploy to Firebase
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -56,7 +76,10 @@ jobs:
           fi
           echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
-          npx firebase-tools deploy \
+          # No `--force`: it also deletes, unasked, indexes created in the console and functions missing from the
+          # repo. Without it the CLI keeps them and says what it left (delete deliberately with
+          # `firebase functions:delete` / by editing firestore.indexes.json).
+          npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy \
             --only firestore:rules,firestore:indexes,storage,functions \
             --project lyricalmyrical-web-v2 \
-            --non-interactive --force
+            --non-interactive

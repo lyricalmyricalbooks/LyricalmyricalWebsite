@@ -1,5 +1,5 @@
 import { ChevronDown } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FocusEvent as ReactFocusEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router";
 import { getCopy } from "./storeCopy";
@@ -7,6 +7,29 @@ import { getCopy } from "./storeCopy";
 export type NavDropdownEntry = { key: string; label: string; active?: boolean; to?: string; onSelect?: () => void };
 
 const FOCUSABLE = "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex='-1'])";
+
+/** First non-empty computed value of `prop` on the element or its closest ancestor that sets it. */
+function resolved(el: Element, prop: string): string {
+  for (let n: Element | null = el; n; n = n.parentElement) {
+    const v = window.getComputedStyle(n).getPropertyValue(prop).trim();
+    if (v && v !== "inherit") return v;
+  }
+  return "";
+}
+
+/** What the header gives its links that a body portal would lose: font family/size/weight and `--nav-fit`. */
+export function headerInheritance(el: Element): CSSProperties {
+  const style: Record<string, string> = {};
+  const fit = resolved(el, "--nav-fit");
+  if (fit) style["--nav-fit"] = fit;
+  const family = resolved(el, "font-family");
+  if (family) style.fontFamily = family;
+  const size = resolved(el, "font-size");
+  if (size) style.fontSize = size;
+  const weight = resolved(el, "font-weight");
+  if (weight) style.fontWeight = weight;
+  return style as CSSProperties;
+}
 
 /**
  * A header category that has sub-categories (Studio › Menus › Shop categories › "Sits under").
@@ -31,6 +54,9 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  // The panel lives on <body>, outside the navigation header element, so it no longer inherits the
+  // header's font (Studio › Typography › Header & menu font) or `--nav-fit` (shrink to fit). Copy them from the button.
+  const [inherited, setInherited] = useState<CSSProperties>({});
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -43,6 +69,7 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
   const place = () => {
     const r = btnRef.current?.getBoundingClientRect();
     if (r) setPos({ top: r.bottom + 10, left: Math.max(8, r.left - 12) });
+    if (btnRef.current) setInherited(headerInheritance(btnRef.current));
   };
   useLayoutEffect(() => { if (open) place(); }, [open]);
 
@@ -74,6 +101,13 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
   // A click right after the hover opened it (mouse users) keeps it open instead of toggling shut.
   const clickToggle = () => setOpen((o) => !o || Date.now() - hoverOpenedAt.current < 600);
   const hoverClose = () => { closeTimer.current = window.setTimeout(() => setOpen(false), 150); };
+  const focusFirst = () => window.setTimeout(() => panelRef.current?.querySelector<HTMLElement>("a,button")?.focus(), 0);
+  // Focus leaving both the button and the panel (Tab away, Shift+Tab back out) closes the panel. A null
+  // relatedTarget (mouse press on a non-focusable spot, Safari) is left to the outside-press handler.
+  const onFocusOut = (e: ReactFocusEvent<HTMLElement>) => {
+    const to = e.relatedTarget as Node | null;
+    if (to && !btnRef.current?.contains(to) && !panelRef.current?.contains(to)) setOpen(false);
+  };
   const pick = (entry: NavDropdownEntry) => { setOpen(false); entry.onSelect?.(); };
 
   // The portal sits at the end of <body>, so keyboard order is kept as if the panel followed the
@@ -104,6 +138,7 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
     left: pos?.left ?? 0,
     zIndex: 70,
     minWidth: 180,
+    ...inherited,
     backgroundColor: design?.navDropdownBg || design?.headerBg || design?.backgroundColor || "var(--background)",
     // data-fm-store brings the theme variables, not the page's print-grain backdrop.
     backgroundImage: "none",
@@ -129,7 +164,12 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
         aria-haspopup="true"
         aria-expanded={open}
         onClick={clickToggle}
-        onKeyDown={(e) => { if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); window.setTimeout(() => panelRef.current?.querySelector<HTMLElement>("a,button")?.focus(), 0); } }}
+        onBlur={onFocusOut}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); focusFirst(); }
+          // The panel is at the end of <body>: when it is open, Tab from the button goes into it.
+          else if (e.key === "Tab" && !e.shiftKey && open && panelRef.current) { e.preventDefault(); focusFirst(); }
+        }}
         style={linkStyle}
         className={`inline-flex items-center gap-1.5 ${className || ""}`}
       >
@@ -140,7 +180,7 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
       </button>
       {open && pos && typeof document !== "undefined" && createPortal(
         <div ref={panelRef} role="menu" data-fm-store data-nav-dropdown-panel style={panelStyle}
-          onMouseEnter={hoverOpen} onMouseLeave={hoverClose} onKeyDown={panelKeyDown} {...studioHooks}>
+          onMouseEnter={hoverOpen} onMouseLeave={hoverClose} onKeyDown={panelKeyDown} onBlur={onFocusOut} {...studioHooks}>
           {items.map((entry) => entry.to ? (
             <Link key={entry.key} role="menuitem" to={entry.to} onClick={() => pick(entry)} style={itemStyle(entry.active)}
               aria-current={entry.active ? "page" : undefined} className="transition-all hover:!opacity-100 hover-text-accent">

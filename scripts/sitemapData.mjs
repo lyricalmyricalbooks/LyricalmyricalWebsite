@@ -1,4 +1,5 @@
 import { bookInCategory, normalizeCategories } from '../src/app/features/site/categoryMembership.mjs';
+import { safeSlug } from './routeSafety.mjs';
 import { effectivePublishedSettings, releaseArrived } from './publicStorefrontData.mjs';
 import { resolveProductRoutes } from '../src/app/features/site/productRouteData.mjs';
 const escapeXml = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[char]);
@@ -15,12 +16,15 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
   const live = books.filter(book => (!book.status || book.status === 'published') && releaseArrived(book.scheduleDate, nowISO));
   for (const book of resolveProductRoutes(live)) {
     if (book.seoNoindex === true) continue;
+    // A free-text slug the prerender cannot write as a file stays out of the sitemap (the book still works in the app).
+    if (!safeSlug(book.slug)) { console.warn(`::warning::Book "${book.id}" has an unsafe URL slug and is left out of the sitemap: ${book.slug}`); continue; }
     // Google Images is a main way people find photo and art books: list each listing's photos.
     const images = [...new Set((Array.isArray(book.photos) ? book.photos : []).map(photo => absoluteUrl(photo?.url, base + '/')).filter(Boolean))].slice(0, 10);
     urls.push({ loc: `${base}/books/${encodeURIComponent(book.slug)}`, lastmod: book.updatedAt || book._updateTime, images });
   }
   for (const page of pages) {
     if (page.status !== 'published' || !page.slug) continue;
+    if (!safeSlug(page.slug)) { console.warn(`::warning::Page "${page.id}" has an unsafe URL slug and is left out of the sitemap: ${page.slug}`); continue; }
     urls.push({ loc: `${base}/page/${encodeURIComponent(page.slug)}`, lastmod: page.updatedAt || page._updateTime });
   }
   // Store policies (Settings › Policies) are public pages too; card networks and Google
