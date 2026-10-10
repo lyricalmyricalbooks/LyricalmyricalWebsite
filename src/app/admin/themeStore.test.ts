@@ -147,17 +147,27 @@ describe("Studio theme store", () => {
     await adminApi.setUnderConstruction(true);
     const ws = store.get("themes/workspace");
     expect(ws.draft).toEqual({ ...draft, showUnderConstruction: true });
-    expect(ws.rev).toBe(1);
+    expect(ws.rev).toBe(2); // opened at 1, then the field update moved it on
     expect(store.get("savedThemes/t1").name).toBe("Spring");
   });
 
-  it("other admin tools update the private draft without forcing a Studio conflict", async () => {
+  it("other admin tools update the private draft and move its revision on, so an open Studio sees them", async () => {
     await openWorkspace(clone(store.get("settings/website")));
     await adminApi.setUnderConstruction(true);
     expect(store.get("settings/website").design.showUnderConstruction).toBe(true);
     expect(store.get("themes/workspace").draft.showUnderConstruction).toBe(true);
-    expect(store.get("themes/workspace").rev).toBe(1);
+    expect(store.get("themes/workspace").rev).toBe(2);
+    expect(store.get("themes/workspace")).toMatchObject({ action: "field" });
     expect(store.get("settings/website").draftDesign).toBeUndefined();
+  });
+
+  it("a Studio opened before a field update can't save or publish its older copy over it", async () => {
+    const ws = await openWorkspace(clone(store.get("settings/website")));
+    await adminApi.setUnderConstruction(true);
+    const publish = publishDesign(ws, { ...draft, primaryColor: "navy" }, ws.rev);
+    await expect(publish).rejects.toBeInstanceOf(ThemeConflictError);
+    await publish.catch((e: any) => expect(e.server.draft.showUnderConstruction).toBe(true));
+    expect(store.get("settings/website").design.showUnderConstruction).toBe(true);
   });
 
   it("creating a category from a book appends to the private draft separately from live", async () => {

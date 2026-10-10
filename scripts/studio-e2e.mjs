@@ -692,6 +692,35 @@ await check("a save in another tab shows a live banner, and both sets of changes
   if (kept.length !== 1 || kept[0] !== "NewsletterSection") throw new Error(`Home sections saved as ${kept.join(", ")}`);
 });
 
+await check("a save conflict keeps both tabs' other changes, and a conflict during Publish publishes nothing", desktop, async page => {
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await expectText(page, "Home · 1 section");
+  // Another tab saves a new accent colour and its own Home sections; this tab never hears about it (no live sync).
+  await page.evaluate(() => {
+    const f = window.__studioFixture;
+    const watchers = f.watchers; f.watchers = [];
+    f.remoteSave({ ...JSON.parse(JSON.stringify(f.settings.draftDesign)), accentColor: "#123456", heroPage: { sections: [{ id: "theirs", type: "RichTextSection", settings: {} }] } });
+    f.watchers = watchers;
+  });
+  // Publish meets a real conflict (both changed Home): the dialog asks, and Keep mine publishes nothing by itself.
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Publish now" }).click();
+  await expectText(page, "Saved in another tab or device");
+  await page.getByRole("button", { name: "Keep mine, then review" }).click();
+  await expectText(page, "Nothing is published yet");
+  if ((await calls(page)).some(c => c.method === "saveDesign")) throw new Error("a conflicted Publish still wrote something");
+  // Reviewed: Publish again goes out with their accent colour and my Home section.
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.getByRole("button", { name: "Publish now" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const publish = (await calls(page)).find(c => c.method === "saveDesign");
+  if (!publish.args[1].publish) throw new Error("expected a publish");
+  if (publish.args[0].design.accentColor !== "#123456") throw new Error("their accent colour was lost");
+  const kept = (publish.args[0].design.heroPage.sections || []).map(x => x.type);
+  if (kept.join() !== "NewsletterSection") throw new Error(`Home sections published as ${kept.join(", ")}`);
+});
+
 await check("Studio Health checks the previewed page, shows a finding and opens its part", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   // A known problem inside a built-in part (a nameless 12×12 button in the footer), so the check doesn't depend on
