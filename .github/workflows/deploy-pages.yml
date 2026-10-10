@@ -116,6 +116,11 @@ jobs:
           pnpm run build
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
 
+      # Pages replaces the whole site; keep the previous build's CSS/JS so pages cached before this deploy still load styled.
+      - name: Keep the previous deploy's assets
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        run: node scripts/carry-previous-assets.mjs
+
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
         with:

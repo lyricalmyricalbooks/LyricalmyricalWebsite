@@ -656,6 +656,11 @@ a public repo after 60 days without repository activity, and Studio/admin edits 
 (`scripts/routeSafety.mjs`) is skipped with a warning and left out of the sitemap instead of failing the build. The
 published-content fingerprint (`publicStorefrontData.mjs`) also covers Toronto-date sale/pre-order state and approved
 reviews. Workflow changes can only be verified by their first real run.
+**Stale-asset safety (October 2026):** Pages replaces the whole site per deploy, so HTML cached from the previous deploy
+pointed at deleted hashed CSS/JS and rendered unstyled. `scripts/carry-previous-assets.mjs` (workflow step after the build)
+writes `dist/asset-manifest.txt` (this build's `assets/` only) and copies back the files the live list names, keeping one
+older generation; it only warns on failure. `index.html`'s first inline script reloads once (per minute, sessionStorage
+`lm:stale-asset-reload`) when the site's own stylesheet/script or a lazy chunk (`vite:preloadError`) fails to load.
 
 ### Release banner (removed)
 
