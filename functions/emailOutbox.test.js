@@ -95,7 +95,7 @@ function harness({ docs: extra = {}, gmailFails = true, resendFails = true, patc
     orderBy: () => query(name, filters),
     limit: () => query(name, filters),
     async get() {
-      const rows = Object.entries(docs[name] || {}).filter(([, d]) => filters.every(f => matches(d[f.field], f.op, f.value)))
+      const rows = Object.entries(docs[name] || {}).filter(([, d]) => filters.every(f => matches(f.field.split(".").reduce((v, k) => (v == null ? undefined : v[k]), d), f.op, f.value)))
         .map(([id, data]) => ({ id, ref: ref(name, id), data: () => clone(data) }));
       return { empty: !rows.length, docs: rows, size: rows.length };
     },
@@ -502,7 +502,9 @@ describe("notification fixes from the email review", () => {
 
   test("a failed back-in-stock email is queued for a retry instead of waiting for the next restock", async () => {
     const book = { title: "Book", slug: "book", status: "published", trackInventory: true, stockLevel: 0 };
-    const app = harness({ docs: { books: { b1: book }, stockAlerts: { a: { email: "reader@example.com", bookId: "b1", variantId: "", status: "waiting" } } } });
+    const app = harness({ docs: { books: { b1: book }, stockAlerts: { a: { email: "reader@example.com", bookId: "b1", variantId: "", status: "waiting" } },
+      // Only an address with a checkout attempt is mailed (functions/emailProof.js).
+      orders: { o1: { customer: { email: "reader@example.com" }, stripePaymentIntentId: "pi_1" } } } });
     await app.exports.onBookRestocked({ data: { before: { data: () => book }, after: { data: () => ({ ...book, stockLevel: 5 }) } }, params: { bookId: "b1" } });
     const queued = Object.values(app.docs.emailOutbox || {});
     expect(queued.map(e => e.kind)).toEqual(["backInStock"]);
@@ -525,7 +527,11 @@ describe("abandoned-cart reminders can't be used to spam strangers", () => {
   const throttle = realRequire("./emailThrottle");
   const hourAgo = () => new Date(Date.now() - 2 * 3600_000).toISOString();
   const cart = (extra = {}) => ({ email: "stranger@example.org", recovered: false, updatedAt: hourAgo(), items: [{ id: "b1", qty: 1 }], customer: { name: "Buy cheap pills at evil.test now" }, ...extra });
-  const docs = (extra = {}) => ({ books: { b1: { title: "Book", status: "published", retailPrice: 20 } }, "abandoned-carts": { c1: cart() }, ...extra });
+  const docs = (extra = {}) => ({
+    books: { b1: { title: "Book", status: "published", retailPrice: 20 } }, "abandoned-carts": { c1: cart() },
+    // Reminders need a postal address and an address with a checkout attempt.
+    settings: { website: { payments: {}, location: { street: "1 Main St", city: "Toronto" } }, notifications: {} },
+    orders: { o1: { customer: { email: "stranger@example.org" }, stripePaymentIntentId: "pi_1" } }, ...extra });
 
   test("only a plain first name from the visitor is used", () => {
     expect(throttle.reminderFirstName("Sam Smith")).toBe("Sam");

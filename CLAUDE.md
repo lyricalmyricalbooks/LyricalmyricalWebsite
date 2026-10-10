@@ -1150,6 +1150,21 @@ limits what one code can take off an order ("20% off, up to $15"). The server en
 - **Not changed on purpose:** rate-limit IP source (verify the real X-Forwarded-For shape first), sales-tax model
   (shipping tax / printed-book rebate need the owner's accountant).
 
+## Email abuse budget and proof of owner (10 October 2026)
+
+- **One shop-wide budget:** `claimEmailSend` / `claimEmailSendDetailed` (`functions/emailThrottle.js`) take one send from a
+  per-address counter (where the purpose has one) **and** from `contact-email-throttle/_global_hour` + `_global_day`
+  (`GLOBAL_EMAIL_BUDGET`: 40/hour, 150/day) in one transaction. Every anonymous-triggered email must claim it:
+  contact owner notice + visitor reply, privacy-request notice (also once per address per day; the record is still kept),
+  cancel/return request notice, abandoned-cart reminder and back-in-stock alert. Past the budget the message waits in
+  Messages / the request stays recorded; nothing is mailed. A new anonymous email path needs a `CONTACT_LIMITS` purpose.
+- **Proof of owner:** reminders and back-in-stock alerts go only to an address with a checkout attempt (an order carrying a
+  server-written payment field, `functions/emailProof.js`) or a verified Auth account. Unproven signups stay `waiting`.
+- **One recipient:** `sendEmail` refuses any `to` that is not a single plain address (`cleanRecipients`); the
+  `contactMessages` rule matches the same shape. Abandoned-cart reminders are skipped, and Ready to sell shows a blocker
+  (`mailing-address`), until Settings > General > Location has a postal address. `sendEmail` falls back to the Functions
+  `RESEND_API_KEY` itself and `stripeWebhook` declares it. Tests: `functions/emailAbuse.test.js`.
+
 ## Anonymous-abuse hardening (9 October 2026)
 
 - **Contact form isn't a relay:** `onContactMessage` sends the visitor's "Message received" copy at most once per

@@ -83,6 +83,14 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
     ? { id: "policies", label: `Missing store policies: ${missing.join(", ")}`, detail: "Card networks and shoppers expect shipping, returns, privacy and terms pages.", status: "warn", tab: "general", action: "Open General" }
     : { id: "policies", label: "Store policy content is present", detail: "Shipping, returns, privacy and terms contain text. Review their public pages for accuracy.", status: "ok", tab: "general", action: "Open General" });
 
+  // Postal address: every email footer carries it (Settings › General › Location) and abandoned-cart
+  // reminders are not sent without one. Mirrors functions/marketingOptOut.js footerAddress.
+  const loc = settings?.location || {};
+  const hasAddress = [loc.street, loc.city, loc.state, loc.zip, loc.country].some(hasText);
+  items.push(hasAddress
+    ? { id: "mailing-address", label: "A postal address is saved for email footers", detail: "Order and reminder emails carry it.", status: "ok", tab: "general", action: "Open General" }
+    : { id: "mailing-address", label: "No postal address saved", detail: "Marketing email needs your postal address in its footer, so abandoned-cart reminders are not sent until Settings › General › Location is filled in.", status: "block", tab: "general", action: "Open General" });
+
   // Email
   // A "fallback" row only says Gmail missed and the backup sender was tried; the outcome is its own row.
   // "cancelled" = the owner stopped a queued email: it says nothing about the sending setup.

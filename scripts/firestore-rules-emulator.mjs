@@ -6,7 +6,7 @@
 // refused every guest order, which the text checks in src/app/securityRules.test.ts can't see.
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
 import { readFileSync } from "node:fs";
-import { doc, setDoc, getDoc, getDocs, collection, query, where, writeBatch, increment } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, collection, query, where, writeBatch, increment, serverTimestamp } from "firebase/firestore";
 
 const [host, port] = (process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080").split(":");
 const rulesPath = process.env.RULES_FILE || new URL("../firestore.rules", import.meta.url);
@@ -93,6 +93,15 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   await check("admin note extra key refused", assertFails(setDoc(doc(admin, "customerNotes/y"), { email: "a@b.co", note: "", tags: [], updatedAt: "now", junk: 1 })));
   await check("admin reads opt-outs", assertSucceeds(getDoc(doc(admin, "marketing-optout/x"))));
   await check("admin can't write opt-outs", assertFails(setDoc(doc(admin, "marketing-optout/x"), { at: "now" })));
+}
+
+// contactMessages: one plain sender address only (never a list the auto-reply could be sent to)
+{
+  const message = email => ({ name: "Ada", email, phone: "", subject: "Hi", message: "Hello", page: "/", status: "new", createdAt: serverTimestamp() });
+  await check("contact form accepts one address", assertSucceeds(setDoc(doc(anon, "contactMessages/ok"), message("ada@example.com"))));
+  for (const [name, email] of [["comma list", "a@x.com,b@y.com"], ["semicolon list", "a@x.com;b@y.com"], ["space list", "a@x.com b@y.com"], ["angle brackets", "Ada <a@x.com>"]]) {
+    await check(`contact form refuses a ${name}`, assertFails(setDoc(doc(anon, `contactMessages/bad-${name.replace(/\W/g, "")}`), message(email))));
+  }
 }
 
 await env.cleanup();
