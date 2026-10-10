@@ -4183,7 +4183,7 @@ const isPhysicalAny = order => (order?.items || []).some(item => item && isPhysi
 
 // Public storefront address for links in emails. Override with the SITE_URL env var
 // (functions/.env) when the shop moves to its own domain.
-const SITE_URL = String(process.env.SITE_URL || "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial").replace(/\/+$/, "");
+const SITE_URL = String(process.env.SITE_URL || "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite").replace(/\/+$/, "");
 const siteLink = path => `${SITE_URL}${path}`;
 
 // One-click order link for emails: /track opens the order straight away when the

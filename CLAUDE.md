@@ -636,6 +636,10 @@ draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
   The repository was renamed from `LyricalmyricalWebsiteTrial` (October 2026); `deploy-pages.yml`'s **Site address**
   step now sets `SITE_URL`/`SITE_BASE` from the repository name (or the `SITE_URL` repository variable for a custom
   domain), so a rename can't leave assets on a sub-path that 404s. Keep the code defaults in step with it.
+  `scripts/siteAddress.test.ts` fails when the Vite base, build-script and Cloud Functions (`functions/index.js`
+  email-link) `SITE_URL` defaults or `index.html`'s address disagree.
+  `public/404.html`'s `pathSegmentsToKeep` is rewritten at build time from the base (`spaFallbackBase` in `vite.config.ts`,
+  `scripts/spaFallback.mjs`): 1 for `/LyricalmyricalWebsite/`, 0 for a custom domain.
 - **Firebase** (Firestore rules/indexes, Storage rules, Functions) →
   `.github/workflows/deploy-firebase.yml` (needs `FIREBASE_SERVICE_ACCOUNT`
   secret), or manually: `npx firebase-tools deploy --only
