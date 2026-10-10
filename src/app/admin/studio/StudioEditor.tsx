@@ -15,6 +15,7 @@ import {
   getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, DEFAULT_COLOR_SCHEMES,
 } from "../ThemeEditorExtensions";
 import { CATEGORIES } from "../../features/site/constants";
+import { designEqual } from "../../features/site/designEqual";
 import { splitNavigation, buildNavItems, childCategories, moveNavItem, normalizeCategories, parentOf, reslotPages } from "../../features/site/navItems";
 import { COPY_SCHEMA, DEFAULT_COPY } from "../../features/site/storeCopy";
 import { automaticFooterItems, footerGroup } from "../../features/site/footerNavigation";
@@ -332,6 +333,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const design = hist.present;
   const [savedDraft, setSavedDraft] = useState<any>(design);
   const [published, setPublished] = useState<any>(() => normalizeDesign(settings?.design, defaults));
+  /** The design that is live right now (settings/website). Fresh from the server, normalised like the rest. */
+  const readPublished = useCallback(async () => normalizeDesign(await adminApi.getLiveDesign(), defaults), [defaults]);
   const [pages, setPages] = useState<any[]>([]);
   const [pageLoadError, setPageLoadError] = useState(false);
   const [pageBusy, setPageBusy] = useState(false);
@@ -475,6 +478,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, []);
   const dynamicSourcesValue = useMemo(() => ({ fields: bookFields }), [bookFields]);
   const fetchVersions = useCallback(() => adminApi.listThemeVersions() as Promise<ThemeVersion[]>, []);
+  const fetchStoredDesigns = useCallback(() => adminApi.listStoredDesigns(), []);
   // Version history (3.1) and the Publish / Discard dialogs describe differences in Studio's own words.
   const diffContext = useMemo((): DiffContext => ({
     templates, sectionName: (type: string) => getSectionMeta(type)?.label, sectionFields: (type: string) => getSectionFields(type),
@@ -1029,7 +1033,21 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     reset: (next) => { setHist(initHistory(next)); setSelectedId(null); setBlockId(null); },
     restore: next => change(() => normalizeDesign(next, defaults)), say,
     normalize: next => normalizeDesign(next, defaults),
+    readPublished,
   });
+  // Studio opened from a long-lived admin session: what is live may have changed (a scheduled go-live) since the page loaded.
+  useEffect(() => {
+    let alive = true;
+    readPublished().then(fresh => { if (alive) setPublished((prev: any) => (designEqual(prev, fresh) ? prev : fresh)); }, () => {});
+    return () => { alive = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // The Publish / Discard questions compare against what is live right now, not what was live when Studio opened.
+  useEffect(() => {
+    if (!confirmAction) return;
+    let alive = true;
+    readPublished().then(fresh => { if (alive) setPublished((prev: any) => (designEqual(prev, fresh) ? prev : fresh)); }, () => {});
+    return () => { alive = false; };
+  }, [confirmAction]); // eslint-disable-line react-hooks/exhaustive-deps
   const exit = () => {
     if (inlineEditingRef.current) { say("err", "Finish or cancel the preview text edit before leaving Studio."); return; }
     if (pageBusy) { say("err", "Wait for the page save to finish before leaving Studio."); return; }
@@ -1744,7 +1762,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
             {leftTab === "media" && (
               <StudioMediaPanel lib={mediaLib} design={design} published={published} pages={pages} names={mediaNames}
-                savedThemes={savedThemes} getVersions={fetchVersions}
+                savedThemes={savedThemes} getVersions={fetchVersions} getStoredDesigns={fetchStoredDesigns}
                 onDesignChange={(fn, label) => change(fn, { label })}
                 onOpenPlace={openMediaPlace}
                 onOpenPage={slug => { setLeftTab("pages"); setOpenPage({ slug, nonce: Date.now() }); }}
@@ -1944,11 +1962,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <p className="text-sm">Changed in both places:</p>
           <ul className="list-disc pl-5 text-sm space-y-1">{conflict.paths.slice(0, 8).map(path => <li key={path}>{conflictLabel(path, templates)}</li>)}
             {conflict.paths.length > 8 && <li>…and {conflict.paths.length - 8} more</li>}</ul>
-          <p className="text-sm">Everything else from both versions is kept either way.</p>
+          <p className="text-sm">Everything else from both versions is kept either way.{conflict.kind === "publish" ? " Nothing is published until you review the combined design and press Publish again." : ""}</p>
           <div className="flex flex-wrap justify-end gap-2">
             <button className={btn} onClick={() => resolveConflict("cancel")}>Cancel</button>
             <button className={btn} onClick={() => resolveConflict("theirs")}>Use the other version</button>
-            <button className={btnPrimary} onClick={() => resolveConflict("mine")}>{conflict.kind === "publish" ? "Keep mine and publish" : "Keep mine and save"}</button>
+            <button className={btnPrimary} onClick={() => resolveConflict("mine")}>{conflict.kind === "publish" ? "Keep mine, then review" : "Keep mine and save"}</button>
           </div>
         </div>}
       </Dialog>
@@ -1956,7 +1974,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         pageLabel={showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label} deviceLabel={REGION_DEVICE_LABELS[device].toLowerCase()}
         designResults={checksOpen ? [...designChecks(design), designSize(design)] : []} onShow={showFinding} onFix={fixFinding} />
       <StudioSchedule open={!!schedule} onClose={() => setSchedule(null)} draft={design} savedThemes={savedThemes} initialThemeId={schedule?.themeId}
-        api={{ list: () => adminApi.listThemeSchedule() as any, add: entry => adminApi.addThemeSchedule(entry), cancel: id => adminApi.cancelThemeSchedule(id),
+        api={{ list: () => adminApi.listThemeSchedule() as any, add: async entry => {
+          // The live values of the fields edited outside Publish, so the scheduler can keep later live edits (functions/themeSchedule.js).
+          const live = await readPublished().catch(() => published);
+          return adminApi.addThemeSchedule({ ...entry, liveBase: { ...(live?.categories !== undefined ? { categories: live.categories } : {}), ...(live?.showUnderConstruction !== undefined ? { showUnderConstruction: live.showUnderConstruction } : {}) } });
+        }, cancel: id => adminApi.cancelThemeSchedule(id),
           endNow: id => adminApi.endCampaignNow(id), status: () => adminApi.getSchedulerStatus() }}
         askConfirm={askConfirm} say={(kind, text) => say(kind, text)} />
       {/* Last, so a question asked from inside another dialog (History, Media…) opens on top of it. */}
