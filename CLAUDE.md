@@ -1647,3 +1647,30 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   (`holdLimits.ts` `holdWarnings`, region `checkoutHoldWarning`, words `coHoldWarning*`). A payment-time renewal keeps the order's `holders`
   so releasing frees the shopper's count; IPv6 clients are counted by /64 (`rateLimit.js` `ipKey`, also used by `hitLimit`).
 - Server `validateAddress` still requires state and ZIP; for countries without them it answers 400 and the order is taken as `verification_unavailable`.
+
+## Round-2 catalog and settings (10 October 2026)
+
+- **Book saves (`adminApi.updateBook(id, form, loaded, { removeMissing })`):** still diff-only (`changedBookFields`). Three additions in
+  `admin/bookStockMerge.ts`: (1) `WRITE_ONCE_DEFAULTS` (status, trackInventory, chargeTax, allowBackorder) are written when the stored book
+  has none, so a legacy book matches what the editor showed; (2) a book with editions never gets the editor's own stock total — its count
+  is the sum of the merged live editions, computed inside the transaction; (3) `removedBookFields` lists keys that were on the loaded book
+  and are gone from the form, and `updateBook` deletes them (`deleteField()`, also in the private document) **only when the caller passes
+  `removeMissing: true` — the book editor, which sends the whole form**. Bulk edits and the CSV import send partial objects and must not.
+- **Pre-order sync lives in `updateBook`:** when `preorder` or `publishDate` is in the write and differs from `loaded`, it calls
+  `syncPreorderOrders` itself and returns `preorderSync { updated, failed }` (the editor toasts it; the CSV import gets it too).
+- **Web address freeze:** a published book with an address keeps it (`slugLocked`, `slugFollowsTitle` in `bookEditorState.ts`); Books › edit
+  › Details › **Change web address** asks first, then unlocks until the next save. Old links cannot be redirected on GitHub Pages.
+- **Old-shop stock copy:** `admin/legacyInventorySync.ts` (`readLegacyStock`, `planLegacySync`): whole numbers >= 0 only, exact slug or saved
+  `legacyInventoryKey` match, shared names and editioned books skipped and listed, one transaction per book, public settings keep counts only.
+- **PayPal:** `functions/paypalCredentials.js` picks the credentials per request mode. Live = Settings › Payments › PayPal Live client ID +
+  private Live client secret (`adminSecrets/paypal`) when both exist, else the `PAYPAL_CLIENT_*` Functions secrets. Test = Test client ID +
+  Test client secret only, never the live pair (PayPal refuses live credentials on the sandbox). Secrets use `SecretField` and
+  `adminApi.removePaypalSecret`. The webhook still verifies with the one `PAYPAL_WEBHOOK_ID` secret (a sandbox webhook id is not separate yet).
+- **Resend key:** `resendKeyProblem` (`privateKeys.ts`) is enforced in `writePrivateKeys`; Notifications › Advanced has **Remove stored key**
+  (`adminApi.removeResendKey`), after which sending uses the `RESEND_API_KEY` Functions secret again.
+- **Email sender:** Settings › **Email sender** (`#settings/communications`) is a card at the top of the Notifications page
+  (`admin/senderSettings.ts`): sender name, reply-to, Resend backup address, saved into `settings/website.communications` (whole map kept).
+- **Notifications load failure:** the editor shows an error with Try again and refuses to save; it never treats defaults as the saved copy.
+- Items 16, 37, 38, 64, 66 and 138 of the round-2 list were already fixed on this branch (`inventoryApi.adjustStock`, `taxRatesEdit`,
+  `checkoutClosed`, `planPriceChange`/`eachBook`, the Location postal code/country) and are pinned by `settingsRound2.test.ts`.
+- **Deploy:** Functions with the frontend. No Firestore rule or index changes (`adminSecrets/{doc}` already admin-only).

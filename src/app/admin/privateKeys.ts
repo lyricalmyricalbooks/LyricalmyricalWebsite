@@ -5,6 +5,7 @@
 export type SecretPatch = {
   stripe?: { secretKey?: string; testSecretKey?: string };
   resend?: { apiKey?: string };
+  paypal?: { clientSecret?: string; testClientSecret?: string };
 };
 
 const clean = (v: unknown) => (typeof v === "string" ? v.trim() : "");
@@ -28,6 +29,20 @@ export function splitWebsiteSecrets(settings: Record<string, any>): { publicSett
     delete stripe.testSecretKeyStored;
     delete stripe.publicSecretLeak;
     delete stripe.keysWerePublic;
+  }
+  const paypal = publicSettings.payments?.paypal;
+  if (paypal) {
+    const clientSecret = clean(paypal.clientSecret);
+    const testClientSecret = clean(paypal.testClientSecret);
+    if (clientSecret || testClientSecret) {
+      secrets.paypal = {};
+      if (clientSecret) secrets.paypal.clientSecret = clientSecret;
+      if (testClientSecret) secrets.paypal.testClientSecret = testClientSecret;
+    }
+    paypal.clientSecret = "";
+    paypal.testClientSecret = "";
+    delete paypal.clientSecretStored;
+    delete paypal.testClientSecretStored;
   }
   const comms = publicSettings.communications;
   if (comms) {
@@ -61,6 +76,13 @@ export function scrubSavedSecrets<T extends Record<string, any>>(data: T): T {
     if ("secretKey" in stripe) stripe.secretKey = "";
     if ("testSecretKey" in stripe) stripe.testSecretKey = "";
   }
+  const paypal = out.payments?.paypal;
+  if (paypal) {
+    if (clean(paypal.clientSecret)) paypal.clientSecretStored = true;
+    if (clean(paypal.testClientSecret)) paypal.testClientSecretStored = true;
+    if ("clientSecret" in paypal) paypal.clientSecret = "";
+    if ("testClientSecret" in paypal) paypal.testClientSecret = "";
+  }
   const comms = out.communications;
   if (comms && "resendApiKey" in comms) {
     if (clean(comms.resendApiKey)) comms.resendApiKeyStored = true;
@@ -78,5 +100,14 @@ export function stripeSecretKeyProblem(value: string, mode: "live" | "test"): st
   if (keyMode !== mode) return mode === "live"
     ? "That's a test key (sk_test_…). Put it in the Test secret key box; this box needs sk_live_…."
     : "That's a live key (sk_live_…). Put it in the live Secret key box; this box needs sk_test_….";
+  return "";
+}
+
+/** "" when a Resend API key looks right (they start with re_ and have no spaces), otherwise a reason. A blank value is fine. */
+export function resendKeyProblem(value: string): string {
+  const v = clean(value);
+  if (!v) return "";
+  if (/\s/.test(v)) return "A Resend key has no spaces — check that you copied only the key.";
+  if (!/^re_[A-Za-z0-9_-]{8,}$/.test(v)) return "This doesn't look like a Resend API key (it starts with re_). Gmail app passwords and other keys don't go here.";
   return "";
 }

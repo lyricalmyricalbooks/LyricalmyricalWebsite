@@ -57,6 +57,7 @@ const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOw
 const { preorderActive, preorderLine, preorderEmailLines } = require("./preorder");
 const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCount } = require("./emailThrottle");
 const { hasOwnershipProof } = require("./emailProof");
+const { paypalCredentials } = require("./paypalCredentials");
 const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
 const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
 
@@ -884,17 +885,25 @@ async function getPayPalConfig() {
   return {
     settings,
     testMode: Boolean(settings.payments?.testMode),
+    // The Functions secrets stay the live fallback; Settings › Payments › PayPal (client ids) and the private
+    // adminSecrets/paypal (client secrets) are read when the token is requested, once the order's mode is known.
     clientId: PAYPAL_CLIENT_ID.value(),
     clientSecret: PAYPAL_CLIENT_SECRET.value(),
+    settingsPaypal: settings.payments?.paypal || {},
+    privateSecrets: await readAdminSecret("paypal"),
   };
 }
 
 async function getPayPalAccessToken(config) {
-  if (!config.clientId || !config.clientSecret) throw new Error("PayPal credentials are not configured.");
+  const creds = paypalCredentials({
+    testMode: config.testMode, settingsPaypal: config.settingsPaypal, privateSecrets: config.privateSecrets,
+    fallback: { clientId: config.clientId, clientSecret: config.clientSecret },
+  });
+  if (!creds.ok) throw new Error(creds.error);
   const response = await fetch(`${paypalBaseUrl(config.testMode)}/v1/oauth2/token`, {
     method: "POST",
     headers: {
-      Authorization: `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}`,
+      Authorization: `Basic ${Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString("base64")}`,
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: "grant_type=client_credentials",

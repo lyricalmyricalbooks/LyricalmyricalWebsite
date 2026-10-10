@@ -60,6 +60,24 @@ export function slugClash(slug: string, id: string | undefined, catalog: any[]):
   return other ? `“${other.title || "Another book"}” already uses this web address.` : "";
 }
 
+/** The web address a title produces (lower case, letters and digits joined by dashes). */
+export const slugifyTitle = (s: string) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+/**
+ * A published book's web address is frozen: shoppers, search engines and emailed links already use it, and
+ * the site cannot redirect an old address. Only an explicit "Change web address" action unlocks it.
+ */
+export function slugLocked(stored: { status?: unknown; slug?: unknown } | null | undefined, unlocked = false): boolean {
+  return !!stored && stored.status === "published" && !!String(stored.slug ?? "").trim() && !unlocked;
+}
+
+/** Whether typing a new title should also rewrite the web address (new or never-published books that follow the title). */
+export function slugFollowsTitle(prev: { slug?: unknown; title?: unknown }, locked: boolean): boolean {
+  if (locked) return false;
+  const slug = String(prev?.slug ?? "");
+  return !slug || slug === slugifyTitle(String(prev?.title ?? ""));
+}
+
 // ── Weight ───────────────────────────────────────────────────────
 
 export const WEIGHT_UNITS = ["g", "kg", "oz", "lb"] as const;
