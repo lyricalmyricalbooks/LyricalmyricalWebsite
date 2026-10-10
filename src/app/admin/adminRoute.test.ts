@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_TABS, SETTINGS_TABS, adminDocumentTitle, hashForRoute, routeFromHash, sameSection } from "./adminRoute";
+import { ADMIN_TABS, SETTINGS_TABS, adminDocumentTitle, hashForRoute, routeFromHash, sameSection, settingsPageOf } from "./adminRoute";
 
 describe("admin route ↔ hash", () => {
   it("round-trips every page", () => {
@@ -7,8 +7,10 @@ describe("admin route ↔ hash", () => {
       expect(routeFromHash(hashForRoute({ tab }))).toEqual({ tab });
     }
     for (const settingsTab of SETTINGS_TABS.filter((t) => t !== "designer")) {
-      expect(routeFromHash(hashForRoute({ tab: "settings", settingsTab }))).toEqual({ tab: "settings", settingsTab });
+      expect(routeFromHash(hashForRoute({ tab: "settings", settingsTab }))).toEqual({ tab: "settings", settingsTab: settingsPageOf(settingsTab) });
     }
+    // Email sender was merged into the one email page: its old address still opens it.
+    expect(routeFromHash("#settings/communications")).toEqual({ tab: "settings", settingsTab: "notifications" });
   });
 
   it("keeps the existing email and gift-card links working", () => {

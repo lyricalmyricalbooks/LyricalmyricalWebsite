@@ -42,7 +42,7 @@ export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, 
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <PrimaryButton size="sm" onClick={() => (a.action === "retry" ? onRetry?.() : a.action === "general" ? onOpenGeneral?.() : a.action === "notifications" ? onOpenNotifications() : a.action === "webhook" || a.action === "payments" ? onOpenWebhook() : a.action === "order" ? onOpenOrder(a.orderIds[0]) : onOpenOrders())}>
-              {a.action === "retry" ? "Try again" : a.action === "general" ? "Open Backups" : a.action === "notifications" ? "Open Notifications" : a.action === "payments" ? "Open Payments" : a.action === "webhook" ? "Open webhook health" : a.action === "order" ? "Open order" : "Review orders"}
+              {a.action === "retry" ? "Try again" : a.action === "general" ? "Open Backups" : a.action === "notifications" ? "Open Email sender" : a.action === "payments" ? "Open Payments" : a.action === "webhook" ? "Open webhook health" : a.action === "order" ? "Open order" : "Review orders"}
             </PrimaryButton>
             <SecondaryButton size="sm" onClick={() => dismiss(a)}>Dismiss</SecondaryButton>
           </div>

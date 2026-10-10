@@ -45,9 +45,10 @@ describe("#141 Taxes and Email sender are in Settings", () => {
   const settings = NAV.find(n => n.id === "settings")!.children!.map(c => c.id);
   it("lists both in the sidebar and the address bar", () => {
     expect(settings).toContain("taxes");
-    expect(settings).toContain("communications");
+    // Email sender and Notifications are one page now; the old address still opens it.
+    expect(NAV.find(n => n.id === "settings")!.children!.find(c => c.id === "notifications")!.label).toBe("Email sender");
     for (const id of settings) expect(SETTINGS_TABS as readonly string[]).toContain(id);
-    expect(routeFromHash("#settings/communications")).toMatchObject({ tab: "settings", settingsTab: "communications" });
+    expect(routeFromHash("#settings/communications")).toMatchObject({ tab: "settings", settingsTab: "notifications" });
   });
   it("edits the sender name and reply-to, keeping the rest of the map", () => {
     const stored = { orderReceipts: true, abandonedCart: false, fromName: "Old" };

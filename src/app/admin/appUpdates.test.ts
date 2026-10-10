@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { inlineEntries } from "../../../scripts/split-app-updates.mjs";
 import { APP_UPDATES, updateOrder } from "./appUpdates";
 import { NAV } from "./riso/nav";
+import { settingsPageOf } from "./adminRoute";
 import { parseStudioLocation } from "../lib/studioLocation";
 
 describe("app release notes", () => {
@@ -18,7 +19,8 @@ describe("app release notes", () => {
       for (const link of entry.links) {
         const destination = NAV.find((item) => item.id === link.tab);
         expect(destination, link.label).toBeDefined();
-        if (link.settingsTab) expect(destination?.children?.some((child) => child.id === link.settingsTab), link.label).toBe(true);
+        // Older notes may name a page id that now opens another page (SETTINGS_TAB_ALIASES).
+        if (link.settingsTab) expect(destination?.children?.some((child) => child.id === settingsPageOf(link.settingsTab!)), link.label).toBe(true);
         if (link.studio) expect(parseStudioLocation(link.studio), link.label).not.toBeNull();
       }
     }

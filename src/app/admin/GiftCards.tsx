@@ -93,7 +93,7 @@ function IssueDialog({ onClose, onIssued }: { onClose: () => void; onIssued: () 
         <TextArea label="Message to the recipient (optional)" rows={3} maxLength={300} value={form.message} onChange={(e) => set("message", e.target.value)} hint="Shown in the gift card email. Up to 300 characters." />
         <TextField label="Internal note (optional)" maxLength={500} value={form.note} onChange={(e) => set("note", e.target.value)} hint="Only you see this, e.g. “Poetry night raffle prize”." />
         <Toggle label="Email the code to the recipient" checked={form.sendEmail} onChange={(v) => set("sendEmail", v)} />
-        <p className="rp-hint" style={{ margin: 0 }}>Uses the “Gift card” email in Settings › Notifications.</p>
+        <p className="rp-hint" style={{ margin: 0 }}>Uses the “Gift card” email in Settings › Email sender.</p>
       </div>
     </Dialog>
   );

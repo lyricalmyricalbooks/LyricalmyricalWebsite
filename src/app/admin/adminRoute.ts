@@ -5,6 +5,11 @@
 export type AdminRoute = { tab: string; settingsTab?: string; orderId?: string; giftCardId?: string };
 
 export const ADMIN_TABS = ["overview", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "settings"] as const;
+/** Old Settings page ids that now open another page (Email sender was merged into the one email page). */
+export const SETTINGS_TAB_ALIASES: Record<string, string> = { communications: "notifications" };
+/** The Settings page an id really opens (an alias resolves to its page). */
+export const settingsPageOf = (id: string): string => SETTINGS_TAB_ALIASES[id] || id;
+
 export const SETTINGS_TABS = ["general", "shipping", "payments", "notifications", "taxes", "communications", "designer"] as const;
 
 const TABS = new Set<string>(ADMIN_TABS);
@@ -19,7 +24,7 @@ export function routeFromHash(hash: string): AdminRoute | null {
   if (head === "gift-cards") return { tab: "giftCards", ...(rest ? { giftCardId: decode(rest) } : {}) };
   if (head === "orders") return { tab: "orders", ...(rest ? { orderId: decode(rest) } : {}) };
   if (head === "settings") {
-    const sub = SETTINGS.has(rest) && rest !== "designer" ? rest : "general";
+    const sub = SETTINGS.has(rest) && rest !== "designer" ? settingsPageOf(rest) : "general";
     return { tab: "settings", settingsTab: sub };
   }
   // Shipping and Payments can also be top-level tabs; they are Settings pages.

@@ -1155,7 +1155,7 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications }: an
           <li key={st.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 0", borderTop: i ? "1px solid var(--rp-divider)" : undefined }}>
             <StatusBadge tone={st.done ? "success" : "neutral"}>{st.done ? "✓ Done" : `Step ${i + 1}`}</StatusBadge>
             <span style={{ flex: 1, minWidth: 0 }}><strong>{st.label}</strong><span className="rp-hint" style={{ display: "block" }}>{st.howTo}</span></span>
-            {!st.done && <SecondaryButton size="sm" onClick={() => go(st.link)}>{st.link === "orders" ? "Open Orders" : st.link === "notifications" ? "Open Notifications" : st.link === "storefront" ? "Open shop ↗" : "Show me"}</SecondaryButton>}
+            {!st.done && <SecondaryButton size="sm" onClick={() => go(st.link)}>{st.link === "orders" ? "Open Orders" : st.link === "notifications" ? "Open Email sender" : st.link === "storefront" ? "Open shop ↗" : "Show me"}</SecondaryButton>}
           </li>
         ))}
       </ol>
