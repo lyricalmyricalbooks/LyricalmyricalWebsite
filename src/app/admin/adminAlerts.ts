@@ -72,6 +72,10 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
   if (disputes.length) out.push(alert("dispute", "danger", `${plural(disputes.length, "payment dispute needs", "payment disputes need")} a response`,
     `Answer in the Stripe Dashboard before the deadline: ${list(disputes)}.`, disputes));
 
+  const refundFailedOrders = orders.filter((o) => o.paymentStatus === "paid" && o.refund?.status === "failed");
+  if (refundFailedOrders.length) out.push(alert("refund-failed", "danger", `${plural(refundFailedOrders.length, "refund was", "refunds were")} rejected by the bank`,
+    `The customer was told they were refunded but the money did not go back: ${list(refundFailedOrders)}. Refund again or contact the customer before packing.`, refundFailedOrders));
+
   if (webhook?.lastFailureAt && (!webhook.lastReceivedAt || webhook.lastFailureAt > webhook.lastReceivedAt) && now - Date.parse(webhook.lastFailureAt) <= 7 * DAY) {
     out.push(alert("webhook", "danger", "Stripe's payment messages are being rejected",
       "The last Stripe webhook failed its security check, so paid orders may stay unpaid. Settings › Payments › Webhook health › Reset webhook signing.", [], "webhook"));

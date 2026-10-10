@@ -26,3 +26,14 @@ export function bagFreeShipThreshold(profiles: any[] | null, hasPhysicalItems: b
   if (!profiles || !hasPhysicalItems) return null;
   return shopFreeShipThreshold(profiles);
 }
+
+/**
+ * What counts toward free shipping: checkout quotes shipping on the printed (physical) lines only, so
+ * e-books and gift cards in the bag must not fill the bar. `null` items (catalog not loaded) fall back
+ * to the whole bag total.
+ */
+export function shippableBagTotal(items: Array<{ price: number; quantity: number; physical: boolean }> | null, bagTotal: number): number {
+  if (!items) return bagTotal;
+  const cents = items.filter((item) => item.physical).reduce((sum, item) => sum + Math.round(Number(item.price || 0) * 100) * (Number(item.quantity) || 0), 0);
+  return cents / 100;
+}

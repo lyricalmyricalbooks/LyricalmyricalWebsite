@@ -36,14 +36,15 @@ const { expiryChange } = require("./giftCards");
 const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode, normalizeGiftCardCode, giftCardId, last4, giftCardProblem, availableMinor, allocateGiftCards, chargedRedemptions, reserveGiftCards, releaseGiftCards, readGiftCards, debitShortfall, writeGiftCardChange, cardsForOrder, withHistory } = require("./giftCards");
 const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shippingGeo");
+const { emailIdentity, openClaims, limitReached } = require("./discountClaims");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck, failedRefundId } = require("./stripeRecovery");
 const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences, forDigitalOnlyOrder } = require("./emailMoney");
 const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { runReviewRequests, REVIEW_REQUEST_TEMPLATE } = require("./reviewRequests");
-const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor } = require("./paymentGuards");
+const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
-const { refundPlan, refundedSoFar, restockLinesFor, withoutRestocked, partialRefundKey } = require("./partialRefund");
+const { refundRetrySuffix, refundPlan, refundedSoFar, restockLinesFor, withoutRestocked, partialRefundKey } = require("./partialRefund");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
 const { hitLimit, LIMITS, clientIpOf } = require("./rateLimit");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner } = require("./stockHolds");
@@ -779,19 +780,30 @@ function discountProblem(data) {
   return null;
 }
 
-// "One use per customer": a customer (matched by email) who already has a paid order that used
-// this code cannot use it again. Runs on the trusted server path only.
-async function assertDiscountNotUsedByCustomer(discount, email) {
-  if (!discount.onePerCustomer) return;
+// "One use per customer" and the code's usage limit, on the trusted server path. A customer is the
+// mailbox behind the address (name+2@gmail.com and n.ame@gmail.com are name@gmail.com), and a use is
+// held from the moment an order that used the code is paid, waiting for a manual payment, or has a
+// card/PayPal payment under way (functions/discountClaims.js) — so two tabs, or a crowd checking out at
+// once, cannot all get a "first 50 customers" price before the first of them has paid.
+async function assertDiscountNotUsedByCustomer(discount, email, orderId = "") {
+  const limited = Number(discount.usageLimit) > 0;
+  if (!discount.onePerCustomer && !limited) return;
   const normalized = String(email || "").trim().toLowerCase();
-  if (!normalized) throw new Error("Enter your email address to use this code.");
+  if (discount.onePerCustomer && !normalized) throw new Error("Enter your email address to use this code.");
+  const identity = emailIdentity(normalized);
   const snap = await db.collection("orders")
     .where("appliedDiscount.id", "==", discount.id)
-    .where("customer.email", "==", normalized)
-    .where("paymentStatus", "==", "paid")
-    .limit(1)
+    .where("paymentStatus", "in", ["paid", "pending", "unpaid"])
+    .limit(1000)
     .get();
-  if (!snap.empty) throw new Error("You have already used this code.");
+  const rows = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  if (discount.onePerCustomer) {
+    const mine = rows.filter(row => row.id !== orderId && emailIdentity(row.customer?.email) === identity);
+    if (mine.some(row => row.paymentStatus === "paid" || openClaims([row], { orderId }).some(claim => claim.paymentStatus === "pending"))) {
+      throw new Error("You have already used this code.");
+    }
+  }
+  if (limited && limitReached(discount, openClaims(rows, { orderId }), identity)) throw new Error("This code has reached its usage limit");
 }
 
 // Enforce customer targeting on the trusted server path. Client validation is
@@ -908,6 +920,7 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
     return { cost: 0, method: null, fulfillment: null };
   }
   if (selection && (selection.method !== 'shipping' || /^(pickup|local_delivery):/.test(String(selection.optionId || '')))) throw new Error('Choose an available fulfillment option.');
+  let liveRatesTried = false;
   if (address) {
     const configDoc = await SHIPPO_CONFIG_DOC.get();
     const config = configDoc.exists ? configDoc.data() || {} : {};
@@ -917,6 +930,7 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
       // A free-shipping code covers whichever live carrier rate the shopper picked;
       // the profile rates below never contain carrier names, so they can't match it.
       if (freeShipping) return { cost: 0, method: String(selection?.optionId || order.shippingMethod || '').slice(0, 200) || null };
+      liveRatesTried = true;
       const shippoToken = await getShippoToken();
       // No usable live rates (no token, Shippo down, no carrier quotes, or the shopper
       // was shown profile rates instead): fall through to the profile/zone rates below,
@@ -952,8 +966,9 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
       const pickedCarrier = selection ? carrierQuotes.find(quote => quote.name === selectedCarrier) : pickQuote(carrierQuotes, selectedCarrier);
       if (pickedCarrier) return { cost: pickedCarrier.price, method: pickedCarrier.name, estimate: pickedCarrier.estimate };
       // The shopper picked a profile rate (browser fallback) — price it from profiles below.
-      const profileIds = new Set(quoteShipping(physicalItems, address, profiles, {}).flatMap(q => [q.id, q.name]));
-      if (selection && profileIds.has(selection.optionId)) return null;
+      // Live rates exist now, so a cheaper profile rate may not stand in for them: the shop would pay the
+      // carrier's real price for the label and collect the profile price. The profile fallback is only for
+      // when the carrier gave no rates at all (handled above) or could not be reached.
       throw new Error("That live carrier rate is no longer available. Please review the shipping options and try again.");
       })().catch(err => {
         if (/no longer available/.test(err.message)) throw err;
@@ -964,10 +979,14 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
     }
   }
   const hasZones = profiles.some((p) => Array.isArray(p.zones) && p.zones.length);
+  // The shopper picked a carrier rate but the carrier couldn't be reached (or returned nothing): say so,
+  // instead of claiming the shop doesn't ship there.
+  const carrierUnavailable = () => new Error("Live carrier shipping rates are temporarily unavailable. Please try again in a few minutes.");
   if (!hasZones) {
     if (selection) {
       const choices = quoteShipping(physicalItems, address, profiles, { freeAll: !!freeShipping }).filter(quote => quote.type !== 'pickup');
       const chosen = choices.find(quote => quote.id === selection.optionId || quote.name === selection.optionId);
+      if (!chosen && liveRatesTried) throw carrierUnavailable();
       if (!chosen) throw new Error('That shipping rate is no longer available. Please review the options and try again.');
       return { cost: chosen.price, method: chosen.name, estimate: shippingEstimateOf(chosen.deliveryDays) };
     }
@@ -976,6 +995,7 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
   const quotes = quoteShipping(physicalItems, address, profiles, { freeAll: !!freeShipping }).filter(quote => quote.type !== 'pickup');
   const selectedRate = selection?.optionId || order.shippingMethod;
   const picked = selection ? quotes.find(quote => quote.id === selectedRate || quote.name === selectedRate) : pickQuote(quotes, selectedRate);
+  if (!picked && selection && liveRatesTried) throw carrierUnavailable();
   if (!picked) {
     throw new Error(`We don't currently ship these items to ${(address && address.country) || "that destination"}. Please contact us for a custom quote.`);
   }
@@ -1108,7 +1128,12 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     }
     // Only fields the browser may describe are kept; everything that prices or ships comes from the catalog.
     const { components: _c, promoGift: _p, giftCard: _g, giftCardDetails: _d, addOns: _a, bundle: _b, basePrice: _bp, ...rest } = requested;
-    const partWeights = components.map(part => itemWeightGrams(booksById[part.id] || {}, null) ?? null);
+    // Each part weighs what its chosen edition weighs (falling back to the book).
+    const partWeights = components.map(part => {
+      const partBook = booksById[part.id] || {};
+      const partVariant = part.variantId ? (partBook.variants || []).find(v => v.id === part.variantId) || null : null;
+      return itemWeightGrams(partBook, partVariant) ?? null;
+    });
     const bundleWeight = components.length && partWeights.every(w => w != null) ? partWeights.reduce((sum, w, i) => sum + w * components[i].quantity, 0) : null;
     items.push({
       ...rest,
@@ -1175,7 +1200,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
       const verified = expandDiscountCategories(await fetchValidDiscount(order.appliedDiscount.code), settings.design?.categories);
       verifiedDiscount = verified;
       validateDiscountCustomer(verified, email);
-      await assertDiscountNotUsedByCustomer(verified, email);
+      await assertDiscountNotUsedByCustomer(verified, email, orderId);
       if (verified.type === "gift") await priceGift(verified);
       discount = discountAmountFor(verified, discountable, booksById, { giftPrice: giftPrices[verified.id] });
       freeShipping = verified.type === "freeship";
@@ -1190,7 +1215,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
       const offer = expandDiscountCategories(rawOffer, settings.design?.categories);
       try {
         validateDiscountCustomer(offer, email);
-        await assertDiscountNotUsedByCustomer(offer, email);
+        await assertDiscountNotUsedByCustomer(offer, email, orderId);
       } catch {
         continue;
       }
@@ -1282,7 +1307,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency, orderId = "")
 // unpaid and belongs to the same customer email.
 // Returns { paidOrderId } when that earlier attempt already took (or is taking) the shopper's
 // money: the caller refuses the new attempt (refusePreviousAttemptPaid) so nobody pays twice.
-async function releaseSupersededAttempt(req, email, currentOrderId) {
+async function releaseSupersededAttempt(req, email, currentOrderId, currentItems = null) {
   const prevId = req.body?.previousOrderId;
   if (typeof prevId !== "string" || !prevId || prevId.includes("/") || prevId === currentOrderId) return {};
   try {
@@ -1293,14 +1318,17 @@ async function releaseSupersededAttempt(req, email, currentOrderId) {
     if (!same) return {};
     // Paid, or a payment that may have gone through (webhook not here yet): keep its hold and
     // stop this retry, so the shopper isn't charged twice and the last copy isn't sold twice.
-    if (previousAttemptPaid(prev, null, null)) return { paidOrderId: prevId };
+    // Only a repeat of the same purchase is a duplicate: a different bag is a new order, and the
+    // earlier paid order's holds are left exactly as they are.
+    const sameBag = currentItems == null || sameOrderLines(prev.items, currentItems);
+    if (previousAttemptPaid(prev, null, null)) return sameBag ? { paidOrderId: prevId } : {};
     if (prev.paymentStatus !== "unpaid" || checkoutRefusal(prev)) return {};
     const intentId = String(prev.stripePaymentIntentId || ""), sessionId = String(prev.stripeCheckoutSessionId || "");
     if (intentId.startsWith("pi_") || sessionId.startsWith("cs_")) {
       const { stripe, requestOptions } = await getStripeClientForMode(prev.stripeMode === "test" ? "test" : "live", prev.stripeAccountId || null);
       const intent = intentId.startsWith("pi_") ? await stripe.paymentIntents.retrieve(intentId, {}, requestOptions) : null;
       const session = sessionId.startsWith("cs_") ? await stripe.checkout.sessions.retrieve(sessionId, {}, requestOptions) : null;
-      if (previousAttemptPaid(prev, intent, session)) return { paidOrderId: prevId };
+      if (previousAttemptPaid(prev, intent, session)) return sameBag ? { paidOrderId: prevId } : {};
       if (intent && !["requires_payment_method", "canceled"].includes(intent.status)) return {};
     }
     await releaseStock(db, prevId, prev.items || []);
@@ -1458,7 +1486,7 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
 
 exports.createPayPalOrder = onBrowserRequest(
   // SHIPPO_API_TOKEN: live carrier rates are re-priced here; an undeclared secret reads as empty.
-  { secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, SHIPPO_API_TOKEN] },
+  { secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, SHIPPO_API_TOKEN, STRIPE_SECRET_KEY] },
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
@@ -1477,7 +1505,7 @@ exports.createPayPalOrder = onBrowserRequest(
       if (refusal === "paid") return res.status(409).json({ error: "Order is already paid" });
       if (refusal) return res.status(409).json({ error: "This order was cancelled. Please start a new order from your bag.", code: "order_closed" });
       // Before anything is re-priced or held: the shopper's earlier attempt may already be paid.
-      if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, order.customer?.email, orderId))) return;
+      if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, order.customer?.email, orderId, order.items))) return;
       let priced;
       try {
         priced = await recalculateOrder(orderRef, order, currency, orderId);
@@ -1528,7 +1556,8 @@ exports.createPayPalOrder = onBrowserRequest(
         chargedGiftCards: priced.giftCardRedemptions,
         updatedAt: new Date().toISOString(),
       });
-      res.json({ orderToken: paypalOrder.id, approvalUrl });
+      // The amount PayPal will ask for, so checkout can show a changed total before sending the shopper there.
+      res.json({ orderToken: paypalOrder.id, approvalUrl, amount: toMinor(priced.convertedTotal.toFixed(2)), currency: String(currency).toLowerCase() });
     } catch (err) {
       console.error("PayPal order creation failed:", err);
       res.status(500).json({ error: err.message });
@@ -1677,7 +1706,14 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         if (!Array.isArray(source.items) || !source.items.length || source.items.length > 50) throw new Error('Choose between 1 and 50 books.');
         const items = source.items.map(item => {
           if (typeof item?.id !== 'string' || !item.id || item.id.length > 160 || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 99) throw new Error('Check the selected books and quantities.');
-          return { id: item.id, variantId: typeof item.variantId === 'string' ? item.variantId.slice(0, 160) : null, quantity: item.quantity };
+          // Paid add-ons and gift-card recipient details ride along; priceOrder validates and prices them from the catalog.
+          return {
+            id: item.id,
+            variantId: typeof item.variantId === 'string' ? item.variantId.slice(0, 160) : null,
+            quantity: item.quantity,
+            ...(Array.isArray(item.addOns) && item.addOns.length ? { addOns: item.addOns.slice(0, 12) } : {}),
+            ...(item.giftCardDetails && typeof item.giftCardDetails === 'object' && !Array.isArray(item.giftCardDetails) ? { giftCardDetails: item.giftCardDetails } : {}),
+          };
         });
         const contact = source.customer || {};
         if (typeof contact.name !== 'string' || !contact.name.trim() || typeof contact.email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email)) throw new Error('Customer name and email are required.');
@@ -1712,12 +1748,14 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         for (const cartKey of [order.cartId, `active_${order.customer.email}`].filter(Boolean)) {
           await db.collection('abandoned-carts').doc(cartKey).update({ recovered: true, recoveredAt: now }).catch(() => {});
         }
-        if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, order.customer.email, orderId))) return;
-        await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: true, ip: clientIpOf(req) });
+        if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, order.customer.email, orderId, items))) return;
+        // Hold the priced lines (box-set parts and the free gift included), not the browser's raw list.
+        const heldItems = Array.isArray(trusted.items) && trusted.items.length ? trusted.items : items;
+        await reserveStock(db, orderId, heldItems, Date.now(), holdOwner(order), { limits: true, ip: clientIpOf(req) });
         try {
           await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, trackingKey, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
         } catch (createErr) {
-          await releaseStock(db, orderId, items);
+          await releaseStock(db, orderId, heldItems);
           throw createErr;
         }
         return res.status(200).json({ orderId, trackingKey, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
@@ -1751,7 +1789,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
           return res.status(400).json({ error: "This order can't be completed without payment." });
         }
         // The shopper's own earlier attempt gives back its holds first, so it can't block this one.
-        if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, freeOrder.customer?.email, freeId))) return;
+        if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, freeOrder.customer?.email, freeId, freeOrder.items))) return;
         const priced = await recalculateOrder(freeRef, freeOrder, checkoutCurrencyOf(req.body.currency) || "cad", freeId);
         // A test-mode gift card is a rehearsal: it can't pay for a real order on its own.
         if (priced.testCardUsed) return res.status(400).json({ error: "Gift card error: This test gift card can only be used with a test card payment.", code: "gift_card_rejected" });
@@ -1921,7 +1959,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       }
 
       // The shopper's earlier attempt already has their money: refuse before this order is touched.
-      if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, order.customer?.email, orderId))) return;
+      if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, order.customer?.email, orderId, order.items))) return;
 
       // A retry on the same order replaces its earlier unfinished PaymentIntent, so two tabs can't both pay.
       // Checked before the order is re-priced: a refused retry must leave the amounts (and gift cards)
@@ -2206,15 +2244,18 @@ async function handleGiftCardAdmin(req, res) {
       const reason = String(body.reason || "").trim().slice(0, 300);
       if (!Number.isFinite(delta) || !delta || Math.abs(delta) > 1000000) return res.status(400).json({ error: "Enter an amount to add or remove." });
       if (!reason) return res.status(400).json({ error: "Add a reason for the change." });
-      let balanceMinor = 0;
+      let balanceMinor = 0, appliedMinor = 0;
       await db.runTransaction(async tx => {
         const snap = await tx.get(ref);
         if (!snap.exists) throw new Error("Gift card not found.");
         const card = snap.data();
-        balanceMinor = Math.max(0, Math.floor(Number(card.balanceMinor) || 0) + delta);
-        tx.update(ref, { balanceMinor, history: withHistory(card, { type: "adjusted", minor: delta, reason, actor, at: now }), updatedAt: now });
+        const before = Math.floor(Number(card.balanceMinor) || 0);
+        balanceMinor = Math.max(0, before + delta);
+        // The history records what really changed (the balance never goes below zero), so it always sums to the balance.
+        appliedMinor = balanceMinor - before;
+        tx.update(ref, { balanceMinor, history: withHistory(card, { type: "adjusted", minor: appliedMinor, ...(appliedMinor !== delta ? { requestedMinor: delta } : {}), reason, actor, at: now }), updatedAt: now });
       });
-      return res.status(200).json({ ok: true, balanceMinor });
+      return res.status(200).json({ ok: true, balanceMinor, appliedMinor, clamped: appliedMinor !== delta });
     }
     if (body.op === "setExpiry") {
       let expiresOn = "";
@@ -2558,7 +2599,12 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     // Copies an earlier partial refund already put back are not restocked a second time.
     const itemList = withoutRestocked(returnRestockItems(order, opsSnap?.data()?.returnCase), order);
     const sandboxPaid = order.sandboxPayment === true;
-    const wantsRestock = restock !== undefined ? restock !== false : order.refundRequest?.restock !== false;
+    // Without an explicit choice (Dashboard/PayPal refunds, sweeps) books that already left the shop
+    // are not put back on the shelf; the admin's saved choice or an explicit flag always wins.
+    const leftTheShop = ["shipped", "out_for_delivery", "delivered", "collected", "completed"].includes(order.fulfillmentStatus) || order.status === "completed" || !!order.trackingNumber;
+    const wantsRestock = restock !== undefined ? restock !== false
+      : typeof order.refundRequest?.restock === "boolean" ? order.refundRequest.restock
+      : !leftTheShop;
     const shouldRestock = !sandboxPaid && wantsRestock && itemList.length > 0 && order.inventoryRestockedAt == null;
     const books = shouldRestock ? await readBooks(transaction, db, itemList) : new Map();
     const shouldReverseDiscount = !sandboxPaid && order.appliedDiscount?.id && order.discountUsageReversedAt == null;
@@ -2684,7 +2730,7 @@ async function applyPartialRefund(orderId, { provider, refundId = null, amountMi
 // A refund Stripe accepted (order went to refund_pending, stock back, discount use and revenue
 // reversed) that then failed at the bank: the customer still paid, so undo exactly what
 // applyOrderRefund did, once. Only for a refund_pending order; the "failed" refund is recorded.
-async function revertFailedRefund(orderId, { refundId = null, source = "" } = {}) {
+async function revertFailedRefund(orderId, { refundId = null, source = "", chargeUnrefunded = false } = {}) {
   const orderRef = db.collection("orders").doc(orderId);
   let revenue = null;
   let reverted = false;
@@ -2694,7 +2740,12 @@ async function revertFailedRefund(orderId, { refundId = null, source = "" } = {}
     const snap = await transaction.get(orderRef);
     if (!snap.exists) return;
     const order = snap.data();
-    if (order.paymentStatus !== "refund_pending") return;
+    // A refund Stripe reported as succeeded (card refunds usually do) or one made in the Dashboard can
+    // still be rejected by the issuer later. Undo a "refunded" Stripe order only when this is that
+    // refund's id, or the caller read the charge and saw nothing was refunded.
+    const refundedByStripe = order.paymentStatus === "refunded" && order.refund?.provider === "stripe" && order.refund?.status !== "failed"
+      && ((refundId && order.refund.id === refundId) || (chargeUnrefunded === true && (!refundId || !order.refund.id || order.refund.id === refundId)));
+    if (order.paymentStatus !== "refund_pending" && !refundedByStripe) return;
     // Another refund on this order failed, not the one it is waiting for.
     if (refundId && order.refund?.id && order.refund.id !== refundId) return;
     const now = new Date().toISOString();
@@ -2843,10 +2894,10 @@ async function checkStripeReversal(orderId, order, source) {
       }
       await db.collection("orders").doc(orderId).update({ stripeCheckedAt: new Date().toISOString() });
       // A pending refund that moved no money: ask Stripe whether it failed (missed charge.refund.updated).
-      if (order.paymentStatus === "refund_pending" && Number(charge.amount_refunded) === 0) {
+      if (["refund_pending", "refunded"].includes(order.paymentStatus) && Number(charge.amount_refunded) === 0) {
         const refunds = await stripe.refunds.list({ payment_intent: pi, limit: 10 });
         const failed = failedRefundId(order, charge, refunds?.data || []);
-        if (failed) await revertFailedRefund(orderId, { refundId: failed === "unknown" ? null : failed, source });
+        if (failed) await revertFailedRefund(orderId, { refundId: failed === "unknown" ? null : failed, source, chargeUnrefunded: true });
       }
       return await syncStripeReversal(orderId, { charge, dispute, source });
     } catch (err) {
@@ -2980,8 +3031,18 @@ async function handleCheckoutStatus(req, res) {
     const saved = orderSnap.data() || {};
     if (!canViewOrder(saved, { key: orderRequestKey(req), identity: await orderRequestIdentity(req) })) return res.status(403).json({ error: "access_required" });
     if (saved.paymentStatus === "paid") {
-      // Already paid: still ask Stripe whether it was since refunded or disputed.
-      res.status(200).json({ status: "complete", paymentStatus: "paid" });
+      // Already paid: still ask Stripe whether it was since refunded or disputed (this is what the
+      // admin's "Sync with Stripe" relies on). Throttled to once a minute per order.
+      let paymentStatus = "paid";
+      if (String(saved.stripePaymentIntentId || "").startsWith("pi_") && !(Date.now() - Date.parse(saved.stripeCheckedAt || "") < 60 * 1000)) {
+        try {
+          await checkStripeReversal(orderId, saved, "status check");
+          paymentStatus = (await db.collection("orders").doc(orderId).get()).data()?.paymentStatus || "paid";
+        } catch (err) {
+          console.warn(`Refund/dispute check failed for ${orderId}:`, err.message);
+        }
+      }
+      res.status(200).json({ status: "complete", paymentStatus });
       return;
     }
     // The tracking page and the admin may only know the order number: fall back to
@@ -3481,7 +3542,19 @@ exports.cartShippingPreview = onBrowserRequest({}, async (req, res) => {
       if (!Number.isFinite(price) || price < 0) throw new Error("invalid_cart");
       // E-books and audiobooks are recognised by format too, as checkout does (isPhysicalItem).
       const digital = !isPhysicalItem({ format: catalogFormat(book, variant), digital: catalogDigital(book, variant) });
-      return { price, quantity: item.quantity, shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant), digital };
+      // A box set without its own weight weighs what its books weigh (as priceOrder does), so the estimate matches the charge.
+      let weightGrams = itemWeightGrams(book, variant);
+      const parts = bundleComponents(book);
+      if (weightGrams == null && parts.length) {
+        const partBooks = await Promise.all(parts.map(part => db.collection("books").doc(part.id).get()));
+        const weights = partBooks.map((doc, i) => {
+          if (!doc.exists) return null;
+          const partBook = doc.data();
+          return itemWeightGrams(partBook, parts[i].variantId ? (partBook.variants || []).find(value => value.id === parts[i].variantId) || null : null);
+        });
+        if (weights.every(w => w != null)) weightGrams = weights.reduce((sum, w, i) => sum + w * parts[i].quantity, 0);
+      }
+      return { price, quantity: item.quantity, shippingProfileId: book.shippingProfileId || null, weightGrams, digital };
     }));
     const profilesSnap = await db.collection("shipping-profiles").get();
     const physical = lines.filter(item => !item.digital);
@@ -3615,7 +3688,7 @@ exports.refundOrder = onBrowserRequest(
           ...(plan.kind === "partial" ? { amount: plan.amountMinor } : {}),
           reason: "requested_by_customer",
           metadata: { order_id: orderId, admin_email: adminUser.email || "", reason: reasonText },
-        }, { ...requestOptions, idempotencyKey: plan.kind === "partial" ? partialRefundKey(orderId, plan.already, plan.amountMinor) : `order-refund-${orderId}-full` });
+        }, { ...requestOptions, idempotencyKey: plan.kind === "partial" ? partialRefundKey(orderId, plan.already, plan.amountMinor) : `order-refund-${orderId}-full${refundRetrySuffix(order)}` });
         if (!["succeeded", "pending"].includes(refund.status)) {
           throw new Error(`Stripe refund was not accepted (status: ${refund.status}).`);
         }
@@ -3627,7 +3700,7 @@ exports.refundOrder = onBrowserRequest(
         providerCalled = true;
         const refund = await paypalRequest(config, `/v2/payments/captures/${encodeURIComponent(order.paypalCaptureId)}/refund`, {
           method: "POST",
-          headers: { "PayPal-Request-Id": plan.kind === "partial" ? `refund-${orderId}-partial-${plan.already}-${plan.amountMinor}` : `refund-${orderId}-full` },
+          headers: { "PayPal-Request-Id": plan.kind === "partial" ? `refund-${orderId}-partial-${plan.already}-${plan.amountMinor}` : `refund-${orderId}-full${refundRetrySuffix(order)}` },
           body: JSON.stringify({ note_to_payer: reasonText.slice(0, 255),
             ...(plan.kind === "partial" ? { amount: { value: (plan.amountMinor / 100).toFixed(2), currency_code: String(order.paypalCurrency || plan.currency).toUpperCase() } } : {}) }),
         });
@@ -4114,6 +4187,20 @@ exports.onOrderUpdated = onDocumentUpdated(
     // Test orders send nothing — except sandbox payments, whose emails are part of
     // the checkout rehearsal (they still never buy labels or touch stock).
     if (after.isTest === true && after.sandboxPayment !== true) return;
+    // A refund the bank rejected put this order back to paid: tell the shop, because the customer
+    // was told they were refunded (Orders › Needs attention also lists it).
+    if (after.refundFailedAt && before.refundFailedAt !== after.refundFailedAt && after.paymentStatus === "paid") {
+      try {
+        await sendEmail({
+          to: ADMIN_TO,
+          subject: `Refund failed: order ${orderId} needs a new refund`,
+          html: `<p>The refund for order <strong>${escapeHtml(orderId)}</strong> was rejected after it was accepted, so the customer was <strong>not</strong> refunded and the order is paid again.</p><p>Open the order in <a href="${siteLink(`/admin#orders/${encodeURIComponent(orderId)}`)}">Orders</a> to refund again or contact the customer. Do not pack it unless they still want it.</p>`,
+          secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error(`Could not email the shop about the failed refund on ${orderId}:`, err.message);
+      }
+    }
     if (!after.customer?.email) return;
 
     const notificationSettings = await loadNotificationSettings();
@@ -4873,7 +4960,12 @@ exports.getShippoRates = onBrowserRequest(
         const parts = bundleComponents(book);
         if (!(grams > 0) && parts.length) {
           const partDocs = await Promise.all(parts.map(part => db.collection("books").doc(part.id).get()));
-          const partWeights = partDocs.map(doc => (doc.exists ? itemWeightGrams(doc.data(), null) : null));
+          const partWeights = partDocs.map((doc, i) => {
+            if (!doc.exists) return null;
+            const partBook = doc.data();
+            const partVariant = parts[i].variantId ? (partBook.variants || []).find(v => v.id === parts[i].variantId) || null : null;
+            return itemWeightGrams(partBook, partVariant);
+          });
           if (partWeights.every(w => w != null)) grams = partWeights.reduce((sum, w, i) => sum + w * parts[i].quantity, 0);
         }
         totalWeightLb += (Number.isFinite(grams) && grams > 0 ? grams / 453.592 : 1.5) * qty;
@@ -6373,7 +6465,7 @@ exports.unpaidPaymentSweep = onSchedule(
     try {
       const { ordersDueReversalCheck } = require("./stripeRecovery");
       const paidSince = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
-      const paidStatuses = ["paid", "refund_pending"];
+      const paidStatuses = ["paid", "refund_pending", "refunded"];
       // Recent payments by paidAt, plus recent orders by createdAt (older records may lack paidAt).
       const parts = await Promise.all([
         db.collection("orders").where("paymentStatus", "in", paidStatuses).where("paidAt", ">=", paidSince).orderBy("paidAt", "desc").limit(500).get(),
