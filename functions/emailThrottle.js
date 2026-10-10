@@ -15,6 +15,8 @@ const CONTACT_LIMITS = {
   privacyNotify: { max: 1, windowMs: 24 * 60 * 60 * 1000, perAddress: true },
   // Customer cancel/return requests: the shop hears about each order a few times an hour at most.
   orderRequestNotify: { max: 3, windowMs: 60 * 60 * 1000, perAddress: true },
+  // Newsletter double opt-in: one confirmation mail per address per day (a repeat signup is silent).
+  newsletterConfirm: { max: 1, windowMs: 24 * 60 * 60 * 1000, perAddress: true },
   // Reminder / alert emails to addresses the shop only knows because a visitor typed them.
   abandonedCart: { perAddress: false },
   backInStock: { perAddress: false },

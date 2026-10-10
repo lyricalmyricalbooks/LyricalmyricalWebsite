@@ -24,10 +24,12 @@ const { risoButton, risoLayout, placeItemsTable } = require("./emailTheme");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
-const { labelProblem, addressKey: guardAddressKey, shippoTransactionOutcome } = require("./fulfillmentGuard");
+const { labelProblem, addressKey: guardAddressKey, shippoTransactionOutcome, advancesTracking, shippoDefiniteRefusal } = require("./fulfillmentGuard");
 const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
-const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
+const { labelRatesFor, isPurchasableRate, isSoldRate: isSoldRateName, isCanadaPostRate: isCanadaPostRateName, soldName } = require("./labelRates");
+const { needsCustoms, customsItems, customsDeclaration } = require("./customs");
+const { addressMissing } = require("./addressRules");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { expandDiscountCategories } = require("./discountCategories");
@@ -40,7 +42,9 @@ const { resolveCountry } = require("./shippingGeo");
 const { emailIdentity, openClaims, limitReached } = require("./discountClaims");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck, failedRefundId } = require("./stripeRecovery");
 const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences, forDigitalOnlyOrder } = require("./emailMoney");
-const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
+const { pendingRecord, confirmedRecord, confirmationEmail } = require("./newsletter");
+const { findByEmail: findByEmailData, neverPaid, redactedOrderFields, redactedOperationsFields, giftCardsFor, reviewErasure, GIFT_CARD_PERSONAL } = require("./privacyData");
+const { optOutId, unsubscribeToken, tokenMatches, purposeToken, purposeTokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { runReviewRequests, REVIEW_REQUEST_TEMPLATE } = require("./reviewRequests");
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
@@ -53,6 +57,7 @@ const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOw
 const { preorderActive, preorderLine, preorderEmailLines } = require("./preorder");
 const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCount } = require("./emailThrottle");
 const { hasOwnershipProof } = require("./emailProof");
+const { paypalCredentials } = require("./paypalCredentials");
 const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
 const { runInBatches, backupFoldersToPrune } = require("./sweepLimits");
 const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
@@ -662,7 +667,15 @@ async function runEmailOutbox(now = Date.now(), { budgetMs = 30000 } = {}) {
   };
   const prunedLog = await prune("emailLog", "at", daysAgoIso(LOG_RETENTION_DAYS, now), 300).catch(err => { console.warn("emailLog prune failed:", err.message); return 0; });
   const prunedOutbox = await prune("emailOutbox", "gaveUpAt", daysAgoIso(GAVE_UP_RETENTION_DAYS, now), 100).catch(err => { console.warn("emailOutbox prune failed:", err.message); return 0; });
-  return { tried: due.docs.length, sent, prunedLog, prunedOutbox };
+  // Newsletter signups nobody confirmed within 30 days are strangers' addresses: drop them.
+  const prunedPending = await db.collection("newsletter").where("status", "==", "pending").limit(300).get()
+    .then(async snap => {
+      const cutoff = daysAgoIso(30, now);
+      const stale = snap.docs.filter(d => String(d.data().requestedAt || "") < cutoff);
+      await Promise.all(stale.map(d => d.ref.delete()));
+      return stale.length;
+    }).catch(err => { console.warn("pending newsletter prune failed:", err.message); return 0; });
+  return { tried: due.docs.length, sent, prunedLog, prunedOutbox, prunedPending };
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -691,7 +704,7 @@ function getStateCode(stateName) {
   if (clean.length === 2) {
     return clean.toUpperCase();
   }
-  return US_STATES[clean] || CA_PROVINCES[clean] || stateName.toUpperCase();
+  return US_STATES[clean] || CA_PROVINCES[clean] || String(stateName || "").toUpperCase();
 }
 
 // Shippo "address_from": Settings › General › Location (street, city, province, postal code,
@@ -714,19 +727,23 @@ async function fetchWithTimeout(url, options = {}, ms = 3000) {
   }
 }
 
-async function callShippo(endpoint, method, body, token) {
+// Timeout: a hung Shippo call must never hold a function open until it is killed. Label purchases
+// are the one place an aborted request may still have been processed, so they stay "uncertain".
+async function callShippo(endpoint, method, body, token, timeoutMs = 15000) {
   const headers = {
     "Authorization": `ShippoToken ${token}`,
     "Content-Type": "application/json"
   };
-  const res = await fetch(`https://api.goshippo.com/${endpoint}`, {
+  const res = await fetchWithTimeout(`https://api.goshippo.com/${endpoint}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined
-  });
+  }, timeoutMs);
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(`Shippo API error: ${res.status} - ${errorText}`);
+    const error = new Error(`Shippo API error: ${res.status} - ${errorText}`);
+    error.shippoStatus = res.status;
+    throw error;
   }
   return await res.json();
 }
@@ -869,17 +886,25 @@ async function getPayPalConfig() {
   return {
     settings,
     testMode: Boolean(settings.payments?.testMode),
+    // The Functions secrets stay the live fallback; Settings › Payments › PayPal (client ids) and the private
+    // adminSecrets/paypal (client secrets) are read when the token is requested, once the order's mode is known.
     clientId: PAYPAL_CLIENT_ID.value(),
     clientSecret: PAYPAL_CLIENT_SECRET.value(),
+    settingsPaypal: settings.payments?.paypal || {},
+    privateSecrets: await readAdminSecret("paypal"),
   };
 }
 
 async function getPayPalAccessToken(config) {
-  if (!config.clientId || !config.clientSecret) throw new Error("PayPal credentials are not configured.");
+  const creds = paypalCredentials({
+    testMode: config.testMode, settingsPaypal: config.settingsPaypal, privateSecrets: config.privateSecrets,
+    fallback: { clientId: config.clientId, clientSecret: config.clientSecret },
+  });
+  if (!creds.ok) throw new Error(creds.error);
   const response = await fetch(`${paypalBaseUrl(config.testMode)}/v1/oauth2/token`, {
     method: "POST",
     headers: {
-      Authorization: `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}`,
+      Authorization: `Basic ${Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString("base64")}`,
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: "grant_type=client_credentials",
@@ -1715,6 +1740,8 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       return;
     }
 
+    if (req.body?.action === "newsletterSignup") return handleNewsletterSignup(req, res);
+    if (req.body?.action === "newsletterConfirm") return handleNewsletterConfirm(req, res);
     if (req.body?.action === "status") return handleCheckoutStatus(req, res);
     if (req.body?.action === "track") return handleTrackOrder(req, res);
     if (req.body?.action === "trackingLink") return handleTrackingLink(req, res);
@@ -1803,6 +1830,8 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       const key = (await readAdminSecret("marketing")).unsubscribeKey;
       if (!email || !tokenMatches(email, String(req.body.token || ""), key)) return res.status(400).json({ error: "invalid_link" });
       await db.collection("marketing-optout").doc(optOutId(email)).set({ at: new Date().toISOString(), source: "email-link" });
+      // The same link also takes the address off the newsletter list (the opt-out record above is kept as proof).
+      await db.collection("newsletter").doc(email).delete().catch(() => {});
       return res.status(200).json({ unsubscribed: true });
     }
 
@@ -2605,7 +2634,7 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
       transaction.update(orderRef, {
         paymentStatus: "refunded",
         ...(provider === "dispute" && order.customerRequest?.status === "open" ? { customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
-      ...(order.returnProgress && order.returnProgress.state !== "rejected" && provider !== "dispute" ? { returnProgress: { ...order.returnProgress, state: "completed", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
+      ...(order.returnProgress && !["rejected", "closed"].includes(order.returnProgress.state) && provider !== "dispute" ? { returnProgress: { ...order.returnProgress, state: "completed", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
         ...(order.refund ? { refund: { ...order.refund, status: "succeeded" } } : {}),
         updatedAt: now,
         activity: [...(order.activity || []), { type: "event", message: `${label} refund completed${amountText}${note ? ` — ${note}` : ""}.`, createdAt: now }],
@@ -2620,7 +2649,7 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     const sandboxPaid = order.sandboxPayment === true;
     // Without an explicit choice (Dashboard/PayPal refunds, sweeps) books that already left the shop
     // are not put back on the shelf; the admin's saved choice or an explicit flag always wins.
-    const leftTheShop = ["shipped", "out_for_delivery", "delivered", "collected", "completed"].includes(order.fulfillmentStatus) || order.status === "completed" || !!order.trackingNumber;
+    const leftTheShop = ["shipped", "out_for_delivery", "delivered", "collected", "completed"].includes(order.fulfillmentStatus) || order.status === "completed";
     const wantsRestock = restock !== undefined ? restock !== false
       : typeof order.refundRequest?.restock === "boolean" ? order.refundRequest.restock
       : !leftTheShop;
@@ -2648,7 +2677,7 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     transaction.update(orderRef, {
       paymentStatus: done ? "refunded" : "refund_pending",
       ...(provider === "dispute" && order.customerRequest?.status === "open" ? { customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
-      ...(order.returnProgress && order.returnProgress.state !== "rejected" && provider !== "dispute" ? { returnProgress: { ...order.returnProgress, state: done ? "completed" : "refund_pending", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
+      ...(order.returnProgress && !["rejected", "closed"].includes(order.returnProgress.state) && provider !== "dispute" ? { returnProgress: { ...order.returnProgress, state: done ? "completed" : "refund_pending", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
       status: "cancelled",
       // What the order looked like before the refund, so a refund the bank later rejects can be undone.
       preRefund: { status: order.status || null, returnProgress: order.returnProgress || null, customerRequest: order.customerRequest || null },
@@ -3220,6 +3249,68 @@ async function handleOrderRequest(req, res) {
   }
 }
 
+// ──────────────────────────────────────────────────────────────
+// Newsletter double opt-in. Signup stores a PENDING record (+ consent text and time) and mails a signed
+// confirmation link; only the link makes the address a subscriber. Browsers never write `newsletter`
+// (firestore.rules), so a stranger cannot seed the list. Unsubscribe is the shared signed link
+// (`action: "unsubscribe"`), which deletes newsletter/<email> and records the opt-out.
+// ──────────────────────────────────────────────────────────────
+const newsletterLinks = async email => {
+  const key = await marketingUnsubscribeKey();
+  const e = encodeURIComponent(normMarketingEmail(email));
+  return {
+    confirmUrl: siteLink(`/track?newsletter_confirm=1&e=${e}&t=${purposeToken(email, key, "newsletter-confirm")}`),
+    unsubscribeUrl: siteLink(`/track?unsubscribe=1&e=${e}&t=${unsubscribeToken(email, key)}`),
+  };
+};
+
+async function handleNewsletterSignup(req, res) {
+  if (!(await hitLimit(db, "track", req, LIMITS.track))) return res.status(429).json({ error: "too_many" });
+  const email = normMarketingEmail(req.body?.email);
+  if (!/^[^\s@/]+@[^\s@/]+\.[^\s@/]{2,}$/.test(email) || email.length > 254) return res.status(400).json({ error: "invalid" });
+  try {
+    const ref = db.collection("newsletter").doc(email);
+    const existing = await ref.get();
+    // Already confirmed (or a legacy subscriber): nothing to send, and the answer looks the same.
+    if (existing.exists && existing.data()?.status !== "pending") return res.status(200).json({ ok: true });
+    const claim = await claimEmailSendDetailed(db, "newsletterConfirm", email, { failOpen: false });
+    if (!claim.allowed) {
+      // A confirmation went to this address in the last day: stay quiet. Over the shop-wide budget: ask to retry.
+      if (claim.reason === "address") return res.status(200).json({ ok: true });
+      return res.status(429).json({ error: "busy" });
+    }
+    await ref.set(pendingRecord(email, req.body?.source, new Date().toISOString()));
+    const { confirmUrl, unsubscribeUrl } = await newsletterLinks(email);
+    const website = (await db.collection("settings").doc("website").get()).data() || {};
+    const mail = confirmationEmail({ shopName: "Lyricalmyrical Books", confirmUrl, unsubscribeUrl, address: footerAddress(website.location) });
+    await sendEmail({ queue: "newsletterConfirm", secret: RESEND_API_KEY.value(), to: email, subject: mail.subject, html: mail.html })
+      .catch(err => console.warn("newsletter confirmation email failed:", err.message));
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error("Newsletter signup failed:", err);
+    return res.status(500).json({ error: "failed" });
+  }
+}
+
+async function handleNewsletterConfirm(req, res) {
+  if (!(await hitLimit(db, "track", req, LIMITS.track))) return res.status(429).json({ error: "too_many" });
+  const email = normMarketingEmail(req.body?.email);
+  const key = (await readAdminSecret("marketing")).unsubscribeKey;
+  if (!email || !purposeTokenMatches(email, String(req.body?.token || ""), key, "newsletter-confirm")) return res.status(400).json({ error: "invalid_link" });
+  try {
+    const ref = db.collection("newsletter").doc(email);
+    const snap = await ref.get();
+    // No record: it was removed (unsubscribed or erased) after the email went out, so the old link must not revive it.
+    if (!snap.exists) return res.status(410).json({ error: "expired" });
+    const next = confirmedRecord(snap.data(), new Date().toISOString());
+    if (next !== snap.data()) await ref.set(next);
+    return res.status(200).json({ confirmed: true });
+  } catch (err) {
+    console.error("Newsletter confirm failed:", err);
+    return res.status(500).json({ error: "failed" });
+  }
+}
+
 // A privacy request (copy of my data / delete my data). Anyone can ask, so nothing is
 // sent or deleted automatically: the shop confirms the person owns the address (reply
 // from it), then uses Settings › Privacy requests to export or erase.
@@ -3262,23 +3353,28 @@ async function handlePrivacyRequest(req, res) {
   }
 }
 
-// Everything the shop holds about one email address.
+// Everything the shop holds about one email address (any capitalisation: see privacyData.js).
 async function personalDataFor(email) {
-  const byEmail = async (collection, field = "email") => (await db.collection(collection).where(field, "==", email).get()).docs;
-  const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows] = await Promise.all([
-    byEmail("orders", "customer.email"), byEmail("stockAlerts"), byEmail("abandoned-carts"),
-    byEmail("reviewContacts"), byEmail("contactMessages"), db.collection("newsletter").doc(email).get(),
-    // Emails waiting in the retry queue to or about this person, and their delivery-log rows.
+  const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows, giftCards] = await Promise.all([
+    findByEmailData(db, "orders", "customer.email", email), findByEmailData(db, "stockAlerts", "email", email),
+    findByEmailData(db, "abandoned-carts", "email", email), findByEmailData(db, "reviewContacts", "email", email),
+    findByEmailData(db, "contactMessages", "email", email), db.collection("newsletter").doc(email).get(),
+    // Emails waiting in the retry queue to or about this person, and their delivery-log rows
+    // (`to` can list several recipients, so it is matched as a list).
     db.collection("emailOutbox").where("toLower", "array-contains", email).get().then(s => s.docs),
-    byEmail("emailLog", "to"),
+    findByEmailData(db, "emailLog", "to", email, { contains: true }),
+    giftCardsFor(db, email),
   ]);
+  // Private fulfilment notes kept about the person's orders (admin-only order-operations).
+  const operations = orders.length ? (await db.getAll(...orders.map(o => db.collection("order-operations").doc(o.id)))).filter(d => d.exists) : [];
   let user = null;
   try { user = await admin.auth().getUserByEmail(email); } catch { user = null; }
   const profile = user ? await db.collection("customers").doc(user.uid).get() : null;
   const reviews = contacts.length
     ? (await Promise.all(contacts.map(c => db.collection("reviews").doc(c.id).get()))).filter(r => r.exists)
     : [];
-  return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows };
+  const incompleteScan = [["orders", orders], ["stockAlerts", alerts], ["abandoned-carts", carts], ["reviewContacts", contacts], ["contactMessages", messages], ["emailLog", emailRows]].filter(([, d]) => d.truncated).map(([n]) => n);
+  return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows, giftCards, operations, incompleteScan };
 }
 
 async function handlePrivacyAdmin(req, res) {
@@ -3302,30 +3398,54 @@ async function handlePrivacyAdmin(req, res) {
         profile: data.profile?.exists ? data.profile.data() : null,
         newsletter: data.newsletter.exists ? data.newsletter.data() : null,
         orders: rows(data.orders).map(strip),
+        orderNotesAndHistory: rows(data.operations),
         backInStockAlerts: rows(data.alerts),
         savedCarts: rows(data.carts),
         reviews: data.reviews.map(r => ({ id: r.id, ...r.data() })),
         contactMessages: rows(data.messages),
+        giftCards: rows(data.giftCards).map(({ code, holds, ...card }) => card),
+        emailDeliveryLog: rows(data.emailRows).map(({ toLower, ...row }) => row),
         emailsWaitingToSend: data.queuedEmails.map(d => publicOutboxEntry(d.id, d.data())),
+        ...(data.incompleteScan.length ? { incompleteScan: data.incompleteScan } : {}),
       });
       if (requestId) await db.collection("privacyRequests").doc(requestId).set({ status: "exported", handledAt: new Date().toISOString(), handledBy: adminUser.email }, { merge: true });
       return;
     }
-    // Erase: delete marketing, cart, alert, contact and account data; reviews stay but lose
-    // the name; orders stay (tax and accounting records) and are reported back.
-    const batch = db.batch();
-    for (const d of [...data.alerts, ...data.carts, ...data.contacts, ...data.messages, ...data.queuedEmails, ...data.emailRows]) batch.delete(d.ref);
-    if (data.newsletter.exists) batch.delete(data.newsletter.ref);
-    if (data.profile?.exists) batch.delete(data.profile.ref);
-    for (const r of data.reviews) batch.update(r.ref, { authorName: "Anonymous" });
-    await batch.commit();
-    if (data.user) await admin.auth().deleteUser(data.user.uid);
+    // Erase: delete marketing, cart, alert, contact and account data. Orders that were never paid
+    // lose the customer's details; paid orders stay (tax and accounting records) with their
+    // private notes blanked. Gift cards keep their balance but lose names, emails and message.
+    // Reviews lose the name, and (admin's choice) are unpublished or lose their text.
+    const reviewMode = ["unpublish", "remove-text"].includes(req.body?.reviewAction) ? req.body.reviewAction : "anonymize";
     const now = new Date().toISOString();
+    const ops = [];
+    for (const d of [...data.alerts, ...data.carts, ...data.contacts, ...data.messages, ...data.queuedEmails, ...data.emailRows]) ops.push(b => b.delete(d.ref));
+    if (data.newsletter.exists) ops.push(b => b.delete(data.newsletter.ref));
+    if (data.profile?.exists) ops.push(b => b.delete(data.profile.ref));
+    for (const r of data.reviews) ops.push(b => b.update(r.ref, reviewErasure(reviewMode)));
+    const redactedOrders = data.orders.filter(d => neverPaid(d.data()));
+    const keptOrders = data.orders.filter(d => !neverPaid(d.data()));
+    const redactedIds = new Set(redactedOrders.map(d => d.id));
+    for (const d of redactedOrders) ops.push(b => b.update(d.ref, redactedOrderFields(now)));
+    for (const d of data.operations) {
+      if (redactedIds.has(d.id)) ops.push(b => b.delete(d.ref));
+      else ops.push(b => b.set(d.ref, redactedOperationsFields(d.data(), now), { merge: true }));
+    }
+    for (const d of data.giftCards) ops.push(b => b.update(d.ref, { ...GIFT_CARD_PERSONAL, privacyRedactedAt: now }));
+    for (let i = 0; i < ops.length; i += 400) {
+      const batch = db.batch();
+      for (const op of ops.slice(i, i + 400)) op(batch);
+      await batch.commit();
+    }
+    if (data.user) await admin.auth().deleteUser(data.user.uid);
     await db.collection("marketing-optout").doc(optOutId(email)).set({ at: now, source: "privacy-erase" }).catch(() => {});
     const summary = {
       deleted: { backInStockAlerts: data.alerts.length, savedCarts: data.carts.length, reviewContacts: data.contacts.length, contactMessages: data.messages.length, queuedEmails: data.queuedEmails.length, emailLogRows: data.emailRows.length, newsletter: data.newsletter.exists ? 1 : 0, account: data.user ? 1 : 0 },
       anonymizedReviews: data.reviews.length,
-      keptOrders: data.orders.map(d => d.id),
+      reviewAction: reviewMode,
+      redactedUnpaidOrders: redactedOrders.map(d => d.id),
+      redactedGiftCards: data.giftCards.length,
+      keptOrders: keptOrders.map(d => d.id),
+      ...(data.incompleteScan.length ? { incompleteScan: data.incompleteScan } : {}),
     };
     if (requestId) await db.collection("privacyRequests").doc(requestId).set({ status: "erased", handledAt: now, handledBy: adminUser.email, summary }, { merge: true });
     res.status(200).json(summary);
@@ -3611,7 +3731,7 @@ exports.manageReturn = onBrowserRequest({}, async (req, res) => {
       if (next === ops.returnCase) return publicReturn(next);
       const progress = publicReturn(next);
       tx.set(opsRef, { ...ops, returnCase: next, updatedAt: now, activity: [...(ops.activity || []), { type: "event", message: `Return ${action}.`, createdAt: now, actor: user.email || user.uid }] });
-      tx.update(orderRef, { returnProgress: progress, customerRequest: { ...order.customerRequest, status: action === "rejected" ? "handled" : "open" }, updatedAt: now });
+      tx.update(orderRef, { returnProgress: progress, customerRequest: { ...order.customerRequest, status: ["rejected", "closed"].includes(action) ? "handled" : "open" }, updatedAt: now });
       return progress;
     });
     res.status(200).json({ progress });
@@ -4203,9 +4323,27 @@ async function issueGiftCardsForOrder(orderId) {
   }
 }
 
+// The carrier address check is a nice-to-have: it runs AFTER every email, so a slow Shippo can
+// never cost the customer their confirmation or the shop its new-order alert.
+async function checkAddressAfterPayment(event) {
+  const before = event.data?.before?.data() || {};
+  const after = event.data?.after?.data() || {};
+  if (after.isTest === true && after.sandboxPayment !== true) return;
+  if (!(before.paymentStatus !== "paid" && after.paymentStatus === "paid") || !after.customer?.email) return;
+  try {
+    await autoApproveShippingAddress(event.params.orderId, after);
+  } catch (err) {
+    console.warn("Automatic address check failed; publisher review stays required", err);
+  }
+}
 exports.onOrderUpdated = onDocumentUpdated(
-  { document: "orders/{orderId}", secrets: [RESEND_API_KEY, SHIPPO_API_TOKEN] },
+  { document: "orders/{orderId}", secrets: [RESEND_API_KEY, SHIPPO_API_TOKEN], timeoutSeconds: 120 },
   async event => {
+    try { await handleOrderUpdated(event); }
+    finally { await checkAddressAfterPayment(event); }
+  }
+);
+async function handleOrderUpdated(event) {
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
     const orderId = event.params.orderId;
@@ -4248,13 +4386,6 @@ exports.onOrderUpdated = onDocumentUpdated(
         await issueGiftCardsForOrder(orderId);
       } catch (err) {
         console.error(`Could not issue gift cards for ${orderId}:`, err);
-      }
-    }
-    if (becamePaid) {
-      try {
-        await autoApproveShippingAddress(orderId, after);
-      } catch (err) {
-        console.warn("Automatic address check failed; publisher review stays required", err);
       }
     }
     if (becamePaid) {
@@ -4640,7 +4771,6 @@ exports.onOrderUpdated = onDocumentUpdated(
       }
     }
 }
-);
 
 // ──────────────────────────────────────────────────────────────
 // 7. Abandoned cart sweep: every hour, recover carts older than 1h
@@ -4860,6 +4990,8 @@ exports.abandonedCartSweep = onSchedule(
 // ──────────────────────────────────────────────────────────────
 // 7. HTTP Endpoint: Validate Address via Shippo (Secure)
 // ──────────────────────────────────────────────────────────────
+// "live" or "test" from the key's own prefix (shippo_live_… / shippo_test_…); null when it is neither.
+const shippoKeyMode = key => /^shippo_live_/.test(String(key || "")) ? "live" : /^shippo_test_/.test(String(key || "")) ? "test" : null;
 exports.getShippoConfig = onBrowserRequest({ secrets: [SHIPPO_API_TOKEN] }, async (req, res) => {
   if (applyCors(req, res)) return;
   if (req.method !== "POST") {
@@ -4878,6 +5010,9 @@ exports.getShippoConfig = onBrowserRequest({ secrets: [SHIPPO_API_TOKEN] }, asyn
       configured: Boolean(fallbackToken),
       source: configDoc.exists && config?.apiToken ? "firebase" : fallbackToken ? "environment" : null,
       lastFour: config?.lastFour || (fallbackToken ? fallbackToken.slice(-4) : null),
+      // Which Shippo account the key in use belongs to: a test key buys sandbox labels with no postage.
+      mode: shippoKeyMode(fallbackToken),
+      verifiedAt: config?.apiToken ? config?.verifiedAt || null : null,
       updatedAt: config?.updatedAt || null,
       dynamicRatesEnabled: config?.dynamicRatesEnabled ?? false,
       dynamicRateCountries: Array.isArray(config?.dynamicRateCountries) ? config.dynamicRateCountries : [],
@@ -5066,12 +5201,30 @@ exports.saveShippoConfig = onBrowserRequest(async (req, res) => {
     res.status(400).json({ error: "Enter a valid Shippo API key without spaces." });
     return;
   }
+  const mode = shippoKeyMode(apiToken);
+  if (!mode) {
+    res.status(400).json({ error: "That doesn't look like a Shippo API key. Live keys start with shippo_live_ and test keys with shippo_test_." });
+    return;
+  }
+  // Ask Shippo before saving: a typo'd key must never replace a working one.
+  try {
+    await callShippo("carrier_accounts/?results=1", "GET", null, apiToken, 8000);
+  } catch (err) {
+    if ([401, 403].includes(Number(err?.shippoStatus))) {
+      res.status(400).json({ error: "Shippo did not accept this key. Copy it again from Shippo › Settings › API; nothing was saved." });
+    } else {
+      res.status(502).json({ error: "Couldn't reach Shippo to check the key, so it was not saved. Try again in a minute." });
+    }
+    return;
+  }
 
   try {
     const updatedAt = new Date().toISOString();
     await SHIPPO_CONFIG_DOC.set({
       apiToken,
       lastFour: apiToken.slice(-4),
+      mode,
+      verifiedAt: updatedAt,
       updatedAt,
       updatedBy: adminUser.email,
     }, { merge: true });
@@ -5080,6 +5233,8 @@ exports.saveShippoConfig = onBrowserRequest(async (req, res) => {
       configured: true,
       source: "firebase",
       lastFour: apiToken.slice(-4),
+      mode,
+      verifiedAt: updatedAt,
       updatedAt,
       dynamicRatesEnabled: saved.dynamicRatesEnabled ?? false,
       dynamicRateCountries: Array.isArray(saved.dynamicRateCountries) ? saved.dynamicRateCountries : [],
@@ -5096,7 +5251,8 @@ exports.saveShippoConfig = onBrowserRequest(async (req, res) => {
 async function autoApproveShippingAddress(orderId, order) {
   const method = order.fulfillmentSelection?.method || order.fulfillment?.method || "shipping";
   const address = order.customer?.address || {};
-  if (method !== "shipping" || order.isTest || !address.street || !address.city || !address.state || !address.zip) return;
+  // Countries with no province list or no postal code are checked too (addressRules.js).
+  if (method !== "shipping" || order.isTest || addressMissing(address).length) return;
   const shippoToken = await getShippoToken();
   if (!shippoToken) return;
   const result = await callShippo("addresses/", "POST", {
@@ -5138,7 +5294,7 @@ exports.validateAddress = onBrowserRequest(
     if (!(await hitLimit(db, "shippo", req, LIMITS.shippo))) return res.status(429).json({ error: "Too many tries. Please wait a few minutes and try again." });
 
     const { address } = req.body;
-    if (!address || !address.street || !address.city || !address.state || !address.zip) {
+    if (!address || addressMissing(address).length) {
       res.status(400).json({ error: "Missing address fields" });
       return;
     }
@@ -5263,6 +5419,48 @@ exports.createShippingLabel = onBrowserRequest(
         res.status(200).json({ cleared: true });
         return;
       }
+      // Replace a wrong label: void it with Shippo (or accept the owner's word that they did), then the
+      // order can buy a fresh one. Only before the parcel is handed over; Shippo refunds unused labels.
+      if (mode === "voidLabel") {
+        const confirmedElsewhere = req.body.confirmedElsewhere === true;
+        const handedOver = o => ["shipped", "out_for_delivery", "delivered", "cancelled", "refunded"].includes(o.fulfillmentStatus) || ["cancelled", "completed"].includes(o.status);
+        if (!order.labelUrl) { res.status(409).json({ error: "This order has no label to replace." }); return; }
+        if (handedOver(order)) { res.status(409).json({ error: "The parcel has already been handed over. To fix the tracking number, use Correct tracking instead." }); return; }
+        if (operations.labelPurchasePending) { res.status(409).json({ error: "A label purchase is pending. Check Shippo first." }); return; }
+        let refundStatus = "confirmed in Shippo by the owner";
+        let refundId = null;
+        if (!confirmedElsewhere) {
+          if (!operations.shippoTransactionId) {
+            res.status(409).json({ error: "This label was bought before Shippo's transaction number was saved, so it can't be voided from here. Void it in Shippo, then choose \"I already voided it in Shippo\".", needsConfirmation: true });
+            return;
+          }
+          const voidToken = await getShippoToken();
+          if (!voidToken) { res.status(500).json({ error: "SHIPPO_API_TOKEN is not configured." }); return; }
+          let refund;
+          try { refund = await callShippo("refunds/", "POST", { transaction: operations.shippoTransactionId, async: false }, voidToken); }
+          catch (err) { res.status(409).json({ error: `Shippo would not void the label: ${String(err.message || err).replace(/^Shippo API error: /, "").slice(0, 300)}. If you already voided it in Shippo, choose "I already voided it in Shippo".`, needsConfirmation: true }); return; }
+          refundStatus = String(refund?.status || "QUEUED").toUpperCase();
+          refundId = refund?.object_id || null;
+          if (refundStatus === "ERROR") { res.status(409).json({ error: "Shippo refused to void this label (it may already be used or too old to refund). If you voided it in Shippo yourself, choose \"I already voided it in Shippo\".", needsConfirmation: true }); return; }
+        }
+        const nowIso = new Date().toISOString();
+        const old = { trackingNumber: order.trackingNumber || null, trackingCarrier: order.trackingCarrier || null, labelUrl: order.labelUrl, shippoTransactionId: operations.shippoTransactionId || null };
+        const replaced = await db.runTransaction(async tx => {
+          const [freshOrder, freshOps] = await Promise.all([tx.get(orderRef), tx.get(operationsRef)]);
+          const current = freshOrder.data() || {};
+          if (!current.labelUrl || current.labelUrl !== order.labelUrl || handedOver(current) || (freshOps.data() || {}).labelPurchasePending) return false;
+          const del = admin.firestore.FieldValue.delete();
+          tx.update(orderRef, { labelUrl: del, trackingNumber: del, trackingCarrier: del, trackingUrl: del, updatedAt: nowIso,
+            activity: admin.firestore.FieldValue.arrayUnion({ type: "note", createdAt: nowIso, message: `Label #${old.trackingNumber || ""} voided so a new one can be bought.` }) });
+          tx.set(operationsRef, { shippoTransactionId: del, labelTest: del, quotedShipmentId: del, quotedAddress: del, updatedAt: nowIso,
+            labelHistory: admin.firestore.FieldValue.arrayUnion({ ...old, voidedAt: nowIso, voidedBy: adminUser.email || "admin", refundStatus, refundId }),
+            activity: admin.firestore.FieldValue.arrayUnion({ type: "event", createdAt: nowIso, message: `Label #${old.trackingNumber || ""} voided (${refundStatus}); a new label can be bought.` }) }, { merge: true });
+          return true;
+        });
+        if (!replaced) { res.status(409).json({ error: "The order changed. Reload it and try again." }); return; }
+        res.status(200).json({ voided: true, refundStatus });
+        return;
+      }
       const preparationProblem = labelProblem(order, operations);
       if (preparationProblem) { res.status(409).json({ error: preparationProblem }); return; }
       // A transaction claims any money-spending request. Uncertain failures remain
@@ -5289,12 +5487,59 @@ exports.createShippingLabel = onBrowserRequest(
         }
         return new Error(outcome.message);
       };
+      // Shippo answered with an HTTP 4xx (expired rate, invalid parcel, wrong key): a definite refusal,
+      // nothing was bought, so the lock is released. 5xx and network errors stay uncertain.
+      const refusedPurchase = async err => {
+        const detail = String(err?.message || "").replace(/^Shippo API error: \d+ - /, "").slice(0, 400);
+        const now = new Date().toISOString();
+        await operationsRef.set({ labelPurchasePending: false, updatedAt: now,
+          activity: admin.firestore.FieldValue.arrayUnion({ type: "event", createdAt: now, message: `Shippo refused the label purchase (HTTP ${err.shippoStatus}); no label was bought. ${detail}` }) }, { merge: true });
+        return new Error(`Shippo refused the label purchase${detail ? `: ${detail}` : "."} Nothing was bought. Fix the problem and try again.`);
+      };
+      const orderMetadata = `Order ${order.orderId || orderId}`.slice(0, 100);
+      // Buys one rate. The Shippo transaction id is saved against the order (order-operations) BEFORE the
+      // order itself is updated, so an interrupted purchase can be found and reconciled in Shippo.
+      const buyRate = async rateObjectId => {
+        let transaction;
+        try {
+          transaction = await callShippo("transactions/", "POST", { rate: rateObjectId, async: false, metadata: orderMetadata }, shippoToken, 45000);
+        } catch (err) {
+          if (shippoDefiniteRefusal(err)) throw await refusedPurchase(err);
+          throw err;
+        }
+        const save = () => operationsRef.set({ shippoTransactionId: transaction.object_id || null, shippoTransactionStatus: transaction.status || null,
+          shippoRateId: rateObjectId, shippoTransactionAt: new Date().toISOString() }, { merge: true });
+        try { await save(); } catch { await save(); }
+        if (transaction.status !== "SUCCESS") throw await failedPurchase(transaction);
+        if (!transaction.label_url || !transaction.tracking_number) {
+          throw new Error(`Shippo bought the label (transaction ${transaction.object_id || "unknown"}) but did not return its tracking number and label link. Open it in Shippo; the transaction number is saved on this order.`);
+        }
+        return transaction;
+      };
+      // Order update + lock release in one transaction, so the label is never half recorded.
+      const recordLabel = async (transaction, carrierFallback) => {
+        const now = new Date().toISOString();
+        const trackingNumber = transaction.tracking_number;
+        const trackingCarrier = transaction.tracking_provider || carrierFallback || "Carrier";
+        const labelUrl = transaction.label_url;
+        await db.runTransaction(async tx => {
+          tx.update(orderRef, { labelUrl, trackingNumber, trackingCarrier, updatedAt: now,
+            activity: admin.firestore.FieldValue.arrayUnion({ type: "note", message: `Shipping Label #${trackingNumber} generated via dashboard. Carrier: ${trackingCarrier}.`, createdAt: now }) });
+          // A test-mode key (or Shippo's own test flag) makes a sandbox label: no real postage, tracking never tracks.
+          tx.set(operationsRef, { labelPurchasePending: false, shippoTransactionId: transaction.object_id || null, labelBoughtAt: now, labelTest: transaction.test === true || /^shippo_test_/.test(String(shippoToken || "")) }, { merge: true });
+        });
+        return { labelUrl, trackingNumber, trackingCarrier };
+      };
       if (order.isTest === true) {
         res.status(400).json({ error: "Test orders are excluded from fulfillment." });
         return;
       }
       if (!order.customer || !order.customer.address) {
         res.status(400).json({ error: "Order has no customer address data" });
+        return;
+      }
+      if (addressMissing(order.customer.address).length) {
+        res.status(400).json({ error: "The shipping address is incomplete for this country. Correct it in the order first." });
         return;
       }
 
@@ -5368,19 +5613,13 @@ exports.createShippingLabel = onBrowserRequest(
         }
         const quotedShipment = await callShippo(`shipments/${encodeURIComponent(shipmentId)}/`, "GET", null, shippoToken);
         const chosenRate = (quotedShipment.rates || []).find(rate => rate.object_id === rateId);
-        if (!chosenRate || !isCanadaPostRate(chosenRate)) {
-          res.status(400).json({ error: "That Canada Post rate is no longer available. Refresh the choices and try again." });
+        if (!chosenRate || !isPurchasableRate(chosenRate, order)) {
+          res.status(400).json({ error: "That rate is no longer available. Refresh the choices and try again." });
           return;
         }
         await claimPurchase();
-        const transaction = await callShippo("transactions/", "POST", { rate: chosenRate.object_id, async: false }, shippoToken);
-        if (transaction.status !== "SUCCESS") throw await failedPurchase(transaction);
-        const trackingNumber = transaction.tracking_number;
-        const trackingCarrier = transaction.tracking_provider || "Canada Post";
-        const labelUrl = transaction.label_url;
-        await orderRef.update({ labelUrl, trackingNumber, trackingCarrier, updatedAt: new Date().toISOString(), activity: admin.firestore.FieldValue.arrayUnion({ type: "note", message: `Shipping Label #${trackingNumber} generated via dashboard. Carrier: ${trackingCarrier}.`, createdAt: new Date().toISOString() }) });
-        await completePurchase();
-        res.status(200).json({ labelUrl, trackingNumber, trackingCarrier });
+        const transaction = await buyRate(chosenRate.object_id);
+        res.status(200).json(await recordLabel(transaction, chosenRate.provider || "Canada Post"));
         return;
       }
 
@@ -5451,11 +5690,35 @@ exports.createShippingLabel = onBrowserRequest(
         mass_unit: customParcel.mass_unit || "lb"
       };
 
+      // 3b. Customs paperwork for a parcel that crosses a border (item description, tariff number,
+      // value and origin per book; Books › edit › Details › Customs). No money is spent here.
+      let customsDeclarationId;
+      if (needsCustoms(addressFrom.country, addressTo.country)) {
+        const lines = (order.items || []).filter(item => item && isPhysicalItem(item));
+        const bookIds = [...new Set(lines.map(item => item.id).filter(Boolean))];
+        const bookDocs = await Promise.all(bookIds.map(id => db.collection("books").doc(String(id)).get()));
+        const booksById = Object.fromEntries(bookDocs.filter(doc => doc.exists).map(doc => [doc.id, doc.data()]));
+        const items = customsItems(order, booksById, addressFrom.country);
+        if (items.length) {
+          const itemIds = [];
+          for (const item of items) itemIds.push((await callShippo("customs/items/", "POST", item, shippoToken)).object_id);
+          const declaration = await callShippo("customs/declarations/", "POST",
+            customsDeclaration(itemIds, order, addressFrom.name || addressFrom.company, addressFrom.country), shippoToken);
+          if (String(declaration.object_status || declaration.object_state || "").toUpperCase() === "INVALID") {
+            const why = (declaration.messages || []).map(m => m?.text || m).filter(Boolean).join("; ");
+            throw new Error(`Shippo rejected the customs details${why ? `: ${why}` : "."} Check the book's customs fields in Books › edit › Details.`);
+          }
+          customsDeclarationId = declaration.object_id;
+        }
+      }
+
       // 4. Create Shipment on Shippo
       const shipment = await callShippo("shipments/", "POST", {
         address_from: addressFrom,
         address_to: addressTo,
         parcels: [parcel],
+        ...(customsDeclarationId ? { customs_declaration: customsDeclarationId } : {}),
+        metadata: orderMetadata,
         async: false
       }, shippoToken);
 
@@ -5466,10 +5729,13 @@ exports.createShippingLabel = onBrowserRequest(
 
       if (mode === "rates") {
         await operationsRef.set({ quotedShipmentId: shipment.object_id, quotedAddress: JSON.stringify(order.customer.address) }, { merge: true });
-        const canadaPostRates = canadaPostLabelRates(rates);
-        res.status(200).json({ shipmentId: shipment.object_id, rates: canadaPostRates.map(rate => ({
+        // Canada Post, plus the exact service the customer paid for when checkout sold another carrier's.
+        const offered = labelRatesFor(rates, order);
+        res.status(200).json({ shipmentId: shipment.object_id, customs: !!customsDeclarationId, rates: offered.map(rate => ({
           id: rate.object_id,
-          name: rate.servicelevel?.name || "Canada Post",
+          name: isCanadaPostRateName(rate) ? (rate.servicelevel?.name || "Canada Post") : soldName(rate),
+          carrier: rate.provider || "",
+          soldService: isSoldRateName(rate, order),
           amount: Number(rate.amount),
           currency: rate.currency || "CAD",
           estimatedDays: Number.isFinite(Number(rate.estimated_days)) ? Number(rate.estimated_days) : null,
@@ -5486,37 +5752,10 @@ exports.createShippingLabel = onBrowserRequest(
       }, rates[0]);
 
       await claimPurchase();
-      // 6. Purchase Rate to create Transaction (Label)
-      const transaction = await callShippo("transactions/", "POST", {
-        rate: cheapestRate.object_id,
-        async: false
-      }, shippoToken);
-
-      if (transaction.status !== "SUCCESS") throw await failedPurchase(transaction);
-
-      const trackingNumber = transaction.tracking_number;
-      const trackingCarrier = transaction.tracking_provider;
-      const labelUrl = transaction.label_url;
-
-      // 7. Update Firestore Order document
-      await orderRef.update({
-        labelUrl: labelUrl,
-        trackingNumber: trackingNumber,
-        trackingCarrier: trackingCarrier,
-        updatedAt: new Date().toISOString(),
-        activity: admin.firestore.FieldValue.arrayUnion({ 
-            type: "note", 
-            message: `Shipping Label #${trackingNumber} generated via dashboard. Carrier: ${trackingCarrier}.`, 
-            createdAt: new Date().toISOString() 
-          })
-      });
-
-      await completePurchase();
-      res.status(200).json({
-        labelUrl,
-        trackingNumber,
-        trackingCarrier
-      });
+      // 6. Purchase Rate to create Transaction (Label); its id is saved before the order is updated.
+      const transaction = await buyRate(cheapestRate.object_id);
+      // 7. Update the order and release the lock together
+      res.status(200).json(await recordLabel(transaction, cheapestRate.provider));
 
     } catch (err) {
       console.error("createShippingLabel failed:", err);
@@ -6117,22 +6356,30 @@ exports.shippoWebhook = onRequest(
         nextFulfillmentStatus = "out_for_delivery";
       }
 
-      if (nextFulfillmentStatus && nextFulfillmentStatus !== prevFulfillmentStatus) {
-        const activity = order.activity || [];
-        const newNote = {
-          type: "event",
-          message: `Shippo tracking update: ${trackingStatus.replace(/_/g, " ")}.`,
-          createdAt: new Date().toISOString()
-        };
-
-        await orderDoc.ref.update({
-          fulfillmentStatus: nextFulfillmentStatus,
-          status: orderStatus,
-          activity: [...activity, newNote],
-          updatedAt: new Date().toISOString(),
-          // Flag so onOrderUpdated knows Shippo already sent the delivery email
-          shippoDeliveryNotified: new Date().toISOString()
+      // Forward only: "delivered" stays delivered, and nothing moves back to "out for delivery".
+      // The check runs again inside the write so two quick updates cannot undo each other.
+      let advanced = false;
+      if (nextFulfillmentStatus && advancesTracking(prevFulfillmentStatus, nextFulfillmentStatus)) {
+        advanced = await db.runTransaction(async tx => {
+          const fresh = (await tx.get(orderDoc.ref)).data() || {};
+          if (!advancesTracking(fresh.fulfillmentStatus, nextFulfillmentStatus)) return false;
+          const newNote = {
+            type: "event",
+            message: `Shippo tracking update: ${trackingStatus.replace(/_/g, " ")}.`,
+            createdAt: new Date().toISOString()
+          };
+          tx.update(orderDoc.ref, {
+            fulfillmentStatus: nextFulfillmentStatus,
+            status: orderStatus,
+            activity: [...(fresh.activity || []), newNote],
+            updatedAt: new Date().toISOString(),
+            // Flag so onOrderUpdated knows Shippo already sent the delivery email
+            shippoDeliveryNotified: new Date().toISOString()
+          });
+          return true;
         });
+      }
+      if (advanced) {
 
         // Send delivery_update CRM email automatically
         const notificationSettings = await loadNotificationSettings();

@@ -657,7 +657,7 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     label: "Newsletter sign-up (pop-up)",
     description: "A picture, a short invitation and an email box that really signs people up — made for the Pop-up group.",
     category: "Engagement",
-    defaults: { imageUrl: "", imageAlt: "", eyebrow: "Newsletter", title: "Stay in touch", description: "New books, events and the occasional discount.", placeholder: "Your email", buttonLabel: "Sign up", successMessage: "Thank you — you're on the list.", errorMessage: "Please check your email address and try again.", smallPrint: "No spam. Unsubscribe any time." },
+    defaults: { imageUrl: "", imageAlt: "", eyebrow: "Newsletter", title: "Stay in touch", description: "New books, events and the occasional discount.", placeholder: "Your email", buttonLabel: "Sign up", successMessage: "Almost there — check your inbox and confirm your email to join the list.", errorMessage: "Please check your email address and try again.", smallPrint: "No spam. Unsubscribe any time." },
     bestIn: { group: "overlaySections", note: "Best in the Pop-up group" },
   },
   {

@@ -47,7 +47,8 @@ describe("updateBook with the editor's loaded snapshot", () => {
     const form = { variants: [{ id: "p", price: 11, stock: 3 }], stockLevel: 5 };
     await adminApi.updateBook("b1", form, loaded);
     const written = tx.update.mock.calls[0][1];
-    expect(written).not.toHaveProperty("stockLevel");
+    // The book's own count is rebuilt from the live editions (1), not taken from the editor's stale total (5).
+    expect(written.stockLevel).toBe(1);
     expect(written.variants[0]).toMatchObject({ price: 11, stock: 1, stockLevel: 1 });
   });
 

@@ -1,7 +1,9 @@
 import { CatalogReviewDialog } from "./CatalogReviewDialog";
 import { catalogPublishIssues } from "./catalogPublishReview";
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Upload } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical, Plus, Upload } from "lucide-react";
+import { EditionStockDialog } from "./EditionStockDialog";
+import { compareShopOrder, moveId, shopOrderWrites } from "../features/site/shopOrder";
 import { BookImportDialog } from "./BookImportDialog";
 import { MerchantFeedDialog } from "./MerchantFeedDialog";
 import { catalogToCsv, inventoryCsv, planPriceChange, type PriceMode } from "./bulkPricing";
@@ -23,7 +25,7 @@ interface BookCatalogProps {
   refreshTrigger?: number;
 }
 
-type SortKey = "newest" | "oldest" | "title" | "price-asc" | "price-desc" | "stock-asc" | "stock-desc";
+type SortKey = "shop" | "newest" | "oldest" | "title" | "price-asc" | "price-desc" | "stock-asc" | "stock-desc";
 type BulkOp = "category-add" | "category-remove" | "shipping" | "track-on" | "track-off" | "backorder-on" | "backorder-off" | "archive";
 const PAGE_SIZE = 25;
 
@@ -49,7 +51,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [stockFilter, setStockFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [formatFilter, setFormatFilter] = useState("All");
-  const [sort, setSort] = useState<SortKey>("newest");
+  const [sort, setSort] = useState<SortKey>("shop");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
   const [review, setReview] = useState<"publish" | "draft" | null>(null);
@@ -69,6 +71,9 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [shopCategories, setShopCategories] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [inline, setInline] = useState<{ id: string; field: "retailPrice" | "stockLevel"; value: string } | null>(null);
+  const [stockEditId, setStockEditId] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [savingOrder, setSavingOrder] = useState(false);
   const [confirm, setConfirm] = useState<null | { kind: "bulk"; } | { kind: "one"; book: any }>(null);
 
   useEffect(() => { loadBooks(); }, [refreshTrigger]);
@@ -118,6 +123,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     });
     const price = (b: any) => priceInfo(b).price;
     const cmp: Record<SortKey, (a: any, b: any) => number> = {
+      // Same order as the storefront's "Featured" sort (CatalogControls): arranged books, then newest.
+      shop: (a, b) => compareShopOrder(a, b) || String(b.createdAt || "").localeCompare(String(a.createdAt || "")),
       newest: (a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")),
       oldest: (a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")),
       title: (a, b) => String(a.title || "").localeCompare(String(b.title || "")),
@@ -131,9 +138,27 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
 
   useEffect(() => { setPage(1); setSelected([]); }, [q, categoryFilter, formatFilter, statusFilter, stockFilter, sort]);
 
-  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  // Shop order shows every book on one page so any book can be dragged to any place.
+  const pageSize = sort === "shop" ? Math.max(rows.length, 1) : PAGE_SIZE;
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const cur = Math.min(page, pageCount);
-  const pageRows = rows.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE);
+  const pageRows = rows.slice((cur - 1) * pageSize, cur * pageSize);
+
+  // Arranging works on the whole catalog, so it is offered only when no search or filter hides books.
+  const filtering = !!q || statusFilter !== "All" || stockFilter !== "All" || categoryFilter !== "All" || formatFilter !== "All";
+  const canArrange = sort === "shop" && !filtering && !savingOrder;
+  const moveBook = async (id: string, to: number) => {
+    const ids = rows.map(b => b.id);
+    const next = moveId(ids, id, to);
+    const writes = shopOrderWrites(next, books);
+    if (!writes.length) return;
+    const rank = new Map(writes.map(w => [w.id, w.sortOrder]));
+    setBooks(prev => prev.map(b => (rank.has(b.id) ? { ...b, sortOrder: rank.get(b.id) } : b)));
+    setSavingOrder(true);
+    try { await adminApi.saveBookOrder(writes); }
+    catch { toast.error("Couldn't save the new order. Reloading the list."); await loadBooks(); }
+    finally { setSavingOrder(false); }
+  };
   const allSelected = pageRows.length > 0 && pageRows.every(b => selected.includes(b.id));
   const toggle = (id: string) => setSelected(p => (p.includes(id) ? p.filter(x => x !== id) : [...p, id]));
   // Select page adds/removes this page only; selections on other pages are kept.
@@ -286,6 +311,12 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         </span>
       );
     }
+    if (field === "stockLevel" && Array.isArray(b.variants) && b.variants.length && inlineEditable({ ...b, variants: [] })) {
+      return (
+        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Click to change each edition's stock"
+          aria-label={`Edit stock of ${b.title} (by edition)`} onClick={() => setStockEditId(b.id)}>{shown}</button>
+      );
+    }
     if (!inlineEditable(b) || (field === "stockLevel" && !b.trackInventory)) return shown;
     return (
       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Click to edit"
@@ -294,7 +325,32 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     );
   };
 
+  const arrangeColumn: Column<any> = { key: "arrange", header: "Order", render: b => {
+    const at = rows.findIndex(x => x.id === b.id);
+    return (
+      <span style={{ display: "inline-flex", gap: 2, alignItems: "center" }}>
+        <span aria-hidden="true" title={canArrange ? "Drag to move" : undefined}
+          style={{ cursor: canArrange ? "grab" : "default", opacity: canArrange ? 1 : 0.35, display: "inline-flex" }}><GripVertical size={16} /></span>
+        <span className="rp-mono" style={{ minWidth: 18, textAlign: "right" }}>{at + 1}</span>
+        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-label={`Move ${b.title} up`} disabled={!canArrange || at <= 0}
+          onClick={() => moveBook(b.id, at - 1)}><ArrowUp size={14} aria-hidden /></button>
+        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-label={`Move ${b.title} down`} disabled={!canArrange || at >= rows.length - 1}
+          onClick={() => moveBook(b.id, at + 1)}><ArrowDown size={14} aria-hidden /></button>
+      </span>
+    );
+  } };
+
+  const dragRow = (b: any): React.HTMLAttributes<HTMLTableRowElement> | undefined => !canArrange ? undefined : {
+    draggable: true,
+    onDragStart: e => { setDragId(b.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", b.id); },
+    onDragOver: e => { if (dragId) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } },
+    onDrop: e => { e.preventDefault(); const id = dragId; setDragId(null); if (id && id !== b.id) moveBook(id, rows.findIndex(x => x.id === b.id)); },
+    onDragEnd: () => setDragId(null),
+    style: dragId === b.id ? { opacity: 0.4 } : undefined,
+  };
+
   const columns: Column<any>[] = [
+    ...(sort === "shop" ? [arrangeColumn] : []),
     { key: "sel", header: "Select", render: b => <Checkbox label="" aria-label={`Select ${b.title}`} checked={selected.includes(b.id)} onChange={() => toggle(b.id)} /> },
     { key: "title", header: "Title", lead: true, render: b => (
       <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 220 }}>
@@ -364,6 +420,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
           {formats.map(v => <option key={v} value={v}>{v === "All" ? "All formats" : v}</option>)}
         </SelectField>
         <SelectField label="Sort books" hideLabel value={sort} onChange={e => setSort(e.target.value as SortKey)}>
+          <option value="shop">Shop order (drag to arrange)</option>
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
           <option value="title">Title A–Z</option>
@@ -397,13 +454,21 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
 
       <SectionCard flush title="Catalog" description={`${rows.length} of ${books.length} title${books.length === 1 ? "" : "s"}`}
         actions={<Checkbox label="Select page" checked={allSelected} onChange={togglePage} />}>
-        <DataTable caption="Books" columns={columns} rows={pageRows} rowKey={b => b.id}
+        {sort === "shop" && (
+          <p className="rp-hint" role="status" style={{ padding: "8px 16px", margin: 0 }}>
+            {filtering
+              ? "Clear the search and filters to rearrange — the order covers every book."
+              : savingOrder ? "Saving the new order…" : "Drag a row by its grip, or use the arrows, to set the order books appear in your shop (the shop's “Featured” sort)."}
+          </p>
+        )}
+        <DataTable caption="Books" columns={columns} rows={pageRows} rowKey={b => b.id} rowProps={dragRow}
           empty={<EmptyState title="No books match" description="Try clearing the search or filters."
             action={<SecondaryButton onClick={resetFilters}>Reset filters</SecondaryButton>} />} />
-        {rows.length > PAGE_SIZE && <Pagination page={cur} pageCount={pageCount} onPage={setPage} />}
+        {rows.length > pageSize && <Pagination page={cur} pageCount={pageCount} onPage={setPage} />}
       </SectionCard>
 
       {importOpen && <BookImportDialog books={books} onClose={() => setImportOpen(false)} onDone={importDone} />}
+      <EditionStockDialog book={stockEditId ? byId.get(stockEditId) || null : null} onClose={() => setStockEditId(null)} onSaved={loadBooks} />
       <MerchantFeedDialog open={feedOpen} onClose={() => setFeedOpen(false)} books={books} />
       <Dialog open={exportOpen} onClose={() => setExportOpen(false)} title="Export books"
         footer={<><SecondaryButton onClick={() => setExportOpen(false)}>Cancel</SecondaryButton><PrimaryButton onClick={exportCsv}>Download CSV</PrimaryButton></>}>

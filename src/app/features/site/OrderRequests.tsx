@@ -14,7 +14,7 @@ export function requestOptions(order: any): { cancel: boolean; ret: boolean } {
   const payment = String(order.paymentStatus || "").toLowerCase();
   if (status === "cancelled" || status === "refunded" || payment.startsWith("refund")) return { cancel: false, ret: false };
   const fulfillment = String(order.fulfillmentStatus || "").toLowerCase();
-  const shipped = SHIPPED.includes(fulfillment) || SHIPPED.includes(status) || !!order.trackingNumber;
+  const shipped = SHIPPED.includes(fulfillment) || SHIPPED.includes(status);
   return { cancel: !shipped, ret: payment === "paid" };
 }
 

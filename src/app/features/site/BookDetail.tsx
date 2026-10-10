@@ -1025,9 +1025,9 @@ export default function BookDetail() {
                       }`}
                       style={{ borderRadius: `${productBorderRadius}px`, aspectRatio: productImageAspect }}
                     >
-                      {/* shimmer */}
+                      {/* Still placeholder while the first photo loads (no pulsing: it flashed over the photo). */}
                       {!imageLoaded && (
-                        <div className="absolute inset-0 fm-surface-2 animate-pulse" />
+                        <div className="absolute inset-0 fm-surface-2 pointer-events-none" aria-hidden="true" />
                       )}
 
                       <AnimatePresence mode="wait">
@@ -1043,7 +1043,11 @@ export default function BookDetail() {
                           exit={{ opacity: 0 }}
                           whileHover={{ scale: productImageHoverScale }}
                           transition={{ duration: 0.45 }}
+                          // A photo already in the browser cache (or loaded before the page woke up) never
+                          // fires onLoad, which left the placeholder over it; check `complete` too.
+                          ref={(el: HTMLImageElement | null) => { if (el?.complete) setImageLoaded(true); }}
                           onLoad={() => setImageLoaded(true)}
+                          onError={() => setImageLoaded(true)}
                         />
                       </AnimatePresence>
 

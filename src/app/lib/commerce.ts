@@ -174,6 +174,8 @@ export const abandonedCartApi = {
     },
   ) => {
     if (!payload.email) return;
+    // Lower-cased (also inside `customer`) so privacy export/erase and opt-outs match whatever was typed.
+    payload = { ...payload, email: payload.email.trim().toLowerCase(), ...(payload.customer ? { customer: { ...payload.customer, email: String(payload.customer.email || "").trim().toLowerCase() } } : {}) };
     const ref = doc(liteDb, "abandoned-carts", cartKey);
     const now = new Date().toISOString();
     // createdAt/recovered are set once: later saves must not reset the cart's

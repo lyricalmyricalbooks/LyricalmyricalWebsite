@@ -485,7 +485,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   // Catalog controls: search + sort + in-stock filter
   const [searchQuery, setSearchQuery] = useState("");
-  const [sort, setSort] = useState<SortKey>("newest");
+  const [sort, setSort] = useState<SortKey>("featured");
   const [inStockOnly, setInStockOnly] = useState(false);
   // Format and price filters (Shopify-style); price boxes are typed in the shopper's currency.
   const [catalogFilters, setCatalogFilters] = useState<CatalogFilterState>(EMPTY_FILTERS);

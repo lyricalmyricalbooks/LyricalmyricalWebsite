@@ -12,7 +12,8 @@ export type ContactMessageInput = {
 export function buildContactMessage(input: ContactMessageInput) {
   return {
     name: input.name.slice(0, 120),
-    email: input.email.slice(0, 254),
+    // Lower-cased so a privacy export/erase for the address finds this message whatever capitalisation was typed.
+    email: input.email.trim().toLowerCase().slice(0, 254),
     phone: (input.phone || "").slice(0, 40),
     subject: (input.subject || "").slice(0, 200),
     message: input.message.slice(0, 5000),

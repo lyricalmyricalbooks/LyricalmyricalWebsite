@@ -5,7 +5,12 @@ const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = create
 test("cancel is allowed only before the order ships", () => {
   expect(orderRequestProblem({ paymentStatus: "paid", fulfillmentStatus: "paid" }, "cancel")).toBeNull();
   expect(orderRequestProblem({ paymentStatus: "paid", fulfillmentStatus: "shipped" }, "cancel")).toBe("already_shipped");
-  expect(orderRequestProblem({ paymentStatus: "paid", trackingNumber: "1Z" }, "cancel")).toBe("already_shipped");
+  expect(orderRequestProblem({ paymentStatus: "paid", fulfillmentStatus: "shipped", trackingNumber: "1Z" }, "cancel")).toBe("already_shipped");
+});
+
+// Fault 136: a bought label puts a tracking number on the order while the parcel is still in the shop.
+test("a bought but undispatched label does not count as shipped", () => {
+  expect(orderRequestProblem({ paymentStatus: "paid", fulfillmentStatus: "processing", labelUrl: "https://label", trackingNumber: "1Z" }, "cancel")).toBeNull();
 });
 
 test("returns need a paid order; closed orders and open requests are refused", () => {

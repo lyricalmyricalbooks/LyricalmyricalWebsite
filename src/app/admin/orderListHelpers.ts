@@ -41,8 +41,16 @@ export function deleteRefusal(o: any): string {
   if (o.reconciliationPending || o.paymentMismatch || o.giftCardConflict || (Array.isArray(o.duplicatePayments) && o.duplicatePayments.length)) {
     return "a payment arrived for it — sort that out first";
   }
+  // A card or PayPal payment was started and not cancelled: the customer may still complete it, and a
+  // payment for a deleted order would reach no order at all. Cancel the order first (that stops the payment).
+  if ((o.stripePaymentIntentId || o.stripeCheckoutSessionId || o.paypalOrderId) && o.status !== "cancelled") {
+    return "a card or PayPal payment may still be in progress — cancel the order first";
+  }
   return "";
 }
+
+/** Archived orders are kept but leave the work queues (Orders › All orders still lists them). */
+export const isArchived = (o: any): boolean => !!o?.archivedAt;
 
 /** Splits a selection into orders that may be deleted and those kept, with the reason. */
 export function splitDeletable(orders: any[]): { allowed: any[]; refused: Array<{ order: any; reason: string }> } {
