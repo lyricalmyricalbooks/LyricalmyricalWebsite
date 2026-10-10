@@ -47,7 +47,7 @@ const { returnTransition, publicReturn, returnRestockItems } = require("./return
 const { refundRetrySuffix, refundPlan, refundedSoFar, restockLinesFor, withoutRestocked, partialRefundKey } = require("./partialRefund");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
 const { hitLimit, LIMITS, clientIpOf } = require("./rateLimit");
-const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner } = require("./stockHolds");
+const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
 const { preorderActive, preorderLine, preorderEmailLines } = require("./preorder");
 const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCount } = require("./emailThrottle");
 const { hasOwnershipProof } = require("./emailProof");
@@ -1351,8 +1351,18 @@ function refusePreviousAttemptPaid(res, superseded) {
 // A gift card that can no longer cover its part gives the stock back and throws GiftCardError.
 // A shopper starting checkout is held to the per-shopper caps (stockHolds HOLD_LIMITS, keyed by
 // email and, with `req`, the connecting address); HoldLimitError is a StockHoldError ("hold_limit").
+// The per-shopper caps the owner set in Settings › General › Checkout stock holds (defaults when unset).
+async function loadHoldLimits() {
+  try {
+    return holdLimitsFrom((await db.collection("settings").doc("website").get()).data() || {});
+  } catch (err) {
+    console.warn("Could not read the stock-hold limits; using the defaults:", err.message);
+    return holdLimitsFrom({});
+  }
+}
+
 async function reserveCheckout(orderId, items, order, giftCardRedemptions, testMode, req = null) {
-  await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: true, ip: req ? clientIpOf(req) : "" });
+  await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: true, ip: req ? clientIpOf(req) : "", holdLimits: await loadHoldLimits() });
   if (!(giftCardRedemptions || []).length) return;
   try {
     await reserveGiftCards(db, orderId, giftCardRedemptions, { testMode, owner: holdOwner(order) });
@@ -1751,7 +1761,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, order.customer.email, orderId, items))) return;
         // Hold the priced lines (box-set parts and the free gift included), not the browser's raw list.
         const heldItems = Array.isArray(trusted.items) && trusted.items.length ? trusted.items : items;
-        await reserveStock(db, orderId, heldItems, Date.now(), holdOwner(order), { limits: true, ip: clientIpOf(req) });
+        await reserveStock(db, orderId, heldItems, Date.now(), holdOwner(order), { limits: true, ip: clientIpOf(req), holdLimits: await loadHoldLimits() });
         try {
           await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, trackingKey, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
         } catch (createErr) {

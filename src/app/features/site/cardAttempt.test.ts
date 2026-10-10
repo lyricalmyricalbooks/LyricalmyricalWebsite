@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CARD_ATTEMPT_REUSE_MS, intentIdOf, mayHaveGoneThrough, paymentSettled, reusableCardOrder, type PendingCardOrder } from "./cardAttempt";
+import { CARD_ATTEMPT_REUSE_MS, cardAttemptKey, intentIdOf, mayHaveGoneThrough, paymentSettled, reusableCardOrder, type PendingCardOrder } from "./cardAttempt";
 
 const NOW = Date.parse("2026-10-09T12:00:00Z");
 const attempt = (ageMs: number): PendingCardOrder => ({ key: "bag", orderId: "ORD1", clientSecret: "pi_1_secret_x", createdAt: NOW - ageMs, amount: 7311, currency: "cad" });
@@ -65,5 +65,20 @@ describe("Checkout card path", () => {
     expect(src).toMatch(/data\?\.code === "previous_attempt_paid"/);
     expect(src).toMatch(/previous_paid=true/);
     expect(src).toMatch(/c\("coPreviousPaid"\)/);
+  });
+});
+
+describe("#21 the gift message is part of the remembered attempt", () => {
+  const parts = { items: [{ id: "a", quantity: 1 }], total: 20, customer: { email: "a@b.co" }, currency: "CAD", fulfillmentSelection: { method: "shipping" }, discountCode: null, giftCardCodes: [] as string[] };
+  it("an edited order note makes a new key, so a retry creates a fresh order", () => {
+    const first = cardAttemptKey({ ...parts, orderNote: "Happy birthday" });
+    expect(cardAttemptKey({ ...parts, orderNote: "Happy birthday" })).toBe(first);
+    expect(cardAttemptKey({ ...parts, orderNote: "Happy anniversary" })).not.toBe(first);
+    expect(cardAttemptKey({ ...parts })).not.toBe(first);
+    const pending: PendingCardOrder = { key: first, orderId: "o1", clientSecret: "pi_1_secret_x", createdAt: Date.now() };
+    expect(reusableCardOrder(pending, cardAttemptKey({ ...parts, orderNote: "Happy anniversary" }))).toBeNull();
+  });
+  it("a changed address verification result also starts a new order", () => {
+    expect(cardAttemptKey({ ...parts, addressVerified: true })).not.toBe(cardAttemptKey({ ...parts, addressVerified: false }));
   });
 });

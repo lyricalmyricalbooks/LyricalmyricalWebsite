@@ -1,0 +1,72 @@
+// SOURCE-TEXT tests: Checkout.tsx is too heavy to render in vitest (Stripe, Firebase, router), so
+// these pin that the page actually uses the pure, separately-tested helpers. Each note names the
+// behaviour the helper tests prove.
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const src = readFileSync(join(__dirname, "..", "..", "Checkout.tsx"), "utf8");
+const currency = readFileSync(join(__dirname, "..", "..", "CurrencyContext.tsx"), "utf8");
+const country = readFileSync(join(__dirname, "CountryField.tsx"), "utf8");
+
+describe("Checkout wiring (source text)", () => {
+  it("#74 never calls an IP-geolocation service or sends the street to a third party on load", () => {
+    expect(src).not.toMatch(/ipapi|ip-api|ipinfo|geojs|ipgeolocation/i);
+    expect(src).not.toMatch(/fetch\(\s*["'`]https?:/);
+  });
+
+  it("#76 the street box uses address-line1, never street-address", () => {
+    expect(src).not.toContain('autoComplete="street-address"');
+    expect((src.match(/autoComplete="address-line1"/g) || []).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("#24 the form is a real <form noValidate> with a submit button and per-field errors", () => {
+    expect(src).toMatch(/<form noValidate onSubmit=/);
+    expect(src).toMatch(/type="submit"/);
+    expect(src).toContain("checkoutDetailProblems(");
+    expect(src).toContain("aria-invalid={error ? true : undefined}");
+    expect(src).toMatch(/document\.getElementById\(detailInputId\(first\)\)\?\.focus\(\)/);
+  });
+
+  it("#22 the old every-field-required destination rule is gone", () => {
+    expect(src).not.toContain("[customer.address.street, customer.address.city, customer.address.state, customer.address.zip, customer.address.country].every");
+  });
+
+  it("#75 the express wallet is gated on the details check", () => {
+    expect(src).toMatch(/expressEnabled=\{expressWalletEnabled\(/);
+  });
+
+  it("#77 the fulfilment heading is hidden for e-book-only bags", () => {
+    expect(src).toMatch(/\{!digitalOnly && \(\s*<section>\s*<div className="mb-5">\s*<h2[^>]*>\{c\("coShipMethod"\)\}/);
+  });
+
+  it("#23 a page restored from the back/forward cache unlocks Pay", () => {
+    expect(src).toMatch(/onPageRestored\(window, \(\) => \{[^}]*purchaseNavigating\.current = false;[^}]*submitPurchase\.current\.reset\(\);[^}]*setIsCompleting\(false\)/s);
+  });
+
+  it("#84 live rates ignore stale answers and time out", () => {
+    expect(src).toContain("ratesGuard.current.isCurrent(ticket)");
+    expect(src).toContain("signal: request.signal");
+  });
+
+  it("#21 the retry key includes the order note", () => {
+    expect(src).toMatch(/cardAttemptKey\(\{[^}]*orderNote:/);
+  });
+
+  it("#45 the bag warns before Pay about copies over the hold cap", () => {
+    expect(src).toContain('regionProps("checkoutHoldWarning")');
+    expect(src).toContain("holdWarnings(cart, booksMap, holdLimitsFrom(settings))");
+  });
+
+  it("#79 the country list and address list wire combobox ARIA", () => {
+    expect(country).toContain("comboboxInputProps(");
+    expect(country).toContain("id={optionId(listId, i)}");
+    expect(src).toContain("comboboxInputProps(");
+    expect(src).toContain("id={optionId(listId, i)}");
+  });
+
+  it("#88 the browser rates come from the timed, cached loader", () => {
+    expect(currency).toContain("loadRates()");
+    expect(currency).not.toContain("await fetch(");
+  });
+});

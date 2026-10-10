@@ -164,4 +164,43 @@ describe("per-shopper hold caps", () => {
     await expect(reserveStock(db, "paid", [{ id: "b0", quantity: 40 }], 1000, ada)).resolves.toBeUndefined();
     await expect(reserveStock(db, "ebook", [{ id: "e", quantity: 99 }], 1000, ada, { limits: true })).resolves.toBeUndefined();
   });
+
+  test("#43 a payment-time renewal keeps the order's holders, so releasing it frees the shopper's cap", async () => {
+    const db = fakeDb(books(2));
+    const now = Date.now();
+    const ip = "203.0.113.9";
+    await reserveStock(db, "paid1", [{ id: "b0", quantity: 2 }], now, ada, { limits: true, ip });
+    // Paying renews the hold with no limits (markStripeOrderPaid), then the hold is released.
+    await reserveStock(db, "paid1", [{ id: "b0", quantity: 2 }], now + 1000, ada);
+    expect(db.docs["stock-holds/b0"].holds.paid1.holders).toHaveLength(2);
+    await releaseStock(db, "paid1", [{ id: "b0", quantity: 2 }]);
+    expect(Object.keys(db.docs[`stock-hold-owners/e_${ada}`].orders)).toEqual([]);
+    const ipDoc = Object.entries(db.docs).find(([k]) => k.startsWith("stock-hold-owners/ip_"));
+    expect(Object.keys(ipDoc[1].orders)).toEqual([]);
+  });
+
+  test("#44 every address in one IPv6 /64 shares one connection bucket", async () => {
+    const db = fakeDb(books(1));
+    let held = 0, i = 0;
+    while (held + 5 <= HOLD_LIMITS.ip.perBook) {
+      const owner = holdOwner({ customer: { email: `v6bot${i}@example.com` } });
+      await reserveStock(db, `v6bot${i}`, [{ id: "b0", quantity: 5 }], 1000, owner, { limits: true, ip: `2001:db8:1:2:${i.toString(16)}:aaaa::${i + 1}` });
+      held += 5; i++;
+    }
+    const owner = holdOwner({ customer: { email: "v6next@example.com" } });
+    await expect(reserveStock(db, "v6next", [{ id: "b0", quantity: 5 }], 1000, owner, { limits: true, ip: "2001:db8:1:2:ffff::1" })).rejects.toBeInstanceOf(HoldLimitError);
+  });
+
+  test("#45 the owner's saved caps replace the defaults, and bad values fall back", async () => {
+    const { holdLimitsFrom } = createRequire(import.meta.url)("./stockHolds");
+    expect(holdLimitsFrom({}).owner).toEqual(HOLD_LIMITS.owner);
+    const raised = holdLimitsFrom({ stockHolds: { perBook: 40, units: 200, orders: 5 } });
+    expect(raised.owner).toEqual({ perBook: 40, units: 200, orders: 5 });
+    expect(raised.ip.perBook).toBeGreaterThanOrEqual(80);
+    expect(holdLimitsFrom({ stockHolds: { perBook: "x", units: -3, orders: 0 } }).owner).toEqual(HOLD_LIMITS.owner);
+    const db = fakeDb(books(1));
+    const big = [{ id: "b0", quantity: HOLD_LIMITS.owner.perBook + 5 }];
+    await expect(reserveStock(db, "big1", big, 1000, ada, { limits: true })).rejects.toBeInstanceOf(HoldLimitError);
+    await expect(reserveStock(db, "big2", big, 1000, ada, { limits: true, holdLimits: raised })).resolves.toBeUndefined();
+  });
 });
