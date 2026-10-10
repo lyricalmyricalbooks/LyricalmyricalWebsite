@@ -343,6 +343,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
     fields: [
       { key: "secondaryNavigationAria", label: "Publisher navigation accessible name", default: "Publisher information" },
       { key: "catalogLoadError", label: "Catalog load error", default: "The catalog could not be loaded. Please try again." },
+      { key: "catalogRetry", label: "Catalog load error: Try again button", default: "Try again" },
       { key: "navMenu", label: "Mobile menu", default: "Menu" },
       { key: "navSearch", label: "Nav: Search", default: "Search" },
       { key: "navAdmin", label: "Nav: Admin (debug only)", default: "Admin" },

@@ -57,10 +57,13 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
             <StatRow label="Books" hint="before discounts" value={money(cur.subtotal)} />
             <StatRow label="Discounts" hint={`${percent(cur.discountRate)} of list price`} value={`− ${money(cur.discounts)}`} />
             <StatRow label="Shipping charged" value={money(cur.shipping)} />
-            <StatRow label="Sales tax collected" hint="not shop income" value={money(cur.tax)} />
-            <StatRow label="Paid by customers" value={money(cur.revenue)} />
+            <StatRow label="Sales tax collected" hint="owed to the tax office; included in what customers paid" value={money(cur.tax)} />
+            {cur.giftCards > 0 && <StatRow label="Paid with gift cards" hint="not in the card/PayPal total below" value={`− ${money(cur.giftCards)}`} />}
+            <StatRow label="Paid by customers" hint="card, PayPal and other payments, with tax and shipping" value={money(cur.revenue)} />
             <StatRow label="Refunded" hint="partial refunds" value={cur.refunded > 0 ? `− ${money(cur.refunded)}` : money(0)} tone={cur.refunded > 0 ? "danger" : "muted"} />
-            <StatRow label="Net revenue" value={<strong>{money(cur.net)}</strong>} />
+            <StatRow label="Net received" hint="after refunds; the revenue figures on this page" value={<strong>{money(cur.net)}</strong>} />
+            <StatRow label="Net received without sales tax" hint="approximate: refunds are not split into tax" value={money(Math.max(0, cur.net - cur.tax))} />
+            {cur.giftCardsSold > 0 && <StatRow label="Gift cards sold" hint="counted above, but not earned until the card is spent" value={money(cur.giftCardsSold)} tone="muted" />}
           </ul>
         )}
       </SectionCard>
@@ -115,7 +118,7 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
         {codes.length === 0 ? <EmptyState title="No codes used" description="Codes customers apply at checkout are ranked here." /> : (
           <ul className="rp-list" aria-label="Discount code results">
             {codes.map(([code, p]) => (
-              <StatRow key={code} label={<span className="rp-mono">{code}</span>}
+              <StatRow key={code} label={code.startsWith("#") ? <span>{p.label}</span> : <span className="rp-mono">{p.label}</span>}
                 hint={`${p.orders} order${p.orders === 1 ? "" : "s"} · avg ${money(p.avgOrder)} · ${money(p.discountGiven)} given away`} value={money(p.revenue)} />
             ))}
           </ul>

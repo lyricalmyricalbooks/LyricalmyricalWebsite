@@ -1,6 +1,8 @@
 import { collection, doc, documentId, getDoc, getDocs, increment, limit, orderBy, query, setDoc, startAfter, where } from "firebase/firestore/lite";
 
 import { liteDb } from "../../lib/firestoreLite";
+import { functionFetch } from "./functionsBase";
+import { orderAccessHeaders, savedOrderAccess } from "./orderAccessClient";
 import { defaultSettings } from "../admin/defaultSettings";
 import { withRisoNoirDefault } from "../features/site/risoNoir";
 import type { Page } from "../features/site/types";
@@ -60,9 +62,33 @@ export const publicApi = {
     return docs.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   },
 
+  // Storefront (thank-you page, /track): the order record only. Guests may read an
+  // order by ID, but order-operations is admin-only and would deny the whole read.
+  // Guest order lookup. Orders aren't publicly readable: the server returns one
+  // only with its customer email or the emailed link key. Resolves null when
+  // there is no such order; throws an error whose `code` is "email_mismatch",
+  // "too_many" or "failed" otherwise.
+  getPublicOrder: async (id: string, proof: { email?: string; key?: string }) => {
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: await orderAccessHeaders(id, proof.key),
+      body: JSON.stringify({ action: "track", orderId: id, key: proof.key || savedOrderAccess(id) }),
+    });
+    if (response.status === 404 || response.status === 400) return null;
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const code = response.status === 403 ? "email_mismatch" : response.status === 429 ? "too_many" : "failed";
+      throw Object.assign(new Error(code), { code });
+    }
+    return data.order || null;
+  },
+
   // One counter bump per shopper session. `increment` is applied by Firestore itself, so two shoppers arriving at
   // once can't overwrite each other's count (the old read-then-write could).
   recordVisit: async () => {
+    // Same rules as every other storefront signal: not the signed-in owner, not the preview, analytics not declined.
+    const { trackingAllowed } = await import("./trackingGuard");
+    if (!(await trackingAllowed())) return;
     const today = new Date().toISOString().split('T')[0];
     try {
       await setDoc(doc(liteDb, "analytics", today), { date: today, visits: increment(1) }, { merge: true });

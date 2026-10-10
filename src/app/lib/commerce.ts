@@ -1,5 +1,6 @@
 import { inEditorPreview, trackingAllowed } from "./trackingGuard";
-import { cleanSearchTerm, deviceOf } from "../admin/overviewTraffic";
+import { analyticsKey, cleanSearchTerm, deviceOf } from "./analyticsKeys";
+import { orderDay } from "./shopDay";
 import {
   collection,
   doc,
@@ -92,6 +93,9 @@ export const orderApi = {
       "ChargedAmount", "ChargedCurrency",
       "RefundedAt", "RefundAmount", "RefundCurrency",
       "TrackingCarrier", "TrackingNumber", "ItemCount",
+      // The Toronto calendar day the order was placed: Date/PaidAt are UTC moments, so an evening order
+      // (and the last evening of a month or tax period) would otherwise land on the next day.
+      "ShopDate", "PaidShopDate",
     ];
     const money = (v: any) => (v === undefined || v === null || v === "" ? "" : (Number(v) || 0).toFixed(2));
     const kept = orders.filter(o => o.isTest !== true
@@ -132,6 +136,8 @@ export const orderApi = {
         o.trackingCarrier || "",
         o.trackingNumber || "",
         (o.items || []).reduce((acc: number, i: any) => acc + (i.quantity || 0), 0),
+        orderDay(o.createdAt),
+        o.paidAt ? orderDay(o.paidAt) : "",
       ];
     });
     // A cell starting with = + - @ is run as a formula by spreadsheet apps: quote it as text.
@@ -214,7 +220,7 @@ export const abandonedCartApi = {
 // shoppers arriving at the same moment never overwrite each other's counts. Each call checks consent, the Studio
 // preview and the admin session (see trackingGuard). Best-effort: tracking must never break browsing or checkout.
 const dayKey = () => new Date().toISOString().split("T")[0];
-const mapKey = (v: string) => v.replace(/[.~*/[\]]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
+const mapKey = analyticsKey;
 
 async function bump(patch: Record<string, Record<string, ReturnType<typeof increment>>>) {
   if (!(await trackingAllowed())) return;
@@ -237,9 +243,39 @@ function firstThisSession(key: string): boolean {
   return true;
 }
 
+/**
+ * Whether a completed purchase should be added to the funnel: never a sandbox/test order, and only once per
+ * order however often the confirmation page is reloaded or reopened (remembered in this browser).
+ */
+export function shouldCountPurchase(orderId: string, order: any, storage: Pick<Storage, "getItem" | "setItem"> | null): boolean {
+  if (!orderId || order?.isTest === true || order?.sandboxPayment === true) return false;
+  const key = `fm_purchase_counted_${orderId}`;
+  try {
+    if (storage?.getItem(key)) return false;
+    storage?.setItem(key, "1");
+  } catch {
+    // storage unavailable: count it
+  }
+  return true;
+}
+
 export const funnelApi = {
   track: async (event: "view" | "add_to_cart" | "checkout_start" | "purchase") => {
     await bump({ funnel: { [event]: increment(1) } });
+  },
+
+  /** "Started checkout": once per browser session, not once per page load of the checkout. */
+  trackCheckoutStart: async () => {
+    if (typeof window !== "undefined" && !firstThisSession(`fm_checkout_start_${dayKey()}`)) return;
+    await bump({ funnel: { checkout_start: increment(1) } });
+  },
+
+  /** "Completed purchase": once per real order (see shouldCountPurchase). */
+  trackPurchase: async (orderId: string, order?: any) => {
+    let storage: Storage | null = null;
+    try { storage = typeof window !== "undefined" ? window.localStorage : null; } catch { storage = null; }
+    if (!shouldCountPurchase(orderId, order, storage)) return;
+    await bump({ funnel: { purchase: increment(1) } });
   },
 
   trackCategory: async (categoryName: string) => {

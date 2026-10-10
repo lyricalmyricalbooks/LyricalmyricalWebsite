@@ -54,6 +54,7 @@ const { preorderActive, preorderLine, preorderEmailLines } = require("./preorder
 const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCount } = require("./emailThrottle");
 const { hasOwnershipProof } = require("./emailProof");
 const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
+const { runInBatches, backupFoldersToPrune } = require("./sweepLimits");
 const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
 
 // Cost ceiling for every function (#147): an anonymous flood can scale a public endpoint or a
@@ -4653,12 +4654,17 @@ exports.dailyOrderDigest = onSchedule(
     // Settings › Notifications › Shop alerts › Daily "orders needing you" email.
     const notificationDoc = await db.collection("settings").doc("notifications").get().catch(() => null);
     if (!dailyDigestEnabled(notificationDoc?.data?.() || {})) return;
-    const [paidSnap, opsSnap] = await Promise.all([
-      db.collection("orders").where("paymentStatus", "==", "paid").get(),
-      db.collection("order-operations").get(),
-    ]);
+    // Bounded: paid orders of the last DIGEST_WINDOW_DAYS (newest first, at most DIGEST_ORDER_LIMIT), and the private
+    // record only for orders that are still open, so reads no longer grow with every order the shop has ever taken.
+    const paidSnap = await db.collection("orders").where("paymentStatus", "==", "paid")
+      .where("createdAt", ">=", digestSince()).orderBy("createdAt", "desc").limit(DIGEST_ORDER_LIMIT).get();
     const orders = paidSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    const ops = new Map(opsSnap.docs.map(doc => [doc.id, doc.data()]));
+    const ops = new Map();
+    const openIds = orders.filter(digestNeedsOperations).map(o => o.id);
+    for (let i = 0; i < openIds.length; i += 300) {
+      const refs = openIds.slice(i, i + 300).map(id => db.collection("order-operations").doc(id));
+      for (const snap of await db.getAll(...refs)) if (snap.exists) ops.set(snap.id, snap.data());
+    }
     const digest = buildOrderDigest(orders, ops);
     if (!digest.total) return;
     const link = id => siteLink(`/admin#orders/${encodeURIComponent(id)}`);
@@ -4699,10 +4705,17 @@ async function marketingUnsubscribeKey() {
 const ABANDONED_CART_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const ABANDONED_CART_THROTTLE_MS = 3 * 24 * 60 * 60 * 1000;
 const ABANDONED_CART_MAX_ITEMS = 20;
+const ABANDONED_CART_BATCH = 500;
+const { digestSince, digestNeedsOperations, DIGEST_ORDER_LIMIT } = require("./orderDigest");
+const { pruneOldCarts } = require("./cartCleanup");
 
 exports.abandonedCartSweep = onSchedule(
-  { schedule: "every 60 minutes", secrets: [RESEND_API_KEY] },
+  { schedule: "every 60 minutes", timeoutSeconds: 300, secrets: [RESEND_API_KEY] },
   async () => {
+    const sweepDeadline = Date.now() + 240 * 1000;
+    // Carts nobody can still be reminded about are deleted, so this collection (and every later sweep)
+    // stays small however many carts visitors have written. Own try/catch: never blocks the reminders.
+    try { await pruneOldCarts(db); } catch (err) { console.warn("abandonedCartSweep: cart cleanup failed:", err.message); }
     const notificationSettings = await loadNotificationSettings();
     // Settings › Notifications › Abandoned Cart can switch these reminders off.
     if (notificationSettings.abandoned_cart?.enabled === false) return;
@@ -4715,10 +4728,16 @@ exports.abandonedCartSweep = onSchedule(
     }
     const unsubscribeKey = await marketingUnsubscribeKey();
     const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    // Only the 7-day window a reminder can still be sent in, newest first, at most ABANDONED_CART_BATCH per run
+    // (the same index as before: recovered + updatedAt). Older carts are not read at all.
+    const oldestUpdated = new Date(Date.now() - ABANDONED_CART_MAX_AGE_MS).toISOString();
     const snap = await db
       .collection("abandoned-carts")
       .where("recovered", "==", false)
+      .where("updatedAt", ">=", oldestUpdated)
       .where("updatedAt", "<", cutoff)
+      .orderBy("updatedAt", "desc")
+      .limit(ABANDONED_CART_BATCH)
       .get();
 
     // Cart docs are written by anonymous browsers, so nothing in them is trusted
@@ -4738,7 +4757,7 @@ exports.abandonedCartSweep = onSchedule(
       return proofCache.get(email);
     };
 
-    const promises = pending.map(async (doc) => {
+    await runInBatches(pending, 10, async (doc) => {
       const c = doc.data();
       const email = String(c.email || "").trim().toLowerCase();
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
@@ -4834,9 +4853,7 @@ exports.abandonedCartSweep = onSchedule(
         await (previousThrottle ? throttleRef.set(previousThrottle) : throttleRef.delete()).catch(() => {});
         console.error("Abandoned cart email failed", err);
       }
-    });
-
-    await Promise.allSettled(promises);
+    }, { deadline: sweepDeadline });
   },
 );
 
@@ -6169,8 +6186,90 @@ function stockOf(item, fallback) {
   return fallback;
 }
 
+// Back-in-stock emails are sent a few at a time inside a time budget. Alerts a run could not reach keep
+// `restockPending: true`, and backInStockSweep (every 15 minutes) finishes them, so a big list is never
+// lost when the trigger runs out of time (the trigger only fires on the 0 -> available change).
+const RESTOCK_BATCH = 5;
+const RESTOCK_BUDGET_MS = 240 * 1000;
+
+async function sendRestockAlerts({ bookId, book, docs, deadline }) {
+  const stuckBefore = Date.now() - 15 * 60 * 1000;
+  const link = siteLink(`/books/${encodeURIComponent(book.slug || bookId)}`);
+  const restockSettings = await loadNotificationSettings();
+  const esc = t => String(t || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const keyOf = alert => `${String(alert.email || "").trim().toLowerCase()}|${String(alert.variantId || "")}`;
+  // One email per address per book edition, however many signups exist for it: the first signup sends,
+  // the repeats are closed once that send is done.
+  const leaders = [];
+  const repeats = [];
+  const seen = new Set();
+  for (const doc of docs) {
+    const key = keyOf(doc.data());
+    if (seen.has(key)) repeats.push(doc); else { seen.add(key); leaders.push(doc); }
+  }
+  const emailedThisRun = new Set();
+
+  const sendOne = async doc => {
+    const alert = doc.data();
+    // Claim first so a duplicate trigger never double-sends.
+    const claimed = await db.runTransaction(async tx => {
+      const cur = await tx.get(doc.ref);
+      if (!cur.exists) return false;
+      const c = cur.data();
+      const stuck = c.status === "sending" && Date.parse(c.sendingAt || 0) < stuckBefore;
+      if (c.status !== "waiting" && !stuck) return false;
+      tx.update(doc.ref, { status: "sending", sendingAt: new Date().toISOString() });
+      return true;
+    });
+    if (!claimed) return;
+    // Anyone can sign up (new guests included), so no proof is required, but every send takes
+    // from the shop-wide budget. Over it, the signup keeps waiting for the next restock.
+    if (!(await claimEmailSend(db, "backInStock", "", { failOpen: false }))) {
+      await doc.ref.update({ status: "waiting" }).catch(() => {});
+      return;
+    }
+    try {
+      const title = esc(book.title || alert.bookTitle);
+      const variant = alert.variantName ? ` (${esc(alert.variantName)})` : "";
+      await sendEmail({
+        // Both senders down: the retry queue delivers it later (this trigger won't run again).
+        queue: "backInStock",
+        to: alert.email,
+        subject: `Back in stock: ${book.title || alert.bookTitle}`,
+        html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+            <h2 style="margin-top:0;">It's back!</h2>
+            <p style="font-size:15px;line-height:1.6;"><strong>${title}</strong>${variant} is available again. Stock is limited, so grab your copy while you can.</p>
+            ${risoButton(link, "Shop now", restockSettings.brand?.brandColor, restockSettings.brand?.emailTheme)}
+            <p style="font-size:12px;color:#888;">You received this because you asked to be notified. This is a one-time message.</p>
+          </div>`,
+        secret: RESEND_API_KEY.value(),
+      });
+      emailedThisRun.add(keyOf(alert));
+    } catch (err) {
+      console.error("Back-in-stock email failed:", err.message);
+      // Queued for a retry: it counts as sent here, so it is never also sent again by a later restock.
+      if (!err?.queued) {
+        // Back to waiting, still pending: the next sweep tries again.
+        await doc.ref.update({ status: "waiting" }).catch(() => {});
+        return;
+      }
+      emailedThisRun.add(keyOf(alert));
+    }
+    // Sent: remove the signup (its id is per address + edition) so the shopper can ask again
+    // next time; if that fails, mark it notified — never back to waiting, which would resend.
+    await doc.ref.delete().catch(() => doc.ref.update({ status: "notified", notifiedAt: new Date().toISOString(), restockPending: false }).catch(() => {}));
+  };
+
+  const result = await runInBatches(leaders, RESTOCK_BATCH, sendOne, { deadline });
+  for (const doc of repeats) {
+    if (emailedThisRun.has(keyOf(doc.data()))) await doc.ref.update({ status: "notified", notifiedAt: new Date().toISOString(), restockPending: false }).catch(() => {});
+  }
+  if (result.skipped.length || result.failed) console.warn(`Back-in-stock for ${bookId}: ${result.skipped.length} left for the sweep, ${result.failed} failed`);
+  return result;
+}
+
 exports.onBookRestocked = onDocumentUpdated(
-  { document: "books/{bookId}", secrets: [RESEND_API_KEY] },
+  { document: "books/{bookId}", secrets: [RESEND_API_KEY], timeoutSeconds: 300 },
   async event => {
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
@@ -6199,65 +6298,42 @@ exports.onBookRestocked = onDocumentUpdated(
       .limit(500)
       .get();
     if (snap.empty) return;
-    const stuckBefore = Date.now() - 15 * 60 * 1000;
-    const emailedThisRun = new Set();
+    const docs = snap.docs.filter(doc => restocked.has(String(doc.data().variantId || "")));
+    if (!docs.length) return;
+    // Mark them pending first: whatever this run cannot reach is finished by backInStockSweep.
+    await Promise.all(docs.map(doc => doc.ref.update({ restockPending: true }).catch(() => {})));
+    await sendRestockAlerts({ bookId, book: after, docs, deadline: Date.now() + RESTOCK_BUDGET_MS });
+  },
+);
 
-    const link = siteLink(`/books/${encodeURIComponent(after.slug || bookId)}`);
-    const restockSettings = await loadNotificationSettings();
-    const esc = t => String(t || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-
+/**
+ * Finishes back-in-stock emails a restock run could not reach in time (every 15 minutes). A pending
+ * alert is only sent while its book is still published and in stock; otherwise it simply waits for the next restock.
+ */
+exports.backInStockSweep = onSchedule(
+  { schedule: "every 15 minutes", timeoutSeconds: 300, secrets: [RESEND_API_KEY] },
+  async () => {
+    const deadline = Date.now() + RESTOCK_BUDGET_MS;
+    const snap = await db.collection("stockAlerts").where("restockPending", "==", true).limit(300).get();
+    if (snap.empty) return;
+    const byBook = new Map();
     for (const doc of snap.docs) {
-      const alert = doc.data();
-      if (!restocked.has(String(alert.variantId || ""))) continue;
-      // One email per address per book, however many signups exist for it.
-      const key = `${String(alert.email || "").trim().toLowerCase()}|${String(alert.variantId || "")}`;
-      if (emailedThisRun.has(key)) { await doc.ref.update({ status: "notified", notifiedAt: new Date().toISOString() }); continue; }
-      // Claim first so a duplicate trigger never double-sends.
-      const claimed = await db.runTransaction(async tx => {
-        const cur = await tx.get(doc.ref);
-        if (!cur.exists) return false;
-        const c = cur.data();
-        const stuck = c.status === "sending" && Date.parse(c.sendingAt || 0) < stuckBefore;
-        if (c.status !== "waiting" && !stuck) return false;
-        tx.update(doc.ref, { status: "sending", sendingAt: new Date().toISOString() });
-        return true;
-      });
-      if (!claimed) continue;
-      // Anyone can sign up (new guests included), so no proof is required, but every send takes
-      // from the shop-wide budget. Over it, the signup keeps waiting for the next restock.
-      if (!(await claimEmailSend(db, "backInStock", "", { failOpen: false }))) {
-        await doc.ref.update({ status: "waiting" }).catch(() => {});
-        continue;
-      }
-      try {
-        const title = esc(after.title || alert.bookTitle);
-        const variant = alert.variantName ? ` (${esc(alert.variantName)})` : "";
-        await sendEmail({
-          // Both senders down: the retry queue delivers it later (this trigger won't run again).
-          queue: "backInStock",
-          to: alert.email,
-          subject: `Back in stock: ${after.title || alert.bookTitle}`,
-          html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-            <h2 style="margin-top:0;">It's back!</h2>
-            <p style="font-size:15px;line-height:1.6;"><strong>${title}</strong>${variant} is available again. Stock is limited, so grab your copy while you can.</p>
-            ${risoButton(link, "Shop now", restockSettings.brand?.brandColor, restockSettings.brand?.emailTheme)}
-            <p style="font-size:12px;color:#888;">You received this because you asked to be notified. This is a one-time message.</p>
-          </div>`,
-          secret: RESEND_API_KEY.value(),
-        });
-        emailedThisRun.add(key);
-      } catch (err) {
-        console.error("Back-in-stock email failed:", err.message);
-        // Queued for a retry: it counts as sent here, so it is never also sent again by a later restock.
-        if (!err?.queued) {
-          await doc.ref.update({ status: "waiting" }).catch(() => {});
-          continue;
-        }
-        emailedThisRun.add(key);
-      }
-      // Sent: remove the signup (its id is per address + edition) so the shopper can ask again
-      // next time; if that fails, mark it notified — never back to waiting, which would resend.
-      await doc.ref.delete().catch(() => doc.ref.update({ status: "notified", notifiedAt: new Date().toISOString() }).catch(() => {}));
+      const bookId = String(doc.data().bookId || "");
+      if (!byBook.has(bookId)) byBook.set(bookId, []);
+      byBook.get(bookId).push(doc);
+    }
+    const clear = doc => doc.ref.update({ restockPending: false }).catch(() => {});
+    for (const [bookId, alerts] of byBook) {
+      if (Date.now() >= deadline) break;
+      const bookSnap = bookId && !bookId.includes("/") ? await db.collection("books").doc(bookId).get().catch(() => null) : null;
+      const book = bookSnap?.exists ? bookSnap.data() : null;
+      if (!book || book.isTest === true || (book.status && book.status !== "published")) { await Promise.all(alerts.map(clear)); continue; }
+      const available = new Set();
+      if (stockOf(book, 1) > 0) available.add("");
+      for (const v of Array.isArray(book.variants) ? book.variants : []) if (stockOf(v, 1) > 0) available.add(String(v.id));
+      const due = alerts.filter(doc => available.has(String(doc.data().variantId || "")));
+      await Promise.all(alerts.filter(doc => !due.includes(doc)).map(clear));
+      if (due.length) await sendRestockAlerts({ bookId, book, docs: due, deadline }).catch(err => console.error("backInStockSweep:", err.message));
     }
   },
 );
@@ -6459,6 +6535,9 @@ exports.markOrderPaid = onBrowserRequest(
  * webhook setup gets fixed. Each order is looked up in the Stripe account (test or
  * live) it was created in, then the other one.
  */
+const SWEEP_LOOKUP_BATCH = 5;           // Stripe lookups in flight at once
+const SWEEP_LOOKUP_MS = 100 * 1000;     // stop starting payment lookups after this
+const SWEEP_REVERSAL_MS = 190 * 1000;   // stop starting refund/dispute checks after this (function limit: 300 s)
 exports.unpaidPaymentSweep = onSchedule(
   { schedule: "every 15 minutes", timeoutSeconds: 300, secrets: [STRIPE_SECRET_KEY, RESEND_API_KEY] },
   async () => {
@@ -6475,7 +6554,10 @@ exports.unpaidPaymentSweep = onSchedule(
       .catch(err => { console.error("unpaidPaymentSweep: ordered query failed (deploy firestore:indexes), using unordered:", err.message); return db.collection("orders").where("paymentStatus", "==", "unpaid").limit(300).get(); });
     const candidates = suspectOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     const found = [];
-    for (const order of candidates) {
+    // Time budget (the function has 300 s): lookups run a few at a time and stop starting new ones after
+    // SWEEP_LOOKUP_MS, so the owner alert, reversal checks and email queue below always get their turn.
+    const sweepStartedAt = Date.now();
+    await runInBatches(candidates, SWEEP_LOOKUP_BATCH, async order => {
       try {
         const usesIntent = typeof order.stripePaymentIntentId === "string" && order.stripePaymentIntentId.startsWith("pi_");
         const result = await retrieveOrderPayment(order.id, order, usesIntent
@@ -6486,7 +6568,7 @@ exports.unpaidPaymentSweep = onSchedule(
           await recordStripeReconciliation(order.id, session)
             .catch(err => { console.error(`unpaidPaymentSweep: could not flag order ${order.id}:`, err); return false; });
           found.push({ orderId: order.id, email: order.customer?.email, amount: session.amount_total, currency: session.currency, intentId: session.id, fixed: false });
-          continue;
+          return;
         }
         const intent = result?.intent;
         if (intent && intent.status === "succeeded") {
@@ -6497,7 +6579,28 @@ exports.unpaidPaymentSweep = onSchedule(
       } catch (err) {
         console.warn(`unpaidPaymentSweep: could not check order ${order.id}:`, err.message);
       }
+    }, { deadline: sweepStartedAt + SWEEP_LOOKUP_MS });
+
+    // The owner alert goes out right after the lookups, before the slower reversal checks, email queue and
+    // review requests: the safety net for a broken Stripe webhook must not depend on those finishing.
+    // Stamp only after the alert really went out: a failed send leaves the orders unstamped so the next
+    // sweep (15 minutes later) tries the alert again.
+    if (found.length) {
+      try {
+        await sendEmail({
+          to: ADMIN_TO,
+          subject: `⚠ Stripe webhook missed ${found.length} paid order${found.length === 1 ? "" : "s"}`,
+          html: alertHtml(found),
+          secret: RESEND_API_KEY.value(),
+        });
+        const at = new Date().toISOString();
+        await Promise.all(found.map((f) => db.collection("orders").doc(f.orderId).update({ paymentAlertSentAt: at })
+          .catch(err => console.error(`unpaidPaymentSweep: could not stamp ${f.orderId}:`, err.message))));
+      } catch (err) {
+        console.error("unpaidPaymentSweep: alert email failed; will retry on the next sweep:", err.message);
+      }
     }
+
     // Safety net for refunds/disputes made in Stripe whose webhook never arrived.
     try {
       const { ordersDueReversalCheck } = require("./stripeRecovery");
@@ -6513,9 +6616,9 @@ exports.unpaidPaymentSweep = onSchedule(
       });
       const paidById = new Map();
       for (const part of parts) for (const d of part.docs) paidById.set(d.id, { id: d.id, ...d.data() });
-      for (const order of ordersDueReversalCheck([...paidById.values()])) {
-        await checkStripeReversal(order.id, order, "automatic check").catch(err => console.warn(`reversal check ${order.id}:`, err.message));
-      }
+      await runInBatches(ordersDueReversalCheck([...paidById.values()]), SWEEP_LOOKUP_BATCH,
+        order => checkStripeReversal(order.id, order, "automatic check").catch(err => console.warn(`reversal check ${order.id}:`, err.message)),
+        { deadline: sweepStartedAt + SWEEP_REVERSAL_MS });
     } catch (err) {
       console.warn("unpaidPaymentSweep: reversal checks failed:", err.message);
     }
@@ -6540,24 +6643,6 @@ exports.unpaidPaymentSweep = onSchedule(
         if (result.sent) console.log("unpaidPaymentSweep: review requests", result);
       }
     } catch (err) { console.error("unpaidPaymentSweep: review requests failed:", err.message); }
-
-    if (!found.length) return;
-    // Stamp only after the alert really went out: a failed send leaves the orders
-    // unstamped so the next sweep (15 minutes later) tries the alert again.
-    try {
-      await sendEmail({
-        to: ADMIN_TO,
-        subject: `⚠ Stripe webhook missed ${found.length} paid order${found.length === 1 ? "" : "s"}`,
-        html: alertHtml(found),
-        secret: RESEND_API_KEY.value(),
-      });
-    } catch (err) {
-      console.error("unpaidPaymentSweep: alert email failed; will retry on the next sweep:", err.message);
-      return;
-    }
-    const at = new Date().toISOString();
-    await Promise.all(found.map((f) => db.collection("orders").doc(f.orderId).update({ paymentAlertSentAt: at })
-      .catch(err => console.error(`unpaidPaymentSweep: could not stamp ${f.orderId}:`, err.message))));
   }
 );
 
@@ -6566,23 +6651,37 @@ exports.unpaidPaymentSweep = onSchedule(
  * The Functions service account needs the "Cloud Datastore Import Export Admin" role
  * and write access to the bucket.
  */
+const BACKUP_KEEP_DAYS = 30;
 exports.nightlyFirestoreBackup = onSchedule(
-  { schedule: "every day 03:17", timeZone: "America/Toronto" },
+  { schedule: "every day 03:17", timeZone: "America/Toronto", timeoutSeconds: 300 },
   async () => {
     const projectId = process.env.GCLOUD_PROJECT || admin.app().options.projectId;
     const client = new admin.firestore.v1.FirestoreAdminClient();
     const day = new Date().toISOString().slice(0, 10);
+    const bucketName = admin.app().options.storageBucket || `${projectId}.firebasestorage.app`;
     // Settings › General › Backups & export reads this admin-only record.
     const statusRef = db.collection("systemStatus").doc("backup");
     const previous = (await statusRef.get().catch(() => null))?.data?.() || null;
     try {
       const [operation] = await client.exportDocuments({
         name: client.databasePath(projectId, "(default)"),
-        outputUriPrefix: `gs://${admin.app().options.storageBucket || `${projectId}.firebasestorage.app`}/backups/${day}`,
+        outputUriPrefix: `gs://${bucketName}/backups/${day}`,
         collectionIds: [],
       });
       console.log(`Firestore backup started: ${operation.name}`);
       await statusRef.set(backupStatusRecord({ ok: true, day, at: new Date().toISOString(), operation: operation.name })).catch(err => console.error("Could not record backup status:", err.message));
+      // Keep 30 days of exports: older day folders are deleted so storage cost cannot grow without limit.
+      // A prune failure never fails the backup; it is recorded for Settings › General › Backups & export.
+      try {
+        const bucket = admin.storage().bucket(bucketName);
+        const [, , api] = await bucket.getFiles({ prefix: "backups/", delimiter: "/", autoPaginate: false });
+        const stale = backupFoldersToPrune(api?.prefixes || [], new Date(), BACKUP_KEEP_DAYS);
+        for (const prefix of stale) await bucket.deleteFiles({ prefix, force: true });
+        await statusRef.set({ prunedAt: new Date().toISOString(), prunedFolders: stale.length, pruneError: "" }, { merge: true });
+      } catch (pruneErr) {
+        console.error("Backup pruning failed:", pruneErr.message);
+        await statusRef.set({ pruneError: String(pruneErr.message || pruneErr).slice(0, 300), prunedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+      }
     } catch (err) {
       await statusRef.set(backupStatusRecord({ ok: false, day, at: new Date().toISOString(), error: err.message, previous })).catch(e => console.error("Could not record backup status:", e.message));
       throw err;

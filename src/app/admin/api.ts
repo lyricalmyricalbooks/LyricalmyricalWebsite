@@ -34,6 +34,9 @@ import {
   documentId,
   limit,
   getCountFromServer,
+  getAggregateFromServer,
+  average,
+  count as aggregateCount,
   startAfter,
   writeBatch,
   runTransaction,
@@ -879,6 +882,19 @@ export const adminApi = {
     return orders.map(o => ({ ...o, operations: byId.get(o.id) || {} }));
   },
 
+  // The newest orders only (with their private records), for the Orders desk's minute-by-minute refresh.
+  // Reads about 2 x `pageSize` documents instead of the whole collection; merge with `mergeNewestPage`.
+  getRecentFulfillmentOrders: async (pageSize = 100) => {
+    const orders = await adminApi.getOrders(pageSize);
+    const ids = orders.map((o: any) => o.id);
+    const byId = new Map<string, any>();
+    for (let i = 0; i < ids.length; i += 30) {
+      const snap = await getDocs(query(collection(db, "order-operations"), where(documentId(), "in", ids.slice(i, i + 30))));
+      snap.docs.forEach((d) => byId.set(d.id, d.data()));
+    }
+    return orders.map((o: any) => ({ ...o, operations: byId.get(o.id) || {} }));
+  },
+
   correctOrderAddress: async (id: string, address: any, originalKey: string) => {
     await runTransaction(db, async tx => {
       const ref = doc(db, "orders", id);
@@ -1172,33 +1188,21 @@ export const adminApi = {
   },
 
   // Last Stripe webhook received / rejected (written by stripeWebhook; admin-only doc).
-  getStripeWebhookStatus: async () => {
+  // `strict` lets the caller see a failed read (the alert refresh must not mistake it for "no problem").
+  getStripeWebhookStatus: async (opts: { strict?: boolean } = {}) => {
     try {
       const snap = await getDoc(doc(db, "adminSecrets", "stripeWebhookStatus"));
       return snap.exists() ? (snap.data() as any) : null;
-    } catch { return null; }
+    } catch (err) { if (opts.strict) throw err; return null; }
+  },
+  // The nightly backup's last result (null = never recorded; a failed read throws).
+  getBackupStatus: async (): Promise<any | null> => {
+    const snap = await getDoc(doc(db, "systemStatus", "backup"));
+    return snap.exists() ? snap.data() : null;
   },
 
-  // Storefront (thank-you page, /track): the order record only. Guests may read an
-  // order by ID, but order-operations is admin-only and would deny the whole read.
-  // Guest order lookup. Orders aren't publicly readable: the server returns one
-  // only with its customer email or the emailed link key. Resolves null when
-  // there is no such order; throws an error whose `code` is "email_mismatch",
-  // "too_many" or "failed" otherwise.
-  getPublicOrder: async (id: string, proof: { email?: string; key?: string }) => {
-    const response = await functionFetch("createStripeCheckoutSession", {
-      method: "POST",
-      headers: await orderAccessHeaders(id, proof.key),
-      body: JSON.stringify({ action: "track", orderId: id, key: proof.key || savedOrderAccess(id) }),
-    });
-    if (response.status === 404 || response.status === 400) return null;
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const code = response.status === 403 ? "email_mismatch" : response.status === 429 ? "too_many" : "failed";
-      throw Object.assign(new Error(code), { code });
-    }
-    return data.order || null;
-  },
+  // Guest order lookup (thank-you page, /track) lives in publicApi so those pages never load this file.
+  getPublicOrder: publicApi.getPublicOrder,
 
   // Admin only: the order plus its private fulfillment record.
   getOrderById: async (id: string) => {
@@ -1632,16 +1636,20 @@ export const adminApi = {
 
   // Audience signals for the Overview (admin-only reads per firestore.rules).
   getAudienceSnapshot: async () => {
-    const [reviewsSnap, subsSnap, pending] = await Promise.all([
+    const [reviewsSnap, subsSnap, pending, approved] = await Promise.all([
       getDocs(query(collection(db, "reviews"), orderBy("createdAt", "desc"), limit(200))),
       getDocs(query(collection(db, "newsletter"), orderBy("subscribedAt", "desc"), limit(5000))),
       // Counted on the server: the newest 200 reviews can miss older pending ones.
       getCountFromServer(query(collection(db, "reviews"), where("status", "==", "pending"))).then(s => s.data().count).catch(() => null),
+      // Approved count and average rating over every approved review (not just the newest 200).
+      getAggregateFromServer(query(collection(db, "reviews"), where("status", "==", "approved")), { n: aggregateCount(), avg: average("rating") })
+        .then(s => ({ count: Number(s.data().n) || 0, average: typeof s.data().avg === "number" ? (s.data().avg as number) : null })).catch(() => null),
     ]);
     return {
       reviews: reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
       subscribers: subsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
       pendingReviews: pending as number | null,
+      approvedReviews: approved as { count: number; average: number | null } | null,
     };
   },
 

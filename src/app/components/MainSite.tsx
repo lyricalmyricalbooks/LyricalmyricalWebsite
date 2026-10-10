@@ -360,7 +360,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const navigate = useNavigate();
   const location = useLocation();
   const { formatBookPrice, convertPrice } = useCurrency();
-  const { books, settings, pages, loading } = useSiteData();
+  const { books, settings, pages, loading, loadError, retry } = useSiteData();
 
   // Auto-open catalog view when the editor previews the shop tab
   const isCatalogPreview = window.location.search.includes("catalog=true");
@@ -645,6 +645,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       >
         <TypographyTokens design={storefrontDesign} />
         {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
+        {/* The shop could not be read and nothing was cached: say so with Retry instead of showing an empty shop. */}
+        {loadError && books.length === 0 && (
+          <div role="alert" className="flex flex-wrap items-center justify-center gap-4 px-6 py-3 text-center text-[11px] uppercase tracking-[0.2em]" style={{ backgroundColor: storefrontText, color: storefrontBg }}>
+            <span>{getCopy(activeDesign, "catalogLoadError")}</span>
+            <button type="button" onClick={retry} className="underline underline-offset-4">{getCopy(activeDesign, "catalogRetry")}</button>
+          </div>
+        )}
         {/* The one storefront header (announcement bar, logo, category bar, icons, phone menu, search). */}
         <StoreHeader
           design={activeDesign}

@@ -6,7 +6,8 @@ import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { WORK_QUEUES, queueOf, packingKey, daysInTransit, isOverdueInTransit } from "./fulfillment";
 import { printOrders } from "./orderPrint";
-import { mergeOrder } from "./ordersDesk";
+import { mergeNewestPage, mergeOrder } from "./ordersDesk";
+import { patchCachedOrder } from "./ordersCache";
 import { buildCatalogSearchIndex, orderMatches, type CatalogSearchIndex } from "./orderSearch";
 import { batchDispatchFields, listDate, orderDate, orderMoney, orderTime, splitDeletable } from "./orderListHelpers";
 import { orderApi } from "../lib/commerce";
@@ -48,8 +49,18 @@ export const ACTION_QUEUES = ["Needs attention", "Ready to pack", "Ready to ship
 export const ordersNeedingWork = (orders: any[]) => orders.filter((o) => o.isTest !== true && ACTION_QUEUES.includes(queueOf(o))).length;
 
 // Loads every order (with fulfillment records) and keeps it for the list's instant return.
-export async function refreshOrdersCache() {
-  const data = await adminApi.getFulfillmentOrders();
+// Minute-by-minute refreshes read only the newest page of orders; every FULL_REFRESH_MS (and on first load,
+// after a failure, or when asked) the whole collection is read again to catch changes to older orders.
+export const FULL_REFRESH_MS = 10 * 60 * 1000;
+let lastFullLoadAt = 0;
+export async function refreshOrdersCache({ incremental = false }: { incremental?: boolean } = {}) {
+  let data: any[];
+  if (incremental && listMemory.orders && Date.now() - lastFullLoadAt < FULL_REFRESH_MS) {
+    data = mergeNewestPage(listMemory.orders, await adminApi.getRecentFulfillmentOrders());
+  } else {
+    data = await adminApi.getFulfillmentOrders();
+    lastFullLoadAt = Date.now();
+  }
   listMemory.orders = data;
   return data;
 }
@@ -57,6 +68,7 @@ export async function refreshOrdersCache() {
 // One order just reloaded on its own page: keep the remembered list in step without a full reload.
 export function patchOrdersCache(order: any) {
   listMemory.orders = mergeOrder(listMemory.orders, order);
+  patchCachedOrder(order);
   return listMemory.orders;
 }
 

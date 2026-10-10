@@ -1,7 +1,7 @@
 // Per-code performance from paid, non-test orders. Read-only.
 // Revenue follows the Overview rule (overviewInsights.ts): the CAD order total, less partial refunds.
 import { isRealPaidOrder, refundedAmount } from "./overviewInsights";
-export interface CodePerformance { orders: number; revenue: number; discountGiven: number; avgOrder: number }
+export interface CodePerformance { orders: number; revenue: number; discountGiven: number; avgOrder: number; /** What to show: the code, or an automatic offer's title (its key is an opaque id). */ label: string }
 
 export function discountPerformance(orders: any[]): Map<string, CodePerformance> {
   const map = new Map<string, CodePerformance>();
@@ -11,7 +11,7 @@ export function discountPerformance(orders: any[]): Map<string, CodePerformance>
     const applied = o.appliedDiscount || {};
     const code = applied.automatic && applied.id ? `#${applied.id}` : String(applied.code || "").trim().toUpperCase();
     if (!code) continue;
-    const p = map.get(code) || { orders: 0, revenue: 0, discountGiven: 0, avgOrder: 0 };
+    const p = map.get(code) || { orders: 0, revenue: 0, discountGiven: 0, avgOrder: 0, label: applied.automatic ? String(applied.title || "").trim() || "Automatic offer" : code };
     p.orders += 1;
     p.revenue += Math.max(0, (Number(o.total) || 0) - refundedAmount(o));
     p.discountGiven += Number(o.discount) || 0;

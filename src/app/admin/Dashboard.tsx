@@ -9,7 +9,7 @@ import { Login } from "./Login";
 import { BookCatalog } from "./BookCatalog";
 import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
 import { AdminAlerts } from "./AdminAlerts.tsx";
-import { buildAdminAlerts, settingsAlerts, type AdminAlert } from "./adminAlerts";
+import { backupAlert, buildAdminAlerts, checkFailedAlert, settingsAlerts, type AdminAlert } from "./adminAlerts";
 import { getOrdersCached, setOrdersLoader } from "./ordersCache";
 import { anyDirty, useBeforeUnloadWhenDirty } from "./settingsDirty";
 import { adminApi } from "./api";
@@ -40,7 +40,7 @@ const ReviewsModeration = lazy(() => import("./ReviewsModeration"));
 const Messages = lazy(() => import("./Messages"));
 
 // Every shared orders load also refreshes the Orders list memory (its instant return and "Ship orders").
-setOrdersLoader(refreshOrdersCache);
+setOrdersLoader(() => refreshOrdersCache({ incremental: true }));
 
 const openSite = () => {
   const adminIdx = window.location.pathname.toLowerCase().indexOf("/admin");
@@ -130,6 +130,7 @@ export function Dashboard() {
   // Orders waiting on the publisher, shown as a badge on the Orders nav item.
   const [ordersBadge, setOrdersBadge] = useState(0);
   const bootOrdersRead = useRef(false);
+  const refreshAlertsRef = useRef<() => void>(() => {});
   // Unpaid/mismatched/disputed orders etc., shown above every admin page.
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
   // Pending reviews, unread messages and open privacy requests (cheap server counts).
@@ -138,22 +139,31 @@ export function Dashboard() {
   useEffect(() => {
     if (!user) return;
     let alive = true;
-    // The first read shares any orders load already on its way (e.g. the Overview's); later ones force a fresh read.
-    const first = { current: !bootOrdersRead.current }; bootOrdersRead.current = true;
-    const refresh = () => {
+    // Opening or closing an order re-counts from the shared copy (an order page patches it), so it never re-reads
+    // every order; only the 5-minute timer and "Try again" force a read (an incremental one after the first).
+    bootOrdersRead.current = true;
+    const refresh = (force = false) => {
       adminApi.getAdminBadgeCounts().then((c) => { if (alive) setOtherBadges(c); }).catch(() => {});
-      return getOrdersCached({ force: !first.current })
+      return getOrdersCached({ force })
         .then(async (data) => {
-          const [webhook, emailLog] = await Promise.all([adminApi.getStripeWebhookStatus().catch(() => null), adminApi.getRecentEmailLog(50).catch(() => [])]);
+          const failedParts: string[] = [];
+          const [webhook, emailLog, backup] = await Promise.all([
+            adminApi.getStripeWebhookStatus({ strict: true }).catch(() => { failedParts.push("the Stripe webhook status"); return null; }),
+            adminApi.getRecentEmailLog(50).catch(() => { failedParts.push("the email log"); return []; }),
+            adminApi.getBackupStatus().catch(() => { failedParts.push("the backup status"); return undefined; }),
+          ]);
           if (!alive) return;
           setOrdersBadge(ordersNeedingWork(data));
-          setAlerts(buildAdminAlerts(data, webhook, Date.now(), emailLog));
+          const backupNote = backupAlert(backup);
+          const note = checkFailedAlert(failedParts);
+          setAlerts([...buildAdminAlerts(data, webhook, Date.now(), emailLog), ...(backupNote ? [backupNote] : []), ...(note ? [note] : [])]);
         })
-        .catch(() => {})
-        .finally(() => { first.current = false; });
+        // The orders themselves could not be read: say so instead of leaving a stale or empty list.
+        .catch(() => { if (alive) setAlerts((prev) => [...prev.filter((a) => a.id !== "alerts-check-failed"), checkFailedAlert(["your orders"])!]); });
     };
+    refreshAlertsRef.current = () => { void refresh(true); };
     refresh();
-    const timer = window.setInterval(refresh, 5 * 60 * 1000);
+    const timer = window.setInterval(() => { void refresh(true); }, 5 * 60 * 1000);
     return () => {
       alive = false;
       window.clearInterval(timer);
@@ -527,6 +537,8 @@ export function Dashboard() {
           onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
           onOpenOrders={() => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder(null); }}
           onOpenWebhook={() => { setActiveTab("settings"); setSettingsTab("payments"); setShowEditor(false); setSelectedOrder(null); }}
+          onOpenGeneral={() => { setActiveTab("settings"); setSettingsTab("general"); setShowEditor(false); setSelectedOrder(null); }}
+          onRetry={() => refreshAlertsRef.current()}
         />
         {/* Feature pages still use legacy utility classes; scope the compatibility layer to them only. */}
         <div {...(migrated ? {} : legacyProps)} style={{ background: "transparent", minHeight: 480 }}>

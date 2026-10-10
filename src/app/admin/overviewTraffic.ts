@@ -1,7 +1,8 @@
 // Pure traffic, marketing and audience calculations for the admin Overview.
 // Inputs are the daily `analytics/<date>` docs and the paid, non-test orders already loaded by the page.
 // Nothing is estimated: a signal that was never recorded is reported as missing (`recordedSince` is null), not as 0.
-import { dateKey, dayOf, isRealPaidOrder, periodKeys, refundedAmount, type Book, type Order } from "./overviewInsights";
+import { addDays, dayOf, isRealPaidOrder, orderDay, periodKeys, shopDayKey, trafficPeriodKeys, refundedAmount, type Book, type Order } from "./overviewInsights";
+import { analyticsKey } from "../lib/analyticsKeys";
 
 const DAY = 86_400_000;
 export const SHOP_TIME_ZONE = "America/Toronto";
@@ -11,7 +12,8 @@ const num = (v: unknown) => Number(v) || 0;
 
 /** Daily docs inside the period's calendar days, and inside the equally long block before it. */
 export function dailyWindow(daily: Daily[], days: number, now = Date.now()) {
-  const { startKey, prevStartKey, endKey } = periodKeys(days, now);
+  // Daily docs are keyed by UTC day (analytics/<YYYY-MM-DD>), so traffic windows count UTC days.
+  const { startKey, prevStartKey, endKey } = trafficPeriodKeys(days, now);
   const key = (d: Daily) => dayOf(d.date);
   return {
     current: daily.filter(d => key(d) >= startKey && key(d) <= endKey),
@@ -21,6 +23,9 @@ export function dailyWindow(daily: Daily[], days: number, now = Date.now()) {
     startKey, prevStartKey, endKey,
   };
 }
+
+/** How many daily traffic docs a period needs: the period plus the equally long block before it (and a day of slack). */
+export const dailyDocsNeeded = (days: number) => Math.min(800, Math.max(70, days * 2 + 3));
 
 export const sumField = (rows: Daily[], field: string) => rows.reduce((s, d) => s + num(d[field]), 0);
 
@@ -73,7 +78,8 @@ export function funnelRates(f: ReturnType<typeof funnelTotals>) {
   });
 }
 
-const sourceOf = (o: Order) => String(o.referralSource || "direct").trim().toLowerCase() || "direct";
+// Stored under the same key the storefront used for the visit ("duckduckgo.com" -> "duckduckgo com"), so a source's visits and orders join.
+const sourceOf = (o: Order) => analyticsKey(String(o.referralSource || "direct").trim().toLowerCase()) || "direct";
 
 export interface SourceRow { source: string; visits: number; orders: number; revenue: number; conversion: number | null }
 
@@ -81,7 +87,7 @@ export interface SourceRow { source: string; visits: number; orders: number; rev
 export function sourcePerformance(visitsBySource: Record<string, number>, orders: Order[]): SourceRow[] {
   const rows = new Map<string, SourceRow>();
   const row = (source: string) => { let r = rows.get(source); if (!r) { r = { source, visits: 0, orders: 0, revenue: 0, conversion: null }; rows.set(source, r); } return r; };
-  Object.entries(visitsBySource).forEach(([s, n]) => { row(s.trim().toLowerCase() || "direct").visits += num(n); });
+  Object.entries(visitsBySource).forEach(([s, n]) => { row(analyticsKey(s.trim().toLowerCase()) || "direct").visits += num(n); });
   orders.filter(isRealPaidOrder).forEach(o => { const r = row(sourceOf(o)); r.orders += 1; r.revenue += Math.max(0, num(o.total) - refundedAmount(o)); });
   const out = [...rows.values()];
   out.forEach(r => { r.conversion = r.visits > 0 ? (r.orders / r.visits) * 100 : null; });
@@ -111,16 +117,17 @@ export interface SeriesPoint { date: string; revenue: number; orders: number; vi
 export function buildSeries(paid: Order[], daily: Daily[], days: number, now = Date.now()): SeriesPoint[] {
   const revenue = new Map<string, { revenue: number; orders: number }>();
   paid.forEach(o => {
-    const k = dayOf(o.createdAt); if (!k) return;
+    const k = orderDay(o.createdAt); if (!k) return;
     const r = revenue.get(k) || { revenue: 0, orders: 0 };
     r.revenue += Math.max(0, num(o.total) - refundedAmount(o)); r.orders += 1; revenue.set(k, r);
   });
   const visits = new Map<string, number>();
   daily.forEach(d => { const k = dayOf(d.date); if (k) visits.set(k, (visits.get(k) || 0) + num(d.visits)); });
   const at = (k: string) => ({ revenue: revenue.get(k)?.revenue || 0, orders: revenue.get(k)?.orders || 0, visits: visits.get(k) || 0 });
+  const today = shopDayKey(now);
   const out: SeriesPoint[] = [];
   for (let i = days - 1; i >= 0; i--) {
-    const k = dateKey(now - i * DAY), p = dateKey(now - (i + days) * DAY);
+    const k = addDays(today, -i), p = addDays(today, -(i + days));
     const cur = at(k), prev = at(p);
     out.push({ date: k, ...cur, prevRevenue: prev.revenue, prevOrders: prev.orders, prevVisits: prev.visits });
   }
@@ -200,17 +207,5 @@ export function categoryBreakdown(orders: Order[], books: Book[], names: string[
   });
 }
 
-/** Device bucket from the viewport width in CSS pixels (no user-agent sniffing). */
-export const deviceOf = (width: number): "mobile" | "tablet" | "desktop" => (width < 640 ? "mobile" : width < 1024 ? "tablet" : "desktop");
-
-/**
- * A search term safe to store: lowercase, trimmed, ≤40 chars, no characters Firestore map keys dislike.
- * Returns null for anything that looks personal (an email address, an order or phone number) or is empty.
- */
-export function cleanSearchTerm(raw: unknown): string | null {
-  const t = String(raw ?? "").toLowerCase().replace(/[.~*/[\]\\`]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40).trim();
-  if (t.length < 2) return null;
-  if (/@|https?:|www\./.test(String(raw ?? "").toLowerCase())) return null;
-  if (/\d{6,}/.test(t.replace(/[\s-]/g, ""))) return null;
-  return t;
-}
+// Pure and shared with the storefront's analytics writes, so they live outside the admin code (see lib/analyticsKeys.ts).
+export { cleanSearchTerm, deviceOf } from "../lib/analyticsKeys";

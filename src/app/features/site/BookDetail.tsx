@@ -69,7 +69,7 @@ export default function BookDetail() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { books, settings, pages, loading: siteLoading, fresh } = useSiteData();
+  const { books, settings, pages, loading: siteLoading, fresh, loadError, retry } = useSiteData();
   const { addToCart, setIsCartOpen, cartCount, cart } = useCart();
   const { currency, formatPrice, formatBookPrice, getBookPrice, convertPrice } = useCurrency();
 
@@ -526,6 +526,33 @@ export default function BookDetail() {
       ))}
     </div>
   ) : null;
+
+  // ── could not load ─────────────────────────────────────────────────────────
+  // The read failed and there is no book to show: say so and offer Retry, instead of "not found".
+  if (!book && loadError) {
+    return (
+      <div
+        data-fm-store data-studio-target="style:productPage|copy:Product page" data-studio-label="Product page"
+        className="min-h-screen flex flex-col items-center justify-center gap-6"
+        style={{ backgroundColor: storefrontBg, color: storefrontText }}
+      >
+        <p role="alert" className="text-sm tracking-[0.3em] uppercase text-center px-6" style={{ color: `${storefrontText}80` }}>{getCopy(settings?.design, "catalogLoadError")}</p>
+        <button
+          type="button"
+          onClick={retry}
+          className="text-[10px] font-black tracking-[0.4em] px-8 py-3 transition-all uppercase custom-btn"
+          style={{
+            "--btn-bg": buttonStyle === "solid" ? buttonBg : "transparent",
+            "--btn-text": buttonStyle === "solid" ? buttonText : buttonBg,
+            "--btn-border": buttonStyle !== "solid" ? `1px solid ${buttonBg}` : `1px solid ${borderColor}`,
+            borderRadius: buttonRadius,
+          } as React.CSSProperties}
+        >
+          {getCopy(settings?.design, "catalogRetry")}
+        </button>
+      </div>
+    );
+  }
 
   // ── loading ────────────────────────────────────────────────────────────────
   if (loading) {
