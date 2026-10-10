@@ -375,7 +375,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   // Aggregate stock calculation
   useEffect(() => {
     if (Array.isArray(formData.variants) && formData.variants.length > 0) {
-      const totalStock = formData.variants.reduce((sum: number, v: Variant) => sum + (Number((v as any).stock ?? (v as any).stockLevel) || 0), 0);
+      const totalStock = formData.variants.reduce((sum: number, v: Variant) => sum + (Number((v as any).stockLevel ?? (v as any).stock) || 0), 0);
       if (totalStock !== formData.stockLevel) {
         setFormData((prev: any) => ({ ...prev, stockLevel: totalStock }));
       }
@@ -1104,7 +1104,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                   <fieldset key={v.id} className="be-variant">
                     <legend>{giftCard ? "Amount" : "Edition"} {i + 1}{v.name ? ` — ${v.name}` : ""}</legend>
                     <div className="be-variant-tools">
-                      {!giftCard && stockBadge(num(v.stock))}
+                      {!giftCard && stockBadge(num((v as any).stockLevel ?? v.stock))}
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => duplicateVariant(v.id)}><Copy size={13} aria-hidden /> Duplicate</button>
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => removeVariant(v.id)} aria-label={`Remove ${giftCard ? "amount" : "edition"} ${v.name || i + 1}`}><Trash2 size={13} aria-hidden /> Remove</button>
                     </div>
@@ -1122,7 +1122,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                       <TextField label="Price (CAD)" type="number" min={0} step="0.01" value={v.price} onChange={(e) => updateVariant(v.id, "price", e.target.value === "" ? "" : Number(e.target.value))} />
                       <TextField label="Price (USD)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).usdPrice ?? 0} onChange={(e) => updateVariant(v.id, "usdPrice", Number(e.target.value))} />
                       <TextField label="Price (EUR)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).eurPrice ?? 0} onChange={(e) => updateVariant(v.id, "eurPrice", Number(e.target.value))} />
-                      <TextField label="Stock" type="number" min={0} value={v.stock ?? (v as any).stockLevel ?? 0} onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))} />
+                      <TextField label="Stock" type="number" min={0} value={(v as any).stockLevel ?? v.stock ?? 0} onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))} />
                       <TextField label="Shelf location" placeholder="e.g. B2" value={(v as any).shelfLocation || ""} onChange={(e) => updateVariant(v.id, "shelfLocation", e.target.value)} hint="Packing checklist; blank = the book's." />
                     </div>
                     )}

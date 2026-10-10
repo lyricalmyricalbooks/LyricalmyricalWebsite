@@ -385,6 +385,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
     fields: [
       { key: "filterSearchPlaceholder", label: "Filter box placeholder", default: "Search by title, author, category…" },
       { key: "filterClearAria", label: "Clear button — screen-reader label", default: "Clear search" },
+      { key: "sort_featured", label: "Sort: shop order (Admin › Books › Shop order)", default: "Featured" },
       { key: "sort_newest", label: "Sort: newest", default: "Newest" },
       { key: "sort_price_asc", label: "Sort: price low→high", default: "Price ↑" },
       { key: "sort_price_desc", label: "Sort: price high→low", default: "Price ↓" },

@@ -3,6 +3,7 @@ import { displayPrice, showsSale } from "./displayPrice";
 import { preorderActive } from "./preorder";
 import { bookInCategory, categoryNames, normalizeCategories } from "./categoryMembership.mjs";
 import { bookSlug } from "./staffNotes";
+import { inShopOrder } from "./shopOrder";
 
 /** Saved selections are intentional: an empty array means no recommendations. */
 export function recommendedBooks(book: any, catalog: Book[], limit = 4): Book[] {
@@ -107,7 +108,7 @@ function sortBooks(list: any[], sort: string, manual: string[]): any[] {
   else if (sort === "title") indexed.sort(by((b) => String(b?.title || "").toLocaleLowerCase()));
   else if (sort === "priceLow") indexed.sort(by((b) => displayPrice(b)));
   else if (sort === "priceHigh") indexed.sort(by((b) => displayPrice(b), -1));
-  else return list;
+  else return inShopOrder(list);
   return indexed.map((x) => x.book);
 }
 
