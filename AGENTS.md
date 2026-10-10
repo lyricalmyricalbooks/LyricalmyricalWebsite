@@ -73,11 +73,13 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
 - **Secrets stay out of the repo.** `STRIPE_SECRET_KEY`,
   `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, and `SHIPPO_API_TOKEN` are Firebase
   Functions secrets. Never hardcode, log, or commit them.
-- **Mind the sub-path.** The site is served from `/LyricalmyricalWebsite/`
-  on GitHub Pages. Use router-relative navigation and `import.meta.env.BASE_URL`
-  for asset/links — never hardcode absolute root paths.
-- **CORS:** if the site gains a domain, add it to `ALLOWED_ORIGINS` in
-  `functions/index.js` (and OAuth redirect URIs).
+- **Mind the sub-path.** The live site is served from `/LyricalmyricalWebsite/`
+  on GitHub Pages, and the same code is built at `/` for Firebase Hosting. Use router-relative
+  navigation and `import.meta.env.BASE_URL` for asset/links — never hardcode absolute root paths.
+- **CORS:** every address the storefront is built for must be in `ALLOWED_ORIGINS` in
+  `functions/index.js` (`scripts/siteAddress.test.ts` checks the defaults and the Firebase Hosting job).
+  Firebase Hosting (`https://lyricalmyrical-web-v2.web.app`) runs side by side with Pages until the cutover;
+  see CLAUDE.md › Deployment. Never add a catch-all rewrite to `firebase.json` (unknown URLs must stay 404s).
 - **SEO:** use the helpers in `src/app/lib/seo.ts`, and refresh the sitemap with
   `npm run build:sitemap` (it also runs as part of `npm run build`) when routes
   or products change.

@@ -1,4 +1,8 @@
-name: Deploy to GitHub Pages
+name: Deploy storefront
+
+# Builds the storefront and publishes it to GitHub Pages (the live shop) and, side by side, to Firebase Hosting
+# (https://lyricalmyrical-web-v2.web.app, kept out of search engines until the cutover). The file keeps its name
+# so keep-refresh-alive.yml and the schedule history stay put.
 
 on:
   push:
@@ -15,6 +19,12 @@ permissions:
 concurrency:
   group: pages
   cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
+# Same exact CLI version as deploy-firebase.yml (scripts/hostingConfig.test.ts keeps them equal): the Hosting deploy
+# holds a Firebase key, so a new release must not run with it unreviewed.
+env:
+  FIREBASE_TOOLS_VERSION: 15.32.1
+  FIREBASE_PROJECT: lyricalmyrical-web-v2
 
 jobs:
   # Deploy order contract (CLAUDE.md): Firestore rules, indexes and Functions go live BEFORE the frontend that
@@ -143,3 +153,134 @@ jobs:
       - id: deployment
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
         uses: actions/deploy-pages@v4
+
+  # Firebase Hosting, side by side with Pages. Built without any secret (dependencies and Playwright run here);
+  # the key only appears in deploy-hosting, which installs nothing.
+  build-hosting:
+    needs: firebase-first
+    # Off until the owner sets the repository variable FIREBASE_HOSTING_ENABLED=true (after the Hosting site and its
+    # service account exist), so the 15-minute schedule never rebuilds for, or fails against, a host that isn't set up.
+    # A manual run from another branch must never publish it (the Firebase key has no branch rule).
+    if: github.ref == 'refs/heads/main' && vars.FIREBASE_HOSTING_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    outputs:
+      built: ${{ steps.result.outputs.built }}
+    env:
+      # Hard-coded on purpose until the cutover: vars.SITE_URL still drives the live GitHub Pages build above.
+      SITE_URL: https://lyricalmyrical-web-v2.web.app
+      SITE_BASE: /
+      # 404.html is the app shell: unknown URLs get a real 404 that still shows the editable missing page.
+      SPA_FALLBACK: shell
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Compared with the marker on web.app itself, so each host catches up on its own.
+      - name: Check published content
+        id: published
+        if: github.event_name == 'schedule'
+        run: node scripts/check-published-change.mjs
+
+      - run: pnpm install --frozen-lockfile
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+
+      - run: pnpm exec playwright install --with-deps chromium
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+
+      - name: Build with reCAPTCHA App Check configuration
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        env:
+          VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.RECAPTCHA_ENTERPRISE_SITE_KEY }}
+          VITE_APP_CHECK_MODE: ${{ vars.APP_CHECK_MODE || 'monitor' }}
+        run: |
+          case "$VITE_APP_CHECK_MODE" in off|monitor|enforce) ;; *) echo "::error::Invalid APP_CHECK_MODE"; exit 1 ;; esac
+          if [ "$VITE_APP_CHECK_MODE" = "enforce" ] && [ -z "$VITE_RECAPTCHA_ENTERPRISE_SITE_KEY" ]; then
+            echo "::error::Register reCAPTCHA Enterprise and set RECAPTCHA_ENTERPRISE_SITE_KEY before enforcing App Check."
+            exit 1
+          fi
+          pnpm run build
+
+      # Firebase Hosting also replaces the whole site; keep the previous build's CSS/JS for tabs opened before it.
+      - name: Keep the previous deploy's assets
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        run: node scripts/carry-previous-assets.mjs
+
+      - name: Check routing and headers in the Hosting emulator
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-lyricalmyrical "node scripts/hosting-smoke.mjs --expect-noindex"
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        with:
+          name: hosting-dist
+          path: dist
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+      - id: result
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        run: echo "built=true" >> "$GITHUB_OUTPUT"
+
+  deploy-hosting:
+    needs: build-hosting
+    if: needs.build-hosting.outputs.built == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    environment:
+      name: firebase-hosting
+      url: https://lyricalmyrical-web-v2.web.app
+    steps:
+      # Only the repository's own scripts and the pinned CLI run next to the key: no pnpm install, no Playwright.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: hosting-dist
+          path: dist
+
+      - name: Deploy to Firebase Hosting
+        id: deploy
+        env:
+          # A service account with only "Firebase Hosting Admin" (preferred), else the backend deploy key.
+          HOSTING_KEY: ${{ secrets.FIREBASE_HOSTING_SERVICE_ACCOUNT }}
+          FALLBACK_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          key="${HOSTING_KEY:-$FALLBACK_KEY}"
+          if [ -z "$key" ]; then
+            echo "::warning::No FIREBASE_HOSTING_SERVICE_ACCOUNT (or FIREBASE_SERVICE_ACCOUNT) secret, so Firebase Hosting was not updated. GitHub Pages is unaffected."
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          umask 077
+          printf '%s' "$key" > "$RUNNER_TEMP/hosting-sa.json"
+          trap 'rm -f "$RUNNER_TEMP/hosting-sa.json"' EXIT
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/hosting-sa.json"
+          npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy --only hosting \
+            --project "$FIREBASE_PROJECT" --non-interactive \
+            --message "${GITHUB_SHA::12} (${GITHUB_EVENT_NAME})"
+          echo "deployed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Check the live site
+        if: steps.deploy.outputs.deployed == 'true'
+        env:
+          SITE_URL: https://lyricalmyrical-web-v2.web.app
+        run: node scripts/hosting-smoke.mjs --base "$SITE_URL" --expect-noindex

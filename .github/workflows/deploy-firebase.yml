@@ -1,8 +1,10 @@
 name: Deploy Firebase (rules, indexes, functions)
 
-# The GitHub Pages workflow only ships the static frontend. This one keeps
-# the backend in sync: Firestore rules/indexes, Storage rules and Cloud
-# Functions are deployed whenever they change on main.
+# The storefront workflow (deploy-pages.yml) ships the static frontend to GitHub Pages and Firebase Hosting.
+# This one keeps the backend in sync: Firestore rules/indexes, Storage rules and Cloud Functions are deployed
+# whenever they change on main. It never deploys Hosting (`--only` below leaves it out); firebase.json is still
+# watched, so editing the hosting block redeploys the backend too (unchanged functions are skipped) and the
+# storefront waits for it.
 #
 # Requires a repository secret named FIREBASE_SERVICE_ACCOUNT containing the
 # JSON key of a service account with the "Firebase Admin" and "Cloud

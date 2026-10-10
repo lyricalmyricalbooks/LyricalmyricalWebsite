@@ -36,6 +36,16 @@ describe("deployed browser endpoint coverage", () => {
     expect(res.headers["Access-Control-Allow-Headers"]).toContain("X-Firebase-AppCheck");
     expect(res.headers["Access-Control-Allow-Origin"]).toBe("https://lyricalmyricalbooks.github.io");
   });
+  it.each(["https://lyricalmyrical-web-v2.web.app", "https://lyricalmyricalbooks.github.io"])("browser calls from the storefront at %s get CORS", async origin => {
+    const res = response();
+    await harness().createStripeCheckoutSession({ method: "OPTIONS", headers: { origin }, body: {}, path: "/createStripeCheckoutSession" }, res);
+    expect(res.headers["Access-Control-Allow-Origin"]).toBe(origin);
+  });
+  it.each(["https://lyricalmyrical-web-v2.firebaseapp.com", "https://evil.example"])("%s is not an allowed storefront origin", async origin => {
+    const res = response();
+    await harness().createStripeCheckoutSession({ method: "OPTIONS", headers: { origin }, body: {}, path: "/createStripeCheckoutSession" }, res);
+    expect(res.headers["Access-Control-Allow-Origin"]).toBeUndefined();
+  });
   it("emailed download links retain their entitlement guard instead of requiring a browser header", async () => {
     const res = response();
     await harness().downloadDigitalAsset({ method: "GET", headers: {}, query: {} }, res);

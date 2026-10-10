@@ -650,14 +650,34 @@ draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
 - **Firebase** (Firestore rules/indexes, Storage rules, Functions) →
   `.github/workflows/deploy-firebase.yml` (needs `FIREBASE_SERVICE_ACCOUNT`
   secret), or manually: `npx firebase-tools deploy --only
-  firestore:rules,firestore:indexes,storage,functions`.
-- If adding a custom domain, update `ALLOWED_ORIGINS` in `functions/index.js`
-  and OAuth redirect URIs.
+  firestore:rules,firestore:indexes,storage,functions`. It never deploys Hosting.
+- **Firebase Hosting, side by side (October 2026, PR 1 of the move off GitHub Pages).** The same workflow
+  (`deploy-pages.yml`, display name "Deploy storefront") also builds the shop for `https://lyricalmyrical-web-v2.web.app`
+  at `/` (job `build-hosting`: `SITE_URL` hard-coded, `SITE_BASE=/`, `SPA_FALLBACK=shell`, no secrets) and publishes it
+  (job `deploy-hosting`: downloads `dist`, `firebase deploy --only hosting` with the pinned CLI and
+  `FIREBASE_HOSTING_SERVICE_ACCOUNT` (Firebase Hosting Admin only), falling back to `FIREBASE_SERVICE_ACCOUNT`; skipped
+  with a warning when neither secret exists; `main` only; both jobs run only when the repository variable
+  `FIREBASE_HOSTING_ENABLED` is `true`, so nothing runs until the owner has set Hosting up). GitHub Pages is still the live shop: `vars.SITE_URL` drives only the
+  Pages job, emails still link to github.io, and every web.app response carries `X-Robots-Tag: noindex` until the cutover.
+  `firebase.json` `hosting`: `cleanUrls` (prerendered `books/<slug>.html` answers at `/books/<slug>`), `trailingSlash: false`
+  (301s to the slash-less canonical), one anchored **regex** rewrite of app routes to `spa.html`, **no catch-all** (unknown URLs
+  get `404.html` = the app shell, a real 404 that still renders the editable missing page), `/assets/**` immutable, pages and
+  root xml/txt `no-cache`, nosniff, `Referrer-Policy`, `X-Frame-Options: SAMEORIGIN` (Studio frames the shop; no CSP/COOP).
+  Use `regex` sources and never give one path two values for a header (`scripts/hostingConfig.test.ts`, which also checks every
+  `App.tsx` route is rewritten). A new top-level route needs the rewrite regex too. `vite.config.ts` `spaFallbackBase` writes
+  `spa.html` (clean shell, before the prerender replaces `index.html`) and, with `SPA_FALLBACK=shell`, `404.html` as the shell
+  (`scripts/spaFallback.mjs` `fallbackFiles`); its `canonicalHost` plugin inlines `scripts/canonicalHost.mjs` after `<meta charset>`
+  so `*.firebaseapp.com`/`*.web.app` visitors move to `SITE_URL`'s host (inert on github.io, localhost, the prerender, and any
+  sub-path `SITE_URL`). `scripts/hosting-smoke.mjs` checks statuses, redirects, bodies and headers in the Hosting emulator
+  (CI and `build-hosting`) and on the live site after each deploy. `ALLOWED_ORIGINS` includes web.app (not firebaseapp.com).
+  Owner setup, the test window and the next steps (cutover, redirect shim on the old address, cleanup) are in
+  `docs/FIREBASE_HOSTING.md`; when the shop gets its own domain, `ALLOWED_ORIGINS` already lists lyricalmyricalbooks.com/www.
 
 **Deploy ordering contract (October 2026).** Rules, indexes and Functions go live before the frontend that needs them.
 `deploy-pages.yml`'s `firebase-first` job, on a push to `main`, lists the changed files (GitHub compare API) and, when any
 path watched by `deploy-firebase.yml` changed (keep its regex identical to that workflow's `on.push.paths`), waits for the
-`deploy-firebase.yml` run of the same commit and fails unless it succeeded; the `deploy` job `needs` it. A failed Firebase
+`deploy-firebase.yml` run of the same commit and fails unless it succeeded; the `deploy` and `build-hosting` jobs `need` it
+(editing `firebase.json`, including its `hosting` block, therefore also redeploys the backend first). A failed Firebase
 deploy therefore stops the frontend; fix the backend and re-run, or start Pages by hand (`workflow_dispatch` and the schedule
 skip the wait). A later push that changes no backend file is not held back by an earlier push's Firebase deploy.
 `deploy-firebase.yml` pins `firebase-tools` (`FIREBASE_TOOLS_VERSION`) and no longer passes `--force`, so it never deletes
@@ -670,10 +690,11 @@ a public repo after 60 days without repository activity, and Studio/admin edits 
 (`scripts/routeSafety.mjs`) is skipped with a warning and left out of the sitemap instead of failing the build. The
 published-content fingerprint (`publicStorefrontData.mjs`) also covers Toronto-date sale/pre-order state and approved
 reviews. Workflow changes can only be verified by their first real run.
-**Stale-asset safety (October 2026):** Pages replaces the whole site per deploy, so HTML cached from the previous deploy
+**Stale-asset safety (October 2026):** Pages (and Firebase Hosting) replace the whole site per deploy, so HTML cached from the previous deploy
 pointed at deleted hashed CSS/JS and rendered unstyled. `scripts/carry-previous-assets.mjs` (workflow step after the build)
 writes `dist/asset-manifest.txt` (this build's `assets/` only) and copies back the files the live list names, keeping one
-older generation; it only warns on failure. `index.html`'s first inline script reloads once (per minute, sessionStorage
+older generation; it only warns on failure, and refuses HTML answers (a host's 404 page) as an asset or list. The
+`check-published-change.mjs` marker must be a 64-hex digest (`isFingerprint`), so an HTML page means "rebuild". `index.html`'s first inline script reloads once (per minute, sessionStorage
 `lm:stale-asset-reload`) when the site's own stylesheet/script or a lazy chunk (`vite:preloadError`) fails to load.
 
 ### Release banner (removed)

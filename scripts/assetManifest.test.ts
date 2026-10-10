@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assetNames, parseAssetManifest, safeAssetName } from './assetManifest.mjs';
+import { assetNames, parseAssetManifest, safeAssetName, isFingerprint, isHtmlResponse } from './assetManifest.mjs';
 
 describe('asset manifest (keeps the previous deploy styles reachable)', () => {
   it('accepts hashed Vite asset names', () => {
@@ -18,5 +18,19 @@ describe('asset manifest (keeps the previous deploy styles reachable)', () => {
 
   it('sorts its own list', () => {
     expect(assetNames(['z.js', 'a.css'])).toEqual(['a.css', 'z.js']);
+  });
+});
+
+describe('live-site files read back by the deploy (never mistake an HTML page for them)', () => {
+  it('accepts only a SHA-256 hex digest as the published-content marker', () => {
+    expect(isFingerprint('a'.repeat(64))).toBe(true);
+    expect(isFingerprint(`${'0f'.repeat(32)}\n`)).toBe(true);
+    for (const bad of ['', '<!DOCTYPE html><html>', 'A'.repeat(64), 'a'.repeat(63), undefined]) expect(isFingerprint(bad)).toBe(false);
+  });
+
+  it('spots an HTML answer where a script, stylesheet or list was expected', () => {
+    expect(isHtmlResponse('text/html; charset=utf-8')).toBe(true);
+    expect(isHtmlResponse('TEXT/HTML')).toBe(true);
+    for (const ok of ['text/javascript', 'text/css; charset=utf-8', 'text/plain', null]) expect(isHtmlResponse(ok)).toBe(false);
   });
 });

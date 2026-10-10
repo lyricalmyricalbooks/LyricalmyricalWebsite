@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { baseSegments, withBaseSegments } from './spaFallback.mjs';
+import { baseSegments, withBaseSegments, fallbackFiles, fallbackMode } from './spaFallback.mjs';
 
 const page = readFileSync(join(__dirname, '..', 'public', '404.html'), 'utf8');
 
@@ -19,5 +19,31 @@ describe('404.html SPA fallback follows the site base', () => {
 
   it('refuses a page without the line rather than shipping a wrong redirect', () => {
     expect(() => withBaseSegments('<html></html>', '/')).toThrow();
+  });
+});
+
+describe('fallback files for each host (SPA_FALLBACK)', () => {
+  const indexHtml = '<!doctype html><div id="root"></div>';
+
+  it('always keeps the clean app shell as spa.html (Firebase Hosting rewrites app routes to it)', () => {
+    expect(fallbackFiles({ indexHtml, page404: page, base: '/LyricalmyricalWebsite/' })['spa.html']).toBe(indexHtml);
+    expect(fallbackFiles({ indexHtml, page404: page, base: '/', mode: 'shell' })['spa.html']).toBe(indexHtml);
+  });
+
+  it('GitHub Pages (default) keeps the redirecting 404.html set to the base', () => {
+    const files = fallbackFiles({ indexHtml, page404: page, base: '/LyricalmyricalWebsite/' });
+    expect(files['404.html']).toMatch(/var pathSegmentsToKeep = 1;/);
+  });
+
+  it('Firebase Hosting gets the app shell as 404.html: a real 404 status that still renders the missing page', () => {
+    expect(fallbackFiles({ indexHtml, page404: page, base: '/', mode: 'shell' })['404.html']).toBe(indexHtml);
+    expect(fallbackFiles({ indexHtml, page404: null, base: '/', mode: 'shell' })['404.html']).toBe(indexHtml);
+  });
+
+  it('refuses a mistyped mode instead of shipping the wrong 404 page', () => {
+    expect(fallbackMode(undefined)).toBe('redirect');
+    expect(fallbackMode('')).toBe('redirect');
+    expect(fallbackMode('shell')).toBe('shell');
+    expect(() => fallbackMode('shel')).toThrow();
   });
 });

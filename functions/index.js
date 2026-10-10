@@ -83,6 +83,9 @@ const ALLOWED_ORIGINS = [
   "http://127.0.0.1:5173",
   "http://localhost:4000",
   "https://lyricalmyricalbooks.github.io",
+  // Firebase Hosting (side-by-side with GitHub Pages until the cutover). firebaseapp.com is deliberately absent:
+  // the site sends visitors there to web.app (scripts/canonicalHost.mjs) instead of serving checkout twice.
+  "https://lyricalmyrical-web-v2.web.app",
   "https://lyricalmyricalbooks.com",
   "https://www.lyricalmyricalbooks.com",
 ];
