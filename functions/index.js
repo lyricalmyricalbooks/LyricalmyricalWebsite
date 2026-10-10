@@ -6094,9 +6094,9 @@ exports.onBookRestocked = onDocumentUpdated(
         return true;
       });
       if (!claimed) continue;
-      // Signups are written by anonymous browsers: only an address with proof of an owner is
-      // mailed, and only while the shop-wide budget allows. Otherwise the signup keeps waiting.
-      if (!(await hasOwnershipProof(db, admin.auth(), alert.email)) || !(await claimEmailSend(db, "backInStock", "", { failOpen: false }))) {
+      // Anyone can sign up (new guests included), so no proof is required, but every send takes
+      // from the shop-wide budget. Over it, the signup keeps waiting for the next restock.
+      if (!(await claimEmailSend(db, "backInStock", "", { failOpen: false }))) {
         await doc.ref.update({ status: "waiting" }).catch(() => {});
         continue;
       }

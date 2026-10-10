@@ -207,12 +207,16 @@ test('reminders also stop when the shop-wide email budget is used up', async () 
 const restock = () => ({ data: { before: { data: () => ({ title: 'Poems', status: 'published', stockLevel: 0, trackInventory: true }) }, after: { data: () => ({ title: 'Poems', status: 'published', stockLevel: 5, trackInventory: true }) } }, params: { bookId: 'b1' } });
 const alertDoc = email => ({ email, bookId: 'b1', variantId: '', status: 'waiting', bookTitle: 'Poems' });
 
-test('back-in-stock mail goes only to an address with proof', async () => {
-  const seed = { ...SETTINGS, 'stockAlerts/stranger': alertDoc('victim@example.com'), 'stockAlerts/buyer': alertDoc('buyer@example.com'), ...checkoutAttempt('buyer@example.com') };
+test('back-in-stock mail goes to a new guest too, once per address, within the shop-wide budget', async () => {
+  const seed = { ...SETTINGS, 'stockAlerts/guest': alertDoc('guest@example.com') };
   const app = load({ db: makeDb(seed) });
   await app.exports.onBookRestocked(restock());
-  expect(app.sent.map(m => m.to)).toEqual(['buyer@example.com']);
-  expect(app.db.store.get('stockAlerts/stranger').status).toBe('waiting');
+  expect(app.sent.map(m => m.to)).toEqual(['guest@example.com']);
+  const full = { ...SETTINGS, 'stockAlerts/guest': alertDoc('guest@example.com'), 'contact-email-throttle/_global_hour': { windowStart: Date.now(), count: GLOBAL_EMAIL_BUDGET.hour.max } };
+  const over = load({ db: makeDb(full) });
+  await over.exports.onBookRestocked(restock());
+  expect(over.sent).toEqual([]);
+  expect(over.db.store.get('stockAlerts/guest').status).toBe('waiting');
 });
 
 // ── 27: CTA buttons readable in the light theme ──────────────────────────────────────────────
