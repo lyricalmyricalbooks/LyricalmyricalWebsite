@@ -745,6 +745,38 @@ export const adminApi = {
       .sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
   },
 
+  /** The design that is live right now (settings/website.design), read fresh. Studio's "published" baseline. */
+  getLiveDesign: async () => {
+    const snap = await getDoc(doc(db, "settings", "website"));
+    return snap.exists() ? ((snap.data() as any)?.design ?? {}) : {};
+  },
+
+  /**
+   * Every design stored for later use that could put a picture back on the shop: scheduled and running
+   * themeSchedule entries (their design and, for a running campaign, the design it will restore) and
+   * unexpired share-preview links. Media Delete checks these. Throws when either can't be read.
+   */
+  listStoredDesigns: async () => {
+    const out: { label: string; design: any }[] = [];
+    const schedule = await getDocs(collection(db, "themeSchedule"));
+    for (const d of schedule.docs as any[]) {
+      const data = d.data();
+      if (data.status !== "scheduled" && data.status !== "live") continue;
+      const name = String(data.name || "Scheduled design");
+      out.push({ label: `Scheduled › ${name}`, design: data.design });
+      if (data.revertDesign) out.push({ label: `Scheduled › ${name} (the design restored when it ends)`, design: data.revertDesign });
+    }
+    const links = await getDocs(collection(db, "previewTokens"));
+    const now = Date.now();
+    for (const d of links.docs as any[]) {
+      const data = d.data();
+      const expires = typeof data.expiresAt?.toDate === "function" ? data.expiresAt.toDate().getTime() : Date.parse(String(data.expiresAt || ""));
+      if (Number.isFinite(expires) && expires <= now) continue;
+      out.push({ label: `Share link › ${String(data.name || "Unpublished design")}`, design: data.design });
+    }
+    return out;
+  },
+
   // ── Share previews (Studio 3.4): previewTokens/{token}, readable by the exact token until it expires ──
   PREVIEW_LINK_MAX_DAYS: 30,
 
@@ -785,10 +817,16 @@ export const adminApi = {
     return snap.docs.map((d: any) => { const { design: _d, revertDesign: _r, ...rest } = d.data(); return { id: d.id, ...rest }; })
       .sort((a: any, b: any) => String(b.startAt || "").localeCompare(String(a.startAt || "")));
   },
-  addThemeSchedule: async (entry: { kind: "publish" | "campaign"; name: string; startAt: string; endAt?: string | null; design: any }) => {
+  /**
+   * `liveBase` = the live values of the fields changed outside Publish (shop categories, the under-construction wall) when
+   * the schedule is made. The scheduler uses it to tell "left as it was" (take the current live value) from "changed on
+   * purpose in this design" (keep it): functions/themeSchedule.js.
+   */
+  addThemeSchedule: async (entry: { kind: "publish" | "campaign"; name: string; startAt: string; endAt?: string | null; design: any; liveBase?: Record<string, any> }) => {
     const clean = { kind: entry.kind, name: String(entry.name || "").trim().slice(0, 80) || "Scheduled design", status: "scheduled",
       startAt: entry.startAt, endAt: entry.kind === "campaign" ? entry.endAt || null : null, createdAt: new Date().toISOString(),
-      design: JSON.parse(JSON.stringify(entry.design ?? {})) };
+      design: JSON.parse(JSON.stringify(entry.design ?? {})),
+      ...(entry.liveBase ? { liveBase: JSON.parse(JSON.stringify(entry.liveBase)) } : {}) };
     const ref = await addDoc(collection(db, "themeSchedule"), clean);
     return { id: ref.id, ...clean };
   },

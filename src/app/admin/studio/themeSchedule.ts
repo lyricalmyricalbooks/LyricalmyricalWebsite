@@ -10,35 +10,9 @@ export type ScheduleEntry = {
   design?: any;
 };
 
-export const SHOP_TZ = "America/Toronto";
-
-/** Toronto's offset from UTC (minutes) at a given instant. */
-function offsetMinutes(utcMs: number): number {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
-    timeZone: SHOP_TZ, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
-  }).formatToParts(new Date(utcMs)).map(p => [p.type, p.value]));
-  const asUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour % 24, +parts.minute, +parts.second);
-  return Math.round((asUtc - utcMs) / 60000);
-}
-
-/** "2026-10-10T09:00" in Toronto → UTC ISO. Null for an invalid value. */
-export function torontoLocalToIso(local: string): string | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(String(local || ""));
-  if (!m) return null;
-  const wall = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
-  // Two passes settle the offset across daylight-saving changes.
-  let utc = wall - offsetMinutes(wall) * 60000;
-  utc = wall - offsetMinutes(utc) * 60000;
-  return Number.isFinite(utc) ? new Date(utc).toISOString() : null;
-}
-
-/** UTC ISO → "2026-10-10T09:00" Toronto wall-clock time (for datetime-local inputs). */
-export function isoToTorontoLocal(iso: string): string {
-  const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return "";
-  const local = new Date(t + offsetMinutes(t) * 60000);
-  return local.toISOString().slice(0, 16);
-}
+// The shop clock lives in features/site/shopTime.ts so the storefront (section show-from/until) uses the same rules.
+import { isNonexistentTorontoTime, isoToTorontoLocal, SHOP_TZ, torontoLocalToIso } from "../../features/site/shopTime";
+export { isNonexistentTorontoTime, isoToTorontoLocal, SHOP_TZ, torontoLocalToIso };
 
 /** "Sat, Oct 10, 9:00 a.m." in Toronto time. */
 export function formatToronto(iso?: string | null): string {
@@ -50,8 +24,13 @@ export function formatToronto(iso?: string | null): string {
 const MAX_CAMPAIGN_DAYS = 120;
 
 /** Problems with a new entry, in the owner's words (empty = fine). */
-export function scheduleProblems(entry: { kind: ScheduleKind; startAt: string | null; endAt?: string | null }, existing: ScheduleEntry[], now = Date.now()): string[] {
+export function scheduleProblems(entry: { kind: ScheduleKind; startAt: string | null; endAt?: string | null; startLocal?: string; endLocal?: string }, existing: ScheduleEntry[], now = Date.now()): string[] {
   const out: string[] = [];
+  // Toronto skips an hour when the clocks go forward in March. Such a time is refused, not quietly moved.
+  const skipped = (label: string, local?: string) => (local && isNonexistentTorontoTime(local)
+    ? [`${label} time ${local.replace("T", " ")} doesn't exist in Toronto: the clocks jump from 2:00 a.m. to 3:00 a.m. that day. Choose 3:00 a.m. or later, or before 2:00 a.m.`] : []);
+  const gap = [...skipped("The start", entry.startLocal), ...(entry.kind === "campaign" ? skipped("The end", entry.endLocal) : [])];
+  if (gap.length) return gap;
   const start = Date.parse(String(entry.startAt || ""));
   if (!Number.isFinite(start)) return ["Choose when it should start."];
   if (start < now - 60_000) out.push("The start time has already passed. Choose a time in the future.");
