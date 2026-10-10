@@ -1,19 +1,22 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
-import { DestructiveButton, EmptyState, ErrorState, SecondaryButton, SectionCard, StatusBadge, TextField, useConfirm } from "./riso/components";
+import { DestructiveButton, EmptyState, ErrorState, SecondaryButton, SectionCard, SelectField, StatusBadge, TextField, useConfirm } from "./riso/components";
 
 /**
  * Settings › General › Privacy requests. Shoppers ask from the order-tracking page
  * ("copy of my data" / "delete my data"); anyone can ask, so the owner confirms the
  * person owns the address (reply from it) before exporting or erasing. Erasing keeps
- * orders, which are tax and accounting records.
+ * paid orders, which are tax and accounting records; orders that were never paid lose the
+ * customer's details too, and gift cards lose names, emails and messages.
  */
 export function PrivacyRequestsCard() {
   const [requests, setRequests] = useState<any[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState("");
+  // What happens to the person's published review text when their data is deleted.
+  const [reviewAction, setReviewAction] = useState<"anonymize" | "unpublish" | "remove-text">("anonymize");
   const [ask, confirmNode] = useConfirm();
 
   const load = async () => {
@@ -43,15 +46,16 @@ export function PrivacyRequestsCard() {
   const eraseData = async (address: string, requestId?: string) => {
     const ok = await ask({
       title: `Delete ${address}'s data?`,
-      message: "This deletes their newsletter signup, back-in-stock alerts, saved carts, contact messages, review email and customer account, and removes their name from reviews. Orders are kept as tax records. This can't be undone.",
+      message: `This deletes their newsletter signup, back-in-stock alerts, saved carts, contact messages, email delivery log, review email and customer account, and removes their name from reviews${reviewAction === "unpublish" ? " (and unpublishes the reviews)" : reviewAction === "remove-text" ? " (and blanks the review title and text)" : " (the review text stays as it is)"}. Gift cards they bought or received lose their names, emails and messages but keep their balance. Orders that were never paid lose the customer's details; paid orders are kept as tax records with private notes blanked. This can't be undone.`,
       confirmLabel: "Delete their data",
     });
     if (!ok) return;
     setBusy(`erase:${address}`);
     try {
-      const result = await adminApi.privacyAction("privacyErase", address, requestId);
+      const result = await adminApi.privacyAction("privacyErase", address, requestId, { reviewAction });
       const kept = result.keptOrders?.length || 0;
-      toast.success(`Deleted. ${kept ? `${kept} order${kept === 1 ? "" : "s"} kept for tax records.` : "No orders on file."}`);
+      const cleared = result.redactedUnpaidOrders?.length || 0;
+      toast.success(`Deleted. ${kept ? `${kept} paid order${kept === 1 ? "" : "s"} kept for tax records.` : "No paid orders on file."}${cleared ? ` ${cleared} unpaid order${cleared === 1 ? "" : "s"} cleared of customer details.` : ""}${result.incompleteScan?.length ? ` Some old records may remain in: ${result.incompleteScan.join(", ")}; run it again.` : ""}`);
       await load();
     } catch (err: any) {
       toast.error(err?.message || "Delete failed.");
@@ -112,6 +116,13 @@ export function PrivacyRequestsCard() {
         </div>
         <SecondaryButton disabled={!email.trim() || !!busy} onClick={() => exportData(email.trim())}>Download data</SecondaryButton>
         <DestructiveButton disabled={!email.trim() || !!busy} onClick={() => eraseData(email.trim())}>Delete data</DestructiveButton>
+      </div>
+      <div style={{ marginTop: 12, maxWidth: 360 }}>
+        <SelectField label="When deleting, their reviews" hint="Their name is always replaced with “Anonymous”." value={reviewAction} onChange={(e) => setReviewAction(e.target.value as any)}>
+          <option value="anonymize">Keep the review text</option>
+          <option value="unpublish">Unpublish the reviews</option>
+          <option value="remove-text">Blank the title and text</option>
+        </SelectField>
       </div>
       {confirmNode}
     </SectionCard>

@@ -1,4 +1,5 @@
 import { orderChargedTotal } from "./orderMoney";
+import { finishEmailLinkSignIn } from "./emailLinkSignIn";
 import { lineIsDigital, UNREADABLE_BOOK } from "./digitalLine";
 import { publicApi } from "../../lib/publicApi";
 import { orderLineNotes } from "./orderLineNotes";
@@ -114,16 +115,19 @@ function AccountContent() {
   useSEO({ title: getCopy(settings?.design, "seoAccountTitle"), description: getCopy(settings?.design, "seoAccountDescription") });
 
   async function completeEmailLinkSignIn(email: string) {
-    try {
-      await signInWithEmailLink(auth, email.trim(), window.location.href);
-      try { window.localStorage.removeItem("emailForSignIn"); } catch { /* storage blocked */ }
+    const result = await finishEmailLinkSignIn(email, {
+      signIn: address => signInWithEmailLink(auth, address, window.location.href),
+      forgetSavedEmail: () => { try { window.localStorage.removeItem("emailForSignIn"); } catch { /* storage blocked */ } },
+    });
+    if (result.ok) {
       setConfirmingLink(false);
       // Drop the one-time sign-in code from the address bar.
       window.history.replaceState(null, "", window.location.pathname);
       toast.success(getCopy(settings?.design, "accountSignedInLink"));
-    } catch (err: any) {
-      console.error("Email link sign in error:", err);
-      setConfirmingLink(false);
+    } else {
+      console.error("Email link sign in error:", result.error);
+      // Keep the confirm-your-email card (and the link's code in the address) so the address can be retyped.
+      setConfirmingLink(true);
       toast.error(getCopy(settings?.design, "accountSignInError"));
     }
   }

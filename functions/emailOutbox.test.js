@@ -80,7 +80,7 @@ function harness({ docs: extra = {}, gmailFails = true, resendFails = true, patc
     id,
     path: `${name}/${id}`,
     get ref() { return this; },
-    async get() { const data = docs[name]?.[id]; return { id, exists: !!data, data: () => clone(data) }; },
+    async get() { const data = docs[name]?.[id]; return { id, ref: this, exists: !!data, data: () => clone(data) }; },
     async set(data, opts) { docs[name] = docs[name] || {}; docs[name][id] = opts?.merge ? { ...(docs[name][id] || {}), ...data } : { ...data }; },
     async update(data) { docs[name][id] = { ...(docs[name][id] || {}), ...data }; },
     async delete() {
@@ -93,6 +93,8 @@ function harness({ docs: extra = {}, gmailFails = true, resendFails = true, patc
   const query = (name, filters = []) => ({
     where: (field, op, value) => query(name, [...filters, { field, op, value }]),
     orderBy: () => query(name, filters),
+    select: () => query(name, filters),
+    startAfter: () => query(name, filters),
     limit: () => query(name, filters),
     async get() {
       const rows = Object.entries(docs[name] || {}).filter(([, d]) => filters.every(f => matches(f.field.split(".").reduce((v, k) => (v == null ? undefined : v[k]), d), f.op, f.value)))
@@ -110,6 +112,7 @@ function harness({ docs: extra = {}, gmailFails = true, resendFails = true, patc
       const ops = [];
       return { delete: r => ops.push(() => r.delete()), update: (r, d) => ops.push(() => r.update(d)), set: (r, d, o) => ops.push(() => r.set(d, o)), async commit() { for (const op of ops) await op(); } };
     },
+    async getAll(...refs) { return Promise.all(refs.map(r => r.get())); },
     async runTransaction(fn) { return fn({ get: r => r.get(), set: (r, d, o) => r.set(d, o), update: (r, d) => r.update(d), delete: r => r.delete(), create: (r, d) => r.set(d) }); },
   };
   const admin = {
@@ -381,6 +384,120 @@ describe("review fixes", () => {
     expect(erased.body.deleted).toMatchObject({ queuedEmails: 1, emailLogRows: 1 });
     expect(app.docs.emailOutbox[ID]).toBeUndefined();
     expect(Object.keys(app.docs.emailLog)).toEqual(["l2"]);
+  });
+
+  test("privacy erase finds mixed-case rows, gift cards, notes; redacts unpaid orders; reviews per choice", async () => {
+    const now = new Date().toISOString();
+    const app = harness({ docs: {
+      reviewContacts: { r1: { email: "Reader@Example.com" } },
+      reviews: { r1: { authorName: "Reader", title: "Lovely", body: "I live at 5 Elm St", status: "approved" } },
+      contactMessages: { m1: { email: "READER@example.com", message: "hi" } },
+      "abandoned-carts": { c1: { email: "Reader@example.com", customer: { email: "Reader@example.com" } } },
+      emailLog: { l1: { to: "a@example.com, reader@example.com", at: now }, l2: { to: "other@example.com", at: now } },
+      giftCards: { g1: { purchaserEmail: "reader@example.com", recipientEmail: "friend@example.com", recipientName: "Friend", senderName: "Reader", message: "Happy birthday", balanceMinor: 2500, code: "SECRET-CODE" },
+        g2: { purchaserEmail: "x@example.com", recipientEmail: "reader@example.com", recipientName: "Reader", message: "Enjoy", balanceMinor: 1000, code: "C2" },
+        g3: { purchaserEmail: "x@example.com", recipientEmail: "y@example.com", message: "not theirs" } },
+      orders: {
+        paid1: { customer: { email: "reader@example.com", name: "Reader", phone: "1" }, paymentStatus: "paid", status: "completed" },
+        unpaid1: { customer: { email: "reader@example.com", name: "Reader", phone: "1", address: { street: "5 Elm" } }, paymentStatus: "pending", status: "pending_payment", orderNote: "gift for Mum" },
+        cancelled1: { customer: { email: "reader@example.com", name: "Reader" }, paymentStatus: "unpaid", status: "cancelled" },
+      },
+      "order-operations": { paid1: { activity: [{ type: "note", message: "Reader is difficult" }, { type: "event", message: "Packed" }] }, unpaid1: { activity: [{ type: "note", message: "x" }] } },
+    } });
+    const exported = (await app.callFn("createStripeCheckoutSession", { action: "privacyExport", email: "reader@example.com" })).body;
+    expect(exported.reviews).toHaveLength(1);
+    expect(exported.contactMessages).toHaveLength(1);
+    expect(exported.savedCarts).toHaveLength(1);
+    expect(exported.giftCards.map(c => c.id).sort()).toEqual(["g1", "g2"]);
+    expect(JSON.stringify(exported.giftCards)).not.toContain("SECRET-CODE");
+    expect(exported.emailDeliveryLog.map(r => r.id)).toEqual(["l1"]);
+    expect(exported.orderNotesAndHistory.map(r => r.id).sort()).toEqual(["paid1", "unpaid1"]);
+
+    const erased = (await app.callFn("createStripeCheckoutSession", { action: "privacyErase", email: "Reader@Example.com", reviewAction: "remove-text" })).body;
+    expect(erased.deleted).toMatchObject({ savedCarts: 1, contactMessages: 1, reviewContacts: 1, emailLogRows: 1 });
+    expect(app.docs.reviewContacts.r1).toBeUndefined();
+    expect(app.docs["abandoned-carts"].c1).toBeUndefined();
+    expect(app.docs.reviews.r1).toMatchObject({ authorName: "Anonymous", title: "", body: "" });
+    expect(Object.keys(app.docs.emailLog)).toEqual(["l2"]);
+    expect(app.docs.giftCards.g1).toMatchObject({ recipientEmail: "", purchaserEmail: "", message: "", balanceMinor: 2500 });
+    expect(app.docs.giftCards.g2).toMatchObject({ recipientEmail: "", recipientName: "" });
+    expect(app.docs.giftCards.g3.message).toBe("not theirs");
+    expect(erased.keptOrders).toEqual(["paid1"]);
+    expect(erased.redactedUnpaidOrders.sort()).toEqual(["cancelled1", "unpaid1"]);
+    expect(app.docs.orders.unpaid1.customer).toEqual({ name: "", email: "", phone: "", address: {} });
+    expect(app.docs.orders.unpaid1.orderNote).toBe("");
+    expect(app.docs.orders.paid1.customer.email).toBe("reader@example.com");
+    expect(app.docs["order-operations"].unpaid1).toBeUndefined();
+    expect(app.docs["order-operations"].paid1.activity[0].message).not.toContain("difficult");
+    expect(app.docs["order-operations"].paid1.activity[1].message).toBe("Packed");
+  });
+
+  test("privacy erase can unpublish the review instead", async () => {
+    const app = harness({ docs: { reviewContacts: { r1: { email: "reader@example.com" } }, reviews: { r1: { authorName: "R", body: "b", status: "approved" } } } });
+    await app.callFn("createStripeCheckoutSession", { action: "privacyErase", email: "reader@example.com", reviewAction: "unpublish" });
+    expect(app.docs.reviews.r1).toMatchObject({ authorName: "Anonymous", status: "rejected", body: "b" });
+  });
+
+  describe("newsletter double opt-in", () => {
+    const linkOf = (html, name) => { const m = html.match(new RegExp(`href="[^"]*[?&]${name}=1&amp;e=([^&"]+)&amp;t=([a-f0-9]{40})`)); return m && { e: decodeURIComponent(m[1]), t: m[2] }; };
+    const signup = (app, email = "Reader@Example.com") => app.callFn("createStripeCheckoutSession", { action: "newsletterSignup", email, source: "website-footer" });
+    const mailTo = (app, to) => app.delivered.filter(m => m.to === to || (Array.isArray(m.to) && m.to.includes(to)));
+
+    test("signup is pending with a consent record and mails one signed confirmation link", async () => {
+      const app = harness({ gmailFails: false });
+      expect((await signup(app)).code).toBe(200);
+      expect(app.docs.newsletter["reader@example.com"]).toMatchObject({ status: "pending", source: "website-footer" });
+      expect(app.docs.newsletter["reader@example.com"].consentText).toMatch(/confirms by email link/);
+      expect(app.docs.newsletter["reader@example.com"].requestedAt).toBeTruthy();
+      const mail = mailTo(app, "reader@example.com");
+      expect(mail).toHaveLength(1);
+      expect(linkOf(mail[0].html, "newsletter_confirm")).toBeTruthy();
+      expect(linkOf(mail[0].html, "unsubscribe")).toBeTruthy();
+      await signup(app);
+      expect(mailTo(app, "reader@example.com")).toHaveLength(1);
+    });
+
+    test("only the signed link confirms; an unsubscribe link or a bad token does not", async () => {
+      const app = harness({ gmailFails: false });
+      await signup(app);
+      const html = mailTo(app, "reader@example.com")[0].html;
+      const confirm = linkOf(html, "newsletter_confirm");
+      const unsub = linkOf(html, "unsubscribe");
+      const call = (email, token) => app.callFn("createStripeCheckoutSession", { action: "newsletterConfirm", email, token });
+      expect((await call(confirm.e, "0".repeat(40))).code).toBe(400);
+      expect((await call(confirm.e, unsub.t)).code).toBe(400);
+      expect(app.docs.newsletter["reader@example.com"].status).toBe("pending");
+      expect((await call(confirm.e, confirm.t)).code).toBe(200);
+      expect(app.docs.newsletter["reader@example.com"]).toMatchObject({ status: "confirmed" });
+      expect(app.docs.newsletter["reader@example.com"].confirmedAt).toBeTruthy();
+    });
+
+    test("the unsubscribe link deletes the subscriber and records the opt-out; the old confirm link cannot revive it", async () => {
+      const app = harness({ gmailFails: false });
+      await signup(app);
+      const html = mailTo(app, "reader@example.com")[0].html;
+      const confirm = linkOf(html, "newsletter_confirm");
+      const unsub = linkOf(html, "unsubscribe");
+      await app.callFn("createStripeCheckoutSession", { action: "newsletterConfirm", email: confirm.e, token: confirm.t });
+      const out = await app.callFn("createStripeCheckoutSession", { action: "unsubscribe", email: unsub.e, token: unsub.t });
+      expect(out.code).toBe(200);
+      expect(app.docs.newsletter["reader@example.com"]).toBeUndefined();
+      expect(Object.keys(app.docs["marketing-optout"] || {})).toHaveLength(1);
+      expect((await app.callFn("createStripeCheckoutSession", { action: "newsletterConfirm", email: confirm.e, token: confirm.t })).code).toBe(410);
+      expect(app.docs.newsletter["reader@example.com"]).toBeUndefined();
+    });
+
+    test("signups nobody confirmed for 30 days are pruned; confirmed and fresh ones stay", async () => {
+      const old = new Date(Date.now() - 31 * 864e5).toISOString();
+      const app = harness({ docs: { newsletter: {
+        "old@example.com": { status: "pending", requestedAt: old },
+        "new@example.com": { status: "pending", requestedAt: new Date().toISOString() },
+        "ok@example.com": { status: "confirmed", requestedAt: old },
+      } } });
+      const result = await app.exports.__runOutbox(Date.now(), {});
+      expect(result.prunedPending).toBe(1);
+      expect(Object.keys(app.docs.newsletter).sort()).toEqual(["new@example.com", "ok@example.com"]);
+    });
   });
 
   test("the order table never lands in a subject line", async () => {

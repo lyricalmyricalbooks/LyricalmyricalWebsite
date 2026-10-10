@@ -1550,6 +1550,26 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   `getShippoRates` / `cartShippingPreview` server). The bag's free-shipping bar counts printed books only (`shippableBagTotal`).
 - Gift-card `adjust` history stores the applied change (`requestedMinor` kept when clamped). `createPayPalOrder` binds `STRIPE_SECRET_KEY`.
 
+## Privacy and newsletter (10 October 2026)
+
+- **Owner decision (closed, don't re-raise in audits):** analytics/marketing tracking keeps its default of running before the
+  cookie banner is answered. Do not change the consent defaults in `lib/consent.ts`.
+- **Privacy export/erase** (`functions/privacyData.js`, `personalDataFor` / `handlePrivacyAdmin`): addresses match in any
+  capitalisation (exact lower-case query plus a bounded field-only scan for older mixed-case rows); browser writes of contact
+  messages, review contacts and saved carts now lower-case the email. Export and erase also cover `giftCards` (purchaser/recipient;
+  erase blanks names, emails, message but keeps the balance), `emailLog` (`to` may list several recipients), and admin-only
+  `order-operations` for the person's orders. Erase blanks the customer block of never-paid orders (`neverPaid`), deletes their
+  order-operations, blanks private notes on kept paid orders, and takes `reviewAction` (`anonymize` | `unpublish` | `remove-text`,
+  Settings › General › Privacy requests › *When deleting, their reviews*). `emailLog` rows are pruned after 90 days in `runEmailOutbox`.
+- **Newsletter double opt-in** (`functions/newsletter.js`, actions `newsletterSignup` / `newsletterConfirm` on
+  `createStripeCheckoutSession`): signup stores `newsletter/<email>` as `status: "pending"` with `consentText`, `requestedAt`, and mails
+  a signed confirm link (`purposeToken`, budget `claimEmailSend("newsletterConfirm")`); the link sets `status: "confirmed"`. Browsers
+  can no longer write `newsletter` (`firestore.rules`). Older rows with no `status` count as subscribed. `action: "unsubscribe"`
+  (the shared signed link, `/track?unsubscribe=1`) now also deletes the newsletter row. Pending rows older than 30 days are pruned.
+  Anything that mails or counts subscribers must skip `status === "pending"` (`mayMail`). The confirmation email text is fixed in code
+  (not an editable template) so its consent wording can't be edited away; storefront words are Text & labels › Newsletter / Order tracking.
+- **Email-link sign-in** (`features/site/emailLinkSignIn.ts`): a failed attempt forgets the saved address and keeps the "confirm your email" card.
+
 ## Round-2 security: private book fields, public endpoints, rules (10 October 2026)
 
 - **`books` is public for published books only.** `firestore.rules`: `allow read: if isAdmin() || resource.data.status == "published"`.
