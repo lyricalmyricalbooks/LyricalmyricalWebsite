@@ -1648,6 +1648,28 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   so releasing frees the shopper's count; IPv6 clients are counted by /64 (`rateLimit.js` `ipKey`, also used by `hitLimit`).
 - Server `validateAddress` still requires state and ZIP; for countries without them it answers 400 and the order is taken as `verification_unavailable`.
 
+## Round-2 digital downloads (10 October 2026)
+
+`downloadDigitalAsset` rules live in `functions/digitalDelivery.js` (pure, `digitalDownloads.test.js`); the endpoint and the
+order-confirmation email both use them. Emailed download links stay outside browser App Check.
+- **Limits:** each book + edition on an order may be fetched `DOWNLOAD_LIMIT` (10) times, counted in a transaction on
+  `orders/{id}.downloadCounts` (`countKey`); the 11th click answers 429. Orders › More order actions › **Reset download limits**
+  clears the map (`adminApi.updateOrder`). `downloadToken` itself is unchanged (still per order, never expires); every click mints
+  a 15-minute signed URL. `publicOrderView` never sends `downloadCounts`. The email wording is `DEFAULT_DOWNLOAD_NOTE`
+  (overridable with an optional `order_confirmation.downloadNote` in `settings/notifications`); nothing says "24 hours" any more.
+- **Pre-orders:** `emailDigitalEntries` gives a not-yet-released e-book no link ("Available from <date>" / "once the book is
+  released"); Account and Order tracking keep their buttons (the server answers with the release date until then).
+- **Box sets:** a request may name a box set's part (`deliveryCandidates` matches `components[].id`); the email, Account and
+  tracking list the digital parts (`digitalLine.ts` `digitalEntries`, `downloadBookIds`). The catalog decides whether a part is digital.
+- **One file per edition:** Books › edit › **Editions** › *Digital edition* toggle + **Upload this edition's file** sets the edition's
+  `digital`, `digitalFileName` (public, like the book's) and `digitalFilePath` (private: `books/{id}/private/admin.variantFiles`,
+  split/merged by `bookPrivate.ts`). `pickFileName` takes the edition's file, else the book's. Download links carry `&variantId=`
+  and the pages show one button per edition ordered.
+- **Refused:** unpaid (402), cancelled orders and open disputes (403; `won/lost/warning_closed/closed/charge_refunded` don't block).
+- **File:** signed URL has `responseDisposition: attachment; filename="<title>.<ext>"` (the upload's epoch prefix dropped) and
+  `responseType` from the extension (pdf, epub, mp3, m4a, zip).
+- Deploy Functions with the frontend. No rule or index change (`downloadCounts` is written by Functions and by the admin).
+
 ## Round-2 catalog and settings (10 October 2026)
 
 - **Book saves (`adminApi.updateBook(id, form, loaded, { removeMissing })`):** still diff-only (`changedBookFields`). Three additions in
