@@ -22,7 +22,7 @@ import {
 import { GlobalSearch, ActivityLogDialog } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
-import { NAV, PAGE_COPY } from "./riso/nav";
+import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, sidebarItems } from "./riso/nav";
 import { adminDocumentTitle, hashForRoute, routeFromHash, sameSection } from "./adminRoute";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
@@ -355,6 +355,16 @@ export function Dashboard() {
   // Shipping/Payments can also be entered as top-level tabs by ShopSettings.
   const navActive = activeTab === "shipping" || activeTab === "payments" ? "settings" : activeTab === "analytics" ? "overview" : activeTab;
   const navChild = activeTab === "shipping" || activeTab === "payments" ? activeTab : settingsTab;
+  // A Settings page picked straight from the sidebar: leaves the book editor / an open order too.
+  const openSettingsPage = async (child: string) => {
+    if (!(isSettingsPage && child === navChild) && !(await leaveSettings())) return;
+    setActiveTab("settings");
+    setSettingsTab(child);
+    setShowEditor(false);
+    setSelectedOrder(null);
+    setSidebarOpen(false);
+  };
+
   const copy = PAGE_COPY[activeTab] || PAGE_COPY.overview;
   const childLabel = NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === navChild)?.label;
   const trail: Array<{ label: string; onClick?: () => void }> = [{ label: "Admin", onClick: () => goTo("overview") }];
@@ -435,15 +445,16 @@ export function Dashboard() {
           <Sidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            items={NAV.map((n) => {
+            items={sidebarItems(NAV).map((n) => {
               // Orders counts open cancel/return requests too (they sit in Needs attention).
+              // Privacy requests are handled in Settings › General.
               const badge = n.id === "orders" ? ordersBadge : n.id === "reviews" ? otherBadges.pendingReviews
-                : n.id === "messages" ? otherBadges.unreadMessages : n.id === "settings" ? otherBadges.openPrivacyRequests : undefined;
+                : n.id === "messages" ? otherBadges.unreadMessages : n.id === SETTINGS_ITEM_PREFIX + "general" ? otherBadges.openPrivacyRequests : undefined;
               return badge === undefined ? n : { ...n, badge: badge || 0 };
             })}
-            activeId={showEditor ? null : navActive}
+            activeId={showEditor ? null : navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive}
             activeChildId={navChild}
-            onSelect={goTo}
+            onSelect={(id) => { if (id.startsWith(SETTINGS_ITEM_PREFIX)) void openSettingsPage(id.slice(SETTINGS_ITEM_PREFIX.length)); else void goTo(id); }}
             onSelectChild={goToChild}
             brand={<>
               <span className="rp-brand-mark"><BookOpen size={20} aria-hidden /></span>

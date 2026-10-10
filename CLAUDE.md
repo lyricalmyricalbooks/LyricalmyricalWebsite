@@ -692,6 +692,10 @@ If tokens change there, update `riso.css` to match.
   focus restore), `useConfirm()`, ActionMenu, Toast, SyncChip, Empty/Loading/ErrorState,
   SaveBar. `shellParts.tsx` — GlobalSearch, ActivityLogDialog. `nav.ts` — nav config.
 - `src/app/lib/useFocusTrap.ts` — shared by admin dialogs and the storefront cart drawer.
+- **Sidebar:** `sidebarItems(NAV)` (`riso/nav.ts`) shows each Settings child as its own top-level item (`settings/<page>`,
+  own icon, `section: "Settings"` heading); `NAV` keeps the nested shape for page titles and admin search. What's new
+  (`admin/WhatsNew.tsx`) is a one-line sidebar button (latest title, unread dot via localStorage `lm:whats-new-seen`)
+  that opens every note in a Dialog.
 
 **Admin address bar:** the page on screen lives in the hash (`admin/adminRoute.ts`, pure + tested): `#orders/<id>`,
 `#settings/payments`, `#customers`, `#gift-cards/<id>`, `#designer?…` (Studio). `Dashboard.tsx` reads it at boot and on

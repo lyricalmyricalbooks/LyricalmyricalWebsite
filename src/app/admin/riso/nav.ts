@@ -1,5 +1,6 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, Tag, BadgePercent, ShoppingCart, Users, Boxes, Gift,
+  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Bell, Mail,
 } from "lucide-react";
 import type { NavEntry } from "./components";
 
@@ -14,15 +15,31 @@ export const NAV: NavEntry[] = [
   { id: "reviews", label: "Reviews", icon: BadgePercent },
   { id: "messages", label: "Messages", icon: Inbox },
   { id: "settings", label: "Settings", icon: Settings, children: [
-    { id: "general", label: "General" },
-    { id: "shipping", label: "Shipping" },
-    { id: "payments", label: "Payments" },
-    { id: "taxes", label: "Taxes" },
-    { id: "designer", label: "Design" },
-    { id: "notifications", label: "Notifications" },
-    { id: "communications", label: "Email sender" },
+    { id: "general", label: "General", icon: SlidersHorizontal },
+    { id: "shipping", label: "Shipping", icon: Truck },
+    { id: "payments", label: "Payments", icon: CreditCard },
+    { id: "taxes", label: "Taxes", icon: Receipt },
+    { id: "designer", label: "Design", icon: Palette },
+    { id: "notifications", label: "Notifications", icon: Bell },
+    { id: "communications", label: "Email sender", icon: Mail },
   ] },
 ];
+
+/** Sidebar id of a Settings page shown as its own top-level item: `settings/<page>`. */
+export const SETTINGS_ITEM_PREFIX = "settings/";
+
+/**
+ * The sidebar list: every Settings page is its own top-level item (no fold-out), under a small
+ * "Settings" heading. NAV itself keeps the nested shape that page titles and admin search read.
+ */
+export function sidebarItems(nav: NavEntry[]): NavEntry[] {
+  return nav.flatMap((entry) => entry.children
+    ? entry.children.map((child, i) => ({
+      id: SETTINGS_ITEM_PREFIX + child.id, label: child.label, icon: child.icon || entry.icon,
+      ...(i === 0 ? { section: entry.label } : {}),
+    }))
+    : [entry]);
+}
 
 export const PAGE_COPY: Record<string, { title: string; description: string }> = {
   overview: { title: "Overview", description: "Sales, orders, and catalog health at a glance." },
