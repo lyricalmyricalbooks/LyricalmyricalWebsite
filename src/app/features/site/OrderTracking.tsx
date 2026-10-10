@@ -1,5 +1,6 @@
 import { orderChargedTotal } from "./orderMoney";
-import { lineIsDigital } from "./digitalLine";
+import { lineIsDigital, UNREADABLE_BOOK } from "./digitalLine";
+import { publicApi } from "../../lib/publicApi";
 import { orderLineNotes } from "./orderLineNotes";
 import { orderAccessHeaders, rememberOrderAccess, savedOrderAccess } from "../../lib/orderAccessClient";
 import { useSEO } from "../../lib/seo";
@@ -54,9 +55,9 @@ function OrderTrackingContent() {
       await Promise.all(
         (order.items || []).map(async (item: any) => {
           try {
-            const book = await adminApi.getBook(item.id);
+            const book: any = await publicApi.getBook(item.id).catch(() => null);
             // Only the e-book edition's line gets a download button (the server checks the same).
-            if (lineIsDigital(item, book)) {
+            if (lineIsDigital(item, book?.digitalFileName ? book : UNREADABLE_BOOK)) {
               digitalMap[item.id] = true;
             }
           } catch (err) {

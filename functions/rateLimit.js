@@ -17,6 +17,14 @@ function clientIpOf(req) {
   return hops[0] || req?.ip || req?.socket?.remoteAddress || "unknown";
 }
 
+// The visitor's country as the hosting platform saw it (App Engine / Google front end sets and overwrites
+// X-AppEngine-Country; a client cannot choose it). Empty when the platform gave none: the "location
+// mismatch" signal then stays off rather than guessing from a third-party lookup of the shopper's address.
+function serverGeoCountry(req) {
+  const raw = String(req?.headers?.["x-appengine-country"] || "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(raw) && raw !== "ZZ" ? raw : "";
+}
+
 // The key a connection is limited by. An IPv4 address is its own key. An IPv6 customer owns a whole
 // /64 (2^64 addresses), so every address in the same /64 shares one key; otherwise a script could
 // take a fresh "connection" for each request and never meet a per-connection cap.
@@ -64,11 +72,14 @@ async function hitLimit(db, bucket, req, opts) {
 
 const LIMITS = {
   track: { max: 60, windowMs: 10 * 60 * 1000 },
+  // Payment status polls (each may read Stripe): the tracking and thank-you pages re-check every few seconds.
+  status: { max: 120, windowMs: 10 * 60 * 1000 },
   discount: { max: 30, windowMs: 10 * 60 * 1000 },
+  autoDiscount: { max: 120, windowMs: 10 * 60 * 1000 },
   checkout: { max: 30, windowMs: 10 * 60 * 1000 },
   // Endpoints that cost money per call (Shippo rates / address checks, PayPal API).
   shippo: { max: 60, windowMs: 10 * 60 * 1000 },
   paypal: { max: 20, windowMs: 10 * 60 * 1000 },
 };
 
-module.exports = { clientIpOf, ipKey, nextWindow, hitLimit, LIMITS };
+module.exports = { clientIpOf, ipKey, serverGeoCountry, nextWindow, hitLimit, LIMITS };

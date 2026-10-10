@@ -2,6 +2,7 @@ import { useState } from "react";
 import { doc, setDoc } from "firebase/firestore/lite";
 import { liteDb } from "../../../lib/firestoreLite";
 import { getCopy } from "./storeCopy";
+import { inEditorPreview } from "../../lib/trackingGuard";
 
 export function isValidAlertEmail(value: string) {
   return /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(value.trim()) && value.length <= 254;
@@ -10,6 +11,24 @@ export function isValidAlertEmail(value: string) {
 /** The alert's document id; firestore.rules requires exactly this shape, so one address gets one alert per edition. */
 export function stockAlertId(email: string, bookId: string, variantId = "") {
   return `${email.trim().toLowerCase()}__${bookId}__${variantId}`;
+}
+
+/**
+ * Saves one alert. The Studio preview runs the real storefront, so there it writes nothing (an alert would email the
+ * owner's test address at the next restock). One alert per address + book + edition (the id): asking twice is done.
+ */
+export async function saveStockAlert(input: { email: string; bookId: string; bookTitle: string; variantId?: string; variantName?: string }): Promise<void> {
+  if (inEditorPreview()) return;
+  const clean = input.email.trim().toLowerCase();
+  await setDoc(doc(liteDb, "stockAlerts", stockAlertId(clean, input.bookId, input.variantId || "")), {
+    email: clean,
+    bookId: input.bookId,
+    bookTitle: input.bookTitle,
+    variantId: input.variantId || "",
+    variantName: input.variantName || "",
+    status: "waiting",
+    createdAt: new Date().toISOString(),
+  }).catch((err: any) => { if (err?.code !== "permission-denied") throw err; });
 }
 
 /** "Notify me when back in stock" signup shown on sold-out product pages. */
@@ -37,17 +56,7 @@ export default function BackInStockForm({
     }
     setStatus("loading");
     try {
-      const clean = email.trim().toLowerCase();
-      // One alert per address + book + edition (the id); asking twice is already done.
-      await setDoc(doc(liteDb, "stockAlerts", stockAlertId(clean, bookId, variantId || "")), {
-        email: clean,
-        bookId,
-        bookTitle,
-        variantId: variantId || "",
-        variantName: variantName || "",
-        status: "waiting",
-        createdAt: new Date().toISOString(),
-      }).catch((err: any) => { if (err?.code !== "permission-denied") throw err; });
+      await saveStockAlert({ email, bookId, bookTitle, variantId, variantName });
       setStatus("success");
       setEmail("");
     } catch {

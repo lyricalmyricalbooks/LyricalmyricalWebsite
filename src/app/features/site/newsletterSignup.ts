@@ -3,6 +3,7 @@
 // allows only email, subscribedAt and source), so signing up twice is simply "already done".
 import { doc, setDoc } from "firebase/firestore/lite";
 import { liteDb } from "../../../lib/firestoreLite";
+import { inEditorPreview } from "../../lib/trackingGuard";
 
 export const isEmailAddress = (email: string) => /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(String(email || "").trim());
 
@@ -10,6 +11,8 @@ export const isEmailAddress = (email: string) => /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/
 export async function subscribeNewsletter(email: string, source: string): Promise<void> {
   if (!isEmailAddress(email)) throw new Error("invalid-email");
   const clean = email.trim().toLowerCase();
+  // The Studio preview runs the real storefront: it shows the success state but never adds a subscriber.
+  if (inEditorPreview()) return;
   await setDoc(doc(liteDb, "newsletter", clean), {
     email: clean,
     subscribedAt: new Date().toISOString(),

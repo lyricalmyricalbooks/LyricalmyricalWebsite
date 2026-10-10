@@ -10,8 +10,16 @@ import {
   writeBatch,
   deleteField,
   documentId,
+  startAfter,
+  getAggregate,
+  count,
+  average,
 } from "firebase/firestore/lite";
 import { liteDb } from "../../lib/firestoreLite";
+import { inEditorPreview } from "./trackingGuard";
+
+/** Reviews shown per page on a book page. */
+export const REVIEW_PAGE = 50;
 
 export type Review = {
   id: string;
@@ -43,7 +51,8 @@ let legacyEmailsMoved = false;
 // The product page (for search markup) and its reviews section read the same approved list;
 // share one request per book for a short while instead of reading it twice.
 const approvedCache = new Map<string, { at: number; promise: Promise<Review[]> }>();
-const clearApprovedCache = () => approvedCache.clear();
+const summaryCache = new Map<string, { at: number; promise: Promise<{ count: number; average: number }> }>();
+const clearApprovedCache = () => { approvedCache.clear(); summaryCache.clear(); };
 
 export const reviewsApi = {
   listApproved: (bookId: string): Promise<Review[]> => {
@@ -55,16 +64,45 @@ export const reviewsApi = {
     return promise;
   },
 
+  /**
+   * The true number and average of a book's approved reviews, counted by Firestore (not from the newest page the
+   * book page happens to show). Shared for 30 s with the page's other readers.
+   */
+  summary: (bookId: string): Promise<{ count: number; average: number }> => {
+    const hit = summaryCache.get(bookId);
+    if (hit && Date.now() - hit.at < 30_000) return hit.promise;
+    const promise = getAggregate(
+      query(collection(liteDb, "reviews"), where("bookId", "==", bookId), where("status", "==", "approved")),
+      { count: count(), average: average("rating") },
+    ).then(snap => {
+      const data = snap.data();
+      return { count: Number(data.count) || 0, average: Number(data.average) || 0 };
+    });
+    summaryCache.set(bookId, { at: Date.now(), promise });
+    promise.catch(() => summaryCache.delete(bookId));
+    return promise;
+  },
+
+  /** The next page of approved reviews, older than `before` (the createdAt of the last one shown). */
+  listApprovedBefore: async (bookId: string, before: string): Promise<Review[]> => {
+    const snap = await getDocs(query(
+      collection(liteDb, "reviews"),
+      where("bookId", "==", bookId), where("status", "==", "approved"),
+      orderBy("createdAt", "desc"), startAfter(before), limit(REVIEW_PAGE),
+    ));
+    return snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+  },
+
   list: async (bookId: string, includePending = false): Promise<Review[]> => {
     const base = collection(liteDb, "reviews");
     const q = includePending
-      ? query(base, where("bookId", "==", bookId), orderBy("createdAt", "desc"), limit(50))
+      ? query(base, where("bookId", "==", bookId), orderBy("createdAt", "desc"), limit(REVIEW_PAGE))
       : query(
           base,
           where("bookId", "==", bookId),
           where("status", "==", "approved"),
           orderBy("createdAt", "desc"),
-          limit(50),
+          limit(REVIEW_PAGE),
         );
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
@@ -74,6 +112,8 @@ export const reviewsApi = {
     const { email, ...publicFields } = input;
     const createdAt = new Date().toISOString();
     const payload = { ...publicFields, title: publicFields.title || "", status: "pending" as const, createdAt };
+    // The Studio preview runs the real storefront: it shows the success state but never saves a review.
+    if (inEditorPreview()) return { id: "preview", ...payload };
     // The review is public once approved; the reviewer's email goes to admin-only
     // reviewContacts under the same id, written together.
     const ref = doc(collection(liteDb, "reviews"));
@@ -93,7 +133,8 @@ export const reviewsApi = {
   contactsFor: async (reviews: Review[]): Promise<Record<string, string>> => {
     const out: Record<string, string> = {};
     if (!legacyEmailsMoved) {
-      const all = await getDocs(collection(liteDb, "reviews"));
+      // Only reviews that still hold a public email (a string compares above ""), not the whole collection.
+      const all = await getDocs(query(collection(liteDb, "reviews"), where("email", ">", "")));
       const legacy = all.docs.filter(d => d.data().email);
       for (let i = 0; i < legacy.length; i += 200) {
         const batch = writeBatch(liteDb);
@@ -141,10 +182,5 @@ export const reviewsApi = {
     clearApprovedCache();
   },
 
-  aggregate: async (bookId: string): Promise<{ count: number; average: number }> => {
-    const reviews = await reviewsApi.list(bookId, false);
-    if (!reviews.length) return { count: 0, average: 0 };
-    const sum = reviews.reduce((acc, r) => acc + (r.rating || 0), 0);
-    return { count: reviews.length, average: sum / reviews.length };
-  },
+  aggregate: (bookId: string): Promise<{ count: number; average: number }> => reviewsApi.summary(bookId),
 };

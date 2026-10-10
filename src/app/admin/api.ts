@@ -1,5 +1,6 @@
 import { duplicateBookData } from "./catalogList";
 import { changedBookFields } from "./bookStockMerge";
+import { mergeBookPrivate, privateKeysIn, splitBookPrivate } from "./bookPrivate";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
 import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
@@ -19,6 +20,7 @@ const nonNegativeOrNull = (v: any) => {
 };
 import { 
   collection, 
+  collectionGroup,
   getDocs, 
   addDoc, 
   updateDoc, 
@@ -61,6 +63,24 @@ import { RISO_NOIR_ID, RISO_NOIR_TOKENS, withRisoNoirDefault } from "../features
 import type { Book, Page, SiteSettings } from "../features/site/types";
 import { validateLocalFulfillment } from "../features/site/localFulfillment";
 import type { LocalFulfillmentConfig } from "../features/site/types";
+
+/** books/{id}/private/admin: cost prices, shelf codes and other fields shoppers must not read (bookPrivate.ts). */
+const privateBookRef = (bookId: string) => doc(db, "books", bookId, "private", "admin");
+
+/** Every book's private document, by book id. Empty (never an error) when the rules are not deployed yet or nothing has moved. */
+async function readAllPrivateBookFields(): Promise<Map<string, any>> {
+  const out = new Map<string, any>();
+  try {
+    const snap = await getDocs(collectionGroup(db, "private"));
+    snap.docs.forEach(d => { if (d.id === "admin" && d.ref.parent.parent) out.set(d.ref.parent.parent.id, d.data()); });
+  } catch (err) {
+    console.warn("Private book fields could not be read:", err);
+  }
+  return out;
+}
+
+/** deleteField() for each private key now stored in the private document, so the public record stops carrying it. */
+const scrubPrivateKeys = (priv: Record<string, any>) => Object.fromEntries(privateKeysIn(priv).map(key => [key, deleteField()]));
 
 export const adminApi = {
   // Authentication
@@ -163,23 +183,33 @@ export const adminApi = {
 
   // Every book (no paging or createdAt ordering, so records without createdAt are
   // included) — for screens that must see the whole catalog, like shipping profiles.
-  getAllBooks: async () => {
+  getAllBooks: async (opts: { includePrivate?: boolean } = {}) => {
     const snap = await getDocs(collection(db, "books"));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Cost prices, shelf codes and other private fields live in books/{id}/private/admin; merged back for the admin.
+    const priv = opts.includePrivate === false ? new Map<string, any>() : await readAllPrivateBookFields();
+    return snap.docs.map(d => mergeBookPrivate({ id: d.id, ...d.data() }, priv.get(d.id)));
   },
 
-  getBook: publicApi.getBook,
+  // The admin's read of one book (drafts included, private fields merged). The shopper read is publicApi.getBook.
+  getBook: async (id: string) => {
+    const snap = await getDoc(doc(db, "books", id));
+    if (!snap.exists()) return null;
+    const priv = await getDoc(privateBookRef(id)).then(s => (s.exists() ? s.data() : null)).catch(() => null);
+    return mergeBookPrivate({ id: snap.id, ...snap.data() }, priv);
+  },
 
   createBook: async (book: any) => {
     const dataToSave = { ...book };
     delete dataToSave.id;
     delete dataToSave._lastDoc;
     
+    const { pub, priv } = splitBookPrivate(dataToSave);
     const docRef = await addDoc(collection(db, "books"), {
-      ...dataToSave,
+      ...pub,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+    if (Object.keys(priv).length) await setDoc(privateBookRef(docRef.id), { ...priv, updatedAt: new Date().toISOString() });
     await adminApi.recordAuditLog("catalog", `Created book: ${dataToSave.title}`);
     return { id: docRef.id, ...dataToSave };
   },
@@ -197,25 +227,30 @@ export const adminApi = {
     delete dataToSave.id;
     delete dataToSave._lastDoc;
 
+    const privRef = privateBookRef(id);
     if (loaded) {
       dataToSave = await runTransaction(db, async tx => {
         const snap = await tx.get(docRef);
+        const privSnap = await tx.get(privRef);
         if (!snap.exists()) {
           tx.update(docRef, { ...dataToSave, updatedAt: new Date().toISOString() });
           return dataToSave;
         }
-        const live = snap.data();
+        // The live book as the editor saw it: public record with the private document on top.
+        const live = mergeBookPrivate(snap.data(), privSnap.exists() ? privSnap.data() : null);
         const changes = changedBookFields(dataToSave, loaded, live);
         const updatedAt = new Date().toISOString();
-        tx.update(docRef, { ...changes, updatedAt });
+        const { pub, priv } = splitBookPrivate(changes);
+        tx.update(docRef, { ...pub, ...scrubPrivateKeys(priv), updatedAt });
+        if (Object.keys(priv).length) tx.set(privRef, { ...priv, updatedAt }, { mergeFields: [...Object.keys(priv), "updatedAt"] });
         // What the book is now: the live record with this save's changes on top.
         return { ...live, ...changes, updatedAt };
       });
     } else {
-      await updateDoc(docRef, {
-        ...dataToSave,
-        updatedAt: new Date().toISOString(),
-      });
+      const { pub, priv } = splitBookPrivate(dataToSave);
+      const updatedAt = new Date().toISOString();
+      await updateDoc(docRef, { ...pub, ...scrubPrivateKeys(priv), updatedAt });
+      if (Object.keys(priv).length) await setDoc(privRef, { ...priv, updatedAt }, { mergeFields: [...Object.keys(priv), "updatedAt"] });
     }
     await adminApi.recordAuditLog("catalog", `Updated book: ${dataToSave.title}`);
     return { id, ...dataToSave };
@@ -242,9 +277,12 @@ export const adminApi = {
       const snap = await getDoc(doc(db, "books", id));
       const title = snap.exists() ? snap.data().title : id;
       await deleteDoc(doc(db, "books", id));
+      // A subcollection document outlives its parent, so the private fields are removed with the book.
+      await deleteDoc(privateBookRef(id)).catch(() => {});
       await adminApi.recordAuditLog("catalog", `Deleted book: ${title}`);
     } catch (err) {
       await deleteDoc(doc(db, "books", id));
+      await deleteDoc(privateBookRef(id)).catch(() => {});
     }
   },
 
@@ -252,10 +290,13 @@ export const adminApi = {
     const docRef = doc(db, "books", id);
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error("Original book not found");
-    const data = snap.data();
+    const privSnap = await getDoc(privateBookRef(id)).catch(() => null);
+    const data = mergeBookPrivate(snap.data(), privSnap && privSnap.exists() ? privSnap.data() : null);
     // No ISBN/SKU/slug/stock/featured flag/digital file: the copy must not pose as, or sell, the original.
     const copy = duplicateBookData(data);
-    const newDoc = await addDoc(collection(db, "books"), copy);
+    const { pub, priv } = splitBookPrivate(copy);
+    const newDoc = await addDoc(collection(db, "books"), pub);
+    if (Object.keys(priv).length) await setDoc(privateBookRef(newDoc.id), { ...priv, updatedAt: new Date().toISOString() });
     await adminApi.recordAuditLog("catalog", `Duplicated book: ${data.title}`);
     return { ...copy, id: newDoc.id };
   },
@@ -292,6 +333,17 @@ export const adminApi = {
     const storageRef = ref(getStorage(getApp()), path);
     const snapshot = await uploadBytes(storageRef, file);
     return await getDownloadURL(snapshot.ref);
+  },
+
+  // A file for a Storage folder the browser cannot read back (digital-assets/: `read: false`). Returns the
+  // Storage path, which is what downloadDigitalAsset opens on the server; getDownloadURL would be refused (#4).
+  uploadStoragePath: async (file: File, path: string) => {
+    const [{ getStorage, ref, uploadBytes }, { getApp }] = await Promise.all([
+      import("firebase/storage"),
+      import("firebase/app"),
+    ]);
+    const snapshot = await uploadBytes(ref(getStorage(getApp()), path), file);
+    return snapshot.ref.fullPath || path;
   },
 
   uploadBrandAsset: async (file: File, type: 'logo' | 'favicon') => {
@@ -1726,8 +1778,9 @@ export const adminApi = {
           stockLevel: newStock,
           updatedAt: new Date().toISOString(),
           lastInventorySync: new Date().toISOString(),
-          legacyInventoryKey: legacyKey,
+          legacyInventoryKey: deleteField(), // lives in the private document now
         });
+        batch.set(privateBookRef(bookDoc.id), { legacyInventoryKey: legacyKey, updatedAt: new Date().toISOString() }, { mergeFields: ["legacyInventoryKey", "updatedAt"] });
         updateCount++;
         results.push({
           id: bookDoc.id,

@@ -606,10 +606,13 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     setUploadingDigital(true);
     try {
       const fileName = `${Date.now()}-${file.name}`;
-      const url = await adminApi.uploadFile(file, `digital-assets/${fileName}`);
+      // digital-assets/ cannot be read from a browser (storage.rules), so keep the Storage path, not a download URL;
+      // downloadDigitalAsset opens digital-assets/<digitalFileName> on the server (#4).
+      const path = await adminApi.uploadStoragePath(file, `digital-assets/${fileName}`);
       setFormData((prev: any) => ({
         ...prev,
-        digitalFileUrl: url,
+        digitalFilePath: path,
+        digitalFileUrl: "",
         digitalFileName: fileName,
       }));
       toast.success("Digital asset uploaded successfully");
@@ -1065,7 +1068,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                   {formData.digitalFileName ? (
                     <div className="be-file">
                       <div><span className="be-label-xs">Active file</span><code>{formData.digitalFileName}</code></div>
-                      <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => setFormData((prev: any) => ({ ...prev, digitalFileName: "", digitalFileUrl: "" }))}><Trash2 size={14} aria-hidden /> Remove</button>
+                      <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => setFormData((prev: any) => ({ ...prev, digitalFileName: "", digitalFileUrl: "", digitalFilePath: "" }))}><Trash2 size={14} aria-hidden /> Remove</button>
                     </div>
                   ) : (
                     <>

@@ -13,13 +13,19 @@ export const publicApi = {
   // Document-ID ordering includes legacy books without createdAt and gives
   // public pagination the same membership as the sitemap, without writes.
   getStorefrontBooks: async (limitCount = 100, lastVisible: any = null) => {
-    const constraints = [orderBy(documentId()), ...(lastVisible ? [startAfter(lastVisible)] : []), limit(limitCount)];
+    // firestore.rules serve the public only books with status "published", so a list query must say so (a
+    // book saved before statuses existed is stamped "published" by scripts/migrate-book-private-fields.mjs).
+    const constraints = [where("status", "==", "published"), orderBy(documentId()), ...(lastVisible ? [startAfter(lastVisible)] : []), limit(limitCount)];
     const snap = await getDocs(query(collection(liteDb, "books"), ...constraints));
     return snap.docs.map(d => ({ ...d.data(), id: d.id, _lastDoc: d }));
   },
 
+  // A shopper's read of one book: null for a missing book and for one that is not published (the rules refuse
+  // the read of a draft or archived book, which is the same answer to a shopper).
   getBook: async (id: string) => {
-    const snap = await getDoc(doc(liteDb, "books", id));
+    let snap;
+    try { snap = await getDoc(doc(liteDb, "books", id)); }
+    catch (err: any) { if (err?.code === "permission-denied") return null; throw err; }
     if (!snap.exists()) return null;
     return { id: snap.id, ...snap.data() };
   },

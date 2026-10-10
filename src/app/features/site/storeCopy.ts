@@ -838,6 +838,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "reviewsCountMany", label: "Count (many reviews)", default: "{count} reviews", hint: "Use {count} for the number." },
       { key: "reviewsLoading", label: "Loading text", default: "Loading reviews…" },
       { key: "reviewsEmpty", label: "Empty message", default: "Be the first to share your thoughts on this book." },
+      { key: "reviewsMore", label: "Show more reviews button", default: "Show more reviews", hint: "Shown under the list when a book has more reviews than the first page." },
       { key: "reviewsAuthor", label: "Review author credit", default: "— {author}", hint: "Use {author} for the reviewer name." },
       { key: "reviewsReply", label: "Store reply label", default: "Reply from Lyricalmyrical Books" },
       { key: "reviewsVerified", label: "Verified purchase badge", default: "Verified purchase", hint: "Shown on reviews whose writer bought the book here." },
