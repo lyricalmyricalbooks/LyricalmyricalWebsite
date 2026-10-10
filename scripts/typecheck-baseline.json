@@ -10,6 +10,5 @@
   "src/app/admin/studio/StudioSpacingControls.tsx": 4,
   "src/app/features/site/Account.tsx": 1,
   "src/app/features/site/customCode.ts": 1,
-  "src/app/features/site/shippingEngine.ts": 1,
-  "src/app/features/site/StripeCardForm.tsx": 1
+  "src/app/features/site/shippingEngine.ts": 1
 }

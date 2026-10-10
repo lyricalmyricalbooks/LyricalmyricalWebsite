@@ -60,7 +60,7 @@ export type ThemeBackend = {
   /** Compare-and-set the draft (and, for Publish, the live design). Returns the new revision. */
   write(expectedRev: number, draft: any, live?: any): Promise<number>;
   saveThemes(previous: any[], next: any[]): Promise<void>;
-  /** Change single draft fields without a revision bump (categories, the under-construction wall). */
+  /** Change single draft fields (categories, the under-construction wall). Moves the revision on so open Studios see it. */
   fieldUpdate(fields: Record<string, any>): Promise<void>;
   readField(key: string): Promise<any>;
   /** Live updates of the working copy (Studio 3.2). Returns an unsubscribe function. Optional. */
@@ -139,9 +139,14 @@ const firestoreBackend: ThemeBackend = {
   async fieldUpdate(fields) {
     try {
       await ensureWorkspace();
-      const nested: any = { draft: {} };
-      for (const [k, v] of Object.entries(fields)) nested.draft[k] = v;
-      await setDoc(WORKSPACE(), nested, { mergeFields: Object.keys(fields).map(k => `draft.${k}`) });
+      // One transaction: the field and a new revision land together, so another open Studio is told (its live sync
+      // sees a newer revision) and its next Save / Publish can't silently put the old value back.
+      await runTransaction(db, async tx => {
+        const current: any = (await tx.get(WORKSPACE())).data() || {};
+        const nested: any = { draft: {}, rev: (Number(current.rev) || 0) + 1, updatedAt: now(), tabId: studioTabId(), action: "field" };
+        for (const [k, v] of Object.entries(fields)) nested.draft[k] = v;
+        tx.set(WORKSPACE(), nested, { mergeFields: [...Object.keys(fields).map(k => `draft.${k}`), "rev", "updatedAt", "tabId", "action"] });
+      });
     } catch (error) { throw unavailable(error); }
   },
   async readField(key) {
@@ -207,8 +212,8 @@ export function saveSavedThemes(_ws: Workspace, previous: any[], next: any[]): P
 
 /**
  * Field-path write for admin tools that change one design field outside Studio (shop categories,
- * the under-construction wall). Keeps the draft in step without a revision bump, so an open
- * Studio is not forced into a conflict by an unrelated change.
+ * the under-construction wall). Keeps the draft in step and bumps the revision, so an open Studio
+ * follows it (live sync) instead of later saving or publishing its older copy over the new value.
  */
 export function draftFieldUpdate(fields: Record<string, any>) { return backend.fieldUpdate(fields); }
 

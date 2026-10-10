@@ -5,7 +5,7 @@ import { isMediaDenied, mediaApi } from "../mediaApi";
 import { uploadErrorMessage, uploadMediaImage } from "./mediaUpload";
 import {
   allPaths, applyMediaChange, budgetFor, collectStrings, filterMedia, formatBytes, isOverBudget, mainUrl, missingAlt,
-  snapshotUses, sortMedia, thumbUrl, usagePaths, usagePlaces, type MediaFilter, type MediaItem, type UsagePlace,
+  snapshotUses, sortMedia, storedDesignUses, thumbUrl, usagePaths, usagePlaces, type MediaFilter, type MediaItem, type UsagePlace,
 } from "./mediaLibrary";
 import type { MediaLibraryStatus, MediaPickerApi } from "./mediaPicker";
 
@@ -117,9 +117,13 @@ type Names = Parameters<typeof usagePlaces>[2];
 /** `snapshots`: My themes and Version history entries that still hold the picture (restoring them brings it back). */
 type Usage = { draft: UsagePlace[]; liveOnly: UsagePlace[]; pages: { slug: string; title: string }[]; snapshots: string[] };
 const useCount = (u: Usage) => u.draft.length + u.liveOnly.length + u.pages.length + u.snapshots.length;
-type Snapshots = { savedThemes: { name?: string; design?: any }[]; getVersions: () => Promise<{ label?: string; createdAt?: string; design?: any }[]> };
+type Snapshots = {
+  savedThemes: { name?: string; design?: any }[]; getVersions: () => Promise<{ label?: string; createdAt?: string; design?: any }[]>;
+  /** Scheduled designs, campaign restore designs and unexpired share links (Delete checks them too). */
+  getStoredDesigns?: () => Promise<{ label?: string; design?: any }[]>;
+};
 
-export function StudioMediaPanel({ lib, design, published, pages, names, savedThemes, getVersions, onDesignChange, onOpenPlace, onOpenPage, say, askConfirm }: Snapshots & {
+export function StudioMediaPanel({ lib, design, published, pages, names, savedThemes, getVersions, getStoredDesigns, onDesignChange, onOpenPlace, onOpenPage, say, askConfirm }: Snapshots & {
   lib: MediaLibrary; design: any; published: any; pages: any[]; names: Names;
   onDesignChange: (fn: (d: any) => any, label: string) => void;
   onOpenPlace: (place: UsagePlace) => void;
@@ -161,7 +165,7 @@ export function StudioMediaPanel({ lib, design, published, pages, names, savedTh
 
   if (lib.status !== "ready") return <div className="studio-media"><StatusNote status={lib.status} onRetry={lib.load} /></div>;
   if (open) return <MediaDetails key={open.id} item={open} usage={usageById.get(open.id) || usageOf(open)} lib={lib} onBack={() => setOpenId(null)}
-    savedThemes={savedThemes} getVersions={getVersions} onDesignChange={onDesignChange} onOpenPlace={onOpenPlace} onOpenPage={onOpenPage} say={say} askConfirm={askConfirm} />;
+    savedThemes={savedThemes} getVersions={getVersions} getStoredDesigns={getStoredDesigns} onDesignChange={onDesignChange} onOpenPlace={onOpenPlace} onOpenPage={onOpenPage} say={say} askConfirm={askConfirm} />;
 
   return (
     <div className="studio-media" data-studio-panel="media">
@@ -184,7 +188,7 @@ export function StudioMediaPanel({ lib, design, published, pages, names, savedTh
   );
 }
 
-function MediaDetails({ item, usage, lib, onBack, savedThemes, getVersions, onDesignChange, onOpenPlace, onOpenPage, say, askConfirm }: Snapshots & {
+function MediaDetails({ item, usage, lib, onBack, savedThemes, getVersions, getStoredDesigns, onDesignChange, onOpenPlace, onOpenPage, say, askConfirm }: Snapshots & {
   item: MediaItem; usage: Usage; lib: MediaLibrary; onBack: () => void;
   onDesignChange: (fn: (d: any) => any, label: string) => void;
   onOpenPlace: (place: UsagePlace) => void; onOpenPage: (slug: string) => void;
@@ -220,6 +224,12 @@ function MediaDetails({ item, usage, lib, onBack, savedThemes, getVersions, onDe
     catch { setError("Couldn't check Version history for this image, so it wasn't deleted. Check your connection and try again."); return; }
     const kept = snapshotUses(item, savedThemes, versions || []);
     if (kept.length) { setError(`This image is kept in ${kept.join(", ")}. Restoring that would bring it back, so it can't be deleted yet.`); return; }
+    // Scheduled designs, a running campaign's restore design and share links keep pictures too.
+    let stored;
+    try { stored = getStoredDesigns ? await getStoredDesigns() : []; }
+    catch { setError("Couldn't check scheduled designs and share links for this image, so it wasn't deleted. Check your connection and try again."); return; }
+    const scheduled = storedDesignUses(item, stored || []);
+    if (scheduled.length) { setError(`This image is used by ${scheduled.join(", ")}. It would break when that goes live or is opened, so it can't be deleted yet. Cancel that schedule (Theme actions › Schedule publishing) or revoke the share link (Themes › Share a preview link) first.`); return; }
     const ok = await askConfirm({ title: "Delete this image?", message: `“${item.name}” and all its sizes will be removed from your library and storage. This can't be undone.`, confirmLabel: "Delete image" });
     if (!ok) return;
     await act("Deleting…", async () => { await lib.remove(item); say("ok", "Image deleted."); onBack(); });
