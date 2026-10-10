@@ -13,6 +13,7 @@ import { TRACKING_CSS } from "./trackingStyle";
 import { m, AnimatePresence } from "motion/react";
 import { adminApi } from "../../admin/api";
 import { functionUrl, functionFetch } from "../../lib/functionsBase";
+import { newsletterLinkAction } from "./newsletterSignup";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
 import { StoreChrome, useInStoreChrome } from "./StoreChrome";
@@ -69,19 +70,20 @@ function OrderTrackingContent() {
     checkDigitalAssets();
   }, [order]);
 
-  // The "Unsubscribe" link in reminder emails lands here: ?unsubscribe=1&e=…&t=…
+  // The "Unsubscribe" link in reminder and newsletter emails lands here: ?unsubscribe=1&e=…&t=…
+  // The newsletter confirmation link does too: ?newsletter_confirm=1&e=…&t=…
   const [unsubscribe, setUnsubscribe] = useState<"" | "working" | "done" | "failed">("");
+  const [newsConfirm, setNewsConfirm] = useState<"" | "working" | "done" | "failed">("");
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("unsubscribe") !== "1") return;
-    setUnsubscribe("working");
-    functionFetch("createStripeCheckoutSession", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "unsubscribe", email: params.get("e") || "", token: params.get("t") || "" }),
-    })
-      .then(response => setUnsubscribe(response.ok ? "done" : "failed"))
-      .catch(() => setUnsubscribe("failed"));
+    const run = (action: "confirm" | "unsubscribe", set: (v: "working" | "done" | "failed") => void) => {
+      set("working");
+      newsletterLinkAction(action, params.get("e") || "", params.get("t") || "")
+        .then(ok => set(ok ? "done" : "failed"))
+        .catch(() => set("failed"));
+    };
+    if (params.get("unsubscribe") === "1") run("unsubscribe", setUnsubscribe);
+    if (params.get("newsletter_confirm") === "1") run("confirm", setNewsConfirm);
   }, []);
 
   // Email links carry ?orderId=…&key=…: a matching key opens the order straight away;
@@ -277,6 +279,12 @@ function OrderTrackingContent() {
                 <div className="fm-track-notice mb-6" data-tone={unsubscribe === "failed" ? "danger" : undefined} role="status"
                   data-studio-target="copy:Order tracking" data-studio-label="Unsubscribe message">
                   <p>{getCopy(settings?.design, unsubscribe === "working" ? "trackUnsubWorking" : unsubscribe === "done" ? "trackUnsubDone" : "trackUnsubFailed")}</p>
+                </div>
+              )}
+              {newsConfirm && (
+                <div className="fm-track-notice mb-6" data-tone={newsConfirm === "failed" ? "danger" : undefined} role="status"
+                  data-studio-target="copy:Order tracking" data-studio-label="Newsletter confirmation message">
+                  <p>{getCopy(settings?.design, newsConfirm === "working" ? "trackNewsConfirmWorking" : newsConfirm === "done" ? "trackNewsConfirmDone" : "trackNewsConfirmFailed")}</p>
                 </div>
               )}
               <form onSubmit={handleTrack} className="fm-track-card p-6 sm:p-8 space-y-5">

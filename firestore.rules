@@ -296,17 +296,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     match /newsletter/{docId} {
-      // One signup per address: the document id is the lowercased email, so a repeat
-      // signup is an update (refused) instead of another row. Only these three fields.
-      allow create: if request.resource.data.keys().hasOnly(["email", "subscribedAt", "source"])
-        && request.resource.data.email is string
-        && request.resource.data.email.size() <= 254
-        && request.resource.data.email.matches("[^@/ ]+@[^@/ ]+\\.[^@/ ]+")
-        && docId == request.resource.data.email
-        && request.resource.data.subscribedAt is string
-        && request.resource.data.subscribedAt.size() <= 40
-        && (!('source' in request.resource.data) || (request.resource.data.source is string && request.resource.data.source.size() <= 60));
-      allow read, update, delete: if isAdmin();
+      // Double opt-in: signups go through the createStripeCheckoutSession Function (action
+      // newsletterSignup), which stores a pending record with the consent text and mails a signed
+      // confirmation link. Browsers can no longer write here, so a stranger's address can't be
+      // added without the owner confirming. Unsubscribe deletes the row server-side.
+      allow read, create, update, delete: if isAdmin();
     }
     match /inventoryLog/{entryId} {
       // Inventory › stock adjustment history: admin-only, append-only (written with the stock change).

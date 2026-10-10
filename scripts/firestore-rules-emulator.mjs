@@ -36,6 +36,11 @@ await check("made-up day refused", assertFails(setDoc(doc(anon, "analytics", "19
 await check("bad id refused", assertFails(setDoc(doc(anon, "analytics", "spam-doc"), { date: "spam-doc" }, { merge: true })));
 await check("mismatched date refused", assertFails(setDoc(doc(anon, "analytics", today), { date: "2020-01-01" }, { merge: true })));
 
+// newsletter: double opt-in means browsers can't add (or read) subscribers at all
+await check("anon can't add a newsletter signup", assertFails(setDoc(doc(anon, "newsletter/stranger@example.com"), { email: "stranger@example.com", subscribedAt: "x", source: "website" })));
+await check("anon can't pre-confirm a signup", assertFails(setDoc(doc(anon, "newsletter/stranger@example.com"), { email: "stranger@example.com", status: "confirmed", subscribedAt: "x" })));
+await check("anon can't read the newsletter list", assertFails(getDoc(doc(anon, "newsletter/stranger@example.com"))));
+
 // reviews + contacts
 {
   const createdAt = new Date().toISOString();

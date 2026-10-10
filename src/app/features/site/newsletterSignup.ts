@@ -1,21 +1,29 @@
 // Newsletter sign-up shared by the footer's Newsletter box and the Newsletter sections (including the pop-up one).
-// One row per address: the document id is the lower-cased email (firestore.rules `match /newsletter/{docId}`
-// allows only email, subscribedAt and source), so signing up twice is simply "already done".
-import { doc, setDoc } from "firebase/firestore/lite";
-import { liteDb } from "../../../lib/firestoreLite";
+// Double opt-in: the server stores a pending signup (with the consent text and time) and emails a signed
+// confirmation link; the address joins the list only when its owner clicks it. Browsers never write the
+// `newsletter` collection (firestore.rules), so nobody can add a stranger's address.
+import { functionFetch } from "../../lib/functionsBase";
 
 export const isEmailAddress = (email: string) => /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(String(email || "").trim());
 
-/** Resolves when signed up (or already signed up); rejects "invalid-email" or the write error. */
+/** Resolves when the confirmation email is on its way (or the address is already subscribed); rejects "invalid-email" or "busy" / "failed". */
 export async function subscribeNewsletter(email: string, source: string): Promise<void> {
   if (!isEmailAddress(email)) throw new Error("invalid-email");
-  const clean = email.trim().toLowerCase();
-  await setDoc(doc(liteDb, "newsletter", clean), {
-    email: clean,
-    subscribedAt: new Date().toISOString(),
-    source: String(source || "website").slice(0, 60),
-  }).catch((err: any) => {
-    // A repeat sign-up is an update, which the rules refuse: the address is already on the list.
-    if (err?.code !== "permission-denied") throw err;
+  const response = await functionFetch("createStripeCheckoutSession", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "newsletterSignup", email: email.trim().toLowerCase(), source: String(source || "website").slice(0, 60) }),
   });
+  if (response.ok) return;
+  throw new Error(response.status === 400 ? "invalid-email" : response.status === 429 ? "busy" : "failed");
+}
+
+/** Confirms (`confirm`) or removes (`unsubscribe`) a subscription from the signed link in an email. */
+export async function newsletterLinkAction(action: "confirm" | "unsubscribe", email: string, token: string): Promise<boolean> {
+  const response = await functionFetch("createStripeCheckoutSession", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(action === "confirm" ? { action: "newsletterConfirm", email, token } : { action: "unsubscribe", email, token }),
+  });
+  return response.ok;
 }

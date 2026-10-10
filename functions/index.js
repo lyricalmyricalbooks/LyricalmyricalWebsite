@@ -39,7 +39,9 @@ const { resolveCountry } = require("./shippingGeo");
 const { emailIdentity, openClaims, limitReached } = require("./discountClaims");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck, failedRefundId } = require("./stripeRecovery");
 const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences, forDigitalOnlyOrder } = require("./emailMoney");
-const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
+const { pendingRecord, confirmedRecord, confirmationEmail } = require("./newsletter");
+const { findByEmail: findByEmailData, neverPaid, redactedOrderFields, redactedOperationsFields, giftCardsFor, reviewErasure, GIFT_CARD_PERSONAL } = require("./privacyData");
+const { optOutId, unsubscribeToken, tokenMatches, purposeToken, purposeTokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { runReviewRequests, REVIEW_REQUEST_TEMPLATE } = require("./reviewRequests");
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
@@ -651,7 +653,15 @@ async function runEmailOutbox(now = Date.now(), { budgetMs = 30000 } = {}) {
   };
   const prunedLog = await prune("emailLog", "at", daysAgoIso(LOG_RETENTION_DAYS, now), 300).catch(err => { console.warn("emailLog prune failed:", err.message); return 0; });
   const prunedOutbox = await prune("emailOutbox", "gaveUpAt", daysAgoIso(GAVE_UP_RETENTION_DAYS, now), 100).catch(err => { console.warn("emailOutbox prune failed:", err.message); return 0; });
-  return { tried: due.docs.length, sent, prunedLog, prunedOutbox };
+  // Newsletter signups nobody confirmed within 30 days are strangers' addresses: drop them.
+  const prunedPending = await db.collection("newsletter").where("status", "==", "pending").limit(300).get()
+    .then(async snap => {
+      const cutoff = daysAgoIso(30, now);
+      const stale = snap.docs.filter(d => String(d.data().requestedAt || "") < cutoff);
+      await Promise.all(stale.map(d => d.ref.delete()));
+      return stale.length;
+    }).catch(err => { console.warn("pending newsletter prune failed:", err.message); return 0; });
+  return { tried: due.docs.length, sent, prunedLog, prunedOutbox, prunedPending };
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -1682,6 +1692,8 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       return;
     }
 
+    if (req.body?.action === "newsletterSignup") return handleNewsletterSignup(req, res);
+    if (req.body?.action === "newsletterConfirm") return handleNewsletterConfirm(req, res);
     if (req.body?.action === "status") return handleCheckoutStatus(req, res);
     if (req.body?.action === "track") return handleTrackOrder(req, res);
     if (req.body?.action === "trackingLink") return handleTrackingLink(req, res);
@@ -1770,6 +1782,8 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       const key = (await readAdminSecret("marketing")).unsubscribeKey;
       if (!email || !tokenMatches(email, String(req.body.token || ""), key)) return res.status(400).json({ error: "invalid_link" });
       await db.collection("marketing-optout").doc(optOutId(email)).set({ at: new Date().toISOString(), source: "email-link" });
+      // The same link also takes the address off the newsletter list (the opt-out record above is kept as proof).
+      await db.collection("newsletter").doc(email).delete().catch(() => {});
       return res.status(200).json({ unsubscribed: true });
     }
 
@@ -3195,6 +3209,68 @@ async function handleOrderRequest(req, res) {
   }
 }
 
+// ──────────────────────────────────────────────────────────────
+// Newsletter double opt-in. Signup stores a PENDING record (+ consent text and time) and mails a signed
+// confirmation link; only the link makes the address a subscriber. Browsers never write `newsletter`
+// (firestore.rules), so a stranger cannot seed the list. Unsubscribe is the shared signed link
+// (`action: "unsubscribe"`), which deletes newsletter/<email> and records the opt-out.
+// ──────────────────────────────────────────────────────────────
+const newsletterLinks = async email => {
+  const key = await marketingUnsubscribeKey();
+  const e = encodeURIComponent(normMarketingEmail(email));
+  return {
+    confirmUrl: siteLink(`/track?newsletter_confirm=1&e=${e}&t=${purposeToken(email, key, "newsletter-confirm")}`),
+    unsubscribeUrl: siteLink(`/track?unsubscribe=1&e=${e}&t=${unsubscribeToken(email, key)}`),
+  };
+};
+
+async function handleNewsletterSignup(req, res) {
+  if (!(await hitLimit(db, "track", req, LIMITS.track))) return res.status(429).json({ error: "too_many" });
+  const email = normMarketingEmail(req.body?.email);
+  if (!/^[^\s@/]+@[^\s@/]+\.[^\s@/]{2,}$/.test(email) || email.length > 254) return res.status(400).json({ error: "invalid" });
+  try {
+    const ref = db.collection("newsletter").doc(email);
+    const existing = await ref.get();
+    // Already confirmed (or a legacy subscriber): nothing to send, and the answer looks the same.
+    if (existing.exists && existing.data()?.status !== "pending") return res.status(200).json({ ok: true });
+    const claim = await claimEmailSendDetailed(db, "newsletterConfirm", email, { failOpen: false });
+    if (!claim.allowed) {
+      // A confirmation went to this address in the last day: stay quiet. Over the shop-wide budget: ask to retry.
+      if (claim.reason === "address") return res.status(200).json({ ok: true });
+      return res.status(429).json({ error: "busy" });
+    }
+    await ref.set(pendingRecord(email, req.body?.source, new Date().toISOString()));
+    const { confirmUrl, unsubscribeUrl } = await newsletterLinks(email);
+    const website = (await db.collection("settings").doc("website").get()).data() || {};
+    const mail = confirmationEmail({ shopName: "Lyricalmyrical Books", confirmUrl, unsubscribeUrl, address: footerAddress(website.location) });
+    await sendEmail({ queue: "newsletterConfirm", secret: RESEND_API_KEY.value(), to: email, subject: mail.subject, html: mail.html })
+      .catch(err => console.warn("newsletter confirmation email failed:", err.message));
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error("Newsletter signup failed:", err);
+    return res.status(500).json({ error: "failed" });
+  }
+}
+
+async function handleNewsletterConfirm(req, res) {
+  if (!(await hitLimit(db, "track", req, LIMITS.track))) return res.status(429).json({ error: "too_many" });
+  const email = normMarketingEmail(req.body?.email);
+  const key = (await readAdminSecret("marketing")).unsubscribeKey;
+  if (!email || !purposeTokenMatches(email, String(req.body?.token || ""), key, "newsletter-confirm")) return res.status(400).json({ error: "invalid_link" });
+  try {
+    const ref = db.collection("newsletter").doc(email);
+    const snap = await ref.get();
+    // No record: it was removed (unsubscribed or erased) after the email went out, so the old link must not revive it.
+    if (!snap.exists) return res.status(410).json({ error: "expired" });
+    const next = confirmedRecord(snap.data(), new Date().toISOString());
+    if (next !== snap.data()) await ref.set(next);
+    return res.status(200).json({ confirmed: true });
+  } catch (err) {
+    console.error("Newsletter confirm failed:", err);
+    return res.status(500).json({ error: "failed" });
+  }
+}
+
 // A privacy request (copy of my data / delete my data). Anyone can ask, so nothing is
 // sent or deleted automatically: the shop confirms the person owns the address (reply
 // from it), then uses Settings › Privacy requests to export or erase.
@@ -3237,23 +3313,28 @@ async function handlePrivacyRequest(req, res) {
   }
 }
 
-// Everything the shop holds about one email address.
+// Everything the shop holds about one email address (any capitalisation: see privacyData.js).
 async function personalDataFor(email) {
-  const byEmail = async (collection, field = "email") => (await db.collection(collection).where(field, "==", email).get()).docs;
-  const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows] = await Promise.all([
-    byEmail("orders", "customer.email"), byEmail("stockAlerts"), byEmail("abandoned-carts"),
-    byEmail("reviewContacts"), byEmail("contactMessages"), db.collection("newsletter").doc(email).get(),
-    // Emails waiting in the retry queue to or about this person, and their delivery-log rows.
+  const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows, giftCards] = await Promise.all([
+    findByEmailData(db, "orders", "customer.email", email), findByEmailData(db, "stockAlerts", "email", email),
+    findByEmailData(db, "abandoned-carts", "email", email), findByEmailData(db, "reviewContacts", "email", email),
+    findByEmailData(db, "contactMessages", "email", email), db.collection("newsletter").doc(email).get(),
+    // Emails waiting in the retry queue to or about this person, and their delivery-log rows
+    // (`to` can list several recipients, so it is matched as a list).
     db.collection("emailOutbox").where("toLower", "array-contains", email).get().then(s => s.docs),
-    byEmail("emailLog", "to"),
+    findByEmailData(db, "emailLog", "to", email, { contains: true }),
+    giftCardsFor(db, email),
   ]);
+  // Private fulfilment notes kept about the person's orders (admin-only order-operations).
+  const operations = orders.length ? (await db.getAll(...orders.map(o => db.collection("order-operations").doc(o.id)))).filter(d => d.exists) : [];
   let user = null;
   try { user = await admin.auth().getUserByEmail(email); } catch { user = null; }
   const profile = user ? await db.collection("customers").doc(user.uid).get() : null;
   const reviews = contacts.length
     ? (await Promise.all(contacts.map(c => db.collection("reviews").doc(c.id).get()))).filter(r => r.exists)
     : [];
-  return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows };
+  const incompleteScan = [["orders", orders], ["stockAlerts", alerts], ["abandoned-carts", carts], ["reviewContacts", contacts], ["contactMessages", messages], ["emailLog", emailRows]].filter(([, d]) => d.truncated).map(([n]) => n);
+  return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows, giftCards, operations, incompleteScan };
 }
 
 async function handlePrivacyAdmin(req, res) {
@@ -3277,30 +3358,54 @@ async function handlePrivacyAdmin(req, res) {
         profile: data.profile?.exists ? data.profile.data() : null,
         newsletter: data.newsletter.exists ? data.newsletter.data() : null,
         orders: rows(data.orders).map(strip),
+        orderNotesAndHistory: rows(data.operations),
         backInStockAlerts: rows(data.alerts),
         savedCarts: rows(data.carts),
         reviews: data.reviews.map(r => ({ id: r.id, ...r.data() })),
         contactMessages: rows(data.messages),
+        giftCards: rows(data.giftCards).map(({ code, holds, ...card }) => card),
+        emailDeliveryLog: rows(data.emailRows).map(({ toLower, ...row }) => row),
         emailsWaitingToSend: data.queuedEmails.map(d => publicOutboxEntry(d.id, d.data())),
+        ...(data.incompleteScan.length ? { incompleteScan: data.incompleteScan } : {}),
       });
       if (requestId) await db.collection("privacyRequests").doc(requestId).set({ status: "exported", handledAt: new Date().toISOString(), handledBy: adminUser.email }, { merge: true });
       return;
     }
-    // Erase: delete marketing, cart, alert, contact and account data; reviews stay but lose
-    // the name; orders stay (tax and accounting records) and are reported back.
-    const batch = db.batch();
-    for (const d of [...data.alerts, ...data.carts, ...data.contacts, ...data.messages, ...data.queuedEmails, ...data.emailRows]) batch.delete(d.ref);
-    if (data.newsletter.exists) batch.delete(data.newsletter.ref);
-    if (data.profile?.exists) batch.delete(data.profile.ref);
-    for (const r of data.reviews) batch.update(r.ref, { authorName: "Anonymous" });
-    await batch.commit();
-    if (data.user) await admin.auth().deleteUser(data.user.uid);
+    // Erase: delete marketing, cart, alert, contact and account data. Orders that were never paid
+    // lose the customer's details; paid orders stay (tax and accounting records) with their
+    // private notes blanked. Gift cards keep their balance but lose names, emails and message.
+    // Reviews lose the name, and (admin's choice) are unpublished or lose their text.
+    const reviewMode = ["unpublish", "remove-text"].includes(req.body?.reviewAction) ? req.body.reviewAction : "anonymize";
     const now = new Date().toISOString();
+    const ops = [];
+    for (const d of [...data.alerts, ...data.carts, ...data.contacts, ...data.messages, ...data.queuedEmails, ...data.emailRows]) ops.push(b => b.delete(d.ref));
+    if (data.newsletter.exists) ops.push(b => b.delete(data.newsletter.ref));
+    if (data.profile?.exists) ops.push(b => b.delete(data.profile.ref));
+    for (const r of data.reviews) ops.push(b => b.update(r.ref, reviewErasure(reviewMode)));
+    const redactedOrders = data.orders.filter(d => neverPaid(d.data()));
+    const keptOrders = data.orders.filter(d => !neverPaid(d.data()));
+    const redactedIds = new Set(redactedOrders.map(d => d.id));
+    for (const d of redactedOrders) ops.push(b => b.update(d.ref, redactedOrderFields(now)));
+    for (const d of data.operations) {
+      if (redactedIds.has(d.id)) ops.push(b => b.delete(d.ref));
+      else ops.push(b => b.set(d.ref, redactedOperationsFields(d.data(), now), { merge: true }));
+    }
+    for (const d of data.giftCards) ops.push(b => b.update(d.ref, { ...GIFT_CARD_PERSONAL, privacyRedactedAt: now }));
+    for (let i = 0; i < ops.length; i += 400) {
+      const batch = db.batch();
+      for (const op of ops.slice(i, i + 400)) op(batch);
+      await batch.commit();
+    }
+    if (data.user) await admin.auth().deleteUser(data.user.uid);
     await db.collection("marketing-optout").doc(optOutId(email)).set({ at: now, source: "privacy-erase" }).catch(() => {});
     const summary = {
       deleted: { backInStockAlerts: data.alerts.length, savedCarts: data.carts.length, reviewContacts: data.contacts.length, contactMessages: data.messages.length, queuedEmails: data.queuedEmails.length, emailLogRows: data.emailRows.length, newsletter: data.newsletter.exists ? 1 : 0, account: data.user ? 1 : 0 },
       anonymizedReviews: data.reviews.length,
-      keptOrders: data.orders.map(d => d.id),
+      reviewAction: reviewMode,
+      redactedUnpaidOrders: redactedOrders.map(d => d.id),
+      redactedGiftCards: data.giftCards.length,
+      keptOrders: keptOrders.map(d => d.id),
+      ...(data.incompleteScan.length ? { incompleteScan: data.incompleteScan } : {}),
     };
     if (requestId) await db.collection("privacyRequests").doc(requestId).set({ status: "erased", handledAt: now, handledBy: adminUser.email, summary }, { merge: true });
     res.status(200).json(summary);

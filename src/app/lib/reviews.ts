@@ -79,7 +79,7 @@ export const reviewsApi = {
     const ref = doc(collection(liteDb, "reviews"));
     const batch = writeBatch(liteDb);
     batch.set(ref, payload);
-    const cleanEmail = String(email || "").trim().slice(0, 254);
+    const cleanEmail = String(email || "").trim().toLowerCase().slice(0, 254);
     if (cleanEmail) batch.set(doc(liteDb, "reviewContacts", ref.id), { email: cleanEmail, createdAt });
     await batch.commit();
     clearApprovedCache();

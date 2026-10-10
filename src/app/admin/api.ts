@@ -1010,13 +1010,13 @@ export const adminApi = {
   },
   // Server-side export (JSON of everything held about the email) or erase (deletes marketing,
   // cart, alert, contact and account data; keeps orders for tax records).
-  privacyAction: async (action: "privacyExport" | "privacyErase", email: string, requestId?: string) => {
+  privacyAction: async (action: "privacyExport" | "privacyErase", email: string, requestId?: string, options: { reviewAction?: "anonymize" | "unpublish" | "remove-text" } = {}) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
     const response = await functionFetch("createStripeCheckoutSession", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
-      body: JSON.stringify({ action, email, requestId }),
+      body: JSON.stringify({ action, email, requestId, ...(action === "privacyErase" && options.reviewAction ? { reviewAction: options.reviewAction } : {}) }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "The privacy action failed.");
@@ -1550,7 +1550,8 @@ export const adminApi = {
     ]);
     return {
       reviews: reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-      subscribers: subsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      // Signups still waiting for the confirmation email click are not subscribers yet.
+      subscribers: subsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter((d: any) => d.status !== "pending"),
       pendingReviews: pending as number | null,
     };
   },
@@ -1563,7 +1564,7 @@ export const adminApi = {
       getDocs(query(collection(db, "marketing-optout"), limit(10000))).catch(() => null),
     ]);
     return {
-      subscribed: new Set(subs.docs.map(d => String(d.data().email || d.id).trim().toLowerCase())),
+      subscribed: new Set(subs.docs.filter(d => d.data().status !== "pending").map(d => String(d.data().email || d.id).trim().toLowerCase())),
       optedOutHashes: optouts ? new Set<string>(optouts.docs.map(d => d.id)) : null,
     };
   },
