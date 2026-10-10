@@ -40,7 +40,37 @@ export function changedBookFields(form: any, initial: any, live: any): Record<st
     if (key === "id" || key === "_lastDoc") continue;
     if (!sameValue(form?.[key], initial?.[key])) out[key] = merged[key];
   }
+  // The editor shows defaults (Draft, tracked, taxed) for a flag the stored book never had, so the form
+  // looks unchanged. Write what the editor showed once, otherwise the shop keeps behaving differently
+  // from the screen (a missing trackInventory means untracked on the server). Only when truly missing now.
+  if (live) {
+    for (const key of WRITE_ONCE_DEFAULTS) {
+      if (live[key] === undefined && form?.[key] !== undefined && !(key in out)) out[key] = merged[key];
+    }
+  }
+  // A book sold in editions: its own count is the sum of the editions, worked out here from the merged
+  // live editions. The editor's own sum is built from the stock it loaded, so it must never be written.
+  if (Array.isArray(merged.variants) && merged.variants.length) {
+    if ("variants" in out) out.stockLevel = merged.variants.reduce((n: number, v: any) => n + (Number(variantStock(v)) || 0), 0);
+    else delete out.stockLevel;
+  }
   return out;
+}
+
+/** Flags the editor displays with a default when the stored book has none (see changedBookFields). */
+export const WRITE_ONCE_DEFAULTS = ["status", "trackInventory", "chargeTax", "allowBackorder"] as const;
+
+/** Never removed by a save even when the form no longer carries them. */
+const KEEP_KEYS = new Set(["id", "_lastDoc", "createdAt", "updatedAt"]);
+
+/**
+ * Fields the owner took away in the editor (they were on the book when it opened and are gone from the form,
+ * e.g. switching a gift card back to a book drops productType). Writes only ever add or change keys, so these
+ * must be deleted explicitly or the old value silently stays. Pure; used by adminApi.updateBook.
+ */
+export function removedBookFields(form: any, initial: any): string[] {
+  if (!form || !initial) return [];
+  return Object.keys(initial).filter((key) => !KEEP_KEYS.has(key) && initial[key] != null && !Object.prototype.hasOwnProperty.call(form, key));
 }
 
 /** Deep equality for plain book data (arrays, objects, dates); missing and null/undefined match. */

@@ -135,7 +135,7 @@ export function ShopSettings({
             onOpenShipping={() => { setActiveTab("shipping"); setShippingStart("carrier"); }} onOpenOrders={onOpenOrders} onOpenNotifications={() => setActiveTab("notifications")} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {/* Communications was retired: its links open Notifications. */}
-          {(activeTab === "notifications" || activeTab === "communications") && <NotificationEditor />}
+          {(activeTab === "notifications" || activeTab === "communications") && <NotificationEditor focus={activeTab === "communications" ? "sender" : undefined} />}
         </motion.div>
       </AnimatePresence>
     </div>
@@ -1196,6 +1196,26 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
     }
   };
 
+  const [removingPaypal, setRemovingPaypal] = useState<null | "live" | "test">(null);
+  const removePaypalSecret = async (mode: "live" | "test") => {
+    if (!(await askConfirm({ title: `Remove the stored ${mode} PayPal client secret?`, message: mode === "live" ? "Live PayPal will use the credentials set in Firebase Functions (if any) until you enter a new secret." : "Test (sandbox) PayPal won't work until you enter a new sandbox secret.", confirmLabel: "Remove secret" }))) return;
+    setRemovingPaypal(mode);
+    try {
+      await adminApi.removePaypalSecret(mode);
+      const flag = mode === "live" ? "clientSecretStored" : "testClientSecretStored";
+      const field = mode === "live" ? "clientSecret" : "testClientSecret";
+      const patchOf = (prev: any) => ({ ...prev, payments: { ...prev?.payments, paypal: { ...prev?.payments?.paypal, [flag]: false, [field]: "" } } });
+      setSettings(patchOf(settings));
+      setOriginalSettings?.(patchOf);
+      setSecretFieldsKey((k) => k + 1);
+      toast.success(`Stored ${mode} PayPal secret removed`);
+    } catch (err: any) {
+      toast.error(err.message || "Couldn't remove the secret");
+    } finally {
+      setRemovingPaypal(null);
+    }
+  };
+
   const updateStripe = (patch: any) => {
     setSettings({
       ...settings,
@@ -1413,8 +1433,26 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
           <Toggle label="PayPal checkout" checked={!!paypal.connected} onChange={(v) => updatePaypal({ connected: v })} />
           {paypal.connected && (
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-              <TextField label="Live client ID" placeholder="Client ID…" spellCheck={false} value={paypal.clientId || ""} onChange={(e) => updatePaypal({ clientId: e.target.value })} />
-              <TextField label="Test client ID" placeholder="Test client ID…" spellCheck={false} value={paypal.testClientId || ""} onChange={(e) => updatePaypal({ testClientId: e.target.value })} />
+              <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 0.75 : 1 }}>
+                <div className="rp-sect">Live credentials {!testMode && "· in use"}</div>
+                <div className="rp-stack" style={{ gap: 12 }}>
+                  <TextField label="Live client ID" placeholder="Client ID…" spellCheck={false} value={paypal.clientId || ""} onChange={(e) => updatePaypal({ clientId: e.target.value })} />
+                  <SecretField key={`pp-live-${secretFieldsKey}`} label="Live client secret" placeholder="Client secret…" stored={!!paypal.clientSecretStored}
+                    onCommit={(v) => updatePaypal({ clientSecret: v })}
+                    onRemove={paypal.clientSecretStored ? () => removePaypalSecret("live") : undefined} removing={removingPaypal === "live"} />
+                  <p className="rp-hint" style={{ margin: 0 }}>Live PayPal uses the ID and secret saved here. If either is blank it uses the PayPal credentials set in Firebase Functions.</p>
+                </div>
+              </div>
+              <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 1 : 0.75 }}>
+                <div className="rp-sect">Test (sandbox) credentials {testMode && "· in use"}</div>
+                <div className="rp-stack" style={{ gap: 12 }}>
+                  <TextField label="Test client ID" placeholder="Sandbox client ID…" spellCheck={false} value={paypal.testClientId || ""} onChange={(e) => updatePaypal({ testClientId: e.target.value })} />
+                  <SecretField key={`pp-test-${secretFieldsKey}`} label="Test client secret" placeholder="Sandbox client secret…" stored={!!paypal.testClientSecretStored}
+                    onCommit={(v) => updatePaypal({ testClientSecret: v })}
+                    onRemove={paypal.testClientSecretStored ? () => removePaypalSecret("test") : undefined} removing={removingPaypal === "test"} />
+                  <p className="rp-hint" style={{ margin: 0 }}>Test mode never uses live PayPal credentials. Without both sandbox values, PayPal checkout is refused while test mode is on.</p>
+                </div>
+              </div>
             </div>
           )}
         </div>

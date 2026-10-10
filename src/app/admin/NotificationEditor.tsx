@@ -9,9 +9,11 @@ import { currentRows, emailLogBadge, emailLogDetail, needsAttention } from "./em
 import { fillSample, insertAt, PLACEHOLDERS, problemTemplates, templateProblems, withRequiredPlaceholders, type TemplateFields } from "./emailTemplateChecks";
 import { adminApi } from "./api";
 import { useSettingsDirty } from "./settingsDirty";
+import { resendKeyProblem } from "./privateKeys";
+import { senderOf, senderProblems, withSender, type Sender } from "./senderSettings";
 import { emailFunction, lastGmailProblem } from "./notificationApi";
 import {
-  DataTable, GhostButton, LoadingState, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm,
+  DataTable, ErrorState, GhostButton, LoadingState, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 
 type EmailLogEntry = {
@@ -216,13 +218,22 @@ function compilePreviewHtml(templateId: TemplateKey, data: NotificationSettings,
   `, { logoUrl: brand.logoUrl || "", accent: brandColor, theme: brand.emailTheme });
 }
 
-export function NotificationEditor() {
+export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
   const [data, setData] = useState<NotificationSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
+  // The saved templates could not be read: showing defaults and saving them would overwrite everything.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [activeTab, setActiveTab] = useState<TemplateKey>("order_confirmation");
   const [saving, setSaving] = useState(false);
   const [original, setOriginal] = useState("");
   const [resendDraft, setResendDraft] = useState("");
+  const [removingResend, setRemovingResend] = useState(false);
+  // Settings › Email sender: the stored `communications` map and the three sender fields being edited.
+  const [comms, setComms] = useState<Record<string, any> | null>(null);
+  const [sender, setSender] = useState<Sender>({ fromName: "", replyTo: "", fromEmail: "" });
+  const [senderSaved, setSenderSaved] = useState<Sender>({ fromName: "", replyTo: "", fromEmail: "" });
+  const [senderError, setSenderError] = useState("");
+  const [savingSender, setSavingSender] = useState(false);
   const [group, setGroup] = useState<string>("orders");
   // "Preview with a real order": recent orders loaded on demand, filled in the browser only.
   const [recentOrders, setRecentOrders] = useState<any[] | null>(null);
@@ -248,6 +259,10 @@ export function NotificationEditor() {
   useEffect(() => { setCursor({ field: "body", start: null, end: null }); }, [activeTab]);
 
   useEffect(() => {
+    adminApi.getPublicSettings().then((st: any) => {
+      const found = senderOf(st?.communications);
+      setComms(st?.communications || {}); setSender(found); setSenderSaved(found);
+    }).catch(() => setSenderError("The saved sender details couldn't be loaded, so they can't be changed right now. Reload the page to try again."));
     loadSettings();
     loadDeliveries();
     loadQueue();
@@ -313,6 +328,8 @@ export function NotificationEditor() {
   }
 
   async function loadSettings() {
+    setLoadFailed(false);
+    setLoading(true);
     try {
       const docRef = doc(db, "settings", "notifications");
       const snap = await getDoc(docRef);
@@ -362,7 +379,7 @@ export function NotificationEditor() {
       }
     } catch (err) {
       console.error("Failed to load notifications settings:", err);
-      setOriginal(JSON.stringify(DEFAULT_SETTINGS));
+      setLoadFailed(true);
       toast.error("Failed to load email notification settings.");
     } finally {
       setLoading(false);
@@ -370,6 +387,7 @@ export function NotificationEditor() {
   }
 
   async function handleSave() {
+    if (loadFailed) { toast.error("Your saved templates didn't load, so nothing can be saved. Reload them first."); return; }
     setSaving(true);
     try {
       await adminApi.saveNotificationSettings(data);
@@ -442,8 +460,9 @@ export function NotificationEditor() {
     }
   };
 
-  useSettingsDirty("notifications", !loading && JSON.stringify(data) !== original);
+  useSettingsDirty("notifications", !loading && !loadFailed && JSON.stringify(data) !== original);
   if (loading) return <LoadingState label="Loading notification templates…" />;
+  if (loadFailed) return <ErrorState title="Your email templates couldn't be loaded" description="Nothing has been changed. Saving is switched off until they load, so the defaults can't replace your saved emails." onRetry={() => { void loadSettings(); }} />;
 
   const currentTemplate = data[activeTab] || DEFAULT_SETTINGS[activeTab];
   const dirty = JSON.stringify(data) !== original;
@@ -513,11 +532,66 @@ export function NotificationEditor() {
     { key: "subject", header: "Subject", render: (r: EmailLogEntry) => r.subject || "—" },
     { key: "detail", header: "Detail", render: (r: EmailLogEntry) => <span style={{ whiteSpace: "normal" }}>{emailLogDetail(r)}</span> },
   ];
+  const senderIssues = senderProblems(sender);
+  const senderDirty = JSON.stringify(sender) !== JSON.stringify(senderSaved);
+  async function saveSender() {
+    if (comms === null || Object.keys(senderIssues).length) return;
+    setSavingSender(true);
+    try {
+      const next = withSender(comms, sender);
+      await adminApi.updateSettings({ communications: next });
+      const saved = senderOf(next);
+      setComms(next); setSender(saved); setSenderSaved(saved); setSenderError("");
+      toast.success("Email sender saved");
+    } catch (err: any) {
+      toast.error(err?.message || "Couldn't save the email sender.");
+    } finally {
+      setSavingSender(false);
+    }
+  }
+  useEffect(() => {
+    if (focus === "sender" && !loading) document.getElementById("email-sender")?.scrollIntoView({ block: "start" });
+  }, [focus, loading]);
+
+  async function removeResendKey() {
+    if (!(await confirm({ title: "Remove the stored Resend key?", message: "The backup sender will use the RESEND_API_KEY set in Firebase Functions (if any) until you enter a new key.", confirmLabel: "Remove key" }))) return;
+    setRemovingResend(true);
+    try {
+      await adminApi.removeResendKey();
+      const clear = (text: string) => { try { const o = JSON.parse(text); o.brand = { ...(o.brand || {}), resendApiKeyStored: false, resendApiKey: "" }; return JSON.stringify(o); } catch { return text; } };
+      setData(prev => ({ ...prev, brand: { ...prev.brand, resendApiKeyStored: false, resendApiKey: "" } }));
+      setOriginal(clear);
+      setResendDraft("");
+      toast.success("Stored Resend key removed");
+    } catch (err: any) {
+      toast.error(err?.message || "Couldn't remove the key");
+    } finally {
+      setRemovingResend(false);
+    }
+  }
   const resendStored = !!(data.brand?.resendApiKey || data.brand?.resendApiKeyStored);
 
   return (
     <div className="rp-stack">
       <GmailSendingCard lastProblem={lastGmailProblem(deliveries || [])} />
+
+      <div id="email-sender" />
+      <SectionCard title="Email sender" description="The name customers see on your emails and where their replies go.">
+        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+          <TextField label="Sender name" value={sender.fromName} placeholder="Lyricalmyrical Books" error={senderIssues.fromName}
+            onChange={(e) => setSender(prev => ({ ...prev, fromName: e.target.value }))} />
+          <TextField label="Reply-to address" type="email" value={sender.replyTo} placeholder="lyricalmyricalbooks@gmail.com" error={senderIssues.replyTo}
+            hint="When a customer presses Reply, it goes here. Blank = replies go to the sending address."
+            onChange={(e) => setSender(prev => ({ ...prev, replyTo: e.target.value }))} />
+          <TextField label="Backup sender address (Resend)" type="email" value={sender.fromEmail} placeholder="orders@your-domain.com" error={senderIssues.fromEmail}
+            hint="Only used by the Resend backup sender, and only for a domain verified in Resend. Gmail sends from your Gmail account."
+            onChange={(e) => setSender(prev => ({ ...prev, fromEmail: e.target.value }))} />
+        </div>
+        {senderError && <p className="rp-error-text" role="alert">{senderError}</p>}
+        <div style={{ marginTop: 12 }}>
+          <SecondaryButton onClick={saveSender} disabled={savingSender || comms === null || !senderDirty || Object.keys(senderIssues).length > 0}>{savingSender ? "Saving…" : "Save email sender"}</SecondaryButton>
+        </div>
+      </SectionCard>
 
       <SectionCard title="Email branding" description="Shared by every customer and administrator email.">
         <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
@@ -543,10 +617,21 @@ export function NotificationEditor() {
         <details style={{ marginTop: 16 }}>
           <summary className="rp-label" style={{ cursor: "pointer" }}>Advanced: backup sender (Resend){resendStored ? " · key stored" : ""}</summary>
           <p className="rp-hint">Used only when Gmail sending fails. Without a verified domain in Resend, its test sender only reaches the account owner.</p>
-          <TextField label="Resend API key" type="password" value={resendDraft}
+          <TextField label="Resend API key" type="password" value={resendDraft} autoComplete="new-password" spellCheck={false}
             placeholder={resendStored ? "Stored — enter a new key to replace it" : "re_…"}
+            error={resendKeyProblem(resendDraft) || undefined}
             hint={resendStored ? "✓ A key is stored. It is never shown here." : "Optional if the RESEND_API_KEY Functions secret is set."}
-            onChange={(e) => { setResendDraft(e.target.value); if (e.target.value.trim()) handleBrandChange("resendApiKey", e.target.value.trim()); }} />
+            onChange={(e) => {
+              const value = e.target.value;
+              setResendDraft(value);
+              // A key that fails the check is never passed up to be saved.
+              handleBrandChange("resendApiKey", resendKeyProblem(value) ? "" : value.trim());
+            }} />
+          {data.brand?.resendApiKeyStored && (
+            <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" style={{ marginTop: 6 }} disabled={removingResend} onClick={removeResendKey}>
+              {removingResend ? "Removing…" : "Remove stored key"}
+            </button>
+          )}
           {resendStored && resendWasPublic && (
             <p className="rp-hint" style={{ margin: "12px 0 0", color: "var(--rp-warning)" }}>
               ⚠ This key was once saved where the storefront could read it and has been moved to the admin-only store. Rotate it in Resend to be safe.
