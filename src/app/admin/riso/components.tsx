@@ -36,7 +36,9 @@ export function AppShell({ appearance = "light", sidebar, topbar, children, main
 
 export type NavEntry = {
   id: string; label: string; icon: React.ComponentType<{ size?: number; "aria-hidden"?: boolean }>;
-  children?: Array<{ id: string; label: string }>;
+  children?: Array<{ id: string; label: string; icon?: React.ComponentType<{ size?: number; "aria-hidden"?: boolean }> }>;
+  /** A small group heading shown above this item (e.g. "Settings"). */
+  section?: string;
   /** Count of things waiting on this page (e.g. orders to ship); hidden at 0. */
   badge?: number;
 };
@@ -60,6 +62,7 @@ export function Sidebar({ brand, items, activeId, activeChildId, onSelect, onSel
               const Icon = item.icon;
               return (
                 <li key={item.id}>
+                  {item.section && <div className="rp-nav-section" aria-hidden="true">{item.section}</div>}
                   <button
                     type="button" className="rp-nav-item"
                     aria-current={active ? "page" : undefined}

@@ -233,6 +233,10 @@
 }
 .rp-nav-item .rp-nav-chevron { margin-left: auto; transition: transform var(--rp-dur) var(--rp-ease); }
 .rp-nav-item[aria-expanded="true"] .rp-nav-chevron { transform: rotate(90deg); }
+.rp-nav-section {
+  margin: 14px 12px 6px; padding-top: 12px; border-top: var(--rp-hair) solid var(--rp-divider);
+  font-family: var(--rp-font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--rp-text-subtle);
+}
 .rp-nav-sublist { margin: 4px 0 8px 22px; padding-left: 12px; border-left: var(--rp-hair) solid var(--rp-divider); }
 .rp-nav-subitem {
   width: 100%; min-height: 38px; display: flex; align-items: center; gap: 10px; padding: 0 10px;
@@ -763,13 +767,22 @@
 .rp-sidebar { overflow-y: auto; }
 .rp-nav { flex: 1 0 auto; overflow-y: visible; }
 .rp-sidebar-foot { flex-shrink: 0; }
-.rp-whats-new { padding: 14px; margin-bottom: 14px; border: var(--rp-hair) solid var(--rp-border); background: var(--rp-surface); border-radius: var(--rp-radius); }
-.rp-whats-new h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 15px; }
+.rp-whats-new {
+  width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 12px;
+  border: var(--rp-hair) solid var(--rp-border); background: var(--rp-surface); border-radius: var(--rp-radius);
+  color: var(--rp-text); font: inherit; text-align: left; cursor: pointer; min-height: var(--rp-touch);
+}
+.rp-whats-new:hover { background: var(--rp-surface-2); }
+.rp-whats-new:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp-whats-new-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.rp-whats-new-label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
+.rp-whats-new-dot { width: 8px; height: 8px; background: var(--rp-primary); border-radius: 50%; }
+.rp-whats-new-title { font-size: 12px; color: var(--rp-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rp-update-entry { padding-bottom: 16px; }
 .rp-update-entry + .rp-update-entry { padding-top: 16px; border-top: var(--rp-hair) solid var(--rp-divider); }
 .rp-update-entry time { font-size: 11px; color: var(--rp-text-subtle); }
 .rp-update-entry h3 { margin: 6px 0; font-size: 14px; }
-.rp-update-entry p { margin: 0 0 10px; font-size: 13px; line-height: 1.5; color: var(--rp-text-muted); }
+.rp-update-entry p { margin: 0 0 10px; font-size: 13px; line-height: 1.5; color: var(--rp-text-muted); overflow-wrap: anywhere; }
 .rp-update-links { display: grid; gap: 4px; }
 .rp-update-links button { text-align: left; background: none; border: 0; padding: 7px 0; color: var(--rp-primary-text); text-decoration: underline; font: inherit; font-size: 13px; cursor: pointer; }
 .rp-update-links button:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
