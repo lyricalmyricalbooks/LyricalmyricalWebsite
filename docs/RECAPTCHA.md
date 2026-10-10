@@ -20,7 +20,8 @@ the owner completes registration and the checks below.
    reCAPTCHA Enterprise API and create a Web / score-based key. Leave the checkbox
    challenge option off.
 2. Allow these hostnames (without paths): lyricalmyricalbooks.github.io,
-   lyricalmyricalbooks.com and www.lyricalmyricalbooks.com. Add any other hostname
+   lyricalmyrical-web-v2.web.app (Firebase Hosting), lyricalmyricalbooks.com and
+   www.lyricalmyricalbooks.com. Add any other hostname
    actually serving the app. Do not allow localhost on a production key.
 3. In Firebase console > App Check > Apps, register web app
    1:248894589273:web:8bf4b06399c0931f1b6448 with the Enterprise provider and this key.
@@ -39,8 +40,9 @@ In GitHub repository Settings > Secrets and variables > Actions > Variables, set
 | APP_CHECK_MODE | monitor |
 
 The site key is public, not a secret. Do not enter a secret key, service-account JSON
-or debug credential. Variables must also be available in the github-pages environment.
-Run **Deploy to GitHub Pages** and **Deploy Firebase (rules, indexes, functions)**.
+or debug credential. Set them as **repository** variables (not only in the github-pages
+environment): the Firebase Hosting jobs run outside that environment and cannot see
+environment-scoped values. Run **Deploy storefront** and **Deploy Firebase (rules, indexes, functions)**.
 The Pages build supplies VITE_RECAPTCHA_ENTERPRISE_SITE_KEY and VITE_APP_CHECK_MODE;
 the backend workflow writes APP_CHECK_MODE into the project's Functions dotenv file
 so it persists in deployed Functions, rather than only in the CI runner environment.

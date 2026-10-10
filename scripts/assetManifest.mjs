@@ -9,3 +9,9 @@ export const assetNames = names => [...new Set(names.filter(safeAssetName))].sor
 
 /** Reads a published asset-manifest.txt; anything that is not a safe file name is ignored. */
 export const parseAssetManifest = text => assetNames(String(text ?? '').split(/\r?\n/).map(line => line.trim()));
+
+/** The published-content marker is a SHA-256 hex digest; anything else (an HTML error page) means "unknown". */
+export const isFingerprint = text => /^[a-f0-9]{64}$/.test(String(text ?? '').trim());
+
+/** A host answering a missing file with an HTML page (a catch-all rewrite, a 404 page) is not that file. */
+export const isHtmlResponse = contentType => /^\s*text\/html\b/i.test(String(contentType ?? ''));

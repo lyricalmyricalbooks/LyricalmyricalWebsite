@@ -15,5 +15,68 @@
       "ignore": ["node_modules", ".git", "*.log"],
       "runtime": "nodejs22"
     }
-  ]
+  ],
+  "hosting": {
+    "site": "lyricalmyrical-web-v2",
+    "public": "dist",
+    "ignore": [],
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "rewrites": [
+      {
+        "regex": "^/(?:(?:books|collections|page)/[^/]+/?|(?:account|admin)(?:/.*)?|checkout|track|wishlist)$",
+        "destination": "/spa.html"
+      }
+    ],
+    "headers": [
+      {
+        "regex": "^/assets/.+$",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "regex": "^/(?:|spa|404|(?:books|collections|page)/.*|(?:account|admin)(?:/.*)?|checkout|track|wishlist|[^/]+\\.(?:xml|txt)|.*\\.html)$",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "regex": "^/(?:spa|404)(?:\\.html)?$",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex"
+          }
+        ]
+      },
+      {
+        "regex": "^/.*$",
+        "headers": [
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          },
+          {
+            "key": "X-Frame-Options",
+            "value": "SAMEORIGIN"
+          },
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex"
+          }
+        ]
+      }
+    ]
+  }
 }

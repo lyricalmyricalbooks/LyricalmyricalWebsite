@@ -15,7 +15,7 @@ const defaultUrl = (file: string) => {
 
 describe('one site address everywhere', () => {
   const viteBase = read('vite.config.ts').match(/SITE_BASE \?\? '([^']+)'/)?.[1];
-  const files = ['functions/index.js', 'scripts/generate-sitemap.mjs', 'scripts/prerender-storefront.mjs', 'scripts/check-published-change.mjs', 'scripts/carry-previous-assets.mjs'];
+  const files = ['functions/index.js', 'vite.config.ts', 'scripts/generate-sitemap.mjs', 'scripts/prerender-storefront.mjs', 'scripts/check-published-change.mjs', 'scripts/carry-previous-assets.mjs'];
 
   it('every SITE_URL default matches the Vite base', () => {
     expect(viteBase).toMatch(/^\/.*\/$/);
@@ -31,5 +31,13 @@ describe('one site address everywhere', () => {
     const shell = read('index.html');
     expect(shell).toContain(`<meta property="og:url" content="${url}" />`);
     expect(shell).toContain(`"url": "${url}"`);
+  });
+
+  it('the Cloud Functions accept browser calls from every address the shop is built for', () => {
+    const functions = read('functions/index.js');
+    const allowed = functions.slice(functions.indexOf('const ALLOWED_ORIGINS'), functions.indexOf('];', functions.indexOf('const ALLOWED_ORIGINS')));
+    const hostingUrl = read('.github/workflows/deploy-pages.yml').match(/SITE_URL: (https:\/\/\S+)/)?.[1];
+    expect(hostingUrl, 'the Firebase Hosting job sets SITE_URL').toBeTruthy();
+    for (const url of [defaultUrl('functions/index.js'), hostingUrl!]) expect(allowed).toContain(`"${new URL(url).origin}"`);
   });
 });

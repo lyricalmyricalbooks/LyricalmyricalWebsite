@@ -24,8 +24,16 @@ starts normally and continues loading live catalog and checkout data.
 - `SITE_URL` is the public origin plus deployment path; `SITE_BASE` is the Vite
   base. For a custom root domain, set `SITE_URL=https://your-domain` and
   `SITE_BASE=/` together.
-- Merge and deploy through the existing GitHub Pages workflow. Generated HTML
-  lives only in `dist`; it is not committed and no Firebase deployment is needed.
+- Merge and deploy through the storefront workflow (`deploy-pages.yml`). Generated
+  HTML lives only in `dist`; it is not committed. The workflow publishes it to GitHub
+  Pages (the live shop) and, side by side, to Firebase Hosting at
+  `https://lyricalmyrical-web-v2.web.app` (built with `SITE_BASE=/`). There
+  `cleanUrls` serves `books/<slug>.html` at `/books/<slug>` with HTTP 200 and
+  `trailingSlash: false` 301-redirects `/books/<slug>/` and `/books/<slug>.html` to
+  the slash-less canonical; app routes without a snapshot get `spa.html` (the clean
+  app shell) and unknown URLs get a real 404 (`404.html` is the same shell). Until the
+  cutover every web.app response carries `X-Robots-Tag: noindex`, so search engines
+  keep using the GitHub Pages address.
 
 Snapshots refresh on deployment. The Pages workflow checks published catalog,
 page and Studio data every 15 minutes (at minutes 7, 22, 37 and 52). GitHub may

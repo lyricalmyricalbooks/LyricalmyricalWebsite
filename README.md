@@ -58,10 +58,11 @@ This repo now includes a GitHub Actions workflow at `.github/workflows/deploy-pa
 
 - Every push to `main` triggers the workflow.
 - The workflow installs dependencies, builds with Vite, uploads `dist/`, and deploys to GitHub Pages.
-- You can also run it manually from **Actions → Deploy to GitHub Pages → Run workflow**.
+- You can also run it manually from **Actions → Deploy storefront → Run workflow**.
 
-> Note: GitHub Pages only hosts the frontend static site. Firestore rules/indexes, Storage rules and
-> Cloud Functions are deployed to Firebase separately (`.github/workflows/deploy-firebase.yml`).
+> Note: the same workflow also publishes the site, side by side, to Firebase Hosting at
+> `https://lyricalmyrical-web-v2.web.app` (see CLAUDE.md › Deployment). Firestore rules/indexes, Storage
+> rules and Cloud Functions are deployed to Firebase separately (`.github/workflows/deploy-firebase.yml`).
 
 ## Going live checklist (e-commerce)
 
@@ -91,5 +92,6 @@ The payment/fulfillment backend runs on Firebase. Before taking real orders:
    rate (e.g. Canada + Ontario = 13). Add one row per region you must collect
    in; a row with an empty region is the country-wide fallback.
 6. **Allowed origins** — if the site moves to a custom domain, add it to
-   `ALLOWED_ORIGINS` in `functions/index.js` and to the OAuth redirect URIs in
-   `firebase.json`, and set `SITE_BASE=/` when building.
+   `ALLOWED_ORIGINS` in `functions/index.js`, to Firebase Auth's authorized domains
+   and the reCAPTCHA key's domains, and build with `SITE_URL=https://<domain>` and
+   `SITE_BASE=/`.
