@@ -85,3 +85,55 @@ describe("firestore.rules anonymous-abuse guards", () => {
     }
   });
 });
+
+describe("firestore.rules round-2 security (#18, #111, #112)", () => {
+  it("serves only published books to the public, with private fields in an admin-only subdocument", () => {
+    const books = block("books/{bookId}");
+    expect(books).not.toMatch(/allow read: if true/);
+    expect(books).toMatch(/allow read: if isAdmin\(\) \|\| resource\.data\.status == "published"/);
+    expect(books).toMatch(/match \/private\/\{docId\} \{\s*allow read, write: if isAdmin\(\);/);
+    // The admin's one-query read of every private document.
+    expect(rules).toMatch(/match \/\{path=\*\*\}\/private\/\{docId\} \{\s*allow read: if isAdmin\(\);/);
+  });
+
+  it("every shopper read of books asks for published ones only", () => {
+    expect(read("src/app/lib/publicApi.ts")).toMatch(/where\("status", "==", "published"\), orderBy\(documentId\(\)\)/);
+    expect(read("scripts/publicStorefrontData.mjs")).toMatch(/fieldPath: 'status' \}, op: 'EQUAL', value: \{ stringValue: 'published' \}[\s\S]*collectionId: 'books'|collectionId: 'books'[\s\S]*fieldPath: 'status'/);
+    // No shopper code reads books through the full SDK or by a different query.
+    for (const file of ["src/app/lib/commerce.ts", "src/app/lib/reviews.ts", "src/app/features/site/newsletterSignup.ts", "src/app/features/site/contactMessages.ts"]) {
+      expect(read(file), file).not.toMatch(/collection\(liteDb, "books"\)/);
+    }
+  });
+
+  it("keeps analytics counters from going negative or being forged", () => {
+    const analytics = block("analytics/{docId}");
+    expect(analytics).toMatch(/get\('visits', 0\) >= 0/);
+    expect(analytics).toMatch(/analyticsStepsOk\(\{\}\)/);
+    expect(analytics).toMatch(/analyticsStepsOk\(resource\.data\)/);
+    expect(analytics).toMatch(/hasOnly\(\['view', 'add_to_cart', 'checkout_start', 'purchase'\]\)/);
+    expect(analytics).toMatch(/removedKeys\(\)\.size\(\) == 0/);
+    // The storefront funnel sends exactly those four events.
+    const funnel = read("src/app/lib/commerce.ts");
+    expect(funnel).toMatch(/track: async \(event: "view" \| "add_to_cart" \| "checkout_start" \| "purchase"\)/);
+  });
+
+  it("gives every browser-written order field a type and a size", () => {
+    expect(block("orders/{orderId}")).toMatch(/guestOrderFieldsOk\(request\.resource\.data\)/);
+    for (const field of ["subtotal", "discount", "shipping", "tax", "total"]) expect(rules).toContain(`moneyOk(d.get('${field}', 0))`);
+    expect(rules).toMatch(/d\.customer\.keys\(\)\.hasOnly\(\['name', 'email', 'phone', 'address', 'billingAddress'\]\)/);
+    // The keys Checkout sends all stay inside the allowed list.
+    expect(read("src/app/Checkout.tsx")).toMatch(/customer: \{ \.\.\.customer, email:/);
+  });
+
+  it("expires server-only bookkeeping with Firestore TTL policies (#72)", () => {
+    const indexes = JSON.parse(read("firestore.indexes.json"));
+    const ttl = indexes.fieldOverrides.filter((o: any) => o.ttl === true && o.fieldPath === "expiresAt").map((o: any) => o.collectionGroup).sort();
+    expect(ttl).toEqual(["abandoned-cart-throttle", "contact-email-throttle", "email-claims", "payment-webhook-events", "rate-limits"]);
+  });
+
+  it("has the index the paged pending-reviews queue needs (#144)", () => {
+    const indexes = JSON.parse(read("firestore.indexes.json"));
+    expect(indexes.indexes.some((i: any) => i.collectionGroup === "reviews" && i.fields.length === 2
+      && i.fields[0].fieldPath === "status" && i.fields[1].fieldPath === "createdAt" && i.fields[1].order === "DESCENDING")).toBe(true);
+  });
+});

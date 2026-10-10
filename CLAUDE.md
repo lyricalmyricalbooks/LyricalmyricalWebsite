@@ -1122,7 +1122,7 @@ with the oldest order that needs work opened automatically and finishing an orde
 `OrderDetail` reports reloads via `onChanged` so the list refreshes. Phones show list *or* order. **Table view** opens the
 previous `Orders` table (bulk packing, pick lists, CSV). Email links `/admin#orders/<id>` still open that order.
 The packing checklist shows each book's current cover and **Shelf location** (Books › edit › Inventory, `shelfLocation`,
-per edition when set; `packingInfo` in `fulfillment.ts`). Books are public-readable, so the shelf code is too.
+per edition when set; `packingInfo` in `fulfillment.ts`). Shelf codes live in the admin-only private book document (see *Round-2 security*), merged back by `adminApi.getAllBooks` / `getBook`.
 
 ## reCAPTCHA / App Check
 
@@ -1569,6 +1569,52 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   Anything that mails or counts subscribers must skip `status === "pending"` (`mayMail`). The confirmation email text is fixed in code
   (not an editable template) so its consent wording can't be edited away; storefront words are Text & labels › Newsletter / Order tracking.
 - **Email-link sign-in** (`features/site/emailLinkSignIn.ts`): a failed attempt forgets the saved address and keeps the "confirm your email" card.
+
+## Round-2 security: private book fields, public endpoints, rules (10 October 2026)
+
+- **`books` is public for published books only.** `firestore.rules`: `allow read: if isAdmin() || resource.data.status == "published"`.
+  A shopper list query must say so: `publicApi.getStorefrontBooks` filters `where("status", "==", "published")`, and
+  `scripts/publicStorefrontData.mjs` (sitemap, prerender, the 15-minute change check) uses a `runQuery` with the same filter
+  (`readPublishedBooks`). `publicApi.getBook` returns `null` for a book the rules refuse (draft/archived). Account and Order
+  tracking therefore treat an unreadable book as `UNREADABLE_BOOK` (`digitalLine.ts`) and let the server decide on a download.
+  A book with no `status` is unreadable to the public: `scripts/migrate-book-private-fields.mjs` stamps `published` on those
+  (the storefront already treated a missing status as published). Scheduled/future-dated books are `published` with a
+  `scheduleDate`, so they remain readable by the rule (the storefront hides them with `isLiveBook`) — the rule cannot compare dates.
+- **Private book fields** (`costPrice`, `usdCostPrice`, `eurCostPrice`, `shelfLocation` and each edition's shelf code, `legacyInventoryKey`,
+  `digitalFileUrl`/`digitalFilePath`) live in admin-only `books/{id}/private/admin` (`variantShelf: { editionId: code }` for editions).
+  `admin/bookPrivate.ts` (pure) splits a book on every write and merges on every read; `adminApi` does it in `createBook`, `updateBook`
+  (inside its transaction), `duplicateBook`, `deleteBook` and the legacy inventory sync, and `getAllBooks` / `getBook` merge the private
+  documents back (one `collectionGroup("private")` read; `getAllBooks({ includePrivate: false })` skips it). Readers take the private
+  value, else a leftover public one, so the admin works before and after the migration; a save moves the fields it touches. Rules:
+  `match /private/{docId}` under `books` plus `match /{path=**}/private/{docId}` (admin read) for the collection-group read.
+  Functions never read cost fields (no change needed). Add any new owner-only book field to `PRIVATE_BOOK_KEYS` in **both**
+  `bookPrivate.ts` and the migration script (`scripts/migrateBookPrivate.test.ts` keeps them equal). `digitalFileName` stays public
+  (the shop uses it to show a Download button; the bucket path is `read: false`).
+- **Deploy order for the books change:** (1) deploy the frontend/code that reads both locations (this PR's admin code does), (2) run
+  `GOOGLE_APPLICATION_CREDENTIALS=… node scripts/migrate-book-private-fields.mjs` (dry run) then `--apply`, (3) only then deploy
+  `firestore.rules`, indexes and Functions. Rules before the migration hide status-less books from shoppers.
+- **Digital uploads** store the Storage path: `adminApi.uploadStoragePath` (no `getDownloadURL` on the read-denied `digital-assets/`
+  folder); the editor saves `digitalFileName` (what `downloadDigitalAsset` opens) and `digitalFilePath`.
+- **Public endpoint hygiene** (`functions/`): `setGlobalOptions({ maxInstances: 10 })`; `action: "status"` has its own rate limit
+  (`LIMITS.status`) and only looks up payment ids saved on the order; `automaticDiscounts` has `LIMITS.autoDiscount` and a 30 s shared
+  read; `getShippoRates` refuses more than 50 lines or non-plain ids; anonymous handlers answer upstream/database failures with a
+  fixed sentence (`publicErrors.js` `publicErrorMessage`; admin endpoints keep detail); the checkout location signal uses
+  `clientIpOf` and the platform's `X-AppEngine-Country` (`serverGeoCountry`) — no third-party IP lookup, and no signal when the
+  platform sends none. Admin emails encode the order id in links.
+- **TTL:** `rate-limits`, `contact-email-throttle`, `abandoned-cart-throttle`, `email-claims` and `payment-webhook-events` carry a top-level
+  `expiresAt` (`retainFor()` / the limiters) and `firestore.indexes.json` `fieldOverrides` expire them. Deploy indexes to turn TTL on.
+- **Rules:** analytics counters (`analyticsStepsOk`): visits >= 0, funnel/device maps are fixed-key and +1 per write, free-key maps
+  change one entry per write and never lose one (values of free keys can't be bounded in rules). Guest orders: money fields are numbers
+  in range, `customer` has only its five keys, `activity`/`appliedDiscount`/`fulfillmentSelection` are small, `testMode` is a bool (per-line
+  content still can't be checked — `priceOrder` rebuilds lines). `scripts/firestore-rules-emulator.mjs` covers all of it.
+- **Studio/storefront:** imported theme files drop `customHeadHtml`/`customFooterScripts` (`stripImportedCustomCode`; Studio says so);
+  connected details are escaped inside HTML-drawing fields (`HTML_SETTING_KEYS`, a test fails when `SectionComponents` gains another
+  `dangerouslySetInnerHTML` field); the newsletter box, review form and back-in-stock box write nothing in the Studio preview
+  (`inEditorPreview()` inside `subscribeNewsletter`, `saveStockAlert`, `reviewsApi.create`); the book page's review count/average come
+  from Firestore aggregation (`reviewsApi.summary`, also the JSON-LD `aggregateRating`) with a **Show more reviews** button
+  (Text & labels › Reviews › `reviewsMore`; Style › Reviews · layout & elements › Show more reviews button); Admin › Reviews loads
+  50 pending reviews at a time with a server-side total and fetches a reviewer's email only on **Show email** (`admin/reviewQueue.ts`;
+  needs the `reviews (status, createdAt desc)` index). All CSV exports guard leading tab/CR as well as `= + - @`.
 
 ## Checkout experience + stock-hold tuning (10 October 2026)
 

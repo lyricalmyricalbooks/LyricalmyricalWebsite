@@ -580,7 +580,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (!file) return;
     const parsed = parseThemeFile(await file.text());
     if ("error" in parsed) { say("err", parsed.error); return; }
-    persistThemes(addSavedTheme(savedThemes, parsed.name, parsed.design), `Imported “${parsed.name}” into My themes.`);
+    persistThemes(addSavedTheme(savedThemes, parsed.name, parsed.design),
+      parsed.strippedCustomCode?.length
+        ? `Imported “${parsed.name}” into My themes without its custom code (${parsed.strippedCustomCode.join(", ")}). Add code yourself under Style › Custom code only if you trust it.`
+        : `Imported “${parsed.name}” into My themes.`);
   };
   const riso = design.themeStyle === "riso";
 

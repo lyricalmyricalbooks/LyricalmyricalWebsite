@@ -264,13 +264,14 @@ export default function BookDetail() {
   const categoryLabel: string | undefined = shopCat ? catName(shopCat) : undefined;
 
   // Approved reviews feed the search-result star rating; the snapshot waits for this read.
-  const [seoReviews, setSeoReviews] = useState<{ bookId: string; list: any[] } | null>(null);
+  const [seoReviews, setSeoReviews] = useState<{ bookId: string; list: any[]; summary: { count: number; average: number } | null } | null>(null);
   useEffect(() => {
     if (!book?.id) return;
     let cancelled = false;
-    reviewsApi.listApproved(book.id)
-      .then(list => { if (!cancelled) setSeoReviews({ bookId: book.id, list }); })
-      .catch(() => { if (!cancelled) setSeoReviews({ bookId: book.id, list: [] }); });
+    // The newest reviews give the snippets; Firestore's own count/average give the star rating over all of them.
+    Promise.all([reviewsApi.listApproved(book.id), reviewsApi.summary(book.id).catch(() => null)])
+      .then(([list, summary]) => { if (!cancelled) setSeoReviews({ bookId: book.id, list, summary }); })
+      .catch(() => { if (!cancelled) setSeoReviews({ bookId: book.id, list: [], summary: null }); });
     return () => { cancelled = true; };
   }, [book?.id]);
   const reviewsReady = !!book && seoReviews?.bookId === book.id;
@@ -301,6 +302,7 @@ export default function BookDetail() {
         price: seoPrice,
         url: bookUrl,
         reviews: reviewsReady ? seoReviews!.list : [],
+        ratingSummary: reviewsReady ? seoReviews!.summary : null,
         seller: getCopy(settings?.design, "siteName"),
       }),
       breadcrumbData([

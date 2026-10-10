@@ -3,12 +3,15 @@
 // confirmation link; the address joins the list only when its owner clicks it. Browsers never write the
 // `newsletter` collection (firestore.rules), so nobody can add a stranger's address.
 import { functionFetch } from "../../lib/functionsBase";
+import { inEditorPreview } from "../../lib/trackingGuard";
 
 export const isEmailAddress = (email: string) => /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(String(email || "").trim());
 
 /** Resolves when the confirmation email is on its way (or the address is already subscribed); rejects "invalid-email" or "busy" / "failed". */
 export async function subscribeNewsletter(email: string, source: string): Promise<void> {
   if (!isEmailAddress(email)) throw new Error("invalid-email");
+  // The Studio preview runs the real storefront: it shows the success state but never adds a subscriber.
+  if (inEditorPreview()) return;
   const response = await functionFetch("createStripeCheckoutSession", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

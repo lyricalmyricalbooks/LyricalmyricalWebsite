@@ -1,6 +1,7 @@
 import { orderChargedTotal } from "./orderMoney";
 import { finishEmailLinkSignIn } from "./emailLinkSignIn";
-import { lineIsDigital } from "./digitalLine";
+import { lineIsDigital, UNREADABLE_BOOK } from "./digitalLine";
+import { publicApi } from "../../lib/publicApi";
 import { orderLineNotes } from "./orderLineNotes";
 import { regionProps } from "./storefrontRegions";
 import { getTrackingUrl } from "../../lib/tracking";
@@ -271,8 +272,8 @@ function AccountContent() {
     await Promise.all(
       Array.from(uniqueItemIds).map(async (id) => {
         try {
-          const book = await adminApi.getBook(id);
-          if (book && book.digitalFileName) booksById[id] = book;
+          const book: any = await publicApi.getBook(id).catch(() => null);
+          booksById[id] = book && book.digitalFileName ? book : UNREADABLE_BOOK;
         } catch (err) {
           console.warn("E-Book metadata scan error:", err);
         }
