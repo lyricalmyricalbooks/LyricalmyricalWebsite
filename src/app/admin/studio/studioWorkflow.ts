@@ -269,7 +269,7 @@ const sameValue = (a: any, b: any) => JSON.stringify(a ?? null) === JSON.stringi
  * Changes made on only one side are combined; a setting changed differently on both sides keeps
  * this tab's value and is reported in `conflicts` (paths like "heroPage.sections").
  */
-export function mergeDesigns(base: any, local: any, server: any, depth = 0, path = ""): { merged: any; conflicts: string[] } {
+export function mergeDesigns(base: any, local: any, server: any, depth = 0, path = "", prefer: "local" | "server" = "local"): { merged: any; conflicts: string[] } {
   const conflicts: string[] = [];
   const merged: Record<string, any> = {};
   const keys = new Set([...Object.keys(base || {}), ...Object.keys(local || {}), ...Object.keys(server || {})]);
@@ -280,12 +280,22 @@ export function mergeDesigns(base: any, local: any, server: any, depth = 0, path
     if (sameValue(l, s) || sameValue(s, b)) value = l;
     else if (sameValue(l, b)) value = s;
     else if (depth < 1 && plainObject(l) && plainObject(s) && (b === undefined || plainObject(b))) {
-      const inner = mergeDesigns(b || {}, l, s, depth + 1, at);
+      const inner = mergeDesigns(b || {}, l, s, depth + 1, at, prefer);
       value = inner.merged; conflicts.push(...inner.conflicts);
-    } else { value = l; conflicts.push(at); }
+    } else { value = prefer === "server" ? s : l; conflicts.push(at); }
     if (value !== undefined) merged[key] = value;
   }
   return { merged, conflicts };
+}
+
+/**
+ * The save-conflict dialog's two outcomes. Both keep every change only one side made: `mine` takes this tab's
+ * value where both changed the same setting, `theirs` takes the other tab's value there.
+ */
+export function resolveSaveConflict(base: any, local: any, server: any): { mine: any; theirs: any; conflicts: string[] } {
+  const mine = mergeDesigns(base, local, server);
+  const theirs = mergeDesigns(base, local, server, 0, "", "server");
+  return { mine: mine.merged, theirs: theirs.merged, conflicts: mine.conflicts };
 }
 
 /**

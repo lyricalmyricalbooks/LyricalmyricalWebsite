@@ -537,6 +537,13 @@ the fixture fakes it with `__studioFixture.remoteSave(draft, { publish })`). `de
 ignores revisions not newer than this tab's, takes another tab's save when nothing is unsaved here, and otherwise shows the
 **This design was saved in another tab or device** banner (Bring in / Use their version / Later). Remote drafts go through
 `normalize` before any comparison. Never auto-overwrite unsaved edits.
+**Save conflicts (October 2026):** `resolveSaveConflict` (`studioWorkflow.ts`) gives the dialog both outcomes, each keeping every
+change only one side made (`Keep mine` wins the shared setting, `Use the other version` takes theirs there; neither throws the other
+side's other edits away). A conflict during **Publish** never publishes: even a clean merge is only restored into the draft with a
+message, and the owner presses Publish again after reviewing it (only Save draft auto-saves a clean merge). `draftFieldUpdate`
+(shop categories, Under construction wall) now bumps `rev` in a transaction (`action: "field"`), so other open Studios follow it
+through live sync and a stale Save/Publish conflicts instead of reverting the value. Studio re-reads the live design
+(`adminApi.getLiveDesign`) when it opens and when the Publish/Discard dialog opens; Discard writes the freshly read live design.
 
 **Studio Health (3.3):** Theme actions › **Studio Health** runs `studio/healthAudit.ts` `auditDocument` on the preview
 iframe's own document (contrast, picture descriptions/size/weight, link names and targets, tap targets, headings, fonts,
@@ -556,6 +563,12 @@ shared design, keeps it noindex and out of analytics (`trackingGuard`, `useSiteD
 `unpaidPaymentSweep`, every 15 minutes) publishes due entries into `settings/website.design` and switches campaigns back
 at their end unless a later Publish happened. Never put scheduled designs in the public settings document, and never
 apply schedules in the browser. Times are entered in Toronto time and stored as UTC ISO.
+The Toronto clock is `features/site/shopTime.ts` (shared by Studio and the storefront); a nonexistent spring-forward time is refused
+by `scheduleProblems` (never moved earlier). Section **Show from / Show until** (`sectionInWindow`) read zone-less values as Toronto time
+via `shopInstant`. When a schedule starts or a campaign ends, `functions/themeSchedule.js` keeps the fields edited live outside Publish
+(`LIVE_ONLY_KEYS`: `categories`, `showUnderConstruction`) from the current live design, unless the scheduled design itself changed them
+(`liveBase`, recorded by `addThemeSchedule`; a started campaign records `appliedLiveOnly`). Media Delete also checks scheduled designs,
+a running campaign's `revertDesign` and unexpired share links (`adminApi.listStoredDesigns`, `storedDesignUses`). Deploy Functions with the frontend.
 
 **Performance (Phase 4):** compare designs with `designEqual` (`features/site/designEqual.ts`), never `JSON.stringify`, and
 keep normalisers identity-preserving (return the same object when nothing changes) so edits share structure. Heavy Studio

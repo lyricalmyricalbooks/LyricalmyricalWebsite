@@ -112,6 +112,14 @@ export function snapshotUses(item: MediaItem, savedThemes: { name?: string; desi
   ];
 }
 
+/**
+ * Designs stored for later (scheduled publishes, the design a running campaign will restore, share-preview links)
+ * that still contain the picture. When they go live or are opened the picture would show, so Delete refuses too.
+ */
+export function storedDesignUses(item: MediaItem, stored: { label?: string; design?: any }[]): string[] {
+  return (stored || []).filter(s => usagePaths(collectStrings(s?.design), item).length > 0).map(s => s.label || "Stored design");
+}
+
 /** "Home › Image banner" for `["heroPage", "sections", 2, "settings", "imageUrl"]`. */
 export function describeUsage(design: any, path: Path, names: { surface: (id: string) => string; section: (section: any) => string }): UsagePlace {
   const [top, second, third] = path;

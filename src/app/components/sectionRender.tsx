@@ -5,6 +5,7 @@ import { useNavigate } from "react-router";
 import * as Sections from "./SectionComponents";
 import { hexToRgbTriplet } from "../features/site/themeTokens";
 import { googleFontHref } from "../features/site/fonts";
+import { shopInstant } from "../features/site/shopTime";
 import { findScheme, schemeList } from "../features/site/colorSchemes";
 import { resolveSectionSharedBlocks } from "../features/site/sharedBlocks";
 import { UP_TO } from "../features/site/breakpoints";
@@ -58,8 +59,10 @@ const prefersReducedMotion = () =>
 /** Per-section publish window: only render between showFrom and showUntil (if set). */
 export function sectionInWindow(section: any): boolean {
   const s = section?.settings || {};
-  if (s.showFrom && Date.now() < new Date(s.showFrom).getTime()) return false;
-  if (s.showUntil && Date.now() > new Date(s.showUntil).getTime()) return false;
+  // Typed without a zone, so these are Toronto times for every shopper and for the prerender (shopTime.ts).
+  const from = shopInstant(s.showFrom), until = shopInstant(s.showUntil);
+  if (s.showFrom && Date.now() < from) return false;
+  if (s.showUntil && Date.now() > until) return false;
   return true;
 }
 
