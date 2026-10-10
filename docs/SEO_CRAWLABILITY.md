@@ -86,7 +86,7 @@ follow`, so crawlers can read the exclusion. The build-only route manifest is
 ## Google Search Console
 
 Add a URL-prefix property for
-`https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/`.
+`https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite/`.
 Choose HTML tag verification. Copy its `content` token into Studio > Text & labels
 > Site & sharing > Google Search Console verification token, then Publish.
 The next HTML refresh emits that public verification meta tag. Finish Verify in

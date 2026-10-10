@@ -73,7 +73,7 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
 - **Secrets stay out of the repo.** `STRIPE_SECRET_KEY`,
   `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, and `SHIPPO_API_TOKEN` are Firebase
   Functions secrets. Never hardcode, log, or commit them.
-- **Mind the sub-path.** The site is served from `/LyricalmyricalWebsiteTrial/`
+- **Mind the sub-path.** The site is served from `/LyricalmyricalWebsite/`
   on GitHub Pages. Use router-relative navigation and `import.meta.env.BASE_URL`
   for asset/links — never hardcode absolute root paths.
 - **CORS:** if the site gains a domain, add it to `ALLOWED_ORIGINS` in

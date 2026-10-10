@@ -83,6 +83,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pages serves a project site at /<repository name>/. Take the address from the repository's current name
+      # so renaming the repository can never leave the build pointing at a sub-path that 404s (unstyled site).
+      # A custom domain sets the repository variable SITE_URL (e.g. https://shop.example.com) instead.
+      - name: Site address
+        env:
+          CUSTOM_SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          url="${CUSTOM_SITE_URL:-https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}}"
+          url="${url%/}"
+          path="$(node -e 'process.stdout.write(new URL(process.argv[1]).pathname.replace(/\/+$/, ""))' "$url")"
+          echo "SITE_URL=$url" >> "$GITHUB_ENV"
+          echo "SITE_BASE=$path/" >> "$GITHUB_ENV"
+          echo "Building for $url (base $path/)"
+
       - uses: pnpm/action-setup@v4
         with:
           version: 10
