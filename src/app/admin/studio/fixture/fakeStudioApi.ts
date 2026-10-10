@@ -81,6 +81,14 @@ export function installFakeStudioApi(api: Record<string, any>, fixture: StudioFi
       if (fixture.previewDenied) throw Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" });
       return (fixture.previewLinks || []).map(({ design: _d, ...rest }) => rest);
     },
+    getLiveDesign: async () => clone(fixture.settings.design ?? {}),
+    listStoredDesigns: async () => [
+      ...(fixture.schedule || []).filter(e => e.status === "scheduled" || e.status === "live").flatMap(e => [
+        { label: `Scheduled › ${e.name}`, design: e.design },
+        ...(e.revertDesign ? [{ label: `Scheduled › ${e.name} (the design restored when it ends)`, design: e.revertDesign }] : []),
+      ]),
+      ...(fixture.previewLinks || []).filter(l => Date.parse(l.expiresAt) > Date.now()).map(l => ({ label: `Share link › ${l.name}`, design: l.design })),
+    ],
     listThemeSchedule: async () => (fixture.schedule || []).map(({ design: _d, ...rest }) => clone(rest)),
     addThemeSchedule: async (entry: any) => {
       record("addThemeSchedule", { kind: entry.kind, name: entry.name, startAt: entry.startAt, endAt: entry.endAt ?? null });
@@ -147,7 +155,13 @@ export function installFakeStudioApi(api: Record<string, any>, fixture: StudioFi
       return ++fixture.rev;
     },
     saveThemes: async (_previous, next) => { record("saveThemes", next); fixture.settings.savedThemes = clone(next); },
-    fieldUpdate: async fields => { record("draftFieldUpdate", fields); Object.assign(fixture.settings.draftDesign, clone(fields)); },
+    fieldUpdate: async fields => {
+      record("draftFieldUpdate", fields);
+      Object.assign(fixture.settings.draftDesign, clone(fields));
+      // Like the real store: a field update moves the revision on, so open Studios follow it.
+      const remote = { draft: clone(fixture.settings.draftDesign), rev: ++fixture.rev, tabId: "another-tab", updatedAt: new Date().toISOString(), published: false };
+      for (const watcher of fixture.watchers || []) watcher(clone(remote));
+    },
     readField: async key => clone(fixture.settings.draftDesign?.[key]),
     watch: onChange => {
       fixture.watchers = [...(fixture.watchers || []), onChange];

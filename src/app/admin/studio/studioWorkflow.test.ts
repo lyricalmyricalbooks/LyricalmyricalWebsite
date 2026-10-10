@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeDesign } from "./studioModel";
-import { applyPageStyle, buildPreviewState, createSnapshotWriter, deliverPreviewState, parseRecovery, previewRoute, updateBlocks, withDraftPage, mergeDesigns, newestRecovery } from "./studioWorkflow";
+import { resolveSaveConflict, applyPageStyle, buildPreviewState, createSnapshotWriter, deliverPreviewState, parseRecovery, previewRoute, updateBlocks, withDraftPage, mergeDesigns, newestRecovery } from "./studioWorkflow";
 
 describe("Studio workflow", () => {
   it("normalization is idempotent and never nests page surfaces inside one another", () => {
@@ -166,6 +166,18 @@ describe("mergeDesigns (two tabs saved the same draft)", () => {
   it("keeps deletions from either side", () => {
     const { merged } = mergeDesigns(base, base, { heroPage: base.heroPage, copy: base.copy });
     expect(merged.primaryColor).toBeUndefined();
+  });
+});
+
+describe("resolveSaveConflict (the save-conflict dialog)", () => {
+  const base = { primaryColor: "black", accent: "gold", copy: { cartTitle: "Bag" }, heroPage: { sections: [1] } };
+  it("keeps everything only one side changed, whichever side wins the shared setting", () => {
+    const local = { ...base, primaryColor: "red", heroPage: { sections: [1, 2] } };      // mine: colour + Home
+    const server = { ...base, primaryColor: "blue", accent: "pink", copy: { cartTitle: "Basket" } }; // theirs: colour (same) + accent + copy
+    const { mine, theirs, conflicts } = resolveSaveConflict(base, local, server);
+    expect(conflicts).toEqual(["primaryColor"]);
+    expect(mine).toEqual({ primaryColor: "red", accent: "pink", copy: { cartTitle: "Basket" }, heroPage: { sections: [1, 2] } });
+    expect(theirs).toEqual({ primaryColor: "blue", accent: "pink", copy: { cartTitle: "Basket" }, heroPage: { sections: [1, 2] } });
   });
 });
 

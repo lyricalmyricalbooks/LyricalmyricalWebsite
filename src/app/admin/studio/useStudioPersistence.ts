@@ -3,11 +3,17 @@ import { auth } from "../../../lib/firebase";
 import { discardDraft, publishDesign, saveDraft, studioTabId, ThemeConflictError, watchWorkspace, type RemoteWorkspace, type Workspace } from "../themeStore";
 import { sameDesign } from "./studioModel";
 import { designSize } from "./studioChecks";
-import { createSnapshotWriter, decideRemoteChange, mergeDesigns, newestRecovery, parseRecovery, RECOVERY_PREFIX } from "./studioWorkflow";
+import { createSnapshotWriter, decideRemoteChange, newestRecovery, parseRecovery, RECOVERY_PREFIX, resolveSaveConflict } from "./studioWorkflow";
 
 type Kind = "draft" | "publish" | "discard";
 /** Another tab or device saved first, and both changed the same settings: the owner chooses. */
-export type SaveConflict = { kind: Kind; server: { draft: any; rev: number }; paths: string[] };
+export type SaveConflict = {
+  kind: Kind; server: { draft: any; rev: number }; paths: string[];
+  /** This tab's changes plus the other tab's, with this tab's value where both changed the same setting. */
+  mine: any;
+  /** The same combination, with the other tab's value where both changed the same setting. */
+  theirs: any;
+};
 /** Studio 3.2: a save from another tab or device that meets unsaved edits here (shown as a banner). */
 export type IncomingChange = { remote: RemoteWorkspace; merged: any; paths: string[] };
 
@@ -19,6 +25,8 @@ export function useStudioPersistence(props: {
   say: (kind: "ok" | "err", message: string) => void;
   /** Normalise a design the way Studio holds it (live sync compares like with like). */
   normalize?: (design: any) => any;
+  /** Read the live design fresh (a scheduled go-live can change it behind Studio's back). Discard goes back to it. */
+  readPublished?: () => Promise<any>;
 }) {
   const current = useRef(props); current.current = props;
   const writer = useRef(createSnapshotWriter());
@@ -76,9 +84,16 @@ export function useStudioPersistence(props: {
     const p = current.current;
     let lost: ThemeConflictError | null = null;
     try {
+      // Discard goes back to what is live right now, not to what was live when Studio opened (a scheduled
+      // publish or campaign may have changed it since). If the live design can't be read, nothing is discarded.
+      let fresh = p.published;
+      if (kind === "discard" && p.readPublished) {
+        try { fresh = await p.readPublished(); p.setPublished(fresh); }
+        catch { p.say("err", "Couldn't check the live design, so your draft was not discarded. Check your connection and try again."); return; }
+      }
       // Designs are never mutated, so the object that was saved can stand for "saved" afterwards: later
       // comparisons then skip every part the owner hasn't touched since (Phase 4).
-      const source = override ?? (kind === "discard" ? p.published : p.design);
+      const source = override ?? (kind === "discard" ? fresh : p.design);
       const snapshot = await writer.current.run(source, async captured => {
         const ws = p.workspace;
         rev.current = kind === "discard" ? await discardDraft(ws, captured, rev.current)
@@ -152,13 +167,19 @@ export function useStudioPersistence(props: {
   const handleConflict = async (kind: Kind, server: { draft: any; rev: number }) => {
     const p = current.current;
     if (kind === "discard") { rev.current = server.rev; return persist("discard"); }
-    const { merged, conflicts } = mergeDesigns(p.savedDraft, p.design, server.draft);
-    if (conflicts.length) { setConflict({ kind, server, paths: conflicts }); return; }
+    const { mine, theirs, conflicts } = resolveSaveConflict(p.savedDraft, p.design, server.draft);
+    if (conflicts.length) { setConflict({ kind, server, paths: conflicts, mine, theirs }); return; }
     rev.current = server.rev;
     p.setSavedDraft(server.draft);
-    p.restore(merged);
+    p.restore(mine);
+    // A Publish never goes out carrying the other tab's unpublished draft work: the combined design is shown
+    // here, and the owner reviews it and presses Publish again.
+    if (kind === "publish") {
+      p.say("ok", "This design was also saved in another tab or device. Both sets of changes were combined and nothing was published. Review the result, then press Publish.");
+      return;
+    }
     p.say("ok", "This design was also saved in another tab or device. Both sets of changes were combined.");
-    return persist(kind, merged);
+    return persist(kind, mine);
   };
 
   const resolveConflict = (choice: "mine" | "theirs" | "cancel") => {
@@ -166,12 +187,19 @@ export function useStudioPersistence(props: {
     if (!c || choice === "cancel") return;
     const p = current.current;
     rev.current = c.server.rev;
+    p.setSavedDraft(c.server.draft);
+    // Either way everything only one side changed is kept; the choice decides only the settings both changed.
     if (choice === "theirs") {
-      p.setSavedDraft(c.server.draft); p.reset(c.server.draft);
-      p.say("ok", "Loaded the version saved in the other tab or device.");
+      p.restore(c.theirs);
+      p.say("ok", "Took the other version of the settings you both changed. Your other edits are still here, unsaved.");
       return;
     }
-    return persist(c.kind);
+    p.restore(c.mine);
+    if (c.kind === "publish") {
+      p.say("ok", "Kept your version of the settings you both changed, and brought in the other tab's other changes. Nothing is published yet: review the result, then press Publish.");
+      return;
+    }
+    return persist(c.kind, c.mine);
   };
 
   return {
