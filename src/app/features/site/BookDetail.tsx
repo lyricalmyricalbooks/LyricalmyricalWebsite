@@ -48,6 +48,7 @@ import { schemeButtonColors } from "./colorSchemes";
 
 import { findProduct } from "./productRoutes";
 import { bookAddOns, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
+import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
@@ -1051,20 +1052,12 @@ export default function BookDetail() {
                         />
                       </AnimatePresence>
 
-                      {/* Sold out overlay */}
+                      {/* Sold out: Studio › Style › Product cards & grid › Sold-out badge */}
                       {isOutOfStock && (
-                        <div className="absolute inset-0 bg-black/75 flex items-center justify-center">
-                          <span
-                            className="border text-[10px] font-black tracking-[0.5em] px-8 py-3 rounded-full uppercase backdrop-blur-sm"
-                            style={{
-                              backgroundColor: badgeBgSecondary,
-                              color: badgeTextSecondary,
-                              borderColor: `${badgeTextSecondary}33`,
-                            }}
-                          >
-                            {getCopy(settings?.design, "soldOutLabel")}
-                          </span>
-                        </div>
+                        <>
+                          <SoldOutVeil design={settings?.design} />
+                          <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "soldOutLabel")} scale={1.5} />
+                        </>
                       )}
 
                       {/* Sale badge */}

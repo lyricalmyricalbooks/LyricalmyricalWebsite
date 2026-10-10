@@ -14,6 +14,7 @@ import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { getCopy } from "./storeCopy";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
+import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 
 /** The wishlist, inside the one shop header and footer (Studio 2.0 · 2.1). */
@@ -93,9 +94,10 @@ function WishlistContent() {
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                     {out && (
-                      <div className="absolute inset-0 bg-black/65 flex items-center justify-center">
-                        <span className="text-white/60 text-[8px] tracking-widest uppercase border border-white/20 px-3 py-1">{getCopy(settings?.design, "soldOutLabel")}</span>
-                      </div>
+                      <>
+                        <SoldOutVeil design={settings?.design} />
+                        <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "soldOutLabel")} />
+                      </>
                     )}
                   </div>
                   <div data-studio-target="style:products" data-studio-label="Card title & price">

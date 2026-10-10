@@ -41,6 +41,7 @@ import { designNumber } from "../features/site/designNumber";
 import { resolveMainDesign } from "../features/site/surfaceDesign";
 import { categoryTemplateSurface, previewTemplate } from "../features/site/templateAlternates";
 import { regionProps } from "../features/site/storefrontRegions";
+import { SoldOutBadge, soldOutPhotoStyle } from "../features/site/SoldOutBadge";
 
 const catNameForSEO = (category: any) => typeof category === "string" ? category : category?.name;
 
@@ -53,10 +54,10 @@ export function storefrontCategories(value: unknown) {
 // ──────────────────────────────
 // Image with skeleton loader
 // ──────────────────────────────
-function SkeletonImage({ src, alt, className, style }: { src: string; alt: string; className?: string; style?: CSSProperties }) {
+function SkeletonImage({ src, alt, className, style, frameStyle }: { src: string; alt: string; className?: string; style?: CSSProperties; frameStyle?: CSSProperties }) {
   const [loaded, setLoaded] = useState(false);
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full" style={frameStyle}>
       {!loaded && (
         <div className="absolute inset-0 fm-surface-2 animate-pulse" />
       )}
@@ -843,17 +844,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         alt={item.title}
                         className={`w-full h-full ${storefrontImageFit} transition-transform duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}
                         style={{ objectPosition: `${catalogImageFocalX}% ${catalogImageFocalY}%` }}
+                        frameStyle={isOutOfStock && showSoldOutBadge ? soldOutPhotoStyle(storefrontDesign) : undefined}
                       />
+                      {isOutOfStock && showSoldOutBadge && <SoldOutBadge design={storefrontDesign} label={soldOutLabel} />}
                       {/* Status ribbons */}
                       <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5">
-                        {isOutOfStock && showSoldOutBadge && (
-                          <span 
-                            style={{ backgroundColor: storefrontDesign?.badgeBgSecondary || "rgba(0,0,0,0.8)", color: storefrontDesign?.badgeTextSecondary || "rgba(255,255,255,0.7)" }}
-                            className="text-[8px] tracking-widest px-2 py-1 uppercase border border-white/20"
-                          >
-                            {soldOutLabel}
-                          </span>
-                        )}
                         {!isOutOfStock && showPreorderBadge && preorderActive(item) && (
                           <span
                             data-studio-target="style:labels|copy:Product page"
