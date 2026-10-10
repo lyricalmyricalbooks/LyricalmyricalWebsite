@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as client from "./addressRules";
+import { NO_POSTAL_CODE as CHECKOUT_LIST } from "./checkoutDetails";
 // @ts-ignore - CommonJS server module
 import * as serverModule from "../../../../functions/addressRules.js";
 const server: any = (serverModule as any).default ?? serverModule;
@@ -7,6 +8,8 @@ const server: any = (serverModule as any).default ?? serverModule;
 describe("server and browser address rules", () => {
   it("share the no-postal-code and province lists", () => {
     expect([...server.NO_POSTAL_CODE].sort()).toEqual([...client.NO_POSTAL_CODE].sort());
+    // The checkout form is the source of truth for the no-postcode list.
+    expect([...server.NO_POSTAL_CODE].sort()).toEqual([...CHECKOUT_LIST].sort());
     expect([...server.REGION_COUNTRIES].sort()).toEqual([...client.REGION_COUNTRIES].sort());
   });
   it("find the same missing boxes", () => {

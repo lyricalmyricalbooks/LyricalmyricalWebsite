@@ -150,11 +150,11 @@ const POLICY_STARTERS: Record<PolicyKey, string> = {
 
 // SaveBar names the cards that have unsaved edits, not the settings keys behind them.
 export const GENERAL_SECTION_TITLES: Record<string, string> = {
-  maintenance: "Store status", info: "Store identity", domain: "Domain & visibility", location: "Location", policies: "Store policies",
+  maintenance: "Store status", stockHolds: "Checkout stock holds", info: "Store identity", domain: "Domain & visibility", location: "Location", policies: "Store policies",
 };
 
 function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction }: any) {
-  const SECTIONS = ["maintenance", "domain", "info", "location", "policies"] as const;
+  const SECTIONS = ["maintenance", "stockHolds", "domain", "info", "location", "policies"] as const;
   const dirty = SECTIONS.filter((k) => hasChanges(k));
   useSettingsDirty("general", dirty.length > 0);
   const [confirmMaintenance, setConfirmMaintenance] = useState(false);
@@ -217,6 +217,21 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
               placeholder="We are updating our archive. Please check back soon." onChange={(e) => set("maintenance", { message: e.target.value })} />
           </div>
         )}
+      </SectionCard>
+
+      <SectionCard title="Checkout stock holds" description="While someone checks out, their copies are set aside for 30 minutes. These limits stop one person from tying up your whole catalogue. Raise them for a school, library or bookshop that orders in bulk.">
+        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+          {([
+            { key: "perBook", label: "Most copies of one book", hint: "Per shopper, across their open checkouts. Default 10.", max: 99 },
+            { key: "units", label: "Most copies in total", hint: "All books together. Default 50.", max: 2000 },
+            { key: "orders", label: "Most open checkouts", hint: "Unpaid orders one shopper can have at once. Default 3.", max: 50 },
+          ] as const).map((f) => (
+            <TextField key={f.key} label={f.label} type="number" min={1} max={f.max} hint={f.hint}
+              value={String(settings.stockHolds?.[f.key] ?? "")}
+              onChange={(e) => set("stockHolds", { [f.key]: e.target.value === "" ? "" : Math.max(0, Math.floor(Number(e.target.value))) })} />
+          ))}
+        </div>
+        <p className="rp-hint" style={{ marginTop: 12 }}>Shoppers over these limits see a warning in their bag before they pay. Copies of e-books and books you sell without tracking stock never count. A shared connection (a school or office) may hold about twice as many in total.</p>
       </SectionCard>
 
       <SectionCard title="Store identity" description="Your publisher name, description and contact details.">
@@ -876,7 +891,7 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
           )}
           {shippoConnected && shippoConfig?.mode === "test" && (
             <p role="alert" style={{ margin: "0 0 16px", padding: 12, background: "var(--rp-warning-tint)", border: "1px solid var(--rp-warning)", color: "var(--rp-warning)" }}>
-              ⚠ This is a Shippo TEST key. Sandbox labels have no real postage and their tracking numbers never track, so real orders can't buy labels until you save your live key (it starts with shippo_live_).
+              ⚠ This is a Shippo TEST key. Sandbox labels have no real postage and their tracking numbers never track, so labels bought now are marked TEST and can't be used on a real parcel. Save your live key (it starts with shippo_live_) before shipping real orders.
             </p>
           )}
           {shippoConnected && (

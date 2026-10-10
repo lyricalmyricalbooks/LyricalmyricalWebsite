@@ -2,12 +2,10 @@
 // addressRules.parity.test.ts keeps them identical). Canada and the US need a province/state;
 // a few countries have no postal code; everything else is optional free text there.
 import { findCountry } from "./shippingZones";
+// One list for the checkout form and the admin/server address rules (functions/addressRules.js is its parity copy).
+import { NO_POSTAL_CODE } from "./checkoutDetails";
 
-export const NO_POSTAL_CODE = new Set([
-  "AO", "AG", "AW", "BS", "BZ", "BJ", "BW", "BF", "BI", "CM", "CF", "KM", "CG", "CD", "CK", "CI", "DJ", "DM", "ER", "FJ",
-  "GM", "GH", "GD", "GY", "HK", "KI", "MO", "ML", "MR", "NR", "NU", "QA", "RW", "KN", "LC", "ST", "SC", "SL", "SB", "SR",
-  "SY", "TL", "TG", "TK", "TO", "TT", "TV", "UG", "VU", "YE", "ZW", "AE",
-]);
+export { NO_POSTAL_CODE };
 export const REGION_COUNTRIES = new Set(["CA", "US"]);
 
 export function countryCodeOf(country: unknown): string {

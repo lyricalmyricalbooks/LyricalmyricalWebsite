@@ -84,24 +84,49 @@ const TOKEN = /\{\{\s*([a-zA-Z]+(?:\.[a-zA-Z0-9_]+){1,2})\s*\}\}/g;
 export const hasTokens = (v: any) => typeof v === "string" && v.includes("{{") && /\{\{\s*[a-zA-Z]+\./.test(v);
 
 type Tally = { used: number; missing: number };
-type Options = { preview?: boolean; fields?: BookFieldDef[] };
+type Options = { preview?: boolean; fields?: BookFieldDef[]; htmlKeys?: readonly string[] };
 
-function resolveValue(v: any, ctx: DynamicContext, tally: Tally, opts: Options): any {
+/**
+ * Setting names a section draws as HTML (dangerouslySetInnerHTML), by section type. A value connected to such a
+ * field is catalogue text, not markup: it is escaped on the way in so a title like "Fear & <Loathing>" shows as
+ * written instead of breaking or injecting the surrounding markup. Every other field is plain text that
+ * React escapes itself. `dynamicSources.test.ts` fails when SectionComponents gains an HTML field not listed here.
+ */
+export const HTML_SETTING_KEYS: Record<string, readonly string[]> = {
+  RichTextSection: ["html"],
+  CustomHTMLSection: ["html"],
+  CollapsibleSection: ["content"],
+  TextContentSection: ["content"],
+};
+
+export const escapeHtml = (text: string) => text.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#x27;" } as Record<string, string>)[c]);
+const looksLikeHtml = (text: string) => /<[a-z!/][^>]*>/i.test(text);
+
+/** A whole-field connection into an HTML field: plain unless it has angle brackets, then escaped inside a paragraph. */
+const htmlSafeValue = (value: string) => (/[<>]/.test(value) ? `<p>${escapeHtml(value)}</p>` : value);
+
+function resolveValue(v: any, ctx: DynamicContext, tally: Tally, opts: Options, html = false): any {
   if (isDynamic(v)) {
     tally.used++;
     const value = readSource(v.$dyn, ctx);
-    if (value) return value;
+    if (value) return html ? htmlSafeValue(value) : value;
     tally.missing++;
     // In the Studio preview an unfilled connection shows its name, so the owner can see where it goes.
     return opts.preview ? `‹${sourceLabel(v.$dyn, opts.fields)}›` : "";
   }
   if (hasTokens(v)) {
-    return (v as string).replace(TOKEN, (_m, path) => {
+    const markup = html && looksLikeHtml(v as string);
+    let needsParagraph = false;
+    const out = (v as string).replace(TOKEN, (_m, path) => {
       tally.used++;
       const value = readSource(path, ctx);
       if (!value) { tally.missing++; return opts.preview ? `‹${sourceLabel(path, opts.fields)}›` : ""; }
+      if (!html) return value;
+      if (markup) return escapeHtml(value);
+      if (/[<>]/.test(value)) { needsParagraph = true; return escapeHtml(value); }
       return value;
     });
+    return needsParagraph ? `<p>${out}</p>` : out;
   }
   if (Array.isArray(v)) {
     let changed = false;
@@ -120,7 +145,7 @@ function resolveObject(obj: any, ctx: DynamicContext, tally: Tally, opts: Option
   let next = obj;
   for (const [k, v] of Object.entries(obj)) {
     if (k.startsWith("__")) continue;
-    const r = resolveValue(v, ctx, tally, opts);
+    const r = resolveValue(v, ctx, tally, opts, !!opts.htmlKeys?.includes(k));
     if (r !== v) { if (next === obj) next = { ...obj }; next[k] = r; }
   }
   return next;

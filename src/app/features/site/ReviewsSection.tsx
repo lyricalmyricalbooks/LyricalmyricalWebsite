@@ -57,6 +57,9 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
   const c = (k: string, v?: Record<string, string | number>) => getCopy(settings?.design, k, v);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  // Firestore's own count and average of ALL approved reviews (the list below is paged, 50 at a time).
+  const [summary, setSummary] = useState<{ count: number; average: number } | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -70,12 +73,27 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
   async function load() {
     setLoading(true);
     try {
-      const list = await reviewsApi.listApproved(bookId);
+      const [list, total] = await Promise.all([reviewsApi.listApproved(bookId), reviewsApi.summary(bookId).catch(() => null)]);
       setReviews(featuredFirst(list));
+      setSummary(total);
     } catch {
       setReviews([]);
+      setSummary(null);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Older approved reviews beyond the first page.
+  async function loadMore() {
+    const oldest = [...reviews].map(r => r.createdAt).sort()[0];
+    if (!oldest || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const more = await reviewsApi.listApprovedBefore(bookId, oldest);
+      setReviews(current => featuredFirst([...current, ...more.filter(m => !current.some(r => r.id === m.id))]));
+    } catch { /* the button stays; the shopper can try again */ } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -83,9 +101,12 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
     if (bookId) load();
   }, [bookId]);
 
-  const aggregate = reviews.length
-    ? { count: reviews.length, average: reviews.reduce((a, r) => a + r.rating, 0) / reviews.length }
-    : { count: 0, average: 0 };
+  const aggregate = summary && summary.count >= reviews.length && summary.count > 0
+    ? summary
+    : reviews.length
+      ? { count: reviews.length, average: reviews.reduce((a, r) => a + r.rating, 0) / reviews.length }
+      : { count: 0, average: 0 };
+  const hasMore = !!summary && summary.count > reviews.length;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,6 +186,14 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
               </li>
             ))}
           </ul>
+        )}
+        {hasMore && (
+          <div {...regionProps("reviewsMore")} className="mb-12">
+            <button type="button" onClick={loadMore} disabled={loadingMore}
+              className="px-6 py-3 rounded-full border border-white/20 text-[10px] tracking-[0.3em] font-bold uppercase disabled:opacity-50">
+              {c("reviewsMore")}
+            </button>
+          </div>
         )}
 
         <div {...regionProps("reviewsForm")} className="border border-white/10 rounded-3xl p-8 bg-white/[0.02]">

@@ -64,6 +64,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "checkoutForm", label: "Checkout form", required: true }, { id: "checkoutSummary", label: "Order summary", required: true },
     { id: "checkoutFulfillment", label: "Shipping, pickup & local delivery choices", required: true, copy: "Checkout" },
     { id: "checkoutPreorder", label: "Pre-order shipping notice" },
+    { id: "checkoutHoldWarning", label: "Large-order limit warning (above Pay)" },
     { id: "checkoutGiftCard", label: "Gift card box" },
     { id: "checkoutPromise", label: "Message under Pay button" }, { id: "checkoutSuccess", label: "Order confirmation", required: true }, { id: "checkoutAccountOffer", label: "Order confirmation: sign-in box", copy: "Checkout" },
     { id: "checkoutSuccessSummary", label: "Order confirmation: order summary", copy: "Checkout" }, { id: "checkoutTrackOrder", label: "Order confirmation: track order button", required: true, copy: "Checkout" },
@@ -77,7 +78,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "searchAuthor", label: "Result author" },
   ] },
   { id: "reviewsLayout", title: "Reviews · layout & elements", copy: "Reviews", files: ["features/site/ReviewsSection.tsx"], regions: [
-    { id: "reviewsHeading", label: "Reviews heading" }, { id: "reviewsList", label: "Published reviews" },
+    { id: "reviewsHeading", label: "Reviews heading" }, { id: "reviewsList", label: "Published reviews" }, { id: "reviewsMore", label: "Show more reviews button" },
     { id: "reviewsEmpty", label: "Reviews loading & empty state" }, { id: "reviewsTitle", label: "Review title" },
     { id: "reviewsBody", label: "Review body" }, { id: "reviewsAuthor", label: "Review author" }, { id: "reviewsDate", label: "Review date" },
     { id: "reviewsVerified", label: "Verified purchase badge" }, { id: "reviewsFeatured", label: "Featured review label" },

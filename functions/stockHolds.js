@@ -8,6 +8,7 @@
 
 const crypto = require("crypto");
 const { stockLines } = require("./promotions");
+const { ipKey } = require("./rateLimit");
 
 const HOLD_MS = 30 * 60 * 1000; // matches the hosted Stripe session lifetime
 
@@ -20,6 +21,31 @@ const HOLD_LIMITS = {
   owner: { perBook: 10, units: 50, orders: 3 },
   ip: { perBook: 20, units: 100, orders: 10 },
 };
+
+// Settings › General › Checkout stock holds (`settings/website.stockHolds`) lets the owner raise or lower
+// the per-shopper numbers; the per-connection caps follow them (never below today's defaults), because
+// homes, schools and offices share one address. Mirrored for the cart warning in
+// src/app/features/site/holdLimits.ts (holdLimits.parity.test.ts).
+const clampInt = (value, fallback, min, max) => {
+  const n = Math.floor(Number(value));
+  return Number.isFinite(n) && n >= min && n <= max ? n : fallback;
+};
+function holdLimitsFrom(settings) {
+  const saved = settings?.stockHolds || {};
+  const owner = {
+    perBook: clampInt(saved.perBook, HOLD_LIMITS.owner.perBook, 1, 99),
+    units: clampInt(saved.units, HOLD_LIMITS.owner.units, 1, 2000),
+    orders: clampInt(saved.orders, HOLD_LIMITS.owner.orders, 1, 50),
+  };
+  return {
+    owner,
+    ip: {
+      perBook: Math.max(HOLD_LIMITS.ip.perBook, owner.perBook * 2),
+      units: Math.max(HOLD_LIMITS.ip.units, owner.units * 2),
+      orders: Math.max(HOLD_LIMITS.ip.orders, owner.orders * 3),
+    },
+  };
+}
 
 // Who a hold belongs to: a hash of the shopper's email (never the address itself). A shopper
 // who fixes a typo or changes delivery after a declined card gets a new order; their earlier
@@ -94,11 +120,12 @@ class HoldLimitError extends StockHoldError {
 
 // The holder docs one checkout is counted in: the shopper's email hash and, when the request
 // came from a known address, a hash of that address (never the address itself).
-function holderKeys(owner, ip) {
+function holderKeys(owner, ip, limits = HOLD_LIMITS) {
   const keys = [];
-  if (owner) keys.push({ key: `e_${owner}`, limits: HOLD_LIMITS.owner });
-  const addr = String(ip || "").trim();
-  if (addr && addr !== "unknown") keys.push({ key: `ip_${crypto.createHash("sha256").update(addr).digest("hex").slice(0, 32)}`, limits: HOLD_LIMITS.ip });
+  if (owner) keys.push({ key: `e_${owner}`, limits: limits.owner });
+  // An IPv6 connection is counted by its /64 (ipKey), not the single address it happened to use.
+  const addr = ipKey(ip);
+  if (addr && addr !== "unknown") keys.push({ key: `ip_${crypto.createHash("sha256").update(addr).digest("hex").slice(0, 32)}`, limits: limits.ip });
   return keys;
 }
 
@@ -135,11 +162,11 @@ function holderLimitProblem(orders, books, limits) {
 // StockHoldError when someone else's active holds leave too little. With `limits: true`
 // (a shopper starting a checkout) it also throws HoldLimitError when the shopper's email or
 // connection (`ip`) would hold more than HOLD_LIMITS; renewals at payment time pass no limits.
-async function reserveStock(db, orderId, items, now = Date.now(), owner = "", { limits = false, ip = "" } = {}) {
+async function reserveStock(db, orderId, items, now = Date.now(), owner = "", { limits = false, ip = "", holdLimits = HOLD_LIMITS } = {}) {
   const byBook = linesByBook(items);
   if (!byBook.size) return;
   const ids = [...byBook.keys()].sort(); // stable lock order
-  const holders = limits ? holderKeys(owner, ip) : [];
+  const holders = limits ? holderKeys(owner, ip, holdLimits) : [];
   await db.runTransaction(async tx => {
     const bookRefs = ids.map(id => db.collection("books").doc(id));
     const holdRefs = ids.map(id => db.collection("stock-holds").doc(id));
@@ -157,6 +184,9 @@ async function reserveStock(db, orderId, items, now = Date.now(), owner = "", { 
       // The shopper's newer attempt replaces their earlier holds, so holds never add up past stock.
       const others = activeHolds(existing, now, orderId, owner);
       const lines = byBook.get(id);
+      // A payment-time renewal passes no limits, so it names no holders: keep the ones this order was
+      // counted in, or paying would leave it counting against the shopper's caps until it expires.
+      const holderNames = holders.length ? holders.map(h => h.key) : (Array.isArray(existing?.[orderId]?.holders) ? existing[orderId].holders : []);
       for (const [key, qty] of Object.entries(lines)) {
         const available = Math.max(0, stockOf(book, key) - heldUnits(others, key));
         if (qty > available) {
@@ -165,7 +195,7 @@ async function reserveStock(db, orderId, items, now = Date.now(), owner = "", { 
         }
       }
       heldBooks[id] = Object.values(lines).reduce((sum, qty) => sum + qty, 0);
-      writes.push([holdRefs[i], { holds: { ...others, [orderId]: { lines, expiresAt: now + HOLD_MS, ...(owner ? { owner } : {}), ...(holders.length ? { holders: holders.map(h => h.key) } : {}) } }, updatedAt: new Date(now).toISOString() }]);
+      writes.push([holdRefs[i], { holds: { ...others, [orderId]: { lines, expiresAt: now + HOLD_MS, ...(owner ? { owner } : {}), ...(holderNames.length ? { holders: holderNames } : {}) } }, updatedAt: new Date(now).toISOString() }]);
     });
     if (Object.keys(heldBooks).length) {
       holders.forEach((holder, i) => {
@@ -227,4 +257,4 @@ async function releaseStockForOrder(db, orderId) {
   }
 }
 
-module.exports = { HOLD_MS, HOLD_LIMITS, holdOwner, holderKeys, holderLimitProblem, activeHolds, heldUnits, linesByBook, reserveStock, releaseStock, releaseStockForOrder, StockHoldError, HoldLimitError };
+module.exports = { HOLD_MS, HOLD_LIMITS, holdLimitsFrom, holdOwner, holderKeys, holderLimitProblem, activeHolds, heldUnits, linesByBook, reserveStock, releaseStock, releaseStockForOrder, StockHoldError, HoldLimitError };

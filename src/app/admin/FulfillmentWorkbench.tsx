@@ -406,6 +406,9 @@ export function FulfillmentWorkbench({
                     {Number.isFinite(Number(order.shipping)) ? ` · paid CA$${Number(order.shipping).toFixed(2)}` : ""}
                   </p>
                 )}
+                {order.labelUrl && order.operations?.labelTest === true && (
+                  <p className="fw-problems" role="alert"><StatusBadge tone="warning">TEST label</StatusBadge> Not a real postage label: it was bought with a Shippo test key, so it won't carry a parcel or track. Use <strong>Wrong label? Replace it</strong> and buy again with your live key before shipping.</p>
+                )}
                 <p className="fw-summary">
                   {order.labelUrl
                     ? `Label bought · ${order.trackingCarrier || "Carrier"} · ${order.trackingNumber || "Tracking pending"}. Print it, hand the parcel to the carrier, then mark it shipped — you can add or check the tracking link the customer's email uses.`

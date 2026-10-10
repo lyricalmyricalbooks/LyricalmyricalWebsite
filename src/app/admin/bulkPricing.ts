@@ -84,7 +84,7 @@ export function catalogToCsv(books: any[]): string {
   ].map(cell).join(","))].join("\n");
 }
 
-const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""').replace(/^([=+\-@])/, "'$1")}"`;
+const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""').replace(/^([=+\-@\t\r])/, "'$1")}"`;
 
 /**
  * Books › Export › Inventory only: one line per book, or per edition for books sold in editions, for a stock

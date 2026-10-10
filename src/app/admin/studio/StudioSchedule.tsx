@@ -61,7 +61,7 @@ export function StudioSchedule(p: Props) {
   const defaultName = theme ? theme.name : "Draft";
   const startAt = torontoLocalToIso(start), endAt = kind === "campaign" ? torontoLocalToIso(end) : null;
   const problems = [
-    ...scheduleProblems({ kind, startAt, endAt }, entries || []),
+    ...scheduleProblems({ kind, startAt, endAt, startLocal: start, endLocal: kind === "campaign" ? end : undefined }, entries || []),
     // A campaign keeps the design it replaces too, so the stored entry holds two designs.
     ...(designSize(design).bytes * (kind === "campaign" ? 2 : 1) > 900_000 ? ["This design is too large to schedule. Remove unused sections first."] : []),
   ];

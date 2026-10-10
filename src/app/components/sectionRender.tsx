@@ -5,11 +5,12 @@ import { useNavigate } from "react-router";
 import * as Sections from "./SectionComponents";
 import { hexToRgbTriplet } from "../features/site/themeTokens";
 import { googleFontHref } from "../features/site/fonts";
+import { shopInstant } from "../features/site/shopTime";
 import { findScheme, schemeList } from "../features/site/colorSchemes";
 import { resolveSectionSharedBlocks } from "../features/site/sharedBlocks";
 import { UP_TO } from "../features/site/breakpoints";
 import { SectionDesignContext, useSectionPage } from "./sectionCopy";
-import { resolveDynamicSettings } from "../features/site/dynamicSources";
+import { HTML_SETTING_KEYS, resolveDynamicSettings } from "../features/site/dynamicSources";
 import { sectionsSurface } from "../features/site/templateAlternates";
 import { SectionPriorityContext, sectionHasPriority } from "./ResponsiveImage";
 import {
@@ -58,8 +59,10 @@ const prefersReducedMotion = () =>
 /** Per-section publish window: only render between showFrom and showUntil (if set). */
 export function sectionInWindow(section: any): boolean {
   const s = section?.settings || {};
-  if (s.showFrom && Date.now() < new Date(s.showFrom).getTime()) return false;
-  if (s.showUntil && Date.now() > new Date(s.showUntil).getTime()) return false;
+  // Typed without a zone, so these are Toronto times for every shopper and for the prerender (shopTime.ts).
+  const from = shopInstant(s.showFrom), until = shopInstant(s.showUntil);
+  if (s.showFrom && Date.now() < from) return false;
+  if (s.showUntil && Date.now() > until) return false;
   return true;
 }
 
@@ -251,7 +254,7 @@ export function SectionList({
 
         // Connected fields (Studio 2.7 dynamic sources) become plain values for this page; "Hide when empty"
         // leaves the section out where its connected details are missing.
-        const dyn = resolveDynamicSettings(resolveSectionSharedBlocks(section.settings || {}, sharedBlocks), pageContext, { preview });
+        const dyn = resolveDynamicSettings(resolveSectionSharedBlocks(section.settings || {}, sharedBlocks), pageContext, { preview, htmlKeys: HTML_SETTING_KEYS[section.type] });
         if (dyn.hidden) return null;
         const s = { ...dyn.settings, __sectionId: section.id, __sharedBlocks: sharedBlocks };
         // Style tab › Colour scheme. `data-scheme` picks up the scheme's variables (schemeCss, emitted by

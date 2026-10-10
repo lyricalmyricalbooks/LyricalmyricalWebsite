@@ -93,3 +93,53 @@ describe("runThemeSchedule", () => {
     expect(db.store.settings.website.design).toEqual({ live: 1 });
   });
 });
+
+describe("live-only fields survive scheduled publishes and campaign reverts", () => {
+  const cats = (...names) => names.map(name => ({ id: name.toLowerCase(), name }));
+  it("a scheduled publish keeps categories and the under-construction wall edited live since it was scheduled", async () => {
+    const db = fakeDb({ settings: { website: { design: { accent: "old", categories: cats("Poetry", "Zines"), showUnderConstruction: true }, designPublishedAt: "2026-10-01T00:00:00.000Z" } },
+      themeSchedule: { p: { kind: "publish", name: "Autumn", status: "scheduled", startAt: "2026-10-10T12:00:00.000Z",
+        design: { accent: "autumn", categories: cats("Poetry"), showUnderConstruction: false }, liveBase: { categories: cats("Poetry"), showUnderConstruction: false } } } });
+    await runThemeSchedule(db, new Date("2026-10-10T12:05:00.000Z"));
+    expect(db.store.settings.website.design).toEqual({ accent: "autumn", categories: cats("Poetry", "Zines"), showUnderConstruction: true });
+    expect(Object.values(db.store["theme-versions"])[0].design).toEqual(db.store.settings.website.design);
+  });
+
+  it("keeps categories the owner changed on purpose inside the scheduled design", async () => {
+    const db = fakeDb({ settings: { website: { design: { categories: cats("Poetry") } } },
+      themeSchedule: { p: { kind: "publish", status: "scheduled", startAt: "2026-10-10T12:00:00.000Z",
+        design: { categories: cats("Poetry", "Autumn picks") }, liveBase: { categories: cats("Poetry") } } } });
+    await runThemeSchedule(db, new Date("2026-10-10T12:05:00.000Z"));
+    expect(db.store.settings.website.design.categories).toEqual(cats("Poetry", "Autumn picks"));
+  });
+
+  it("entries made before liveBase existed let the current live value win", async () => {
+    const db = fakeDb({ settings: { website: { design: { categories: cats("Poetry", "Zines") } } },
+      themeSchedule: { p: { kind: "publish", status: "scheduled", startAt: "2026-10-10T12:00:00.000Z", design: { categories: cats("Poetry") } } } });
+    await runThemeSchedule(db, new Date("2026-10-10T12:05:00.000Z"));
+    expect(db.store.settings.website.design.categories).toEqual(cats("Poetry", "Zines"));
+  });
+
+  it("a campaign end keeps a category added live while it ran, and restores the rest", async () => {
+    const db = fakeDb({ settings: { website: { design: { accent: "old", categories: cats("Poetry") }, designPublishedAt: "2026-10-01T00:00:00.000Z" } },
+      themeSchedule: { s: { kind: "campaign", name: "Sale", status: "scheduled", startAt: "2026-10-10T12:00:00.000Z", endAt: "2026-10-12T12:00:00.000Z",
+        design: { accent: "sale", categories: cats("Poetry") }, liveBase: { categories: cats("Poetry") } } } });
+    await runThemeSchedule(db, new Date("2026-10-10T12:01:00.000Z"));
+    expect(db.store.themeSchedule.s.appliedLiveOnly).toEqual({ categories: cats("Poetry") });
+    // The owner adds a category from the Book editor (live only, no designPublishedAt change), and flips the wall on.
+    db.store.settings.website.design = { ...db.store.settings.website.design, categories: cats("Poetry", "Zines"), showUnderConstruction: true };
+    await runThemeSchedule(db, new Date("2026-10-12T12:10:00.000Z"));
+    expect(db.store.settings.website.design).toEqual({ accent: "old", categories: cats("Poetry", "Zines"), showUnderConstruction: true });
+    expect(db.store.themeSchedule.s).toMatchObject({ status: "done" });
+  });
+
+  it("a campaign end restores a field the campaign itself changed and nobody touched live", async () => {
+    const db = fakeDb({ settings: { website: { design: { categories: cats("Poetry") } } },
+      themeSchedule: { s: { kind: "campaign", status: "scheduled", startAt: "2026-10-10T12:00:00.000Z", endAt: "2026-10-12T12:00:00.000Z",
+        design: { categories: cats("Poetry", "Sale") }, liveBase: { categories: cats("Poetry") } } } });
+    await runThemeSchedule(db, new Date("2026-10-10T12:01:00.000Z"));
+    expect(db.store.settings.website.design.categories).toEqual(cats("Poetry", "Sale"));
+    await runThemeSchedule(db, new Date("2026-10-12T12:10:00.000Z"));
+    expect(db.store.settings.website.design.categories).toEqual(cats("Poetry"));
+  });
+});

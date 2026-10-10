@@ -537,6 +537,13 @@ the fixture fakes it with `__studioFixture.remoteSave(draft, { publish })`). `de
 ignores revisions not newer than this tab's, takes another tab's save when nothing is unsaved here, and otherwise shows the
 **This design was saved in another tab or device** banner (Bring in / Use their version / Later). Remote drafts go through
 `normalize` before any comparison. Never auto-overwrite unsaved edits.
+**Save conflicts (October 2026):** `resolveSaveConflict` (`studioWorkflow.ts`) gives the dialog both outcomes, each keeping every
+change only one side made (`Keep mine` wins the shared setting, `Use the other version` takes theirs there; neither throws the other
+side's other edits away). A conflict during **Publish** never publishes: even a clean merge is only restored into the draft with a
+message, and the owner presses Publish again after reviewing it (only Save draft auto-saves a clean merge). `draftFieldUpdate`
+(shop categories, Under construction wall) now bumps `rev` in a transaction (`action: "field"`), so other open Studios follow it
+through live sync and a stale Save/Publish conflicts instead of reverting the value. Studio re-reads the live design
+(`adminApi.getLiveDesign`) when it opens and when the Publish/Discard dialog opens; Discard writes the freshly read live design.
 
 **Studio Health (3.3):** Theme actions › **Studio Health** runs `studio/healthAudit.ts` `auditDocument` on the preview
 iframe's own document (contrast, picture descriptions/size/weight, link names and targets, tap targets, headings, fonts,
@@ -556,6 +563,12 @@ shared design, keeps it noindex and out of analytics (`trackingGuard`, `useSiteD
 `unpaidPaymentSweep`, every 15 minutes) publishes due entries into `settings/website.design` and switches campaigns back
 at their end unless a later Publish happened. Never put scheduled designs in the public settings document, and never
 apply schedules in the browser. Times are entered in Toronto time and stored as UTC ISO.
+The Toronto clock is `features/site/shopTime.ts` (shared by Studio and the storefront); a nonexistent spring-forward time is refused
+by `scheduleProblems` (never moved earlier). Section **Show from / Show until** (`sectionInWindow`) read zone-less values as Toronto time
+via `shopInstant`. When a schedule starts or a campaign ends, `functions/themeSchedule.js` keeps the fields edited live outside Publish
+(`LIVE_ONLY_KEYS`: `categories`, `showUnderConstruction`) from the current live design, unless the scheduled design itself changed them
+(`liveBase`, recorded by `addThemeSchedule`; a started campaign records `appliedLiveOnly`). Media Delete also checks scheduled designs,
+a running campaign's `revertDesign` and unexpired share links (`adminApi.listStoredDesigns`, `storedDesignUses`). Deploy Functions with the frontend.
 
 **Performance (Phase 4):** compare designs with `designEqual` (`features/site/designEqual.ts`), never `JSON.stringify`, and
 keep normalisers identity-preserving (return the same object when nothing changes) so edits share structure. Heavy Studio
@@ -1109,7 +1122,7 @@ with the oldest order that needs work opened automatically and finishing an orde
 `OrderDetail` reports reloads via `onChanged` so the list refreshes. Phones show list *or* order. **Table view** opens the
 previous `Orders` table (bulk packing, pick lists, CSV). Email links `/admin#orders/<id>` still open that order.
 The packing checklist shows each book's current cover and **Shelf location** (Books › edit › Inventory, `shelfLocation`,
-per edition when set; `packingInfo` in `fulfillment.ts`). Books are public-readable, so the shelf code is too.
+per edition when set; `packingInfo` in `fulfillment.ts`). Shelf codes live in the admin-only private book document (see *Round-2 security*), merged back by `adminApi.getAllBooks` / `getBook`.
 
 ## reCAPTCHA / App Check
 
@@ -1541,7 +1554,7 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
 
 - **Returns:** `returnTransition` accepts `closed` from approved/received/inspected (ReturnWorkbench › *Close return without a refund*); the request becomes `handled`, nothing is refunded or restocked, `returnProgress.state` is `closed` (customer words `trackReturn_closed`).
 - **Shipped means shipped:** a bought label puts `trackingNumber` on the order while the parcel is still in the shop, so `orderRequestProblem`, `dispatched()` (returns), the refund restock default and the shopper's request options use `fulfillmentStatus`/`status` only, never `trackingNumber`.
-- **Label purchase (`createShippingLabel`):** `callShippo` has a 15 s timeout (45 s for the purchase) and sets `error.shippoStatus`. HTTP 4xx (except 408) is a definite refusal (`shippoDefiniteRefusal`): the lock is released with a history entry; 5xx/timeouts/network keep it. `buyRate` saves `shippoTransactionId` (+ status/rate) in `order-operations` BEFORE the order write; `recordLabel` writes the order and releases the lock in one transaction; transactions and shipments carry `metadata: "Order <id>"`. A test key (`shippo_test_`) refuses purchases. `mode: "voidLabel"` (admin) refunds the label with Shippo (`refunds/`) or, with `confirmedElsewhere`, just drops it; the old label goes to `order-operations.labelHistory`. After dispatch, `edit_tracking` with `replaceLabel: true` records a replacement carrier/number.
+- **Label purchase (`createShippingLabel`):** `callShippo` has a 15 s timeout (45 s for the purchase) and sets `error.shippoStatus`. HTTP 4xx (except 408) is a definite refusal (`shippoDefiniteRefusal`): the lock is released with a history entry; 5xx/timeouts/network keep it. `buyRate` saves `shippoTransactionId` (+ status/rate) in `order-operations` BEFORE the order write; `recordLabel` writes the order and releases the lock in one transaction; transactions and shipments carry `metadata: "Order <id>"`. A test key (`shippo_test_`) may rehearse a purchase: the label is stored with `order-operations.labelTest: true` and the workbench shows a TEST label badge. `mode: "voidLabel"` (admin) refunds the label with Shippo (`refunds/`) or, with `confirmedElsewhere`, just drops it; the old label goes to `order-operations.labelHistory`. After dispatch, `edit_tracking` with `replaceLabel: true` records a replacement carrier/number.
 - **Customs:** parcels whose destination country differs from the shop's origin get Shippo customs items + a declaration (`functions/customs.js`, per physical line; value = what was paid in CAD, discount shared out). Per-book answers `customsDescription`, `hsTariffNumber`, `customsOriginCountry` (Books › edit › Details; blank = Printed books / 4901.99 / shipping-from country; `admin/customsFields.ts`).
 - **Label rates:** `labelRatesFor` offers the cheapest quote of the service checkout sold (`order.shippingMethod`, any carrier) first, then Canada Post; `isPurchasableRate` is the purchase check.
 - **Shippo key:** `saveShippoConfig` requires a `shippo_live_`/`shippo_test_` prefix and a successful Shippo call (401/403 = not saved); stores `mode`/`verifiedAt`; Settings › Shipping › Carrier & labels shows LIVE/TEST.
@@ -1550,3 +1563,66 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
 - **Address rules:** `functions/addressRules.js` ↔ `features/site/addressRules.ts` (`addressRules.parity.test.ts`): street, city, country always; province/state only for CA/US; postal code unless the country has none (same no-postcode list as the checkout form). Used by `validateAddress`, `autoApproveShippingAddress`, label purchase and `addressIssues`.
 - **Orders list:** `ordersTable.ts` is the one filter behind the table rows and tab counts. Orders can be **archived** (`archivedAt`, `adminApi.archiveOrders`): they leave the work queues/badge but stay in *All orders*. Delete is also refused (client `deleteRefusal` + `firestore.rules`) for unpaid orders with a started card/PayPal payment unless cancelled. The desk's *Shipped* tab excludes terminal (cancelled/refunded/refund-pending) orders. The ship-late alert counts printed orders only.
 - Deploy `firestore.rules` + Functions with the frontend.
+## Round-2 security: private book fields, public endpoints, rules (10 October 2026)
+
+- **`books` is public for published books only.** `firestore.rules`: `allow read: if isAdmin() || resource.data.status == "published"`.
+  A shopper list query must say so: `publicApi.getStorefrontBooks` filters `where("status", "==", "published")`, and
+  `scripts/publicStorefrontData.mjs` (sitemap, prerender, the 15-minute change check) uses a `runQuery` with the same filter
+  (`readPublishedBooks`). `publicApi.getBook` returns `null` for a book the rules refuse (draft/archived). Account and Order
+  tracking therefore treat an unreadable book as `UNREADABLE_BOOK` (`digitalLine.ts`) and let the server decide on a download.
+  A book with no `status` is unreadable to the public: `scripts/migrate-book-private-fields.mjs` stamps `published` on those
+  (the storefront already treated a missing status as published). Scheduled/future-dated books are `published` with a
+  `scheduleDate`, so they remain readable by the rule (the storefront hides them with `isLiveBook`) — the rule cannot compare dates.
+- **Private book fields** (`costPrice`, `usdCostPrice`, `eurCostPrice`, `shelfLocation` and each edition's shelf code, `legacyInventoryKey`,
+  `digitalFileUrl`/`digitalFilePath`) live in admin-only `books/{id}/private/admin` (`variantShelf: { editionId: code }` for editions).
+  `admin/bookPrivate.ts` (pure) splits a book on every write and merges on every read; `adminApi` does it in `createBook`, `updateBook`
+  (inside its transaction), `duplicateBook`, `deleteBook` and the legacy inventory sync, and `getAllBooks` / `getBook` merge the private
+  documents back (one `collectionGroup("private")` read; `getAllBooks({ includePrivate: false })` skips it). Readers take the private
+  value, else a leftover public one, so the admin works before and after the migration; a save moves the fields it touches. Rules:
+  `match /private/{docId}` under `books` plus `match /{path=**}/private/{docId}` (admin read) for the collection-group read.
+  Functions never read cost fields (no change needed). Add any new owner-only book field to `PRIVATE_BOOK_KEYS` in **both**
+  `bookPrivate.ts` and the migration script (`scripts/migrateBookPrivate.test.ts` keeps them equal). `digitalFileName` stays public
+  (the shop uses it to show a Download button; the bucket path is `read: false`).
+- **Deploy order for the books change:** (1) deploy the frontend/code that reads both locations (this PR's admin code does), (2) run
+  `GOOGLE_APPLICATION_CREDENTIALS=… node scripts/migrate-book-private-fields.mjs` (dry run) then `--apply`, (3) only then deploy
+  `firestore.rules`, indexes and Functions. Rules before the migration hide status-less books from shoppers.
+- **Digital uploads** store the Storage path: `adminApi.uploadStoragePath` (no `getDownloadURL` on the read-denied `digital-assets/`
+  folder); the editor saves `digitalFileName` (what `downloadDigitalAsset` opens) and `digitalFilePath`.
+- **Public endpoint hygiene** (`functions/`): `setGlobalOptions({ maxInstances: 10 })`; `action: "status"` has its own rate limit
+  (`LIMITS.status`) and only looks up payment ids saved on the order; `automaticDiscounts` has `LIMITS.autoDiscount` and a 30 s shared
+  read; `getShippoRates` refuses more than 50 lines or non-plain ids; anonymous handlers answer upstream/database failures with a
+  fixed sentence (`publicErrors.js` `publicErrorMessage`; admin endpoints keep detail); the checkout location signal uses
+  `clientIpOf` and the platform's `X-AppEngine-Country` (`serverGeoCountry`) — no third-party IP lookup, and no signal when the
+  platform sends none. Admin emails encode the order id in links.
+- **TTL:** `rate-limits`, `contact-email-throttle`, `abandoned-cart-throttle`, `email-claims` and `payment-webhook-events` carry a top-level
+  `expiresAt` (`retainFor()` / the limiters) and `firestore.indexes.json` `fieldOverrides` expire them. Deploy indexes to turn TTL on.
+- **Rules:** analytics counters (`analyticsStepsOk`): visits >= 0, funnel/device maps are fixed-key and +1 per write, free-key maps
+  change one entry per write and never lose one (values of free keys can't be bounded in rules). Guest orders: money fields are numbers
+  in range, `customer` has only its five keys, `activity`/`appliedDiscount`/`fulfillmentSelection` are small, `testMode` is a bool (per-line
+  content still can't be checked — `priceOrder` rebuilds lines). `scripts/firestore-rules-emulator.mjs` covers all of it.
+- **Studio/storefront:** imported theme files drop `customHeadHtml`/`customFooterScripts` (`stripImportedCustomCode`; Studio says so);
+  connected details are escaped inside HTML-drawing fields (`HTML_SETTING_KEYS`, a test fails when `SectionComponents` gains another
+  `dangerouslySetInnerHTML` field); the newsletter box, review form and back-in-stock box write nothing in the Studio preview
+  (`inEditorPreview()` inside `subscribeNewsletter`, `saveStockAlert`, `reviewsApi.create`); the book page's review count/average come
+  from Firestore aggregation (`reviewsApi.summary`, also the JSON-LD `aggregateRating`) with a **Show more reviews** button
+  (Text & labels › Reviews › `reviewsMore`; Style › Reviews · layout & elements › Show more reviews button); Admin › Reviews loads
+  50 pending reviews at a time with a server-side total and fetches a reviewer's email only on **Show email** (`admin/reviewQueue.ts`;
+  needs the `reviews (status, createdAt desc)` index). All CSV exports guard leading tab/CR as well as `= + - @`.
+
+## Checkout experience + stock-hold tuning (10 October 2026)
+
+- **Field errors:** `features/site/checkoutDetails.ts` `checkoutDetailProblems` is the one rule for what Pay needs (email, name,
+  country, street, city; state only where `regionsFor(country)` lists them; postal code unless `postalCodeOptional`; e-book-only bags
+  need only country + listed province). The page is a `<form noValidate>`; each problem shows under its box (`aria-invalid`,
+  `aria-describedby`, words `coErrField*`) and focus moves to the first. The same problems keep Apple/Google Pay off (`expressWalletEnabled`).
+  Keep CLAUDE.md's submission-lock rules: `createCheckoutSubmission().reset()` runs only from `onPageRestored` (browser Back from PayPal).
+- **Retry key:** `cardAttemptKey` (`cardAttempt.ts`) includes the order note and address-check result; add any new order field the shopper can edit to it.
+- **Live rates:** `getShippoRates` answers are dropped unless they belong to the newest request (`createLatestGuard`) and give up after
+  `RATES_TIMEOUT_MS`, falling back to profile rates. Exchange rates come from `exchangeRates.ts` `loadRates` (5 s timeout, 6 h session cache,
+  `ratesSource` = live | cached | fallback on `useCurrency()` and `<html data-rates-source>`).
+- **No third-party IP lookup:** checkout starts on `guessCountryName()` (browser language); address suggestions (Photon) stay. Do not re-add an IP-to-country call in the browser.
+- **Stock holds:** `settings/website.stockHolds` `{ perBook, units, orders }` (Settings › General › **Checkout stock holds**, defaults 10 / 50 / 3)
+  is read by the server (`holdLimitsFrom`, `loadHoldLimits`); connection caps are twice / 3x those, never below today's. The bag warns before Pay
+  (`holdLimits.ts` `holdWarnings`, region `checkoutHoldWarning`, words `coHoldWarning*`). A payment-time renewal keeps the order's `holders`
+  so releasing frees the shopper's count; IPv6 clients are counted by /64 (`rateLimit.js` `ipKey`, also used by `hitLimit`).
+- Server `validateAddress` still requires state and ZIP; for countries without them it answers 400 and the order is taken as `verification_unavailable`.

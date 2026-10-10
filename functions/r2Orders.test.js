@@ -169,13 +169,16 @@ test("fault 135: the saved key is shown as live or test", async () => {
   expect(read.body.configured).toBe(true);
 });
 
-test("fault 135: real orders never buy a label with a test key", async () => {
+test("fault 135: a test key may rehearse a purchase; the label is stored as a TEST label", async () => {
   const order = baseOrder();
   const app = harness({ order, ops: quotedFor(order), secret: "shippo_test_abcdefghijklmnopqrstuvwxyz", fetchImpl: buyOk });
   const res = await app.label({ mode: "purchase", shipmentId: "sh_1", rateId: "r1" });
-  expect(res.code).toBe(409);
-  expect(res.body.error).toMatch(/TEST key/);
-  expect(app.calls.some(c => c.url.includes("transactions/"))).toBe(false);
+  expect(res.code).toBe(200);
+  expect(app.ops().labelTest).toBe(true);
+  const live = baseOrder();
+  const real = harness({ order: live, ops: quotedFor(live), fetchImpl: buyOk });
+  await real.label({ mode: "purchase", shipmentId: "sh_1", rateId: "r1" });
+  expect(real.ops().labelTest).toBe(false);
 });
 
 // Fault 36 -----------------------------------------------------------------------------------------------

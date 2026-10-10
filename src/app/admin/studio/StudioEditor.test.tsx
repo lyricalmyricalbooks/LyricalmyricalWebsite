@@ -241,4 +241,122 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     await key("k");
     expect(document.body.querySelector("[role='combobox'], input[aria-label*='Find' i], input[placeholder*='Find' i]")).not.toBeNull();
   });
+
+  // ── Save / publish integrity (PR 6) ──
+  // A save from another tab that this tab never heard about (live sync is off), so the next save meets a conflict.
+  const unseenRemoteSave = async (draft: any) => {
+    const watchers = fixture.watchers; fixture.watchers = [];
+    fixture.remoteSave!(draft);
+    fixture.watchers = watchers;
+  };
+  const remoteSection = { id: "remote1", type: "NewsletterSection", settings: {} };
+
+  it("save conflict: Keep mine keeps the other tab's other changes (#6)", async () => {
+    await mount();
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Newsletter/)[0]);
+    await unseenRemoteSave({ ...(await otherTabDraft({ accentColor: "#123456" })), heroPage: { sections: [remoteSection] } });
+    await click(buttons("Save draft")[0]);
+    expect(host.textContent).toContain("Saved in another tab or device");
+    expect(fixture.calls.some(c => c.method === "saveDesign")).toBe(false);
+    await click(buttons("Keep mine and save")[0]);
+    const save = fixture.calls.find(c => c.method === "saveDesign");
+    expect(save?.args[0].design.accentColor).toBe("#123456"); // their change to a different setting survives
+    expect(homeSections(save?.args[0].design)).toEqual(["NewsletterSection"]);
+    expect(save?.args[0].design.heroPage.sections[0].id).not.toBe("remote1"); // mine, where we both changed Home
+  });
+
+  it("save conflict: Use the other version takes theirs for the shared setting and saves nothing (#6)", async () => {
+    await mount();
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Newsletter/)[0]);
+    await unseenRemoteSave({ ...(await otherTabDraft({ accentColor: "#123456" })), heroPage: { sections: [remoteSection] } });
+    await click(buttons("Save draft")[0]);
+    await click(buttons("Use the other version")[0]);
+    expect(fixture.calls.some(c => c.method === "saveDesign")).toBe(false);
+    expect(host.textContent).toMatch(/Home · 1 section/);
+    // Their version is now the saved one; a further edit saves on top of it without another conflict.
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Newsletter/)[0]);
+    await click(buttons("Save draft")[0]);
+    const save = fixture.calls.find(c => c.method === "saveDesign");
+    expect(save?.args[0].design.accentColor).toBe("#123456");
+    expect(save?.args[0].design.heroPage.sections[0].id).toBe("remote1");
+    expect(homeSections(save?.args[0].design)).toHaveLength(2);
+  });
+
+  it("a conflict during Publish shows the combined design instead of publishing the other tab's draft (#50)", async () => {
+    await mount();
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Newsletter/)[0]);
+    await unseenRemoteSave(await otherTabDraft({ accentColor: "#123456" }));
+    await click(buttons("Publish")[0]);
+    await click(buttons("Publish now")[0]);
+    expect(fixture.calls.some(c => c.method === "saveDesign")).toBe(false);
+    expect(host.textContent).toMatch(/nothing was published/i);
+    expect(homeSections(fixture.settings.design)).toEqual([]);
+    expect(host.textContent).toMatch(/Home · 1 section/);
+    // Reviewed → Publish again goes out with both sets of changes.
+    await click(buttons("Publish")[0]);
+    await click(buttons("Publish now")[0]);
+    const publish = fixture.calls.find(c => c.method === "saveDesign");
+    expect(publish?.args[1]).toEqual({ publish: true });
+    expect(publish?.args[0].design.accentColor).toBe("#123456");
+    expect(homeSections(publish?.args[0].design)).toEqual(["NewsletterSection"]);
+  });
+
+  it("a field update from another admin page moves the revision on, so Studio follows it (#9)", async () => {
+    await mount();
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Newsletter/)[0]);
+    const { draftFieldUpdate } = await import("../themeStore");
+    await act(async () => { await draftFieldUpdate({ showUnderConstruction: true }); await new Promise(r => setTimeout(r, 0)); });
+    // The unsaved section here and the new field there are different settings: offered as a combine banner, not ignored.
+    expect(document.body.querySelector("[data-studio-incoming]")).not.toBeNull();
+    await click(buttons("Bring in their changes")[0]);
+    await click(buttons("Save draft")[0]);
+    expect(fixture.calls.find(c => c.method === "saveDesign")?.args[0].design.showUnderConstruction).toBe(true);
+  });
+
+  it("Discard goes back to what is live now, not what was live when the admin page loaded (#51)", async () => {
+    const stale = JSON.parse(JSON.stringify(fixture.settings));
+    fixture.settings.design = { ...fixture.settings.design, accentColor: "#abcdef", scheduledMarker: "live-now" }; // a scheduled go-live
+    root = createRoot(host);
+    await act(async () => { root.render(h(StudioEditor, { settings: { ...stale, draftDesign: fixture.settings.draftDesign }, onExit: () => {} })); });
+    await act(async () => { await new Promise(r => setTimeout(r, 0)); });
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Newsletter/)[0]);
+    await click(buttons("Save draft")[0]);
+    await click(buttons("Theme actions")[0]);
+    await click(buttons(/^Discard saved draft/)[0]);
+    await click(buttons("Discard draft")[0]);
+    const discard = fixture.calls.filter(c => c.method === "saveDesign").pop();
+    expect(discard?.args[1]).toEqual({ publish: false });
+    expect(discard?.args[0].design.scheduledMarker).toBe("live-now");
+    expect(discard?.args[0].design.accentColor).toBe("#abcdef");
+  });
+
+  it("Media Delete is refused while a scheduled design, a campaign's restore design or a share link uses the image (#8)", async () => {
+    const src = fixture.media[0].variants[2].url;
+    const withIt = { heroPage: { sections: [{ id: "x", type: "HeroSection", settings: { imageUrl: src } }] } };
+    fixture.schedule = [{ id: "s1", kind: "campaign", name: "Autumn sale", status: "live", startAt: "2026-10-01T00:00:00.000Z", endAt: "2027-01-01T00:00:00.000Z", design: {}, revertDesign: withIt }];
+    await mount();
+    await click(buttons("Media")[0]);
+    await click(document.querySelector("[data-media-id='m-riso-print']")!);
+    await click(buttons("Delete image")[0]);
+    expect(host.textContent).toMatch(/Scheduled › Autumn sale \(the design restored when it ends\)/);
+    expect(fixture.calls.some(c => c.method === "removeMedia")).toBe(false);
+
+    fixture.schedule = [];
+    fixture.previewLinks = [{ token: "t".repeat(32), name: "For the printer", createdAt: "2026-10-09T00:00:00.000Z", expiresAt: new Date(Date.now() + 86_400_000).toISOString(), design: withIt }];
+    await click(buttons("Delete image")[0]);
+    expect(host.textContent).toMatch(/Share link › For the printer/);
+    expect(fixture.calls.some(c => c.method === "removeMedia")).toBe(false);
+
+    // An expired link no longer shows anything, so it doesn't hold the image.
+    fixture.previewLinks[0].expiresAt = "2026-01-01T00:00:00.000Z";
+    await click(buttons("Delete image")[0]);
+    await click(buttons("Delete image").at(-1));
+    expect(fixture.calls.find(c => c.method === "removeMedia")?.args[0]).toBe("m-riso-print");
+  });
 });

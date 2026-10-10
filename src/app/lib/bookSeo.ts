@@ -71,10 +71,12 @@ export type SeoReview = { authorName?: string; rating?: number; title?: string; 
 const absolute = (value: string, base: string) => { try { return new URL(value, base).href; } catch { return ''; } };
 
 /** Star rating + a few review snippets, only from approved shopper reviews. Never invented. */
-export function ratingData(reviews: SeoReview[] = []) {
+export function ratingData(reviews: SeoReview[] = [], summary?: { count: number; average: number } | null) {
   const rated = reviews.filter(r => Number(r.rating) >= 1 && Number(r.rating) <= 5);
   if (!rated.length) return {};
-  const average = rated.reduce((sum, r) => sum + Number(r.rating), 0) / rated.length;
+  // The star rating covers every approved review (Firestore's count/average), not just the page of snippets read here.
+  const real = summary && summary.count >= rated.length && summary.average >= 1 && summary.average <= 5 ? summary : null;
+  const average = real ? real.average : rated.reduce((sum, r) => sum + Number(r.rating), 0) / rated.length;
   const review = rated.filter(r => searchText(r.body) && searchText(r.authorName)).slice(0, 5).map(r => ({
     '@type': 'Review',
     author: { '@type': 'Person', name: searchText(r.authorName) },
@@ -84,7 +86,7 @@ export function ratingData(reviews: SeoReview[] = []) {
     ...(r.createdAt && /^\d{4}-\d{2}-\d{2}/.test(r.createdAt) ? { datePublished: r.createdAt.slice(0, 10) } : {}),
   }));
   return {
-    aggregateRating: { '@type': 'AggregateRating', ratingValue: Number(average.toFixed(1)), reviewCount: rated.length, bestRating: 5, worstRating: 1 },
+    aggregateRating: { '@type': 'AggregateRating', ratingValue: Number(average.toFixed(1)), reviewCount: real ? real.count : rated.length, bestRating: 5, worstRating: 1 },
     ...(review.length ? { review } : {}),
   };
 }
@@ -146,7 +148,7 @@ export function siteStructuredData(options: { name: string; url: string; descrip
   ];
 }
 
-export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; seller?: string }) {
+export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; ratingSummary?: { count: number; average: number } | null; seller?: string }) {
   const variants = book.variants || [];
   const backorder = book.onBackorder || (variants.length > 0 && variants.every((v: any) => v.onBackorder));
   const available = variants.length ? variants.some(v => Number(v.stockLevel ?? v.stock ?? 0) > 0) : Number(book.stockLevel ?? 999) > 0;
@@ -176,7 +178,7 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
       itemCondition: 'https://schema.org/NewCondition',
       ...(options.seller ? { seller: { '@type': 'Organization', name: options.seller } } : {}),
     },
-    ...ratingData(options.reviews),
+    ...ratingData(options.reviews, options.ratingSummary),
   };
 }
 

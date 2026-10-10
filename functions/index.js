@@ -12,6 +12,7 @@
 const { onDocumentUpdated, onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onRequest } = require("firebase-functions/v2/https");
+const { setGlobalOptions } = require("firebase-functions/v2/options");
 const { defineSecret } = require("firebase-functions/params");
 const nodemailer = require("nodemailer");
 const admin = require("firebase-admin");
@@ -48,18 +49,27 @@ const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
 const { refundRetrySuffix, refundPlan, refundedSoFar, restockLinesFor, withoutRestocked, partialRefundKey } = require("./partialRefund");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
-const { hitLimit, LIMITS, clientIpOf } = require("./rateLimit");
-const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner } = require("./stockHolds");
+const { hitLimit, LIMITS, clientIpOf, serverGeoCountry } = require("./rateLimit");
+const { publicErrorMessage } = require("./publicErrors");
+const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
 const { preorderActive, preorderLine, preorderEmailLines } = require("./preorder");
 const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCount } = require("./emailThrottle");
 const { hasOwnershipProof } = require("./emailProof");
 const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
 const { MAX_ATTEMPTS, LEASE_MS, LOG_RETENTION_DAYS, GAVE_UP_RETENTION_DAYS, cleanRecipients, cleanSubject, cleanFromName, nextRetryAt, isPermanentEmailError, canSendNow, publicOutboxEntry, staleOrderEmailReason, daysAgoIso, withRequiredPlaceholders, blankUnknownPlaceholders } = require("./emailOutbox");
 
+// Cost ceiling for every function (#147): an anonymous flood can scale a public endpoint or a
+// Firestore trigger only this far. A function that sets its own maxInstances overrides it.
+setGlobalOptions({ maxInstances: 10 });
+
 admin.initializeApp();
 const db = admin.firestore();
 
 const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
+
+// Server-only bookkeeping documents (webhook events, email claims, send throttles) carry an `expiresAt` that
+// Firestore's TTL policy (firestore.indexes.json fieldOverrides) uses to delete them, so they cannot grow forever.
+const retainFor = days => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
 const ADMIN_EMAILS = ["lyricalmyricalbooks@gmail.com"];
 
@@ -337,7 +347,7 @@ async function sendOrderEmailOnce(orderId, kind, message) {
     claimed = await db.runTransaction(async tx => {
       const snap = await tx.get(ref);
       if (snap.exists) return false;
-      tx.set(ref, { orderId, kind, claimedAt: new Date().toISOString() });
+      tx.set(ref, { orderId, kind, claimedAt: new Date().toISOString(), expiresAt: retainFor(400) });
       return true;
     });
   } catch (err) {
@@ -1069,6 +1079,18 @@ async function loadAutomaticDiscounts() {
   return snap.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() })).filter(discount => !discountProblem(discount));
 }
 
+// The public "automaticDiscounts" answer only: shared by every caller of this instance for 30 s. Pricing an
+// order always calls loadAutomaticDiscounts() fresh.
+let automaticDiscountsCache = { at: 0, promise: null };
+function cachedAutomaticDiscounts(now = Date.now()) {
+  if (!automaticDiscountsCache.promise || now - automaticDiscountsCache.at > 30_000) {
+    const promise = loadAutomaticDiscounts();
+    promise.catch(() => { if (automaticDiscountsCache.promise === promise) automaticDiscountsCache = { at: 0, promise: null }; });
+    automaticDiscountsCache = { at: now, promise };
+  }
+  return automaticDiscountsCache.promise;
+}
+
 // Prices an order from the live catalog for every checkout path (card, PayPal, manual, free).
 // Nothing the browser sends decides a price: books, editions, add-ons, box-set parts, the
 // discount (a code, else the best automatic offer, including a free gift), shipping, tax and
@@ -1357,8 +1379,18 @@ function refusePreviousAttemptPaid(res, superseded) {
 // A gift card that can no longer cover its part gives the stock back and throws GiftCardError.
 // A shopper starting checkout is held to the per-shopper caps (stockHolds HOLD_LIMITS, keyed by
 // email and, with `req`, the connecting address); HoldLimitError is a StockHoldError ("hold_limit").
+// The per-shopper caps the owner set in Settings › General › Checkout stock holds (defaults when unset).
+async function loadHoldLimits() {
+  try {
+    return holdLimitsFrom((await db.collection("settings").doc("website").get()).data() || {});
+  } catch (err) {
+    console.warn("Could not read the stock-hold limits; using the defaults:", err.message);
+    return holdLimitsFrom({});
+  }
+}
+
 async function reserveCheckout(orderId, items, order, giftCardRedemptions, testMode, req = null) {
-  await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: true, ip: req ? clientIpOf(req) : "" });
+  await reserveStock(db, orderId, items, Date.now(), holdOwner(order), { limits: true, ip: req ? clientIpOf(req) : "", holdLimits: await loadHoldLimits() });
   if (!(giftCardRedemptions || []).length) return;
   try {
     await reserveGiftCards(db, orderId, giftCardRedemptions, { testMode, owner: holdOwner(order) });
@@ -1566,7 +1598,7 @@ exports.createPayPalOrder = onBrowserRequest(
       res.json({ orderToken: paypalOrder.id, approvalUrl, amount: toMinor(priced.convertedTotal.toFixed(2)), currency: String(currency).toLowerCase() });
     } catch (err) {
       console.error("PayPal order creation failed:", err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: publicErrorMessage(err, "Something went wrong. Please try again.") });
     }
   }
 );
@@ -1607,7 +1639,7 @@ exports.capturePayPalOrder = onBrowserRequest(
       res.json({ paid: markedPaid === true, paymentReview: markedPaid !== true });
     } catch (err) {
       console.error("PayPal capture failed:", err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: publicErrorMessage(err, "Something went wrong. Please try again.") });
     }
   }
 );
@@ -1665,11 +1697,11 @@ exports.paypalWebhook = onRequest(
           }
         }
       }
-      await eventRef.set({ eventType: req.body.event_type, paypalEventId: req.body.id, processedAt: new Date().toISOString() });
+      await eventRef.set({ eventType: req.body.event_type, paypalEventId: req.body.id, processedAt: new Date().toISOString(), expiresAt: retainFor(90) });
       res.json({ received: true });
     } catch (err) {
       console.error("PayPal webhook failed:", err);
-      res.status(500).send(err.message);
+      res.status(500).send("Webhook processing failed.");
     }
   }
 );
@@ -1757,7 +1789,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         if (refusePreviousAttemptPaid(res, await releaseSupersededAttempt(req, order.customer.email, orderId, items))) return;
         // Hold the priced lines (box-set parts and the free gift included), not the browser's raw list.
         const heldItems = Array.isArray(trusted.items) && trusted.items.length ? trusted.items : items;
-        await reserveStock(db, orderId, heldItems, Date.now(), holdOwner(order), { limits: true, ip: clientIpOf(req) });
+        await reserveStock(db, orderId, heldItems, Date.now(), holdOwner(order), { limits: true, ip: clientIpOf(req), holdLimits: await loadHoldLimits() });
         try {
           await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, trackingKey, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
         } catch (createErr) {
@@ -1766,7 +1798,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         }
         return res.status(200).json({ orderId, trackingKey, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
       } catch (err) {
-        return res.status(400).json({ error: err.message, ...(["hold_limit", "store_closed"].includes(err.code) ? { code: err.code } : {}) });
+        return res.status(400).json({ error: publicErrorMessage(err, "We could not place this order. Please check your details and try again."), ...(["hold_limit", "store_closed"].includes(err.code) ? { code: err.code } : {}) });
       }
     }
 
@@ -1806,7 +1838,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         if (!paidNow) return res.status(409).json({ error: "Your gift card balance changed. Review your order and try again.", code: "gift_card_rejected" });
         return res.status(200).json({ paid: true });
       } catch (err) {
-        return res.status(400).json({ error: err.message, ...(err.code && /^(gift_card|discount_|hold_limit|store_closed)/.test(err.code) ? { code: err.code.startsWith("gift_card") ? "gift_card_rejected" : err.code } : {}) });
+        return res.status(400).json({ error: publicErrorMessage(err, "We could not complete this order. Please check your details and try again."), ...(err.code && /^(gift_card|discount_|hold_limit|store_closed)/.test(err.code) ? { code: err.code.startsWith("gift_card") ? "gift_card_rejected" : err.code } : {}) });
       }
     }
 
@@ -1866,24 +1898,10 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       const rates = await getExchangeRates();
       const exchangeRate = rates[checkoutCurrency] || FALLBACK_RATES[checkoutCurrency] || 1.0;
 
-      const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
-      let ipCountry = req.headers["x-appengine-country"] || "";
-      if (!ipCountry && clientIp && clientIp !== "127.0.0.1" && clientIp !== "::1") {
-        try {
-          const firstIp = clientIp.split(",")[0].trim();
-          // Soft signal only (sets ipCountryMatchesShipping); never let it
-          // block the customer from reaching Stripe — short timeout + swallow.
-          const ipRes = await fetchWithTimeout(`https://ip-api.com/json/${firstIp}`, {}, 2000);
-          if (ipRes.ok) {
-            const ipData = await ipRes.json();
-            if (ipData.countryCode) {
-              ipCountry = ipData.countryCode;
-            }
-          }
-        } catch (ipErr) {
-          console.warn("Could not geolocate IP on backend:", ipErr);
-        }
-      }
+      // The connecting address is the right-most non-proxy hop (clientIpOf), never the client-typed left-most one. The
+      // country comes from the platform's own geo header only; no shopper address is sent to a third-party lookup (#109).
+      const clientIp = clientIpOf(req);
+      const ipCountry = serverGeoCountry(req);
 
       const shippingCountryCode = getCountryCode((fulfillment?.method === 'pickup' ? fulfillment.address : order.customer?.address)?.country || order.customer?.billingAddress?.country || '');
       const ipCountryMatchesShipping = !ipCountry || ipCountry.toUpperCase() === shippingCountryCode.toUpperCase();
@@ -2109,7 +2127,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       });
     } catch (err) {
       console.error("Stripe Session Creation Failed:", err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: publicErrorMessage(err, "Something went wrong. Please try again.") });
     }
   }
 );
@@ -3031,6 +3049,8 @@ async function handleCheckoutStatus(req, res) {
     res.status(400).json({ error: "Missing orderId" });
     return;
   }
+  // Each call can reach Stripe (live and test), so it is limited per visitor like the other order-key actions.
+  if (!(await hitLimit(db, "status", req, LIMITS.status))) { res.status(429).json({ error: "Too many requests. Please wait a few minutes and try again." }); return; }
   try {
     const orderSnap = await db.collection("orders").doc(orderId).get();
     if (!orderSnap.exists) { res.status(404).json({ error: "Order not found" }); return; }
@@ -3053,11 +3073,15 @@ async function handleCheckoutStatus(req, res) {
     }
     // The tracking page and the admin may only know the order number: fall back to
     // the payment ids this server saved on the order when it created the payment.
-    if (!(typeof paymentIntentId === "string" && paymentIntentId.startsWith("pi_"))) paymentIntentId = "";
-    if (!(typeof sessionId === "string" && sessionId.startsWith("cs_"))) sessionId = "";
+    // Only the payment ids this server saved on the order are looked up: an id typed into the request
+    // that the order doesn't carry never triggers a Stripe call (#106).
+    const savedIntent = typeof saved.stripePaymentIntentId === "string" && saved.stripePaymentIntentId.startsWith("pi_") ? saved.stripePaymentIntentId : "";
+    const savedSession = typeof saved.stripeCheckoutSessionId === "string" && saved.stripeCheckoutSessionId.startsWith("cs_") ? saved.stripeCheckoutSessionId : "";
+    paymentIntentId = typeof paymentIntentId === "string" && paymentIntentId === savedIntent ? savedIntent : "";
+    sessionId = typeof sessionId === "string" && sessionId === savedSession ? savedSession : "";
     if (!paymentIntentId && !sessionId) {
-      paymentIntentId = typeof saved.stripePaymentIntentId === "string" && saved.stripePaymentIntentId.startsWith("pi_") ? saved.stripePaymentIntentId : "";
-      sessionId = typeof saved.stripeCheckoutSessionId === "string" && saved.stripeCheckoutSessionId.startsWith("cs_") ? saved.stripeCheckoutSessionId : "";
+      paymentIntentId = savedIntent;
+      sessionId = savedSession;
     }
     if (!paymentIntentId && !sessionId) {
       res.status(200).json({ status: "open", paymentStatus: "unpaid" });
@@ -3082,7 +3106,7 @@ async function handleCheckoutStatus(req, res) {
     res.status(200).json({ status: session.status, paymentStatus: saved.paymentStatus, providerPaymentStatus: session.payment_status, awaitingWebhook: session.payment_status === "paid", mode: found.mode });
   } catch (err) {
     console.error("Stripe status check failed:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: publicErrorMessage(err, "Something went wrong. Please try again.") });
   }
 }
 
@@ -3510,6 +3534,7 @@ exports.stripeWebhook = onRequest(
       eventType: event.type,
       stripeEventId: event.id,
       processedAt: new Date().toISOString(),
+      expiresAt: retainFor(90),
     });
     const receivedAt = new Date().toISOString();
     const eventMode = event.livemode ? "live" : "test";
@@ -4348,7 +4373,7 @@ async function handleOrderUpdated(event) {
         total_price: chargedTotalFmt(order)
       }, combinedSection);
 
-      const adminOrderUrl = siteLink(`/admin#orders/${orderId}`);
+      const adminOrderUrl = siteLink(`/admin#orders/${encodeURIComponent(orderId)}`);
       const adminAddr = order.customer?.address
         ? [order.customer.address.street, order.customer.address.unit, order.customer.address.city, order.customer.address.state, order.customer.address.zip, order.customer.address.country].filter(Boolean).join(", ")
         : "—";
@@ -4761,7 +4786,7 @@ exports.abandonedCartSweep = onSchedule(
         const t = await tx.get(throttleRef);
         if (t.exists && Date.now() - Date.parse(t.data().lastSentAt || 0) < ABANDONED_CART_THROTTLE_MS) return true;
         previousThrottle = t.exists ? t.data() : null;
-        tx.set(throttleRef, { lastSentAt: new Date().toISOString() });
+        tx.set(throttleRef, { lastSentAt: new Date().toISOString(), expiresAt: retainFor(30) });
         return false;
       }).catch(() => true);
       if (throttled) {
@@ -4919,6 +4944,12 @@ exports.getShippoRates = onBrowserRequest(
       res.status(400).json({ error: "Missing address or items" });
       return;
     }
+    // Same bounds as the other cart endpoints: one Firestore read is made per line, so the list is capped
+    // and every id must be a plain document id before anything is read (#107).
+    if (items.length > 50 || !items.every(item => item && typeof item === "object" && typeof item.id === "string" && item.id && item.id.length <= 160 && !item.id.includes("/"))) {
+      res.status(400).json({ error: "Check the selected books." });
+      return;
+    }
 
     try {
       const configDoc = await SHIPPO_CONFIG_DOC.get();
@@ -5018,7 +5049,7 @@ exports.getShippoRates = onBrowserRequest(
       res.status(200).json({ rates: formattedRates });
     } catch (err) {
       console.error("getShippoRates failed:", err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: publicErrorMessage(err, "Something went wrong. Please try again.") });
     }
   }
 );
@@ -5192,7 +5223,7 @@ exports.validateAddress = onBrowserRequest(
       });
     } catch (err) {
       console.error("validateAddress failed:", err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: publicErrorMessage(err, "Something went wrong. Please try again.") });
     }
   }
 );
@@ -5290,7 +5321,7 @@ exports.createShippingLabel = onBrowserRequest(
           const del = admin.firestore.FieldValue.delete();
           tx.update(orderRef, { labelUrl: del, trackingNumber: del, trackingCarrier: del, trackingUrl: del, updatedAt: nowIso,
             activity: admin.firestore.FieldValue.arrayUnion({ type: "note", createdAt: nowIso, message: `Label #${old.trackingNumber || ""} voided so a new one can be bought.` }) });
-          tx.set(operationsRef, { shippoTransactionId: del, quotedShipmentId: del, quotedAddress: del, updatedAt: nowIso,
+          tx.set(operationsRef, { shippoTransactionId: del, labelTest: del, quotedShipmentId: del, quotedAddress: del, updatedAt: nowIso,
             labelHistory: admin.firestore.FieldValue.arrayUnion({ ...old, voidedAt: nowIso, voidedBy: adminUser.email || "admin", refundStatus, refundId }),
             activity: admin.firestore.FieldValue.arrayUnion({ type: "event", createdAt: nowIso, message: `Label #${old.trackingNumber || ""} voided (${refundStatus}); a new label can be bought.` }) }, { merge: true });
           return true;
@@ -5363,7 +5394,8 @@ exports.createShippingLabel = onBrowserRequest(
         await db.runTransaction(async tx => {
           tx.update(orderRef, { labelUrl, trackingNumber, trackingCarrier, updatedAt: now,
             activity: admin.firestore.FieldValue.arrayUnion({ type: "note", message: `Shipping Label #${trackingNumber} generated via dashboard. Carrier: ${trackingCarrier}.`, createdAt: now }) });
-          tx.set(operationsRef, { labelPurchasePending: false, shippoTransactionId: transaction.object_id || null, labelBoughtAt: now }, { merge: true });
+          // A test-mode key (or Shippo's own test flag) makes a sandbox label: no real postage, tracking never tracks.
+          tx.set(operationsRef, { labelPurchasePending: false, shippoTransactionId: transaction.object_id || null, labelBoughtAt: now, labelTest: transaction.test === true || /^shippo_test_/.test(String(shippoToken || "")) }, { merge: true });
         });
         return { labelUrl, trackingNumber, trackingCarrier };
       };
@@ -5424,13 +5456,6 @@ exports.createShippingLabel = onBrowserRequest(
           trackingNumber: mockTracking,
           trackingCarrier: "USPS (Sandbox)"
         });
-        return;
-      }
-
-      // A Shippo TEST key makes "successful" sandbox labels with no postage and tracking numbers that
-      // never track. Real orders never buy with one.
-      if (!IS_EMULATOR && /^shippo_test_/.test(shippoToken) && mode !== "rates" && mode !== "shippoOrder") {
-        res.status(409).json({ error: "Shippo is connected with a TEST key, so a label bought now would be a sandbox label with no real postage. Save your live key in Settings › Shipping › Carrier & labels first." });
         return;
       }
 
@@ -5624,8 +5649,14 @@ exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
   // Checkout's automatic offers (no code): the conditions checkout needs to show the same saving
   // the server will charge. Customer lists and usage counts stay private.
   if (req.body?.action === "automaticDiscounts") {
+    // Its own bucket (checkout asks on every cart change, which must not use up the code-guessing allowance),
+    // and the discounts query is shared for 30 s so a loop of calls cannot turn into a loop of reads (#110).
+    if (!(await hitLimit(db, "autodiscount", req, LIMITS.autoDiscount))) {
+      res.status(429).json({ error: "Too many attempts. Please wait a few minutes and try again." });
+      return;
+    }
     try {
-      const offers = await loadAutomaticDiscounts();
+      const offers = await cachedAutomaticDiscounts();
       res.status(200).json({ discounts: offers.map(d => ({
         id: d.id, title: String(d.title || ""), type: d.type, value: d.value ?? null,
         minOrderAmount: d.minOrderAmount ?? null, minQuantity: d.minQuantity ?? null, maxDiscountAmount: d.maxDiscountAmount ?? null,
@@ -5693,7 +5724,7 @@ exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: publicErrorMessage(err, "That code could not be checked. Please try again.") });
   }
 });
 
@@ -5730,7 +5761,7 @@ exports.onOrderCreated = onDocumentCreated(
       const adminHtml = `
         <p>A new order has been placed: <strong>${escapeHtml(order.orderId || orderId)}</strong> · ${moneyFmt(order.total)}</p>
         <p>It's waiting for a manual payment (${escapeHtml(order.paymentMethod || "manual")}). Once the money arrives, confirm it in the order and ship it.</p>
-        ${risoButton(siteLink(`/admin#orders/${orderId}`), "Open this order &rarr;", notificationSettings.brand?.brandColor, notificationSettings.brand?.emailTheme)}
+        ${risoButton(siteLink(`/admin#orders/${encodeURIComponent(orderId)}`), "Open this order &rarr;", notificationSettings.brand?.brandColor, notificationSettings.brand?.emailTheme)}
         <p><strong>Customer:</strong> ${escapeHtml(order.customer.name)} &lt;${escapeHtml(order.customer.email)}&gt;</p>
         <p><strong>Payment Method:</strong> ${escapeHtml(order.paymentMethod || "Stripe")}</p>
         <p><strong>Shipping Method:</strong> ${escapeHtml(order.shippingMethod || "Standard")}</p>

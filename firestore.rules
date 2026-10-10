@@ -33,9 +33,41 @@ service cloud.firestore {
         && (!('billingAddress' in c) || addressOk(c.billingAddress));
     }
 
+    // Browser-written order fields other than the line items: right type and a sane size, so a forged order
+    // can't carry a negative total or a huge object. (Per-line content can't be checked here: rules can't loop
+    // over a list. priceOrder rebuilds every line from the catalogue before any charge.)
+    function moneyOk(v) {
+      return v is number && v >= 0 && v <= 1000000;
+    }
+    function guestOrderFieldsOk(d) {
+      return moneyOk(d.get('subtotal', 0)) && moneyOk(d.get('discount', 0)) && moneyOk(d.get('shipping', 0))
+        && moneyOk(d.get('tax', 0)) && moneyOk(d.get('total', 0))
+        && shortText(d.get('shippingMethod', null), 200)
+        && (d.get('fulfillmentSelection', null) == null || (d.fulfillmentSelection is map && d.fulfillmentSelection.size() <= 12))
+        && (d.get('appliedDiscount', null) == null || (d.appliedDiscount is map && d.appliedDiscount.size() <= 10))
+        && (d.get('activity', []) is list && d.get('activity', []).size() <= 5)
+        && shortText(d.get('customerId', null), 128)
+        && (d.get('cartId', '') is string && d.get('cartId', '').size() <= 64)
+        && (d.get('addressVerified', null) == null || d.get('addressVerified', null) is bool)
+        && (d.get('testMode', false) is bool)
+        && (d.get('createdAt', '') is string && d.get('createdAt', '').size() <= 40)
+        && (d.get('updatedAt', '') is string && d.get('updatedAt', '').size() <= 40)
+        && d.customer.keys().hasOnly(['name', 'email', 'phone', 'address', 'billingAddress']);
+    }
+
     match /books/{bookId} {
-      allow read: if true;
+      // Shoppers see published books only (list queries must filter status == "published"); drafts, archived
+      // and unreleased records are the admin's. Private fields (cost prices, shelf codes, the legacy
+      // inventory key, the digital file path) live in books/{id}/private/admin, never on this document.
+      allow read: if isAdmin() || resource.data.status == "published";
       allow write: if isAdmin();
+      match /private/{docId} {
+        allow read, write: if isAdmin();
+      }
+    }
+    // The admin's collection-group read of every book's private document (Books, Inventory, Orders packing).
+    match /{path=**}/private/{docId} {
+      allow read: if isAdmin();
     }
     match /settings/{docId} {
       allow read: if true;
@@ -110,6 +142,7 @@ service cloud.firestore {
         && (!('paymentInstructions' in request.resource.data) || request.resource.data.paymentInstructions == "")
         && request.resource.data.customer.email is string
         && guestCustomerOk(request.resource.data.customer)
+        && guestOrderFieldsOk(request.resource.data)
         && (!('metadata' in request.resource.data) || (request.resource.data.metadata is map
           && request.resource.data.metadata.size() <= 4
           && request.resource.data.metadata.get('userAgent', '') is string && request.resource.data.metadata.get('userAgent', '').size() <= 1000
@@ -244,6 +277,33 @@ service cloud.firestore {
           && (!('bookViews' in d) || (d.bookViews is map && d.bookViews.size() <= 300))
           && (!('categoryViews' in d) || (d.categoryViews is map && d.categoryViews.size() <= 100));
       }
+      // Counters only ever go up by one per write, and a write can't wipe or rewrite recorded data (#111).
+      // Fixed-key maps (the funnel, device buckets) are checked key by key; maps with free keys (sources, searches,
+      // book and category views) may gain or raise one entry per write and never lose any.
+      function stepOk(n, o, k) {
+        return n.get(k, 0) is int && n.get(k, 0) - o.get(k, 0) >= 0 && n.get(k, 0) - o.get(k, 0) <= 1;
+      }
+      function funnelStepOk(n, o) {
+        return n.keys().hasOnly(['view', 'add_to_cart', 'checkout_start', 'purchase'])
+          && stepOk(n, o, 'view') && stepOk(n, o, 'add_to_cart') && stepOk(n, o, 'checkout_start') && stepOk(n, o, 'purchase');
+      }
+      function devicesStepOk(n, o) {
+        return n.keys().hasOnly(['mobile', 'tablet', 'desktop'])
+          && stepOk(n, o, 'mobile') && stepOk(n, o, 'tablet') && stepOk(n, o, 'desktop');
+      }
+      function freeMapStepOk(n, o) {
+        return n is map && n.diff(o).removedKeys().size() == 0 && n.diff(o).affectedKeys().size() <= 1;
+      }
+      function analyticsStepsOk(o) {
+        let d = request.resource.data;
+        return (!('funnel' in d) || funnelStepOk(d.funnel, o.get('funnel', {})))
+          && (!('devices' in d) || devicesStepOk(d.devices, o.get('devices', {})))
+          && (!('sources' in d) || freeMapStepOk(d.sources, o.get('sources', {})))
+          && (!('searches' in d) || freeMapStepOk(d.searches, o.get('searches', {})))
+          && (!('noResults' in d) || freeMapStepOk(d.noResults, o.get('noResults', {})))
+          && (!('bookViews' in d) || freeMapStepOk(d.bookViews, o.get('bookViews', {})))
+          && (!('categoryViews' in d) || freeMapStepOk(d.categoryViews, o.get('categoryViews', {})));
+      }
       // Visitors write only today's day doc (commerce.ts dayKey / publicApi.recordVisit: the
       // id is the UTC date "YYYY-MM-DD" and `date` repeats it), within a day of the server
       // clock, so a forged client can't fill the collection with made-up days.
@@ -258,8 +318,11 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['date', 'visits', 'orders', 'revenue', 'conversion', 'funnel', 'categoryViews', 'sources', 'devices', 'searches', 'noResults', 'bookViews'])
         && (!('orders' in request.resource.data) || request.resource.data.orders == 0)
         && (!('revenue' in request.resource.data) || request.resource.data.revenue == 0)
+        && request.resource.data.get('visits', 0) is int
+        && request.resource.data.get('visits', 0) >= 0
         && request.resource.data.get('visits', 0) <= 1
         && analyticsMapsOk()
+        && analyticsStepsOk({})
       );
       allow update: if isAdmin() || (
         analyticsDayOk()
@@ -268,7 +331,9 @@ service cloud.firestore {
         // Visits only ever go up by one: a visitor can't reset or shrink the day's count.
         && request.resource.data.get('visits', 0) - resource.data.get('visits', 0) <= 1
         && request.resource.data.get('visits', 0) >= resource.data.get('visits', 0)
+        && request.resource.data.get('visits', 0) is int
         && analyticsMapsOk()
+        && analyticsStepsOk(resource.data)
       );
       allow delete: if isAdmin();
     }

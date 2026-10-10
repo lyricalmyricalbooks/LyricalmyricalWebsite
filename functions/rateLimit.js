@@ -17,6 +17,31 @@ function clientIpOf(req) {
   return hops[0] || req?.ip || req?.socket?.remoteAddress || "unknown";
 }
 
+// The visitor's country as the hosting platform saw it (App Engine / Google front end sets and overwrites
+// X-AppEngine-Country; a client cannot choose it). Empty when the platform gave none: the "location
+// mismatch" signal then stays off rather than guessing from a third-party lookup of the shopper's address.
+function serverGeoCountry(req) {
+  const raw = String(req?.headers?.["x-appengine-country"] || "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(raw) && raw !== "ZZ" ? raw : "";
+}
+
+// The key a connection is limited by. An IPv4 address is its own key. An IPv6 customer owns a whole
+// /64 (2^64 addresses), so every address in the same /64 shares one key; otherwise a script could
+// take a fresh "connection" for each request and never meet a per-connection cap.
+function ipKey(ip) {
+  const raw = String(ip || "").trim().toLowerCase().split("%")[0];
+  if (!raw.includes(":")) return raw;
+  const mapped = /^(?:::ffff:|0:0:0:0:0:ffff:)(\d+\.\d+\.\d+\.\d+)$/.exec(raw);
+  if (mapped) return mapped[1];
+  const halves = raw.split("::");
+  if (halves.length > 2) return raw;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const groups = halves.length === 2 ? [...head, ...Array(Math.max(0, 8 - head.length - tail.length)).fill("0"), ...tail] : head;
+  if (groups.length !== 8 || !groups.every(g => /^[0-9a-f]{1,4}$/.test(g))) return raw;
+  return `${groups.slice(0, 4).map(g => g.padStart(4, "0")).join(":")}::/64`;
+}
+
 // Pure: given the saved counter, decide whether this hit is allowed and what to store.
 function nextWindow(saved, nowMs, { max, windowMs }) {
   const start = Number(saved?.windowStart) || 0;
@@ -30,7 +55,7 @@ function nextWindow(saved, nowMs, { max, windowMs }) {
 // Returns true when allowed. Fails open if Firestore is unavailable: a broken
 // counter must never stop a real customer from paying.
 async function hitLimit(db, bucket, req, opts) {
-  const id = `${bucket}_${crypto.createHash("sha256").update(clientIpOf(req)).digest("hex").slice(0, 32)}`;
+  const id = `${bucket}_${crypto.createHash("sha256").update(ipKey(clientIpOf(req))).digest("hex").slice(0, 32)}`;
   const ref = db.collection("rate-limits").doc(id);
   try {
     return await db.runTransaction(async tx => {
@@ -47,11 +72,14 @@ async function hitLimit(db, bucket, req, opts) {
 
 const LIMITS = {
   track: { max: 60, windowMs: 10 * 60 * 1000 },
+  // Payment status polls (each may read Stripe): the tracking and thank-you pages re-check every few seconds.
+  status: { max: 120, windowMs: 10 * 60 * 1000 },
   discount: { max: 30, windowMs: 10 * 60 * 1000 },
+  autoDiscount: { max: 120, windowMs: 10 * 60 * 1000 },
   checkout: { max: 30, windowMs: 10 * 60 * 1000 },
   // Endpoints that cost money per call (Shippo rates / address checks, PayPal API).
   shippo: { max: 60, windowMs: 10 * 60 * 1000 },
   paypal: { max: 20, windowMs: 10 * 60 * 1000 },
 };
 
-module.exports = { clientIpOf, nextWindow, hitLimit, LIMITS };
+module.exports = { clientIpOf, ipKey, serverGeoCountry, nextWindow, hitLimit, LIMITS };
