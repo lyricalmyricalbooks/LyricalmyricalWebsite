@@ -1,3 +1,4 @@
+import { safeSlug, decodeSlug } from './routeSafety.mjs';
 const decodeXml = value => value.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
 
 /** Only public content routes; never snapshot customer, admin or checkout state. */
@@ -5,22 +6,26 @@ export function routeOutputPath(route) {
   if (route === '/') return 'index.html';
   const parts = route.split('/');
   if (parts.length !== 3 || !['books', 'page', 'collections'].includes(parts[1])) throw new Error(`Unsupported snapshot route: ${route}`);
-  const slug = decodeURIComponent(parts[2]);
-  if (!slug || slug === '.' || slug === '..' || /[\\/%\x00-\x1f<>:"|?*]/.test(slug) || /[. ]$/.test(slug)) throw new Error(`Unsafe snapshot route: ${route}`);
+  const slug = decodeSlug(parts[2]);
+  if (!safeSlug(slug)) throw new Error(`Unsafe snapshot route: ${route}`);
   // `<route>.html`, not `<route>/index.html`: GitHub Pages serves /books/x from books/x.html with 200,
   // whereas a folder makes it 301-redirect to /books/x/ — a URL that no longer matches the slash-less
   // canonical, og:url, JSON-LD and sitemap entries. /books/x/ falls through to the 404.html SPA fallback.
   return `${parts[1]}/${slug}.html`;
 }
 
-export function publicRoutes(xml, siteUrl) {
+/**
+ * The public routes to snapshot. A route whose slug cannot be a file name (free-text book slug such as
+ * `Moon: Vol 2`) is skipped with a warning and reported to `onSkip`; it must never abort the deploy.
+ */
+export function publicRoutes(xml, siteUrl, onSkip = route => console.warn(`::warning::Skipped unsafe public route (not prerendered): ${route}`)) {
   const base = new URL(siteUrl.replace(/\/$/, '') + '/');
   return [...new Set([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].flatMap(match => {
     const url = new URL(decodeXml(match[1]));
     if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname) || url.search || url.hash) return [];
     const route = '/' + url.pathname.slice(base.pathname.length).replace(/\/$/, '');
     if (route !== '/' && !/^\/(books|page|collections)\/[^/]+$/.test(route)) return [];
-    routeOutputPath(route);
+    try { routeOutputPath(route); } catch { onSkip(route); return []; }
     return [route];
   }))];
 }

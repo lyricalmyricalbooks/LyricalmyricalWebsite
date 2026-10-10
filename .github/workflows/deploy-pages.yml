@@ -17,7 +17,65 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'schedule' }}
 
 jobs:
+  # Deploy order contract (CLAUDE.md): Firestore rules, indexes and Functions go live BEFORE the frontend that
+  # depends on them. When this push also changed a path deploy-firebase.yml watches, wait for that run and
+  # require it to succeed. Scheduled and manual builds change no backend files, so they pass straight through.
+  firebase-first:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Wait for the Firebase deploy when this push changed backend files
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          # Keep this list identical to `on.push.paths` in deploy-firebase.yml.
+          WATCHED='^(firestore\.rules|firestore\.indexes\.json|storage\.rules|firebase\.json|functions/.*|\.github/workflows/deploy-firebase\.yml)$'
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "No previous commit to compare; treating backend files as changed."
+            expect=true
+          else
+            files=$(gh api --paginate "repos/$REPO/compare/$BEFORE...$SHA" --jq '.files[].filename') || {
+              echo "::error::Could not list the files changed by this push, so the Firebase deploy order cannot be checked. Re-run this workflow."
+              exit 1
+            }
+            if printf '%s\n' "$files" | grep -Eq "$WATCHED"; then expect=true; else expect=false; fi
+          fi
+          if [ "$expect" != "true" ]; then
+            echo "No Firebase files changed in this push; publishing the frontend straight away."
+            exit 0
+          fi
+          echo "Backend files changed; waiting for the Firebase deploy of $SHA to finish first."
+          deadline=$(( $(date +%s) + 2100 ))
+          seen_at=$(( $(date +%s) + 300 ))
+          while :; do
+            run=$(gh run list --repo "$REPO" --workflow deploy-firebase.yml --commit "$SHA" --event push \
+              --json status,conclusion,url --jq '.[0] // empty')
+            if [ -n "$run" ]; then
+              status=$(printf '%s' "$run" | jq -r .status)
+              if [ "$status" = "completed" ]; then
+                conclusion=$(printf '%s' "$run" | jq -r .conclusion)
+                if [ "$conclusion" = "success" ]; then echo "Firebase deploy succeeded; continuing."; exit 0; fi
+                echo "::error::The Firebase deploy ended as '$conclusion' ($(printf '%s' "$run" | jq -r .url)). The frontend was NOT published, so it cannot run ahead of its rules and Functions. Fix it and re-run, or start this workflow by hand once the backend is current."
+                exit 1
+              fi
+            elif [ "$(date +%s)" -gt "$seen_at" ]; then
+              echo "::error::Backend files changed but no Firebase deploy run appeared for $SHA within 5 minutes."
+              exit 1
+            fi
+            if [ "$(date +%s)" -gt "$deadline" ]; then echo "::error::Timed out waiting for the Firebase deploy."; exit 1; fi
+            sleep 20
+          done
+
   deploy:
+    needs: firebase-first
     runs-on: ubuntu-latest
     environment:
       name: github-pages

@@ -7,7 +7,7 @@ import { readPublicStorefront, publishedFingerprint, effectivePublishedSettings 
 import { FEED_FILE, merchantFeedItems, merchantFeedXml } from '../src/app/features/site/merchantFeed.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const siteUrl = process.env.SITE_URL || 'https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial';
-const { books, pages, settings } = await readPublicStorefront();
+const { books, pages, settings, reviews } = await readPublicStorefront();
 const indexed = sitemapArtifacts(siteUrl, books, pages, [], settings);
 // Keep noindex public listings crawlable so Google can read their robots tags.
 const rendered = sitemapArtifacts(siteUrl, books.map(book => ({ ...book, seoNoindex: false })), pages, [], settings, { includeEmptyCollections: true });
@@ -17,7 +17,7 @@ for (const directory of ['dist', 'public']) {
   writeFileSync(resolve(root, directory, 'robots.txt'), indexed.robots);
 }
 writeFileSync(resolve(root, 'dist/prerender-routes.xml'), rendered.xml);
-writeFileSync(resolve(root, 'dist/seo-published-fingerprint.txt'), publishedFingerprint({ books, pages, settings }) + '\n');
+writeFileSync(resolve(root, 'dist/seo-published-fingerprint.txt'), publishedFingerprint({ books, pages, settings, reviews }) + '\n');
 // Google Merchant Center fetches this file (Books › Google Shopping feed shows its address).
 const design = effectivePublishedSettings(settings).design || {};
 const shopName = (typeof design.copy?.siteName === 'string' && design.copy.siteName.trim()) || (typeof design.siteName === 'string' && design.siteName.trim()) || 'Lyricalmyrical Books';
