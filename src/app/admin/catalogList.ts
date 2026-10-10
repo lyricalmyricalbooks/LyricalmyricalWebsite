@@ -61,7 +61,8 @@ export interface StockInfo {
   sortValue: number;
 }
 
-const variantStock = (v: any) => Math.max(0, Number(v?.stock ?? v?.stockLevel) || 0);
+// Same field order as the server (functions/inventory.js): an edition's stockLevel, else stock.
+const variantStock = (v: any) => Math.max(0, Number(v?.stockLevel ?? v?.stock) || 0);
 
 export function stockInfo(book: any, getBook: (id: string) => any = () => undefined): StockInfo {
   if (isGiftCardProduct(book)) return { kind: "giftcard", count: Infinity, tone: "neutral", text: "Gift card · no stock", sortValue: Infinity };

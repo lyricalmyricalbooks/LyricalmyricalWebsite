@@ -283,6 +283,17 @@ export const adminApi = {
     return { id, ...dataToSave, ...(preorderSync ? { preorderSync } : {}) };
   },
 
+  /** Books › Shop order: writes only `sortOrder` (+ updatedAt) on the books whose place changed. */
+  saveBookOrder: async (writes: { id: string; sortOrder: number }[]) => {
+    const updatedAt = new Date().toISOString();
+    for (let i = 0; i < writes.length; i += 400) {
+      const batch = writeBatch(db);
+      for (const w of writes.slice(i, i + 400)) batch.update(doc(db, "books", w.id), { sortOrder: w.sortOrder, updatedAt });
+      await batch.commit();
+    }
+    if (writes.length) await adminApi.recordAuditLog("catalog", `Rearranged the shop order (${writes.length} book${writes.length === 1 ? "" : "s"} moved)`);
+  },
+
   // The publisher changed a book's pre-order switch or Publication date: carry the new release date
   // onto that book's pre-order lines in paid, unsent orders, so their queue, emails and the customer's
   // tracking page follow it. Returns how many orders changed.
