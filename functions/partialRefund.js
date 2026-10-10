@@ -100,4 +100,12 @@ function withoutRestocked(itemList, order) {
 /** Idempotency key: a double click sends the same refund; a later, deliberate one is new. */
 const partialRefundKey = (orderId, already, amountMinor) => `order-refund-${orderId}-partial-${already}-${amountMinor}`;
 
-module.exports = { chargedOf, refundedSoFar, refundableOf, refundPlan, restockLinesFor, withoutRestocked, partialRefundKey };
+// A refund the bank rejected (order back to paid, refund.status "failed") must not be replayed by the
+// provider's idempotency cache when the owner presses Refund again: the retry gets its own key.
+const refundRetrySuffix = order => {
+  if (order?.refund?.status !== "failed") return "";
+  const tag = String(order.refund.id || order.refundFailedAt || order.refund.failedAt || "retry").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 80);
+  return `-after-${tag || "retry"}`;
+};
+
+module.exports = { refundRetrySuffix, chargedOf, refundedSoFar, refundableOf, refundPlan, restockLinesFor, withoutRestocked, partialRefundKey };

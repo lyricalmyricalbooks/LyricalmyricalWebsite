@@ -148,6 +148,24 @@ function previousAttemptPaid(prev, intent, session) {
   if (prev.reconciliationPending || prev.paypalCaptureId) return true;
   return stripePaymentTaken(intent, session);
 }
+// Do two order-line lists buy the same books/editions in the same quantities? (The free gift line is
+// the server's own addition and is ignored.) An earlier paid order only counts as "already paid for
+// this" when the new order buys the same things; mirrors src/app/features/site/orderLines.ts.
+function sameOrderLines(a, b) {
+  const tally = lines => {
+    const out = new Map();
+    for (const line of Array.isArray(lines) ? lines : []) {
+      if (!line || line.promoGift === true || typeof line.id !== "string") continue;
+      const key = `${line.id}\u0000${line.variantId || ""}`;
+      out.set(key, (out.get(key) || 0) + Math.max(0, Math.floor(Number(line.quantity) || 0)));
+    }
+    return out;
+  };
+  const left = tally(a), right = tally(b);
+  if (left.size !== right.size) return false;
+  for (const [key, quantity] of left) if (right.get(key) !== quantity) return false;
+  return true;
+}
 function mismatchResolved(order) {
   return !!(order && order.paymentMismatch && order.paymentMismatch.resolvedAt);
 }
@@ -173,7 +191,7 @@ function stripeIntentKey(orderId, amountMinor, currency, previousIntentId) {
   return `pi-${orderId}-${String(currency || "").toLowerCase()}-${Math.round(Number(amountMinor))}-${previousIntentId || "first"}`;
 }
 
-module.exports = { cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, checkoutRefusal, manualPaidRefusal, stripeIntentKey, discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState, releaseArrived };
+module.exports = { sameOrderLines, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, checkoutRefusal, manualPaidRefusal, stripeIntentKey, discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState, releaseArrived };
 
 /**
  * PayPal sends one PAYMENT.CAPTURE.REFUNDED per refund, carrying only that refund's amount.

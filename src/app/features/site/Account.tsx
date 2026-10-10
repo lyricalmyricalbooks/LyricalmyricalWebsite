@@ -1,3 +1,4 @@
+import { orderChargedTotal } from "./orderMoney";
 import { lineIsDigital } from "./digitalLine";
 import { orderLineNotes } from "./orderLineNotes";
 import { regionProps } from "./storefrontRegions";
@@ -823,7 +824,7 @@ function AccountContent() {
                         </div>
                         
                         <div className="flex items-center gap-4">
-                          <span className="text-sm font-black text-white font-mono">{money(o.total ?? 0, o)}</span>
+                          <span className="text-sm font-black text-white font-mono">{orderChargedTotal(o, formatPrice)}</span>
                           {isExpanded ? <ChevronUp size={14} className="fm-muted" /> : <ChevronDown size={14} className="fm-muted" />}
                         </div>
                       </div>
@@ -954,7 +955,7 @@ function AccountContent() {
                             )}
                             <div className="flex justify-between border-t border-white/5 pt-3 text-white font-black">
                               <span className="uppercase text-[9px] tracking-widest text-white/30">{getCopy(settings?.design, "summaryTotal")}</span>
-                              <span className="font-mono text-base">{money(o.total, o)}</span>
+                              <span className="font-mono text-base">{orderChargedTotal(o, formatPrice)}</span>
                             </div>
                           </div>
                         </div>

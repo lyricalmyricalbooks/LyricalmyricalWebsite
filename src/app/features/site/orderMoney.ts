@@ -16,6 +16,18 @@ export function orderMoney(cad: number | undefined, order: any, fallback: (cad: 
 }
 
 /**
+ * The order's total as charged. The server charges `expectedAmountMinor` (each line, shipping and tax
+ * rounded separately), which can differ by cents from `total × rate`; the email and the Orders CSV
+ * print that exact figure, so the site must too. Older orders without it use total × rate.
+ */
+export function orderChargedTotal(order: any, fallback: (cad: number) => string): string {
+  const minor = Number(order?.expectedAmountMinor);
+  const currency = order?.expectedCurrency || order?.checkoutCurrency;
+  if (Number.isInteger(minor) && minor > 0 && currency) return amountIn(minor / 100, currency);
+  return orderMoney(order?.total, order, fallback);
+}
+
+/**
  * True when the server's charge (minor units) differs from the total on screen by more than
  * rounding: the server rounds each line, shipping and tax separately, so a few cents is normal.
  * CAD (the catalog currency) has no exchange rate, so only 5 cents is allowed. USD/EUR also

@@ -8,7 +8,8 @@ import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router";
 import { useCart, catalogUnitPrice, repriceCart } from "./CartContext";
-import { amountIn, orderMoney, totalNeedsConfirming } from "./features/site/orderMoney";
+import { sameOrderLines } from "./features/site/orderLines";
+import { amountIn, orderMoney, orderChargedTotal, totalNeedsConfirming } from "./features/site/orderMoney";
 import { intentIdOf, mayHaveGoneThrough, paymentSettled, reusableCardOrder, type PendingCardOrder } from "./features/site/cardAttempt";
 import { POLICY_KEYS, policySlug, policyTitle } from "./features/site/policyPages";
 import {
@@ -50,7 +51,7 @@ import { bagPreorder, linePreorderNote, formatReleaseDate } from "./features/sit
 import { discountAmountFor, discountableItems, pickAutomaticDiscount } from "./features/site/discountMath";
 import { expandDiscountCategories } from "./features/site/discountCategories";
 import { clearSharedDiscount, sharedDiscount } from "./features/site/sharedDiscount";
-import { isGiftCardProduct, bundleComponents } from "./features/site/promotions";
+import { isGiftCardProduct, bundleComponents, bundleWeightGrams } from "./features/site/promotions";
 import { isLiveBook } from "./features/site/liveBook";
 import { componentsSummary } from "./features/site/orderLineNotes";
 import { FulfillmentMethodPicker, bestFirst, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
@@ -208,6 +209,9 @@ function forgetAttempt(orderId: string) {
 
 export function Checkout() {
   const { cart, cartTotal, cartCount, clearCart, setCart } = useCart();
+  const paypalConfirmedAmount = useRef<{ amount: number; currency: string } | null>(null);
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
   const { currency, formatPrice, convertPrice } = useCurrency();
 
   const [isApplying, setIsApplying]     = useState(false);
@@ -695,7 +699,7 @@ export function Checkout() {
       price: item.price,
       quantity: item.quantity,
       shippingProfileId: book?.shippingProfileId || null,
-      weightGrams: parseWeightGrams(variant?.weight) ?? parseWeightGrams(book?.weight),
+      weightGrams: parseWeightGrams(variant?.weight) ?? parseWeightGrams(book?.weight) ?? bundleWeightGrams(book, booksMap),
     };
   });
 
@@ -1375,6 +1379,20 @@ export function Checkout() {
         const paypalData = await paypalResponse.json();
         if (!paypalResponse.ok) throw discountRejection(paypalData) || serverRefusal(paypalResponse, paypalData) || new CopyError(checkoutDesign, "coPaypalError");
         if (!paypalData.approvalUrl) throw new CopyError(checkoutDesign, "coErrPaypalUrl");
+        // Same safeguard as the card form: if the server priced the order differently from the total on
+        // screen (live catalog or exchange rate moved), say so before PayPal shows another amount.
+        // Pressing PayPal again with that same amount confirms it.
+        const paypalMinor = Number(paypalData.amount);
+        if (Number.isFinite(paypalMinor) && paypalMinor > 0) {
+          const paypalCurrency = String(paypalData.currency || currency).toLowerCase();
+          const seen = paypalConfirmedAmount.current;
+          const shownMinor = Math.round(convertPrice(finalTotal) * 100);
+          if (totalNeedsConfirming(paypalMinor, shownMinor, paypalCurrency) && !(seen && seen.amount === paypalMinor && seen.currency === paypalCurrency)) {
+            paypalConfirmedAmount.current = { amount: paypalMinor, currency: paypalCurrency };
+            setNotice({ tone: "error", text: c("coTotalChanged", { amount: amountIn(paypalMinor / 100, paypalCurrency) }) });
+            return;
+          }
+        }
         purchaseNavigating.current = true;
         window.location.href = paypalData.approvalUrl;
         return;
@@ -1397,6 +1415,22 @@ export function Checkout() {
         // Remember the order before asking for a payment, so a retry reuses it instead of
         // leaving another unpaid order behind.
         pendingCardOrder.current = reuse?.clientSecret ? reuse : { key: cardKey, orderId, clientSecret: "", createdAt: Date.now() };
+        // A reused order whose PaymentIntent has aged out may already be paid (a confirm whose answer never
+        // reached this tab). Ask before creating another payment, and open the order if it went through.
+        if (!clientSecret && reuse) {
+          const statusRes = await functionFetch("createStripeCheckoutSession", {
+            method: "POST",
+            headers: await orderAccessHeaders(orderId),
+            body: JSON.stringify({ action: "status", orderId }),
+          }).catch(() => null);
+          const statusData = statusRes && statusRes.ok ? await statusRes.json().catch(() => null) : null;
+          if (paymentSettled(statusData?.status)) {
+            pendingCardOrder.current = null;
+            purchaseNavigating.current = true;
+            window.location.href = successUrl;
+            return;
+          }
+        }
         if (!clientSecret) {
           const intentResponse = await functionFetch("createStripeCheckoutSession", {
             method: "POST",
@@ -1603,8 +1637,11 @@ export function Checkout() {
           if (order) setSuccessOrder(order);
           if (order?.paymentStatus === "paid") {
             setPaymentConfirmed(true);
-            clearCart();
             forgetAttempt(oid);
+            // After "your earlier payment already went through", a bag of different books is a new
+            // purchase in progress: leave it alone and don't count the old order's purchase again.
+            if (isPreviousPaid && !sameOrderLines(cartRef.current, order.items)) return;
+            clearCart();
             funnelApi.track("purchase");
             const email = order.customer?.email || localStorage.getItem("last_customer_email") || "";
             const recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id") || `active_${email.toLowerCase()}`;
@@ -1717,7 +1754,7 @@ export function Checkout() {
                 ))}
                 <li className="fm-track-total">
                   <span className="fm-track-display text-2xl">{c("summaryTotal")}</span>
-                  <span className="font-mono text-xl font-bold">{orderMoney(Number(successOrder.total || 0), successOrder, formatPrice)}</span>
+                  <span className="font-mono text-xl font-bold">{orderChargedTotal(successOrder, formatPrice)}</span>
                 </li>
               </ol>
               {successOrder.shippingMethod && !["pickup", "local_delivery"].includes(successOrder.fulfillment?.method) && (
