@@ -97,6 +97,34 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
     const day = String(body.startDay || "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(`${day}T12:00:00Z`))) return bad("Choose the first day to send.");
     if (day > shopDate(now)) return bad("The first day can't be in the future.");
+    const current = await readState(db);
+    if (current.startDay) {
+      // Moving the start day earlier sends the older orders too. A later day would mean taking back
+      // orders the inventory app already has, so it is refused.
+      if (day >= current.startDay) {
+        return bad(`Website sales are already sent from ${current.startDay}. Choose an earlier day to send older orders too; a later day isn't possible because orders already sent can't be taken back.`, 409);
+      }
+      if (current.connection?.ok !== true) return bad("Check the connection to the inventory app first.", 409);
+      // The inventory app hears first, so it asks the owner again before adding any older order.
+      try {
+        await store.markPastOrders({ from: day, at: now.toISOString() });
+      } catch {
+        return bad("The inventory app couldn't be told about the older orders, so nothing changed. Check the connection and try again.", 409);
+      }
+      const moved = await db.runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        const state = snap.exists ? snap.data() : {};
+        if (state.startDay !== current.startDay) return false;
+        tx.set(ref, {
+          startDay: day, backfill: { from: day, done: false, cursor: null, sent: 0 },
+          startDayChangedAt: now.toISOString(), startDayChangedBy: actor, startDayChangedFrom: current.startDay,
+        }, { merge: true });
+        return true;
+      });
+      if (!moved) return bad("The start date was changed somewhere else a moment ago. Reload and try again.", 409);
+      const run = await runSweep(deps, { stock: "none", budgetMs: 40 * 1000 });
+      return ok({ startDay: day, changedFrom: current.startDay, run: summary(run) });
+    }
     const result = await db.runTransaction(async tx => {
       const snap = await tx.get(ref);
       const state = snap.exists ? snap.data() : {};
@@ -106,7 +134,7 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
       return true;
     });
     if (result === false) return bad("Check the connection to the inventory app first.", 409);
-    if (result !== true) return bad(`Website sales are already being sent from ${result}. That date can't change, so nothing is counted twice.`, 409);
+    if (result !== true) return bad(`Website sales are already being sent from ${result}. Reload the page to see it.`, 409);
     const run = await runSweep(deps, { stock: "none", budgetMs: 40 * 1000 });
     return ok({ startDay: day, run: summary(run) });
   }

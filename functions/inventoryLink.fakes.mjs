@@ -90,6 +90,11 @@ export function fakeStore({ failWrites = false } = {}) {
   const store = {
     orders: {}, feeds: {}, replies: [], shipments: [], heartbeats: 0, writes: 0,
     heartbeat: async () => { store.heartbeats += 1; },
+    pastOrders: [],
+    markPastOrders: async ({ from, at }) => {
+      if (store.failPastOrders) throw new Error("UNAVAILABLE");
+      store.pastOrders.push({ from, at });
+    },
     writeWebsiteOrder: async (id, web) => {
       if (failWrites) throw new Error("PERMISSION_DENIED");
       const cur = store.orders[id]?.web;
