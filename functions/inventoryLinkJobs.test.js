@@ -105,6 +105,24 @@ describe("planStock / applyStock", () => {
   });
 });
 
+test("a confirmed apply switches counting on even when the number is already right; automatic runs don't", async () => {
+  const db = fakeDb({ "books/h": { title: "The Hound", variants: [{ id: "signed", stockLevel: 62 }, { id: "unsigned", stockLevel: 62 }] } });
+  const store = fakeStore();
+  store.feeds.hound = { onHand: 62, base: 62 };
+  const state = { ...STATE, links: { h: { signed: "hound", unsigned: "hound" } } };
+  const d = deps(db, store, { sumNet: async () => 0 });
+  const plan = await jobs.planStock(d, state);
+  expect(plan.rows.map(r => [r.from, r.to, r.hold])).toEqual([[62, 62, "untracked"], [62, 62, "untracked"]]);
+  expect(await jobs.applyStock(d, plan.rows, { mode: "auto" })).toEqual([]);
+  expect(db.docs["books/h"].data.trackInventory).toBeUndefined();
+  const confirmed = await jobs.applyStock(d, plan.rows, { mode: "confirmed" });
+  expect(confirmed.map(r => r.result)).toEqual(["applied", "applied"]);
+  expect(db.docs["books/h"].data.trackInventory).toBe(true);
+  const log = Object.entries(db.docs).find(([p]) => p.startsWith("inventoryLog/"))[1].data;
+  expect(log).toMatchObject({ from: 62, to: 62, delta: 0 });
+  expect(log.note).toMatch(/^Counting switched on/);
+});
+
 describe("applyAppShipment", () => {
   const shipment = (extra = {}) => ({ hash: "h1", carrier: "Canada Post", trackingNumber: "1234", trackingUrl: "javascript:alert(1)", labelCostCAD: 18.4, labelSource: "canadapost", shippedAt: null, ...extra });
   test("a label is attached, then dispatched once marked shipped; answers reach the app", async () => {

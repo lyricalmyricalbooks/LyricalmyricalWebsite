@@ -116,12 +116,15 @@ export function linksFromChoices(editions: LinkableEdition[], choices: Record<st
   return out;
 }
 
+/** Shown when the inventory app has never sent a count for a matched book. */
+export const NO_COUNT_YET = "The inventory app hasn't sent a count for this book yet. Open the inventory app while online: it moves the book to its new storage if needed and sends the count.";
+
 /** Plain words for why a book's stock wasn't (or won't be) changed automatically. */
 export function holdWords(row: Pick<StockRow, "hold" | "from" | "to">, { inPreview = false } = {}): string {
   if (inPreview && row.hold === "big-change") return `A big change (${row.from} → ${row.to}). Check it's right before you apply; automatic updates leave changes this big for you.`;
   switch (row.hold) {
     case "missing": return "This book or edition is no longer on the website.";
-    case "no-feed": return "The inventory app hasn't shared a count for this book yet. Open the inventory app once.";
+    case "no-feed": return NO_COUNT_YET;
     case "not-derived": return "This book has no print run in the inventory app, so its count can't be trusted. Add the print run there.";
     case "untracked": return "Stock counting is off for this book on the website. Applying the preview turns it on.";
     case "big-change": return `A big change (${row.from} → ${row.to}). It waits for you to apply it from the preview.`;
