@@ -8,6 +8,7 @@ import {
   queueOf,
   dispatchProblem,
   defaultRestockOnRefund,
+  booksLeftOutAfterRefund,
   matchesCustomerService,
   suggestedParcelWeightLb,
   canMarkManualPaid,
@@ -143,7 +144,7 @@ export function OrderDetail({
   const [refundAmount, setRefundAmount] = useState("");
   const [refundOther, setRefundOther] = useState("");
   const [refundRestockLines, setRefundRestockLines] = useState<Record<number, number>>({});
-  const [confirmAction, setConfirmAction] = useState<null | "markPaid" | "mismatch" | "resendConfirmation" | "resetDownloads">(null);
+  const [confirmAction, setConfirmAction] = useState<null | "markPaid" | "mismatch" | "resendConfirmation" | "resetDownloads" | "restockRefunded">(null);
   const [timelineFilter, setTimelineFilter] = useState<
     "all" | "event" | "note"
   >("all");
@@ -481,6 +482,9 @@ export function OrderDetail({
       } else if (action === "mismatch") {
         await adminApi.resolvePaymentMismatch(orderId);
         toast.success("Marked as refunded");
+      } else if (action === "restockRefunded") {
+        const result = await adminApi.restockRefundedOrder(orderId);
+        toast.success(`${result?.restocked || "The"} book${result?.restocked === 1 ? " is" : "s are"} back in stock`);
       } else if (action === "resetDownloads") {
         await adminApi.updateOrder(orderId, { downloadCounts: {} });
         toast.success("Download limits reset: the buyer can download each digital book again");
@@ -809,6 +813,15 @@ export function OrderDetail({
                   : "The amount taken doesn't match this order. Refund or correct it in Stripe or PayPal, then mark it here."}
               </p>
               <SecondaryButton disabled={working} onClick={() => setConfirmAction("mismatch")}>Mark refunded</SecondaryButton>
+            </SectionCard>
+          )}
+          {booksLeftOutAfterRefund(order) && (
+            <SectionCard title="Books not back in stock">
+              <p className="fw-summary">
+                This order was refunded without putting its books back in stock, so they still count as gone
+                (the inventory app shows them as a gratuity). If the books are still with you, put them back.
+              </p>
+              <SecondaryButton disabled={working} onClick={() => setConfirmAction("restockRefunded")}>Put the books back in stock</SecondaryButton>
             </SectionCard>
           )}
           {disputeOpen(order) && (
@@ -1709,6 +1722,14 @@ export function OrderDetail({
         title="Mark this payment refunded?"
         confirmLabel="Mark refunded"
         message="Only continue after you've refunded the unexpected payment in Stripe or PayPal. This clears the warning from Needs attention; it does not send any money."
+        onConfirm={runConfirmed}
+        onCancel={() => setConfirmAction(null)}
+      />
+      <ConfirmDialog
+        open={confirmAction === "restockRefunded"}
+        title="Put the books back in stock?"
+        confirmLabel="Put them back"
+        message="Only continue if the books from this order are still with you. Their copies go back in stock, and the inventory app turns this order's gratuity into a void sale. No money moves."
         onConfirm={runConfirmed}
         onCancel={() => setConfirmAction(null)}
       />

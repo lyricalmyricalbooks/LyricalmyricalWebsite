@@ -76,8 +76,14 @@ export const refundFailed = (o: any) => o?.paymentStatus === "paid" && o?.refund
 export const disputeOpen = (o: any) => !!o?.disputeStatus && !["won", "lost", "warning_closed", "closed", "charge_refunded"].includes(String(o.disputeStatus));
 // Books that already left the shop (sent, out for delivery, delivered, collected) aren't back on
 // the shelf, so a refund only restocks them by default before dispatch or hand-over.
-export const LEFT_THE_SHOP_STATUSES = ["shipped", "out_for_delivery", "delivered", "collected"];
-export const defaultRestockOnRefund = (o: any) => !LEFT_THE_SHOP_STATUSES.includes(String(o?.fulfillmentStatus || ""));
+// Same rule as the server's refund default (functions/refundRestock.js leftTheShop, parity-tested).
+export const LEFT_THE_SHOP_STATUSES = ["shipped", "out_for_delivery", "delivered", "collected", "completed"];
+export const defaultRestockOnRefund = (o: any) => !LEFT_THE_SHOP_STATUSES.includes(String(o?.fulfillmentStatus || "")) && o?.status !== "completed";
+/** A refunded order whose printed books were never put back in stock (Order detail › Put the books back in stock). */
+export const booksLeftOutAfterRefund = (o: any) => ["refunded", "refund_pending"].includes(o?.paymentStatus)
+  && o?.inventoryRestockedAt == null
+  && o?.sandboxPayment !== true
+  && (o?.items || []).some((item: any) => item && !isDigitalItem(item) && Number(item.quantity) > 0);
 export function dispatchProblem(o: any): string {
  if (o.isTest) return "Test orders cannot be fulfilled.";
  if (terminal(o) || o.paymentStatus !== "paid") return "Only active paid orders can be dispatched.";
