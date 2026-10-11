@@ -105,7 +105,7 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
         return bad(`Website sales are already sent from ${current.startDay}. Choose an earlier day to send older orders too; a later day isn't possible because orders already sent can't be taken back.`, 409);
       }
       if (current.connection?.ok !== true) return bad("Check the connection to the inventory app first.", 409);
-      // The inventory app hears first, so it asks the owner again before adding any older order.
+      // The inventory app hears first that older orders are on their way (informational).
       try {
         await store.markPastOrders({ from: day, at: now.toISOString() });
       } catch {

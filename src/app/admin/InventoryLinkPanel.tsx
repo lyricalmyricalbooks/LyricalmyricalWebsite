@@ -107,7 +107,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
     await inventoryLinkApi.startSales(startDay);
     setChangingStart(false);
     toast(moving
-      ? `Older website sales from ${startDay} are on their way. Open the inventory app and press Bring them in once you've checked the summary.`
+      ? `Older website sales from ${startDay} are on their way. They come into the inventory app by themselves the next time it's open.`
       : "Website sales are on their way to the inventory app.");
     await loadStatus();
   });
@@ -393,8 +393,8 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
         footer={<><SecondaryButton data-autofocus onClick={() => setConfirmStart(false)}>Cancel</SecondaryButton><PrimaryButton onClick={startSales}>{state.startDay ? "Send older orders" : "Start sending"}</PrimaryButton></>}>
         <p className="rp-card-desc" style={{ margin: 0, fontSize: "var(--rp-text-base)" }}>
           {state.startDay
-            ? <>Every paid website order from {startDay} up to {state.startDay} goes to the inventory app as well. The inventory app shows you a summary and waits for you to press Bring them in, so you can check sales you already typed in by hand: those are linked, not counted twice. Website stock waits until they've all been sent. The date can only move earlier, never later.</>
-            : <>Every paid website order from {startDay} on goes to the inventory app, then each new one as it's paid. The inventory app shows you a summary before it adds the past ones. You can move this date earlier later to send older orders, but not later.</>}
+            ? <>Every paid website order from {startDay} up to {state.startDay} goes to the inventory app as well, and comes into its books by itself. Sales you already typed in there by hand are linked, not counted twice; any it can't match for certain wait under Needs you in the inventory app. Website stock waits until they've all been sent. The date can only move earlier, never later.</>
+            : <>Every paid website order from {startDay} on goes to the inventory app, then each new one as it's paid. They come into the inventory app's books by themselves; sales you already typed in there by hand are linked, not counted twice. You can move this date earlier later to send older orders, but not later.</>}
         </p>
       </Dialog>
       <Dialog open={confirmUnlink} onClose={() => setConfirmUnlink(false)} title="Unmatch all books?"
