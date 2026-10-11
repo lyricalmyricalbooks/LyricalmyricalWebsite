@@ -636,49 +636,54 @@ draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
 
 ## Deployment
 
-- **Frontend** → GitHub Pages via `.github/workflows/deploy-pages.yml` on push
-  to `main`. Pages serves under `/LyricalmyricalWebsite/`, so Vite `base`
-  and the router basename are set accordingly (`vite.config.ts`, `App.tsx`).
-  Override with `SITE_BASE=/` for a root/custom domain.
-  The repository was renamed from `LyricalmyricalWebsiteTrial` (October 2026); `deploy-pages.yml`'s **Site address**
-  step now sets `SITE_URL`/`SITE_BASE` from the repository name (or the `SITE_URL` repository variable for a custom
-  domain), so a rename can't leave assets on a sub-path that 404s. Keep the code defaults in step with it.
-  `scripts/siteAddress.test.ts` fails when the Vite base, build-script and Cloud Functions (`functions/index.js`
-  email-link) `SITE_URL` defaults or `index.html`'s address disagree.
-  `public/404.html`'s `pathSegmentsToKeep` is rewritten at build time from the base (`spaFallbackBase` in `vite.config.ts`,
-  `scripts/spaFallback.mjs`): 1 for `/LyricalmyricalWebsite/`, 0 for a custom domain.
+- **Frontend** → **Firebase Hosting** (`https://lyricalmyrical-web-v2.web.app`, site at the root `/`) via
+  `.github/workflows/deploy-pages.yml` (display name "Deploy storefront"; file name kept for `keep-refresh-alive.yml`) on push
+  to `main` and every 15 minutes when published content changed. The cutover from GitHub Pages happened in October 2026
+  (`docs/FIREBASE_HOSTING.md`). Jobs: `build-hosting` (no secrets; **Site address** step = repository variable `SITE_URL` or
+  the web.app default, must be `https://host` with no folder and never github.io; build, `carry-previous-assets`, emulator smoke
+  test, `dist` artifact) → `deploy-hosting` (downloads `dist`, `firebase deploy --only hosting` with the pinned CLI and
+  `FIREBASE_HOSTING_SERVICE_ACCOUNT` (Firebase Hosting Admin only), else `FIREBASE_SERVICE_ACCOUNT`; fails without either; live
+  smoke test) → `redirect-old-address` (push/manual only: `scripts/build-pages-redirect.mjs` publishes forwarding pages to GitHub
+  Pages). Both Hosting jobs run only on `main` and while the repository variable `FIREBASE_HOSTING_ENABLED` is `true` (keep it
+  true; it is the emergency stop). Vite `base` defaults to `/` and `SPA_FALLBACK` to `shell`; every `SITE_URL` default (build
+  scripts, `vite.config.ts`, `build-pages-redirect.mjs`, `functions/index.js` email links), the workflow fallback and
+  `index.html`'s address must agree (`scripts/siteAddress.test.ts`). Still use `import.meta.env.BASE_URL` for links.
+- **The old address forwards.** GitHub Pages (`…github.io/LyricalmyricalWebsite/…`) serves only forwarding pages
+  (`scripts/pagesRedirect.mjs`, inlined with `toString()`): `index.html`, `404.html` and one page per prerendered route (200 +
+  canonical to the new page, `<noscript>` refresh, `no-referrer`). `movedUrl` keeps path, query and `#hash` (emails already sent:
+  `/track?orderId&key`, unsubscribe, `/checkout?cartId=`, `/admin#orders/<id>`) and decodes the old `?/…~and~` form. It also
+  hands over, in `#lm-move=<base64url JSON>`, the old origin's bag and wishlist (once per browser, `lm:moved`; gift-card lines
+  stay behind) and, on `/checkout?order_id=X`, that order's `order-access:X` key; `features/site/movedState.ts` (`takeMovedState`,
+  first thing in `main.tsx`) strips the hash, fills only an **empty** bag through `sanitizeCart`, merges the wishlist and
+  restores the key only for the matching `order_id`. The forwarding pages are replaced only after the Hosting deploy and its
+  live check succeeded. Never point `SITE_URL` back at github.io.
 - **Firebase** (Firestore rules/indexes, Storage rules, Functions) →
   `.github/workflows/deploy-firebase.yml` (needs `FIREBASE_SERVICE_ACCOUNT`
   secret), or manually: `npx firebase-tools deploy --only
-  firestore:rules,firestore:indexes,storage,functions`. It never deploys Hosting.
-- **Firebase Hosting, side by side (October 2026, PR 1 of the move off GitHub Pages).** The same workflow
-  (`deploy-pages.yml`, display name "Deploy storefront") also builds the shop for `https://lyricalmyrical-web-v2.web.app`
-  at `/` (job `build-hosting`: `SITE_URL` hard-coded, `SITE_BASE=/`, `SPA_FALLBACK=shell`, no secrets) and publishes it
-  (job `deploy-hosting`: downloads `dist`, `firebase deploy --only hosting` with the pinned CLI and
-  `FIREBASE_HOSTING_SERVICE_ACCOUNT` (Firebase Hosting Admin only), falling back to `FIREBASE_SERVICE_ACCOUNT`; skipped
-  with a warning when neither secret exists; `main` only; both jobs run only when the repository variable
-  `FIREBASE_HOSTING_ENABLED` is `true`, so nothing runs until the owner has set Hosting up). GitHub Pages is still the live shop: `vars.SITE_URL` drives only the
-  Pages job, emails still link to github.io, and every web.app response carries `X-Robots-Tag: noindex` until the cutover.
-  `firebase.json` `hosting`: `cleanUrls` (prerendered `books/<slug>.html` answers at `/books/<slug>`), `trailingSlash: false`
-  (301s to the slash-less canonical), one anchored **regex** rewrite of app routes to `spa.html`, **no catch-all** (unknown URLs
-  get `404.html` = the app shell, a real 404 that still renders the editable missing page), `/assets/**` immutable, pages and
-  root xml/txt `no-cache`, nosniff, `Referrer-Policy`, `X-Frame-Options: SAMEORIGIN` (Studio frames the shop; no CSP/COOP).
-  Use `regex` sources and never give one path two values for a header (`scripts/hostingConfig.test.ts`, which also checks every
-  `App.tsx` route is rewritten). A new top-level route needs the rewrite regex too. `vite.config.ts` `spaFallbackBase` writes
-  `spa.html` (clean shell, before the prerender replaces `index.html`) and, with `SPA_FALLBACK=shell`, `404.html` as the shell
-  (`scripts/spaFallback.mjs` `fallbackFiles`); its `canonicalHost` plugin inlines `scripts/canonicalHost.mjs` after `<meta charset>`
-  so `*.firebaseapp.com`/`*.web.app` visitors move to `SITE_URL`'s host (inert on github.io, localhost, the prerender, and any
-  sub-path `SITE_URL`). `scripts/hosting-smoke.mjs` checks statuses, redirects, bodies and headers in the Hosting emulator
-  (CI and `build-hosting`) and on the live site after each deploy. `ALLOWED_ORIGINS` includes web.app (not firebaseapp.com).
-  Owner setup, the test window and the next steps (cutover, redirect shim on the old address, cleanup) are in
-  `docs/FIREBASE_HOSTING.md`; when the shop gets its own domain, `ALLOWED_ORIGINS` already lists lyricalmyricalbooks.com/www.
+  firestore:rules,firestore:indexes,storage,functions`. It never deploys Hosting. It appends `SITE_URL` (repository variable,
+  validated) to `functions/.env.lyricalmyrical-web-v2` and, before deploying, checks that the email-link address answers with its
+  64-hex `seo-published-fingerprint.txt` (so emails never point at a dead address; manual runs can pass `skip_site_check`
+  during a hosting outage).
+- **Firebase Hosting config** (`firebase.json` `hosting`): `cleanUrls` (prerendered `books/<slug>.html` answers at `/books/<slug>`),
+  `trailingSlash: false` (301s to the slash-less canonical), one anchored **regex** rewrite of app routes to `spa.html`, **no
+  catch-all** (unknown URLs get `404.html` = the app shell, a real 404 that still renders the editable missing page),
+  `/assets/**` immutable, pages and root xml/txt `no-cache`, nosniff, `Referrer-Policy`, `X-Frame-Options: SAMEORIGIN` (Studio
+  frames the shop; no CSP/COOP), `X-Robots-Tag: noindex` only on `/spa` and `/404`. Use `regex` sources and never give one path
+  two values for a header (`scripts/hostingConfig.test.ts`, which also checks every `App.tsx` route is rewritten). A new
+  top-level route needs the rewrite regex too. `vite.config.ts` `spaFallbackBase` writes `spa.html` (clean shell, before the
+  prerender replaces `index.html`) and `404.html` as the shell (`scripts/spaFallback.mjs` `fallbackFiles`; `SPA_FALLBACK=redirect`
+  rebuilds the old Pages redirect until the cleanup step); its `canonicalHost` plugin inlines `scripts/canonicalHost.mjs` after
+  `<meta charset>` so `*.firebaseapp.com`/`*.web.app` visitors move to `SITE_URL`'s host. `scripts/hosting-smoke.mjs` checks
+  statuses, redirects, bodies and headers in the Hosting emulator (CI and `build-hosting`) and on the live site after each
+  deploy. `ALLOWED_ORIGINS` includes web.app (not firebaseapp.com) and, for tabs opened before the move, github.io (remove in the
+  cleanup step); it already lists lyricalmyricalbooks.com/www for the shop's own domain later (`docs/FIREBASE_HOSTING.md`).
 
 **Deploy ordering contract (October 2026).** Rules, indexes and Functions go live before the frontend that needs them.
 `deploy-pages.yml`'s `firebase-first` job, on a push to `main`, lists the changed files (GitHub compare API) and, when any
 path watched by `deploy-firebase.yml` changed (keep its regex identical to that workflow's `on.push.paths`), waits for the
-`deploy-firebase.yml` run of the same commit and fails unless it succeeded; the `deploy` and `build-hosting` jobs `need` it
+`deploy-firebase.yml` run of the same commit and fails unless it succeeded; the `build-hosting` job `needs` it
 (editing `firebase.json`, including its `hosting` block, therefore also redeploys the backend first). A failed Firebase
-deploy therefore stops the frontend; fix the backend and re-run, or start Pages by hand (`workflow_dispatch` and the schedule
+deploy therefore stops the frontend; fix the backend and re-run, or start the storefront by hand (`workflow_dispatch` and the schedule
 skip the wait). A later push that changes no backend file is not held back by an earlier push's Firebase deploy.
 `deploy-firebase.yml` pins `firebase-tools` (`FIREBASE_TOOLS_VERSION`) and no longer passes `--force`, so it never deletes
 console-made indexes or functions missing from the repo (delete deliberately: edit `firestore.indexes.json`, or
@@ -690,7 +695,7 @@ a public repo after 60 days without repository activity, and Studio/admin edits 
 (`scripts/routeSafety.mjs`) is skipped with a warning and left out of the sitemap instead of failing the build. The
 published-content fingerprint (`publicStorefrontData.mjs`) also covers Toronto-date sale/pre-order state and approved
 reviews. Workflow changes can only be verified by their first real run.
-**Stale-asset safety (October 2026):** Pages (and Firebase Hosting) replace the whole site per deploy, so HTML cached from the previous deploy
+**Stale-asset safety (October 2026):** Firebase Hosting (like Pages before it) replaces the whole site per deploy, so HTML cached from the previous deploy
 pointed at deleted hashed CSS/JS and rendered unstyled. `scripts/carry-previous-assets.mjs` (workflow step after the build)
 writes `dist/asset-manifest.txt` (this build's `assets/` only) and copies back the files the live list names, keeping one
 older generation; it only warns on failure, and refuses HTML answers (a host's 404 page) as an asset or list. The
@@ -795,8 +800,8 @@ it. Don't add new compat rules for new work; compose the components instead.
 - Path alias `@` → `src/` (see `vite.config.ts`).
 - `figma:asset/...` imports resolve to `src/assets/` via a custom Vite plugin;
   `ImageWithFallback` in `components/figma/` handles broken images.
-- The site lives under a sub-path on GitHub Pages — be careful with absolute
-  paths/links; prefer router-relative navigation and `import.meta.env.BASE_URL`.
+- The site lives at the root of its Firebase Hosting address, but builds can still use a sub-path (`SITE_BASE`) — be
+  careful with absolute paths/links; prefer router-relative navigation and `import.meta.env.BASE_URL`.
 - Money/checkout logic is security-sensitive: never trust client-computed totals
   for the authoritative charge — the Stripe session/webhook path is the source
   of truth.
@@ -823,7 +828,7 @@ Then offer to do the top one right away.
 ### Constraints every suggestion must respect
 > [!IMPORTANT]
 > - **Stack:** React 18 + TypeScript + Vite single-page app; no new frameworks or servers.
-> - **Serverless Backend:** Firebase (Firestore, Auth, Storage, Cloud Functions) and static hosting on GitHub Pages. No server or secret keys in client code.
+> - **Serverless Backend:** Firebase (Firestore, Auth, Storage, Cloud Functions) and static hosting on Firebase Hosting (GitHub Pages only forwards the old address). No server or secret keys in client code.
 > - **Shopper safety:** never weaken checkout, payment, inventory or webhook authority.
 
 ### Angles worth scanning each time
@@ -1021,9 +1026,9 @@ Verification covers focused SEO regression tests, the complete Vitest suite,
 production build with public catalog reads, and local desktop/phone fixture checks
 for preview/edit/save/reset and rendered PDP metadata. Fixture save evidence is not
 live Firestore persistence. Google rankings/indexing and a live Rich Results Test
-remain external verification. GitHub Pages still uses its existing SPA 404 redirect;
-server-rendered HTML with direct 200 product routes remains a future crawlability
-improvement. After deployment submit the sitemap and inspect URLs in Search Console.
+remain external verification. Firebase Hosting answers prerendered product routes directly with 200 and unknown
+URLs with a real 404 (the old GitHub Pages SPA 404 redirect is gone). After deployment submit the sitemap and inspect
+URLs in Search Console.
 
 ## Discount codes: start date and one-use-per-customer (6 October 2026)
 
@@ -1080,7 +1085,7 @@ Production builds render the public sitemap into real HTML route documents via
 `scripts/prerender-storefront.mjs` (see `docs/SEO_CRAWLABILITY.md`). Home, book,
 custom-page and collection routes use the actual published storefront DOM;
 account, wishlist, checkout, tracking and admin routes are excluded. Chromium is
-installed by the Pages workflow. Snapshots update on deployment; rerun Pages
+installed by the storefront workflow. Snapshots update on deployment; rerun Deploy storefront
 after publishing catalog or Studio changes. Browser storage and settings objects
 are never serialized; render-time Firestore writes/analytics are blocked. Payment
 and inventory authority remain live and unchanged. Install Chromium locally with
@@ -1134,7 +1139,7 @@ activated scheduled Studio designs remain authoritative; draft categories stay p
 
 ## Automatic SEO refresh and catalog search controls
 
-The Pages workflow checks published Firestore catalog/pages/settings every 15 minutes,
+The storefront workflow checks published Firestore catalog/pages/settings every 15 minutes,
 compares the published-content SHA-256 marker, and rebuilds only on a change. Draft-only
 Studio edits do not trigger refreshes; scheduled release visibility does. Push/manual
 builds always run. Only successful deployments advance the public digest marker.
@@ -1768,7 +1773,7 @@ order-confirmation email both use them. Emailed download links stay outside brow
 - **Pre-order sync lives in `updateBook`:** when `preorder` or `publishDate` is in the write and differs from `loaded`, it calls
   `syncPreorderOrders` itself and returns `preorderSync { updated, failed }` (the editor toasts it; the CSV import gets it too).
 - **Web address freeze:** a published book with an address keeps it (`slugLocked`, `slugFollowsTitle` in `bookEditorState.ts`); Books › edit
-  › Details › **Change web address** asks first, then unlocks until the next save. Old links cannot be redirected on GitHub Pages.
+  › Details › **Change web address** asks first, then unlocks until the next save. Old links are not redirected (Firebase Hosting could, through `firebase.json` `redirects`; none are generated yet).
 - **Old-shop stock copy:** `admin/legacyInventorySync.ts` (`readLegacyStock`, `planLegacySync`): whole numbers >= 0 only, exact slug or saved
   `legacyInventoryKey` match, shared names and editioned books skipped and listed, one transaction per book, public settings keep counts only.
 - **PayPal:** `functions/paypalCredentials.js` picks the credentials per request mode. Live = Settings › Payments › PayPal Live client ID +

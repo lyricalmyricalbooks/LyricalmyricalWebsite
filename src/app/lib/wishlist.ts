@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 
-const KEY = "fm_wishlist_v1";
+export const WISHLIST_KEY = "fm_wishlist_v1";
+const KEY = WISHLIST_KEY;
 const EVENT = "fm_wishlist_change";
 
 function read(): string[] {

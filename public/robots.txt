@@ -1,10 +1,10 @@
 User-agent: *
 Allow: /
-Disallow: /LyricalmyricalWebsite/admin
-Disallow: /LyricalmyricalWebsite/checkout
-Disallow: /LyricalmyricalWebsite/account
-Disallow: /LyricalmyricalWebsite/wishlist
-Disallow: /LyricalmyricalWebsite/cart
-Disallow: /LyricalmyricalWebsite/track
+Disallow: /admin
+Disallow: /checkout
+Disallow: /account
+Disallow: /wishlist
+Disallow: /cart
+Disallow: /track
 
-Sitemap: https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite/sitemap.xml
+Sitemap: https://lyricalmyrical-web-v2.web.app/sitemap.xml

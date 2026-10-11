@@ -3,11 +3,12 @@
 // at their slash-less address, the app shell for app routes, a real 404 (still the app) for unknown URLs,
 // immutable hashed assets, no-cache HTML and the security headers. Node built-ins only.
 //
-// Against the Hosting emulator (CI and locally, after a build with SITE_BASE=/ SPA_FALLBACK=shell):
+// Against the Hosting emulator (CI and the deploy workflow, after a build):
 //   npx firebase-tools@<FIREBASE_TOOLS_VERSION> emulators:exec --only hosting --project demo-lyricalmyrical \
-//     "node scripts/hosting-smoke.mjs --expect-noindex"
+//     "node scripts/hosting-smoke.mjs"
 // Against the live site after a deploy (reads the same dist/ that was deployed):
-//   node scripts/hosting-smoke.mjs --base https://lyricalmyrical-web-v2.web.app --expect-noindex
+//   node scripts/hosting-smoke.mjs --base https://lyricalmyrical-web-v2.web.app
+// --expect-noindex: every page must carry X-Robots-Tag: noindex (a copy kept out of search engines).
 import { readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';

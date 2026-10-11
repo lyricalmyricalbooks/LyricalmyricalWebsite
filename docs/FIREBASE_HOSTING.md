@@ -9,8 +9,8 @@ The move happens in three steps so that each one can be checked, and undone, on 
 
 | Step | What changes | Status |
 | --- | --- | --- |
-| 1. Side by side | Every release also publishes the shop to web.app, hidden from search engines. GitHub Pages stays the live shop. | This change |
-| 2. Cutover | web.app becomes the shop's address: links in emails, sitemap and search listings. The old Pages address forwards every link (including ones in emails already sent) to the same page on web.app. | Later |
+| 1. Side by side | Every release also publishes the shop to web.app, hidden from search engines. GitHub Pages stays the live shop. | Done (merged) |
+| 2. Cutover | web.app becomes the shop's address: links in emails, sitemap and search listings. The old Pages address forwards every link (including ones in emails already sent) to the same page on web.app, bringing the shopper's bag along. | This change |
 | 3. Cleanup | Remove the GitHub Pages-only redirect code; after 30–60 days stop accepting checkout calls from the old address. | Later |
 
 ## Before switching step 1 on (owner, in the consoles)
@@ -50,6 +50,50 @@ The deploy job checks the live site itself (`scripts/hosting-smoke.mjs`). Then, 
 `https://lyricalmyrical-web-v2.firebaseapp.com` serves the same files but forwards visitors to web.app, so there is
 only one public address.
 
+## Merging the cutover (step 2)
+
+Merge it only after step 1 has been switched on and you have tried web.app (the list above). Two safety checks
+stop an early merge from hurting the live shop:
+
+- **Deploy Firebase** first checks that the email-link address (web.app) answers with the shop. If it doesn't, the
+  backend deploy stops, emails keep their current links, and the storefront workflow waits for it, so nothing changes.
+- **GitHub Pages** is replaced with the forwarding pages only after the web.app deploy and its live check succeeded.
+
+What happens when it goes out:
+
+1. Deploy Firebase deploys the Cloud Functions, whose emails now link to web.app.
+2. Deploy storefront publishes the shop to web.app, now open to search engines, then replaces GitHub Pages with
+   forwarding pages.
+3. Old links land on the same page of web.app with the same query and `#…`: order tracking, unsubscribe and
+   cart-reminder links, `/admin#orders/<id>`, bookmarks, and the old `/?/…` addresses. A shopper's bag and wishlist
+   come along once. A customer returning from a card or PayPal payment keeps their order confirmation.
+
+Browser storage belongs to an address, so after the move you and your customers sign in once more and answer the
+cookie banner again.
+
+## After the cutover (owner)
+
+- **Google Search Console:** add `https://lyricalmyrical-web-v2.web.app/` as a URL-prefix property. Put its
+  verification token in Studio › Text & labels › Site & sharing, which replaces the old one. Then submit
+  `sitemap.xml`. GitHub Pages can't use the Change of Address tool, so the forwarding pages' canonical links carry the
+  move instead.
+- **Google Merchant Center:** change the feed URL to `https://lyricalmyrical-web-v2.web.app/google-merchant-feed.xml` and
+  claim the new website.
+- **Stripe and PayPal:** update the business website address in each dashboard.
+- **Email delivery:** watch Resend's spam and bounce numbers for a week. Links to `*.web.app` addresses can score worse
+  than links to your own domain, which is one more reason to add it soon.
+- **Social profiles** (Instagram etc.): update the shop link.
+
+## Your own domain (later)
+
+1. Firebase console › Hosting › **Add custom domain**. Follow the DNS steps and wait for the certificate.
+2. Add the domain to the reCAPTCHA key, to Stripe payment-method domains (test and live, from the admin opened on the
+   new domain), and to Firebase Auth authorized domains in both projects. `ALLOWED_ORIGINS` already lists
+   lyricalmyricalbooks.com and www.
+3. Set the repository variable **`SITE_URL`** to `https://<your domain>`.
+4. Run **Deploy Firebase**, then **Deploy storefront**. The site, the sitemap, email links and the old-address
+   forwarding all follow, and the web.app and firebaseapp.com addresses forward to the domain.
+
 ## How Firebase Hosting serves the shop (`firebase.json`)
 
 - `books/<slug>.html` (prerendered) answers at `/books/<slug>` with 200. `/books/<slug>/` and `/books/<slug>.html`
@@ -61,14 +105,16 @@ only one public address.
 - `/assets/*` (hashed file names) are cached for a year; pages, the sitemap, robots and the feed are revalidated
   on every visit.
 - Every response sends `nosniff`, `Referrer-Policy` and `X-Frame-Options: SAMEORIGIN` (Studio shows the shop in a
-  frame). Until the cutover, every response also sends `X-Robots-Tag: noindex`.
+  frame). Only the bare app shell (`/spa`, `/404`) is marked `noindex`.
 
 `scripts/hostingConfig.test.ts` checks these rules (and that every app route is covered). The Hosting emulator check
 runs in CI and before every deploy.
 
 ## Undoing it
 
-- **Step 1:** set `FIREBASE_HOSTING_ENABLED` to anything but `true`, or revert the change. GitHub Pages is never
-  touched.
 - **A bad release:** Firebase console › Hosting › Release history › Rollback.
-- **After the cutover:** never turn Hosting off, because emails link there.
+- **The cutover:** revert the change. Deploy Firebase moves email links back, and Deploy storefront then needs the
+  old GitHub Pages job back (the revert restores it). The forwarding pages keep sending visitors to web.app, which
+  still works, until GitHub Pages is rebuilt, so there is no outage.
+- **Never turn Hosting off after the cutover**: emails and the old address both point there.
+  `FIREBASE_HOSTING_ENABLED` must stay `true`; setting it to anything else only stops new releases.

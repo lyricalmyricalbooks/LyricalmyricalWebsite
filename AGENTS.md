@@ -73,13 +73,13 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
 - **Secrets stay out of the repo.** `STRIPE_SECRET_KEY`,
   `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, and `SHIPPO_API_TOKEN` are Firebase
   Functions secrets. Never hardcode, log, or commit them.
-- **Mind the sub-path.** The live site is served from `/LyricalmyricalWebsite/`
-  on GitHub Pages, and the same code is built at `/` for Firebase Hosting. Use router-relative
-  navigation and `import.meta.env.BASE_URL` for asset/links — never hardcode absolute root paths.
+- **Mind the base path.** The shop is served from the root of Firebase Hosting
+  (`https://lyricalmyrical-web-v2.web.app`), but builds can use a sub-path (`SITE_BASE`). Use router-relative
+  navigation and `import.meta.env.BASE_URL` for asset/links — never hardcode absolute root paths. The old
+  GitHub Pages address only forwards (CLAUDE.md › Deployment); never point `SITE_URL` back at it.
 - **CORS:** every address the storefront is built for must be in `ALLOWED_ORIGINS` in
   `functions/index.js` (`scripts/siteAddress.test.ts` checks the defaults and the Firebase Hosting job).
-  Firebase Hosting (`https://lyricalmyrical-web-v2.web.app`) runs side by side with Pages until the cutover;
-  see CLAUDE.md › Deployment. Never add a catch-all rewrite to `firebase.json` (unknown URLs must stay 404s).
+  See CLAUDE.md › Deployment. Never add a catch-all rewrite to `firebase.json` (unknown URLs must stay 404s).
 - **SEO:** use the helpers in `src/app/lib/seo.ts`, and refresh the sitemap with
   `npm run build:sitemap` (it also runs as part of `npm run build`) when routes
   or products change.
@@ -530,9 +530,9 @@ Verification covers focused SEO regression tests, the complete Vitest suite,
 production build with public catalog reads, and local desktop/phone fixture checks
 for preview/edit/save/reset and rendered PDP metadata. Fixture save evidence is not
 live Firestore persistence. Google rankings/indexing and a live Rich Results Test
-remain external verification. GitHub Pages still uses its existing SPA 404 redirect;
-server-rendered HTML with direct 200 product routes remains a future crawlability
-improvement. After deployment submit the sitemap and inspect URLs in Search Console.
+remain external verification. Firebase Hosting answers prerendered product routes directly with 200 and unknown
+URLs with a real 404 (the old GitHub Pages SPA 404 redirect is gone). After deployment submit the sitemap and inspect
+URLs in Search Console.
 
 ## Discount codes: start date and one-use-per-customer (6 October 2026)
 
@@ -584,7 +584,7 @@ Production builds render the public sitemap into real HTML route documents via
 `scripts/prerender-storefront.mjs` (see `docs/SEO_CRAWLABILITY.md`). Home, book,
 custom-page and collection routes use the actual published storefront DOM;
 account, wishlist, checkout, tracking and admin routes are excluded. Chromium is
-installed by the Pages workflow. Snapshots update on deployment; rerun Pages
+installed by the storefront workflow. Snapshots update on deployment; rerun Deploy storefront
 after publishing catalog or Studio changes. Browser storage and settings objects
 are never serialized; render-time Firestore writes/analytics are blocked. Payment
 and inventory authority remain live and unchanged. Install Chromium locally with
@@ -617,7 +617,7 @@ activated scheduled Studio designs remain authoritative; draft categories stay p
 
 ## Automatic SEO refresh and catalog search controls
 
-The Pages workflow checks published Firestore catalog/pages/settings every 15 minutes,
+The storefront workflow checks published Firestore catalog/pages/settings every 15 minutes,
 compares the published-content SHA-256 marker, and rebuilds only on a change. Draft-only
 Studio edits do not trigger refreshes; scheduled release visibility does. Push/manual
 builds always run. Only successful deployments advance the public digest marker.

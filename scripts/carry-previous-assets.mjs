@@ -14,7 +14,7 @@ import { assetNames, parseAssetManifest, isHtmlResponse } from './assetManifest.
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const assetsDir = resolve(root, 'dist/assets');
-const siteUrl = (process.env.SITE_URL || 'https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite').replace(/\/$/, '');
+const siteUrl = (process.env.SITE_URL || 'https://lyricalmyrical-web-v2.web.app').replace(/\/$/, '');
 const warn = message => console.warn(`::warning::${message}`);
 
 const own = assetNames(await readdir(assetsDir));

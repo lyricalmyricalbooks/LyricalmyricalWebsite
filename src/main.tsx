@@ -4,7 +4,10 @@
   import "./styles/index.css";
   import { startPreviewTab } from "./app/features/site/previewTab";
   import { captureSharedDiscount } from "./app/features/site/sharedDiscount";
+  import { takeMovedState } from "./app/features/site/movedState";
 
+  // Arriving from the old GitHub Pages address: take the bag/wishlist/order key it handed over, tidy the address.
+  takeMovedState();
   // Studio › "Preview in new tab": receive the unsaved draft (no-op for shoppers).
   startPreviewTab();
   // Admin › Discounts › Copy share link: remember ?discount=CODE for checkout and tidy the address.

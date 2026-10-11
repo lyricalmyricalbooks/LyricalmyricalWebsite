@@ -82,9 +82,11 @@ const ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "http://localhost:4000",
+  // The old GitHub Pages address now only forwards visitors; it stays allowed for tabs opened before the move
+  // (remove it in the cleanup step, 30–60 days after the cutover).
   "https://lyricalmyricalbooks.github.io",
-  // Firebase Hosting (side-by-side with GitHub Pages until the cutover). firebaseapp.com is deliberately absent:
-  // the site sends visitors there to web.app (scripts/canonicalHost.mjs) instead of serving checkout twice.
+  // The shop (Firebase Hosting). firebaseapp.com is deliberately absent: the site sends visitors there to web.app
+  // (scripts/canonicalHost.mjs) instead of serving checkout twice.
   "https://lyricalmyrical-web-v2.web.app",
   "https://lyricalmyricalbooks.com",
   "https://www.lyricalmyricalbooks.com",
@@ -4184,9 +4186,9 @@ function deliveryDetails(order) {
 
 const isPhysicalAny = order => (order?.items || []).some(item => item && isPhysicalItem(item));
 
-// Public storefront address for links in emails. Override with the SITE_URL env var
-// (functions/.env) when the shop moves to its own domain.
-const SITE_URL = String(process.env.SITE_URL || "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite").replace(/\/+$/, "");
+// Public storefront address for links in emails (Firebase Hosting). When the shop gets its own domain, set the
+// repository variable SITE_URL: deploy-firebase.yml writes it into the Functions env (functions/.env.<project>).
+const SITE_URL = String(process.env.SITE_URL || "https://lyricalmyrical-web-v2.web.app").replace(/\/+$/, "");
 const siteLink = path => `${SITE_URL}${path}`;
 
 // One-click order link for emails: /track opens the order straight away when the

@@ -44,25 +44,20 @@ Preview the production build locally:
 npm run preview
 ```
 
-## Deploy to GitHub Pages
+## Deploy (Firebase Hosting)
 
-This repo now includes a GitHub Actions workflow at `.github/workflows/deploy-pages.yml`.
+The shop is served by Firebase Hosting at `https://lyricalmyrical-web-v2.web.app`, published by
+`.github/workflows/deploy-pages.yml` ("Deploy storefront").
 
-### One-time repository setup
-
-1. Push this repository to GitHub.
-2. In GitHub, open **Settings → Pages**.
-3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
-
-### How deployment works
-
-- Every push to `main` triggers the workflow.
-- The workflow installs dependencies, builds with Vite, uploads `dist/`, and deploys to GitHub Pages.
+- Every push to `main` builds the site (Vite, sitemap, prerendered pages) and deploys it to Firebase Hosting; a
+  15-minute schedule rebuilds when published content changed.
+- The old GitHub Pages address (`…github.io/LyricalmyricalWebsite/`) only forwards to the same page on the shop. Keep
+  **Settings → Pages → Source** set to **GitHub Actions**.
 - You can also run it manually from **Actions → Deploy storefront → Run workflow**.
+- Setup, the move from GitHub Pages and adding your own domain: `docs/FIREBASE_HOSTING.md`.
 
-> Note: the same workflow also publishes the site, side by side, to Firebase Hosting at
-> `https://lyricalmyrical-web-v2.web.app` (see CLAUDE.md › Deployment). Firestore rules/indexes, Storage
-> rules and Cloud Functions are deployed to Firebase separately (`.github/workflows/deploy-firebase.yml`).
+> Firestore rules/indexes, Storage rules and Cloud Functions are deployed separately
+> (`.github/workflows/deploy-firebase.yml`).
 
 ## Going live checklist (e-commerce)
 
