@@ -1756,6 +1756,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
     if (req.body?.action === "giftCardAdmin") return handleGiftCardAdmin(req, res);
     if (req.body?.action === "inventoryLink") return handleInventoryLinkAdmin(req, res);
     if (req.body?.action === "backupNow") return handleBackupNow(req, res);
+    if (req.body?.action === "backups") return handleBackups(req, res);
     if (req.body?.action === "cancelOrder") return handleCancelOrder(req, res);
     if (req.body?.action === "resolvePaymentMismatch") return handleResolveMismatch(req, res);
     if (req.body?.action === "orderRequest") return handleOrderRequest(req, res);
@@ -7094,6 +7095,25 @@ exports.nightlyFirestoreBackup = onSchedule(
     if (!result.ok) throw new Error(`Backup failed: ${result.error}`);
   }
 );
+
+/** Settings › General › Backups & export › the daily list (op "list") and Download (op "download", body.day). */
+async function handleBackups(req, res) {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+  try {
+    const { listBackups, backupDownloadUrl } = require("./backupAdmin");
+    const projectId = process.env.GCLOUD_PROJECT || admin.app().options.projectId;
+    const bucket = admin.storage().bucket(admin.app().options.storageBucket || `${projectId}.firebasestorage.app`);
+    if (req.body?.op === "download") {
+      const { status, body } = await backupDownloadUrl({ bucket, day: req.body.day });
+      return res.status(status).json(body);
+    }
+    res.status(200).json({ backups: await listBackups({ bucket }) });
+  } catch (err) {
+    console.error("backups admin failed:", err);
+    res.status(500).json({ error: "Couldn't read the backups. Try again in a minute." });
+  }
+}
 
 /** Settings › General › Backups & export › Back up now (admin). Fits inside this endpoint's 60 s limit. */
 async function handleBackupNow(req, res) {

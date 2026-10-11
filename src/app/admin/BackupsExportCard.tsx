@@ -7,24 +7,28 @@ import { adminApi } from "./api";
 import { catalogToCsv } from "./bulkPricing";
 import { buildCustomers, customersToCsv } from "./customerInsights";
 import { exportOrdersCsv } from "./orderCsv";
-import { describeBackup, type BackupRecord } from "./backupStatus";
-import { GhostButton, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
+import { describeBackup, describeBackupDay, type BackupDay, type BackupRecord } from "./backupStatus";
+import { DataTable, GhostButton, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
 
 const IAM_URL = "https://console.cloud.google.com/iam-admin/iam?project=lyricalmyrical-web-v2";
 
-// Back up now: the same backup as the nightly run (createStripeCheckoutSession action "backupNow", admin only).
-async function backupNow(): Promise<{ ok: boolean; error?: string }> {
+// Server calls for this card (createStripeCheckoutSession, admin only): "backupNow" runs the same backup as the
+// nightly job; "backups" lists the daily backups (op "list") or signs a 15-minute download link (op "download").
+async function callServer<T>(body: Record<string, unknown>, fallback: string): Promise<T> {
   const idToken = await auth.currentUser?.getIdToken();
   if (!idToken) throw new Error("You must be signed in as admin.");
   const response = await functionFetch("createStripeCheckoutSession", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ action: "backupNow" }),
+    body: JSON.stringify(body),
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || "The backup didn't finish. Try again in a minute.");
-  return result;
+  if (!response.ok) throw new Error(result.error || fallback);
+  return result as T;
 }
+const backupNow = () => callServer<{ ok: boolean; error?: string }>({ action: "backupNow" }, "The backup didn't finish. Try again in a minute.");
+const listBackups = () => callServer<{ backups: BackupDay[] }>({ action: "backups", op: "list" }, "Couldn't read the backups. Try again in a minute.");
+const downloadLink = (day: string) => callServer<{ url: string }>({ action: "backups", op: "download", day }, "Couldn't prepare the download. Try again in a minute.");
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -45,7 +49,24 @@ export function BackupsExportCard() {
   const load = () => getDoc(doc(db, "systemStatus", "backup"))
     .then((snap) => { setRecord(snap.exists() ? (snap.data() as BackupRecord) : null); setLoadFailed(false); })
     .catch(() => { setLoadFailed(true); setRecord(null); });
-  useEffect(() => { load(); }, []);
+  const [days, setDays] = useState<BackupDay[] | null>(null);
+  const [daysError, setDaysError] = useState("");
+  const loadDays = () => listBackups()
+    .then((r) => { setDays(r.backups || []); setDaysError(""); })
+    .catch((err: any) => setDaysError(err?.message || "Couldn't read the backups."));
+  useEffect(() => { load(); loadDays(); }, []);
+
+  const downloadDay = async (day: string) => {
+    setBusy(`day:${day}`);
+    try {
+      const { url } = await downloadLink(day);
+      // The link saves the file (Content-Disposition: attachment), so opening it never leaves this page.
+      const a = document.createElement("a");
+      a.href = url; a.rel = "noopener"; a.click();
+    } catch (err: any) {
+      toast.error(err?.message || "Couldn't prepare the download.");
+    } finally { setBusy(""); }
+  };
 
   const runBackup = async () => {
     setBusy("backup");
@@ -56,7 +77,7 @@ export function BackupsExportCard() {
     } catch (err: any) {
       toast.error(err?.message || "The backup didn't finish.");
     } finally {
-      await load();
+      await Promise.all([load(), loadDays()]);
       setBusy("");
     }
   };
@@ -97,6 +118,29 @@ export function BackupsExportCard() {
       <div style={{ margin: "0 0 16px" }}>
         <PrimaryButton size="sm" disabled={!!busy || view?.running} onClick={runBackup}>{busy === "backup" ? "Backing up…" : "Back up now"}</PrimaryButton>
       </div>
+      <h3 className="rp-label" style={{ margin: "0 0 8px" }}>Daily backups</h3>
+      <p className="rp-hint" style={{ margin: "0 0 8px" }}>One backup a day, kept for 30 days. Download saves that day's whole database as one .json file.</p>
+      {daysError ? (
+        <p style={{ margin: "0 0 16px" }}><StatusBadge tone="warning">Couldn't load the list</StatusBadge> <span className="rp-hint">{daysError}</span> <GhostButton size="sm" onClick={loadDays}>Try again</GhostButton></p>
+      ) : days === null ? (
+        <p className="rp-hint" style={{ margin: "0 0 16px" }}>Loading the daily backups…</p>
+      ) : (
+        <div style={{ margin: "0 0 16px" }}>
+          <DataTable<BackupDay>
+            caption="Daily backups"
+            rows={days}
+            rowKey={(r) => r.day}
+            empty={<p className="rp-hint" style={{ margin: 0 }}>No backups yet. The first one is made tonight at 3:17 am, or press Back up now.</p>}
+            columns={[
+              { key: "day", header: "Day", lead: true, render: (r) => new Date(`${r.day}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" }) },
+              { key: "status", header: "Status", render: (r) => { const v = describeBackupDay(r); return <><StatusBadge tone={v.tone}>{v.label}</StatusBadge>{v.detail ? <span className="rp-hint"> {v.detail}</span> : null}</>; } },
+              { key: "download", header: "Download", render: (r) => r.downloadable
+                ? <SecondaryButton size="sm" disabled={!!busy} aria-label={`Download the backup from ${r.day}`} onClick={() => downloadDay(r.day)}>{busy === `day:${r.day}` ? "Preparing…" : "Download"}</SecondaryButton>
+                : <span className="rp-hint">—</span> },
+            ]}
+          />
+        </div>
+      )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <SecondaryButton size="sm" disabled={!!busy} onClick={() => run("books-csv", async () => {
           const books = await adminApi.getAllBooks();

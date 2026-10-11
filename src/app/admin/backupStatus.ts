@@ -65,3 +65,18 @@ export function describeBackup(record: BackupRecord, now = Date.now()): BackupVi
   // Records written before the document copy existed.
   return { ...base, tone: "success", label: "Backed up", detail: `Last backup started ${last} (Firestore export to the storage bucket, folder backups/${record.lastSuccessDay || ""}).` };
 }
+
+/** One day in Settings › Backups & export › Daily backups (functions/backupAdmin.js listBackups). */
+export type BackupDay = { day: string; createdAt: string; documents: number | null; complete: boolean | null; downloadable: boolean; hasExport: boolean };
+
+/** How one day's backup reads in the list. */
+export function describeBackupDay(row: BackupDay): { tone: BackupView["tone"]; label: string; detail: string } {
+  const parts: string[] = [];
+  if (row.documents !== null) parts.push(`${row.documents.toLocaleString()} documents`);
+  if (row.hasExport) parts.push("plus full Firestore export");
+  const detail = parts.join(" · ");
+  if (row.complete === true) return { tone: "success", label: "Complete", detail };
+  if (row.complete === false) return { tone: "warning", label: "Incomplete", detail: detail || "Some collections weren't copied" };
+  if (row.hasExport) return { tone: "success", label: "Export only", detail: "Full Firestore export (restore with gcloud); no download file" };
+  return { tone: "danger", label: "Not finished", detail: "This backup didn't finish" };
+}
