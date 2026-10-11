@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeBackup } from "./backupStatus";
+import { describeBackup, describeBackupDay } from "./backupStatus";
 
 const now = Date.parse("2026-10-10T12:00:00Z");
 const at = "2026-10-10T07:17:00Z";
@@ -40,5 +40,18 @@ describe("describeBackup", () => {
     const v = describeBackup({ ok: true, lastAttemptAt: at, lastSuccessAt: at, runningSince: "2026-10-10T11:58:00Z", previousExport: { done: true, error: "bucket denied" } }, now);
     expect(v.running).toBe(true);
     expect(v.notes.join(" ")).toContain("bucket denied");
+  });
+});
+
+describe("describeBackupDay", () => {
+  const row = { day: "2026-10-11", createdAt: "", documents: 812, complete: true, downloadable: true, hasExport: false };
+  it("says whether each day's backup is complete", () => {
+    expect(describeBackupDay(row)).toMatchObject({ tone: "success", label: "Complete" });
+    expect(describeBackupDay({ ...row, hasExport: true }).detail).toContain("plus full Firestore export");
+    expect(describeBackupDay({ ...row, complete: false }).label).toBe("Incomplete");
+  });
+  it("never shows an unfinished day as good", () => {
+    expect(describeBackupDay({ ...row, documents: null, complete: null, downloadable: false })).toMatchObject({ tone: "danger", label: "Not finished" });
+    expect(describeBackupDay({ ...row, documents: null, complete: null, downloadable: false, hasExport: true }).label).toBe("Export only");
   });
 });

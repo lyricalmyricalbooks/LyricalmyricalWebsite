@@ -183,6 +183,9 @@ npm run logs
   good backup; the next run checks the previous export's operation. A `runningSince` lock stops overlapping runs; manual
   runs are 5 min apart and limited to 45 s. Restore the copy with `scripts/restore-json-backup.mjs` (dry run first),
   the export with `gcloud firestore import`. A new sub-collection name goes in `SUBCOLLECTION_GROUPS`.
+  Each copy also writes `backup.json` (every document in one file, stored gzip-encoded so browsers save plain JSON);
+  the card's **Daily backups** list and **Download** use action `backups` (`op: list | download`, `functions/backupAdmin.js`,
+  15-minute signed link). The restore script accepts that downloaded file too.
 
 **Email sending:** `sendEmail` sends through Gmail SMTP (nodemailer, account `lyricalmyricalbooks@gmail.com`) first, because the shop has no Resend-verified domain. The Gmail app password is entered in Settings › Notifications › **Gmail sending** (`admin/GmailSendingCard.tsx`) and stored in the admin-only `adminSecrets/gmail` doc (never in public `settings/*`). If it is unset or Gmail fails, sending falls back to Resend (`onboarding@resend.dev` only reaches the account owner).
 
