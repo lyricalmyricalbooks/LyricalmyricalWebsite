@@ -39,6 +39,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
   const [preview, setPreview] = useState<StockPreview | null>(null);
   const [confirmApply, setConfirmApply] = useState<{ readers: number } | null>(null);
   const [confirmStart, setConfirmStart] = useState(false);
+  const [confirmUnlink, setConfirmUnlink] = useState(false);
 
   const state = status?.state || {};
   const step = linkStep(state);
@@ -89,6 +90,16 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
     await loadStatus();
   });
 
+  // Always possible, even when the inventory app can't be reached: every matched book's stock becomes
+  // editable on the website again.
+  const unlinkAll = () => run("links", async () => {
+    setConfirmUnlink(false);
+    await inventoryLinkApi.saveLinks({});
+    setLinkErrors([]);
+    toast("All books unmatched. Their stock is edited on the website again.");
+    await loadStatus();
+  });
+
   const startSales = () => run("start", async () => {
     setConfirmStart(false);
     await inventoryLinkApi.startSales(startDay);
@@ -100,6 +111,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
     const res = await inventoryLinkApi.preview();
     setPreview(res.stock);
     if (res.stock?.notReady) toast("Send website sales first (step 3), so the numbers include every website sale.", { tone: "warn" });
+    if (res.stock?.catchingUp) toast("Some recent website sales are still being recorded. Try again in a few minutes.", { tone: "warn" });
   });
 
   const askApply = () => run("apply", async () => {
@@ -117,6 +129,11 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
     setConfirmApply(null);
     if (!preview) return;
     const res = await inventoryLinkApi.apply(preview.hash);
+    if (res.stock?.catchingUp) {
+      setPreview(null);
+      toast("Some recent website sales are still being recorded, so nothing was changed. Preview again in a few minutes.", { tone: "warn" });
+      return;
+    }
     if (res.stock?.changed) {
       setPreview(res.stock);
       toast("The numbers moved since the preview (a sale, or a change in the inventory app). Check the new preview and apply again.", { tone: "warn" });
@@ -133,7 +150,9 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
   const syncNow = () => run("sync", async () => {
     const res = await inventoryLinkApi.syncNow();
     const changed = (res.stock?.applied || []).filter((r) => r.result === "applied").length;
-    toast(res.stock?.notReady ? "Sales were sent. Stock follows once past orders are all sent." : `Checked. ${changed} stock count${changed === 1 ? "" : "s"} updated.`);
+    toast(res.stock?.notReady ? "Sales were sent. Stock follows once past orders are all sent."
+      : res.stock?.catchingUp ? "Sales were sent. Some are still being recorded, so stock waits for the next check."
+      : `Checked. ${changed} stock count${changed === 1 ? "" : "s"} updated.`);
     if (changed) onStockChanged?.();
     await loadStatus();
   });
@@ -150,6 +169,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
   const serviceAccount = status.serviceAccount || connection.serviceAccount || "";
   const appBookName = (id: string) => appBooks?.find((b) => b.id === id)?.title || id;
   const linkedCount = editions.filter((e) => linkedTo(links, e.bookId, e.variantId)).length;
+  const anyLinks = Object.keys(links).length > 0;
   const backfill = state.backfill || {};
   const pending = state.pendingImport || null;
 
@@ -191,7 +211,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
       const notes = [
         r.hold ? holdWords(r, { inPreview: true }) : "",
         r.webTotal - (r.webCopies || 0) > 0 ? `${r.webTotal - (r.webCopies || 0)} website sale${r.webTotal - (r.webCopies || 0) === 1 ? "" : "s"} not in the inventory app yet, already taken off.` : "",
-        r.appAhead ? "The inventory app counts more website sales than the website sent. Shown at the inventory app's number; check its website rows." : "",
+        r.appAhead ? "The inventory app counts more website sales than the website does: usually a website refund it hasn't added yet. Shown at the inventory app's number." : "",
       ].filter(Boolean);
       return notes.length ? <div className="rp-hint" style={{ overflowWrap: "anywhere", minWidth: 200 }}>{notes.join(" ")}</div> : <span className="rp-hint">{r.to === r.from ? "Already matches" : "From the inventory app's count"}</span>;
     } },
@@ -235,8 +255,17 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
       <SectionCard flush title="2. Match your books"
         description="Pick the inventory app book for each printed edition sold on the website. E-books, box sets and gift cards don't need a match: box sets follow the books inside them."
         actions={<span className="rp-sec-note">{linkedCount} of {editions.length} matched</span>}>
+        {(step === "connect" || catalogError) && anyLinks && (
+          <div style={{ padding: 16, display: "grid", gap: 8 }} role="status">
+            <p className="rp-hint" style={{ margin: 0 }}>
+              Matched books' stock can only change from the inventory app.
+              If the link can't be fixed, unmatch them to edit their stock on the website again.
+            </p>
+            <div><SecondaryButton disabled={!!busy} onClick={() => setConfirmUnlink(true)}>Unmatch all books</SecondaryButton></div>
+          </div>
+        )}
         {step === "connect"
-          ? <EmptyState title="Connect first" description="Once step 1 shows Connected, the inventory app's books appear here." />
+          ? (anyLinks ? null : <EmptyState title="Connect first" description="Once step 1 shows Connected, the inventory app's books appear here." />)
           : catalogError ? <ErrorState description={catalogError} onRetry={loadCatalog} />
           : !appBooks ? <LoadingState label="Reading the inventory app's books…" />
           : <>
@@ -271,7 +300,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
             </li>
             <li>
               <div style={{ fontWeight: 600 }}>{pending ? `${pending.count} order${pending.count === 1 ? "" : "s"} waiting in the inventory app` : "Waiting in the inventory app: not checked yet"}</div>
-              <div className="rp-hint">They're added when the inventory app is next open{pending?.oldestPaidAt ? ` · oldest paid ${ago(pending.oldestPaidAt)}` : ""}. Website stock already counts them.</div>
+              <div className="rp-hint">New sales, refunds and shipping updates are added when the inventory app is next open{pending?.oldestSince || pending?.oldestPaidAt ? ` · oldest waiting since ${ago(pending.oldestSince || pending.oldestPaidAt)}` : ""}. Website stock already counts them.</div>
             </li>
             {!!status.unlinkedOrders && (
               <li>
@@ -299,7 +328,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
         actions={state.lastStockAt ? <span className="rp-sec-note">Last checked {ago(state.lastStockAt)}</span> : undefined}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", padding: 16 }}>
           <SecondaryButton disabled={!!busy || !state.startDay} onClick={doPreview}>{busy === "preview" ? "Working out the numbers…" : "Preview stock changes"}</SecondaryButton>
-          {preview?.rows && !preview.notReady && (
+          {preview?.rows && !preview.notReady && !preview.catchingUp && (
             <PrimaryButton disabled={!!busy} onClick={askApply}>{busy === "apply" ? "Applying…" : "Apply these numbers"}</PrimaryButton>
           )}
           <Toggle label="Keep website stock in step automatically (every 15 minutes)" checked={state.autoSync === true}
@@ -308,7 +337,8 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
         </div>
         {!state.firstApplyAt && <p className="rp-hint" style={{ margin: "0 16px 16px" }}>Preview and apply once; then you can turn on automatic updates.</p>}
         {preview?.notReady && <p className="rp-hint" role="status" style={{ margin: "0 16px 16px" }}>Send website sales first (step 3), so the numbers include every website sale.</p>}
-        {preview?.rows && !preview.notReady && (
+        {preview?.catchingUp && <p className="rp-hint" role="status" style={{ margin: "0 16px 16px" }}>Some recent website sales are still being recorded. Preview again in a few minutes, so their copies aren't put back on sale.</p>}
+        {preview?.rows && !preview.notReady && !preview.catchingUp && (
           <DataTable caption="Stock preview" columns={stockColumns} rows={preview.rows}
             rowKey={(r) => editionKey(r.bookId, r.variantId)} empty={<EmptyState title="No matched books" description="Match books in step 2." />} />
         )}
@@ -333,6 +363,13 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
         <p className="rp-card-desc" style={{ margin: 0, fontSize: "var(--rp-text-base)" }}>
           Every paid website order from {startDay} on goes to the inventory app, then each new one as it's paid. The inventory app shows you a summary before it adds the past ones.
           This date can't be changed later, so nothing is counted twice.
+        </p>
+      </Dialog>
+      <Dialog open={confirmUnlink} onClose={() => setConfirmUnlink(false)} title="Unmatch all books?"
+        footer={<><SecondaryButton data-autofocus onClick={() => setConfirmUnlink(false)}>Cancel</SecondaryButton><PrimaryButton onClick={unlinkAll}>Unmatch all</PrimaryButton></>}>
+        <p className="rp-card-desc" style={{ margin: 0, fontSize: "var(--rp-text-base)" }}>
+          The website stops following the inventory app's count, and every book's stock can be edited on the website again. Website sales already sent stay in the inventory app.
+          You can match the books again later.
         </p>
       </Dialog>
       <Dialog open={!!confirmApply} onClose={() => setConfirmApply(null)} title="Apply these stock numbers?"

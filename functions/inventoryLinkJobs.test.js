@@ -205,3 +205,93 @@ describe("runSweep", () => {
     expect(db.docs["systemStatus/inventoryLink"].data.firstApplyAt).toBeTruthy();
   });
 });
+
+describe("review fixes", () => {
+  const sumAll = db => async inv => Object.entries(db.docs).filter(([p]) => p.startsWith("inventoryPushes/")).reduce((n, [, d]) => n + ((d.data?.net || {})[inv] || 0), 0);
+
+  test("stock waits while a recent sale couldn't be recorded (it would be put back on sale)", async () => {
+    const db = fakeDb({
+      "systemStatus/inventoryLink": { ...STATE, autoSync: true, lastCatchUpAt: "2026-10-11T14:00:00Z" },
+      "orders/A-1": paidOrder({ updatedAt: "2026-10-11T14:30:00Z" }),
+      "books/b1": { title: "The Hound", trackInventory: true, stockLevel: 7 },
+    });
+    const store = fakeStore();
+    store.feeds.hound = { onHand: 12, base: 12 };
+    // Reading this order fails, so its two copies are not in the website's count yet.
+    const realCollection = db.collection;
+    db.collection = col => {
+      const c = realCollection(col);
+      if (col !== "orders") return c;
+      return { ...c, doc: id => ({ ...c.doc(id), get: async () => { throw new Error("unavailable"); } }) };
+    };
+    const out = await jobs.runSweep(deps(db, store, { sumNet: sumAll(db) }), { stock: "force" });
+    expect(out.catchUp.complete).toBe(false);
+    expect(out.stock).toEqual({ catchingUp: true });
+    expect(db.docs["books/b1"].data.stockLevel).toBe(7);
+    // The window doesn't move on past the order it couldn't record.
+    expect(db.docs["systemStatus/inventoryLink"].data.lastCatchUpAt).toBe("2026-10-11T14:00:00Z");
+  });
+
+  test("after new matches, every order with unmatched copies is sent again, page by page", async () => {
+    const seed = { "systemStatus/inventoryLink": { ...STATE, relinkPending: true, lastCatchUpAt: "2026-10-11T14:59:00Z" } };
+    for (let i = 0; i < 305; i++) {
+      const id = `O-${String(i).padStart(4, "0")}`;
+      seed[`orders/${id}`] = paidOrder({ items: [{ id: i < 304 ? "zine" : "b1", quantity: 1, price: 10, title: "Zine" }] });
+      seed[`inventoryPushes/${id}`] = { net: {}, unlinkedCount: 1, lineLinks: {}, hash: "old", delivered: true, sourceUpdatedAt: "2000-01-01T00:00:00.000Z" };
+    }
+    const db = fakeDb(seed);
+    const store = fakeStore();
+    const d = deps(db, store, { sumNet: async () => 0 });
+    const first = await jobs.runSweep(d, { stock: "none" });
+    expect(first.relink).toMatchObject({ done: false });
+    expect(db.docs["systemStatus/inventoryLink"].data.relinkPending).toBe(true);
+    const second = await jobs.runSweep(d, { stock: "none" });
+    expect(second.relink).toMatchObject({ done: true });
+    expect(db.docs["systemStatus/inventoryLink"].data.relinkPending).toBe(false);
+    // The order beyond the first page reached the inventory app with its newly matched book.
+    expect(store.orders["O-0304"].web.books.hound.net).toBe(1);
+  });
+
+  test("an app label is refused while the website is buying one (no second paid label)", async () => {
+    const db = fakeDb({ "orders/A-1": paidOrder(), "order-operations/A-1": { labelPurchasePending: true } });
+    const store = fakeStore();
+    const res = await jobs.applyAppShipment(deps(db, store), { id: "A-1", shipment: { hash: "h", carrier: "Canada Post", trackingNumber: "9", shippedAt: "2026-10-11" } });
+    expect(res).toMatchObject({ result: "refused", reason: expect.stringMatching(/two labels/) });
+    expect(db.docs["orders/A-1"].data.trackingNumber).toBeUndefined();
+  });
+
+  test("stock counting isn't turned on for a book whose e-book or unmatched editions it would block", async () => {
+    const db = fakeDb({
+      "books/b2": { title: "Altrove", variants: [{ id: "pb", name: "Paperback", stockLevel: 1 }, { id: "eb", name: "Ebook", digital: true }] },
+      "books/b3": { title: "Twin", variants: [{ id: "pb", stockLevel: 1 }, { id: "hc", stockLevel: 1 }] },
+    });
+    const store = fakeStore();
+    store.feeds.alt = { onHand: 4, base: 4 };
+    store.feeds.tpb = { onHand: 5, base: 5 };
+    store.feeds.thc = { onHand: 6, base: 6 };
+    const state = { ...STATE, links: { b2: { pb: "alt" }, b3: { pb: "tpb", hc: "thc" } } };
+    const d = deps(db, store, { sumNet: async () => 0 });
+    const plan = await jobs.planStock(d, state);
+    expect(plan.rows.map(r => r.hold)).toEqual(["untracked-mixed", "untracked", "untracked"]);
+    const applied = await jobs.applyStock(d, plan.rows, { mode: "confirmed" });
+    expect(applied.map(r => r.bookId)).toEqual(["b3", "b3"]);
+    expect(db.docs["books/b2"].data.trackInventory).toBeUndefined();
+    expect(db.docs["books/b3"].data.trackInventory).toBe(true);
+  });
+
+  test("a book matched as a whole that is now sold in editions is held", async () => {
+    const db = fakeDb({ "books/b1": { title: "The Hound", trackInventory: true, stockLevel: 2, variants: [{ id: "pb", stockLevel: 2 }] } });
+    const store = fakeStore();
+    store.feeds.hound = { onHand: 3, base: 3 };
+    const plan = await jobs.planStock(deps(db, store, { sumNet: async () => 0 }), STATE);
+    expect(plan.rows[0].hold).toBe("now-has-editions");
+  });
+
+  test("refused-label alerts expire after a week even when no label is sent", async () => {
+    const db = fakeDb({ "systemStatus/inventoryLink": { ...STATE, lastCatchUpAt: "2026-10-11T14:59:00Z", shipmentIssues: [
+      { orderId: "old", reason: "x", at: "2026-10-01T00:00:00Z" }, { orderId: "new", reason: "y", at: "2026-10-10T00:00:00Z" },
+    ] } });
+    await jobs.runSweep(deps(db, fakeStore(), { sumNet: async () => 0 }), { stock: "none" });
+    expect(db.docs["systemStatus/inventoryLink"].data.shipmentIssues.map(i => i.orderId)).toEqual(["new"]);
+  });
+});

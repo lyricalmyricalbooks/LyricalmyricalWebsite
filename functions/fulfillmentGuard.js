@@ -14,7 +14,7 @@ function labelProblem(order, operations = {}) {
  if (order.isTest || order.paymentStatus !== "paid" || ["cancelled", "completed"].includes(order.status) || ["shipped", "out_for_delivery", "delivered", "cancelled", "refunded"].includes(order.fulfillmentStatus)) return "Only active paid, undispatched production orders can buy labels.";
  if (!(order.items || []).some(isPhysicalItem)) return "This order has no physical books to ship.";
  if (order.labelUrl) return "A label already exists. Reprint the existing label.";
- if (order.trackingSource === "inventory-app" && order.trackingNumber) return `A label was already bought in the inventory app (tracking ${order.trackingNumber}). Use that one, or void it there before buying another.`;
+ if (order.trackingSource === "inventory-app" && order.trackingNumber) return `A label was already bought in the inventory app (tracking ${order.trackingNumber}). Use that one, or press "Remove the inventory app label" on this order before buying another.`;
  if (operations.labelPurchasePending) return "A label purchase is pending. Check Shippo before attempting another purchase.";
  if (order.customerRequest?.type === "return" && order.customerRequest.status === "open") return "Resolve the active return before buying a fulfillment label.";
  if (order.disputeStatus && !["won", "lost", "warning_closed", "closed", "charge_refunded"].includes(String(order.disputeStatus))) return "This payment is disputed. Don't buy a label until the dispute is settled in Stripe.";
@@ -46,6 +46,9 @@ function externalDispatchProblem(order, operations = {}) {
  if (disputeOpen(order)) return "This payment is disputed. Don't ship until the dispute is settled in Stripe.";
  if (order.paymentStatus === "paid" && order.refund?.status === "failed") return "The refund for this order failed at the bank, so the customer was not refunded. Refund again or contact them before packing.";
  if (operations.hold) return `Order on hold: ${operations.hold}`;
+ // Stricter than Orders › Dispatch: a website label purchase in progress (or waiting to be checked in Shippo)
+ // would give the order a second paid label.
+ if (operations.labelPurchasePending) return "The website is buying a label for this order (or a purchase is waiting to be checked in Shippo). Sort that out in the website's Orders first, so the order doesn't get two labels.";
  const waiting = waitingPreorderLines(order, operations);
  if (waiting.length) return `Pre-order: releases ${shipDateOf(waiting) || "on a date not yet announced"}. Press "Ready to ship now" if the books have arrived.`;
  return "";

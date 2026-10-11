@@ -96,13 +96,14 @@ export function fakeStore({ failWrites = false } = {}) {
       if (cur && cur.hash === web.hash) return "same";
       if (cur && cur.sourceUpdatedAt > web.sourceUpdatedAt) return "older";
       store.writes += 1;
-      store.orders[id] = { ...(store.orders[id] || {}), web, pending: true };
+      const prev = store.orders[id] || {};
+      store.orders[id] = { ...prev, web, pending: true, pendingSince: prev.pending && prev.pendingSince ? prev.pendingSince : new Date().toISOString() };
       return "written";
     },
     waitingShipments: async () => store.shipments,
     replyShipment: async (id, hash, reply) => { store.replies.push({ id, hash, ...reply }); return true; },
     readFeeds: async ids => Object.fromEntries(ids.filter(id => store.feeds[id]).map(id => [id, store.feeds[id]])),
-    pendingSummary: async () => ({ count: 0, oldestPaidAt: null }),
+    pendingSummary: async () => ({ count: 0, oldestSince: null }),
     readAppHeartbeat: async () => null,
     serviceAccountEmail: async () => "123-compute@developer.gserviceaccount.com",
     checkConnection: async () => (store.connected === false ? { ok: false, problem: "not-granted", serviceAccount: "sa" } : { ok: true, serviceAccount: "sa" }),

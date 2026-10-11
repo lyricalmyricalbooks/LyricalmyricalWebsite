@@ -121,14 +121,19 @@ describe("inventory app link alerts", () => {
   it("flag a broken connection, stalled checks, sales waiting a day and refused labels", () => {
     const alerts = inventoryLinkAlerts({
       startDay: "2026-10-01", connection: { ok: false }, lastRunAt: "2026-10-11T13:00:00Z",
-      pendingImport: { count: 3, oldestPaidAt: "2026-10-09T12:00:00Z" }, lastPush: { failed: 2 },
+      pendingImport: { count: 3, oldestSince: "2026-10-09T12:00:00Z" }, lastPush: { failed: 2 },
       shipmentIssues: [{ orderId: "A-1", reason: "Resolve the active return before dispatching the order.", at: "2026-10-11T14:00:00Z" }],
     }, now);
     expect(alerts.map((a) => a.id)).toEqual(["inventory-link-down", "inventory-link-stalled", "inventory-link-waiting", "inventory-link-push", "inventory-label-A-1"]);
     expect(alerts[0]).toMatchObject({ tone: "danger", action: "inventory" });
     expect(alerts[4]).toMatchObject({ action: "order", orderIds: ["A-1"] });
   });
+  it("extra website sales in the app only alert once nothing waits to be imported (a refund may be on its way)", () => {
+    const base = { startDay: "2026-10-01", connection: { ok: true }, lastRunAt: "2026-10-11T14:58:00Z", lastSync: { appAhead: [{ title: "The Hound" }] } };
+    expect(inventoryLinkAlerts({ ...base, pendingImport: { count: 1, oldestSince: "2026-10-11T14:00:00Z" } }, now).map((a) => a.id)).toEqual([]);
+    expect(inventoryLinkAlerts({ ...base, pendingImport: { count: 0 } }, now).map((a) => a.id)).toEqual(["inventory-link-ahead"]);
+  });
   it("a healthy link is quiet", () => {
-    expect(inventoryLinkAlerts({ startDay: "2026-10-01", connection: { ok: true }, lastRunAt: "2026-10-11T14:58:00Z", pendingImport: { count: 1, oldestPaidAt: "2026-10-11T14:00:00Z" } }, now)).toEqual([]);
+    expect(inventoryLinkAlerts({ startDay: "2026-10-01", connection: { ok: true }, lastRunAt: "2026-10-11T14:58:00Z", pendingImport: { count: 1, oldestSince: "2026-10-11T14:00:00Z" } }, now)).toEqual([]);
   });
 });

@@ -98,7 +98,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   // Books matched to the inventory app (Inventory › Inventory app link) take their stock from it.
   const [stockLinks, setStockLinks] = useState<InventoryLinks>({});
   useEffect(() => { inventoryLinkApi.links().then(setStockLinks).catch(() => setStockLinks({})); }, []);
-  const LINKED_HINT = "Counted in the inventory app. Change it there; the website follows within 15 minutes.";
+  const LINKED_HINT = "Counted in the inventory app. Change it there; the website follows it (Inventory › Inventory app link).";
   const [defaultProfileId, setDefaultProfileId] = useState("");
   const [fieldsDirty, setFieldsDirty] = useState(false);
   const [visited, setVisited] = useState<Set<BookTab>>(() => new Set(["details"]));

@@ -89,9 +89,10 @@ function splitCents(totalCents, weights) {
  * website's own stock-keeping happened to do (that depends on trackInventory at the time, which
  * the order doesn't record). `frozen` holds the line→book links an earlier push used: a link chosen
  * later never moves copies already counted for another book.
- * `partPrice(bookId, variantId)` gives a box-set part's catalog price (CAD) to share the set's price.
+ * `partPrice(bookId, variantId)` gives a box-set part's catalog price (CAD) to share the set's price;
+ * `partDigital(bookId, variantId)` is true for an e-book part, which has no copies to count (never "unlinked").
  */
-function orderFootprint(order, links, frozen = {}, partPrice = () => 0) {
+function orderFootprint(order, links, frozen = {}, partPrice = () => 0, partDigital = () => false) {
   const lineLinks = { ...(frozen || {}) };
   const books = {};
   const unlinked = new Map();
@@ -107,16 +108,17 @@ function orderFootprint(order, links, frozen = {}, partPrice = () => 0) {
     const sets = whole(item.quantity);
     if (!sets) continue;
     const lineCents = cents(item.price) * sets;
-    const parts = stockLines([item]);
     const isSet = Array.isArray(item.components) && item.components.length > 0;
+    const parts = stockLines([item]).filter(part => !(isSet && partDigital(part.id, part.variantId)));
     const shares = isSet
       ? splitCents(lineCents, parts.map(part => Math.max(0, cents(partPrice(part.id, part.variantId))) * whole(part.quantity)))
       : [lineCents];
     parts.forEach((part, index) => {
+      const component = isSet ? item.components.find(c => c && c.id === part.id && (c.variantId || null) === (part.variantId || null)) : null;
       const qty = whole(part.quantity);
       if (!qty || typeof part.id !== "string") return;
       const inv = resolve(part.id, part.variantId);
-      const title = text(isSet ? (item.components[index]?.title || item.title) : [item.title, item.variantName].filter(Boolean).join(" — "), 160);
+      const title = text(isSet ? (component?.title || item.title) : [item.title, item.variantName].filter(Boolean).join(" — "), 160);
       if (!inv) {
         unlinked.set(title || part.id, (unlinked.get(title || part.id) || 0) + qty);
         return;
@@ -203,8 +205,8 @@ function refundOf(order) {
  * The `web` map for websiteOrders/{orderId} (contract v1) and the copies it counts.
  * Returns { web, net, lineLinks, unlinkedCount }.
  */
-function websiteOrder(order, { orderId, links, frozen, partPrice, test = false, sourceUpdatedAt = null } = {}) {
-  const fp = orderFootprint(order, links, frozen, partPrice);
+function websiteOrder(order, { orderId, links, frozen, partPrice, partDigital, test = false, sourceUpdatedAt = null } = {}) {
+  const fp = orderFootprint(order, links, frozen, partPrice, partDigital);
   const addr = order.customer?.address || {};
   const { state, refund } = refundOf(order);
   const charged = {

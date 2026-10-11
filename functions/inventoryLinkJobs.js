@@ -10,7 +10,7 @@
 const crypto = require("crypto");
 const { FieldPath, FieldValue, AggregateField } = require("firebase-admin/firestore");
 const {
-  pushKind, websiteOrder, linkedEditions, stockPlanFor, stockPatch, liveStock, stable,
+  pushKind, websiteOrder, linkedEditions, stockPlanFor, stockPatch, liveStock, stable, isDigitalEdition,
 } = require("./inventoryLink");
 const { externalDispatchProblem } = require("./fulfillmentGuard");
 const { catalogUnitPrice } = require("./catalogPrice");
@@ -39,19 +39,28 @@ async function readState(db) {
   return snap.exists ? snap.data() : {};
 }
 
-// A box set's price is shared by its parts in proportion to their catalog prices.
-async function partPricer(db, order) {
+// Box-set parts from the catalog: a set's price is shared by its parts in proportion to their prices,
+// and an e-book part has no copies to count.
+async function partInfo(db, order) {
   const ids = new Set();
   for (const item of order.items || []) for (const part of Array.isArray(item?.components) ? item.components : []) if (part?.id) ids.add(part.id);
-  if (!ids.size) return () => 0;
+  if (!ids.size) return { price: () => 0, digital: () => false };
   const snaps = await db.getAll(...[...ids].map(id => db.collection("books").doc(id)));
   const books = new Map(snaps.filter(s => s.exists).map(s => [s.id, s.data()]));
-  return (bookId, variantId) => {
+  const find = (bookId, variantId) => {
     const book = books.get(bookId);
-    if (!book) return 0;
-    const variant = variantId ? (book.variants || []).find(v => v && v.id === variantId) : null;
-    const price = catalogUnitPrice(book, variant);
-    return Number.isFinite(price) && price > 0 ? price : 0;
+    return { book, variant: book && variantId ? (book.variants || []).find(v => v && v.id === variantId) || null : null };
+  };
+  return {
+    price: (bookId, variantId) => {
+      const { book, variant } = find(bookId, variantId);
+      const price = book ? catalogUnitPrice(book, variant) : NaN;
+      return Number.isFinite(price) && price > 0 ? price : 0;
+    },
+    digital: (bookId, variantId) => {
+      const { book, variant } = find(bookId, variantId);
+      return !!book && isDigitalEdition(book, variant);
+    },
   };
 }
 
@@ -71,8 +80,9 @@ async function pushOrder(deps, orderId, state) {
   const record = recordSnap.exists ? recordSnap.data() : null;
   const kind = pushKind(order, { startDay: state.startDay, rehearsal: rehearsalOn(state, now), record });
   if (!kind) return { status: "skipped" };
+  const parts = await partInfo(db, order);
   const built = websiteOrder(order, {
-    orderId, links: state.links || {}, frozen: record?.lineLinks, partPrice: await partPricer(db, order), test: kind === "test",
+    orderId, links: state.links || {}, frozen: record?.lineLinks, partPrice: parts.price, partDigital: parts.digital, test: kind === "test",
     sourceUpdatedAt: orderSnap.updateTime ? orderSnap.updateTime.toDate().toISOString() : null,
   });
   const local = await db.runTransaction(async tx => {
@@ -101,31 +111,60 @@ async function pushOrder(deps, orderId, state) {
   }
 }
 
+// Push a list of orders a few at a time. `delivered` = how many reached the inventory app; `undelivered`
+// = recorded on the website but not sent (retried later; the copy count is already right); `errors` =
+// pushes that stopped before recording anything, so the website's copy count may be missing them.
+async function pushMany(deps, state, ids, deadline) {
+  let undelivered = 0;
+  const run = await runInBatches(ids, 5, async id => {
+    const result = await pushOrder(deps, id, state);
+    if (result.status === "failed") undelivered += 1;
+  }, { deadline, now: () => deps.now().getTime() });
+  return { pushed: run.processed, undelivered, errors: run.failed, skipped: run.skipped.length };
+}
+
+const CATCH_UP_PAGE = 300;
+
 /**
- * Push every order that may have changed since `sinceIso`, plus undelivered records (and, after the
- * owner linked more books, orders with unlinked copies). Returns the inventory books whose push failed:
- * their stock is left alone this run.
+ * Push every order that may have changed since `sinceIso`, plus undelivered records. `complete` is true
+ * only when every such order was recorded: otherwise the website's copy count may be short, and stock is
+ * left alone this run. `resumeAt` is where the next run continues when a window had more orders than one
+ * page (the windows are read oldest change first).
  */
 async function catchUp(deps, state, sinceIso, { deadline = Infinity } = {}) {
   const { db } = deps;
-  const queries = [
-    db.collection("orders").where("updatedAt", ">=", sinceIso).limit(300).get(),
-    db.collection("orders").where("paidAt", ">=", sinceIso).limit(300).get(),
+  const [byUpdate, byPaid, undelivered] = await Promise.all([
+    db.collection("orders").where("updatedAt", ">=", sinceIso).orderBy("updatedAt").limit(CATCH_UP_PAGE).get(),
+    db.collection("orders").where("paidAt", ">=", sinceIso).orderBy("paidAt").limit(CATCH_UP_PAGE).get(),
     db.collection("inventoryPushes").where("delivered", "==", false).limit(100).get(),
-  ];
-  if (state.relinkPending) queries.push(db.collection("inventoryPushes").where("unlinkedCount", ">", 0).limit(300).get());
-  const snaps = await Promise.all(queries);
-  const ids = [...new Set(snaps.flatMap(snap => snap.docs.map(doc => doc.id)))];
-  const failedBooks = new Set();
-  let failed = 0;
-  const run = await runInBatches(ids, 5, async id => {
-    const result = await pushOrder(deps, id, state);
-    if (result.status === "failed") {
-      failed += 1;
-      Object.keys(result.net || {}).forEach(inv => failedBooks.add(inv));
-    }
-  }, { deadline, now: () => deps.now().getTime() });
-  return { pushed: run.processed, failed: failed + run.failed, skipped: run.skipped.length, failedBooks };
+  ]);
+  const resumeAt = [[byUpdate, "updatedAt"], [byPaid, "paidAt"]]
+    .filter(([snap]) => snap.size >= CATCH_UP_PAGE)
+    .map(([snap, field]) => String(snap.docs[snap.docs.length - 1].get(field)))
+    .sort()[0] || null;
+  const ids = [...new Set([byUpdate, byPaid, undelivered].flatMap(snap => snap.docs.map(doc => doc.id)))];
+  const run = await pushMany(deps, state, ids, deadline);
+  return { ...run, resumeAt, complete: !resumeAt && !run.skipped && !run.errors };
+}
+
+/**
+ * After the owner matched more books: push again, a page at a time, every order with copies that had no
+ * match (links already used stay frozen). Returns { cursor, done, complete }.
+ */
+async function relinkBatch(deps, state, { deadline = Infinity } = {}) {
+  const { db } = deps;
+  let query = db.collection("inventoryPushes").orderBy(FieldPath.documentId()).limit(CATCH_UP_PAGE);
+  if (state.relinkCursor) query = query.startAfter(state.relinkCursor);
+  const snap = await query.get();
+  const ids = snap.docs.filter(doc => Number(doc.get("unlinkedCount")) > 0).map(doc => doc.id);
+  const run = await pushMany(deps, state, ids, deadline);
+  const finished = !run.skipped && !run.errors;
+  const done = finished && snap.size < CATCH_UP_PAGE;
+  return {
+    ...run,
+    done,
+    cursor: done ? null : finished && snap.size ? snap.docs[snap.docs.length - 1].id : state.relinkCursor || null,
+  };
 }
 
 /** One page of past orders (oldest first) since the start day. */
@@ -138,23 +177,29 @@ async function backfillBatch(deps, state, { deadline = Infinity } = {}) {
   if (backfill.cursor?.paidAt && backfill.cursor?.id) query = query.startAfter(backfill.cursor.paidAt, backfill.cursor.id);
   const snap = await query.get();
   let failed = 0;
-  const failedBooks = new Set();
+  let errors = 0;
   const docs = [];
   for (const doc of snap.docs) {
     if (deps.now().getTime() >= deadline) break;
-    const result = await pushOrder(deps, doc.id, state);
-    if (result.status === "failed") { failed += 1; Object.keys(result.net || {}).forEach(inv => failedBooks.add(inv)); }
+    try {
+      const result = await pushOrder(deps, doc.id, state);
+      if (result.status === "failed") failed += 1;
+    } catch (err) {
+      // Not recorded: stop here so this order is read again next run.
+      errors += 1;
+      break;
+    }
     docs.push(doc);
   }
   const last = docs[docs.length - 1];
-  const done = docs.length === snap.size && snap.size < BACKFILL_PAGE;
+  const done = !errors && docs.length === snap.size && snap.size < BACKFILL_PAGE;
   return {
     backfill: {
       ...backfill, from: state.startDay, done,
       cursor: last ? { paidAt: last.get("paidAt"), id: last.id } : backfill.cursor || null,
       sent: (Number(backfill.sent) || 0) + docs.length,
     },
-    failed, failedBooks,
+    failed, errors,
   };
 }
 
@@ -164,7 +209,7 @@ async function defaultSumNet(db, inv) {
 }
 
 /** Old → new stock for every linked edition (nothing written). */
-async function planStock(deps, state, { skipBooks = new Set() } = {}) {
+async function planStock(deps, state) {
   const { db, store } = deps;
   const editions = linkedEditions(state.links);
   const invIds = [...new Set(editions.map(e => e.inventoryBookId))];
@@ -182,7 +227,15 @@ async function planStock(deps, state, { skipBooks = new Set() } = {}) {
     const feed = feeds[inv] || null;
     const variant = edition.variantId ? (book?.variants || []).find(v => v && v.id === edition.variantId) : null;
     const plan = book ? stockPlanFor({ book, variantId: edition.variantId, feed, webTotal: totals[inv] || 0 }) : { from: null, to: null, hold: "missing" };
-    if (skipBooks.has(inv) && plan.to != null) plan.hold = "push-failed";
+    // A book linked as a whole that is now sold in editions: its sales belong to the editions now.
+    if (plan.to != null && !edition.variantId && (book?.variants || []).some(v => v && v.id)) plan.hold = "now-has-editions";
+    // Turning stock counting on for a book sold in editions also limits its other editions to their own
+    // counts (e-books included): only when every edition is a printed one matched to the inventory app.
+    if (plan.hold === "untracked" && edition.variantId) {
+      const editions = (book?.variants || []).filter(v => v && v.id);
+      const allMatched = editions.every(v => !isDigitalEdition(book, v) && state.links?.[edition.bookId]?.[v.id]);
+      if (!allMatched) plan.hold = "untracked-mixed";
+    }
     return {
       ...edition, title: String(book?.title || "").slice(0, 200), edition: String(variant?.name || "").slice(0, 120),
       ...plan, appOnHand: feed ? Number(feed.onHand) : null, feedAt: feed?.at || null,
@@ -366,8 +419,11 @@ async function runSweep(deps, opts = {}) {
       return { ...out, connection: status.connection };
     }
 
-    let failedBooks = new Set();
+    // Stock is only worked out when every order that may have changed is recorded (`recorded`).
+    let recorded = true;
     if (salesOn(state)) {
+      const weekAgo = start.getTime() - 7 * 24 * 60 * 60 * 1000;
+      let issues = (state.shipmentIssues || []).filter(i => i && Date.parse(i.at) > weekAgo);
       try {
         const waiting = await store.waitingShipments();
         out.shipments = [];
@@ -376,29 +432,34 @@ async function runSweep(deps, opts = {}) {
           out.shipments.push(await applyAppShipment(deps, item));
         }
         // Labels the website refused stay listed (admin alert) until that order's label is sent again, for a week.
-        if (out.shipments.length) {
-          const handled = new Set(out.shipments.map(s => s.orderId));
-          const weekAgo = start.getTime() - 7 * 24 * 60 * 60 * 1000;
-          status.shipmentIssues = [
-            ...(state.shipmentIssues || []).filter(i => i && !handled.has(i.orderId) && Date.parse(i.at) > weekAgo),
-            ...out.shipments.filter(s => s.result === "refused").map(s => ({ orderId: s.orderId, reason: s.reason, at: iso(start) })),
-          ].slice(-20);
-        }
+        const handled = new Set(out.shipments.map(s => s.orderId));
+        issues = [
+          ...issues.filter(i => !handled.has(i.orderId)),
+          ...out.shipments.filter(s => s.result === "refused").map(s => ({ orderId: s.orderId, reason: s.reason, at: iso(start) })),
+        ];
       } catch (err) { status.shipmentError = errText(err); }
+      status.shipmentIssues = issues.slice(-20);
 
-      const since = state.lastCatchUpAt ? new Date(Date.parse(state.lastCatchUpAt) - CATCH_UP_MARGIN_MS) : new Date(start.getTime() - FIRST_CATCH_UP_MS);
-      const caught = await catchUp(deps, state, iso(since), { deadline });
-      out.catchUp = { pushed: caught.pushed, failed: caught.failed };
-      failedBooks = caught.failedBooks;
-      status.lastPush = { at: iso(start), failed: caught.failed };
-      // Only move the window forward when nothing was left for later.
-      if (!caught.skipped) status.lastCatchUpAt = iso(start);
-      if (state.relinkPending && !caught.skipped) status.relinkPending = false;
+      const since = state.catchUpResumeAt
+        || iso(state.lastCatchUpAt ? new Date(Date.parse(state.lastCatchUpAt) - CATCH_UP_MARGIN_MS) : new Date(start.getTime() - FIRST_CATCH_UP_MS));
+      const caught = await catchUp(deps, state, since, { deadline });
+      out.catchUp = { pushed: caught.pushed, undelivered: caught.undelivered, errors: caught.errors, complete: caught.complete };
+      status.lastPush = { at: iso(start), failed: caught.undelivered + caught.errors };
+      if (caught.complete) { status.lastCatchUpAt = iso(start); status.catchUpResumeAt = null; }
+      else if (caught.resumeAt && !caught.skipped && !caught.errors) status.catchUpResumeAt = caught.resumeAt;
+      recorded = caught.complete;
+
+      if (state.relinkPending) {
+        const page = await relinkBatch(deps, state, { deadline });
+        status.relinkPending = !page.done;
+        status.relinkCursor = page.cursor;
+        out.relink = { pushed: page.pushed, done: page.done };
+        if (!page.done) recorded = false;
+      }
 
       if (state.backfill && state.backfill.done !== true) {
         const page = await backfillBatch(deps, state, { deadline });
         status.backfill = page.backfill;
-        page.failedBooks.forEach(inv => failedBooks.add(inv));
         out.backfill = page.backfill;
       }
       try {
@@ -415,8 +476,11 @@ async function runSweep(deps, opts = {}) {
     if (["preview", "apply"].includes(mode) || (due && stockReady)) {
       if (!stockReady) {
         out.stock = { notReady: true };
+      } else if (!recorded) {
+        // Some recent website sales aren't recorded yet: their copies would be put back on sale. Next run.
+        out.stock = { catchingUp: true };
       } else {
-        const plan = await planStock(deps, state, { skipBooks: failedBooks });
+        const plan = await planStock(deps, state);
         out.stock = { hash: plan.hash, rows: plan.rows };
         if (mode === "apply" && plan.hash !== opts.confirmHash) {
           out.stock.changed = true; // numbers moved since the preview: show the new preview, write nothing
@@ -453,6 +517,6 @@ async function runSweep(deps, opts = {}) {
 }
 
 module.exports = {
-  LEASE_MS, REHEARSAL_MS, STATE_DOC, readState, pushOrder, catchUp, backfillBatch, planStock, applyStock,
+  LEASE_MS, REHEARSAL_MS, STATE_DOC, readState, pushOrder, catchUp, relinkBatch, backfillBatch, planStock, applyStock,
   applyAppShipment, runSweep, rehearsalOn, salesOn,
 };

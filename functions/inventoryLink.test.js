@@ -80,6 +80,13 @@ describe("orderFootprint", () => {
     expect(fp.books.hound.merchCents + fp.books["altrove-pb"].merchCents).toBe(18000);
     expect(fp.books.hound.merchCents).toBe(8000);
   });
+  test("a box set's e-book part has no copies: neither counted nor reported as unmatched", () => {
+    const order = paid({ items: [{ id: "set", quantity: 1, price: 50, components: [{ id: "b1", quantity: 1, title: "The Hound" }, { id: "eb", quantity: 1, title: "E" }] }] });
+    const fp = orderFootprint(order, links, {}, () => 0, id => id === "eb");
+    expect(fp.net).toEqual({ hound: 1 });
+    expect(fp.unlinked).toEqual([]);
+    expect(fp.books.hound.merchCents).toBe(5000);
+  });
   test("pre-orders and promo gift copies count", () => {
     const fp = orderFootprint(paid({ items: [
       { id: "b1", quantity: 1, price: 40, preorder: true },

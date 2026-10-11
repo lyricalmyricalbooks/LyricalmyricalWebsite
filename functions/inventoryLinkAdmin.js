@@ -1,14 +1,14 @@
 // Inventory › Inventory app link (admin): what each button asks the server to do. index.js checks the
 // admin's sign-in (requireAdmin) and passes `deps` (see inventoryLinkJobs.js) plus the store's
 // checkConnection/readCatalog/serviceAccountEmail. Returns { status, body } for the HTTP answer.
-const { validateLinks, paidDayOf } = require("./inventoryLink");
+const { validateLinks, paidDayOf, linkedEditions } = require("./inventoryLink");
 const { readState, runSweep, REHEARSAL_MS, STATE_DOC } = require("./inventoryLinkJobs");
 const { shopDate } = require("./paymentGuards");
 
 const ok = body => ({ status: 200, body });
 const bad = (error, status = 400) => ({ status, body: { error } });
 const PUBLIC_STATE_KEYS = ["links", "startDay", "autoSync", "rehearsalUntil", "firstApplyAt", "backfill", "connection",
-  "lastSync", "lastStockAt", "lastRunAt", "lastPush", "pendingImport", "app", "lastError", "relinkPending", "shipmentError", "pendingError"];
+  "lastSync", "lastStockAt", "lastRunAt", "lastPush", "pendingImport", "app", "lastError", "relinkPending", "shipmentError", "pendingError", "shipmentIssues"];
 
 async function counts(db) {
   const count = async query => { try { return (await query.count().get()).data().count; } catch { return null; } };
@@ -57,20 +57,26 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
 
   if (op === "saveLinks") {
     if (!body.links || typeof body.links !== "object" || Array.isArray(body.links)) return bad("Send the links to save.");
-    let inventoryIds;
-    try {
-      inventoryIds = (await store.readCatalog()).map(book => book.id);
-    } catch {
-      return bad("The website can't read the inventory app yet. Finish the connection step first, then try again.", 409);
+    const state = await readState(db);
+    // Only taking matches away needs no answer from the inventory app, so the owner can always undo the
+    // link (for instance when the connection is broken) and edit those books' stock on the website again.
+    const removalsOnly = linkedEditions(body.links).every(e => state.links?.[e.bookId]?.[e.variantId || "_"] === e.inventoryBookId);
+    let inventoryIds = null;
+    if (!removalsOnly) {
+      try {
+        inventoryIds = (await store.readCatalog()).map(book => book.id);
+      } catch {
+        return bad("The website can't read the inventory app yet. Finish the connection step first, then try again.", 409);
+      }
     }
     const booksSnap = await db.collection("books").get();
     const books = booksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     const { links, errors } = validateLinks(books, body.links, inventoryIds);
-    const state = await readState(db);
+    // New matches: orders with unmatched copies are sent again from the start (relinkBatch pages through all).
+    const relink = !!state.startDay && !removalsOnly;
+    const patch = { links, linksSavedAt: now.toISOString(), linksSavedBy: actor, ...(relink ? { relinkPending: true, relinkCursor: null } : {}) };
     // set() with merge replaces nested maps key by key; write `links` whole so a removed link is gone.
-    await ref.update({ links, relinkPending: !!state.startDay, linksSavedAt: now.toISOString(), linksSavedBy: actor }).catch(async () => {
-      await ref.set({ links, relinkPending: !!state.startDay, linksSavedAt: now.toISOString(), linksSavedBy: actor }, { merge: true });
-    });
+    await ref.update(patch).catch(async () => { await ref.set(patch, { merge: true }); });
     return ok({ links, errors });
   }
 
