@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { adminApi } from "./api";
 import { importTemplateCsv, IMPORT_COLUMNS, planImport, type ImportPlan, type ImportRow } from "./catalogImport";
+import { inventoryLinkApi } from "./inventoryLinkApi";
 import { Dialog, PrimaryButton, SecondaryButton, SelectField, StatusBadge, type BadgeTone } from "./riso/components";
 import { normalizeCategories } from "../features/site/navItems";
 
@@ -39,11 +40,11 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
   const [results, setResults] = useState<Result[] | null>(null);
 
   const [stockMode, setStockMode] = useState<"leave" | "set">("leave");
-  const [source, setSource] = useState<{ text: string; shopCategories: string[]; profiles: string[] } | null>(null);
+  const [source, setSource] = useState<{ text: string; shopCategories: string[]; profiles: string[]; linkedBookIds: string[] } | null>(null);
   const work = plan ? plan.rows.filter(r => r.action === "create" || r.action === "update") : [];
 
   const replan = (src: typeof source, mode: "leave" | "set") => {
-    if (src) setPlan(planImport(src.text, books, src.shopCategories, { stockMode: mode, shippingProfiles: src.profiles }));
+    if (src) setPlan(planImport(src.text, books, src.shopCategories, { stockMode: mode, shippingProfiles: src.profiles, linkedBookIds: src.linkedBookIds }));
   };
 
   async function choose(file: File | undefined) {
@@ -51,10 +52,12 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
     setReadError(""); setPlan(null); setResults(null); setFileName(file.name);
     if (file.size > MAX_FILE_BYTES) { setReadError("That file is larger than 5 MB. Split it into smaller files and import them one at a time."); return; }
     try {
-      const [text, settings, profiles] = await Promise.all([file.text(), adminApi.getPublicSettings().catch(() => null), Promise.resolve().then(() => adminApi.getShippingProfiles()).catch(() => [])]);
+      const [text, settings, profiles, links] = await Promise.all([file.text(), adminApi.getPublicSettings().catch(() => null), Promise.resolve().then(() => adminApi.getShippingProfiles()).catch(() => []), inventoryLinkApi.links().catch(() => ({}))]);
       const defined = (settings as any)?.design?.categories;
       const shopCategories = Array.isArray(defined) ? normalizeCategories(defined).map((c: any) => c?.name).filter(Boolean) : [];
-      const src = { text, shopCategories, profiles: (profiles as any[]).map(p => p.id) };
+      // Books counted in the inventory app keep the stock it sets (adminApi.updateBook enforces it too).
+      const linkedBookIds = Object.entries(links as Record<string, Record<string, string>>).filter(([, e]) => !!e?.["_"]).map(([id]) => id);
+      const src = { text, shopCategories, profiles: (profiles as any[]).map(p => p.id), linkedBookIds };
       setSource(src);
       replan(src, stockMode);
     } catch {

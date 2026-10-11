@@ -24,7 +24,8 @@ The move happens in three steps so that each one can be checked, and undone, on 
 3. **Allowed addresses.** Add `lyricalmyrical-web-v2.web.app` to:
    - the reCAPTCHA Enterprise key's domains, if a key is set (docs/RECAPTCHA.md);
    - Firebase Auth › Settings › Authorized domains in the legacy project `lyricalmyrical-37c46`, for the
-     admin's inventory sync sign-in (the main project allows web.app by default);
+     admin's leftover second sign-in at login (optional since the inventory app link runs on the server,
+     docs/INVENTORY_LINK.md; the main project allows web.app by default);
    - any HTTP-referrer restrictions on the browser API key (Google Cloud › APIs & Services › Credentials).
 4. **Variables.** `RECAPTCHA_ENTERPRISE_SITE_KEY` and `APP_CHECK_MODE`, if used, must be **repository** variables,
    not only `github-pages` environment variables.
@@ -37,7 +38,7 @@ The move happens in three steps so that each one can be checked, and undone, on 
 The deploy job checks the live site itself (`scripts/hosting-smoke.mjs`). Then, on
 `https://lyricalmyrical-web-v2.web.app`:
 
-- Sign in to the admin with Google. Run the inventory sync once, because it opens a second sign-in.
+- Sign in to the admin with Google, and open Inventory › Inventory app link to check it still says Connected.
 - Open Studio and preview every template, including Page not found.
 - Publish a change in Studio. Within about 15 minutes both addresses should rebuild.
 - Firebase console › App Check: requests from web.app are verified (if a key is set).

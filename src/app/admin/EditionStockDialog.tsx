@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Dialog, PrimaryButton, SecondaryButton, SelectField, TextField } from "./riso/components";
 import { inventoryApi } from "./inventoryApi";
+import { inventoryLinkApi } from "./inventoryLinkApi";
+import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import { ADJUST_REASONS, kindOf, variantStock, type AdjustReason } from "./inventoryInsights";
 
 export function EditionStockDialog({ book, onClose, onSaved }: { book: any | null; onClose: () => void; onSaved: () => void }) {
@@ -13,14 +15,18 @@ export function EditionStockDialog({ book, onClose, onSaved }: { book: any | nul
   const [reason, setReason] = useState<AdjustReason>("Count correction");
   const [busy, setBusy] = useState(false);
   const [conflicts, setConflicts] = useState<string[]>([]);
+  const [links, setLinks] = useState<InventoryLinks>({});
 
   useEffect(() => {
     setValues(Object.fromEntries(editions.map((v) => [v.id, String(variantStock(v))])));
     setConflicts([]);
+    if (book?.id) inventoryLinkApi.links().then(setLinks).catch(() => setLinks({}));
   }, [book?.id]);
 
   if (!book) return null;
-  const counted = (v: any) => kindOf(book, v) === "stock";
+  // Editions matched to the inventory app are counted there (Inventory › Inventory app link).
+  const linkedEdition = (v: any) => isStockLinked(links, book.id, v.id);
+  const counted = (v: any) => kindOf(book, v) === "stock" && !linkedEdition(v);
   const invalid = editions.some((v) => counted(v) && !/^\d+$/.test(String(values[v.id] ?? "").trim()));
 
   const save = async () => {
@@ -38,6 +44,7 @@ export function EditionStockDialog({ book, onClose, onSaved }: { book: any | nul
           { reason, title: book.title, edition: v.name || "" });
         if (res.ok) changed++;
         else if (res.reason === "conflict") clashed.push(`${v.name || "Edition"} (now ${res.live})`);
+        else if (res.reason === "linked") failed.push(`${v.name || "Edition"} (counted in the inventory app)`);
         else failed.push(v.name || "Edition");
       } catch { failed.push(v.name || "Edition"); }
     }
@@ -66,7 +73,7 @@ export function EditionStockDialog({ book, onClose, onSaved }: { book: any | nul
             value={values[v.id] ?? ""} onChange={(e) => setValues((p) => ({ ...p, [v.id]: e.target.value }))}
             error={!/^\d+$/.test(String(values[v.id] ?? "").trim()) ? "Enter a whole number (0 or more)." : undefined} />
         ) : (
-          <p key={v.id} className="rp-hint"><b>{v.name || "Edition"}</b>: {kindOf(book, v) === "digital" ? "digital — no stock to count" : "not counted"}</p>
+          <p key={v.id} className="rp-hint"><b>{v.name || "Edition"}</b>: {linkedEdition(v) ? `${variantStock(v)} — counted in the inventory app; change it there` : kindOf(book, v) === "digital" ? "digital — no stock to count" : "not counted"}</p>
         ))}
         <SelectField label="Reason (kept in Inventory › history)" value={reason} onChange={(e) => setReason(e.target.value as AdjustReason)}>
           {ADJUST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}

@@ -1,0 +1,348 @@
+// Inventory › Inventory app link (docs/INVENTORY_LINK.md): four steps the owner walks once —
+// connect, match books, send website sales, let stock follow the inventory app — then a status view.
+// Every write goes through the server (inventoryLinkApi); this screen only shows and asks.
+import { useEffect, useMemo, useState } from "react";
+import { Copy, ExternalLink, RefreshCw } from "lucide-react";
+import {
+  DataTable, Dialog, EmptyState, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField,
+  StatusBadge, TextField, Toggle, useRisoToast, type Column,
+} from "./riso/components";
+import { inventoryLinkApi, type LinkStatus, type StockPreview } from "./inventoryLinkApi";
+import {
+  IAM_URL, ago, editionKey, holdWords, linkStep, linkableEditions, linkedTo, linksFromChoices, suggestLinks,
+  type InventoryAppBook, type InventoryLinks, type LinkableEdition, type StockRow,
+} from "./inventoryLink";
+import { inventoryApi } from "./inventoryApi";
+import { waitingReaders, wakesRestockEmails } from "./inventoryInsights";
+
+const PROBLEM_WORDS: Record<string, string> = {
+  "not-granted": "Google Cloud hasn't given the website access to the inventory app yet. Follow the steps above, then check again.",
+  "api-disabled": "The inventory app's database isn't switched on for outside access. Check that the inventory app still opens normally, then try again.",
+  unreachable: "The inventory app's database didn't answer. Try again in a minute.",
+};
+
+const editionName = (e: { title: string; edition: string }) => (e.edition ? `${e.title} — ${e.edition}` : e.title);
+
+export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
+  books: any[]; onLinksChanged?: (links: InventoryLinks) => void; onStockChanged?: () => void;
+}) {
+  const toast = useRisoToast();
+  const [status, setStatus] = useState<LinkStatus | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [appBooks, setAppBooks] = useState<InventoryAppBook[] | null>(null);
+  const [catalogError, setCatalogError] = useState("");
+  const [choices, setChoices] = useState<Record<string, string>>({});
+  const [linkErrors, setLinkErrors] = useState<Array<{ bookId: string; variantId: string | null; reason: string }>>([]);
+  const [showArchived, setShowArchived] = useState(false);
+  const [startDay, setStartDay] = useState("");
+  const [preview, setPreview] = useState<StockPreview | null>(null);
+  const [confirmApply, setConfirmApply] = useState<{ readers: number } | null>(null);
+  const [confirmStart, setConfirmStart] = useState(false);
+
+  const state = status?.state || {};
+  const step = linkStep(state);
+  const links: InventoryLinks = state.links || {};
+  const editions = useMemo(() => linkableEditions(books), [books]);
+  const shown = editions.filter((e) => showArchived || !e.archived || linkedTo(links, e.bookId, e.variantId));
+  const suggestions = useMemo(() => (appBooks ? suggestLinks(editions, appBooks, links) : {}), [editions, appBooks, links]);
+  const dirty = editions.some((e) => (choices[e.key] ?? "") !== (linkedTo(links, e.bookId, e.variantId) ?? ""));
+
+  const loadStatus = async () => {
+    setFailed(false);
+    try {
+      const s = await inventoryLinkApi.status();
+      setStatus(s);
+      setStartDay((d) => d || s.state?.startDay || s.earliestPaidDay || s.today);
+      const saved = s.state?.links || {};
+      setChoices(Object.fromEntries(linkableEditions(books).map((e) => [e.key, linkedTo(saved, e.bookId, e.variantId) || ""])));
+      onLinksChanged?.(saved);
+      if (s.state?.connection?.ok) void loadCatalog();
+    } catch (e) {
+      console.error(e);
+      setFailed(true);
+    }
+  };
+  const loadCatalog = async () => {
+    setCatalogError("");
+    try { setAppBooks((await inventoryLinkApi.catalog()).books); }
+    catch (e: any) { setCatalogError(e?.message || "The inventory app's books couldn't be read."); }
+  };
+  useEffect(() => { void loadStatus(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const run = async (label: string, fn: () => Promise<void>) => {
+    setBusy(label);
+    try { await fn(); } catch (e: any) { toast(e?.message || "That didn't work. Try again in a minute.", { tone: "err" }); }
+    finally { setBusy(null); }
+  };
+
+  const check = () => run("check", async () => {
+    const { connection } = await inventoryLinkApi.check();
+    toast(connection.ok ? "Connected to the inventory app." : PROBLEM_WORDS[connection.problem] || "Not connected yet.", { tone: connection.ok ? "ok" : "warn" });
+    await loadStatus();
+  });
+
+  const saveLinks = () => run("links", async () => {
+    const res = await inventoryLinkApi.saveLinks(linksFromChoices(editions, choices));
+    setLinkErrors(res.errors);
+    toast(res.errors.length ? `Saved, but ${res.errors.length} match${res.errors.length === 1 ? "" : "es"} couldn't be used — see below.` : "Book matches saved.", { tone: res.errors.length ? "warn" : "ok" });
+    await loadStatus();
+  });
+
+  const startSales = () => run("start", async () => {
+    setConfirmStart(false);
+    await inventoryLinkApi.startSales(startDay);
+    toast("Website sales are on their way to the inventory app.");
+    await loadStatus();
+  });
+
+  const doPreview = () => run("preview", async () => {
+    const res = await inventoryLinkApi.preview();
+    setPreview(res.stock);
+    if (res.stock?.notReady) toast("Send website sales first (step 3), so the numbers include every website sale.", { tone: "warn" });
+  });
+
+  const askApply = () => run("apply", async () => {
+    if (!preview?.rows) return;
+    let readers = 0;
+    for (const row of preview.rows) {
+      const book = books.find((b) => b.id === row.bookId);
+      if (row.to == null || row.from == null || !wakesRestockEmails(book, row.from, row.to)) continue;
+      try { readers += waitingReaders(await inventoryApi.stockAlerts(row.bookId), row.variantId); } catch { /* counted as unknown */ }
+    }
+    setConfirmApply({ readers });
+  });
+
+  const apply = () => run("apply", async () => {
+    setConfirmApply(null);
+    if (!preview) return;
+    const res = await inventoryLinkApi.apply(preview.hash);
+    if (res.stock?.changed) {
+      setPreview(res.stock);
+      toast("The numbers moved since the preview (a sale, or a change in the inventory app). Check the new preview and apply again.", { tone: "warn" });
+      return;
+    }
+    const applied = res.stock?.applied || [];
+    const changed = applied.filter((r) => r.result === "applied").length;
+    toast(`${changed} stock count${changed === 1 ? "" : "s"} updated from the inventory app.`);
+    setPreview(null);
+    onStockChanged?.();
+    await loadStatus();
+  });
+
+  const syncNow = () => run("sync", async () => {
+    const res = await inventoryLinkApi.syncNow();
+    const changed = (res.stock?.applied || []).filter((r) => r.result === "applied").length;
+    toast(res.stock?.notReady ? "Sales were sent. Stock follows once past orders are all sent." : `Checked. ${changed} stock count${changed === 1 ? "" : "s"} updated.`);
+    if (changed) onStockChanged?.();
+    await loadStatus();
+  });
+
+  const setOption = (options: { autoSync?: boolean; rehearsal?: boolean }) => run("options", async () => {
+    await inventoryLinkApi.setOptions(options);
+    await loadStatus();
+  });
+
+  if (failed) return <ErrorState title="The inventory app link couldn't be loaded" onRetry={loadStatus} />;
+  if (!status) return <LoadingState label="Checking the inventory app link…" />;
+
+  const connection = state.connection || {};
+  const serviceAccount = status.serviceAccount || connection.serviceAccount || "";
+  const appBookName = (id: string) => appBooks?.find((b) => b.id === id)?.title || id;
+  const linkedCount = editions.filter((e) => linkedTo(links, e.bookId, e.variantId)).length;
+  const backfill = state.backfill || {};
+  const pending = state.pendingImport || null;
+
+  const linkColumns: Column<LinkableEdition>[] = [
+    { key: "title", header: "On the website", lead: true, render: (e) => (
+      <div style={{ overflowWrap: "anywhere", minWidth: 150 }}>
+        <div style={{ fontWeight: 600 }}>{e.title}</div>
+        <div className="rp-hint">{[e.edition, e.isbn && `ISBN ${e.isbn}`, e.archived && "Archived"].filter(Boolean).join(" · ") || "—"}</div>
+      </div>
+    ) },
+    { key: "app", header: "Inventory app book", render: (e) => (
+      <div style={{ minWidth: 200 }}>
+        <SelectField label={`Inventory app book for ${editionName(e)}`} hideLabel value={choices[e.key] ?? ""}
+          onChange={(ev) => setChoices((c) => ({ ...c, [e.key]: ev.target.value }))} disabled={!appBooks || busy === "links"}>
+          <option value="">Not linked</option>
+          {(appBooks || []).map((b) => <option key={b.id} value={b.id}>{b.title}{b.onHand != null ? ` (${b.onHand} on hand)` : ""}</option>)}
+        </SelectField>
+        {!choices[e.key] && suggestions[e.key] && <div className="rp-hint">Suggested: {appBookName(suggestions[e.key])}</div>}
+        {linkErrors.filter((x) => editionKey(x.bookId, x.variantId) === e.key).map((x) => (
+          <div key={x.reason} className="rp-hint" role="alert" style={{ color: "var(--rp-danger)" }}>✕ {x.reason}</div>
+        ))}
+      </div>
+    ) },
+    { key: "stock", header: "Website stock", numeric: true, render: (e) => (e.tracked ? e.stock : <span className="rp-hint">Not counted</span>) },
+  ];
+
+  const stockColumns: Column<StockRow>[] = [
+    { key: "title", header: "Book", lead: true, render: (r) => (
+      <div style={{ overflowWrap: "anywhere", minWidth: 150 }}>
+        <div style={{ fontWeight: 600 }}>{r.title || "Missing book"}</div>
+        {r.edition && <div className="rp-hint">{r.edition}</div>}
+        {appBookName(r.inventoryBookId) !== r.title && <div className="rp-hint">Inventory app: {appBookName(r.inventoryBookId)}</div>}
+      </div>
+    ) },
+    { key: "from", header: "Website now", numeric: true, render: (r) => r.from ?? "—" },
+    { key: "app", header: "Inventory app on hand", numeric: true, render: (r) => r.appOnHand ?? "—" },
+    { key: "to", header: "Website will show", numeric: true, render: (r) => (r.to == null ? "—" : r.to === r.from ? r.to : <strong>{r.to}</strong>) },
+    { key: "note", header: "Why", render: (r) => {
+      const notes = [
+        r.hold ? holdWords(r, { inPreview: true }) : "",
+        r.webTotal - (r.webCopies || 0) > 0 ? `${r.webTotal - (r.webCopies || 0)} website sale${r.webTotal - (r.webCopies || 0) === 1 ? "" : "s"} not in the inventory app yet, already taken off.` : "",
+        r.appAhead ? "The inventory app counts more website sales than the website sent. Shown at the inventory app's number; check its website rows." : "",
+      ].filter(Boolean);
+      return notes.length ? <div className="rp-hint" style={{ overflowWrap: "anywhere", minWidth: 200 }}>{notes.join(" ")}</div> : <span className="rp-hint">{r.to === r.from ? "Already matches" : "From the inventory app's count"}</span>;
+    } },
+  ];
+
+  return (
+    <div className="rp-stack">
+      <SectionCard title="1. Let the website reach the inventory app"
+        description="Website sales are copied into the inventory app, and website stock follows its count. For that the website needs permission to the inventory app's database. You give it once, in Google Cloud."
+        actions={<StatusBadge tone={connection.ok ? "success" : "warning"}>{connection.ok ? "Connected" : "Not connected yet"}</StatusBadge>}>
+        <details open={!connection.ok}>
+        <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: 10 }}>{connection.ok ? "How the connection was set up" : "Set it up (about 5 minutes, once)"}</summary>
+        <ol style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 10, listStyle: "decimal" }}>
+          <li>
+            Copy this address:{" "}
+            {serviceAccount
+              ? <><code className="rp-mono" style={{ overflowWrap: "anywhere" }}>{serviceAccount}</code>{" "}
+                  <SecondaryButton size="sm" icon={<Copy size={14} aria-hidden />} onClick={() => { void navigator.clipboard?.writeText(serviceAccount); toast("Address copied."); }}>Copy</SecondaryButton></>
+              : <span className="rp-hint">it appears here once the updated website is live.</span>}
+          </li>
+          <li>
+            Open Google Cloud, signed in as lyricalmyricalbooks@gmail.com:{" "}
+            <a className="rp-link" href={IAM_URL} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+              Inventory app permissions <ExternalLink size={12} aria-hidden /><span className="rp-sr-only"> (opens in a new tab)</span>
+            </a>
+          </li>
+          <li>Press <strong>Grant access</strong>, paste the address under <strong>New principals</strong>, pick the role <strong>Cloud Datastore User</strong>, then press <strong>Save</strong>.</li>
+          <li>Come back here and press <strong>Check connection</strong>.</li>
+        </ol>
+        </details>
+        {!connection.ok && connection.problem && <p className="rp-hint" role="status" style={{ marginTop: 12 }}>{PROBLEM_WORDS[connection.problem] || connection.error}</p>}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginTop: 16 }}>
+          <PrimaryButton disabled={!!busy} onClick={check}>{busy === "check" ? "Checking…" : "Check connection"}</PrimaryButton>
+          <span className="rp-hint">
+            {connection.checkedAt ? `Last checked ${ago(connection.checkedAt)}.` : ""}
+            {" "}The inventory app {state.app?.lastFeedAt ? `last shared its counts ${ago(state.app.lastFeedAt)}` : "hasn't shared its counts yet — open the updated inventory app once"}.
+          </span>
+        </div>
+      </SectionCard>
+
+      <SectionCard flush title="2. Match your books"
+        description="Pick the inventory app book for each printed edition sold on the website. E-books, box sets and gift cards don't need a match: box sets follow the books inside them."
+        actions={<span className="rp-sec-note">{linkedCount} of {editions.length} matched</span>}>
+        {step === "connect"
+          ? <EmptyState title="Connect first" description="Once step 1 shows Connected, the inventory app's books appear here." />
+          : catalogError ? <ErrorState description={catalogError} onRetry={loadCatalog} />
+          : !appBooks ? <LoadingState label="Reading the inventory app's books…" />
+          : <>
+              <DataTable caption="Book matches" columns={linkColumns} rows={shown} rowKey={(e) => e.key}
+                empty={<EmptyState title="No printed books on the website yet" />} />
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", padding: 16 }}>
+                <PrimaryButton disabled={!!busy || !dirty} onClick={saveLinks}>{busy === "links" ? "Saving…" : "Save matches"}</PrimaryButton>
+                <SecondaryButton disabled={!!busy || !Object.keys(suggestions).length}
+                  onClick={() => setChoices((c) => ({ ...c, ...Object.fromEntries(Object.entries(suggestions).filter(([k]) => !c[k])) }))}>
+                  Use suggestions ({Object.keys(suggestions).length})
+                </SecondaryButton>
+                <Toggle label="Show archived books" checked={showArchived} onChange={setShowArchived} />
+              </div>
+            </>}
+      </SectionCard>
+
+      <SectionCard title="3. Send website sales to the inventory app"
+        description="Every paid website order is added to the inventory app as a website sale, with refunds and shipping updates following. Orders you already entered there by hand are linked, not counted twice.">
+        {!state.startDay ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+            <TextField label="Send orders paid from" type="date" value={startDay} max={status.today}
+              hint={status.earliestPaidDay ? `Your first website sale was on ${status.earliestPaidDay}.` : undefined}
+              onChange={(e) => setStartDay(e.target.value)} />
+            <PrimaryButton disabled={!!busy || step === "connect" || step === "link" || !startDay} onClick={() => setConfirmStart(true)}>Start sending sales</PrimaryButton>
+            {(step === "connect" || step === "link") && <span className="rp-hint">Finish steps 1 and 2 first.</span>}
+          </div>
+        ) : (
+          <ul className="rp-list" aria-label="Sales sent to the inventory app">
+            <li>
+              <div style={{ fontWeight: 600 }}>Sending website sales paid from {state.startDay}</div>
+              <div className="rp-hint">{backfill.done ? `Past orders: all sent (${backfill.sent || 0}).` : `Past orders: ${backfill.sent || 0} sent so far, still sending…`} New sales go over as they're paid.</div>
+            </li>
+            <li>
+              <div style={{ fontWeight: 600 }}>{pending ? `${pending.count} order${pending.count === 1 ? "" : "s"} waiting in the inventory app` : "Waiting in the inventory app: not checked yet"}</div>
+              <div className="rp-hint">They're added when the inventory app is next open{pending?.oldestPaidAt ? ` · oldest paid ${ago(pending.oldestPaidAt)}` : ""}. Website stock already counts them.</div>
+            </li>
+            {!!status.unlinkedOrders && (
+              <li>
+                <div style={{ fontWeight: 600 }}><StatusBadge tone="warning">{status.unlinkedOrders} order{status.unlinkedOrders === 1 ? "" : "s"} with unmatched books</StatusBadge></div>
+                <div className="rp-hint">Those copies aren't counted in the inventory app yet. Match the books in step 2 and they follow.</div>
+              </li>
+            )}
+            {!!status.undelivered && (
+              <li>
+                <div style={{ fontWeight: 600 }}><StatusBadge tone="warning">{status.undelivered} waiting to be sent</StatusBadge></div>
+                <div className="rp-hint">The website tries again every 5 minutes. {state.connection?.ok ? "" : "Check the connection in step 1."}</div>
+              </li>
+            )}
+          </ul>
+        )}
+        {state.startDay && <div style={{ marginTop: 16 }}>
+          <Toggle label="Practice with Stripe test orders for 24 hours" checked={!!state.rehearsalUntil && Date.parse(state.rehearsalUntil) > Date.now()}
+            disabled={!!busy} onChange={(on) => setOption({ rehearsal: on })} />
+          <p className="rp-hint" style={{ margin: "6px 0 0" }}>Test-mode orders then show in the inventory app as practice runs: it shows what it would record and never changes its books.</p>
+        </div>}
+      </SectionCard>
+
+      <SectionCard flush title="4. Website stock follows the inventory app"
+        description="The inventory app's count (print runs, market sales, consignment, damaged copies) sets the website's stock for every matched edition. Website sales still take copies off straight away."
+        actions={state.lastStockAt ? <span className="rp-sec-note">Last checked {ago(state.lastStockAt)}</span> : undefined}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", padding: 16 }}>
+          <SecondaryButton disabled={!!busy || !state.startDay} onClick={doPreview}>{busy === "preview" ? "Working out the numbers…" : "Preview stock changes"}</SecondaryButton>
+          {preview?.rows && !preview.notReady && (
+            <PrimaryButton disabled={!!busy} onClick={askApply}>{busy === "apply" ? "Applying…" : "Apply these numbers"}</PrimaryButton>
+          )}
+          <Toggle label="Keep website stock in step automatically (every 15 minutes)" checked={state.autoSync === true}
+            disabled={!!busy || !state.firstApplyAt} onChange={(on) => setOption({ autoSync: on })} />
+          {state.firstApplyAt && <SecondaryButton icon={<RefreshCw size={14} aria-hidden />} disabled={!!busy} onClick={syncNow}>{busy === "sync" ? "Checking…" : "Sync now"}</SecondaryButton>}
+        </div>
+        {!state.firstApplyAt && <p className="rp-hint" style={{ margin: "0 16px 16px" }}>Preview and apply once; then you can turn on automatic updates.</p>}
+        {preview?.notReady && <p className="rp-hint" role="status" style={{ margin: "0 16px 16px" }}>Send website sales first (step 3), so the numbers include every website sale.</p>}
+        {preview?.rows && !preview.notReady && (
+          <DataTable caption="Stock preview" columns={stockColumns} rows={preview.rows}
+            rowKey={(r) => editionKey(r.bookId, r.variantId)} empty={<EmptyState title="No matched books" description="Match books in step 2." />} />
+        )}
+        {!preview && state.lastSync && (
+          <ul className="rp-list" aria-label="Last stock update">
+            <li>
+              <div style={{ fontWeight: 600 }}>{state.lastSync.changes?.length ? `${state.lastSync.changes.length} count${state.lastSync.changes.length === 1 ? "" : "s"} changed ${ago(state.lastSync.at)}` : `Everything matched ${ago(state.lastSync.at)}`}</div>
+              {!!state.lastSync.changes?.length && <div className="rp-hint">{state.lastSync.changes.slice(0, 8).map((c: any) => `${editionName(c)}: ${c.from} → ${c.to}`).join(" · ")}</div>}
+            </li>
+            {(state.lastSync.holds || []).map((h: any) => (
+              <li key={editionKey(h.bookId, h.variantId)}>
+                <div style={{ fontWeight: 600 }}><StatusBadge tone="warning">Waiting for you</StatusBadge> {editionName(h)}</div>
+                <div className="rp-hint">{holdWords(h)} Press Preview stock changes to review it.</div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
+
+      <Dialog open={confirmStart} onClose={() => setConfirmStart(false)} title="Start sending website sales?"
+        footer={<><SecondaryButton data-autofocus onClick={() => setConfirmStart(false)}>Cancel</SecondaryButton><PrimaryButton onClick={startSales}>Start sending</PrimaryButton></>}>
+        <p className="rp-card-desc" style={{ margin: 0, fontSize: "var(--rp-text-base)" }}>
+          Every paid website order from {startDay} on goes to the inventory app, then each new one as it's paid. The inventory app shows you a summary before it adds the past ones.
+          This date can't be changed later, so nothing is counted twice.
+        </p>
+      </Dialog>
+      <Dialog open={!!confirmApply} onClose={() => setConfirmApply(null)} title="Apply these stock numbers?"
+        footer={<><SecondaryButton data-autofocus onClick={() => setConfirmApply(null)}>Cancel</SecondaryButton><PrimaryButton onClick={apply}>Apply</PrimaryButton></>}>
+        <p className="rp-card-desc" style={{ margin: 0, fontSize: "var(--rp-text-base)" }}>
+          The website's stock for matched books changes to the numbers in the preview, and stock counting is switched on for any matched book that had it off.
+          {confirmApply?.readers ? ` ${confirmApply.readers} reader${confirmApply.readers === 1 ? " is" : "s are"} waiting for a book that comes back in stock and will be emailed.` : ""}
+          {" "}Each change is kept in the book's stock history.
+        </p>
+      </Dialog>
+    </div>
+  );
+}

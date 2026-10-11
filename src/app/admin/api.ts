@@ -1,6 +1,5 @@
 import { duplicateBookData } from "./catalogList";
-import { changedBookFields, removedBookFields, sameValue } from "./bookStockMerge";
-import { planLegacySync, readLegacyStock } from "./legacyInventorySync";
+import { changedBookFields, lockLinkedStock, removedBookFields, sameValue } from "./bookStockMerge";
 import { PRIVATE_BOOK_KEYS, mergeBookPrivate, privateKeysIn, splitBookPrivate } from "./bookPrivate";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
@@ -249,13 +248,16 @@ export const adminApi = {
       dataToSave = await runTransaction(db, async tx => {
         const snap = await tx.get(docRef);
         const privSnap = await tx.get(privRef);
+        // Matched to the inventory app (Inventory › Inventory app link): its stock is set from there.
+        const linkSnap = await tx.get(doc(db, "systemStatus", "inventoryLink"));
+        const links = linkSnap.exists() ? (linkSnap.data() as any).links : null;
         if (!snap.exists()) {
           tx.update(docRef, { ...dataToSave, updatedAt: new Date().toISOString() });
           return dataToSave;
         }
         // The live book as the editor saw it: public record with the private document on top.
         const live = mergeBookPrivate(snap.data(), privSnap.exists() ? privSnap.data() : null);
-        const changes = changedBookFields(dataToSave, loaded, live);
+        const changes = lockLinkedStock(changedBookFields(dataToSave, loaded, live), live, links, id);
         const updatedAt = new Date().toISOString();
         const { pub, priv } = splitBookPrivate(changes);
         const { pubRemoved, privRemoved } = removalsFor(removed);
@@ -1792,87 +1794,6 @@ export const adminApi = {
       }));
     }
     await Promise.all(batch);
-  },
-
-  // ─────────────────────────────────────────────
-  // INVENTORY SYNC  (Legacy RTDB → Firestore)
-  // ─────────────────────────────────────────────
-  syncInventoryFromLegacy: async () => {
-    // 1.  Ensure we are authenticated against the LEGACY project.
-    //     We try to re-use the credential obtained at login; if the
-    //     legacyAuth session expired we trigger a silent popup.
-    const [{ legacyDb, legacyAuth }, { ref: dbRef, get: dbGet }] = await Promise.all([
-      loadLegacy(),
-      import("firebase/database"),
-    ]);
-    if (!legacyAuth.currentUser) {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: "select_account" });
-      try {
-        await signInWithPopup(legacyAuth, provider);
-      } catch (err: any) {
-        throw new Error(
-          "Could not sign into legacy inventory system. Please log out and log in again."
-        );
-      }
-    }
-
-    // 2.  Read all books from the legacy RTDB  →  /lyrical/books/{id}
-    //     Each sub-key holds:  { data: "{\"stock\": 296, ...}", ts: 1234 }
-    const snapshot = await dbGet(dbRef(legacyDb, "/lyrical/books"));
-    if (!snapshot.exists()) {
-      throw new Error("No inventory data found in the legacy system.");
-    }
-
-    const rawBooks = snapshot.val() as Record<string, { data: string; ts: number }>;
-
-    // Counts must be whole numbers of 0 or more; anything else is reported, never turned into 0.
-    const { stockMap, invalid } = readLegacyStock(rawBooks as any);
-
-    // 3.  The website catalog (with the private legacy-match key merged in), then an exact-match plan.
-    const books = await adminApi.getAllBooks();
-    const plan = planLegacySync(stockMap, books);
-
-    // 4.  One transaction per book: re-read it, refuse if it became an edition book, then copy the count.
-    const results: Array<{ id: string; title: string; slug: string; legacyKey: string; stock: number; matched: boolean }> = [];
-    const failed: Array<{ bookId: string; title: string; reason: string }> = [];
-    const syncedAt = new Date().toISOString();
-    for (const m of plan.matches) {
-      try {
-        await runTransaction(db, async (tx) => {
-          const ref = doc(db, "books", m.bookId);
-          const snap = await tx.get(ref);
-          if (!snap.exists()) throw new Error("the book no longer exists");
-          const live: any = snap.data();
-          if (Array.isArray(live.variants) && live.variants.length) throw new Error("the book is now sold in editions");
-          tx.update(ref, { stockLevel: m.stock, updatedAt: syncedAt, lastInventorySync: syncedAt, legacyInventoryKey: deleteField() });
-          tx.set(privateBookRef(m.bookId), { legacyInventoryKey: m.legacyKey, updatedAt: syncedAt }, { mergeFields: ["legacyInventoryKey", "updatedAt"] });
-        });
-        results.push({ id: m.bookId, title: m.title, slug: m.slug, legacyKey: m.legacyKey, stock: m.stock, matched: true });
-      } catch (err: any) {
-        failed.push({ bookId: m.bookId, title: m.title, reason: err?.message || "not saved" });
-      }
-    }
-    const updateCount = results.length;
-
-    // 5.  Persist sync metadata so the UI can show "Last synced" (counts only: the old shop's names stay private).
-    await setDoc(
-      doc(db, "settings", "website"),
-      { inventory: { lastSync: syncedAt, lastSyncCount: updateCount } },
-      { merge: true }
-    );
-
-    await adminApi.recordAuditLog("inventory", `Synchronized inventory with legacy core. ${updateCount} records updated, ${plan.skipped.length + failed.length + invalid.length} skipped.`);
-
-    return {
-      synced: updateCount,
-      unmatched: plan.unmatched,
-      legacyTotal: Object.keys(stockMap).length + invalid.length,
-      stockMap,
-      results,
-      skipped: [...plan.skipped, ...failed],
-      invalid,
-    };
   },
 
   // ─────────────────────────────────────────────

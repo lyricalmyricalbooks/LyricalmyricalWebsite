@@ -7,8 +7,9 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { planStockChange, type AdjustReason, type StockChange } from "./inventoryInsights";
+import { isStockLinked } from "./inventoryLink";
 
-export type StockResult = { ok: boolean; from?: number; to?: number; patch?: Record<string, any>; reason?: "missing" | "not-counted" | "conflict"; live?: number };
+export type StockResult = { ok: boolean; from?: number; to?: number; patch?: Record<string, any>; reason?: "missing" | "not-counted" | "conflict" | "linked"; live?: number };
 
 export interface InventoryLogEntry {
   id: string; bookId: string; variantId: string | null; title: string; edition: string;
@@ -24,6 +25,9 @@ export const inventoryApi = {
     const ref = doc(db, "books", bookId);
     return runTransaction(db, async (tx) => {
       const snap = await tx.get(ref);
+      // A book matched to the inventory app is counted there; the link sets its stock (docs/INVENTORY_LINK.md).
+      const link = await tx.get(doc(db, "systemStatus", "inventoryLink"));
+      if (isStockLinked(link.exists() ? (link.data() as any).links : null, bookId, variantId)) return { ok: false, reason: "linked" } as StockResult;
       const plan = planStockChange(snap.exists() ? snap.data() : null, variantId, change, { force: meta.force });
       if (!plan.ok || plan.from === plan.to) return plan;
       const at = new Date().toISOString();

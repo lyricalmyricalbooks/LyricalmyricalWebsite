@@ -1,0 +1,127 @@
+// Inventory › Inventory app link (admin): what each button asks the server to do. index.js checks the
+// admin's sign-in (requireAdmin) and passes `deps` (see inventoryLinkJobs.js) plus the store's
+// checkConnection/readCatalog/serviceAccountEmail. Returns { status, body } for the HTTP answer.
+const { validateLinks, paidDayOf } = require("./inventoryLink");
+const { readState, runSweep, REHEARSAL_MS, STATE_DOC } = require("./inventoryLinkJobs");
+const { shopDate } = require("./paymentGuards");
+
+const ok = body => ({ status: 200, body });
+const bad = (error, status = 400) => ({ status, body: { error } });
+const PUBLIC_STATE_KEYS = ["links", "startDay", "autoSync", "rehearsalUntil", "firstApplyAt", "backfill", "connection",
+  "lastSync", "lastStockAt", "lastRunAt", "lastPush", "pendingImport", "app", "lastError", "relinkPending", "shipmentError", "pendingError"];
+
+async function counts(db) {
+  const count = async query => { try { return (await query.count().get()).data().count; } catch { return null; } };
+  const [undelivered, unlinked] = await Promise.all([
+    count(db.collection("inventoryPushes").where("delivered", "==", false)),
+    count(db.collection("inventoryPushes").where("unlinkedCount", ">", 0)),
+  ]);
+  return { undelivered, unlinkedOrders: unlinked };
+}
+
+/** The first day a real order was paid (the default start for "Send past orders"). */
+async function earliestPaidDay(db) {
+  const snap = await db.collection("orders").orderBy("paidAt").limit(25).get();
+  const first = snap.docs.map(doc => doc.data()).find(order => order.isTest !== true && order.paymentStatus && order.paymentStatus !== "unpaid");
+  return first ? paidDayOf(first) || null : null;
+}
+
+async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
+  const { db, store } = deps;
+  const ref = db.collection(STATE_DOC[0]).doc(STATE_DOC[1]);
+  const now = deps.now();
+  const op = String(body.op || "");
+
+  if (op === "status") {
+    const [state, extra, earliest, serviceAccount] = await Promise.all([
+      readState(db), counts(db), earliestPaidDay(db).catch(() => null), store.serviceAccountEmail(),
+    ]);
+    const visible = Object.fromEntries(PUBLIC_STATE_KEYS.filter(key => state[key] !== undefined).map(key => [key, state[key]]));
+    return ok({ state: visible, ...extra, earliestPaidDay: earliest, serviceAccount, busy: !!(state.lease?.until && Date.parse(state.lease.until) > now.getTime()), today: shopDate(now) });
+  }
+
+  if (op === "check") {
+    const result = await store.checkConnection({ now });
+    const connection = { ok: result.ok, serviceAccount: result.serviceAccount || "", problem: result.problem || null, error: result.error || null, checkedAt: now.toISOString() };
+    await ref.set({ connection }, { merge: true });
+    return ok({ connection });
+  }
+
+  if (op === "catalog") {
+    try {
+      return ok({ books: await store.readCatalog() });
+    } catch (err) {
+      return bad("The website can't read the inventory app yet. Finish the connection step first, then try again.", 409);
+    }
+  }
+
+  if (op === "saveLinks") {
+    if (!body.links || typeof body.links !== "object" || Array.isArray(body.links)) return bad("Send the links to save.");
+    let inventoryIds;
+    try {
+      inventoryIds = (await store.readCatalog()).map(book => book.id);
+    } catch {
+      return bad("The website can't read the inventory app yet. Finish the connection step first, then try again.", 409);
+    }
+    const booksSnap = await db.collection("books").get();
+    const books = booksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const { links, errors } = validateLinks(books, body.links, inventoryIds);
+    const state = await readState(db);
+    // set() with merge replaces nested maps key by key; write `links` whole so a removed link is gone.
+    await ref.update({ links, relinkPending: !!state.startDay, linksSavedAt: now.toISOString(), linksSavedBy: actor }).catch(async () => {
+      await ref.set({ links, relinkPending: !!state.startDay, linksSavedAt: now.toISOString(), linksSavedBy: actor }, { merge: true });
+    });
+    return ok({ links, errors });
+  }
+
+  if (op === "setOptions") {
+    const patch = {};
+    if (typeof body.autoSync === "boolean") {
+      const state = await readState(db);
+      if (body.autoSync && !state.firstApplyAt) return bad("Preview and apply the stock numbers once before turning on automatic stock.", 409);
+      patch.autoSync = body.autoSync;
+    }
+    if (typeof body.rehearsal === "boolean") patch.rehearsalUntil = body.rehearsal ? new Date(now.getTime() + REHEARSAL_MS).toISOString() : null;
+    if (!Object.keys(patch).length) return bad("Nothing to change.");
+    await ref.set(patch, { merge: true });
+    return ok({ saved: patch });
+  }
+
+  if (op === "startSales") {
+    const day = String(body.startDay || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(`${day}T12:00:00Z`))) return bad("Choose the first day to send.");
+    if (day > shopDate(now)) return bad("The first day can't be in the future.");
+    const result = await db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      const state = snap.exists ? snap.data() : {};
+      if (state.startDay) return state.startDay;
+      if (state.connection?.ok !== true) return false;
+      tx.set(ref, { startDay: day, backfill: { from: day, done: false, cursor: null, sent: 0 }, salesStartedAt: now.toISOString(), salesStartedBy: actor }, { merge: true });
+      return true;
+    });
+    if (result === false) return bad("Check the connection to the inventory app first.", 409);
+    if (result !== true) return bad(`Website sales are already being sent from ${result}. That date can't change, so nothing is counted twice.`, 409);
+    const run = await runSweep(deps, { stock: "none", budgetMs: 40 * 1000 });
+    return ok({ startDay: day, run: summary(run) });
+  }
+
+  if (["preview", "apply", "syncNow"].includes(op)) {
+    if (op === "apply" && typeof body.confirmHash !== "string") return bad("Preview the numbers first.");
+    const run = await runSweep(deps, {
+      stock: op === "preview" ? "preview" : op === "apply" ? "apply" : "force",
+      confirmHash: body.confirmHash, by: actor, budgetMs: 40 * 1000,
+    });
+    if (run.busy) return bad("The link is busy with its regular check. Try again in a minute.", 409);
+    return ok({ run: summary(run), stock: run.stock || null });
+  }
+
+  return bad("Unknown inventory link action.");
+}
+
+function summary(run) {
+  if (!run) return null;
+  const { stock, ...rest } = run;
+  return rest;
+}
+
+module.exports = { inventoryLinkAdmin, earliestPaidDay };

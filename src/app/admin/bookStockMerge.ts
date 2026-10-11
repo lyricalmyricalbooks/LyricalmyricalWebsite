@@ -94,3 +94,31 @@ export function sameValue(a: any, b: any): boolean {
 function sameNumber(a: any, b: any): boolean {
   return (a ?? null) === (b ?? null) || (a !== "" && b !== "" && a != null && b != null && Number(a) === Number(b));
 }
+
+/**
+ * Books matched to the inventory app are counted there (Inventory › Inventory app link): a save from any
+ * screen (editor, catalog table, CSV import) keeps their live stock and never writes a typed count.
+ * `links` is systemStatus/inventoryLink.links. Pure; used inside adminApi.updateBook's transaction.
+ */
+export function lockLinkedStock(changes: Record<string, any>, live: any, links: Record<string, Record<string, string>> | null | undefined, bookId: string): Record<string, any> {
+  const entry = links?.[bookId];
+  if (!entry || !live) return changes;
+  const out = { ...changes };
+  if ("stockLevel" in out && entry["_"]) {
+    if (live.stockLevel === undefined) delete out.stockLevel; else out.stockLevel = live.stockLevel;
+  }
+  if (Array.isArray(out.variants)) {
+    const now = new Map((Array.isArray(live.variants) ? live.variants : []).map((v: any) => [v?.id, v]));
+    out.variants = out.variants.map((v: any) => {
+      if (!v?.id || !entry[v.id]) return v;
+      const current: any = now.get(v.id);
+      if (!current) return v;
+      const stock = variantStock(current);
+      return stock === undefined ? v : { ...v, stock, stockLevel: stock };
+    });
+    // The book's own count of an edition book is the editions' sum (changedBookFields).
+    if (out.variants.length && "stockLevel" in out) out.stockLevel = out.variants.reduce((n: number, v: any) => n + (Number(variantStock(v)) || 0), 0);
+  }
+  return out;
+}
+

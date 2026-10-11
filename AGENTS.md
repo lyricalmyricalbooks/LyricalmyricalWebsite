@@ -52,6 +52,10 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
   `unpaid`. Never mark a Stripe order paid, adjust its inventory, or count its discount from
   client code or another Stripe recovery path. Preserve existing PayPal, manual/offline and free-order contracts.
 - **Tracked inventory reservations:** acquire expiring server-only holds transactionally before creating a payment and revalidate them at settlement; reservation-store failures fail closed. Release on payment/cancel and surface any already-captured payment that can no longer reserve stock for admin reconciliation.
+- **The inventory app link is never a payment path.** It may set a linked edition's stock to the inventory app's count
+  (`functions/inventoryLinkJobs.js`, per-book transactions that skip anything changed during the run) and dispatch an order
+  whose label was bought in the inventory app (same checks as Orders › Dispatch). It never marks orders paid, refunds them or
+  touches Stripe/PayPal. Only `functions/inventoryLinkStore.js` reaches the inventory app's project (CLAUDE.md › Inventory app link).
 - **Gift-card balances move only with a confirmed payment.** `priceOrder` (functions/index.js) prices every
   checkout path; gift cards are held with stock (`reserveCheckout`) and debited only inside the paid transaction
   (`settleGiftCards`), credited back once by a full refund. Never write `giftCards/*` from the browser

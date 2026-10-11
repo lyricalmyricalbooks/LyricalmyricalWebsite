@@ -1,0 +1,393 @@
+// Website ↔ inventory app link: the pure rules (docs/INVENTORY_LINK.md). No Firestore here.
+//
+// The inventory app (project lyricalmyrical-37c46) is the master stock count. The website
+// sends it every paid order as copies per inventory book (orderFootprint / websiteOrder), and
+// sets each linked edition's stock from the count the app publishes (stockPlanFor).
+// Nothing here is a payment path: it never decides whether an order is paid.
+const crypto = require("crypto");
+const { stockLines, isBundle, isGiftCardProduct } = require("./promotions");
+const { isPhysicalItem } = require("./localFulfillment");
+const { shopDate } = require("./paymentGuards");
+
+const WEB_VERSION = 1;
+// An order counts once its payment was accepted; a refund keeps it (its copies may not be back).
+const COUNTED_STATUSES = new Set(["paid", "refund_pending", "refunded"]);
+const DIGITAL_RE = /e-?book|epub|pdf|audiobook|digital/i;
+const INVENTORY_ID_RE = /^[A-Za-z0-9_-]{1,120}$/;
+
+const whole = value => Math.max(0, Math.floor(Number(value) || 0));
+const cents = value => Math.round((Number(value) || 0) * 100);
+const dollars = minor => Math.round(Number(minor) || 0) / 100;
+const text = (value, max = 200) => String(value ?? "").trim().slice(0, max);
+const lineKey = (bookId, variantId) => `${bookId}|${variantId || ""}`;
+
+/** "#ABCD-123456-WXYZ"; manual-payment orders (24 hex, no hyphen) become "#WEB-<HEX>" so the app can match them. */
+function websiteOrderNumber(orderId) {
+  const id = text(orderId, 120);
+  if (!id) return "";
+  return id.includes("-") ? `#${id}` : `#WEB-${id.toUpperCase()}`;
+}
+
+function paidInstant(order) {
+  const value = order && (order.paidAt || null);
+  return typeof value === "string" && !Number.isNaN(Date.parse(value)) ? value : null;
+}
+
+/** The Toronto day the order was paid ("" when unknown). */
+function paidDayOf(order) {
+  const at = paidInstant(order);
+  return at ? shopDate(new Date(at)) : "";
+}
+
+/** A real (non-test) order whose payment was accepted on or after the link's start day. */
+function countsForInventory(order, startDay) {
+  if (!order || order.isTest === true) return false;
+  if (!COUNTED_STATUSES.has(order.paymentStatus)) return false;
+  const day = paidDayOf(order);
+  return !!day && (!startDay || day >= startDay);
+}
+
+/**
+ * What kind of push an order needs: "real", "test" (a Stripe test-mode rehearsal order, only while
+ * rehearsal is on) or null. An order already pushed keeps being pushed so refunds and dispatch follow.
+ */
+function pushKind(order, { startDay = "", rehearsal = false, record = null } = {}) {
+  if (!order) return null;
+  if (order.isTest === true) {
+    if (record && record.test === true) return "test";
+    return rehearsal && order.sandboxPayment === true && COUNTED_STATUSES.has(order.paymentStatus) ? "test" : null;
+  }
+  if (record && record.test !== true) return "real";
+  return countsForInventory(order, startDay) ? "real" : null;
+}
+
+/** The inventory book a website book/edition is linked to (null when none). */
+function linkFor(links, bookId, variantId) {
+  const entry = links && links[bookId];
+  if (!entry || typeof entry !== "object") return null;
+  const id = entry[variantId || "_"];
+  return typeof id === "string" && INVENTORY_ID_RE.test(id) ? id : null;
+}
+
+// Largest-remainder split of `totalCents` across `weights`, so the parts always add up.
+function splitCents(totalCents, weights) {
+  const sum = weights.reduce((a, b) => a + b, 0);
+  if (!weights.length) return [];
+  if (sum <= 0) return splitCents(totalCents, weights.map(() => 1));
+  const raw = weights.map(w => (totalCents * w) / sum);
+  const out = raw.map(Math.floor);
+  let left = totalCents - out.reduce((a, b) => a + b, 0);
+  const order = raw.map((r, i) => [r - Math.floor(r), i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+  for (let k = 0; left > 0 && k < order.length; k++, left--) out[order[k][1]] += 1;
+  return out;
+}
+
+/**
+ * Copies per inventory book for one order: sold, put back on the shelf, and the difference.
+ *
+ * Counts physical copies of linked editions (box sets as the books inside them), never what the
+ * website's own stock-keeping happened to do (that depends on trackInventory at the time, which
+ * the order doesn't record). `frozen` holds the line→book links an earlier push used: a link chosen
+ * later never moves copies already counted for another book.
+ * `partPrice(bookId, variantId)` gives a box-set part's catalog price (CAD) to share the set's price.
+ */
+function orderFootprint(order, links, frozen = {}, partPrice = () => 0) {
+  const lineLinks = { ...(frozen || {}) };
+  const books = {};
+  const unlinked = new Map();
+  const touch = inv => (books[inv] = books[inv] || { sold: 0, restocked: 0, merchCents: 0, preorder: false, titles: [] });
+  const resolve = (bookId, variantId) => {
+    const key = lineKey(bookId, variantId);
+    if (!lineLinks[key]) lineLinks[key] = linkFor(links, bookId, variantId);
+    return lineLinks[key] || null;
+  };
+
+  for (const item of Array.isArray(order?.items) ? order.items : []) {
+    if (!item || item.giftCard === true || !isPhysicalItem(item)) continue;
+    const sets = whole(item.quantity);
+    if (!sets) continue;
+    const lineCents = cents(item.price) * sets;
+    const parts = stockLines([item]);
+    const isSet = Array.isArray(item.components) && item.components.length > 0;
+    const shares = isSet
+      ? splitCents(lineCents, parts.map(part => Math.max(0, cents(partPrice(part.id, part.variantId))) * whole(part.quantity)))
+      : [lineCents];
+    parts.forEach((part, index) => {
+      const qty = whole(part.quantity);
+      if (!qty || typeof part.id !== "string") return;
+      const inv = resolve(part.id, part.variantId);
+      const title = text(isSet ? (item.components[index]?.title || item.title) : [item.title, item.variantName].filter(Boolean).join(" — "), 160);
+      if (!inv) {
+        unlinked.set(title || part.id, (unlinked.get(title || part.id) || 0) + qty);
+        return;
+      }
+      const entry = touch(inv);
+      entry.sold += qty;
+      entry.merchCents += shares[index] || 0;
+      if (item.preorder === true) entry.preorder = true;
+      if (title && !entry.titles.includes(title) && entry.titles.length < 5) entry.titles.push(title);
+    });
+  }
+
+  const restockedLines = [];
+  if (order && order.inventoryRestockedAt != null) {
+    // A provider/admin refund records exactly what went back; the older manual-refund path restocks every line.
+    if (Array.isArray(order.restockedItems)) restockedLines.push(...order.restockedItems);
+    else restockedLines.push(...withoutPartials(order.items || [], order.partialRestockedItems));
+  }
+  for (const row of Array.isArray(order?.partialRestockedItems) ? order.partialRestockedItems : []) {
+    const item = (order.items || [])[Number(row?.index)];
+    // Partial restocks don't record a box set's parts: take them from the order line.
+    restockedLines.push(item && Array.isArray(item.components) && item.components.length
+      ? { ...item, quantity: whole(row.quantity) }
+      : { id: row?.id, variantId: row?.variantId || null, quantity: whole(row?.quantity) });
+  }
+  for (const part of stockLines(restockedLines)) {
+    if (!part || typeof part.id !== "string") continue;
+    const key = lineKey(part.id, part.variantId);
+    const inv = lineLinks[key];
+    if (!inv || !books[inv]) continue;
+    books[inv].restocked += whole(part.quantity);
+  }
+
+  const net = {};
+  for (const [inv, entry] of Object.entries(books)) {
+    entry.restocked = Math.min(entry.restocked, entry.sold);
+    net[inv] = entry.sold - entry.restocked;
+  }
+  return {
+    net, books, lineLinks,
+    unlinked: [...unlinked].map(([title, qty]) => ({ title, qty })).sort((a, b) => a.title.localeCompare(b.title)),
+  };
+}
+
+function withoutPartials(items, partials) {
+  const left = new Map();
+  for (const row of Array.isArray(partials) ? partials : []) {
+    const key = lineKey(row?.id, row?.variantId);
+    left.set(key, (left.get(key) || 0) + whole(row?.quantity));
+  }
+  return items.map(item => {
+    const key = lineKey(item?.id, item?.variantId);
+    const take = Math.min(left.get(key) || 0, whole(item?.quantity));
+    if (!take) return item;
+    left.set(key, left.get(key) - take);
+    return { ...item, quantity: whole(item.quantity) - take };
+  }).filter(item => item && whole(item.quantity) > 0);
+}
+
+// Sorted-key JSON, so the same content always hashes the same.
+function stable(value) {
+  if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().filter(k => value[k] !== undefined).map(k => `${JSON.stringify(k)}:${stable(value[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(value === undefined ? null : value);
+}
+const sha256 = value => crypto.createHash("sha256").update(value).digest("hex");
+
+function refundOf(order) {
+  if (["refunded", "refund_pending"].includes(order.paymentStatus)) {
+    const minor = Number.isFinite(Number(order.refundedAmountMinor)) && order.refundedAmountMinor != null
+      ? Math.round(Number(order.refundedAmountMinor))
+      : cents(order.refund?.amount ?? order.total);
+    return { state: "full", refund: { amountMinor: minor, currency: text(order.refund?.currency || order.expectedCurrency || "CAD", 3).toUpperCase() } };
+  }
+  if (order.partiallyRefunded === true && Number(order.refundedAmountMinor) > 0) {
+    return { state: "partial", refund: { amountMinor: Math.round(Number(order.refundedAmountMinor)), currency: text(order.expectedCurrency || order.checkoutCurrency || "CAD", 3).toUpperCase() } };
+  }
+  return { state: "none", refund: null };
+}
+
+/**
+ * The `web` map for websiteOrders/{orderId} (contract v1) and the copies it counts.
+ * Returns { web, net, lineLinks, unlinkedCount }.
+ */
+function websiteOrder(order, { orderId, links, frozen, partPrice, test = false, sourceUpdatedAt = null } = {}) {
+  const fp = orderFootprint(order, links, frozen, partPrice);
+  const addr = order.customer?.address || {};
+  const { state, refund } = refundOf(order);
+  const charged = {
+    currency: text(order.expectedCurrency || order.checkoutCurrency || "CAD", 3).toUpperCase() || "CAD",
+    amountMinor: Number.isFinite(Number(order.expectedAmountMinor)) && order.expectedAmountMinor != null
+      ? Math.round(Number(order.expectedAmountMinor)) : cents(order.total),
+  };
+  const books = {};
+  for (const [inv, entry] of Object.entries(fp.books)) {
+    books[inv] = {
+      net: entry.sold - entry.restocked, sold: entry.sold, restocked: entry.restocked,
+      unitCAD: entry.sold ? dollars(Math.round(entry.merchCents / entry.sold)) : 0,
+      merchCAD: dollars(entry.merchCents), preorder: entry.preorder, titles: entry.titles,
+    };
+  }
+  const firstBook = Object.keys(books).sort((a, b) => books[b].merchCAD - books[a].merchCAD || a.localeCompare(b))[0] || null;
+  const shippedAt = typeof order.shippedAt === "string" && !Number.isNaN(Date.parse(order.shippedAt)) ? order.shippedAt : null;
+  const method = ["pickup", "local_delivery"].includes(order.fulfillmentSelection?.method) ? order.fulfillmentSelection.method : "shipping";
+  const trackingNumber = text(order.trackingNumber, 100);
+  const body = {
+    v: WEB_VERSION,
+    orderId: text(orderId, 120),
+    number: websiteOrderNumber(orderId),
+    test: test === true,
+    paidAt: paidInstant(order),
+    paidDay: paidDayOf(order) || null,
+    paymentMethod: text(order.paymentMethod, 60),
+    paymentStatus: text(order.paymentStatus, 30),
+    refundState: state,
+    refund,
+    stripePaymentIntentId: text(order.stripePaymentIntentId, 120) || null,
+    paypalCaptureId: text(order.paypalCaptureId, 120) || null,
+    totals: {
+      subtotal: dollars(cents(order.subtotal)), discount: dollars(cents(order.discount)),
+      discountCode: text(order.appliedDiscount?.code || order.appliedDiscount?.title || "", 80),
+      shipping: dollars(cents(order.shipping)), tax: dollars(cents(order.tax)),
+      total: dollars(cents(order.total)), giftCard: dollars(cents(order.giftCardAmount)),
+    },
+    charged,
+    customer: {
+      name: text(order.customer?.name, 200), email: text(order.customer?.email, 320).toLowerCase(), phone: text(order.customer?.phone, 60),
+      address: {
+        street: text(addr.street), unit: text(addr.unit, 80), city: text(addr.city, 120),
+        state: text(addr.state, 80), zip: text(addr.zip, 30), country: text(addr.country, 80),
+      },
+    },
+    fulfillment: {
+      method,
+      status: text(order.fulfillmentStatus, 40),
+      trackingNumber, trackingCarrier: text(order.trackingCarrier, 80), trackingUrl: text(order.trackingUrl, 500),
+      shippedDay: shippedAt ? shopDate(new Date(shippedAt)) : null,
+      labelSource: order.trackingSource === "inventory-app" ? "inventory-app" : trackingNumber ? "website" : null,
+    },
+    books,
+    firstBook,
+    unlinked: fp.unlinked,
+  };
+  const hash = sha256(stable(body));
+  return {
+    // The order snapshot's server update time when known (monotonic), else its own updatedAt.
+    web: { ...body, hash, sourceUpdatedAt: text(sourceUpdatedAt || order.updatedAt || order.paidAt || "", 40) || null },
+    hash,
+    net: test ? {} : fp.net,
+    lineLinks: fp.lineLinks,
+    unlinkedCount: fp.unlinked.reduce((n, row) => n + row.qty, 0),
+  };
+}
+
+const isDigitalEdition = (book, variant) => variant
+  ? variant.digital === true || (variant.format ? DIGITAL_RE.test(String(variant.format)) : (book.digital === true || DIGITAL_RE.test(String(book.format || ""))))
+  : book.digital === true || DIGITAL_RE.test(String(book.format || ""));
+
+/**
+ * Check and clean a links map against the website catalog (and the inventory catalog's ids when known).
+ * An empty value removes a link. Returns { links, errors: [{ bookId, variantId, reason }] }.
+ */
+function validateLinks(books, links, inventoryIds = null) {
+  const byId = new Map((books || []).filter(b => b && b.id).map(b => [b.id, b]));
+  const known = inventoryIds ? new Set(inventoryIds) : null;
+  const out = {};
+  const errors = [];
+  const usedBy = new Map();
+  for (const [bookId, entry] of Object.entries(links || {})) {
+    if (!entry || typeof entry !== "object") continue;
+    for (const [key, raw] of Object.entries(entry)) {
+      const inv = typeof raw === "string" ? raw.trim() : "";
+      if (!inv) continue;
+      const variantId = key === "_" ? null : key;
+      const fail = reason => errors.push({ bookId, variantId, reason });
+      const book = byId.get(bookId);
+      if (!book) { fail("This book is no longer in the website catalog."); continue; }
+      if (!INVENTORY_ID_RE.test(inv) || (known && !known.has(inv))) { fail("That book is not in the inventory app."); continue; }
+      if (isGiftCardProduct(book)) { fail("Gift cards have no stock to link."); continue; }
+      if (isBundle(book)) { fail("Box sets follow the books inside them; link those books instead."); continue; }
+      const variants = Array.isArray(book.variants) ? book.variants.filter(v => v && v.id) : [];
+      let variant = null;
+      if (variantId) {
+        variant = variants.find(v => v.id === variantId);
+        if (!variant) { fail("This edition is no longer on the book."); continue; }
+      } else if (variants.length) { fail("This book is sold in editions; link each printed edition."); continue; }
+      if (isDigitalEdition(book, variant)) { fail("E-books and audiobooks have no stock to link."); continue; }
+      const owner = usedBy.get(inv);
+      if (owner) { fail(`That inventory book is already linked to “${owner}”.`); continue; }
+      usedBy.set(inv, [book.title || "another book", variant?.name].filter(Boolean).join(" — "));
+      out[bookId] = { ...(out[bookId] || {}), [variantId || "_"]: inv };
+    }
+  }
+  return { links: out, errors };
+}
+
+/** Every linked edition: [{ bookId, variantId, inventoryBookId }]. */
+function linkedEditions(links) {
+  const out = [];
+  for (const [bookId, entry] of Object.entries(links || {})) {
+    for (const [key, inv] of Object.entries(entry || {})) {
+      if (typeof inv === "string" && INVENTORY_ID_RE.test(inv)) out.push({ bookId, variantId: key === "_" ? null : key, inventoryBookId: inv });
+    }
+  }
+  return out;
+}
+
+function liveStock(book, variantId) {
+  if (!book) return null;
+  if (!variantId) return whole(book.stockLevel);
+  const v = (Array.isArray(book.variants) ? book.variants : []).find(x => x && x.id === variantId);
+  return v ? whole(v.stockLevel !== undefined ? v.stockLevel : v.stock) : null;
+}
+
+/**
+ * What one linked edition's stock should be. `feed` = websiteStockFeed doc, `webTotal` = website
+ * copies counted for that inventory book. Returns { from, to, hold, appAhead, turnsOnTracking }.
+ * hold: "missing" | "no-feed" | "not-derived" | "untracked" | "big-change" | null — automatic runs
+ * apply only plans without a hold; the owner's confirmed preview applies everything but the first three.
+ */
+function stockPlanFor({ book, variantId = null, feed, webTotal = 0 }) {
+  const from = liveStock(book, variantId);
+  if (from == null) return { from: null, to: null, hold: "missing" };
+  if (!feed || !Number.isFinite(Number(feed.base)) || !Number.isFinite(Number(feed.onHand))) return { from, to: null, hold: "no-feed" };
+  if (feed.derived === false) return { from, to: null, hold: "not-derived" };
+  const expected = Math.floor(Number(feed.base)) - whole(webTotal);
+  const onHand = whole(feed.onHand);
+  const to = Math.max(0, Math.min(expected, onHand));
+  const appAhead = expected > onHand;
+  const turnsOnTracking = book.trackInventory !== true;
+  const change = Math.abs(to - from);
+  const big = change > Math.max(10, Math.ceil(from * 0.5)) || (to === 0 && from > 10);
+  const hold = turnsOnTracking ? "untracked" : big ? "big-change" : null;
+  return { from, to, hold, appAhead, turnsOnTracking };
+}
+
+/** The same patch as the admin's planStockChange: an edition's stock and stockLevel, or the book's stockLevel. */
+function stockPatch(book, variantId, to, { track = false } = {}) {
+  const value = whole(to);
+  const patch = variantId
+    ? { variants: (book.variants || []).map(v => (v && v.id === variantId ? { ...v, stockLevel: value, stock: value } : v)) }
+    : { stockLevel: value };
+  if (track && book.trackInventory !== true) patch.trackInventory = true;
+  return patch;
+}
+
+/** The inventory app's settings/catalog, reduced to what the website may see (never author passwords or links). */
+function projectInventoryCatalog(doc) {
+  let parsed = doc && doc.data;
+  if (typeof parsed === "string") {
+    try { parsed = JSON.parse(parsed); } catch { parsed = null; }
+  }
+  if (!parsed || typeof parsed !== "object") return [];
+  const out = [];
+  for (const [key, book] of Object.entries(parsed)) {
+    if (key.startsWith("_") || !book || typeof book !== "object") continue;
+    const id = text(book.id || key, 120);
+    if (!INVENTORY_ID_RE.test(id)) continue;
+    out.push({
+      id, title: text(book.title, 200) || id, author: text(book.author, 200),
+      isbn: text(book.isbn, 40).replace(/^—$/, ""), currency: text(book.currency, 8),
+      maxPrint: Number.isFinite(Number(book.maxPrint)) ? Number(book.maxPrint) : null,
+    });
+  }
+  return out.sort((a, b) => a.title.localeCompare(b.title));
+}
+
+module.exports = {
+  WEB_VERSION, websiteOrderNumber, paidDayOf, countsForInventory, pushKind, linkFor, lineKey, splitCents,
+  orderFootprint, websiteOrder, stable, validateLinks, linkedEditions, liveStock, stockPlanFor, stockPatch,
+  projectInventoryCatalog, isDigitalEdition,
+};

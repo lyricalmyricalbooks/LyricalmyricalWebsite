@@ -155,6 +155,17 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   await check("admin can't write opt-outs", assertFails(setDoc(doc(admin, "marketing-optout/x"), { at: "now" })));
 }
 
+// Inventory app link: per-order records are server-only; the admin reads the link's status document.
+{
+  const admin = env.authenticatedContext("admin", { email: "lyricalmyricalbooks@gmail.com", email_verified: true }).firestore();
+  await check("anon can't read inventory pushes", assertFails(getDoc(doc(anon, "inventoryPushes/x"))));
+  await check("admin can't read inventory pushes", assertFails(getDoc(doc(admin, "inventoryPushes/x"))));
+  await check("admin can't write inventory pushes", assertFails(setDoc(doc(admin, "inventoryPushes/x"), { net: { a: 1 } })));
+  await check("admin reads the link status", assertSucceeds(getDoc(doc(admin, "systemStatus/inventoryLink"))));
+  await check("admin can't write the link status", assertFails(setDoc(doc(admin, "systemStatus/inventoryLink"), { links: {} })));
+  await check("anon can't read the link status", assertFails(getDoc(doc(anon, "systemStatus/inventoryLink"))));
+}
+
 // contactMessages: one plain sender address only (never a list the auto-reply could be sent to)
 {
   const message = email => ({ name: "Ada", email, phone: "", subject: "Hi", message: "Hello", page: "/", status: "new", createdAt: serverTimestamp() });

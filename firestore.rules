@@ -108,6 +108,11 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if false;
     }
+    // Inventory app link: what each website order sent to the inventory app (functions/inventoryLinkJobs.js).
+    // Server-only; the admin reads the link's summary from systemStatus/inventoryLink instead.
+    match /inventoryPushes/{orderId} {
+      allow read, write: if false;
+    }
     match /order-operations/{orderId} {
       allow read, write: if isAdmin();
     }

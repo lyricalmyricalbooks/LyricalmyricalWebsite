@@ -9,7 +9,7 @@
  *   6. abandonedCartSweep (scheduled)     -> Send recovery email after 1h
  */
 
-const { onDocumentUpdated, onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentUpdated, onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onRequest } = require("firebase-functions/v2/https");
 const { setGlobalOptions } = require("firebase-functions/v2/options");
@@ -1754,6 +1754,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
     if (req.body?.action === "registerPaymentDomain") return handleRegisterPaymentDomain(req, res);
     if (req.body?.action === "webhookHealth") return handleWebhookHealth(req, res);
     if (req.body?.action === "giftCardAdmin") return handleGiftCardAdmin(req, res);
+    if (req.body?.action === "inventoryLink") return handleInventoryLinkAdmin(req, res);
     if (req.body?.action === "cancelOrder") return handleCancelOrder(req, res);
     if (req.body?.action === "resolvePaymentMismatch") return handleResolveMismatch(req, res);
     if (req.body?.action === "orderRequest") return handleOrderRequest(req, res);
@@ -2233,6 +2234,24 @@ async function handleVerifyStripeKeys(req, res) {
 // adminSecrets/stripeWebhook so stripeWebhook can verify it.
 // Admin › Gift cards: issue, disable/enable, adjust a balance or resend the email. The browser
 // can read gift cards (admin only) but never write them; every change goes through here.
+// Inventory › Inventory app link (docs/INVENTORY_LINK.md). Admin only; never a payment path.
+function inventoryLinkDeps() {
+  const store = require("./inventoryLinkStore");
+  return { db, store, now: () => new Date() };
+}
+async function handleInventoryLinkAdmin(req, res) {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+  try {
+    const { inventoryLinkAdmin } = require("./inventoryLinkAdmin");
+    const { status, body } = await inventoryLinkAdmin(inventoryLinkDeps(), req.body || {}, adminUser.email || "admin");
+    res.status(status).json(body);
+  } catch (err) {
+    console.error("inventoryLink admin failed:", err);
+    res.status(500).json({ error: "The inventory app link didn't answer. Try again in a minute." });
+  }
+}
+
 async function handleGiftCardAdmin(req, res) {
   const adminUser = await requireAdmin(req, res);
   if (!adminUser) return;
@@ -6596,6 +6615,28 @@ exports.onBookRestocked = onDocumentUpdated(
  * Finishes back-in-stock emails a restock run could not reach in time (every 15 minutes). A pending
  * alert is only sent while its book is still published and in stock; otherwise it simply waits for the next restock.
  */
+// Website sales → inventory app (docs/INVENTORY_LINK.md): every write to a counted order (paid, refunded,
+// shipped…) is sent to the inventory app's inbox. Only reads the order; inventoryLinkSweep retries failures.
+let inventoryLinkStateCache = { at: 0, state: null };
+exports.onOrderInventoryPush = onDocumentWritten({ document: "orders/{orderId}", timeoutSeconds: 60 }, async event => {
+  if (!event.data?.after?.exists) return;
+  const jobs = require("./inventoryLinkJobs");
+  if (!inventoryLinkStateCache.state || Date.now() - inventoryLinkStateCache.at > 60 * 1000) {
+    inventoryLinkStateCache = { at: Date.now(), state: await jobs.readState(db) };
+  }
+  const state = inventoryLinkStateCache.state;
+  if (!jobs.salesOn(state)) return;
+  const result = await jobs.pushOrder(inventoryLinkDeps(), event.params.orderId, state);
+  if (result.status === "failed") console.warn(`inventory link: order ${event.params.orderId} not delivered yet (${result.error}); the sweep retries it.`);
+});
+
+// The link's regular check: labels bought in the inventory app, missed or failed pushes, past orders,
+// and (every 15 minutes, once the owner switched it on) linked books' stock.
+exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", timeoutSeconds: 300 }, async () => {
+  const out = await require("./inventoryLinkJobs").runSweep(inventoryLinkDeps(), { stock: "auto" });
+  if (out.error) console.error("inventoryLinkSweep:", out.error);
+});
+
 exports.backInStockSweep = onSchedule(
   { schedule: "every 15 minutes", timeoutSeconds: 300, secrets: [RESEND_API_KEY] },
   async () => {

@@ -3,7 +3,9 @@ import { Download, History, Minus, Plus } from "lucide-react";
 import { adminApi } from "./api";
 import { getOrdersCached } from "./ordersCache";
 import { inventoryApi, type InventoryLogEntry } from "./inventoryApi";
-import { InventorySyncPanel } from "./InventorySyncPanel";
+import { InventoryLinkPanel } from "./InventoryLinkPanel";
+import { inventoryLinkApi } from "./inventoryLinkApi";
+import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import {
   buildInventory, inventorySummary, inventoryToCsv, lowStockThreshold, parseCost, parseReceive, parseStock,
   waitingReaders, wakesRestockEmails, ADJUST_REASONS, STATUS_LABELS,
@@ -65,15 +67,19 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
   const [historyFor, setHistoryFor] = useState<InventoryRow | null>(null);
   const [history, setHistory] = useState<InventoryLogEntry[] | null>(null);
   const [historyError, setHistoryError] = useState(false);
+  // Books matched to the inventory app are counted there (Inventory app link); their stock is read-only here.
+  const [links, setLinks] = useState<InventoryLinks>({});
+  const linked = (r: InventoryRow) => r.kind === "stock" && isStockLinked(links, r.bookId, r.variantId);
 
   const load = async () => {
     setFailed(false); setLoading(true);
     try {
-      const [b, o, s, c] = await Promise.all([
+      const [b, o, s, c, l] = await Promise.all([
         adminApi.getAllBooks(), getOrdersCached(),
         inventoryApi.lowStockSetting().catch(() => ({})), inventoryApi.costs().catch(() => ({})),
+        inventoryLinkApi.links().catch(() => ({})),
       ]);
-      setBooks(b); setOrders(o.filter((x: any) => x.paymentStatus === "paid" && x.isTest !== true));
+      setBooks(b); setLinks(l); setOrders(o.filter((x: any) => x.paymentStatus === "paid" && x.isTest !== true));
       setSettings(s); setCosts(c);
       const t = lowStockThreshold(s); setThreshold(t); setThresholdDraft(String(t));
     } catch (e) { console.error(e); setFailed(true); }
@@ -141,7 +147,12 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
         if (!go) { applyLocal(r, res.live ?? r.stock); return null; }
         res = await inventoryApi.adjustStock(r.bookId, r.variantId, ch, { ...meta, force: true });
       }
-      if (!res.ok) { toast(res.reason === "missing" ? `${rowName(r)} no longer exists. Reload the page.` : `${rowName(r)} isn't counted, so its stock can't be changed here.`, { tone: "err" }); return null; }
+      if (!res.ok) {
+        toast(res.reason === "missing" ? `${rowName(r)} no longer exists. Reload the page.`
+          : res.reason === "linked" ? `${rowName(r)} is counted in the inventory app. Change it there; the website follows.`
+          : `${rowName(r)} isn't counted, so its stock can't be changed here.`, { tone: "err" });
+        return null;
+      }
       applyLocal(r, res.to);
       if (!opts.quiet && res.from !== res.to) {
         toast(`${rowName(r)}: ${res.from} → ${res.to}`, {
@@ -184,7 +195,7 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
     try { setHistory(await inventoryApi.history(r.bookId)); } catch { setHistoryError(true); }
   };
 
-  const pendingReceive = rows.filter((r) => r.editable && receive[r.id]?.trim());
+  const pendingReceive = rows.filter((r) => r.editable && !linked(r) && receive[r.id]?.trim());
   const pendingCosts = Object.entries(costDrafts).filter(([id, v]) => parseCost(v) !== undefined && (parseCost(v) ?? 0) !== (costs[id] ?? 0));
   const saveReceiving = async () => {
     const plans = pendingReceive.map((r) => ({ r, ch: parseReceive(receive[r.id]) }));
@@ -237,6 +248,12 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
     if (r.kind === "giftCard") return <span className="rp-hint">Gift card — no stock</span>;
     if (r.kind === "digital") return <span className="rp-hint">Digital</span>;
     if (r.kind === "untracked") return <span className="rp-hint">Not tracked</span>;
+    if (linked(r)) return (
+      <div>
+        <span className="rp-mono" aria-label={`Stock for ${rowName(r)}: ${r.stock}`}>{r.stock}</span>
+        <div className="rp-hint">Counted in the inventory app</div>
+      </div>
+    );
     const busy = saving.has(r.id) || bulkSaving;
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -267,7 +284,7 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
     { key: "status", header: "Status", render: (r) => <StatusBadge tone={TONE[r.status]}>{STATUS_LABELS[r.status]}</StatusBadge> },
     { key: "stock", header: "On hand", render: stockCell },
     ...(receiving ? [
-      { key: "receive", header: "Receive", render: (r: InventoryRow) => r.editable ? (
+      { key: "receive", header: "Receive", render: (r: InventoryRow) => linked(r) ? <span className="rp-hint">Receive it in the inventory app</span> : r.editable ? (
         <div>
           <input className="rp-input rp-mono" style={{ width: 84 }} placeholder="+12" aria-label={`Copies received for ${rowName(r)} (+12 adds, -3 removes, =40 sets)`}
             value={receive[r.id] ?? ""} disabled={bulkSaving} onChange={(e) => setReceive((d) => ({ ...d, [r.id]: e.target.value }))} />
@@ -324,20 +341,20 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
       <SectionCard flush title={receiving ? "Receive stock" : "Inventory"}
         description={receiving
           ? "Type copies received for each edition (+12 adds, -3 removes, =40 sets the count) and optional cost prices, then press Save all. Each row is saved on its own against the live count, with the reason chosen above."
-          : "Edit a count and press Enter, or use − / +. Sales reduce stock automatically after payment; edits here are for receipts, reprints and corrections, and each one is kept in the title's history."}
+          : "Edit a count and press Enter, or use − / +. Sales reduce stock automatically after payment; edits here are for receipts, reprints and corrections, and each one is kept in the title's history. Books matched to the inventory app are counted there and follow it."}
         actions={receiving ? <PrimaryButton disabled={bulkSaving || (!pendingReceive.length && !pendingCosts.length)} onClick={saveReceiving}>
           {bulkSaving ? "Saving…" : `Save all (${pendingReceive.length + pendingCosts.length})`}</PrimaryButton> : undefined}>
         <DataTable caption="Inventory" columns={columns} rows={pageRows} rowKey={(r) => r.id}
           empty={<EmptyState title="No titles match" description="Try another status tab or search." />} />
         {!receiving && rows.length > PAGE_SIZE && <Pagination page={Math.min(page, pageCount)} pageCount={pageCount} onPage={setPage} />}
       </SectionCard>
-      <details className="rp-card" style={{ padding: 16 }}>
-        <summary style={{ cursor: "pointer", fontWeight: 600 }}>Advanced: sync stock from the old shop</summary>
-        <div style={{ marginTop: 12 }}><InventorySyncPanel lastSync={settings?.inventory?.lastSync} /></div>
+      <details className="rp-card" style={{ padding: 16 }} open={!Object.keys(links).length}>
+        <summary style={{ cursor: "pointer", fontWeight: 600 }}>Inventory app link: website sales and stock</summary>
+        <div style={{ marginTop: 12 }}><InventoryLinkPanel books={books} onLinksChanged={setLinks} onStockChanged={load} /></div>
       </details>
 
       <Drawer open={!!historyFor} onClose={() => setHistoryFor(null)} title={historyFor ? `Stock history · ${historyFor.title}` : "Stock history"}
-        description="Every count change made on this page, newest first. Sales and refunds change stock automatically and are listed on their orders.">
+        description="Every count change made on this page or by the inventory app link, newest first. Sales and refunds change stock automatically and are listed on their orders.">
         {historyError ? <ErrorState description="History could not be loaded." onRetry={() => historyFor && openHistory(historyFor)} />
           : !history ? <LoadingState label="Loading history…" />
           : !history.length ? <EmptyState title="No changes recorded yet" description="Changes made from now on appear here." />
