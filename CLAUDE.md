@@ -1244,7 +1244,7 @@ customer email must also be off in the Stripe dashboard. `functions/orderEmails.
 `ordersDesk.ts`, tested): list on the left (search; **Needs me** / **Shipped** / **All**; test orders hidden unless
 toggled), the full `OrderDetail` on the right — so Stripe sync, refunds, disputes, labels and dispatch are unchanged —
 with the oldest order that needs work opened automatically and finishing an order moving to the next (`goToNext`).
-`OrderDetail` reports reloads via `onChanged` so the list refreshes. Phones show list *or* order. **Table view** opens the
+`OrderDetail` reports reloads via `onChanged` so the list refreshes. Each list row shows the first book's title + cover (`rowBooks`/`rowCover`, catalog read once via `loadOrderBooks`, shared with order search) and refunded rows are tinted red (`refundState`). Phones show list *or* order. **Table view** opens the
 previous `Orders` table (bulk packing, pick lists, CSV). Email links `/admin#orders/<id>` still open that order.
 The packing checklist shows each book's current cover and **Shelf location** (Books › edit › Inventory, `shelfLocation`,
 per edition when set; `packingInfo` in `fulfillment.ts`). Shelf codes live in the admin-only private book document (see *Round-2 security*), merged back by `adminApi.getAllBooks` / `getBook`.

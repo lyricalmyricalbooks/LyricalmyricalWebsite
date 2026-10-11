@@ -1,6 +1,6 @@
 // Orders desk (split view): which orders show in each view, in what order, and
 // which one opens next. Pure; the queues themselves come from fulfillment.queueOf.
-import { queueOf, terminal, preorderShipDate, disputeOpen, addressIssues, addressKey, fulfillmentMethod } from "./fulfillment";
+import { queueOf, terminal, preorderShipDate, disputeOpen, addressIssues, addressKey, fulfillmentMethod, packingInfo } from "./fulfillment";
 import { orderMatches, type CatalogSearchIndex } from "./orderSearch";
 import { isArchived, orderTime } from "./orderListHelpers";
 
@@ -117,10 +117,39 @@ export function rowStatus(o: any): { tone: "danger" | "warning" | "info" | "succ
   if (q === "Ready for local delivery") return { tone: "warning", text: "● Deliver" };
   if (q === "Awaiting release") return { tone: "info", text: preorderShipDate(o) ? `◷ Pre-order · ships ${preorderShipDate(o)}` : "◷ Pre-order · date to be announced" };
   if (q === "In transit") return { tone: "info", text: "● On the way" };
-  if (o.paymentStatus === "refunded") return { tone: "neutral", text: "✕ Refunded" };
+  if (o.paymentStatus === "refunded") return { tone: "danger", text: "Refunded" };
   if (o.paymentStatus === "refund_pending") return { tone: "warning", text: "◷ Refund in progress" };
   if (o.status === "cancelled" || ["cancelled", "refunded"].includes(o.fulfillmentStatus)) return { tone: "neutral", text: "✕ Cancelled" };
   if (q === "Completed") return { tone: "success", text: "✓ Done" };
   if (o.paymentStatus === "pending") return { tone: "neutral", text: "○ Waiting on payment" };
   return { tone: "neutral", text: "○ Not paid" };
+}
+
+// What the list row says about the books: the first title, "+ N more" for the rest
+// (counted in copies, so "2 × Title" when one book was bought twice).
+export function rowBooks(o: any): string {
+  const lines = (o?.items || []).filter((i: any) => i && !i.promoGift);
+  if (!lines.length) return "";
+  const first = lines[0];
+  const title = String(first.title || first.name || "Untitled book").trim();
+  const qty = Number(first.quantity) || 1;
+  const rest = lines.slice(1).reduce((n: number, i: any) => n + (Number(i.quantity) || 1), 0);
+  return `${qty > 1 ? `${qty} × ` : ""}${title}${rest ? ` + ${rest} more` : ""}`;
+}
+
+// The first line's cover: the book's current catalog photo, else the photo saved on the order.
+export function rowCover(o: any, booksById?: Map<string, any> | null): string {
+  const first = (o?.items || []).find((i: any) => i && !i.promoGift);
+  if (!first) return "";
+  const book = booksById?.get(String(first.id || first.bookId || "")) || null;
+  if (book) return packingInfo(first, book).photo;
+  return [first.photoUrl, first.image, first.coverImage].find((x) => typeof x === "string" && x.trim()) || "";
+}
+
+// Money went back to the customer (fully, in progress, or in part): the row shows it loudly.
+export function refundState(o: any): "" | "full" | "pending" | "partial" {
+  if (o?.paymentStatus === "refunded") return "full";
+  if (o?.paymentStatus === "refund_pending") return "pending";
+  if (o?.partiallyRefunded) return "partial";
+  return "";
 }

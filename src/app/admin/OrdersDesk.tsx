@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OrderDetail } from "./OrderDetail";
-import { Orders, loadOrderSearchCatalog, patchOrdersCache, refreshOrdersCache } from "./Orders";
+import { Orders, loadOrderBooks, loadOrderSearchCatalog, patchOrdersCache, refreshOrdersCache } from "./Orders";
 import { EmptyState, LoadingState, SearchField, SecondaryButton, StatusBadge, Toggle } from "./riso/components";
-import { deskCounts, deskOrders, nextToOpen, rowStatus, stepOrder, type DeskView } from "./ordersDesk";
+import { deskCounts, deskOrders, nextToOpen, refundState, rowBooks, rowCover, rowStatus, stepOrder, type DeskView } from "./ordersDesk";
 import { listDate, orderMoney } from "./orderListHelpers";
 import type { CatalogSearchIndex } from "./orderSearch";
 
@@ -35,6 +35,13 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   // The owner pressed "Back to orders": don't pop the next order straight back open.
   const [closedByOwner, setClosedByOwner] = useState(false);
   const [catalog, setCatalog] = useState<CatalogSearchIndex | null>(null);
+  // Book covers for the list rows; until (or unless) the catalog loads, rows use the photo saved on the order.
+  const [booksById, setBooksById] = useState<Map<string, any> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    loadOrderBooks().then((books) => { if (alive && books) setBooksById(new Map(books.map((b: any) => [String(b.id), b]))); });
+    return () => { alive = false; };
+  }, []);
 
   const refresh = () => {
     if (refreshing.current) return refreshing.current;
@@ -153,12 +160,19 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
             const s = rowStatus(o);
             const books = (o.items || []).reduce((n: number, i: any) => n + (Number(i.quantity) || 0), 0);
             const m = orderMoney(o);
+            const titles = rowBooks(o);
+            const cover = rowCover(o, booksById);
+            const refund = refundState(o);
             return (
               <li key={o.id}>
-                <button type="button" className={`od-row${o.id === selectedId ? " is-on" : ""}`} aria-current={o.id === selectedId ? "true" : undefined} onClick={() => open(o.id)}>
-                  <span className="od-row-top"><strong className="rp-mono">{o.orderId || o.id}</strong><span className="rp-mono" title={m.paid ? `Paid ${m.paid}` : undefined}>{m.text}</span></span>
-                  <span className="od-row-mid">{o.customer?.name || "—"} · {books} book{books === 1 ? "" : "s"}{o.isTest ? " · test" : ""}{m.paid ? ` · paid ${m.paid}` : ""}</span>
-                  <span className="od-row-bot"><StatusBadge tone={s.tone}>{s.text}</StatusBadge><span className="rp-hint">{listDate(o.paidAt || o.createdAt)}</span></span>
+                <button type="button" className={`od-row${o.id === selectedId ? " is-on" : ""}${refund ? ` is-refunded is-refunded-${refund}` : ""}`} aria-current={o.id === selectedId ? "true" : undefined} onClick={() => open(o.id)}>
+                  <span className="od-cover" aria-hidden="true">{cover ? <img src={cover} alt="" loading="lazy" decoding="async" /> : null}</span>
+                  <span className="od-row-body">
+                    <span className="od-row-top"><strong className="rp-mono">{o.orderId || o.id}</strong><span className="rp-mono od-row-amount" title={m.paid ? `Paid ${m.paid}` : undefined}>{m.text}</span></span>
+                    {titles ? <span className="od-row-title" title={titles}>{titles}</span> : null}
+                    <span className="od-row-mid">{o.customer?.name || "—"} · {books} book{books === 1 ? "" : "s"}{o.isTest ? " · test" : ""}{m.paid ? ` · paid ${m.paid}` : ""}</span>
+                    <span className="od-row-bot"><StatusBadge tone={s.tone}>{s.text}</StatusBadge><span className="rp-hint">{listDate(o.paidAt || o.createdAt)}</span></span>
+                  </span>
                 </button>
               </li>
             );
@@ -211,9 +225,17 @@ const DESK_CSS = `
 .od-switch button.is-on{background:var(--rp-inverse);color:var(--rp-on-inverse)}
 .od-switch button:focus-visible,.od-row:focus-visible{outline:2px solid var(--rp-focus);outline-offset:2px}
 .od-rows{list-style:none;margin:0;padding:0;overflow:auto;flex:1}
-.od-row{display:flex;flex-direction:column;gap:6px;width:100%;text-align:left;padding:14px 16px;border:0;border-bottom:1px solid var(--rp-border);border-left:6px solid transparent;background:transparent;color:var(--rp-text);cursor:pointer;font:inherit}
+.od-row{display:flex;flex-direction:row;align-items:flex-start;gap:12px;width:100%;text-align:left;padding:14px 16px;border:0;border-bottom:1px solid var(--rp-border);border-left:6px solid transparent;background:transparent;color:var(--rp-text);cursor:pointer;font:inherit}
 .od-row:hover{background:var(--rp-surface-sunken)}
 .od-row.is-on{background:var(--rp-surface-sunken);border-left-color:var(--rp-primary)}
+.od-row-body{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
+.od-cover{flex:none;width:44px;aspect-ratio:2/3;border:1px solid var(--rp-border-strong);background:var(--rp-surface-sunken);overflow:hidden}
+.od-cover img{display:block;width:100%;height:100%;object-fit:cover}
+.od-row-title{font-size:14px;font-weight:700;color:var(--rp-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.od-row.is-refunded{background:var(--rp-danger-tint);border-left-color:var(--rp-danger)}
+.od-row.is-refunded:hover,.od-row.is-refunded.is-on{background:var(--rp-danger-tint);box-shadow:inset 0 0 0 2px var(--rp-danger)}
+.od-row.is-refunded-full .od-row-amount{text-decoration:line-through;color:var(--rp-danger)}
+.od-row.is-refunded .od-cover{opacity:.55}
 .od-row-top{display:flex;justify-content:space-between;gap:8px;font-size:13px}
 .od-row-mid{font-size:13px;color:var(--rp-text-muted)}
 .od-row-bot{display:flex;justify-content:space-between;align-items:center;gap:8px}

@@ -73,13 +73,23 @@ export function patchOrdersCache(order: any) {
   return listMemory.orders;
 }
 
+// The catalog (public fields only), read once per session and shared by order search and the
+// Orders desk covers. A failed read is forgotten so the next caller tries again.
+let orderBooks: Promise<any[] | null> | null = null;
+export function loadOrderBooks(): Promise<any[] | null> {
+  if (!orderBooks) {
+    orderBooks = adminApi.getAllBooks({ includePrivate: false })
+      .catch(() => { orderBooks = null; return null; });
+  }
+  return orderBooks;
+}
+
 // Catalog ISBNs/SKUs/edition names for order search, read once per session the first time someone searches.
 let catalogIndex: Promise<CatalogSearchIndex | null> | null = null;
 export function loadOrderSearchCatalog(): Promise<CatalogSearchIndex | null> {
   if (!catalogIndex) {
-    catalogIndex = adminApi.getAllBooks()
-      .then((books: any[]) => buildCatalogSearchIndex(books))
-      .catch(() => { catalogIndex = null; return null; });
+    catalogIndex = loadOrderBooks()
+      .then((books) => { if (!books) { catalogIndex = null; return null; } return buildCatalogSearchIndex(books); });
   }
   return catalogIndex;
 }
