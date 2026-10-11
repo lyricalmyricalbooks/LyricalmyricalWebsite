@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deskOrders, deskCounts, nextToOpen, rowStatus, stepOrder, mergeOrder } from "./ordersDesk";
+import { deskOrders, deskCounts, nextToOpen, rowStatus, stepOrder, mergeOrder, rowBooks, rowCover, refundState } from "./ordersDesk";
 
 const reviewed = (o: any) => ({ ...o, customer: { name: "Reader", email: "r@x.com", address: { street: "1 Main", city: "Toronto", state: "ON", zip: "M1M1M1", country: "Canada" } } });
 const paid = (id: string, paidAt: string, extra: any = {}) => {
@@ -72,5 +72,32 @@ describe("orders desk", () => {
     const merged = mergeOrder([{ id: "a", total: 1, operations: { x: 1 } }, { id: "b" }], { id: "a", total: 2 });
     expect(merged![0]).toMatchObject({ total: 2, operations: { x: 1 } });
     expect(merged!.length).toBe(2);
+  });
+});
+
+describe("list row: books, cover and refunds", () => {
+  const items = [
+    { id: "b1", title: "Visions of Toronto", quantity: 2, photoUrl: "https://x/order.jpg" },
+    { id: "b2", title: "Second", quantity: 1 },
+    { id: "g", title: "Free gift", quantity: 1, promoGift: true },
+  ];
+  it("names the first book and counts the rest in copies", () => {
+    expect(rowBooks({ items: [items[0]] })).toBe("2 × Visions of Toronto");
+    expect(rowBooks({ items })).toBe("2 × Visions of Toronto + 1 more");
+    expect(rowBooks({ items: [{ id: "a", title: "One", quantity: 1 }] })).toBe("One");
+    expect(rowBooks({ items: [] })).toBe("");
+  });
+  it("shows the catalog cover, else the photo saved on the order", () => {
+    const books = new Map([["b1", { id: "b1", coverImage: "https://x/catalog.jpg" }]]);
+    expect(rowCover({ items }, books)).toBe("https://x/catalog.jpg");
+    expect(rowCover({ items }, null)).toBe("https://x/order.jpg");
+    expect(rowCover({ items: [items[1]] }, null)).toBe("");
+  });
+  it("flags full, pending and partial refunds, and marks the badge red", () => {
+    expect(refundState({ paymentStatus: "refunded" })).toBe("full");
+    expect(refundState({ paymentStatus: "refund_pending" })).toBe("pending");
+    expect(refundState({ paymentStatus: "paid", partiallyRefunded: true })).toBe("partial");
+    expect(refundState({ paymentStatus: "paid" })).toBe("");
+    expect(rowStatus({ paymentStatus: "refunded", status: "cancelled" })).toMatchObject({ tone: "danger", text: "Refunded" });
   });
 });
