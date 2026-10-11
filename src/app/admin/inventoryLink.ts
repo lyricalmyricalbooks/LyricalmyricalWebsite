@@ -116,6 +116,12 @@ export function linksFromChoices(editions: LinkableEdition[], choices: Record<st
   return out;
 }
 
+/** The calendar day before a YYYY-MM-DD day (the latest a moved start day may be). */
+export function dayBefore(day: string): string {
+  const at = Date.parse(`${day}T12:00:00Z`);
+  return Number.isNaN(at) ? day : new Date(at - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 /** Shown when the inventory app has never sent a count for a matched book. */
 export const NO_COUNT_YET = "The inventory app hasn't sent a count for this book yet. Open the inventory app while online: it moves the book to its new storage if needed and sends the count.";
 

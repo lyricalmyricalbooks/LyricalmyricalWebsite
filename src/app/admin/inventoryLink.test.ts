@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ago, holdWords, isStockLinked, linkableEditions, linkedTo, linksFromChoices, linkStep, suggestLinks } from "./inventoryLink";
+import { ago, dayBefore, holdWords, isStockLinked, linkableEditions, linkedTo, linksFromChoices, linkStep, suggestLinks } from "./inventoryLink";
 
 const books = [
   { id: "b1", title: "The Hound", isbn: "978-1-23456-789-7", format: "Paperback", trackInventory: true, stockLevel: 4 },
@@ -12,6 +12,11 @@ const books = [
 const app = (id: string, title: string, isbn = "") => ({ id, title, isbn, author: "", currency: "", maxPrint: 10, onHand: 3, feedAt: null });
 
 describe("inventory link helpers", () => {
+  it("dayBefore steps back one calendar day, across months and years", () => {
+    expect(dayBefore("2026-10-11")).toBe("2026-10-10");
+    expect(dayBefore("2025-01-01")).toBe("2024-12-31");
+    expect(dayBefore("2024-03-01")).toBe("2024-02-29");
+  });
   it("lists only printed books and editions", () => {
     const rows = linkableEditions(books);
     expect(rows.map((r) => [r.bookId, r.variantId, r.stock])).toEqual([

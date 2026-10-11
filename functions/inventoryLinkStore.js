@@ -57,6 +57,15 @@ async function checkConnection({ now = new Date() } = {}) {
   }
 }
 
+/**
+ * Tell the inventory app that older website orders are about to arrive (the start day moved earlier).
+ * The app asks the owner to press "Bring them in" again before adding any, so sales typed in by hand
+ * there can be checked first. Written before the start day changes, so no older order goes first.
+ */
+async function markPastOrders({ from, at }) {
+  await inventoryDb().collection("websiteLink").doc("website").set({ pastFrom: from, pastFromAt: at }, { merge: true });
+}
+
 async function heartbeat({ now = new Date(), serviceAccount = "" } = {}) {
   await inventoryDb().collection("websiteLink").doc("website").set({ at: now.toISOString(), ...(serviceAccount ? { serviceAccount } : {}), version: LINK_VERSION }, { merge: true });
 }
@@ -163,6 +172,6 @@ async function readAppHeartbeat() {
 }
 
 module.exports = {
-  INVENTORY_PROJECT, inventoryDb, serviceAccountEmail, connectionProblem, checkConnection, heartbeat,
+  INVENTORY_PROJECT, inventoryDb, serviceAccountEmail, connectionProblem, checkConnection, heartbeat, markPastOrders,
   writeWebsiteOrder, waitingShipments, replyShipment, readFeeds, readCatalog, pendingSummary, readAppHeartbeat,
 };

@@ -63,9 +63,27 @@ describe("inventory link admin actions", () => {
     const res = await inventoryLinkAdmin(deps(db, store), { op: "startSales", startDay: "2026-10-01" });
     expect(res.status).toBe(200);
     expect(state(db)).toMatchObject({ startDay: "2026-10-01" });
-    const again = await inventoryLinkAdmin(deps(db, store), { op: "startSales", startDay: "2026-09-01" });
-    expect(again.status).toBe(409);
-    expect(again.body.error).toMatch(/can't change/);
+    const later = await inventoryLinkAdmin(deps(db, store), { op: "startSales", startDay: "2026-10-05" });
+    expect(later.status).toBe(409);
+    expect(later.body.error).toMatch(/earlier day/);
+    expect(state(db).startDay).toBe("2026-10-01");
+  });
+
+  test("the start day can move earlier: the inventory app is told first, then older orders are sent", async () => {
+    const db = fakeDb({ "systemStatus/inventoryLink": { startDay: "2026-10-11", connection: { ok: true }, backfill: { from: "2026-10-11", done: true, sent: 0 } } });
+    const store = fakeStore();
+    store.failPastOrders = true;
+    const refused = await inventoryLinkAdmin(deps(db, store), { op: "startSales", startDay: "2026-08-01" });
+    expect(refused.status).toBe(409);
+    expect(refused.body.error).toMatch(/nothing changed/);
+    expect(state(db).startDay).toBe("2026-10-11");
+    store.failPastOrders = false;
+    const res = await inventoryLinkAdmin(deps(db, store), { op: "startSales", startDay: "2026-08-01" });
+    expect(res.status).toBe(200);
+    expect(res.body.changedFrom).toBe("2026-10-11");
+    expect(store.pastOrders).toEqual([{ from: "2026-08-01", at: now.toISOString() }]);
+    expect(state(db)).toMatchObject({ startDay: "2026-08-01", startDayChangedFrom: "2026-10-11" });
+    expect(state(db).backfill).toMatchObject({ from: "2026-08-01" });
   });
 
   test("automatic stock needs one confirmed apply first; rehearsal lasts a day", async () => {

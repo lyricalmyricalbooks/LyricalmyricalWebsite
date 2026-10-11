@@ -9,7 +9,7 @@ import {
 } from "./riso/components";
 import { inventoryLinkApi, type LinkStatus, type StockPreview } from "./inventoryLinkApi";
 import {
-  IAM_URL, NO_COUNT_YET, ago, editionKey, holdWords, linkStep, linkableEditions, linkedTo, linksFromChoices, suggestLinks,
+  IAM_URL, NO_COUNT_YET, ago, dayBefore, editionKey, holdWords, linkStep, linkableEditions, linkedTo, linksFromChoices, suggestLinks,
   type InventoryAppBook, type InventoryLinks, type LinkableEdition, type StockRow,
 } from "./inventoryLink";
 import { inventoryApi } from "./inventoryApi";
@@ -39,6 +39,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
   const [preview, setPreview] = useState<StockPreview | null>(null);
   const [confirmApply, setConfirmApply] = useState<{ readers: number } | null>(null);
   const [confirmStart, setConfirmStart] = useState(false);
+  const [changingStart, setChangingStart] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
 
   const state = status?.state || {};
@@ -102,8 +103,12 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
 
   const startSales = () => run("start", async () => {
     setConfirmStart(false);
+    const moving = !!state.startDay;
     await inventoryLinkApi.startSales(startDay);
-    toast("Website sales are on their way to the inventory app.");
+    setChangingStart(false);
+    toast(moving
+      ? `Older website sales from ${startDay} are on their way. Open the inventory app and press Bring them in once you've checked the summary.`
+      : "Website sales are on their way to the inventory app.");
     await loadStatus();
   });
 
@@ -308,6 +313,21 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
             <li>
               <div style={{ fontWeight: 600 }}>Sending website sales paid from {state.startDay}</div>
               <div className="rp-hint">{backfill.done ? `Past orders: all sent (${backfill.sent || 0}).` : `Past orders: ${backfill.sent || 0} sent so far, still sending…`} New sales go over as they're paid.</div>
+              {!changingStart ? (
+                <div style={{ marginTop: 8 }}>
+                  <SecondaryButton disabled={!!busy} onClick={() => { setStartDay(status.earliestPaidDay && status.earliestPaidDay < state.startDay ? status.earliestPaidDay : dayBefore(state.startDay)); setChangingStart(true); }}>
+                    Send older orders too
+                  </SecondaryButton>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginTop: 8 }}>
+                  <TextField label="Send orders paid from" type="date" value={startDay} max={dayBefore(state.startDay)}
+                    hint={status.earliestPaidDay ? `Your first website sale was on ${status.earliestPaidDay}. Only an earlier day than ${state.startDay} can be chosen.` : `Only an earlier day than ${state.startDay} can be chosen.`}
+                    onChange={(e) => setStartDay(e.target.value)} />
+                  <PrimaryButton disabled={!!busy || !startDay || startDay >= state.startDay} onClick={() => setConfirmStart(true)}>Send from this day</PrimaryButton>
+                  <SecondaryButton disabled={!!busy} onClick={() => setChangingStart(false)}>Cancel</SecondaryButton>
+                </div>
+              )}
             </li>
             <li>
               <div style={{ fontWeight: 600 }}>{pending ? `${pending.count} order${pending.count === 1 ? "" : "s"} waiting in the inventory app` : "Waiting in the inventory app: not checked yet"}</div>
@@ -369,11 +389,12 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
         )}
       </SectionCard>
 
-      <Dialog open={confirmStart} onClose={() => setConfirmStart(false)} title="Start sending website sales?"
-        footer={<><SecondaryButton data-autofocus onClick={() => setConfirmStart(false)}>Cancel</SecondaryButton><PrimaryButton onClick={startSales}>Start sending</PrimaryButton></>}>
+      <Dialog open={confirmStart} onClose={() => setConfirmStart(false)} title={state.startDay ? "Send older website orders too?" : "Start sending website sales?"}
+        footer={<><SecondaryButton data-autofocus onClick={() => setConfirmStart(false)}>Cancel</SecondaryButton><PrimaryButton onClick={startSales}>{state.startDay ? "Send older orders" : "Start sending"}</PrimaryButton></>}>
         <p className="rp-card-desc" style={{ margin: 0, fontSize: "var(--rp-text-base)" }}>
-          Every paid website order from {startDay} on goes to the inventory app, then each new one as it's paid. The inventory app shows you a summary before it adds the past ones.
-          This date can't be changed later, so nothing is counted twice.
+          {state.startDay
+            ? <>Every paid website order from {startDay} up to {state.startDay} goes to the inventory app as well. The inventory app shows you a summary and waits for you to press Bring them in, so you can check sales you already typed in by hand: those are linked, not counted twice. Website stock waits until they've all been sent. The date can only move earlier, never later.</>
+            : <>Every paid website order from {startDay} on goes to the inventory app, then each new one as it's paid. The inventory app shows you a summary before it adds the past ones. You can move this date earlier later to send older orders, but not later.</>}
         </p>
       </Dialog>
       <Dialog open={confirmUnlink} onClose={() => setConfirmUnlink(false)} title="Unmatch all books?"
