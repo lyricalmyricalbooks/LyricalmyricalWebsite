@@ -737,6 +737,12 @@ and stock; the contract is `docs/INVENTORY_LINK.md` (same file as the inventory 
 - **Admin:** Inventory › **Inventory app link** (`InventoryLinkPanel.tsx`, pure helpers `inventoryLink.ts`): connect → match books →
   send sales → preview/apply stock → automatic. Server ops are `createStripeCheckoutSession` `action: "inventoryLink"`
   (`functions/inventoryLinkAdmin.js`). Link state is admin-read `systemStatus/inventoryLink`; alerts in `adminAlerts.ts` `inventoryLinkAlerts`.
+- **Safety rules from the first review (follow-up PR):** stock is applied only when the catch-up recorded every order that may
+  have changed (`catchUp` `complete`; a full page resumes from `catchUpResumeAt`) and any re-send after new matches finished
+  (`relinkBatch`, cursor `relinkCursor`). App labels are refused while `operations.labelPurchasePending`. Confirmed Apply turns
+  `trackInventory` on only when every edition is a matched printed one (`untracked-mixed` hold otherwise); a `_` link on a book now
+  sold in editions holds (`now-has-editions`). Removing matches never needs the inventory app (Unmatch all). Order detail ›
+  **Remove the inventory app label** (`fulfillmentAction("clear_app_label")`). Waiting orders age by `pendingSince`.
 - **Deploy** Firestore rules + Functions with the frontend. Local tests use in-memory fakes (`functions/inventoryLink.fakes.mjs`);
   they don't prove the IAM grant, the deployed trigger or the inventory app's import.
 

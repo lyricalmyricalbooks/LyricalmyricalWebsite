@@ -502,6 +502,7 @@ export function OrderDetail({
   };
 
   const [confirmClearLabelLock, setConfirmClearLabelLock] = useState(false);
+  const [confirmClearAppLabel, setConfirmClearAppLabel] = useState(false);
   const handleClearLabelLock = async () => {
     setConfirmClearLabelLock(false);
     if (working) return;
@@ -518,7 +519,7 @@ export function OrderDetail({
   };
 
   const perform = async (
-    action: "review" | "pack" | "hold" | "release" | "release_preorder" | "local_transition",
+    action: "review" | "pack" | "hold" | "release" | "release_preorder" | "local_transition" | "clear_app_label",
     payload: any = {},
   ) => {
     if (working) return;
@@ -538,7 +539,9 @@ export function OrderDetail({
                   ? "Hold released"
                   : action === "release_preorder"
                     ? "Pre-order ready to pack"
-                    : "Local fulfillment updated",
+                    : action === "clear_app_label"
+                      ? "Inventory app label removed from the order"
+                      : "Local fulfillment updated",
       );
     } catch (err: any) {
       toast.error(err.message || "Could not save fulfillment.");
@@ -779,6 +782,7 @@ export function OrderDetail({
           }}
           onRelease={() => perform("release")}
           onReleasePreorder={() => perform("release_preorder")}
+          onClearAppLabel={() => setConfirmClearAppLabel(true)}
           onClearLabelLock={() => setConfirmClearLabelLock(true)}
         />
         <aside className="rp-stack" aria-label="Order summary">
@@ -1743,6 +1747,14 @@ export function OrderDetail({
         message="Only continue if you've checked this order in Shippo and no label was bought (or you voided it there). Otherwise you may pay for two labels. This is recorded in the order's history."
         onConfirm={handleClearLabelLock}
         onCancel={() => setConfirmClearLabelLock(false)}
+      />
+      <ConfirmDialog
+        open={confirmClearAppLabel}
+        title="Remove the inventory app label?"
+        confirmLabel="Remove label"
+        message="Its tracking comes off this order, so the website can buy its own label. The label itself isn't voided: void it (or reuse it) in the inventory app, or you may pay for two. This is recorded in the order's history."
+        onConfirm={() => { setConfirmClearAppLabel(false); void perform("clear_app_label"); }}
+        onCancel={() => setConfirmClearAppLabel(false)}
       />
       <ConfirmDialog
         open={confirming === "cancel"}

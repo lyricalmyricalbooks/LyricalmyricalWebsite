@@ -50,6 +50,12 @@ describe("inventory-app dispatch refuses what Orders › Dispatch refuses", () =
     const order: any = { ...base(), customerRequest: { type: "cancel", status: "open" } };
     expect(srv.externalDispatchProblem(order, {})).toMatch(/asked to cancel/);
   });
+  it("stricter: a website label purchase in progress stops it (no second paid label)", () => {
+    const order: any = base();
+    const ops = { addressReviewed: addressKey(order), packed: packingKey(order), labelPurchasePending: true };
+    expect(dispatchProblem({ ...order, operations: ops })).toBe("");
+    expect(srv.externalDispatchProblem(order, ops)).toMatch(/two labels/);
+  });
   it("the server also refuses orders with nothing to post", () => {
     expect(srv.externalDispatchProblem({ ...base(), items: [{ id: "e", quantity: 1, format: "Ebook" }] }, {})).toMatch(/no physical books/);
   });

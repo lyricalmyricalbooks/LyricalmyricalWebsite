@@ -75,7 +75,9 @@ async function writeWebsiteOrder(orderId, web) {
     const current = snap.exists ? snap.data().web : null;
     if (current && current.hash === web.hash) return "same";
     if (current && current.sourceUpdatedAt && web.sourceUpdatedAt && String(current.sourceUpdatedAt) > String(web.sourceUpdatedAt)) return "older";
-    tx.set(ref, { web, pending: true }, { mergeFields: ["web", "pending"] });
+    // pendingSince: when this order started waiting for the app (kept while it still waits).
+    const waiting = snap.exists && snap.data().pending === true && snap.data().pendingSince;
+    tx.set(ref, { web, pending: true, pendingSince: waiting || new Date().toISOString() }, { mergeFields: ["web", "pending", "pendingSince"] });
     return "written";
   });
 }
@@ -99,6 +101,7 @@ async function replyShipment(orderId, hash, { result, reason = "", now = new Dat
     tx.update(ref, {
       shipmentReply: { hash, result, reason: String(reason || "").slice(0, 500), at: now.toISOString() },
       pending: true,
+      ...(snap.data().pending === true && snap.data().pendingSince ? {} : { pendingSince: now.toISOString() }),
       "app.shipmentWaiting": false,
     });
     return true;
@@ -139,18 +142,19 @@ async function readCatalog() {
   });
 }
 
-/** How many website orders wait for the app, and since when. */
+/** How many website orders (new sales, refunds, shipping updates) wait for the app, and since when. */
 async function pendingSummary() {
-  const snap = await inventoryDb().collection("websiteOrders").where("pending", "==", true).select("web.paidAt", "web.test").limit(500).get();
+  const snap = await inventoryDb().collection("websiteOrders").where("pending", "==", true).select("web.paidAt", "web.test", "pendingSince").limit(500).get();
   let oldest = null;
   let count = 0;
   snap.docs.forEach(doc => {
     const web = doc.get("web") || {};
     if (web.test) return;
     count += 1;
-    if (web.paidAt && (!oldest || web.paidAt < oldest)) oldest = web.paidAt;
+    const since = doc.get("pendingSince") || web.paidAt;
+    if (since && (!oldest || since < oldest)) oldest = since;
   });
-  return { count, oldestPaidAt: oldest, capped: snap.size >= 500 };
+  return { count, oldestSince: oldest, capped: snap.size >= 500 };
 }
 
 async function readAppHeartbeat() {

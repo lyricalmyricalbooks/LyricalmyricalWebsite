@@ -15,7 +15,7 @@ export interface LinkableEdition {
   isbn: string; stock: number; tracked: boolean; archived: boolean;
 }
 
-export type Hold = "missing" | "no-feed" | "not-derived" | "untracked" | "big-change" | "push-failed" | null;
+export type Hold = "missing" | "no-feed" | "not-derived" | "untracked" | "untracked-mixed" | "now-has-editions" | "big-change" | null;
 
 export interface StockRow {
   bookId: string; variantId: string | null; inventoryBookId: string; title: string; edition: string;
@@ -125,7 +125,8 @@ export function holdWords(row: Pick<StockRow, "hold" | "from" | "to">, { inPrevi
     case "not-derived": return "This book has no print run in the inventory app, so its count can't be trusted. Add the print run there.";
     case "untracked": return "Stock counting is off for this book on the website. Applying the preview turns it on.";
     case "big-change": return `A big change (${row.from} → ${row.to}). It waits for you to apply it from the preview.`;
-    case "push-failed": return "A recent website sale of this book hasn't reached the inventory app yet, so its stock was left alone this time.";
+    case "untracked-mixed": return "Stock counting is off for this book, and turning it on would also limit its other editions (e-books, or editions not matched here) to their own counts. Match every printed edition, or turn on Track inventory in the book editor once those editions have counts.";
+    case "now-has-editions": return "This book was matched as a whole but is now sold in editions. Match each printed edition instead, then save.";
     default: return "";
   }
 }

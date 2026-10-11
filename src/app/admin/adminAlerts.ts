@@ -167,24 +167,26 @@ export function inventoryLinkAlerts(state: any, now = Date.now()): AdminAlert[] 
       "Its regular check runs every 5 minutes. If this stays, the website's scheduled jobs may not be running."));
   }
   const pending = state.pendingImport;
-  const oldest = Date.parse(pending?.oldestPaidAt || "");
+  // Aged by when each order started waiting (a dispatch or refund also waits), not when it was paid.
+  const oldest = Date.parse(pending?.oldestSince || pending?.oldestPaidAt || "");
   if (pending?.count > 0 && Number.isFinite(oldest) && now - oldest > DAY) {
-    out.push(link("inventory-link-waiting", "warning", `${plural(pending.count, "website sale is", "website sales are")} waiting for the inventory app`,
-      "Open the inventory app so it adds them to its books (website stock already counts them)."));
+    out.push(link("inventory-link-waiting", "warning", `${plural(pending.count, "website order has", "website orders have")} waited over a day for the inventory app`,
+      "New sales, refunds or shipping updates. Open the inventory app so it adds them to its books (website stock already counts them)."));
   }
   if (Number(state.lastPush?.failed) > 0) {
     out.push(link("inventory-link-push", "warning", `${plural(Number(state.lastPush.failed), "website sale", "website sales")} couldn't be sent to the inventory app yet`,
       "The website keeps trying every 5 minutes. If this stays, check the connection on the Inventory page."));
   }
+  // A website refund the app hasn't added yet looks the same for a while: only alert once nothing waits.
   const ahead = Array.isArray(state.lastSync?.appAhead) ? state.lastSync.appAhead : [];
-  if (ahead.length) {
+  if (ahead.length && Number(pending?.count || 0) === 0) {
     out.push(link("inventory-link-ahead", "warning", `The inventory app counts extra website sales for ${plural(ahead.length, "book", "books")}`,
       `It has more website rows than the website sent (${ahead.slice(0, 3).map((a: any) => a.title).join(", ")}). Check those books' website sales in the inventory app.`));
   }
-  const holds = Array.isArray(state.lastSync?.holds) ? state.lastSync.holds.filter((h: any) => h.hold === "big-change" || h.hold === "not-derived") : [];
+  const holds = Array.isArray(state.lastSync?.holds) ? state.lastSync.holds.filter((h: any) => ["big-change", "not-derived", "now-has-editions"].includes(h.hold)) : [];
   if (state.autoSync && holds.length) {
     out.push(link("inventory-link-holds", "info", `Stock for ${plural(holds.length, "book waits", "books wait")} for you`,
-      "A big change, or a book with no print run in the inventory app, isn't applied automatically. Open the stock preview to check it."));
+      "A big change, a book with no print run in the inventory app, or a matched book now sold in editions isn't applied automatically. Open the stock preview to check it."));
   }
   for (const issue of Array.isArray(state.shipmentIssues) ? state.shipmentIssues : []) {
     if (!issue?.orderId) continue;

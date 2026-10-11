@@ -964,7 +964,7 @@ export const adminApi = {
     });
   },
 
-  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "release_preorder" | "dispatch" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email" | "resend_confirmation_email", payload: any = {}) => {
+  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "release_preorder" | "dispatch" | "local_transition" | "edit_tracking" | "delivery_status" | "resend_shipping_email" | "resend_confirmation_email" | "clear_app_label", payload: any = {}) => {
     await runTransaction(db, async tx => {
       const ref = doc(db, "orders", id);
       const privateRef = doc(db, "order-operations", id);
@@ -1003,6 +1003,15 @@ export const adminApi = {
         const tracking = trackingFields(payload);
         tx.update(ref, { status: "completed", fulfillmentStatus: "shipped", ...tracking, shippedAt: now, updatedAt: now });
         message = `Dispatched via ${tracking.trackingCarrier}. Tracking: ${tracking.trackingNumber}`;
+      } else if (action === "clear_app_label") {
+        // A label bought in the inventory app (Inventory app link) that won't be used: take its tracking off
+        // the order so the website can buy its own. Only before the parcel left.
+        if (o.trackingSource !== "inventory-app" || o.labelUrl) throw new Error("This order has no inventory app label to remove.");
+        if (queueOf(o) === "In transit" || queueOf(o) === "Completed") throw new Error("This order has already been dispatched.");
+        tx.update(ref, { trackingNumber: deleteField(), trackingCarrier: deleteField(), trackingUrl: deleteField(), trackingSource: deleteField(), updatedAt: now });
+        operations.labelHistory = [...(operations.labelHistory || []), { trackingNumber: o.trackingNumber || null, trackingCarrier: o.trackingCarrier || null, replacedAt: now, replacedBy: "admin (inventory app label removed)" }];
+        operations.externalLabel = null;
+        message = `Inventory app label ${o.trackingNumber || ""} removed from the order. Void or reuse it in the inventory app.`;
       } else if (action === "edit_tracking") {
         if (fulfillmentMethod(o) !== "shipping" || queueOf(o) !== "In transit") throw new Error("Tracking can only be corrected while the parcel is in transit.");
         if (o.labelUrl && payload.replaceLabel === true) {

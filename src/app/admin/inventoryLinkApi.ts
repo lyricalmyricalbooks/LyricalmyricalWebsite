@@ -11,7 +11,7 @@ export interface LinkStatus {
   state: any; undelivered: number | null; unlinkedOrders: number | null; earliestPaidDay: string | null;
   serviceAccount: string; busy: boolean; today: string;
 }
-export interface StockPreview { hash: string; rows: StockRow[]; changed?: boolean; notReady?: boolean; applied?: Array<StockRow & { result: string }> }
+export interface StockPreview { hash: string; rows: StockRow[]; changed?: boolean; notReady?: boolean; catchingUp?: boolean; applied?: Array<StockRow & { result: string }> }
 
 async function call<T>(op: LinkOp, payload: Record<string, unknown> = {}): Promise<T> {
   const idToken = await auth.currentUser?.getIdToken();

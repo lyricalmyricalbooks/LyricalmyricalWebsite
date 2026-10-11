@@ -49,6 +49,8 @@ type Props = {
   onClearLabelLock?: () => void;
   /** The label is wrong (weight, address, service): void it and buy another before the parcel leaves. */
   onReplaceLabel?: () => void;
+  /** A label bought in the inventory app won't be used: take its tracking off this order. */
+  onClearAppLabel?: () => void;
 };
 export function FulfillmentWorkbench({
   order,
@@ -70,6 +72,7 @@ export function FulfillmentWorkbench({
   onReleasePreorder,
   onClearLabelLock,
   onReplaceLabel,
+  onClearAppLabel,
   books,
 }: Props) {
   const queue = queueOf(order);
@@ -414,6 +417,8 @@ export function FulfillmentWorkbench({
                     <StatusBadge tone="info">Inventory app</StatusBadge> Label bought in the inventory app · {order.trackingCarrier || "Carrier"} · {order.trackingNumber}
                     {Number.isFinite(Number(order.operations?.externalLabel?.cost)) && order.operations?.externalLabel?.cost != null ? ` · CA$${Number(order.operations.externalLabel.cost).toFixed(2)}` : ""}.
                     {" "}Marking the parcel shipped there dispatches this order and emails the customer. Don't buy a second label here.
+                    {onClearAppLabel && <>{" "}<button type="button" className="rp-link" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", textDecoration: "underline", color: "inherit" }}
+                      disabled={busy} onClick={onClearAppLabel}>Remove the inventory app label</button></>}
                   </p>
                 )}
                 <p className="fw-summary">
