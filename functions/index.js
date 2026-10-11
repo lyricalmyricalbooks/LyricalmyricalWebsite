@@ -24,7 +24,7 @@ const { risoButton, risoLayout, placeItemsTable } = require("./emailTheme");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
-const { labelProblem, addressKey: guardAddressKey, shippoTransactionOutcome, advancesTracking, shippoDefiniteRefusal } = require("./fulfillmentGuard");
+const { labelProblem, addressKey: guardAddressKey, shippoTransactionOutcome, advancesTracking, carrierDeliveryEmailStatus, shippoDefiniteRefusal } = require("./fulfillmentGuard");
 const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
 const { labelRatesFor, isPurchasableRate, isSoldRate: isSoldRateName, isCanadaPostRate: isCanadaPostRateName, soldName } = require("./labelRates");
@@ -4652,9 +4652,10 @@ async function handleOrderUpdated(event) {
       }
     }
 
-    // 2b. Out for delivery / delivered (manual status change by admin — Shippo webhook handles the carrier push)
-    // Skip if Shippo already sent the email via its own webhook (shippoDeliveryNotified was just set)
-    const deliveryStatus = ["out_for_delivery", "delivered"].includes(after.fulfillmentStatus) ? after.fulfillmentStatus : "";
+    // 2b. Delivered (manual status change by admin — Shippo webhook handles the carrier push)
+    // Skip if Shippo already sent the email via its own webhook (shippoDeliveryNotified was just set).
+    // "Out for delivery" sends nothing for shipped parcels: the shipping email already covers it (owner's choice).
+    const deliveryStatus = carrierDeliveryEmailStatus(after.fulfillmentStatus);
     const becameDelivered = !!deliveryStatus && before.fulfillmentStatus !== deliveryStatus;
     const shippoAlreadyNotified = after.shippoDeliveryNotified && after.shippoDeliveryNotified !== before.shippoDeliveryNotified;
     // Local handoffs stay out of the existing carrier-email path until the
@@ -4667,7 +4668,7 @@ async function handleOrderUpdated(event) {
       const compiled = compileEmailTemplate("delivery_update", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
-        status: deliveryStatus === "delivered" ? "delivered" : "out for delivery",
+        status: "delivered",
         tracking_carrier: after.trackingCarrier || "",
         tracking_number: after.trackingNumber || "",
         tracking_url: trackingUrl,
@@ -6441,9 +6442,9 @@ exports.shippoWebhook = onRequest(
       }
       if (advanced) {
 
-        // Send delivery_update CRM email automatically
+        // Send delivery_update CRM email automatically (delivered only; "out for delivery" just updates the order)
         const notificationSettings = await loadNotificationSettings();
-        if (notificationSettings.delivery_update?.enabled !== false) {
+        if (carrierDeliveryEmailStatus(nextFulfillmentStatus) && notificationSettings.delivery_update?.enabled !== false) {
           const finalCarrier = carrier || order.trackingCarrier || "Carrier";
           const trackingUrl = getTrackingUrl(finalCarrier, trackingNum, order.trackingUrl);
           const humanStatus = trackingStatus === "DELIVERED" ? "delivered" : "out for delivery";

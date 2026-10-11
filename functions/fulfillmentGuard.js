@@ -73,10 +73,15 @@ function advancesTracking(previous, next) {
  const from = TRACKING_RANK[String(previous || "")] || 0;
  return to > from;
 }
+// The one carrier step that emails the customer after the shipping email: "delivered".
+// "Out for delivery" updates the order quietly, so a parcel never sends two emails minutes apart.
+function carrierDeliveryEmailStatus(fulfillmentStatus) {
+ return fulfillmentStatus === "delivered" ? "delivered" : "";
+}
 // Shippo answers 4xx when it refuses a request outright (bad rate, expired quote, invalid parcel,
 // wrong key): nothing was bought. 408 and 5xx may have been processed, so they stay uncertain.
 function shippoDefiniteRefusal(error) {
  const status = Number(error?.shippoStatus);
  return Number.isInteger(status) && status >= 400 && status < 500 && status !== 408;
 }
-module.exports = { labelProblem, externalDispatchProblem, addressKey, packingKey, shippoTransactionOutcome, advancesTracking, shippoDefiniteRefusal };
+module.exports = { labelProblem, externalDispatchProblem, addressKey, packingKey, shippoTransactionOutcome, advancesTracking, carrierDeliveryEmailStatus, shippoDefiniteRefusal };

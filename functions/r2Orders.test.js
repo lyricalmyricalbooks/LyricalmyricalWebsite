@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
-const { addressKey, packingKey, advancesTracking, shippoDefiniteRefusal } = require("./fulfillmentGuard.js");
+const { addressKey, packingKey, advancesTracking, carrierDeliveryEmailStatus, shippoDefiniteRefusal } = require("./fulfillmentGuard.js");
 const { customsItems, needsCustoms, validHsCode } = require("./customs.js");
 const { labelRatesFor, isPurchasableRate } = require("./labelRates.js");
 const { addressMissing } = require("./addressRules.js");
@@ -313,6 +313,27 @@ test("fault 96: forward progress still updates the order and emails once", async
   expect(advancesTracking("delivered", "out_for_delivery")).toBe(false);
   expect(advancesTracking("shipped", "out_for_delivery")).toBe(true);
   expect(advancesTracking("processing", "delivered")).toBe(true);
+});
+
+// One email per shipped parcel: "out for delivery" never emails the customer (owner's request).
+test("a carrier 'out for delivery' update moves the order on without a second email", async () => {
+  const app = harness({ order: webhookOrder("shipped"), fetchImpl: trackFetch("OUT_FOR_DELIVERY"), patch: webhookPatch });
+  const res = await app.call("shippoWebhook", { data: { tracking_number: "T1", carrier: "canada_post" } });
+  expect(res.code).toBe(200);
+  expect(app.order().fulfillmentStatus).toBe("out_for_delivery");
+  expect(app.log).toEqual([]);
+});
+
+test("marking a shipped parcel out for delivery sends no email; delivered still does", async () => {
+  const app = harness({ patch: webhookPatch });
+  const shipped = webhookOrder("shipped");
+  const change = (before, after) => app.exports.onOrderUpdated({ data: { before: { data: () => before }, after: { data: () => after } }, params: { orderId: "A" } });
+  await change(shipped, { ...shipped, fulfillmentStatus: "out_for_delivery" });
+  expect(app.log).toEqual([]);
+  await change({ ...shipped, fulfillmentStatus: "out_for_delivery" }, { ...shipped, fulfillmentStatus: "delivered", status: "completed" });
+  expect(app.log).toEqual(["email:Delivery Update: Your order is delivered"]);
+  expect(carrierDeliveryEmailStatus("out_for_delivery")).toBe("");
+  expect(carrierDeliveryEmailStatus("delivered")).toBe("delivered");
 });
 
 // Fault 70 -----------------------------------------------------------------------------------------------

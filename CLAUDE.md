@@ -157,7 +157,8 @@ npm run logs
   Notifications › **Emails to the shop**. Gmail sending › **Check connection** = `sendTestEmail` action `verifyGmail`
   (nodemailer `verify()`, nothing sent). Email branding goes through `risoAccent` (#hex only) and `safeLogoUrl` (https,
   escaped) in `emailTheme.js` and its admin mirror. Customer and shop emails are gated separately (pausing
-  "Order Paid"/"Order Shipped" never stops the shop copy). Pickup (`ready_for_pickup`) and local delivery
+  "Order Paid"/"Order Shipped" never stops the shop copy). Shipped (carrier) parcels send only the shipping email and, later, "delivered"; "out for delivery" sends nothing
+  (`carrierDeliveryEmailStatus`, owner's request). Pickup (`ready_for_pickup`) and local delivery
   (`out_for_delivery`, `delivered`) send the Delivery template without carrier lines (`localMethodOf` reads
   `fulfillment.method`, then `fulfillmentSelection.method`). Refund emails use `refundEmailFacts` (`emailMoney.js`):
   none for a lost dispute, gift-card refunds named, manual refunds in the charged currency; a partial refund
