@@ -24,7 +24,7 @@ const { risoButton, risoLayout, placeItemsTable } = require("./emailTheme");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
-const { labelProblem, addressKey: guardAddressKey, shippoTransactionOutcome, advancesTracking, carrierDeliveryEmailStatus, shippoDefiniteRefusal } = require("./fulfillmentGuard");
+const { labelProblem, addressKey: guardAddressKey, shippoTransactionOutcome, advancesTracking, shippoDefiniteRefusal } = require("./fulfillmentGuard");
 const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
 const { labelRatesFor, isPurchasableRate, isSoldRate: isSoldRateName, isCanadaPostRate: isCanadaPostRateName, soldName } = require("./labelRates");
@@ -4652,40 +4652,8 @@ async function handleOrderUpdated(event) {
       }
     }
 
-    // 2b. Delivered (manual status change by admin — Shippo webhook handles the carrier push)
-    // Skip if Shippo already sent the email via its own webhook (shippoDeliveryNotified was just set).
-    // "Out for delivery" sends nothing for shipped parcels: the shipping email already covers it (owner's choice).
-    const deliveryStatus = carrierDeliveryEmailStatus(after.fulfillmentStatus);
-    const becameDelivered = !!deliveryStatus && before.fulfillmentStatus !== deliveryStatus;
-    const shippoAlreadyNotified = after.shippoDeliveryNotified && after.shippoDeliveryNotified !== before.shippoDeliveryNotified;
-    // Local handoffs stay out of the existing carrier-email path until the
-    // store has explicitly enabled a matching customer notification workflow.
-    const isLocalFulfillment = isLocalOrder(after);
-    if (becameDelivered && !isLocalFulfillment && !shippoAlreadyNotified && notificationSettings.delivery_update?.enabled !== false) {
-      const trackingUrl = after.trackingNumber
-        ? getTrackingUrl(after.trackingCarrier || "", after.trackingNumber, after.trackingUrl)
-        : await trackUrl();
-      const compiled = compileEmailTemplate("delivery_update", notificationSettings, {
-        customer_name: after.customer?.name || "there",
-        order_id: after.orderId || orderId,
-        status: "delivered",
-        tracking_carrier: after.trackingCarrier || "",
-        tracking_number: after.trackingNumber || "",
-        tracking_url: trackingUrl,
-        button_url: trackingUrl
-      });
-
-      try {
-        await sendOrderEmailOnce(orderId, `delivery_${deliveryStatus}`, {
-          to: after.customer.email,
-          subject: compiled.subject,
-          html: compiled.html,
-          secret: RESEND_API_KEY.value(),
-        });
-      } catch (err) {
-        console.error("Delivery confirmation email failed", err);
-      }
-    }
+    // 2b. Shipped parcels: "out for delivery" and "delivered" (admin buttons or Shippo tracking) send
+    // no customer email. The shipping email is the only one (owner's choice); the order status still moves.
 
     // 2c. Pickup and local delivery: the confirmation promises "we'll email you when your order is
     // ready to collect", so each customer-facing step the admin records sends one Delivery email.
@@ -6433,48 +6401,13 @@ exports.shippoWebhook = onRequest(
             fulfillmentStatus: nextFulfillmentStatus,
             status: orderStatus,
             activity: [...(fresh.activity || []), newNote],
-            updatedAt: new Date().toISOString(),
-            // Flag so onOrderUpdated knows Shippo already sent the delivery email
-            shippoDeliveryNotified: new Date().toISOString()
+            updatedAt: new Date().toISOString()
           });
           return true;
         });
       }
-      if (advanced) {
-
-        // Send delivery_update CRM email automatically (delivered only; "out for delivery" just updates the order)
-        const notificationSettings = await loadNotificationSettings();
-        if (carrierDeliveryEmailStatus(nextFulfillmentStatus) && notificationSettings.delivery_update?.enabled !== false) {
-          const finalCarrier = carrier || order.trackingCarrier || "Carrier";
-          const trackingUrl = getTrackingUrl(finalCarrier, trackingNum, order.trackingUrl);
-          const humanStatus = trackingStatus === "DELIVERED" ? "delivered" : "out for delivery";
-
-          const compiled = compileEmailTemplate("delivery_update", notificationSettings, {
-            customer_name: order.customer?.name || "there",
-            order_id: order.orderId || orderId,
-            status: humanStatus,
-            // The name the shop saved ("Canada Post"), not Shippo's token ("canada_post").
-            tracking_carrier: order.trackingCarrier || String(finalCarrier).replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
-            tracking_number: trackingNum,
-            tracking_url: trackingUrl,
-            button_url: trackingUrl
-          });
-
-          try {
-            await sendEmail({
-              queue: "delivery",
-              about: { orderId },
-              to: order.customer.email,
-              subject: compiled.subject,
-              html: compiled.html,
-              secret: RESEND_API_KEY.value(),
-            });
-            console.log(`Delivery update email sent for order ${orderId} (${humanStatus})`);
-          } catch (emailErr) {
-            console.error("Failed to send delivery update email:", emailErr);
-          }
-        }
-      }
+      // No customer email here: a shipped parcel's only email is the shipping one (see onOrderUpdated 2b).
+      if (advanced) console.log(`Shippo tracking moved order ${orderId} to ${nextFulfillmentStatus}`);
 
       res.status(200).json({ success: true });
     } catch (err) {

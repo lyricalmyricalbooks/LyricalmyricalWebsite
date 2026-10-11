@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
-const { addressKey, packingKey, advancesTracking, carrierDeliveryEmailStatus, shippoDefiniteRefusal } = require("./fulfillmentGuard.js");
+const { addressKey, packingKey, advancesTracking, shippoDefiniteRefusal } = require("./fulfillmentGuard.js");
 const { customsItems, needsCustoms, validHsCode } = require("./customs.js");
 const { labelRatesFor, isPurchasableRate } = require("./labelRates.js");
 const { addressMissing } = require("./addressRules.js");
@@ -302,14 +302,15 @@ test("fault 96: a late 'out for delivery' update never moves a delivered order b
   expect(app.log).toEqual([]);
 });
 
-test("fault 96: forward progress still updates the order and emails once", async () => {
+test("fault 96: forward progress still updates the order (without emailing the customer)", async () => {
   const app = harness({ order: webhookOrder("shipped"), fetchImpl: trackFetch("DELIVERED"), patch: webhookPatch });
   await app.call("shippoWebhook", { data: { tracking_number: "T1", carrier: "canada_post" } });
   expect(app.order().fulfillmentStatus).toBe("delivered");
-  expect(app.log).toHaveLength(1);
-  // Repeating the same update changes nothing and sends nothing more.
+  expect(app.order().status).toBe("completed");
+  expect(app.log).toEqual([]);
+  // Repeating the same update changes nothing and sends nothing.
   await app.call("shippoWebhook", { data: { tracking_number: "T1", carrier: "canada_post" } });
-  expect(app.log).toHaveLength(1);
+  expect(app.log).toEqual([]);
   expect(advancesTracking("delivered", "out_for_delivery")).toBe(false);
   expect(advancesTracking("shipped", "out_for_delivery")).toBe(true);
   expect(advancesTracking("processing", "delivered")).toBe(true);
@@ -324,16 +325,21 @@ test("a carrier 'out for delivery' update moves the order on without a second em
   expect(app.log).toEqual([]);
 });
 
-test("marking a shipped parcel out for delivery sends no email; delivered still does", async () => {
+test("marking a shipped parcel out for delivery or delivered sends no email", async () => {
   const app = harness({ patch: webhookPatch });
   const shipped = webhookOrder("shipped");
   const change = (before, after) => app.exports.onOrderUpdated({ data: { before: { data: () => before }, after: { data: () => after } }, params: { orderId: "A" } });
   await change(shipped, { ...shipped, fulfillmentStatus: "out_for_delivery" });
-  expect(app.log).toEqual([]);
   await change({ ...shipped, fulfillmentStatus: "out_for_delivery" }, { ...shipped, fulfillmentStatus: "delivered", status: "completed" });
-  expect(app.log).toEqual(["email:Delivery Update: Your order is delivered"]);
-  expect(carrierDeliveryEmailStatus("out_for_delivery")).toBe("");
-  expect(carrierDeliveryEmailStatus("delivered")).toBe("delivered");
+  await change(shipped, { ...shipped, fulfillmentStatus: "delivered", status: "completed" });
+  expect(app.log).toEqual([]);
+});
+
+test("local delivery still emails its steps (the customer had no shipping email)", async () => {
+  const app = harness({ patch: webhookPatch });
+  const local = baseOrder({ fulfillment: { method: "local_delivery" }, fulfillmentStatus: "ready_for_delivery" });
+  await app.exports.onOrderUpdated({ data: { before: { data: () => local }, after: { data: () => ({ ...local, fulfillmentStatus: "out_for_delivery" }) } }, params: { orderId: "A" } });
+  expect(app.log).toEqual(["email:Delivery Update: Your order is out for delivery"]);
 });
 
 // Fault 70 -----------------------------------------------------------------------------------------------
