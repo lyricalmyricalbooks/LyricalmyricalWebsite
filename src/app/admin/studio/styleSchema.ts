@@ -307,7 +307,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     id: "footer",
     title: "Footer & social links",
     fields: [
-      { key: "hideNewsletter", label: "Hide the “Join the Archive” sign-up box", kind: "toggle" },
+      { key: "hideNewsletter", label: "Hide the “Join the Catalogue” sign-up box", kind: "toggle" },
       { key: "hideRecentlyViewed", label: "Hide the “Recently viewed” row on the shop page", kind: "toggle" },
       { key: "footerNavigationLayout", label: "Footer navigation layout", kind: "select", defaultValue: "grouped", options: [{ value: "grouped", label: "Grouped links + legal row" }, { value: "columns", label: "Classic columns" }] },
       { key: "showFooterExplore", label: "Show Explore link group", kind: "toggle", defaultValue: true },
@@ -435,7 +435,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "addToBagLabel", label: "Add-to-bag text", kind: "text" },
       { key: "showBundleWidget", label: "“Frequently bought together”", kind: "toggle" },
       { key: "productBundleLayout", label: "Bundle style", kind: "select", options: [{ value: "bordered", label: "Bordered" }, { value: "card", label: "Card" }, { value: "glassmorphic", label: "Glassmorphic" }] },
-      { key: "showRelatedProducts", label: "“From the Archive” row (related books)", kind: "toggle" },
+      { key: "showRelatedProducts", label: "“From the Catalogue” row (related books)", kind: "toggle" },
       { key: "showSpecs", label: "Specifications", kind: "toggle" },
       { key: "showSocialShare", label: "Share button", kind: "toggle" },
       { key: "showBackInStock", label: "“Notify me when back in stock” box (sold-out items)", kind: "toggle" },

@@ -107,7 +107,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
   {
     group: "Newsletter",
     fields: [
-      { key: "newsletterHeading", label: "Heading", default: "Join the Archive" },
+      { key: "newsletterHeading", label: "Heading", default: "Join the Catalogue" },
       {
         key: "newsletterText",
         label: "Description",
@@ -194,13 +194,13 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "pdpGiftEmailError", label: "Gift card · email error", default: "Check the recipient’s email address." },
       { key: "pdpGiftDelivery", label: "Gift card · delivery note", default: "Emailed with a code to use at checkout. No shipping needed.", multiline: true },
       { key: "ariaGoToPhoto", label: "Thumbnail / dot — screen-reader label", default: "Go to photo {n}", hint: "Use {n} for the photo number." },
-      { key: "relatedHeading", label: "Related products heading", default: "From the Archive" },
+      { key: "relatedHeading", label: "Related products heading", default: "From the Catalogue" },
       { key: "backToCatalog", label: "Back link label", default: "Back" },
       { key: "addToBagLabel", label: "Add to bag button", default: "ADD TO BAG" },
       { key: "bookLoading", label: "Loading text", default: "Loading" },
       { key: "bookPhotoAlt", label: "Product photo — alt text", default: "{title} — view {n}", hint: "Use {title} for the book title and {n} for the photo number." },
       { key: "bookNotFound", label: "Not-found message", default: "Publication not found" },
-      { key: "bookReturn", label: "Not-found button", default: "Return to Archive" },
+      { key: "bookReturn", label: "Not-found button", default: "Return to Catalogue" },
       { key: "bookFormatLabel", label: "Format selector label", default: "Format / Edition" },
       { key: "bookAdded", label: "Added-to-bag confirmation", default: "Added to Bag" },
       { key: "bookShare", label: "Share button — label", default: "Share" },
@@ -366,7 +366,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
   {
     group: "Collection & wishlist pages",
     fields: [
-      { key: "collectionBack", label: "Collection: back link", default: "Archive" },
+      { key: "collectionBack", label: "Collection: back link", default: "Catalogue" },
       { key: "collectionEyebrow", label: "Collection: header label", default: "Collection" },
       { key: "breadcrumbAria", label: "Breadcrumb — screen-reader label", default: "Breadcrumb" },
       { key: "breadcrumbHome", label: "Breadcrumb: Home", default: "Home" },
@@ -731,7 +731,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coAccountButton", label: "Thank-you: account box button", default: "Sign in to your account" },
       { key: "coPending", label: "Pending-payment message", default: "Your order is pending verification of payment. We will ship once received." },
       { key: "coContinue", label: "Thank-you button", default: "Continue Exploring" },
-      { key: "coEmptyEyebrow", label: "Empty cart eyebrow", default: "Empty Archive" },
+      { key: "coEmptyEyebrow", label: "Empty cart eyebrow", default: "Empty Catalogue" },
       { key: "coEmptyTitle", label: "Empty cart heading", default: "Nothing Here" },
       { key: "coEmptyButton", label: "Empty cart button", default: "Return to Catalog" },
       { key: "coOrderPlaced", label: "Thank-you status: placed (manual payment)", default: "Order Placed" },

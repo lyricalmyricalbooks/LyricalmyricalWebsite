@@ -113,7 +113,7 @@ export const THEME_LIBRARY = [
       wordmarkSecondaryMuted: true, wordmarkSize: 1.75, wordmarkWeight: 600,
       navPillRadius: "14px 4px 14px 4px", navPillRotate: true, navPillActivePalette: true,
       showCategoryChips: true, categoryChipShowCounts: true,
-      catalogHeading: "The Archive", showCatalogCount: true,
+      catalogHeading: "The Catalogue", showCatalogCount: true,
       showQtyStepper: true, productDescriptionStyle: "designed",
     },
   },
