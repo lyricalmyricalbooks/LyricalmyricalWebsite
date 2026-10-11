@@ -256,8 +256,11 @@ async function applyStock(deps, rows, { t0 = null, mode = "auto", by = "Inventor
   const { db } = deps;
   const allowed = mode === "confirmed" ? row => CONFIRMED_HOLDS.has(row.hold) : row => row.hold == null;
   const byBook = new Map();
+  // The owner's confirmed apply also switches counting on for a book whose number is already right:
+  // skipping "no change" rows left such a book uncounted however often they pressed Apply.
+  const switchesOn = row => mode === "confirmed" && row.hold === "untracked";
   for (const row of rows) {
-    if (row.to == null || row.from == null || row.to === row.from || !allowed(row)) continue;
+    if (row.to == null || row.from == null || (row.to === row.from && !switchesOn(row)) || !allowed(row)) continue;
     byBook.set(row.bookId, [...(byBook.get(row.bookId) || []), row]);
   }
   const results = [];
@@ -281,7 +284,7 @@ async function applyStock(deps, rows, { t0 = null, mode = "auto", by = "Inventor
           book = { ...book, ...change };
           logs.push({
             bookId, variantId: row.variantId || null, title: row.title, edition: row.edition, from, to: row.to, delta: row.to - from,
-            reason: "Inventory app", note: `The inventory app counts ${row.appOnHand ?? "?"} on hand${row.webTotal - (row.webCopies || 0) > 0 ? `; ${row.webTotal - (row.webCopies || 0)} website cop${row.webTotal - (row.webCopies || 0) === 1 ? "y" : "ies"} not imported there yet` : ""}.`,
+            reason: "Inventory app", note: `${switchesOn(row) && from === row.to ? "Counting switched on. " : ""}The inventory app counts ${row.appOnHand ?? "?"} on hand${row.webTotal - (row.webCopies || 0) > 0 ? `; ${row.webTotal - (row.webCopies || 0)} website cop${row.webTotal - (row.webCopies || 0) === 1 ? "y" : "ies"} not imported there yet` : ""}.`,
             at: now, by,
           });
           done.push({ row, result: "applied" });

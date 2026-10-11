@@ -9,7 +9,7 @@ import {
 } from "./riso/components";
 import { inventoryLinkApi, type LinkStatus, type StockPreview } from "./inventoryLinkApi";
 import {
-  IAM_URL, ago, editionKey, holdWords, linkStep, linkableEditions, linkedTo, linksFromChoices, suggestLinks,
+  IAM_URL, NO_COUNT_YET, ago, editionKey, holdWords, linkStep, linkableEditions, linkedTo, linksFromChoices, suggestLinks,
   type InventoryAppBook, type InventoryLinks, type LinkableEdition, type StockRow,
 } from "./inventoryLink";
 import { inventoryApi } from "./inventoryApi";
@@ -194,12 +194,17 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
         </SelectField>
         {!choices[e.key] && suggestions[e.key] && <div className="rp-hint">Suggested: {appBookName(suggestions[e.key])}</div>}
         {sharesWith(e).length > 0 && <div className="rp-hint">Same copies as {sharesWith(e).join(", ")}: a sale of either takes a copy off both.</div>}
+        {choices[e.key] && appBooks && appBooks.find((b) => b.id === choices[e.key])?.onHand == null && <div className="rp-hint">{NO_COUNT_YET}</div>}
         {linkErrors.filter((x) => editionKey(x.bookId, x.variantId) === e.key).map((x) => (
           <div key={x.reason} className="rp-hint" role="alert" style={{ color: "var(--rp-danger)" }}>✕ {x.reason}</div>
         ))}
       </div>
     ) },
-    { key: "stock", header: "Website stock", numeric: true, render: (e) => (e.tracked ? e.stock : <span className="rp-hint">Not counted</span>) },
+    { key: "stock", header: "Website stock", numeric: true, render: (e) => (e.tracked ? e.stock : (
+      <span className="rp-hint" style={{ display: "inline-block", maxWidth: 180, textAlign: "right" }}>
+        {linkedTo(links, e.bookId, e.variantId) ? "Not counted yet. Preview stock changes, then Apply these numbers, switches counting on." : "Not counted"}
+      </span>
+    )) },
   ];
 
   const stockColumns: Column<StockRow>[] = [

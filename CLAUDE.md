@@ -740,6 +740,9 @@ and stock; the contract is `docs/INVENTORY_LINK.md` (same file as the inventory 
   second website label. Refusals reach the app (`shipmentReply`) and the admin alerts (`shipmentIssues`).
 - **Shared piles:** editions of one book linked to the same inventory book (signed/unsigned) share their copies
   (`functions/stockPools.js`): `readBooks`/`stockChanges` move every edition of the pile, `reserveStock` holds against it.
+- **Counting on / no count:** a confirmed Apply turns `trackInventory` on for an `untracked` row even when `to === from`.
+  A matched book with no count (`no-feed`, drop-down shows no "(N on hand)") is one the inventory app hasn't published;
+  the app moves books left in its old storage over by itself on open (`_fbAdoptBook`).
 - **Linked stock is read-only on the website:** `inventoryApi.adjustStock` refuses (`reason: "linked"`), `adminApi.updateBook` keeps live
   stock (`lockLinkedStock`), the editor/catalog/edition dialog show "Counted in the inventory app", CSV import skips it.
 - **Admin:** Inventory › **Inventory app link** (`InventoryLinkPanel.tsx`, pure helpers `inventoryLink.ts`): connect → match books →
