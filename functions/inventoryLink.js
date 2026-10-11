@@ -308,9 +308,11 @@ function validateLinks(books, links, inventoryIds = null) {
         if (!variant) { fail("This edition is no longer on the book."); continue; }
       } else if (variants.length) { fail("This book is sold in editions; link each printed edition."); continue; }
       if (isDigitalEdition(book, variant)) { fail("E-books and audiobooks have no stock to link."); continue; }
+      // Editions of one book may share an inventory book: they share one pile of copies (stockPools.js).
+      // Two different books may not, or one count would be sold twice.
       const owner = usedBy.get(inv);
-      if (owner) { fail(`That inventory book is already linked to “${owner}”.`); continue; }
-      usedBy.set(inv, [book.title || "another book", variant?.name].filter(Boolean).join(" — "));
+      if (owner && (owner.bookId !== bookId || !variantId || !owner.variantId)) { fail(`That inventory book is already linked to “${owner.name}”.`); continue; }
+      if (!owner) usedBy.set(inv, { bookId, variantId, name: [book.title || "another book", variant?.name].filter(Boolean).join(" — ") });
       out[bookId] = { ...(out[bookId] || {}), [variantId || "_"]: inv };
     }
   }

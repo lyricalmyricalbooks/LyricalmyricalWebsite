@@ -732,6 +732,8 @@ and stock; the contract is `docs/INVENTORY_LINK.md` (same file as the inventory 
   "inventory-app"`, `order-operations.externalLabel`) or dispatches with `externalDispatchProblem` (`functions/fulfillmentGuard.js`,
   parity with admin `dispatchProblem` in `dispatchGuard.parity.test.ts`; stricter on open cancel requests). `labelProblem` refuses a
   second website label. Refusals reach the app (`shipmentReply`) and the admin alerts (`shipmentIssues`).
+- **Shared piles:** editions of one book linked to the same inventory book (signed/unsigned) share their copies
+  (`functions/stockPools.js`): `readBooks`/`stockChanges` move every edition of the pile, `reserveStock` holds against it.
 - **Linked stock is read-only on the website:** `inventoryApi.adjustStock` refuses (`reason: "linked"`), `adminApi.updateBook` keeps live
   stock (`lockLinkedStock`), the editor/catalog/edition dialog show "Counted in the inventory app", CSV import skips it.
 - **Admin:** Inventory › **Inventory app link** (`InventoryLinkPanel.tsx`, pure helpers `inventoryLink.ts`): connect → match books →

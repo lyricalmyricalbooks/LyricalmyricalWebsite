@@ -9,10 +9,14 @@
 // Returns { updates: [{ id, data }], oversold: boolean } — oversold is true when
 // a sale asked for more copies than were in stock (stock is floored at 0).
 // Box-set lines count as the books inside them (promotions.stockLines).
+// Editions sharing one pile (stockPools.js; carried on `books[POOLS]` by readBooks)
+// all move together: a sale of one takes the copy off each of them.
 const { stockLines } = require("./promotions");
+const { POOLS, readStockPools, poolMembers } = require("./stockPools");
 
 function stockChanges(items, books, sign) {
   const get = id => (books instanceof Map ? books.get(id) : books[id]);
+  const pools = (books && books[POOLS]) || {};
   const perBook = new Map();
   for (const item of stockLines(items)) {
     const book = item && get(item.id);
@@ -26,7 +30,13 @@ function stockChanges(items, books, sign) {
   }
   let oversold = false;
   const updates = [];
-  for (const [id, { book, base, variants }] of perBook) {
+  for (const [id, { book, base, variants: own }] of perBook) {
+    // Each edition moves by its own lines plus those of every edition sharing its pile.
+    const variants = new Map();
+    for (const v of book.variants || []) {
+      const qty = v && v.id ? poolMembers(pools, id, v.id).reduce((sum, key) => sum + (own.get(key) || 0), 0) : 0;
+      if (qty) variants.set(v.id, qty);
+    }
     const data = {};
     const currentBase = Number(book.stockLevel) || 0;
     if (sign < 0 && currentBase < base) oversold = true;
@@ -55,6 +65,7 @@ async function readBooks(transaction, db, items) {
   const docs = await Promise.all(ids.map(id => transaction.get(db.collection("books").doc(id))));
   const books = new Map();
   docs.forEach((doc, i) => { if (doc.exists) books.set(ids[i], doc.data()); });
+  if (ids.length) books[POOLS] = await readStockPools(transaction, db);
   return books;
 }
 
