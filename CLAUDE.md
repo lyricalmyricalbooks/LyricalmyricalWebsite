@@ -730,8 +730,9 @@ and stock; the contract is `docs/INVENTORY_LINK.md` (same file as the inventory 
   linked editions per order (box sets as their parts, minus `restockedItems`/`partialRestockedItems`), never what `writeStock`
   happened to do. The website's own record `inventoryPushes/{orderId}` (server-only, deny-all rule) is written first; links are
   frozen per order line. Orders count from the owner's start day (`startDay`, then a backfill). Section 3 › **Send older orders too**
-  moves it earlier only (`startSales` again): `markPastOrders` stamps `websiteLink/website.pastFromAt` first, so the app asks
-  "Bring them in" again before adding older orders; then the backfill restarts. A later day is refused.
+  moves it earlier only (`startSales` again): `markPastOrders` stamps `websiteLink/website.pastFromAt` first (informational), then the
+  backfill restarts. A later day is refused. The app brings every order in by itself (no "Bring them in" step): sales typed in
+  by hand are linked, unclear ones wait under Needs you; its Storage check proves each book moved to Firestore intact.
 - **Stock → website:** the app publishes `websiteStockFeed/{book}`; for each linked edition the sweep sets
   `max(0, min(feed.base − Σ inventoryPushes.net[book], feed.onHand))` (`stockPlanFor`), per book in one transaction that skips a
   book changed after the run started, with an `inventoryLog` row (reason "Inventory app"). Automatic runs (owner switch, every

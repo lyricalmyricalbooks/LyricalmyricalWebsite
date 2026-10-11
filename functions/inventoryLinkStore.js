@@ -59,8 +59,7 @@ async function checkConnection({ now = new Date() } = {}) {
 
 /**
  * Tell the inventory app that older website orders are about to arrive (the start day moved earlier).
- * The app asks the owner to press "Bring them in" again before adding any, so sales typed in by hand
- * there can be checked first. Written before the start day changes, so no older order goes first.
+ * Informational: the app brings website orders in by itself, linking sales already typed in by hand.
  */
 async function markPastOrders({ from, at }) {
   await inventoryDb().collection("websiteLink").doc("website").set({ pastFrom: from, pastFromAt: at }, { merge: true });
