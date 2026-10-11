@@ -1,6 +1,7 @@
 name: Deploy Firebase (rules, indexes, functions)
 
-# The storefront workflow (deploy-pages.yml) ships the static frontend to GitHub Pages and Firebase Hosting.
+# The storefront workflow (deploy-pages.yml) ships the static frontend to Firebase Hosting (and the old address's
+# forwarding pages to GitHub Pages).
 # This one keeps the backend in sync: Firestore rules/indexes, Storage rules and Cloud Functions are deployed
 # whenever they change on main. It never deploys Hosting (`--only` below leaves it out); firebase.json is still
 # watched, so editing the hosting block redeploys the backend too (unchanged functions are skipped) and the
@@ -67,10 +68,8 @@ jobs:
           set -euo pipefail
           url="${CUSTOM_SITE_URL%/}"
           if [ -n "$url" ]; then
-            if ! printf '%s' "$url" | grep -Eq '^https://[a-z0-9.-]+$' || [[ "$url" == *.github.io ]]; then
-              echo "::error::SITE_URL must be the shop's own https address with no folder, not '$url'."
-              exit 1
-            fi
+            # Format, never GitHub Pages, and allowed by ALLOWED_ORIGINS (scripts/siteAddressCheck.mjs).
+            node scripts/siteAddressCheck.mjs "$url"
             printf 'SITE_URL=%s\n' "$url" >> functions/.env.lyricalmyrical-web-v2
           else
             url=$(node -e 'const s=require("fs").readFileSync("functions/index.js","utf8"); process.stdout.write(s.match(/SITE_URL \|\| "(https:\/\/[^"]+)"/)[1])')

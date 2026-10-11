@@ -58,6 +58,27 @@ describe('what the old address hands over', () => {
   it('carries nothing when there is nothing to carry', () => {
     expect(carryFragment(store(), store(), `${target}/`)).toBe('');
   });
+
+  it("marks a payment return that was this tab's checkout attempt, so a retry is still refused if it was paid", () => {
+    const key = 'e'.repeat(64);
+    const session = store({ 'order-access:AB12': key, fm_last_checkout_order: 'AB12' });
+    expect(decode(carryFragment(store({ 'lm:moved': '1' }), session, `${target}/checkout?paypal_return=true&order_id=AB12`)).access)
+      .toEqual({ orderId: 'AB12', key, attempt: true });
+  });
+
+  it('never lets a very large bag cost a payment return its order key', () => {
+    const big = Array.from({ length: 200 }, (_, i) => ({ ...line, id: `book-${i}`, title: 'A long title '.repeat(8) }));
+    const local = store({ fm_cart: JSON.stringify(big) });
+    const fragment = carryFragment(local, store({ 'order-access:AB12': 'f'.repeat(64) }), `${target}/checkout?order_id=AB12`);
+    expect(decode(fragment)).toEqual({ v: 1, access: { orderId: 'AB12', key: 'f'.repeat(64) } });
+    expect(local.data['lm:moved']).toBeUndefined(); // the bag can still come along on a later visit
+  });
+
+  it('passes on where the visit came from (the forwarding page itself sends no referrer)', () => {
+    expect(decode(carryFragment(store(), store(), `${target}/books/x`, 'https://l.instagram.com/?u=x'))).toEqual({ v: 1, from: 'l.instagram.com' });
+    expect(carryFragment(store(), store(), `${target}/`, 'https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite/')).toBe('');
+    expect(carryFragment(store(), store(), `${target}/`, 'not a url')).toBe('');
+  });
 });
 
 describe('the forwarding pages', () => {
@@ -65,7 +86,7 @@ describe('the forwarding pages', () => {
     const calls: string[] = [];
     const url = new URL(href);
     const location = { href, pathname: url.pathname, search: url.search, hash: url.hash, replace: (to: string) => calls.push(to) };
-    vm.runInNewContext(forwardScript(target), { window: { location, localStorage: local, sessionStorage: session }, URL, JSON, btoa, unescape, encodeURIComponent });
+    vm.runInNewContext(forwardScript(target), { window: { location, localStorage: local, sessionStorage: session, document: { referrer: '' } }, URL, JSON, btoa, unescape, encodeURIComponent });
     return calls;
   };
 

@@ -90,7 +90,9 @@ cookie banner again.
 2. Add the domain to the reCAPTCHA key, to Stripe payment-method domains (test and live, from the admin opened on the
    new domain), and to Firebase Auth authorized domains in both projects. `ALLOWED_ORIGINS` already lists
    lyricalmyricalbooks.com and www.
-3. Set the repository variable **`SITE_URL`** to `https://<your domain>`.
+3. Once the domain opens the shop, set the repository variable **`SITE_URL`** to `https://<your domain>`. Both deploys
+   refuse an address that isn't in `ALLOWED_ORIGINS` or doesn't serve the shop yet, so a typo or a pending
+   certificate can't redirect your visitors to a dead address.
 4. Run **Deploy Firebase**, then **Deploy storefront**. The site, the sitemap, email links and the old-address
    forwarding all follow, and the web.app and firebaseapp.com addresses forward to the domain.
 

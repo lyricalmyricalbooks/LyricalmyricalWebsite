@@ -1,5 +1,6 @@
 import { useState, lazy, Suspense, useEffect, type ReactNode } from "react";
 import { consentAllows } from "./lib/consent";
+import { REFERRAL_KEY, referralSourceOf } from "./lib/referralSource";
 import { LazyMotion, MotionConfig } from "motion/react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router";
 import { EditInStudioButton } from "./admin/EditInStudioButton";
@@ -57,25 +58,9 @@ export default function App() {
       const ref = params.get("ref");
       if (ref) {
         window.sessionStorage.setItem("referral_source", ref.toLowerCase());
-      } else if (!window.sessionStorage.getItem("referral_source")) {
-        const referrer = document.referrer;
-        if (referrer) {
-          try {
-            const url = new URL(referrer);
-            if (!url.hostname.includes(window.location.hostname)) {
-              let source = url.hostname.replace("www.", "");
-              if (source.includes("google")) source = "google";
-              else if (source.includes("instagram")) source = "instagram";
-              else if (source.includes("facebook")) source = "facebook";
-              else if (source.includes("twitter") || source.includes("t.co")) source = "twitter";
-              else if (source.includes("tiktok")) source = "tiktok";
-              else if (source.includes("pinterest")) source = "pinterest";
-              window.sessionStorage.setItem("referral_source", source);
-            }
-          } catch (e) {
-            // Ignore URL parse errors
-          }
-        }
+      } else if (!window.sessionStorage.getItem(REFERRAL_KEY) && document.referrer) {
+        const source = referralSourceOf(document.referrer, window.location.hostname);
+        if (source) window.sessionStorage.setItem(REFERRAL_KEY, source);
       }
     }
   }, []);

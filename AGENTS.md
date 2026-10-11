@@ -78,7 +78,8 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
   navigation and `import.meta.env.BASE_URL` for asset/links — never hardcode absolute root paths. The old
   GitHub Pages address only forwards (CLAUDE.md › Deployment); never point `SITE_URL` back at it.
 - **CORS:** every address the storefront is built for must be in `ALLOWED_ORIGINS` in
-  `functions/index.js` (`scripts/siteAddress.test.ts` checks the defaults and the Firebase Hosting job).
+  `functions/index.js` (`scripts/siteAddress.test.ts` checks the defaults; at deploy time
+  `scripts/siteAddressCheck.mjs` refuses a `SITE_URL` that isn't allowed there or isn't serving the shop yet).
   See CLAUDE.md › Deployment. Never add a catch-all rewrite to `firebase.json` (unknown URLs must stay 404s).
 - **SEO:** use the helpers in `src/app/lib/seo.ts`, and refresh the sitemap with
   `npm run build:sitemap` (it also runs as part of `npm run build`) when routes

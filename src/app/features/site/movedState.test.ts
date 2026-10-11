@@ -5,6 +5,7 @@ import { decodeMovedState, takeMovedState, MOVED_PREFIX } from "./movedState";
 import { savedOrderAccess } from "../../lib/orderAccessClient";
 import { CART_KEY } from "../../CartContext";
 import { WISHLIST_KEY } from "../../lib/wishlist";
+import { CONSENT_KEY } from "../../lib/consent";
 
 const site = "https://lyricalmyrical-web-v2.web.app";
 const line = { id: "b1", title: "Cream Show", price: 25, quantity: 2, photoUrl: "" };
@@ -22,12 +23,14 @@ function fakeWindow(href: string, local: Record<string, string> = {}) {
     location: { href, hash: url.hash },
     history: { state: null, replaceState: (_s: unknown, _t: string, to: string) => replaced.push(to) },
     localStorage: storage,
+    sessionStorage,
   } as unknown as Window;
   return { win, replaced, local };
 }
 
 describe("arriving from the old GitHub Pages address", () => {
-  beforeEach(() => sessionStorage.clear());
+  beforeEach(() => { sessionStorage.clear(); localStorage.clear(); });
+  const encode = (data: unknown) => MOVED_PREFIX + Buffer.from(JSON.stringify(data)).toString("base64url");
 
   it("reads exactly what the old address's forwarding page wrote", () => {
     const fragment = carryFragment(memory({ fm_cart: JSON.stringify([line]), fm_wishlist_v1: '["b2"]' }), memory(), `${site}/`);
@@ -74,6 +77,34 @@ describe("arriving from the old GitHub Pages address", () => {
     }
     const weird = decodeMovedState(MOVED_PREFIX + Buffer.from(JSON.stringify({ v: 1, wishlist: [1, "", "ok"], access: { orderId: "../x", key: "short" } })).toString("base64url"));
     expect(weird).toEqual({ wishlist: ["ok"] });
+  });
+
+  it("never takes a gift-card line: a crafted link could otherwise send a paid gift card's code to a stranger", () => {
+    const gift = { id: "gift", variantId: "200", title: "Gift card", price: 200, quantity: 1, photoUrl: "", giftCard: true, giftCardDetails: { recipientName: "Mom", recipientEmail: "attacker@example.com" } };
+    const { win, local } = fakeWindow(`${site}/checkout${encode({ v: 1, cart: [gift, { ...gift, giftCardDetails: undefined }, { ...gift, giftCard: undefined }] })}`);
+    expect(takeMovedState(win)?.cart).toBe(0);
+    expect(local[CART_KEY]).toBeUndefined();
+  });
+
+  it("keeps a retry recognised as one when the payment return was this tab's checkout attempt", () => {
+    const key = "b".repeat(64);
+    const fragment = carryFragment(memory({ "lm:moved": "1" }), memory({ "order-access:AB12": key, fm_last_checkout_order: "AB12" }), `${site}/checkout?order_id=AB12`);
+    const { win } = fakeWindow(`${site}/checkout?order_id=AB12${fragment}`);
+    takeMovedState(win);
+    expect(sessionStorage.getItem("fm_last_checkout_order")).toBe("AB12");
+  });
+
+  it("records where the visit came from, only with analytics consent and never over an existing source", () => {
+    const fragment = carryFragment(memory({ "lm:moved": "1" }), memory(), `${site}/`, "https://l.instagram.com/x");
+    localStorage.setItem(CONSENT_KEY, JSON.stringify({ analytics: false, marketing: false }));
+    expect(takeMovedState(fakeWindow(`${site}/${fragment}`).win)?.from).toBeUndefined();
+    expect(sessionStorage.getItem("referral_source")).toBeNull();
+    localStorage.removeItem(CONSENT_KEY);
+    expect(takeMovedState(fakeWindow(`${site}/${fragment}`).win)?.from).toBe("instagram");
+    expect(sessionStorage.getItem("referral_source")).toBe("instagram");
+    sessionStorage.setItem("referral_source", "newsletter");
+    takeMovedState(fakeWindow(`${site}/${encode({ v: 1, from: "www.google.com" })}`).win);
+    expect(sessionStorage.getItem("referral_source")).toBe("newsletter");
   });
 
   it("does nothing on an ordinary visit", () => {

@@ -2,6 +2,8 @@ import { restoredUser } from "../../lib/authSession";
 
 const memoryKeys = new Map<string, string>();
 const storageKey = (id: string) => `order-access:${id}`;
+/** This tab's last unpaid checkout attempt (sessionStorage; Checkout sends it with a retry as `previousOrderId`). */
+export const CHECKOUT_ATTEMPT_KEY = "fm_last_checkout_order";
 export function newOrderAccessKey(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, "0")).join("");
 }
