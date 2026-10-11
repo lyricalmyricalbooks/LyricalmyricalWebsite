@@ -1243,6 +1243,19 @@ export const adminApi = {
     return result;
   },
 
+  restockRefundedOrder: async (orderId: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "restockRefunded", orderId }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Couldn't put the books back in stock.");
+    return result;
+  },
+
   verifyStripeKeys: async () => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");

@@ -50,6 +50,7 @@ const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchas
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
 const { refundRetrySuffix, refundPlan, refundedSoFar, restockLinesFor, withoutRestocked, partialRefundKey } = require("./partialRefund");
+const { leftTheShop, restockRefundedOrder } = require("./refundRestock");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
 const { hitLimit, LIMITS, clientIpOf, serverGeoCountry } = require("./rateLimit");
 const { publicErrorMessage } = require("./publicErrors");
@@ -1756,6 +1757,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
     if (req.body?.action === "giftCardAdmin") return handleGiftCardAdmin(req, res);
     if (req.body?.action === "inventoryLink") return handleInventoryLinkAdmin(req, res);
     if (req.body?.action === "backupNow") return handleBackupNow(req, res);
+    if (req.body?.action === "restockRefunded") return handleRestockRefunded(req, res);
     if (req.body?.action === "backups") return handleBackups(req, res);
     if (req.body?.action === "cancelOrder") return handleCancelOrder(req, res);
     if (req.body?.action === "resolvePaymentMismatch") return handleResolveMismatch(req, res);
@@ -2676,10 +2678,9 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     const sandboxPaid = order.sandboxPayment === true;
     // Without an explicit choice (Dashboard/PayPal refunds, sweeps) books that already left the shop
     // are not put back on the shelf; the admin's saved choice or an explicit flag always wins.
-    const leftTheShop = ["shipped", "out_for_delivery", "delivered", "collected", "completed"].includes(order.fulfillmentStatus) || order.status === "completed";
     const wantsRestock = restock !== undefined ? restock !== false
       : typeof order.refundRequest?.restock === "boolean" ? order.refundRequest.restock
-      : !leftTheShop;
+      : !leftTheShop(order);
     const shouldRestock = !sandboxPaid && wantsRestock && itemList.length > 0 && order.inventoryRestockedAt == null;
     const books = shouldRestock ? await readBooks(transaction, db, itemList) : new Map();
     const shouldReverseDiscount = !sandboxPaid && order.appliedDiscount?.id && order.discountUsageReversedAt == null;
@@ -7082,6 +7083,22 @@ async function handleBackups(req, res) {
 }
 
 /** Settings › General › Backups & export › Back up now (admin). Fits inside this endpoint's 60 s limit. */
+// Order detail › Put the books back in stock: a refund that left its books out (Restock items unticked).
+async function handleRestockRefunded(req, res) {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+  const orderId = req.body?.orderId;
+  if (typeof orderId !== "string" || !orderId || orderId.includes("/")) return res.status(400).json({ error: "Missing orderId" });
+  try {
+    const result = await restockRefundedOrder(db, orderId, { actor: adminUser.email || adminUser.uid });
+    res.status(200).json({ ok: true, ...result });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    console.error("restockRefunded failed:", err);
+    res.status(500).json({ error: "The books couldn't be put back just now. Try again in a minute." });
+  }
+}
+
 async function handleBackupNow(req, res) {
   const adminUser = await requireAdmin(req, res);
   if (!adminUser) return;

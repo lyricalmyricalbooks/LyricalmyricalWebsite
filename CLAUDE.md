@@ -1271,6 +1271,11 @@ limits what one code can take off an order ("20% off, up to $15"). The server en
   (Stripe, PayPal captures API, or manual via `refundProviderOf`), Stripe Dashboard refunds, lost disputes and PayPal
   `PAYMENT.CAPTURE.REFUNDED/REVERSED` webhooks. Stock (admin's `refundRequest.restock`), discount use and revenue are
   reversed once; `refund_pending` completes later via the reversal sweep.
+  The refund window's **Restock items** starts ticked unless the books left the shop (`defaultRestockOnRefund` ↔ server
+  `leftTheShop`, `functions/refundRestock.js`, parity-tested). A refund that left printed books out shows Order detail ›
+  **Books not back in stock** › **Put the books back in stock** (`createStripeCheckoutSession` `action: "restockRefunded"`,
+  `restockRefundedOrder`): once, the same stock change and `restockedItems` record a restocking refund writes, so the inventory
+  app link turns that order's gratuity into a void sale.
 - **Payments:** PayPal request ids include amount+currency; a late `async_payment_failed` can't undo a paid order;
   a second Stripe payment is kept in `duplicatePayments` and alerted (Orders shows "Paid twice"); a card retry
   cancels the order's previous unfinished PaymentIntent; hosted sessions save `stripeCheckoutSessionId` at creation.
