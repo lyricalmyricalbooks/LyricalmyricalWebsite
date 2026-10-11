@@ -105,13 +105,6 @@ describe("private book fields", () => {
     await adminApi.deleteBook("b1");
     expect(writes.filter(w => w.op === "deleteDoc").map(w => w.path)).toEqual(["books/b1", "books/b1/private/admin"]);
   });
-
-  it("the legacy inventory sync stores its match key privately", async () => {
-    // Covered structurally: the public update deletes legacyInventoryKey and the private document gets it.
-    const source = (await import("node:fs")).readFileSync(new URL("./api.ts", import.meta.url), "utf8");
-    expect(source).toMatch(/legacyInventoryKey: deleteField\(\)/);
-    expect(source).toMatch(/tx\.set\(privateBookRef\(m\.bookId\), \{ legacyInventoryKey: m\.legacyKey/);
-  });
 });
 
 describe("digital file upload (#4)", () => {

@@ -3,6 +3,8 @@ import { catalogPublishIssues } from "./catalogPublishReview";
 import { useState, useEffect, useMemo } from "react";
 import { ArrowDown, ArrowUp, GripVertical, Plus, Upload } from "lucide-react";
 import { EditionStockDialog } from "./EditionStockDialog";
+import { inventoryLinkApi } from "./inventoryLinkApi";
+import { type InventoryLinks } from "./inventoryLink";
 import { compareShopOrder, moveId, shopOrderWrites } from "../features/site/shopOrder";
 import { BookImportDialog } from "./BookImportDialog";
 import { MerchantFeedDialog } from "./MerchantFeedDialog";
@@ -71,6 +73,9 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [shopCategories, setShopCategories] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [inline, setInline] = useState<{ id: string; field: "retailPrice" | "stockLevel"; value: string } | null>(null);
+  // Books matched to the inventory app are counted there: no quick stock edit (Inventory › Inventory app link).
+  const [stockLinks, setStockLinks] = useState<InventoryLinks>({});
+  useEffect(() => { inventoryLinkApi.links().then(setStockLinks).catch(() => setStockLinks({})); }, []);
   const [stockEditId, setStockEditId] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
@@ -317,6 +322,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
           aria-label={`Edit stock of ${b.title} (by edition)`} onClick={() => setStockEditId(b.id)}>{shown}</button>
       );
     }
+    if (field === "stockLevel" && stockLinks[b.id]?.["_"]) return <span title="Counted in the inventory app">{shown}</span>;
     if (!inlineEditable(b) || (field === "stockLevel" && !b.trackInventory)) return shown;
     return (
       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Click to edit"

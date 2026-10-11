@@ -409,6 +409,13 @@ export function FulfillmentWorkbench({
                 {order.labelUrl && order.operations?.labelTest === true && (
                   <p className="fw-problems" role="alert"><StatusBadge tone="warning">TEST label</StatusBadge> Not a real postage label: it was bought with a Shippo test key, so it won't carry a parcel or track. Use <strong>Wrong label? Replace it</strong> and buy again with your live key before shipping.</p>
                 )}
+                {!order.labelUrl && order.trackingSource === "inventory-app" && order.trackingNumber && (
+                  <p className="fw-summary" role="status">
+                    <StatusBadge tone="info">Inventory app</StatusBadge> Label bought in the inventory app · {order.trackingCarrier || "Carrier"} · {order.trackingNumber}
+                    {Number.isFinite(Number(order.operations?.externalLabel?.cost)) && order.operations?.externalLabel?.cost != null ? ` · CA$${Number(order.operations.externalLabel.cost).toFixed(2)}` : ""}.
+                    {" "}Marking the parcel shipped there dispatches this order and emails the customer. Don't buy a second label here.
+                  </p>
+                )}
                 <p className="fw-summary">
                   {order.labelUrl
                     ? `Label bought · ${order.trackingCarrier || "Carrier"} · ${order.trackingNumber || "Tracking pending"}. Print it, hand the parcel to the carrier, then mark it shipped — you can add or check the tracking link the customer's email uses.`

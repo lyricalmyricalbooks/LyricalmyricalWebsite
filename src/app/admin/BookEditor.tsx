@@ -53,6 +53,8 @@ import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from ".
 import { MediaLibraryDialog, WeightField } from "./BookEditorFields";
 import { editorDirty, fillEmpty, isbnWarning, lookupIsbn, needsPublishReview, slugClash, slugFollowsTitle, slugLocked, slugifyTitle } from "./bookEditorState";
 import { LOW_STOCK } from "./catalogList";
+import { inventoryLinkApi } from "./inventoryLinkApi";
+import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import { releaseArrived } from "../features/site/liveBook";
 import { addOnProblems, bundleProblems, giftCardProblems, isBoxSet, isGiftCardProduct, productForSave, saleStatus, saleWindowProblem } from "./productExtras";
 
@@ -93,6 +95,10 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   // The record being edited: the opened book, or the new one once a first Save has created it.
   const [book, setBook] = useState<Book | null>(bookProp);
   useEffect(() => { setBook(bookProp); }, [bookProp]);
+  // Books matched to the inventory app (Inventory › Inventory app link) take their stock from it.
+  const [stockLinks, setStockLinks] = useState<InventoryLinks>({});
+  useEffect(() => { inventoryLinkApi.links().then(setStockLinks).catch(() => setStockLinks({})); }, []);
+  const LINKED_HINT = "Counted in the inventory app. Change it there; the website follows within 15 minutes.";
   const [defaultProfileId, setDefaultProfileId] = useState("");
   const [fieldsDirty, setFieldsDirty] = useState(false);
   const [visited, setVisited] = useState<Set<BookTab>>(() => new Set(["details"]));
@@ -1067,7 +1073,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                   {formData.trackInventory && <Toggle label="Allow backorders when out of stock" checked={!!formData.allowBackorder} onChange={(v) => set("allowBackorder", v)} />}
                 </div>
                 <div className="be-grid be-grid-3">
-                  <TextField label={`Stock level${hasVariants ? " (from editions)" : ""}`} type="number" name="stockLevel" value={formData.stockLevel} onChange={handleChange} disabled={hasVariants} />
+                  <TextField label={`Stock level${hasVariants ? " (from editions)" : ""}`} type="number" name="stockLevel" value={formData.stockLevel} onChange={handleChange}
+                    disabled={hasVariants || (!!book?.id && isStockLinked(stockLinks, book.id, null))}
+                    hint={!hasVariants && book?.id && isStockLinked(stockLinks, book.id, null) ? LINKED_HINT : undefined} />
                   <div className="be-stock-status">{formData.trackInventory && stockBadge(num(formData.stockLevel))}</div>
                   <TextField label="Shelf location" name="shelfLocation" value={formData.shelfLocation || ""} onChange={handleChange} placeholder="e.g. B2 or Box 4" hint={hasVariants ? "Shown on the packing checklist for editions without their own shelf location." : "Shown next to this book on the packing checklist."} />
                 </div>
@@ -1167,7 +1175,8 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                       <TextField label="Price (CAD)" type="number" min={0} step="0.01" value={v.price} onChange={(e) => updateVariant(v.id, "price", e.target.value === "" ? "" : Number(e.target.value))} />
                       <TextField label="Price (USD)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).usdPrice ?? 0} onChange={(e) => updateVariant(v.id, "usdPrice", Number(e.target.value))} />
                       <TextField label="Price (EUR)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).eurPrice ?? 0} onChange={(e) => updateVariant(v.id, "eurPrice", Number(e.target.value))} />
-                      <TextField label="Stock" type="number" min={0} value={(v as any).stockLevel ?? v.stock ?? 0} onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))} />
+                      <TextField label="Stock" type="number" min={0} value={(v as any).stockLevel ?? v.stock ?? 0} onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))}
+                        disabled={!!book?.id && isStockLinked(stockLinks, book.id, v.id)} hint={book?.id && isStockLinked(stockLinks, book.id, v.id) ? LINKED_HINT : undefined} />
                       <TextField label="Shelf location" placeholder="e.g. B2" value={(v as any).shelfLocation || ""} onChange={(e) => updateVariant(v.id, "shelfLocation", e.target.value)} hint="Packing checklist; blank = the book's." />
                       <div style={{ gridColumn: "1 / -1" }}>
                         <Toggle label="Digital edition (buyers download a file)" checked={(v as any).digital === true} onChange={(on) => updateVariant(v.id, "digital", on)} />

@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   createBook: vi.fn(async (b: any) => ({ id: "new1", ...b })),
   updateBook: vi.fn(async (id: string, b: any) => ({ id, ...b })),
 }));
+vi.mock("./inventoryLinkApi", () => ({ inventoryLinkApi: { links: async () => ({}) } }));
 vi.mock("./api", () => ({ adminApi: api }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 const { BookImportDialog } = await import("./BookImportDialog");

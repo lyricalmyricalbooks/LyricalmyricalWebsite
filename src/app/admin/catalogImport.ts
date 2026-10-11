@@ -208,6 +208,8 @@ export interface ImportOptions {
   stockMode?: "leave" | "set";
   /** Shipping profile IDs that exist (a warning names any other). */
   shippingProfiles?: string[];
+  /** Books counted in the inventory app (Inventory › Inventory app link): their stock is never written. */
+  linkedBookIds?: string[];
 }
 
 const isHttps = (value: string) => { try { return new URL(value).protocol === "https:"; } catch { return false; } };
@@ -360,6 +362,11 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
       const fields = ["retailPrice", "salePrice", "stockLevel"].filter(f => f in next && show(next[f]) !== show(book[f] ?? ""));
       if (fields.length) warnings.push(`${fields.map(f => LABEL[f]).join(" and ")} ${fields.length === 1 ? "wasn't" : "weren't"} changed: this book is sold in editions, so prices and stock are set per edition in the book editor.`);
       for (const f of ["retailPrice", "salePrice", "isOnSale", "stockLevel"]) delete next[f];
+    }
+    if (book && "stockLevel" in next && (opts.linkedBookIds || []).includes(book.id)) {
+      const live = String(book.stockLevel ?? "");
+      if (show(next.stockLevel) !== show(live)) warnings.push("Stock not changed: this book is counted in the inventory app, and the website follows that count.");
+      delete next.stockLevel;
     }
     if (book && "stockLevel" in next) {
       const live = book.stockLevel === undefined || book.stockLevel === null || book.stockLevel === "" ? null : Number(book.stockLevel);

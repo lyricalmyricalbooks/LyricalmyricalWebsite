@@ -5,7 +5,6 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { changedBookFields, removedBookFields } from "./bookStockMerge";
 import { slugFollowsTitle, slugLocked, slugifyTitle } from "./bookEditorState";
-import { planLegacySync, readLegacyStock } from "./legacyInventorySync";
 import { releaseArrived } from "../features/site/liveBook";
 
 describe("#46 editor defaults are written once for legacy books", () => {
@@ -85,37 +84,5 @@ describe("#150 the scheduled-later warning compares calendar days in Toronto", (
     const src = readFileSync(new URL("./BookEditor.tsx", import.meta.url), "utf8");
     expect(src).not.toMatch(/scheduleDate\)\s*>\s*new Date\(\)\.toISOString\(\)/);
     expect(src).toContain("!releaseArrived(formData.scheduleDate)");
-  });
-});
-
-describe("#62 legacy stock copy", () => {
-  const rec = (data: unknown) => ({ data: typeof data === "string" ? data : JSON.stringify(data) });
-  it("reports records without a usable count instead of zeroing them", () => {
-    const { stockMap, invalid } = readLegacyStock({
-      good: rec({ stock: 12 }), text: rec({ stock: "296" }), missing: rec({}), bad: rec("{nope"), neg: rec({ stock: -3 }), frac: rec({ stock: 1.5 }), nodata: {},
-    });
-    expect(stockMap).toEqual({ good: 12, text: 296 });
-    expect(invalid.map(i => i.key).sort()).toEqual(["bad", "frac", "missing", "neg", "nodata"]);
-  });
-  it("matches exactly by address or saved old-shop name, never by part of a title", () => {
-    const plan = planLegacySync({ hound: 5, "other-book": 9 }, [
-      { id: "1", title: "Hound", slug: "hound" },
-      { id: "2", title: "Hound (Copy)", slug: "hound-copy" },
-      { id: "3", title: "Different", slug: "different", legacyInventoryKey: "other-book" },
-    ]);
-    expect(plan.matches.map(m => [m.bookId, m.stock])).toEqual([["1", 5], ["3", 9]]);
-    expect(plan.unmatched).toBe(1);
-  });
-  it("skips books that share a name and books sold in editions", () => {
-    const plan = planLegacySync({ hound: 5 }, [
-      { id: "1", title: "A", slug: "hound" },
-      { id: "2", title: "B", slug: "x", legacyInventoryKey: "hound" },
-      { id: "3", title: "C", slug: "z", legacyInventoryKey: "nothing" },
-    ]);
-    expect(plan.matches).toEqual([]);
-    expect(plan.skipped.map(s => s.bookId).sort()).toEqual(["1", "2"]);
-    const withEditions = planLegacySync({ hound: 5 }, [{ id: "9", title: "E", slug: "hound", variants: [{ id: "pb" }] }]);
-    expect(withEditions.matches).toEqual([]);
-    expect(withEditions.skipped[0].reason).toMatch(/editions/);
   });
 });

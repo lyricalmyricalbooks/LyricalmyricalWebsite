@@ -12,7 +12,7 @@ export type AdminAlert = {
   title: string;
   detail: string;
   orderIds: string[];
-  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry";
+  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "inventory";
 };
 
 export type WebhookStatus = { lastReceivedAt?: string | null; lastFailureAt?: string | null; lastFailure?: string | null } | null;
@@ -149,6 +149,49 @@ export function settingsAlerts(settings: any): AdminAlert[] {
   if (settings?.payments?.testMode !== true) return [];
   return [{ id: "test-mode", tone: "warning", title: "Test mode is on — real cards are refused",
     detail: "Checkout only accepts Stripe/PayPal test payments and orders are marked as tests. Switch it off in Settings › Payments before selling.", orderIds: [], action: "payments" }];
+}
+
+// The inventory app link (systemStatus/inventoryLink, written by functions inventoryLinkSweep): only
+// once the owner switched sales on. Plain words; the Inventory page's link panel has the detail.
+export function inventoryLinkAlerts(state: any, now = Date.now()): AdminAlert[] {
+  if (!state || typeof state.startDay !== "string" || !state.startDay) return [];
+  const out: AdminAlert[] = [];
+  const link = (id: string, tone: AlertTone, title: string, detail: string): AdminAlert => ({ id, tone, title, detail, orderIds: [], action: "inventory" });
+  if (state.connection && state.connection.ok === false) {
+    out.push(link("inventory-link-down", "danger", "The inventory app link isn't working",
+      "Website sales and stock aren't being shared with the inventory app. Open Inventory › Inventory app link and press Check connection."));
+  }
+  const lastRun = Date.parse(state.lastRunAt || "");
+  if (Number.isFinite(lastRun) && now - lastRun > 60 * MIN) {
+    out.push(link("inventory-link-stalled", "warning", "The inventory app link hasn't checked in for over an hour",
+      "Its regular check runs every 5 minutes. If this stays, the website's scheduled jobs may not be running."));
+  }
+  const pending = state.pendingImport;
+  const oldest = Date.parse(pending?.oldestPaidAt || "");
+  if (pending?.count > 0 && Number.isFinite(oldest) && now - oldest > DAY) {
+    out.push(link("inventory-link-waiting", "warning", `${plural(pending.count, "website sale is", "website sales are")} waiting for the inventory app`,
+      "Open the inventory app so it adds them to its books (website stock already counts them)."));
+  }
+  if (Number(state.lastPush?.failed) > 0) {
+    out.push(link("inventory-link-push", "warning", `${plural(Number(state.lastPush.failed), "website sale", "website sales")} couldn't be sent to the inventory app yet`,
+      "The website keeps trying every 5 minutes. If this stays, check the connection on the Inventory page."));
+  }
+  const ahead = Array.isArray(state.lastSync?.appAhead) ? state.lastSync.appAhead : [];
+  if (ahead.length) {
+    out.push(link("inventory-link-ahead", "warning", `The inventory app counts extra website sales for ${plural(ahead.length, "book", "books")}`,
+      `It has more website rows than the website sent (${ahead.slice(0, 3).map((a: any) => a.title).join(", ")}). Check those books' website sales in the inventory app.`));
+  }
+  const holds = Array.isArray(state.lastSync?.holds) ? state.lastSync.holds.filter((h: any) => h.hold === "big-change" || h.hold === "not-derived") : [];
+  if (state.autoSync && holds.length) {
+    out.push(link("inventory-link-holds", "info", `Stock for ${plural(holds.length, "book waits", "books wait")} for you`,
+      "A big change, or a book with no print run in the inventory app, isn't applied automatically. Open the stock preview to check it."));
+  }
+  for (const issue of Array.isArray(state.shipmentIssues) ? state.shipmentIssues : []) {
+    if (!issue?.orderId) continue;
+    out.push({ id: `inventory-label-${issue.orderId}`, tone: "warning", title: `A label bought in the inventory app wasn't used for order ${issue.orderId}`,
+      detail: `${issue.reason || "The website refused it."} Sort it out on the order, then mark the parcel shipped again in the inventory app.`, orderIds: [issue.orderId], action: "order" });
+  }
+  return out;
 }
 
 // Changes whenever the set of problems changes, so a dismissed alert comes back

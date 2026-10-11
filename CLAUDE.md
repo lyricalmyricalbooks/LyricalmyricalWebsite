@@ -35,8 +35,9 @@ originally generated from a Figma design ("Artsy Website for Publisher").
   components/animations.
 - **Firebase 11** client SDK (`src/lib/firebaseApp.ts` app + App Check; `src/lib/firebase.ts` full Firestore + Auth;
   `src/lib/firestoreLite.ts` shopper Firestore Lite — see *Storefront bundle* below, project
-  `lyricalmyrical-web-v2`). A secondary "legacy" Firebase project is used for
-  inventory sync (`src/lib/legacyFirebase.ts`).
+  `lyricalmyrical-web-v2`). The inventory app's project (`lyricalmyrical-37c46`) is reached only by
+  Cloud Functions for the inventory app link (see *Inventory app link* below); `src/lib/legacyFirebase.ts`
+  is a leftover admin sign-in to it, no longer used for stock.
 - **Stripe** for checkout, **Resend** for transactional email, **Shippo** for
   address verification / shipping labels — all wired through Cloud Functions.
 - **Vitest** for tests.
@@ -710,6 +711,34 @@ older generation; it only warns on failure, and refuses HTML answers (a host's 4
 
 The admin Overview no longer shows a "System status & recent release" card, so there is
 nothing to update after a deploy. Don't re-add it unless asked.
+
+## Inventory app link (11 October 2026)
+
+The shop and the inventory app (`lyricalmyricalbooks/lyrical-inventory`, Firebase project `lyricalmyrical-37c46`) share sales
+and stock; the contract is `docs/INVENTORY_LINK.md` (same file as the inventory repo's `docs/website-link.md` — change both).
+**The inventory app is the master count** for every linked edition; nothing here is a payment path.
+- **Transport:** Functions open a second Admin SDK app on `lyricalmyrical-37c46` (`functions/inventoryLinkStore.js`, the only code
+  that touches it) with their own service account, which the owner grants **Cloud Datastore User** there once.
+- **Sales → app:** `onOrderInventoryPush` (any write to `orders/{id}`) and the 5-minute `inventoryLinkSweep` write
+  `websiteOrders/{orderId}` in the inventory project. `functions/inventoryLink.js` `orderFootprint` counts physical copies of
+  linked editions per order (box sets as their parts, minus `restockedItems`/`partialRestockedItems`), never what `writeStock`
+  happened to do. The website's own record `inventoryPushes/{orderId}` (server-only, deny-all rule) is written first; links are
+  frozen per order line. Orders count from the owner's start day (`startDay`, set once, then a backfill).
+- **Stock → website:** the app publishes `websiteStockFeed/{book}`; for each linked edition the sweep sets
+  `max(0, min(feed.base − Σ inventoryPushes.net[book], feed.onHand))` (`stockPlanFor`), per book in one transaction that skips a
+  book changed after the run started, with an `inventoryLog` row (reason "Inventory app"). Automatic runs (owner switch, every
+  15 min) hold big changes, untracked books and books with no print run; the owner's confirmed preview applies them.
+- **Postage from the app:** `app.shipment` on the inbox doc → `applyAppShipment` attaches tracking (`trackingSource:
+  "inventory-app"`, `order-operations.externalLabel`) or dispatches with `externalDispatchProblem` (`functions/fulfillmentGuard.js`,
+  parity with admin `dispatchProblem` in `dispatchGuard.parity.test.ts`; stricter on open cancel requests). `labelProblem` refuses a
+  second website label. Refusals reach the app (`shipmentReply`) and the admin alerts (`shipmentIssues`).
+- **Linked stock is read-only on the website:** `inventoryApi.adjustStock` refuses (`reason: "linked"`), `adminApi.updateBook` keeps live
+  stock (`lockLinkedStock`), the editor/catalog/edition dialog show "Counted in the inventory app", CSV import skips it.
+- **Admin:** Inventory › **Inventory app link** (`InventoryLinkPanel.tsx`, pure helpers `inventoryLink.ts`): connect → match books →
+  send sales → preview/apply stock → automatic. Server ops are `createStripeCheckoutSession` `action: "inventoryLink"`
+  (`functions/inventoryLinkAdmin.js`). Link state is admin-read `systemStatus/inventoryLink`; alerts in `adminAlerts.ts` `inventoryLinkAlerts`.
+- **Deploy** Firestore rules + Functions with the frontend. Local tests use in-memory fakes (`functions/inventoryLink.fakes.mjs`);
+  they don't prove the IAM grant, the deployed trigger or the inventory app's import.
 
 ## Riso Press admin design system
 
@@ -1567,8 +1596,8 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   unless confirmed. Writes only `stockLevel` / that edition's stock + an append-only admin `inventoryLog` row (reason).
   Rows are per edition; box sets, gift cards, digital and untracked are read-only. 0 → >0 warns how many `stockAlerts`
   will be emailed. Cost prices live in admin-only `inventoryCosts/{bookId}` (never on public books). Low-stock line:
-  `lowStockThreshold(settings)` (`settings/website.inventory.lowStockThreshold`, default 5). Old-shop sync moved to
-  Inventory › Advanced (`InventorySyncPanel.tsx`). "Can it run out" rules for Overview: `admin/stockRules.ts`
+  `lowStockThreshold(settings)` (`settings/website.inventory.lowStockThreshold`, default 5). The old-shop stock copy was
+  removed; Inventory › **Inventory app link** replaced it. "Can it run out" rules for Overview: `admin/stockRules.ts`
   (tracked only when `trackInventory === true`).
 - **Orders:** desk refreshes only while visible and merges `onChanged(order)` (fired only on real changes) instead of
   reloading; J/K, `/`, Esc. One search matcher `admin/orderSearch.ts`. Deletion only for unpaid/cancelled/test orders
@@ -1778,8 +1807,7 @@ order-confirmation email both use them. Emailed download links stay outside brow
   `syncPreorderOrders` itself and returns `preorderSync { updated, failed }` (the editor toasts it; the CSV import gets it too).
 - **Web address freeze:** a published book with an address keeps it (`slugLocked`, `slugFollowsTitle` in `bookEditorState.ts`); Books › edit
   › Details › **Change web address** asks first, then unlocks until the next save. Old links are not redirected (Firebase Hosting could, through `firebase.json` `redirects`; none are generated yet).
-- **Old-shop stock copy:** `admin/legacyInventorySync.ts` (`readLegacyStock`, `planLegacySync`): whole numbers >= 0 only, exact slug or saved
-  `legacyInventoryKey` match, shared names and editioned books skipped and listed, one transaction per book, public settings keep counts only.
+- **Old-shop stock copy:** removed (it read the inventory app's frozen Realtime Database). See *Inventory app link*.
 - **PayPal:** `functions/paypalCredentials.js` picks the credentials per request mode. Live = Settings › Payments › PayPal Live client ID +
   private Live client secret (`adminSecrets/paypal`) when both exist, else the `PAYPAL_CLIENT_*` Functions secrets. Test = Test client ID +
   Test client secret only, never the live pair (PayPal refuses live credentials on the sandbox). Secrets use `SecretField` and

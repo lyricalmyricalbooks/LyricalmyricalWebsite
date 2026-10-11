@@ -9,7 +9,8 @@ import { Login } from "./Login";
 import { BookCatalog } from "./BookCatalog";
 import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
 import { AdminAlerts } from "./AdminAlerts.tsx";
-import { backupAlert, buildAdminAlerts, checkFailedAlert, settingsAlerts, type AdminAlert } from "./adminAlerts";
+import { backupAlert, buildAdminAlerts, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert } from "./adminAlerts";
+import { inventoryLinkApi } from "./inventoryLinkApi";
 import { getOrdersCached, setOrdersLoader } from "./ordersCache";
 import { anyDirty, useBeforeUnloadWhenDirty } from "./settingsDirty";
 import { adminApi } from "./api";
@@ -147,16 +148,17 @@ export function Dashboard() {
       return getOrdersCached({ force })
         .then(async (data) => {
           const failedParts: string[] = [];
-          const [webhook, emailLog, backup] = await Promise.all([
+          const [webhook, emailLog, backup, linkState] = await Promise.all([
             adminApi.getStripeWebhookStatus({ strict: true }).catch(() => { failedParts.push("the Stripe webhook status"); return null; }),
             adminApi.getRecentEmailLog(50).catch(() => { failedParts.push("the email log"); return []; }),
             adminApi.getBackupStatus().catch(() => { failedParts.push("the backup status"); return undefined; }),
+            inventoryLinkApi.state().catch(() => { failedParts.push("the inventory app link"); return null; }),
           ]);
           if (!alive) return;
           setOrdersBadge(ordersNeedingWork(data));
           const backupNote = backupAlert(backup);
           const note = checkFailedAlert(failedParts);
-          setAlerts([...buildAdminAlerts(data, webhook, Date.now(), emailLog), ...(backupNote ? [backupNote] : []), ...(note ? [note] : [])]);
+          setAlerts([...buildAdminAlerts(data, webhook, Date.now(), emailLog), ...inventoryLinkAlerts(linkState), ...(backupNote ? [backupNote] : []), ...(note ? [note] : [])]);
         })
         // The orders themselves could not be read: say so instead of leaving a stale or empty list.
         .catch(() => { if (alive) setAlerts((prev) => [...prev.filter((a) => a.id !== "alerts-check-failed"), checkFailedAlert(["your orders"])!]); });
@@ -550,6 +552,7 @@ export function Dashboard() {
           onOpenOrders={() => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder(null); }}
           onOpenWebhook={() => { setActiveTab("settings"); setSettingsTab("payments"); setShowEditor(false); setSelectedOrder(null); }}
           onOpenGeneral={() => { setActiveTab("settings"); setSettingsTab("general"); setShowEditor(false); setSelectedOrder(null); }}
+          onOpenInventory={() => { setActiveTab("inventory"); setShowEditor(false); setSelectedOrder(null); }}
           onRetry={() => refreshAlertsRef.current()}
         />
         {/* Feature pages still use legacy utility classes; scope the compatibility layer to them only. */}

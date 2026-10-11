@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildAdminAlerts, alertSignature, settingsAlerts } from "./adminAlerts";
+import { buildAdminAlerts, alertSignature, settingsAlerts, inventoryLinkAlerts } from "./adminAlerts";
 
 const now = Date.parse("2026-10-06T21:00:00Z");
 const ago = (min: number) => new Date(now - min * 60000).toISOString();
@@ -109,5 +109,26 @@ describe("settings alerts", () => {
     expect(settingsAlerts({ payments: { testMode: true } })).toEqual([expect.objectContaining({ id: "test-mode", action: "payments" })]);
     expect(settingsAlerts({ payments: { testMode: false } })).toEqual([]);
     expect(settingsAlerts(null)).toEqual([]);
+  });
+});
+
+describe("inventory app link alerts", () => {
+  const now = Date.parse("2026-10-11T15:00:00Z");
+  it("say nothing until sales are switched on", () => {
+    expect(inventoryLinkAlerts({ connection: { ok: false } }, now)).toEqual([]);
+    expect(inventoryLinkAlerts(null, now)).toEqual([]);
+  });
+  it("flag a broken connection, stalled checks, sales waiting a day and refused labels", () => {
+    const alerts = inventoryLinkAlerts({
+      startDay: "2026-10-01", connection: { ok: false }, lastRunAt: "2026-10-11T13:00:00Z",
+      pendingImport: { count: 3, oldestPaidAt: "2026-10-09T12:00:00Z" }, lastPush: { failed: 2 },
+      shipmentIssues: [{ orderId: "A-1", reason: "Resolve the active return before dispatching the order.", at: "2026-10-11T14:00:00Z" }],
+    }, now);
+    expect(alerts.map((a) => a.id)).toEqual(["inventory-link-down", "inventory-link-stalled", "inventory-link-waiting", "inventory-link-push", "inventory-label-A-1"]);
+    expect(alerts[0]).toMatchObject({ tone: "danger", action: "inventory" });
+    expect(alerts[4]).toMatchObject({ action: "order", orderIds: ["A-1"] });
+  });
+  it("a healthy link is quiet", () => {
+    expect(inventoryLinkAlerts({ startDay: "2026-10-01", connection: { ok: true }, lastRunAt: "2026-10-11T14:58:00Z", pendingImport: { count: 1, oldestPaidAt: "2026-10-11T14:00:00Z" } }, now)).toEqual([]);
   });
 });

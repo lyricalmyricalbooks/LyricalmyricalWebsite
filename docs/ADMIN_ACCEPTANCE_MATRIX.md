@@ -28,7 +28,7 @@ its row before and after restyling it. Sources: the code in `src/app/admin/*`,
 | Reviews | `reviews` collection (latest 200) | `reviewsApi.setStatus`, `remove` | delete (dialog), bulk moderate with undo | loading, error, empty queue | — | — |
 | Pages | `getPages` | `createPage`, `updatePage`, `deletePage` | delete (confirm), unsaved changes | empty, validation, draft/published | — | — |
 | Settings › General | settings doc | `updateSettings`, `uploadBrandAsset` | — | dirty/save, error | maintenance mode affects storefront | — |
-| Settings › Shipping | `getShippingProfiles`, `getShippoConfig`, `getBooks` | profile CRUD, `assignProductsToShippingProfile`, `saveShippoConfig` (token never re-displayed), `setShippoDynamicRates`, `syncInventoryFromLegacy` | delete profile (confirm) | Shippo connected/not, address warnings | shipping rates | — |
+| Settings › Shipping | `getShippingProfiles`, `getShippoConfig`, `getBooks` | profile CRUD, `assignProductsToShippingProfile`, `saveShippoConfig` (token never re-displayed), `setShippoDynamicRates` | delete profile (confirm) | Shippo connected/not, address warnings | shipping rates | — |
 | Settings › Payments | settings doc | — (Stripe keys are Functions secrets) | — | connection status, webhook health, **no secret exposure** | currency config | — |
 | Settings › Notifications | settings doc | `updateSettings` | — | save, test-send, error | — | — |
 | Theme editor | `getSettings`, `getPages`, `getBooks`, `getDefaultSettings` | `updateSettings(design/draft, publish)`, `discardThemeDraft`, `schedulePublish`, `cancelScheduledPublish`, `createPage/updatePage/deletePage`, uploads | discard draft, publish, delete page | Live/Draft/Unsaved, undo/redo, error | — | — |
