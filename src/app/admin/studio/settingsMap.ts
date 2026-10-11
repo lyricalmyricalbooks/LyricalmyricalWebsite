@@ -145,7 +145,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Buy card box", keys: ["pdpCardBg", "pdpCardBorderColor", "pdpCardBorderWidth", "pdpCardShadowColor", "pdpCardShadowOffset", "pdpCardPadding", "pdpCardDividerColor"] },
     { title: "Title, price & stock", keys: ["pdpShowTag", "pdpTagStyle", "pdpTitleFont", "pdpTitleSize", "pdpTitleSizeMobile", "pdpTitleColor", "pdpTitleCase", "pdpPriceFont", "pdpPriceSize", "pdpPriceSizeMobile", "pdpPriceColor", "pdpShowStock", "pdpStockColor"] },
     { title: "Photo frame & thumbnails", keys: ["pdpThumbPosition", "pdpThumbActiveColor", "pdpPhotoBorderColor", "pdpPhotoBorderWidth", "pdpShowCaption"] },
-    { title: "Description / Details tabs", keys: ["pdpDetailsPlacement", "pdpSpecsStyle", "pdpTabActiveBg", "pdpTabActiveText", "pdpPanelBorderColor"] },
+    { title: "Description / Details tabs", keys: ["pdpDetailsPlacement", "pdpSpecsStyle", "pdpTabActiveBg", "pdpTabActiveText", "pdpPanelBorderColor", "pdpPanelTextWidth"] },
     { title: "Breadcrumb & small labels", keys: ["pdpShowBackLink", "pdpShowBreadcrumb", "pdpMetaFont", "pdpMetaSize", "pdpMetaColor"] },
   ],
   catalogLayout: [

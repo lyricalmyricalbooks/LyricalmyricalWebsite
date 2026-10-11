@@ -479,7 +479,7 @@ export default function BookDetail() {
   };
   const detailContent = (id: string) =>
     id === "description" ? (
-      <p {...regionProps("productDescription")} className="max-w-[65ch] text-[15px] leading-[1.75] whitespace-pre-line">{bk.description || getCopy(settings?.design, "noDescription")}</p>
+      <p {...regionProps("productDescription")} className="fm-pdp-desc text-[15px] leading-[1.75] whitespace-pre-line">{bk.description || getCopy(settings?.design, "noDescription")}</p>
     ) : id === "specs" ? <div {...regionProps("productSpecs")}>{renderSpecs()}</div> : book ? (
       <div {...regionProps("productReviews")}><ReviewsSection key={book.id} bookId={book.id} hideHeader={true} /></div>
     ) : null;

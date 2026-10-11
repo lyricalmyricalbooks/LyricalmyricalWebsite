@@ -63,10 +63,12 @@ export function productPageCss(design: any): string {
   const tabBg = color(d, "pdpTabActiveBg", "var(--active-bg)");
   const tabText = color(d, "pdpTabActiveText", "var(--active-fg)");
   const panelBorder = color(d, "pdpPanelBorderColor", outline);
+  const descWidth = num(d, "pdpPanelTextWidth", 65, 0, 160);
   const thumbActive = color(d, "pdpThumbActiveColor", "var(--accent)");
   const stockDot = color(d, "pdpStockColor", "var(--success)");
 
   let css = "";
+  css += `${S} .fm-pdp-desc{max-width:${descWidth ? `${descWidth}ch` : "none"};}`;
   css += `${S} .fm-pdp-meta{font-family:${metaFont};font-size:${metaSize}px;letter-spacing:.14em;text-transform:uppercase;color:${metaColor};}`;
   css += `${S} .fm-pdp-crumb{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:14px 0;border-bottom:1px solid ${divider};}`;
   css += `${S} .fm-pdp-crumb a{color:inherit;text-decoration:none;}`;

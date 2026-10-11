@@ -482,6 +482,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "pdpTabActiveBg", label: "Selected tab background", kind: "color" },
       { key: "pdpTabActiveText", label: "Selected tab text", kind: "color" },
       { key: "pdpPanelBorderColor", label: "Tab panel border colour", kind: "color" },
+      { key: "pdpPanelTextWidth", label: "Description text width (0 = fill the box)", kind: "range", min: 0, max: 160, step: 5, suffix: " characters" },
     ],
   },
   {
