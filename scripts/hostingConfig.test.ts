@@ -85,8 +85,11 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
     }
   });
 
-  it('keeps the bare app shell out of search results', () => {
+  it('keeps the bare app shell out of search results, and lets search engines list the shop', () => {
     for (const path of ['/spa', '/404']) expect(headersFor(path).find(h => h.key === 'X-Robots-Tag')?.value, path).toBe('noindex');
+    for (const path of samples.filter(p => !/^\/(spa|404)$/.test(p))) {
+      expect(headersFor(path).find(h => h.key === 'X-Robots-Tag'), path).toBeUndefined();
+    }
   });
 });
 
@@ -104,6 +107,15 @@ describe('deploy workflows agree', () => {
     const versions = ['deploy-firebase.yml', 'deploy-pages.yml', 'ci.yml'].map(file => read(`.github/workflows/${file}`).match(/FIREBASE_TOOLS_VERSION: (\S+)/)?.[1]);
     expect(versions[0]).toMatch(/^\d+\.\d+\.\d+$/);
     expect(new Set(versions).size).toBe(1);
+  });
+
+  it('GitHub Pages only gets the forwarding pages, and only after the shop itself deployed', () => {
+    const storefront = read('.github/workflows/deploy-pages.yml');
+    const uploads = [...storefront.matchAll(/upload-pages-artifact@\S+\s+with:\s+path: (\S+)/g)].map(m => m[1]);
+    expect(uploads).toEqual(['./pages-redirect']);
+    const redirectJob = storefront.slice(storefront.indexOf('  redirect-old-address:'));
+    expect(redirectJob).toMatch(/needs: \[build-hosting, deploy-hosting\]/);
+    expect(redirectJob).toMatch(/if: github\.event_name != 'schedule'/);
   });
 
   it('never deploys Hosting from the backend workflow, nor the backend from the storefront one', () => {

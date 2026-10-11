@@ -26,24 +26,24 @@ describe('fallback files for each host (SPA_FALLBACK)', () => {
   const indexHtml = '<!doctype html><div id="root"></div>';
 
   it('always keeps the clean app shell as spa.html (Firebase Hosting rewrites app routes to it)', () => {
-    expect(fallbackFiles({ indexHtml, page404: page, base: '/LyricalmyricalWebsite/' })['spa.html']).toBe(indexHtml);
+    expect(fallbackFiles({ indexHtml, page404: page, base: '/LyricalmyricalWebsite/', mode: 'redirect' })['spa.html']).toBe(indexHtml);
     expect(fallbackFiles({ indexHtml, page404: page, base: '/', mode: 'shell' })['spa.html']).toBe(indexHtml);
   });
 
-  it('GitHub Pages (default) keeps the redirecting 404.html set to the base', () => {
-    const files = fallbackFiles({ indexHtml, page404: page, base: '/LyricalmyricalWebsite/' });
-    expect(files['404.html']).toMatch(/var pathSegmentsToKeep = 1;/);
-  });
-
-  it('Firebase Hosting gets the app shell as 404.html: a real 404 status that still renders the missing page', () => {
-    expect(fallbackFiles({ indexHtml, page404: page, base: '/', mode: 'shell' })['404.html']).toBe(indexHtml);
+  it('Firebase Hosting (default) gets the app shell as 404.html: a real 404 status that still renders the missing page', () => {
+    expect(fallbackFiles({ indexHtml, page404: page, base: '/' })['404.html']).toBe(indexHtml);
     expect(fallbackFiles({ indexHtml, page404: null, base: '/', mode: 'shell' })['404.html']).toBe(indexHtml);
   });
 
+  it('the old GitHub Pages redirect is still available until the cleanup step', () => {
+    const files = fallbackFiles({ indexHtml, page404: page, base: '/LyricalmyricalWebsite/', mode: 'redirect' });
+    expect(files['404.html']).toMatch(/var pathSegmentsToKeep = 1;/);
+  });
+
   it('refuses a mistyped mode instead of shipping the wrong 404 page', () => {
-    expect(fallbackMode(undefined)).toBe('redirect');
-    expect(fallbackMode('')).toBe('redirect');
-    expect(fallbackMode('shell')).toBe('shell');
+    expect(fallbackMode(undefined)).toBe('shell');
+    expect(fallbackMode('')).toBe('shell');
+    expect(fallbackMode('redirect')).toBe('redirect');
     expect(() => fallbackMode('shel')).toThrow();
   });
 });

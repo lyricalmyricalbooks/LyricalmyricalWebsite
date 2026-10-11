@@ -1,8 +1,9 @@
 name: Deploy storefront
 
-# Builds the storefront and publishes it to GitHub Pages (the live shop) and, side by side, to Firebase Hosting
-# (https://lyricalmyrical-web-v2.web.app, kept out of search engines until the cutover). The file keeps its name
-# so keep-refresh-alive.yml and the schedule history stay put.
+# Builds the storefront and publishes it to Firebase Hosting (the shop: https://lyricalmyrical-web-v2.web.app, or the
+# repository variable SITE_URL once it has its own domain). GitHub Pages, the old address, then gets forwarding
+# pages only (scripts/pagesRedirect.mjs), and only after Hosting has deployed and passed its live check.
+# The file keeps its name so keep-refresh-alive.yml and the schedule history stay put.
 
 on:
   push:
@@ -13,8 +14,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -84,83 +83,12 @@ jobs:
             sleep 20
           done
 
-  deploy:
-    needs: firebase-first
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-
-      # Pages serves a project site at /<repository name>/. Take the address from the repository's current name
-      # so renaming the repository can never leave the build pointing at a sub-path that 404s (unstyled site).
-      # A custom domain sets the repository variable SITE_URL (e.g. https://shop.example.com) instead.
-      - name: Site address
-        env:
-          CUSTOM_SITE_URL: ${{ vars.SITE_URL }}
-        run: |
-          url="${CUSTOM_SITE_URL:-https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}}"
-          url="${url%/}"
-          path="$(node -e 'process.stdout.write(new URL(process.argv[1]).pathname.replace(/\/+$/, ""))' "$url")"
-          echo "SITE_URL=$url" >> "$GITHUB_ENV"
-          echo "SITE_BASE=$path/" >> "$GITHUB_ENV"
-          echo "Building for $url (base $path/)"
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Check published content
-        id: published
-        if: github.event_name == 'schedule'
-        run: node scripts/check-published-change.mjs
-
-      - run: pnpm install --frozen-lockfile
-        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
-
-      - run: pnpm exec playwright install --with-deps chromium
-        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
-
-      - name: Build with reCAPTCHA App Check configuration
-        env:
-          VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.RECAPTCHA_ENTERPRISE_SITE_KEY }}
-          VITE_APP_CHECK_MODE: ${{ vars.APP_CHECK_MODE || 'monitor' }}
-        run: |
-          case "$VITE_APP_CHECK_MODE" in off|monitor|enforce) ;; *) echo "::error::Invalid APP_CHECK_MODE"; exit 1 ;; esac
-          if [ "$VITE_APP_CHECK_MODE" = "enforce" ] && [ -z "$VITE_RECAPTCHA_ENTERPRISE_SITE_KEY" ]; then
-            echo "::error::Register reCAPTCHA Enterprise and set RECAPTCHA_ENTERPRISE_SITE_KEY before enforcing App Check."
-            exit 1
-          fi
-          pnpm run build
-        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
-
-      # Pages replaces the whole site; keep the previous build's CSS/JS so pages cached before this deploy still load styled.
-      - name: Keep the previous deploy's assets
-        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
-        run: node scripts/carry-previous-assets.mjs
-
-      - uses: actions/upload-pages-artifact@v3
-        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
-        with:
-          path: ./dist
-
-      - id: deployment
-        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
-        uses: actions/deploy-pages@v4
-
-  # Firebase Hosting, side by side with Pages. Built without any secret (dependencies and Playwright run here);
-  # the key only appears in deploy-hosting, which installs nothing.
+  # Built without any secret (dependencies and Playwright run here); the key only appears in deploy-hosting,
+  # which installs nothing.
   build-hosting:
     needs: firebase-first
-    # Off until the owner sets the repository variable FIREBASE_HOSTING_ENABLED=true (after the Hosting site and its
-    # service account exist), so the 15-minute schedule never rebuilds for, or fails against, a host that isn't set up.
-    # A manual run from another branch must never publish it (the Firebase key has no branch rule).
+    # FIREBASE_HOSTING_ENABLED (repository variable) must stay true: it was the switch for the side-by-side step and
+    # is now the emergency stop. A manual run from another branch must never publish (the key has no branch rule).
     if: github.ref == 'refs/heads/main' && vars.FIREBASE_HOSTING_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -168,14 +96,28 @@ jobs:
       contents: read
     outputs:
       built: ${{ steps.result.outputs.built }}
-    env:
-      # Hard-coded on purpose until the cutover: vars.SITE_URL still drives the live GitHub Pages build above.
-      SITE_URL: https://lyricalmyrical-web-v2.web.app
-      SITE_BASE: /
-      # 404.html is the app shell: unknown URLs get a real 404 that still shows the editable missing page.
-      SPA_FALLBACK: shell
+      site-url: ${{ steps.address.outputs.url }}
     steps:
       - uses: actions/checkout@v4
+
+      # The shop's address: the repository variable SITE_URL (its own domain, later) or the Firebase Hosting default.
+      # Hosting serves it from the root; GitHub Pages only forwards now, so it can never be the shop's address again.
+      - name: Site address
+        id: address
+        env:
+          CUSTOM_SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          url="${CUSTOM_SITE_URL:-https://lyricalmyrical-web-v2.web.app}"
+          url="${url%/}"
+          if ! printf '%s' "$url" | grep -Eq '^https://[a-z0-9.-]+$'; then
+            echo "::error::SITE_URL must be the shop's https address with no folder (e.g. https://www.example.com), not '$url'."
+            exit 1
+          fi
+          case "$url" in *.github.io) echo "::error::SITE_URL points at GitHub Pages, which now only forwards to the shop."; exit 1 ;; esac
+          echo "SITE_URL=$url" >> "$GITHUB_ENV"
+          echo "SITE_BASE=/" >> "$GITHUB_ENV"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Building for $url"
 
       - uses: pnpm/action-setup@v4
         with:
@@ -186,7 +128,6 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # Compared with the marker on web.app itself, so each host catches up on its own.
       - name: Check published content
         id: published
         if: github.event_name == 'schedule'
@@ -211,14 +152,14 @@ jobs:
           fi
           pnpm run build
 
-      # Firebase Hosting also replaces the whole site; keep the previous build's CSS/JS for tabs opened before it.
+      # Firebase Hosting replaces the whole site; keep the previous build's CSS/JS for tabs opened before it.
       - name: Keep the previous deploy's assets
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
         run: node scripts/carry-previous-assets.mjs
 
       - name: Check routing and headers in the Hosting emulator
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
-        run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-lyricalmyrical "node scripts/hosting-smoke.mjs --expect-noindex"
+        run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-lyricalmyrical "node scripts/hosting-smoke.mjs"
 
       - uses: actions/upload-artifact@v4
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
@@ -242,7 +183,7 @@ jobs:
       contents: read
     environment:
       name: firebase-hosting
-      url: https://lyricalmyrical-web-v2.web.app
+      url: ${{ needs.build-hosting.outputs.site-url }}
     steps:
       # Only the repository's own scripts and the pinned CLI run next to the key: no pnpm install, no Playwright.
       - uses: actions/checkout@v4
@@ -257,7 +198,6 @@ jobs:
           path: dist
 
       - name: Deploy to Firebase Hosting
-        id: deploy
         env:
           # A service account with only "Firebase Hosting Admin" (preferred), else the backend deploy key.
           HOSTING_KEY: ${{ secrets.FIREBASE_HOSTING_SERVICE_ACCOUNT }}
@@ -266,9 +206,8 @@ jobs:
           set -euo pipefail
           key="${HOSTING_KEY:-$FALLBACK_KEY}"
           if [ -z "$key" ]; then
-            echo "::warning::No FIREBASE_HOSTING_SERVICE_ACCOUNT (or FIREBASE_SERVICE_ACCOUNT) secret, so Firebase Hosting was not updated. GitHub Pages is unaffected."
-            echo "deployed=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "::error::Add the FIREBASE_HOSTING_SERVICE_ACCOUNT secret (docs/FIREBASE_HOSTING.md): the shop can't be published without it."
+            exit 1
           fi
           umask 077
           printf '%s' "$key" > "$RUNNER_TEMP/hosting-sa.json"
@@ -277,10 +216,46 @@ jobs:
           npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy --only hosting \
             --project "$FIREBASE_PROJECT" --non-interactive \
             --message "${GITHUB_SHA::12} (${GITHUB_EVENT_NAME})"
-          echo "deployed=true" >> "$GITHUB_OUTPUT"
 
       - name: Check the live site
-        if: steps.deploy.outputs.deployed == 'true'
         env:
-          SITE_URL: https://lyricalmyrical-web-v2.web.app
-        run: node scripts/hosting-smoke.mjs --base "$SITE_URL" --expect-noindex
+          SITE_URL: ${{ needs.build-hosting.outputs.site-url }}
+        run: node scripts/hosting-smoke.mjs --base "$SITE_URL"
+
+  # The old address forwards to the shop. Replaced only after the shop itself deployed and passed its live check,
+  # so GitHub Pages never forwards to an address that isn't serving. Schedules don't touch it.
+  redirect-old-address:
+    needs: [build-hosting, deploy-hosting]
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: hosting-dist
+          path: dist
+
+      - name: Build the forwarding pages
+        env:
+          SITE_URL: ${{ needs.build-hosting.outputs.site-url }}
+        run: node scripts/build-pages-redirect.mjs --routes dist/prerender-routes.xml --out pages-redirect
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./pages-redirect
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

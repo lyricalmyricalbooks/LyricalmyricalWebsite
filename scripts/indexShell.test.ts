@@ -7,10 +7,14 @@ import { describe, expect, it } from 'vitest';
 // from Studio's Share image instead.
 const root = join(__dirname, '..');
 const shell = readFileSync(join(root, 'index.html'), 'utf8');
+// The shop's address, as written in the shell (scripts/siteAddress.test.ts keeps it equal to every default).
+const siteUrl = shell.match(/<meta property="og:url" content="(https:\/\/[^"]+?)\/?" \/>/)?.[1] ?? '';
+const escaped = siteUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 describe('index.html shell', () => {
   it('references only site files that exist in public/', () => {
-    const own = [...shell.matchAll(/https:\/\/lyricalmyricalbooks\.github\.io\/LyricalmyricalWebsite\/([^"'\s<>]+\.[a-z0-9]+)/gi)].map(m => m[1]);
+    expect(siteUrl).toMatch(/^https:\/\//);
+    const own = [...shell.matchAll(new RegExp(`${escaped}/([^"'\\s<>]+\\.[a-z0-9]+)`, 'gi'))].map(m => m[1]);
     for (const file of own) expect(existsSync(join(root, 'public', file)), file).toBe(true);
   });
   it('leaves the sharing image to the Studio-controlled runtime metadata', () => {

@@ -20,9 +20,8 @@ function figmaAssetResolver() {
 }
 
 // Runs while dist/index.html is still the clean app shell (the prerender replaces it with the home page later):
-// writes spa.html (Firebase Hosting serves it for app routes without a prerendered page) and 404.html — the
-// GitHub Pages redirect with exactly the base's folders, or with SPA_FALLBACK=shell the app shell itself
-// (see scripts/spaFallback.mjs).
+// writes spa.html (Firebase Hosting serves it for app routes without a prerendered page) and 404.html — the app
+// shell itself, or with SPA_FALLBACK=redirect the old GitHub Pages redirect (see scripts/spaFallback.mjs).
 function spaFallbackBase(base: string) {
   let outDir = 'dist'
   return {
@@ -43,9 +42,9 @@ function spaFallbackBase(base: string) {
 }
 
 // Sends visitors on the project's default Firebase Hosting addresses to SITE_URL (scripts/canonicalHost.mjs).
-// Inert unless SITE_URL is a site at the root of its host, so the GitHub Pages build is unaffected.
+// Inert unless SITE_URL is a site at the root of its host.
 function canonicalHost() {
-  const siteUrl = process.env.SITE_URL || 'https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite'
+  const siteUrl = process.env.SITE_URL || 'https://lyricalmyrical-web-v2.web.app'
   return {
     name: 'canonical-host',
     apply: 'build' as const,
@@ -57,10 +56,9 @@ function canonicalHost() {
   }
 }
 
-// On GitHub Pages the site lives under /LyricalmyricalWebsite/.
-// In dev (and on a custom domain) it lives at the root.
-// SITE_BASE can be overridden via env (e.g. for a future custom domain).
-const SITE_BASE = process.env.SITE_BASE ?? '/LyricalmyricalWebsite/'
+// Firebase Hosting serves the shop from the root of its address (dev too). SITE_BASE can still be overridden
+// for a sub-path deploy; the old GitHub Pages folder (/LyricalmyricalWebsite/) now only forwards visitors.
+const SITE_BASE = process.env.SITE_BASE ?? '/'
 
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? SITE_BASE : '/',

@@ -216,7 +216,7 @@ export function backorderable(book: any, _variant?: any): boolean {
   return book?.trackInventory === true && book?.allowBackorder === true;
 }
 
-const CART_KEY = "fm_cart";
+export const CART_KEY = "fm_cart";
 
 function readStoredCart(): CartItem[] {
   try {

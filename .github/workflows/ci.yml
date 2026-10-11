@@ -43,17 +43,15 @@ jobs:
       - name: Type-check (no new errors)
         run: pnpm run typecheck
 
-      # Bundle only: the full `build` also prerenders live Firestore data, which the Pages workflow does.
+      # Bundle only: the full `build` also prerenders live Firestore data, which the storefront workflow does.
       - name: Build
         run: pnpm exec vite build
 
-      # The Firebase Hosting build (site at the root, app shell as 404.html) served by the real Hosting emulator:
-      # firebase.json routing and headers are checked before they can reach the live site. No prerender here,
-      # so prerendered-page checks are skipped; the deploy workflow runs them on the full build.
+      # That build served by the real Firebase Hosting emulator: firebase.json routing and headers are checked before
+      # they can reach the live shop. No prerender here, so prerendered-page checks are skipped; the deploy workflow
+      # runs them on the full build.
       - name: Firebase Hosting routing check
-        run: |
-          SITE_BASE=/ SITE_URL=https://lyricalmyrical-web-v2.web.app SPA_FALLBACK=shell pnpm exec vite build
-          npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-lyricalmyrical "node scripts/hosting-smoke.mjs --expect-noindex"
+        run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-lyricalmyrical "node scripts/hosting-smoke.mjs"
 
   studio-browser:
     # Drives the real Design studio in Chromium against the local fixture (studio-fixture.html):

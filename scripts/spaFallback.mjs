@@ -12,12 +12,13 @@ export function withBaseSegments(html, base) {
 }
 
 // How a host answers URLs that have no file of their own (vite.config.ts `spaFallbackBase`, SPA_FALLBACK env):
-//  - "redirect" (default, GitHub Pages): 404.html bounces to /?/<path> and index.html restores the path.
-//  - "shell" (Firebase Hosting): 404.html is the app shell itself, so unknown URLs keep a real 404 status
+//  - "shell" (default, Firebase Hosting): 404.html is the app shell itself, so unknown URLs keep a real 404 status
 //    and still render the editable missing-page content. firebase.json rewrites app routes to spa.html.
+//  - "redirect" (the old GitHub Pages build, kept until the cleanup step): 404.html bounces to /?/<path> and
+//    index.html restores the path.
 export function fallbackMode(value) {
-  if (value === undefined || value === '' || value === 'redirect') return 'redirect';
-  if (value === 'shell') return 'shell';
+  if (value === undefined || value === '' || value === 'shell') return 'shell';
+  if (value === 'redirect') return 'redirect';
   throw new Error(`SPA_FALLBACK must be "redirect" or "shell", not "${value}"`);
 }
 

@@ -22,6 +22,11 @@ on:
       - "functions/**"
       - .github/workflows/deploy-firebase.yml
   workflow_dispatch:
+    inputs:
+      skip_site_check:
+        description: "Deploy even if the shop's address isn't answering (e.g. a Firebase Hosting outage)"
+        type: boolean
+        default: false
 
 # The CLI is pinned to an exact version: this job holds the Firebase Admin key, so a new release must not run
 # with it unreviewed. Bump the version here on purpose (and read the release notes) rather than via `latest`.
@@ -52,6 +57,37 @@ jobs:
         run: |
           case "$APP_CHECK_MODE" in off|monitor|enforce) ;; *) echo "::error::Invalid APP_CHECK_MODE"; exit 1 ;; esac
           printf 'APP_CHECK_MODE=%s\n' "$APP_CHECK_MODE" > functions/.env.lyricalmyrical-web-v2
+
+      # Links in emails (order tracking, unsubscribe, admin order links…) use SITE_URL: the repository variable once the
+      # shop has its own domain, else the code default in functions/index.js (Firebase Hosting).
+      - name: Shop address for email links
+        env:
+          CUSTOM_SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          set -euo pipefail
+          url="${CUSTOM_SITE_URL%/}"
+          if [ -n "$url" ]; then
+            if ! printf '%s' "$url" | grep -Eq '^https://[a-z0-9.-]+$' || [[ "$url" == *.github.io ]]; then
+              echo "::error::SITE_URL must be the shop's own https address with no folder, not '$url'."
+              exit 1
+            fi
+            printf 'SITE_URL=%s\n' "$url" >> functions/.env.lyricalmyrical-web-v2
+          else
+            url=$(node -e 'const s=require("fs").readFileSync("functions/index.js","utf8"); process.stdout.write(s.match(/SITE_URL \|\| "(https:\/\/[^"]+)"/)[1])')
+          fi
+          echo "SHOP_URL=$url" >> "$GITHUB_ENV"
+          echo "Email links will open $url"
+
+      # Never send customers to an address that isn't serving the shop (e.g. this change merged before Firebase Hosting
+      # was set up): the live site must answer with its published-content marker.
+      - name: Check the shop's address answers
+        if: ${{ !inputs.skip_site_check }}
+        run: |
+          marker=$(curl -fsS --max-time 30 "$SHOP_URL/seo-published-fingerprint.txt?check=$(date +%s)" || true)
+          if ! printf '%s' "$marker" | grep -Eq '^[a-f0-9]{64}$'; then
+            echo "::error::$SHOP_URL isn't serving the shop yet, so emails would link to a dead address. Publish the storefront there first (docs/FIREBASE_HOSTING.md), then re-run; or run this workflow by hand with skip_site_check during a hosting outage."
+            exit 1
+          fi
 
       - name: Keep old function images from piling up (best effort)
         # Without `--force` a non-interactive deploy exits non-zero when the Artifact Registry repository has no
