@@ -91,6 +91,7 @@ export default function BookDetail() {
   // Buy-card extras: ticked add-ons (with inscription wording) and a gift card's recipient.
   const [addOnPicks, setAddOnPicks]   = useState<AddOnPicks>({});
   const [addOnError, setAddOnError]   = useState("");
+  const [editionError, setEditionError] = useState("");
   const emptyGift: GiftCardDetails = { recipientName: "", recipientEmail: "", senderName: "", message: "" };
   const [giftForm, setGiftForm]       = useState<GiftCardDetails>(emptyGift);
   const [giftError, setGiftError]     = useState("");
@@ -101,16 +102,6 @@ export default function BookDetail() {
   const loading = siteLoading || (!book && !fresh);
   const sectionPage = useMemo(() => ({ book }), [book]);
 
-  // Keyed on the book's id: a background catalog refresh hands us a new book
-  // object, and that must not snap the shopper's chosen edition back to the first.
-  useEffect(() => {
-    if (book?.variants && book.variants.length > 0) {
-      setSelectedVariant(book.variants[0]);
-    } else {
-      setSelectedVariant(null);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [book?.id]);
   // Keep the chosen edition's data fresh after a refresh, and start each edition at quantity 1.
   useEffect(() => {
     if (!selectedVariant) return;
@@ -153,6 +144,18 @@ export default function BookDetail() {
   const productDetailsLayout   = storefrontDesign.productDetailsLayout   || "tabs";
   const productCtaAnimation    = storefrontDesign.productCtaAnimation    || "none";
   const productCtaWidth        = storefrontDesign.productCtaWidth        || "full";
+  // Style › Product page › Edition picker: "dropdown" makes the shopper choose an edition themselves.
+  const editionDropdown        = storefrontDesign.pdpEditionPicker === "dropdown";
+  // Keyed on the book's id: a background catalog refresh hands us a new book
+  // object, and that must not snap the shopper's chosen edition back to the first.
+  useEffect(() => {
+    if (book?.variants && book.variants.length > 0) {
+      setSelectedVariant(editionDropdown && book.variants.length > 1 ? null : book.variants[0]);
+    } else {
+      setSelectedVariant(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book?.id, editionDropdown]);
   const productCtaSize         = storefrontDesign.productCtaSize         || "large";
   const productBundleLayout    = storefrontDesign.productBundleLayout    || "bordered";
   const showQtyStepper         = storefrontDesign.showQtyStepper         ?? settings?.design?.showQtyStepper         ?? false;
@@ -351,6 +354,11 @@ export default function BookDetail() {
 
   const handleAddToCart = () => {
     if (!book) return;
+    if (book.variants?.length && !selectedVariant) {
+      setEditionError(getCopy(settings?.design, "pdpEditionMissing"));
+      document.getElementById("pdp-edition-select")?.focus();
+      return;
+    }
     const stock = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any).stockLevel ?? 999);
     if (Number(stock) <= 0) return;
     const options = lineOptions();
@@ -479,7 +487,7 @@ export default function BookDetail() {
   };
   const detailContent = (id: string) =>
     id === "description" ? (
-      <p {...regionProps("productDescription")} className="max-w-[65ch] text-[15px] leading-[1.75] whitespace-pre-line">{bk.description || getCopy(settings?.design, "noDescription")}</p>
+      <p {...regionProps("productDescription")} className="fm-pdp-desc text-[15px] leading-[1.75] whitespace-pre-line">{bk.description || getCopy(settings?.design, "noDescription")}</p>
     ) : id === "specs" ? <div {...regionProps("productSpecs")}>{renderSpecs()}</div> : book ? (
       <div {...regionProps("productReviews")}><ReviewsSection key={book.id} bookId={book.id} hideHeader={true} /></div>
     ) : null;
@@ -725,6 +733,27 @@ export default function BookDetail() {
                   {book.variants && book.variants.length > 0 && (
                     <div className={`flex flex-col gap-2.5 w-full ${productAlignment === "center" ? "items-center" : "items-start"}`}>
                       <span id="pdp-format-label" className="fm-pdp-meta">{getCopy(settings?.design, isGiftCard ? "pdpGiftAmountLabel" : "bookFormatLabel")}</span>
+                      {editionDropdown ? (
+                        <div className="flex flex-col gap-1.5 w-full max-w-[420px]">
+                          <select
+                            id="pdp-edition-select"
+                            aria-labelledby="pdp-format-label"
+                            aria-invalid={!!editionError}
+                            aria-describedby={editionError ? "pdp-edition-error" : undefined}
+                            value={selectedVariant?.id || ""}
+                            onChange={(e) => { setSelectedVariant(book.variants.find((v: any) => v.id === e.target.value) || null); setEditionError(""); }}
+                            className="fm-pdp-select"
+                          >
+                            <option value="" disabled>{getCopy(settings?.design, "pdpEditionChoose")}</option>
+                            {book.variants.map((v: any) => (
+                              <option key={v.id} value={v.id}>
+                                {v.name}{Number.isFinite(Number(v.price)) && v.price !== null && v.price !== "" ? ` · ${formatPrice(Number(v.price))}` : ""}{Number(v.stockLevel ?? v.stock ?? 0) <= 0 && !v.onBackorder ? ` · ${getCopy(settings?.design, "pdpEditionSoldOut")}` : ""}
+                              </option>
+                            ))}
+                          </select>
+                          {editionError && <span id="pdp-edition-error" role="alert" className="fm-pdp-meta" style={{ color: "var(--danger)" }}>{editionError}</span>}
+                        </div>
+                      ) : (
                       <div role="group" aria-labelledby="pdp-format-label" className={`flex flex-wrap gap-2 ${productAlignment === "center" ? "justify-center" : "justify-start"}`}>
                         {book.variants.map((v: any) => {
                           const vStock = v.stockLevel ?? v.stock ?? 0;
@@ -742,6 +771,7 @@ export default function BookDetail() {
                           );
                         })}
                       </div>
+                      )}
                     </div>
                   )}
         </Fragment>;
