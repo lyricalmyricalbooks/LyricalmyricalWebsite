@@ -512,7 +512,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       ? publishedBooks.length === 0
       : getFilteredItems(books, routeCategory, new Date().toISOString(), categories).length === 0)),
     url: onCollectionRoute && routeCategory ? new URL(`${import.meta.env.BASE_URL}collections/${collectionSlug === "all" ? "all" : routeCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`, window.location.origin).href : undefined,
-    title: onCollectionRoute ? getCopy(activeDesign, "seoCollectionTitle", { category: routeCategoryName }) : showCatalog ? getCopy(settings?.design, "seoArchiveTitle") : undefined,
+    title: onCollectionRoute ? getCopy(activeDesign, "seoCollectionTitle", { category: routeCategoryName }) : showCatalog ? (getCopy(settings?.design, "seoArchiveTitle") || undefined) : undefined,
     description: onCollectionRoute ? routeCategory?.description || getCopy(activeDesign, "seoCollectionDescription", { category: routeCategoryName.toLowerCase() }) : settings?.info?.description,
     image: settings?.assets?.profileUrl,
     type: "website",

@@ -38,7 +38,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "siteDefaultTitle", label: "Home page title (browser tab / Google)", default: "{name} — Independent Publishing House", hint: "Use {name} for the site name." },
       { key: "siteDefaultDescription", label: "Default description (Google / social previews)", default: "{name} is an independent publishing house based in Toronto, specializing in photography and art books.", multiline: true, hint: "Use {name} for the site name." },
       { key: "siteTitleFormat", label: "Other pages' tab title", default: "{title} — {name}", hint: "Use {title} for the page title and {name} for the site name." },
-      { key: "seoArchiveTitle", label: "Catalog page title", default: "Archive" },
+      { key: "seoArchiveTitle", label: "Catalog page title (blank = just the shop name)", default: "" },
       { key: "seoWishlistTitle", label: "Wishlist page title", default: "Your Wishlist" },
       { key: "seoWishlistDescription", label: "Wishlist page description", default: "Books you've saved for later from {name}.", hint: "Use {name} for the site name." },
       { key: "seoCheckoutTitle", label: "Checkout page title", default: "Checkout" },
