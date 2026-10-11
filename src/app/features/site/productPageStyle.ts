@@ -104,6 +104,10 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-stock[data-state="out"]::before{background:var(--danger);}`;
 
   // Format chips, quantity and the square wishlist/share buttons.
+  css += `${S} .fm-pdp-select{width:100%;min-height:48px;padding:0 14px;background:var(--surface);color:rgb(var(--fg-rgb));border:2px solid rgba(var(--border-rgb), 0.6);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;}`;
+  css += `${S} .fm-pdp-select:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}`;
+  css += `${S} .fm-pdp-select[aria-invalid="true"]{border-color:var(--danger);}`;
+  css += `${S} .fm-pdp-select option{background:var(--surface);color:rgb(var(--fg-rgb));}`;
   css += `${S} .fm-pdp-chip{min-height:44px;padding:0 16px;background:transparent;border:2px solid rgba(var(--border-rgb), 0.6);font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}`;
   css += `${S} .fm-pdp-chip:hover{border-color:rgb(var(--fg-rgb));color:rgb(var(--fg-rgb));}`;
   css += `${S} .fm-pdp-chip[aria-pressed="true"]{background:var(--active-bg);border-color:var(--active-bg);color:var(--active-fg);}`;

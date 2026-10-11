@@ -456,6 +456,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "pdpCardShadowOffset", label: "Card offset shadow distance (0 = none)", kind: "range", min: 0, max: 16, step: 1, suffix: "px" },
       { key: "pdpCardPadding", label: "Card inner spacing", kind: "range", min: 8, max: 48, step: 2, suffix: "px" },
       { key: "pdpCardDividerColor", label: "Lines inside the card", kind: "color" },
+      { key: "pdpEditionPicker", label: "Edition picker (signed / unsigned…)", kind: "select", options: [{ value: "", label: "Buttons (first edition picked)" }, { value: "dropdown", label: "Drop-down menu (shopper must choose)" }] },
       { key: "pdpShowTag", label: "Show category tag", kind: "toggle" },
       { key: "pdpTagStyle", label: "Category tag style", kind: "select", options: [{ value: "filled", label: "Filled (badge colours)" }, { value: "outline", label: "Outline" }] },
       { key: "pdpTitleFont", label: "Title font", kind: "select", options: [{ value: "", label: "Same as heading font" }, ...FONT_SELECT_OPTIONS] },
