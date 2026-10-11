@@ -1,5 +1,6 @@
 import { catName, categoryNames } from "./navItems";
-import { recommendedBooks, editionFacts } from "./merchandising";
+import { recommendedBooks } from "./merchandising";
+import { shownDetailRows } from "./detailRows";
 import { m, AnimatePresence } from "motion/react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
@@ -60,7 +61,7 @@ function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string
         {icon}
         <span className="text-[8px] font-black tracking-[0.35em] uppercase">{label}</span>
       </div>
-      <p className="text-[13px] font-medium text-white/80 leading-tight">{value}</p>
+      <p className="text-[13px] font-medium text-white/80 leading-tight whitespace-pre-line">{value}</p>
     </div>
   );
 }
@@ -443,27 +444,18 @@ export default function BookDetail() {
     : isPreorder ? (preorderDate ? getCopy(settings?.design, "pdpPreorder", { date: preorderDate }) : getCopy(settings?.design, "pdpPreorderTba"))
     : isBackorder ? getCopy(settings?.design, "pdpBackorder")
     : isLowStock ? getCopy(settings?.design, "pdpInStockCount", { count: stockLevel }) : getCopy(settings?.design, "pdpInStock");
-  const specRows = [
-    ...(storefrontDesign.showPdpEditionDetails !== false ? editionFacts(selectedVariant ? { ...bk, edition: selectedVariant.name } : bk).map(row => ({ ...row, icon: <BookOpen size={11} /> })) : []),
-    { key: "specFormat", icon: <BookOpen size={11} />, value: bk.format },
-    { key: "specLanguage", icon: <Globe size={11} />, value: bk.language },
-    { key: "specDimensions", icon: <Ruler size={11} />, value: bk.dimensions },
-    { key: "specIsbn", icon: <Package size={11} />, value: bk.isbn },
-    { key: "specWeight", icon: <Weight size={11} />, value: bk.weight },
-  ].filter((r) => r.value);
-  // Books › edit › Publishing details › More details: the owner's own label/value rows.
-  const extraRows = (Array.isArray(bk.extraDetails) ? bk.extraDetails : [])
-    .filter((r: any) => r && typeof r.label === "string" && typeof r.value === "string" && r.label.trim() && r.value.trim())
-    .map((r: any, i: number) => ({ key: `extra-${i}`, label: r.label.trim(), value: r.value.trim() }));
-  const hasSpecs = showSpecs !== false && regionVisible(regionDesign, "productSpecs") && (specRows.length > 0 || extraRows.length > 0 || isLowStock);
+  // Books › edit › Publishing details › Details tab rows: the owner's order, wording and own rows.
+  const SPEC_ICONS: Record<string, React.ReactNode> = { specLanguage: <Globe size={11} />, specDimensions: <Ruler size={11} />, specIsbn: <Package size={11} />, specWeight: <Weight size={11} /> };
+  const specRows = shownDetailRows(bk, (key) => getCopy(settings?.design, key), {
+    showEditionFacts: storefrontDesign.showPdpEditionDetails !== false,
+    edition: selectedVariant?.name,
+  }).map((r) => ({ ...r, icon: SPEC_ICONS[r.key] || <BookOpen size={11} /> }));
+  const hasSpecs = showSpecs !== false && regionVisible(regionDesign, "productSpecs") && (specRows.length > 0 || isLowStock);
 
   const renderSpecs = () => pdpSpecsRecord ? (
     <dl className="fm-pdp-record w-full text-left">
       {specRows.map((r) => (
-        <Fragment key={r.key}><dt>{getCopy(settings?.design, r.key)}</dt><dd>{r.value}</dd></Fragment>
-      ))}
-      {extraRows.map((r: any) => (
-        <Fragment key={r.key}><dt>{r.label}</dt><dd style={{ whiteSpace: "pre-line" }}>{r.value}</dd></Fragment>
+        <Fragment key={r.key}><dt>{r.label}</dt><dd>{r.value}</dd></Fragment>
       ))}
       {isLowStock && (
         <><dt>{getCopy(settings?.design, "specAvailability")}</dt><dd style={{ color: lowInventoryColor }}>{getCopy(settings?.design, "specRemaining", { count: stockLevel })}</dd></>
@@ -471,8 +463,7 @@ export default function BookDetail() {
     </dl>
   ) : (
     <div className="grid grid-cols-2 gap-3 w-full text-left">
-      {specRows.map((r) => <SpecItem key={r.key} icon={r.icon} label={getCopy(settings?.design, r.key)} value={r.value} />)}
-      {extraRows.map((r: any) => <SpecItem key={r.key} icon={<BookOpen size={11} />} label={r.label} value={r.value} />)}
+      {specRows.map((r) => <SpecItem key={r.key} icon={r.icon} label={r.label} value={r.value} />)}
       {isLowStock && (
         <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label={getCopy(settings?.design, "specAvailability")} value={getCopy(settings?.design, "specRemaining", { count: stockLevel })} />
       )}

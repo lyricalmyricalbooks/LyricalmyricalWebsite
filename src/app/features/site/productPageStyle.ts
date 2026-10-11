@@ -129,7 +129,7 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-record{display:grid;grid-template-columns:minmax(110px,190px) minmax(0,1fr);margin:0;}`;
   css += `${S} .fm-pdp-record dt,${S} .fm-pdp-record dd{margin:0;padding:11px 0;border-top:1px solid ${divider};}`;
   css += `${S} .fm-pdp-record dt{padding-right:12px;font-size:9px;font-weight:800;letter-spacing:.3em;text-transform:uppercase;line-height:1.6;color:var(--muted);}`;
-  css += `${S} .fm-pdp-record dd{font-family:${metaFont};font-size:14px;line-height:1.5;color:rgb(var(--fg-rgb));}`;
+  css += `${S} .fm-pdp-record dd{white-space:pre-line;font-family:${metaFont};font-size:14px;line-height:1.5;color:rgb(var(--fg-rgb));}`;
   css += `${S} .fm-pdp-record dt:first-of-type,${S} .fm-pdp-record dd:first-of-type{border-top:0;}`;
 
   css += `@media (max-width:${PHONE_MAX}px){`
