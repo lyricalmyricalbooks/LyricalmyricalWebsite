@@ -173,6 +173,11 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
   const backfill = state.backfill || {};
   const pending = state.pendingImport || null;
 
+  // Editions of one book matched to the same inventory app book share one pile of copies.
+  const sharesWith = (e: LinkableEdition) => (choices[e.key]
+    ? editions.filter((o) => o.key !== e.key && o.bookId === e.bookId && choices[o.key] === choices[e.key]).map((o) => o.edition || o.title)
+    : []);
+
   const linkColumns: Column<LinkableEdition>[] = [
     { key: "title", header: "On the website", lead: true, render: (e) => (
       <div style={{ overflowWrap: "anywhere", minWidth: 150 }}>
@@ -188,6 +193,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
           {(appBooks || []).map((b) => <option key={b.id} value={b.id}>{b.title}{b.onHand != null ? ` (${b.onHand} on hand)` : ""}</option>)}
         </SelectField>
         {!choices[e.key] && suggestions[e.key] && <div className="rp-hint">Suggested: {appBookName(suggestions[e.key])}</div>}
+        {sharesWith(e).length > 0 && <div className="rp-hint">Same copies as {sharesWith(e).join(", ")}: a sale of either takes a copy off both.</div>}
         {linkErrors.filter((x) => editionKey(x.bookId, x.variantId) === e.key).map((x) => (
           <div key={x.reason} className="rp-hint" role="alert" style={{ color: "var(--rp-danger)" }}>✕ {x.reason}</div>
         ))}

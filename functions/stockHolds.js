@@ -9,6 +9,7 @@
 const crypto = require("crypto");
 const { stockLines } = require("./promotions");
 const { ipKey } = require("./rateLimit");
+const { readStockPools, poolMembers } = require("./stockPools");
 
 const HOLD_MS = 30 * 60 * 1000; // matches the hosted Stripe session lifetime
 
@@ -172,6 +173,8 @@ async function reserveStock(db, orderId, items, now = Date.now(), owner = "", { 
     const holdRefs = ids.map(id => db.collection("stock-holds").doc(id));
     const holderRefs = holders.map(h => db.collection("stock-hold-owners").doc(h.key));
     const snaps = await Promise.all([...bookRefs, ...holdRefs, ...holderRefs].map(ref => tx.get(ref)));
+    // Editions sharing one pile (stockPools.js) are held against that one pile.
+    const pools = await readStockPools(tx, db);
     const writes = [];
     const heldBooks = {};
     ids.forEach((id, i) => {
@@ -187,8 +190,10 @@ async function reserveStock(db, orderId, items, now = Date.now(), owner = "", { 
       // A payment-time renewal passes no limits, so it names no holders: keep the ones this order was
       // counted in, or paying would leave it counting against the shopper's caps until it expires.
       const holderNames = holders.length ? holders.map(h => h.key) : (Array.isArray(existing?.[orderId]?.holders) ? existing[orderId].holders : []);
-      for (const [key, qty] of Object.entries(lines)) {
-        const available = Math.max(0, stockOf(book, key) - heldUnits(others, key));
+      for (const key of Object.keys(lines)) {
+        const members = poolMembers(pools, id, key);
+        const qty = members.reduce((sum, k) => sum + (Number(lines[k]) || 0), 0);
+        const available = Math.max(0, stockOf(book, key) - members.reduce((sum, k) => sum + heldUnits(others, k), 0));
         if (qty > available) {
           const variant = key === "_" ? null : (book.variants || []).find(v => v.id === key);
           throw new StockHoldError(variant?.name ? `${book.title} (${variant.name})` : book.title || "This book", available);

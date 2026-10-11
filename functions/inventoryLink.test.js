@@ -205,6 +205,15 @@ describe("validateLinks", () => {
     expect(errors[0].reason).toMatch(/already linked/);
     expect(validateLinks(books, { b1: { _: "nope" } }, ["hound"]).errors[0].reason).toMatch(/not in the inventory app/);
   });
+  test("editions of one book may share an inventory book (one pile of copies)", () => {
+    const hound = { id: "h", title: "The Hound", variants: [{ id: "signed", name: "Signed Copy" }, { id: "unsigned", name: "Unsigned Copy" }] };
+    const { links: out, errors } = validateLinks([...books, hound], { h: { signed: "hound", unsigned: "hound" } }, ["hound"]);
+    expect(errors).toEqual([]);
+    expect(out).toEqual({ h: { signed: "hound", unsigned: "hound" } });
+    // …but never with another book.
+    const mixed = validateLinks([...books, hound], { h: { signed: "hound" }, b2: { pb: "hound" } }, ["hound"]);
+    expect(mixed.errors[0].reason).toMatch(/already linked/);
+  });
   test("blank removes a link", () => {
     expect(validateLinks(books, { b1: { _: "" } }).links).toEqual({});
   });
