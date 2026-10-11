@@ -121,7 +121,7 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
       columns: 3,
       items: [
         { title: "Free Shipping", description: "On eligible orders" },
-        { title: "Curated Archive", description: "Handpicked editions" },
+        { title: "Curated Catalogue", description: "Handpicked editions" },
         { title: "Worldwide Delivery", description: "Ships internationally" },
       ],
     },

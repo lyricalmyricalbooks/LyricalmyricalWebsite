@@ -9,7 +9,7 @@ export const SECTION_FALLBACKS: Record<string, string> = {
   "HeroSection.ctaText": "Explore",
   "ImageBannerSection.title": "Stories worth keeping",
   "FeatureGridSection.title": "Highlights",
-  "NewsletterSection.title": "Join the Archive",
+  "NewsletterSection.title": "Join the Catalogue",
   "NewsletterSection.description": "Occasional dispatches about new publications and limited editions.",
   "NewsletterSection.placeholder": "email@example.com",
   "NewsletterSection.buttonLabel": "JOIN",
