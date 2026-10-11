@@ -1350,8 +1350,8 @@ export function OrderDetail({
         title={deliveryStatus === "delivered" ? "Mark delivered?" : "Mark out for delivery?"}
         description={
           deliveryStatus === "delivered"
-            ? "Use this when the carrier shows the parcel as delivered. The order moves to Completed and the customer gets the Delivery update email (if it is switched on)."
-            : "Use this when the carrier shows the parcel out for delivery. The customer gets the Delivery update email (if it is switched on)."
+            ? "Use this when the carrier shows the parcel as delivered. The order moves to Completed. No email is sent; the customer already had the shipping email."
+            : "Use this when the carrier shows the parcel out for delivery. This only updates the order; the customer already had the shipping email, so no extra email is sent."
         }
         footer={
           <>
