@@ -641,7 +641,8 @@ draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
   to `main` and every 15 minutes when published content changed. The cutover from GitHub Pages happened in October 2026
   (`docs/FIREBASE_HOSTING.md`). Jobs: `build-hosting` (no secrets; **Site address** step = repository variable `SITE_URL` or
   the web.app default, must be `https://host` with no folder and never github.io; build, `carry-previous-assets`, emulator smoke
-  test, `dist` artifact) → `deploy-hosting` (downloads `dist`, `firebase deploy --only hosting` with the pinned CLI and
+  test, `dist` artifact; `scripts/siteAddressCheck.mjs` refuses a `SITE_URL` missing from `ALLOWED_ORIGINS` and a custom one that
+  doesn't serve the shop yet) → `deploy-hosting` (downloads `dist`, `firebase deploy --only hosting` with the pinned CLI and
   `FIREBASE_HOSTING_SERVICE_ACCOUNT` (Firebase Hosting Admin only), else `FIREBASE_SERVICE_ACCOUNT`; fails without either; live
   smoke test) → `redirect-old-address` (push/manual only: `scripts/build-pages-redirect.mjs` publishes forwarding pages to GitHub
   Pages). Both Hosting jobs run only on `main` and while the repository variable `FIREBASE_HOSTING_ENABLED` is `true` (keep it
@@ -653,9 +654,12 @@ draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
   canonical to the new page, `<noscript>` refresh, `no-referrer`). `movedUrl` keeps path, query and `#hash` (emails already sent:
   `/track?orderId&key`, unsubscribe, `/checkout?cartId=`, `/admin#orders/<id>`) and decodes the old `?/…~and~` form. It also
   hands over, in `#lm-move=<base64url JSON>`, the old origin's bag and wishlist (once per browser, `lm:moved`; gift-card lines
-  stay behind) and, on `/checkout?order_id=X`, that order's `order-access:X` key; `features/site/movedState.ts` (`takeMovedState`,
-  first thing in `main.tsx`) strips the hash, fills only an **empty** bag through `sanitizeCart`, merges the wishlist and
-  restores the key only for the matching `order_id`. The forwarding pages are replaced only after the Hosting deploy and its
+  stay behind), on `/checkout?order_id=X` that order's `order-access:X` key (plus `attempt` when it was the tab's
+  `fm_last_checkout_order`, so a retry still meets "earlier attempt already paid"; an oversized bag never drops the key), and
+  the referrer's host (`from`; the forwarding page sends `no-referrer`). `features/site/movedState.ts` (`takeMovedState`, first
+  thing in `main.tsx`) strips the hash, fills only an **empty** bag through `sanitizeCart` and **refuses gift-card lines** (a
+  crafted link could otherwise name who receives a paid card's code), merges the wishlist, restores the key/attempt only for the
+  matching `order_id`, and sets `referral_source` (`lib/referralSource.ts`, shared with App.tsx) only with analytics consent. The forwarding pages are replaced only after the Hosting deploy and its
   live check succeeded. Never point `SITE_URL` back at github.io.
 - **Firebase** (Firestore rules/indexes, Storage rules, Functions) →
   `.github/workflows/deploy-firebase.yml` (needs `FIREBASE_SERVICE_ACCOUNT`

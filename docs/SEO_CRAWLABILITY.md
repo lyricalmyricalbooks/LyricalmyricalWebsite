@@ -1,17 +1,16 @@
 # Crawlable public HTML
 
-Google can execute JavaScript, but this GitHub Pages SPA previously served its
-redirecting 404 document for direct book/custom-page URLs. The production build
-now renders the public sitemap in Chromium and writes one HTML file per public
-route: `index.html` for the home page and `<route>.html` for every other route
-(`books/<slug>.html`, `page/<slug>.html`, `collections/<slug>.html`). GitHub
-Pages answers the slash-less URL `/books/<slug>` from `books/<slug>.html` with
-HTTP 200; a `books/<slug>/index.html` folder would instead 301-redirect to
-`/books/<slug>/`, which no longer matches the slash-less canonical, `og:url`,
-JSON-LD and sitemap URLs. A trailing-slash request (`/books/<slug>/`) falls
-through to the `404.html` SPA fallback, React renders the page, and
-`canonicalUrl` (`src/app/lib/bookSeo.ts`) still names the slash-less URL. Routes
-that were not prerendered keep using the same `404.html` fallback. These files contain actual published
+Google can execute JavaScript, but a single-page app first serves the same empty
+shell for every URL. The production build renders the public sitemap in Chromium
+and writes one HTML file per public route: `index.html` for the home page and
+`<route>.html` for every other route (`books/<slug>.html`, `page/<slug>.html`,
+`collections/<slug>.html`). Firebase Hosting (`cleanUrls`) answers the slash-less
+URL `/books/<slug>` from `books/<slug>.html` with HTTP 200, and
+`trailingSlash: false` 301-redirects `/books/<slug>/` and `/books/<slug>.html` to it,
+matching the slash-less canonical, `og:url`, JSON-LD and sitemap URLs. App routes
+that were not prerendered get the clean app shell (`spa.html`) and unknown URLs a
+real 404 that still renders the editable missing page (docs/FIREBASE_HOSTING.md).
+These files contain actual published
 Studio layouts, text, links, metadata and current page structured data. React
 starts normally and continues loading live catalog and checkout data.
 
@@ -92,8 +91,9 @@ follow`, so crawlers can read the exclusion. The build-only route manifest is
 
 ## Google Search Console
 
-Add a URL-prefix property for
-`https://lyricalmyricalbooks.github.io/LyricalmyricalWebsite/`.
+Add a URL-prefix property for the shop's address,
+`https://lyricalmyrical-web-v2.web.app/` (or its own domain once connected). The old
+GitHub Pages property only sees forwarding pages now.
 Choose HTML tag verification. Copy its `content` token into Studio > Text & labels
 > Site & sharing > Google Search Console verification token, then Publish.
 The next HTML refresh emits that public verification meta tag. Finish Verify in

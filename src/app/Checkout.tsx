@@ -32,7 +32,7 @@ import { StorefrontThemeStyle } from "./features/site/StorefrontThemeStyle";
 import { accountsEnabled } from "./features/site/customerAccounts";
 import { getCopy, CopyError, copyErrorText } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
-import { orderAccessHeaders, rememberOrderAccess } from "./lib/orderAccessClient";
+import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess } from "./lib/orderAccessClient";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
 import { isStripePublishableKey, stripeCheckoutState, createCheckoutSubmission, onPageRestored } from "./features/site/stripeLifecycle";
@@ -222,7 +222,7 @@ const MIN_CARD_CHARGE = 0.5;
 
 // This tab's last unpaid checkout attempt. Sent with the next attempt so the server can free
 // the stock that attempt was holding (only if it is still unpaid and has the same email).
-const ATTEMPT_KEY = "fm_last_checkout_order";
+const ATTEMPT_KEY = CHECKOUT_ATTEMPT_KEY;
 function previousAttempt(): string | undefined {
   try { return sessionStorage.getItem(ATTEMPT_KEY) || undefined; } catch { return undefined; }
 }

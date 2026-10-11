@@ -3,9 +3,11 @@
 // order links), bookmarks and search results keep working. The browser part is inlined with toString(), so the code
 // these tests run is the code that ships; it stays plain ES5 and self-contained.
 //
-// On the way it hands over what only the old address can read (its own browser storage): the shopper's bag and
-// wishlist (once per browser), and on a payment return the order's private access key, in `#lm-move=…`.
-// The new site takes them at boot (src/app/features/site/movedState.ts) and removes them from the address bar.
+// On the way it hands over what only the old address can read, in `#lm-move=…`: the shopper's bag and wishlist (once
+// per browser); on a payment return the order's private access key and the tab's checkout attempt (so a retry is still
+// recognised as one: "earlier attempt already paid"); and the referring site's host name, because the forwarding page
+// itself sends no referrer. The new site takes them at boot (src/app/features/site/movedState.ts) and removes them
+// from the address bar.
 export const OLD_BASE = '/LyricalmyricalWebsite';
 export const MOVED_PREFIX = '#lm-move=';
 
@@ -26,13 +28,16 @@ export function movedUrl(href, oldBase, target) {
   return String(target).replace(/\/+$/, '') + (path || '/') + search + url.hash;
 }
 
-/** `#lm-move=<base64url JSON>` with the old address's bag, wishlist and payment-return access key, or ''. */
-export function carryFragment(local, session, next) {
+/** `#lm-move=<base64url JSON>` with the old address's bag, wishlist, payment-return access and referrer, or ''. */
+export function carryFragment(local, session, next, referrer) {
   try {
     var url = new URL(next);
     if (url.hash) return ''; // never replace a link's own #fragment (e.g. /admin#orders/<id>)
     var payload = { v: 1 };
     var moved = false;
+    var encode = function (data) {
+      return btoa(unescape(encodeURIComponent(JSON.stringify(data)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    };
     if (!local.getItem('lm:moved')) {
       var cart = JSON.parse(local.getItem('fm_cart') || '[]');
       // Gift-card lines carry a recipient's name and email: those stay behind.
@@ -45,10 +50,22 @@ export function carryFragment(local, session, next) {
     if (url.pathname === '/checkout' && orderId) {
       var key = session.getItem('order-access:' + orderId);
       if (key) payload.access = { orderId: orderId, key: key };
+      if (key && session.getItem('fm_last_checkout_order') === orderId) payload.access.attempt = true;
     }
-    if (!payload.cart && !payload.wishlist && !payload.access) return '';
-    var encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    if (encoded.length > 16000) return '';
+    if (referrer) {
+      try {
+        var from = new URL(referrer).hostname;
+        if (from && from !== url.hostname && !/(^|\.)github\.io$/.test(from)) payload.from = from;
+      } catch (e) { /* an unreadable referrer is simply not carried */ }
+    }
+    if (!payload.cart && !payload.wishlist && !payload.access && !payload.from) return '';
+    var encoded = encode(payload);
+    if (encoded.length > 16000) {
+      // A very large bag must never cost a payment return its order key: carry the small parts only.
+      if (!payload.access && !payload.from) return '';
+      encoded = encode({ v: 1, access: payload.access, from: payload.from });
+      moved = false;
+    }
     if (moved) local.setItem('lm:moved', '1');
     return '#lm-move=' + encoded;
   } catch (e) {
@@ -60,7 +77,7 @@ export function carryFragment(local, session, next) {
 export function forward(win, oldBase, target) {
   var next = movedUrl(win.location.href, oldBase, target);
   var carry = '';
-  try { carry = carryFragment(win.localStorage, win.sessionStorage, next); } catch (e) { carry = ''; }
+  try { carry = carryFragment(win.localStorage, win.sessionStorage, next, win.document && win.document.referrer); } catch (e) { carry = ''; }
   win.location.replace(next + carry);
   return next + carry;
 }
