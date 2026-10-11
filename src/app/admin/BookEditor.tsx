@@ -42,6 +42,7 @@ import { Book, Variant } from "../features/site/types";
 import { useCurrency } from "../CurrencyContext";
 import { BookCustomFields } from "./BookCustomFields";
 import { BookTemplatePicker } from "./BookTemplatePicker";
+import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow } from "../features/site/detailRows";
 import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs } from "./riso/components";
 import { prepareProductImage } from "./prepareImage";
 import { studioHash } from "../lib/studioLocation";
@@ -959,31 +960,45 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                 )}
                 <div style={{ marginTop: 16 }}>
                   <p className="be-note" style={{ margin: "0 0 8px" }}>
-                    <strong>More details</strong> — extra rows for the book page's Details tab (for example Photographs, Paper, Printing). Shown in this order, after the details above.
+                    <strong>Details tab rows</strong> — every row of the book page's Details tab, in the order shown there. Change any label or value, hide a row, move rows with ↑ / ↓, or add your own (Paper, Printing, Design…). A blank value on a standard row uses the field above.
                   </p>
-                  {(formData.extraDetails || []).map((row: { label: string; value: string }, i: number) => {
-                    const rows = formData.extraDetails || [];
-                    const put = (next: { label: string; value: string }[]) => set("extraDetails", next);
+                  {(() => {
+                    const rows = editorDetailRows(formData);
+                    const put = (next: DetailRow[]) => setFormData((prev: any) => ({ ...prev, detailRows: next, extraDetails: [] }));
                     return (
-                      <div key={i} className="be-grid" style={{ alignItems: "end", marginBottom: 8 }}>
-                        <TextField label={`Row ${i + 1} · label`} value={row.label} maxLength={60} placeholder="Paper"
-                          onChange={(e) => put(rows.map((r, j) => (j === i ? { ...r, label: e.target.value } : r)))} />
-                        <TextArea label={`Row ${i + 1} · value`} value={row.value} rows={2} maxLength={500} placeholder="Mohawk Digital 80lb"
-                          onChange={(e) => put(rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)))} />
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" disabled={i === 0} aria-label={`Move row ${i + 1} up`}
-                            onClick={() => { const n = [...rows]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; put(n); }}>↑</button>
-                          <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" disabled={i === rows.length - 1} aria-label={`Move row ${i + 1} down`}
-                            onClick={() => { const n = [...rows]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; put(n); }}>↓</button>
-                          <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => put(rows.filter((_, j) => j !== i))}>Remove</button>
-                        </div>
-                      </div>
+                      <>
+                        {rows.map((row, i) => {
+                          const builtin = BUILTIN_DETAILS.find((b) => b.key === row.key);
+                          const fieldValue = builtin ? builtinDetailValue(formData, row.key) : "";
+                          const name = builtin ? builtin.name : `Row ${i + 1}`;
+                          return (
+                            <div key={row.key} className="be-grid" style={{ alignItems: "end", marginBottom: 8, opacity: row.hidden ? 0.55 : 1 }}>
+                              <TextField label={builtin ? `${name} · label` : `${name} · label`} value={row.label || ""} maxLength={60}
+                                placeholder={builtin ? name : "Paper"}
+                                onChange={(e) => put(rows.map((r, j) => (j === i ? { ...r, label: e.target.value } : r)))} />
+                              <TextArea label={`${name} · value`} value={row.value || ""} rows={2} maxLength={500}
+                                placeholder={builtin ? (fieldValue || "Empty — fill the field above or type here") : "Mohawk Digital 80lb"}
+                                hint={builtin && !row.value ? (fieldValue ? "Using the field above. Type here to show something else or add to it." : "Empty rows don't show.") : undefined}
+                                onChange={(e) => put(rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)))} />
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" disabled={i === 0} aria-label={`Move ${name} up`}
+                                  onClick={() => { const n = [...rows]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; put(n); }}>↑</button>
+                                <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" disabled={i === rows.length - 1} aria-label={`Move ${name} down`}
+                                  onClick={() => { const n = [...rows]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; put(n); }}>↓</button>
+                                <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-pressed={!!row.hidden}
+                                  onClick={() => put(rows.map((r, j) => (j === i ? { ...r, hidden: !r.hidden } : r)))}>{row.hidden ? "Show" : "Hide"}</button>
+                                {!builtin && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => put(rows.filter((_, j) => j !== i))}>Remove</button>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {rows.length < 40 && (
+                          <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm"
+                            onClick={() => put([...rows, { key: `custom:${Date.now().toString(36)}`, label: "", value: "", hidden: false }])}>+ Add a detail row</button>
+                        )}
+                      </>
                     );
-                  })}
-                  {(formData.extraDetails || []).length < 30 && (
-                    <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm"
-                      onClick={() => set("extraDetails", [...(formData.extraDetails || []), { label: "", value: "" }])}>+ Add a detail row</button>
-                  )}
+                  })()}
                 </div>
                 {isbnResult && (
                   <div role="status" className="be-note">
