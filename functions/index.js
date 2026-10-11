@@ -4243,7 +4243,7 @@ function getTrackingUrl(carrier, trackingNum, customUrl) {
     return `https://www.canpar.com/en/tracking/delivery_options.htm?barcode=${encodeURIComponent(cleanNum)}`;
   }
   if (cleanCarrier.includes("canada post")) {
-    return `https://www.canadapost-postescanada.ca/track-reperage/en#/resultList?searchKeys=${encodeURIComponent(cleanNum)}`;
+    return `https://www.canadapost-postescanada.ca/track-reperage/en#/details/${encodeURIComponent(cleanNum)}`;
   }
   if (cleanCarrier.includes("usps")) {
     return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(cleanNum)}`;

@@ -20,7 +20,7 @@ export function getTrackingUrl(carrier: string, trackingNum: string, customUrl?:
   // Shippo reports carriers as tokens ("canada_post"), people type "Canada Post".
   const c = (carrier || "").trim().toLowerCase().replace(/[_-]+/g, " ");
   const n = encodeURIComponent((trackingNum || "").trim());
-  if (c.includes("canada post")) return `https://www.canadapost-postescanada.ca/track-reperage/en#/resultList?searchKeys=${n}`;
+  if (c.includes("canada post")) return `https://www.canadapost-postescanada.ca/track-reperage/en#/details/${n}`;
   if (c.includes("purolator")) return `https://www.purolator.com/en/shipping/tracker?pin=${n}`;
   if (c.includes("usps")) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${n}`;
   if (c.includes("ups")) return `https://www.ups.com/track?tracknum=${n}`;

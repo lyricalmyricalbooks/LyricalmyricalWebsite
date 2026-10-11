@@ -259,6 +259,21 @@ export function OrderDetail({
   const rawLabel = !!(order?.labelUrl && order?.trackingNumber);
   const hasLabel = rawLabel && !labelReplaced;
   const [showReplaceLabel, setShowReplaceLabel] = useState(false);
+
+  // Fill the tracking link from the carrier and number while the dispatch dialog is open,
+  // unless the owner typed their own link. Unknown carriers stay blank.
+  const autoLink = useRef("");
+  const autoCarrier = hasLabel ? order?.trackingCarrier || "" : carrierName;
+  const autoNumber = hasLabel ? order?.trackingNumber || "" : trackingNumber;
+  useEffect(() => {
+    if (!showShipForm) return;
+    const current = trackingLink.trim();
+    if (current && current !== autoLink.current) return;
+    const url = autoNumber.trim() && autoCarrier ? getTrackingUrl(autoCarrier, autoNumber) : "";
+    const next = url.startsWith("https://www.google.com/") ? "" : url;
+    autoLink.current = next;
+    if (next !== current) setTrackingLink(next);
+  }, [showShipForm, autoCarrier, autoNumber, trackingLink]);
   const [voidedElsewhere, setVoidedElsewhere] = useState(false);
   const [replacing, setReplacing] = useState(false);
   const replaceLabel = async () => {
@@ -1305,7 +1320,7 @@ export function OrderDetail({
                 ? "The link must start with https://"
                 : undefined
             }
-            hint={`This is the link behind Track shipment in the customer's email, account and order tracking page. Leave blank to use ${(hasLabel ? order.trackingCarrier : carrierName) || "the carrier"}'s own tracking page.`}
+            hint={`This is the link behind Track shipment in the customer's email, account and order tracking page. Filled in automatically from ${(hasLabel ? order.trackingCarrier : carrierName) || "the carrier"}'s tracking page; replace it to use your own link.`}
           />
           {(hasLabel || (trackingNumber.trim() && carrierName)) && (
             <a
