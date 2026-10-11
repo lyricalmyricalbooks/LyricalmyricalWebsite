@@ -64,12 +64,21 @@ describe("#20 backups", () => {
     expect(backupFoldersToPrune(["backups/2020-01-01/", "backups/2020-01-02/"], today, 30)).toEqual(["backups/2020-01-01/"]);
     expect(backupFoldersToPrune([], today, 30)).toEqual([]);
   });
-  it("the nightly job prunes after a good export and records a prune failure without failing the backup", () => {
-    const job = block("exports.nightlyFirestoreBackup = onSchedule(");
+  it("the backup prunes only after a good run and records a prune failure without failing the backup", () => {
+    const job = block("async function runFirestoreBackup(", "exports.nightlyFirestoreBackup");
     expect(job).toContain("backupFoldersToPrune(");
     expect(job).toContain("deleteFiles({ prefix, force: true })");
     expect(job).toContain("pruneError");
-    expect(job.indexOf("backupStatusRecord({ ok: true")).toBeLessThan(job.indexOf("backupFoldersToPrune("));
+    expect(job.indexOf("backupStatusRecord({ ok: outcome.ok")).toBeLessThan(job.indexOf("backupFoldersToPrune("));
+    expect(job.indexOf("if (outcome.ok) {")).toBeLessThan(job.indexOf("backupFoldersToPrune("));
+  });
+  it("a refused export still runs the document copy, and the nightly job and Back up now share one runner", () => {
+    const job = block("async function runFirestoreBackup(", "exports.nightlyFirestoreBackup");
+    expect(job.indexOf("exportDocuments(")).toBeLessThan(job.indexOf("runJsonBackup("));
+    expect(job).toContain("runningSince");
+    expect(block("exports.nightlyFirestoreBackup = onSchedule(", "async function handleBackupNow")).toContain('runFirestoreBackup({ trigger: "nightly"');
+    expect(block("async function handleBackupNow(")).toContain("requireAdmin(req, res)");
+    expect(source).toContain('if (req.body?.action === "backupNow") return handleBackupNow(req, res);');
   });
 });
 

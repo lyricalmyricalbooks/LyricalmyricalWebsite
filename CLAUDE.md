@@ -175,8 +175,14 @@ npm run logs
 - `unpaidPaymentSweep` (every 15 minutes) — records pending reconciliation and emails the shop when Stripe
   shows a successful payment but the order is still unpaid 10 min–7 days later (`functions/paymentSweep.js`);
   stamps `paymentAlertSentAt`. Never marks Stripe orders paid — resend the verified webhook event from Stripe.
-- `nightlyFirestoreBackup` (03:17 Toronto) — exports Firestore to `gs://<storageBucket>/backups/YYYY-MM-DD`.
-  Needs the Functions service account to have **Cloud Datastore Import Export Admin** + bucket write.
+- `nightlyFirestoreBackup` (03:17 Toronto) and Settings › General › Backups & export › **Back up now**
+  (`createStripeCheckoutSession` action `backupNow`, admin) share `runFirestoreBackup`: (1) the managed export to
+  `backups/YYYY-MM-DD/export` (needs **Cloud Datastore Import Export Admin** on the Functions service account; refused =
+  PERMISSION_DENIED) and (2) the Functions' own copy of every document (`functions/backupJson.js`, `backups/<day>/json/`
+  `<collection>.ndjson.gz` + `_group_private` + `manifest.json` last; no extra role; skips `rate-limits`). Either one = a
+  good backup; the next run checks the previous export's operation. A `runningSince` lock stops overlapping runs; manual
+  runs are 5 min apart and limited to 45 s. Restore the copy with `scripts/restore-json-backup.mjs` (dry run first),
+  the export with `gcloud firestore import`. A new sub-collection name goes in `SUBCOLLECTION_GROUPS`.
 
 **Email sending:** `sendEmail` sends through Gmail SMTP (nodemailer, account `lyricalmyricalbooks@gmail.com`) first, because the shop has no Resend-verified domain. The Gmail app password is entered in Settings › Notifications › **Gmail sending** (`admin/GmailSendingCard.tsx`) and stored in the admin-only `adminSecrets/gmail` doc (never in public `settings/*`). If it is unset or Gmail fails, sending falls back to Resend (`onboarding@resend.dev` only reaches the account owner).
 

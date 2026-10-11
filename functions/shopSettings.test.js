@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
+const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupOutcome, backupStatusRecord } = require("./shopSettings");
 
 describe("shopOrigin", () => {
   it("keeps the old Toronto origin when General › Location is blank", () => {
@@ -24,6 +24,13 @@ describe("store switches", () => {
   it("a failed backup keeps the last good one", () => {
     const r = backupStatusRecord({ ok: false, day: "2026-10-10", at: "t2", error: "denied", previous: { lastSuccessAt: "t1", lastSuccessDay: "2026-10-09" } });
     expect(r).toMatchObject({ ok: false, error: "denied", lastSuccessAt: "t1", lastSuccessDay: "2026-10-09" });
-    expect(backupStatusRecord({ ok: true, day: "d", at: "t", operation: "op" })).toMatchObject({ ok: true, lastSuccessAt: "t", error: "" });
+    expect(backupStatusRecord({ ok: true, day: "d", at: "t", operation: "op" })).toMatchObject({ ok: true, lastSuccessAt: "t", error: "", runningSince: "" });
+  });
+  it("a backup succeeds when either the export or the document copy works", () => {
+    expect(backupOutcome({ exportResult: { ok: false, error: "7 PERMISSION_DENIED" }, copyResult: { ok: true } })).toEqual({ ok: true, error: "" });
+    expect(backupOutcome({ exportResult: { ok: true }, copyResult: { ok: false, error: "x" } }).ok).toBe(true);
+    const both = backupOutcome({ exportResult: { ok: false, error: "denied" }, copyResult: { ok: false, error: "bucket" } });
+    expect(both).toEqual({ ok: false, error: "Firestore export: denied · Document copy: bucket" });
+    expect(backupOutcome({}).error).toBe("Unknown error");
   });
 });

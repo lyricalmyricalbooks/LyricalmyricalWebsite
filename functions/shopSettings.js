@@ -41,9 +41,23 @@ function dailyDigestEnabled(notificationSettings) {
   return notificationSettings?.shopAlerts?.dailyOrderDigest !== false;
 }
 
-/** What the nightly backup writes to the admin-only systemStatus/backup doc. */
-function backupStatusRecord({ ok, day, at, operation = "", error = "", previous = null }) {
-  const record = { lastAttemptAt: at, lastDay: day, ok: ok === true };
+/**
+ * Did a backup run succeed? Either the managed Firestore export started, or the Functions' own copy of
+ * every document finished (backupJson.js). `error` explains a failure in one sentence.
+ */
+function backupOutcome({ exportResult, copyResult }) {
+  const exportOk = exportResult?.ok === true;
+  const copyOk = copyResult?.ok === true;
+  if (exportOk || copyOk) return { ok: true, error: "" };
+  const parts = [];
+  if (exportResult?.error) parts.push(`Firestore export: ${exportResult.error}`);
+  if (copyResult?.error) parts.push(`Document copy: ${copyResult.error}`);
+  return { ok: false, error: parts.join(" · ") || "Unknown error" };
+}
+
+/** What the nightly backup writes to the admin-only systemStatus/backup doc. `extra` = export/copy details. */
+function backupStatusRecord({ ok, day, at, operation = "", error = "", previous = null, extra = {} }) {
+  const record = { ...extra, lastAttemptAt: at, lastDay: day, ok: ok === true, runningSince: "" };
   if (ok) {
     record.lastSuccessAt = at;
     record.lastSuccessDay = day;
@@ -60,4 +74,4 @@ function backupStatusRecord({ ok, day, at, operation = "", error = "", previous 
   return record;
 }
 
-module.exports = { ORIGIN_FALLBACK, shopOrigin, checkoutClosed, dailyDigestEnabled, backupStatusRecord };
+module.exports = { ORIGIN_FALLBACK, shopOrigin, checkoutClosed, dailyDigestEnabled, backupOutcome, backupStatusRecord };

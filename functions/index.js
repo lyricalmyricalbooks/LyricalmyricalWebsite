@@ -1755,6 +1755,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
     if (req.body?.action === "webhookHealth") return handleWebhookHealth(req, res);
     if (req.body?.action === "giftCardAdmin") return handleGiftCardAdmin(req, res);
     if (req.body?.action === "inventoryLink") return handleInventoryLinkAdmin(req, res);
+    if (req.body?.action === "backupNow") return handleBackupNow(req, res);
     if (req.body?.action === "cancelOrder") return handleCancelOrder(req, res);
     if (req.body?.action === "resolvePaymentMismatch") return handleResolveMismatch(req, res);
     if (req.body?.action === "orderRequest") return handleOrderRequest(req, res);
@@ -6974,31 +6975,99 @@ exports.unpaidPaymentSweep = onSchedule(
 );
 
 /**
- * Nightly Firestore export to the project's default Storage bucket (backups/YYYY-MM-DD).
- * The Functions service account needs the "Cloud Datastore Import Export Admin" role
- * and write access to the bucket.
+ * Nightly backup into the project's default Storage bucket, folder backups/YYYY-MM-DD/, done two ways:
+ *  1. the managed Firestore export (restorable with `gcloud firestore import`). It needs the Functions
+ *     service account to hold "Cloud Datastore Import Export Admin"; without it Google answers PERMISSION_DENIED.
+ *  2. the Functions' own copy of every document (backupJson.js, backups/<day>/json/), which needs no extra
+ *     role, so a refused export still leaves a complete, restorable backup (scripts/restore-json-backup.mjs).
+ * The run succeeds when either works. The previous export's long-running operation is checked at the start
+ * of each run, so an export that was accepted but failed later is reported too. Settings › General ›
+ * Backups & export reads the result (systemStatus/backup) and has Back up now (action "backupNow").
  */
 const BACKUP_KEEP_DAYS = 30;
-exports.nightlyFirestoreBackup = onSchedule(
-  { schedule: "every day 03:17", timeZone: "America/Toronto", timeoutSeconds: 300 },
-  async () => {
-    const projectId = process.env.GCLOUD_PROJECT || admin.app().options.projectId;
+const BACKUP_LOCK_MS = 10 * 60 * 1000;
+const BACKUP_MANUAL_GAP_MS = 5 * 60 * 1000;
+
+async function runFirestoreBackup({ trigger, budgetMs }) {
+  const startedAt = Date.now();
+  const deadline = startedAt + budgetMs;
+  const projectId = process.env.GCLOUD_PROJECT || admin.app().options.projectId;
+  const day = new Date(startedAt).toISOString().slice(0, 10);
+  const bucketName = admin.app().options.storageBucket || `${projectId}.firebasestorage.app`;
+  const statusRef = db.collection("systemStatus").doc("backup");
+  const at = new Date(startedAt).toISOString();
+
+  // One backup at a time: a run holds `runningSince` for up to BACKUP_LOCK_MS.
+  const claim = await db.runTransaction(async tx => {
+    const snap = await tx.get(statusRef);
+    const prev = snap.exists ? snap.data() : null;
+    const running = prev?.runningSince && startedAt - Date.parse(prev.runningSince) < BACKUP_LOCK_MS;
+    if (running) return { busy: true, previous: prev };
+    if (trigger === "manual" && prev?.lastAttemptAt && startedAt - Date.parse(prev.lastAttemptAt) < BACKUP_MANUAL_GAP_MS) return { tooSoon: true, previous: prev };
+    tx.set(statusRef, { runningSince: at, runningTrigger: trigger }, { merge: true });
+    return { previous: prev };
+  });
+  if (claim.busy || claim.tooSoon) return claim;
+  const previous = claim.previous;
+
+  const { serviceAccountEmail } = require("./inventoryLinkStore");
+  const { runJsonBackup, exportRefusedForPermission } = require("./backupJson");
+  const { backupOutcome } = require("./shopSettings");
+  const extra = { trigger, serviceAccount: await serviceAccountEmail().catch(() => ""), bucket: bucketName };
+  try {
     const client = new admin.firestore.v1.FirestoreAdminClient();
-    const day = new Date().toISOString().slice(0, 10);
-    const bucketName = admin.app().options.storageBucket || `${projectId}.firebasestorage.app`;
-    // Settings › General › Backups & export reads this admin-only record.
-    const statusRef = db.collection("systemStatus").doc("backup");
-    const previous = (await statusRef.get().catch(() => null))?.data?.() || null;
+
+    // Did the previous export actually finish? (It runs after the function returns.)
+    if (previous?.export?.operation) {
+      try {
+        const op = await client.checkExportDocumentsProgress(previous.export.operation);
+        extra.previousExport = { operation: previous.export.operation, done: !!op.done, error: op.error ? String(op.error.message || op.error).slice(0, 300) : "" };
+      } catch (err) {
+        extra.previousExport = { operation: previous.export.operation, done: false, error: `Couldn't check: ${String(err.message || err).slice(0, 200)}` };
+      }
+    }
+
+    let exportResult;
     try {
       const [operation] = await client.exportDocuments({
         name: client.databasePath(projectId, "(default)"),
-        outputUriPrefix: `gs://${bucketName}/backups/${day}`,
+        outputUriPrefix: `gs://${bucketName}/backups/${day}/export`,
         collectionIds: [],
       });
-      console.log(`Firestore backup started: ${operation.name}`);
-      await statusRef.set(backupStatusRecord({ ok: true, day, at: new Date().toISOString(), operation: operation.name })).catch(err => console.error("Could not record backup status:", err.message));
-      // Keep 30 days of exports: older day folders are deleted so storage cost cannot grow without limit.
-      // A prune failure never fails the backup; it is recorded for Settings › General › Backups & export.
+      console.log(`Firestore export started: ${operation.name}`);
+      exportResult = { ok: true, operation: String(operation.name || "").slice(0, 300), error: "", permission: false };
+    } catch (err) {
+      const permission = exportRefusedForPermission(err);
+      console.warn(`Firestore export refused (${permission ? "missing IAM role" : "error"}):`, err.message);
+      exportResult = { ok: false, operation: "", error: String(err.message || err).slice(0, 300), permission };
+    }
+    extra.export = exportResult;
+
+    let copyResult;
+    try {
+      const manifest = await runJsonBackup({
+        db, bucket: admin.storage().bucket(bucketName), folder: `backups/${day}/json`,
+        idField: admin.firestore.FieldPath.documentId(), deadline, at,
+      });
+      const failed = manifest.collections.filter(c => !c.complete);
+      copyResult = {
+        ok: manifest.complete, folder: manifest.folder, documents: manifest.documents, bytes: manifest.bytes,
+        collections: manifest.collections.length, failed: failed.map(c => c.id).slice(0, 20),
+        error: failed.length ? `${failed.length} collection(s) not copied: ${failed.slice(0, 3).map(c => `${c.id} (${c.error})`).join(", ")}` : "",
+      };
+    } catch (err) {
+      console.error("Document copy backup failed:", err);
+      copyResult = { ok: false, error: String(err.message || err).slice(0, 300) };
+    }
+    extra.copy = copyResult;
+
+    const outcome = backupOutcome({ exportResult, copyResult });
+    await statusRef.set(backupStatusRecord({ ok: outcome.ok, day, at, operation: exportResult.operation, error: outcome.error, previous, extra }))
+      .catch(err => console.error("Could not record backup status:", err.message));
+
+    // Keep 30 days: older day folders are deleted so storage cost cannot grow without limit. Only after a good
+    // run, and a prune failure never fails the backup; it is recorded for Settings › General › Backups & export.
+    if (outcome.ok) {
       try {
         const bucket = admin.storage().bucket(bucketName);
         const [, , api] = await bucket.getFiles({ prefix: "backups/", delimiter: "/", autoPaginate: false });
@@ -7009,9 +7078,34 @@ exports.nightlyFirestoreBackup = onSchedule(
         console.error("Backup pruning failed:", pruneErr.message);
         await statusRef.set({ pruneError: String(pruneErr.message || pruneErr).slice(0, 300), prunedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
       }
-    } catch (err) {
-      await statusRef.set(backupStatusRecord({ ok: false, day, at: new Date().toISOString(), error: err.message, previous })).catch(e => console.error("Could not record backup status:", e.message));
-      throw err;
     }
+    return { ok: outcome.ok, error: outcome.error, export: exportResult, copy: copyResult };
+  } catch (err) {
+    await statusRef.set(backupStatusRecord({ ok: false, day, at, error: err.message, previous, extra })).catch(e => console.error("Could not record backup status:", e.message));
+    throw err;
+  }
+}
+
+exports.nightlyFirestoreBackup = onSchedule(
+  { schedule: "every day 03:17", timeZone: "America/Toronto", timeoutSeconds: 540, memory: "512MiB" },
+  async () => {
+    const result = await runFirestoreBackup({ trigger: "nightly", budgetMs: 480 * 1000 });
+    if (result.busy) { console.warn("nightlyFirestoreBackup: another backup is running; skipped."); return; }
+    if (!result.ok) throw new Error(`Backup failed: ${result.error}`);
   }
 );
+
+/** Settings › General › Backups & export › Back up now (admin). Fits inside this endpoint's 60 s limit. */
+async function handleBackupNow(req, res) {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+  try {
+    const result = await runFirestoreBackup({ trigger: "manual", budgetMs: 45 * 1000 });
+    if (result.busy) return res.status(409).json({ error: "A backup is already running. Check back in a few minutes." });
+    if (result.tooSoon) return res.status(429).json({ error: "A backup ran in the last 5 minutes. Try again shortly." });
+    res.status(200).json({ ok: result.ok, error: result.error, copy: result.copy, export: result.export });
+  } catch (err) {
+    console.error("backupNow failed:", err);
+    res.status(500).json({ error: "The backup didn't finish. Try again in a minute." });
+  }
+}
