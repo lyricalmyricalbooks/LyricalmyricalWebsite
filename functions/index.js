@@ -5528,13 +5528,22 @@ exports.createShippingLabel = onBrowserRequest(
       const orderMetadata = `Order ${order.orderId || orderId}`.slice(0, 100);
       // Buys one rate. The Shippo transaction id is saved against the order (order-operations) BEFORE the
       // order itself is updated, so an interrupted purchase can be found and reconciled in Shippo.
-      const buyRate = async rateObjectId => {
+      const buyRate = async (rateObjectId, shippoOrderId) => {
+        const body = { rate: rateObjectId, async: false, metadata: orderMetadata, ...(shippoOrderId ? { order: shippoOrderId } : {}) };
         let transaction;
         try {
-          transaction = await callShippo("transactions/", "POST", { rate: rateObjectId, async: false, metadata: orderMetadata }, shippoToken, 45000);
+          transaction = await callShippo("transactions/", "POST", body, shippoToken, 45000);
         } catch (err) {
-          if (shippoDefiniteRefusal(err)) throw await refusedPurchase(err);
-          throw err;
+          if (!shippoDefiniteRefusal(err)) throw err;
+          // A definite refusal bought nothing. If it may be about the linked Shippo Order, buy unlinked once.
+          if (!shippoOrderId) throw await refusedPurchase(err);
+          console.warn("Shippo refused the label linked to its order; retrying without the link:", err?.message || err);
+          try {
+            transaction = await callShippo("transactions/", "POST", { rate: rateObjectId, async: false, metadata: orderMetadata }, shippoToken, 45000);
+          } catch (retryErr) {
+            if (shippoDefiniteRefusal(retryErr)) throw await refusedPurchase(retryErr);
+            throw retryErr;
+          }
         }
         const save = () => operationsRef.set({ shippoTransactionId: transaction.object_id || null, shippoTransactionStatus: transaction.status || null,
           shippoRateId: rateObjectId, shippoTransactionAt: new Date().toISOString() }, { merge: true });
@@ -5635,6 +5644,61 @@ exports.createShippingLabel = onBrowserRequest(
         email: order.customer.email
       };
 
+      // A Shippo Order for this website order. Labels bought through the API without one show up in the
+      // Shippo dashboard with an empty Order column and can't be managed (refunded) from there, so every
+      // purchase is linked to one. Reused while the address is unchanged; a new one after a correction.
+      const shippoOrderBody = () => {
+        const currency = (order.checkoutCurrency || order.currency || "CAD").toUpperCase();
+        const orderItems = (order.items || []).filter(item => item && isPhysicalItem(item));
+        const orderQty = orderItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+        return {
+          to_address: addressTo,
+          from_address: addressFrom,
+          line_items: orderItems.map(item => {
+            const qty = item.quantity || 1;
+            return {
+              title: String(item.title || "Item").slice(0, 200),
+              quantity: qty,
+              total_price: ((item.price || 0) * qty).toFixed(2),
+              currency,
+              weight: (1.5 * qty).toFixed(2),
+              weight_unit: "lb",
+              sku: String(item.id || item.sku || "")
+            };
+          }),
+          placed_at: order.createdAt || new Date().toISOString(),
+          order_number: order.orderId || orderId,
+          order_status: "PAID",
+          shipping_cost: (order.shipping || 0).toFixed(2),
+          shipping_cost_currency: currency,
+          subtotal_price: (order.subtotal || 0).toFixed(2),
+          total_price: (order.total || 0).toFixed(2),
+          total_tax: (order.tax || 0).toFixed(2),
+          currency,
+          weight: (1.5 * Math.max(1, orderQty)).toFixed(2),
+          weight_unit: "lb"
+        };
+      };
+      const addressKey = JSON.stringify(order.customer.address);
+      const createShippoOrder = async () => {
+        const shippoOrder = await callShippo("orders/", "POST", shippoOrderBody(), shippoToken);
+        const id = shippoOrder.object_id || null;
+        if (id) {
+          const now = new Date().toISOString();
+          await Promise.all([
+            orderRef.update({ shippoOrderId: id, updatedAt: now }),
+            operationsRef.set({ shippoOrderId: id, shippoOrderAddress: addressKey }, { merge: true }),
+          ]);
+        }
+        return id;
+      };
+      // Never blocks a purchase: if Shippo won't create the Order, the label is still bought (unlinked).
+      const linkedShippoOrder = async () => {
+        if (order.shippoOrderId && operations.shippoOrderId === order.shippoOrderId && operations.shippoOrderAddress === addressKey) return order.shippoOrderId;
+        try { return await createShippoOrder(); }
+        catch (err) { console.warn("Could not create the Shippo order for the label:", err?.message || err); return null; }
+      };
+
       if (mode === "purchase") {
         if (!shipmentId || !rateId) {
           res.status(400).json({ error: "Choose a Canada Post rate before buying the label." });
@@ -5646,8 +5710,9 @@ exports.createShippingLabel = onBrowserRequest(
           res.status(400).json({ error: "That rate is no longer available. Refresh the choices and try again." });
           return;
         }
+        const shippoOrderId = await linkedShippoOrder();
         await claimPurchase();
-        const transaction = await buyRate(chosenRate.object_id);
+        const transaction = await buyRate(chosenRate.object_id, shippoOrderId);
         res.status(200).json(await recordLabel(transaction, chosenRate.provider || "Canada Post"));
         return;
       }
@@ -5655,42 +5720,8 @@ exports.createShippingLabel = onBrowserRequest(
       // Push-to-Shippo mode: stage a pre-filled Order in the Shippo dashboard
       // (no label purchased) and return the site URL for the admin to finish.
       if (mode === "shippoOrder") {
-        const currency = (order.checkoutCurrency || order.currency || "CAD").toUpperCase();
-        const orderItems = order.items || [];
-        const orderQty = orderItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
-
-        const lineItems = orderItems.map(item => {
-          const qty = item.quantity || 1;
-          return {
-            title: item.title || "Item",
-            quantity: qty,
-            total_price: ((item.price || 0) * qty).toFixed(2),
-            currency,
-            weight: (1.5 * qty).toFixed(2),
-            weight_unit: "lb",
-            sku: item.id || item.sku || ""
-          };
-        });
-
-        const shippoOrder = await callShippo("orders/", "POST", {
-          to_address: addressTo,
-          from_address: addressFrom,
-          line_items: lineItems,
-          placed_at: order.createdAt || new Date().toISOString(),
-          order_number: order.orderId || orderId,
-          order_status: "PAID",
-          shipping_cost: (order.shipping || 0).toFixed(2),
-          shipping_cost_currency: currency,
-          subtotal_price: (order.subtotal || 0).toFixed(2),
-          total_price: (order.total || 0).toFixed(2),
-          total_tax: (order.tax || 0).toFixed(2),
-          currency,
-          weight: (1.5 * orderQty).toFixed(2),
-          weight_unit: "lb"
-        }, shippoToken);
-
+        const shippoOrderId = await createShippoOrder();
         await orderRef.update({
-          shippoOrderId: shippoOrder.object_id || null,
           updatedAt: new Date().toISOString(),
           activity: admin.firestore.FieldValue.arrayUnion({
               type: "note",
@@ -5701,7 +5732,7 @@ exports.createShippingLabel = onBrowserRequest(
 
         res.status(200).json({
           dashboardUrl: SHIPPO_DASHBOARD_URL,
-          shippoOrderId: shippoOrder.object_id || null,
+          shippoOrderId,
           orderNumber: order.orderId || orderId
         });
         return;
@@ -5780,9 +5811,10 @@ exports.createShippingLabel = onBrowserRequest(
         return rateVal < minVal ? rate : min;
       }, rates[0]);
 
+      const shippoOrderId = await linkedShippoOrder();
       await claimPurchase();
       // 6. Purchase Rate to create Transaction (Label); its id is saved before the order is updated.
-      const transaction = await buyRate(cheapestRate.object_id);
+      const transaction = await buyRate(cheapestRate.object_id, shippoOrderId);
       // 7. Update the order and release the lock together
       res.status(200).json(await recordLabel(transaction, cheapestRate.provider));
 

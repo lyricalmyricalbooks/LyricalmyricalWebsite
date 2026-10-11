@@ -11,7 +11,7 @@ const { addressKey, packingKey, shippoTransactionOutcome } = require("./fulfillm
 
 const ADMIN = { email: "lyricalmyricalbooks@gmail.com", email_verified: true };
 
-function harness({ transaction, identity = ADMIN, pending = false } = {}) {
+function harness({ transaction, identity = ADMIN, pending = false, shippoOrder, refuseLinked = false } = {}) {
   const order = { orderId: "AB-1", paymentStatus: "paid", status: "processing", customer: { name: "Reader", email: "reader@example.com", address: { street: "1 Main", city: "Toronto", state: "ON", zip: "M1M1M1", country: "CA" } }, items: [{ id: "b", title: "Book", quantity: 1, format: "Paperback" }] };
   const ops = { addressReviewed: addressKey(order), packed: packingKey(order), quotedShipmentId: "sh_1", quotedAddress: JSON.stringify(order.customer.address), ...(pending ? { labelPurchasePending: true, labelPurchaseStartedAt: "2026-10-01T00:00:00.000Z" } : {}) };
   const docs = { orders: { A: order }, "order-operations": { A: ops }, settings: { website: {} } };
@@ -41,10 +41,12 @@ function harness({ transaction, identity = ADMIN, pending = false } = {}) {
     : require(name);
   const shippoCalls = [];
   const fetch = async (url, init = {}) => {
-    shippoCalls.push({ url, method: init.method });
+    shippoCalls.push({ url, method: init.method, body: init.body ? JSON.parse(init.body) : undefined });
+    if (String(url).endsWith("/orders/") && shippoOrder) return { ok: true, json: async () => shippoOrder };
     if (String(url).includes("shipments/sh_1")) return { ok: true, json: async () => ({ rates: [{ object_id: "r1", provider: "Canada Post", amount: "12.00" }] }) };
     if (String(url).includes("transactions/")) {
       if (transaction instanceof Error) throw transaction;
+      if (refuseLinked && JSON.parse(init.body).order) return { ok: false, status: 400, text: async () => "order is invalid" };
       return { ok: true, json: async () => transaction };
     }
     throw new Error(`unexpected fetch ${url}`);
@@ -104,4 +106,34 @@ test("shippoTransactionOutcome treats only ERROR as definite", () => {
   expect(shippoTransactionOutcome({ status: "ERROR", messages: [{ text: "bad" }] })).toMatchObject({ definiteFailure: true, reasons: "bad" });
   expect(shippoTransactionOutcome({ status: "WAITING" }).definiteFailure).toBe(false);
   expect(shippoTransactionOutcome(undefined).definiteFailure).toBe(false);
+});
+
+// Labels bought without a Shippo Order show an empty Order column in Shippo and can't be refunded
+// from its dashboard (October 2026, order G7PB-597756-LOSE), so each purchase is linked to one.
+const transactionBodies = app => app.shippoCalls.filter(c => String(c.url).includes("transactions/")).map(c => c.body);
+
+test("a bought label is linked to a Shippo Order, saved on the order for the next purchase", async () => {
+  const app = harness({ transaction: { status: "SUCCESS", object_id: "tx1", label_url: "https://l", tracking_number: "T1" }, shippoOrder: { object_id: "so_1" } });
+  const res = await app.call({ mode: "purchase", shipmentId: "sh_1", rateId: "r1" });
+  expect(res.code).toBe(200);
+  expect(transactionBodies(app)).toEqual([expect.objectContaining({ rate: "r1", order: "so_1" })]);
+  const orderCall = app.shippoCalls.find(c => String(c.url).endsWith("/orders/"));
+  expect(orderCall.body).toMatchObject({ order_number: "AB-1", order_status: "PAID", to_address: expect.objectContaining({ city: "Toronto" }) });
+  expect(app.docs.orders.A.shippoOrderId).toBe("so_1");
+  expect(app.ops()).toMatchObject({ shippoOrderId: "so_1", shippoOrderAddress: JSON.stringify(app.docs.orders.A.customer.address) });
+});
+
+test("if Shippo won't create the Order, the label is still bought (unlinked)", async () => {
+  const app = harness({ transaction: { status: "SUCCESS", object_id: "tx1", label_url: "https://l", tracking_number: "T1" } });
+  const res = await app.call({ mode: "purchase", shipmentId: "sh_1", rateId: "r1" });
+  expect(res.code).toBe(200);
+  expect(transactionBodies(app)).toEqual([expect.not.objectContaining({ order: expect.anything() })]);
+});
+
+test("a refusal of the linked purchase is retried once without the link (nothing was bought)", async () => {
+  const app = harness({ transaction: { status: "SUCCESS", object_id: "tx1", label_url: "https://l", tracking_number: "T1" }, shippoOrder: { object_id: "so_1" }, refuseLinked: true });
+  const res = await app.call({ mode: "purchase", shipmentId: "sh_1", rateId: "r1" });
+  expect(res.code).toBe(200);
+  expect(transactionBodies(app).map(b => b.order)).toEqual(["so_1", undefined]);
+  expect(app.ops().labelPurchasePending).toBe(false);
 });
