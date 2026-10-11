@@ -17,6 +17,11 @@ describe('index.html shell', () => {
     const own = [...shell.matchAll(new RegExp(`${escaped}/([^"'\\s<>]+\\.[a-z0-9]+)`, 'gi'))].map(m => m[1]);
     for (const file of own) expect(existsSync(join(root, 'public', file)), file).toBe(true);
   });
+  it('leaves the Search Console token to Studio (Text & labels › Site & sharing)', () => {
+    // useSEO (src/app/lib/seo.ts) removes this tag whenever Studio's token is empty, so one written here never reaches
+    // the prerendered pages Google reads. The token belongs in Studio, which useSEO and the prerender then emit.
+    expect(shell).not.toMatch(/name="google-site-verification"/);
+  });
   it('leaves the sharing image to the Studio-controlled runtime metadata', () => {
     expect(shell).not.toMatch(/property="og:image"/);
     expect(shell).not.toMatch(/name="twitter:image"/);
