@@ -451,12 +451,19 @@ export default function BookDetail() {
     { key: "specIsbn", icon: <Package size={11} />, value: bk.isbn },
     { key: "specWeight", icon: <Weight size={11} />, value: bk.weight },
   ].filter((r) => r.value);
-  const hasSpecs = showSpecs !== false && regionVisible(regionDesign, "productSpecs") && (specRows.length > 0 || isLowStock);
+  // Books › edit › Publishing details › More details: the owner's own label/value rows.
+  const extraRows = (Array.isArray(bk.extraDetails) ? bk.extraDetails : [])
+    .filter((r: any) => r && typeof r.label === "string" && typeof r.value === "string" && r.label.trim() && r.value.trim())
+    .map((r: any, i: number) => ({ key: `extra-${i}`, label: r.label.trim(), value: r.value.trim() }));
+  const hasSpecs = showSpecs !== false && regionVisible(regionDesign, "productSpecs") && (specRows.length > 0 || extraRows.length > 0 || isLowStock);
 
   const renderSpecs = () => pdpSpecsRecord ? (
     <dl className="fm-pdp-record w-full text-left">
       {specRows.map((r) => (
         <Fragment key={r.key}><dt>{getCopy(settings?.design, r.key)}</dt><dd>{r.value}</dd></Fragment>
+      ))}
+      {extraRows.map((r: any) => (
+        <Fragment key={r.key}><dt>{r.label}</dt><dd style={{ whiteSpace: "pre-line" }}>{r.value}</dd></Fragment>
       ))}
       {isLowStock && (
         <><dt>{getCopy(settings?.design, "specAvailability")}</dt><dd style={{ color: lowInventoryColor }}>{getCopy(settings?.design, "specRemaining", { count: stockLevel })}</dd></>
@@ -465,6 +472,7 @@ export default function BookDetail() {
   ) : (
     <div className="grid grid-cols-2 gap-3 w-full text-left">
       {specRows.map((r) => <SpecItem key={r.key} icon={r.icon} label={getCopy(settings?.design, r.key)} value={r.value} />)}
+      {extraRows.map((r: any) => <SpecItem key={r.key} icon={<BookOpen size={11} />} label={r.label} value={r.value} />)}
       {isLowStock && (
         <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label={getCopy(settings?.design, "specAvailability")} value={getCopy(settings?.design, "specRemaining", { count: stockLevel })} />
       )}
