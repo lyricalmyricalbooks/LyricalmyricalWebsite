@@ -1826,3 +1826,13 @@ order-confirmation email both use them. Emailed download links stay outside brow
 - Items 16, 37, 38, 64, 66 and 138 of the round-2 list were already fixed on this branch (`inventoryApi.adjustStock`, `taxRatesEdit`,
   `checkoutClosed`, `planPriceChange`/`eachBook`, the Location postal code/country) and are pinned by `settingsRound2.test.ts`.
 - **Deploy:** Functions with the frontend. No Firestore rule or index changes (`adminSecrets/{doc}` already admin-only).
+
+## URL redirects (11 October 2026)
+
+Settings › General › **URL redirects** (`admin/RedirectsCard.tsx`) maps an old shop address to a new path or `https://` link,
+stored in the public, admin-written `settings/redirects` doc (`{ items: [{from, to}] }`; no new rules). Pure rules in
+`features/site/redirects.ts` (`cleanRedirects`, `redirectProblem` refuses home, shop routes, duplicates, self and loops,
+`findRedirect`, `parseRedirectLines` for pasted lists). The storefront follows a redirect only from a "missing" view —
+`NotFoundPage`, `BookDetail` with no book, `PageView` with no page — through `useMissingRedirect` (reads
+`publicApi.getRedirects`, never in the Studio preview, keeps the shopper's query, stops after `MAX_REDIRECT_HOPS`), so a real
+page is never hijacked. These are browser redirects, not HTTP 301s. No shopper-visible words, so no Text & labels entry.

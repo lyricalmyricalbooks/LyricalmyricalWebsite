@@ -1,5 +1,6 @@
 import { StoreFooter } from "./StoreFooter";
 import { NotFoundContent } from "./NotFoundPage";
+import { useMissingRedirect } from "./useMissingRedirect";
 import { StoreChrome } from "./StoreChrome";
 import { useEffect } from "react";
 import { useParams } from "react-router";
@@ -111,6 +112,7 @@ export function PageView() {
   const themedText = d?.textColor || "#f3f1ee";
 
   const shown = page || policyPage;
+  useMissingRedirect(!shown && !loadError && !siteLoading && fresh);
   // A page published after this browser cached the site isn't in that cache yet:
   // keep showing "Loading" until the fresh read, rather than a false 404.
   if (!shown && loadError) {
