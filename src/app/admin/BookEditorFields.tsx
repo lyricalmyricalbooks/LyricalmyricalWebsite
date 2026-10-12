@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { joinWeight, splitWeight, WEIGHT_UNITS, type WeightUnit } from "./bookEditorState";
 import { isMediaDenied, mediaApi } from "./mediaApi";
-import { mainUrl, type MediaItem } from "./studio/mediaLibrary";
+import { mainUrl, mediaRefOf, type MediaItem } from "./studio/mediaLibrary";
+import type { BookPhotoFile } from "./bookPhotoUpload";
 import { Dialog, SelectField, TextField } from "./riso/components";
 
 /** Stored as "450 g" / "0.5 kg" / "1 lb" / "8 oz" — the format shippingEngine.parseWeightGrams (client and server) reads. */
@@ -24,7 +25,14 @@ export function WeightField({ label, value, onChange, hint }: { label: string; v
 }
 
 /** Images › Choose from library: Studio's media records read directly (no Studio context needed). */
-export function MediaLibraryDialog({ onClose, onChoose }: { onClose: () => void; onChoose: (url: string, alt: string) => void }) {
+/** A library picture's resized copies, saved on the book photo so the shop can use `srcset`. */
+function librarySizes(m: MediaItem): Omit<BookPhotoFile, "url"> {
+  const ref = mediaRefOf(m);
+  if (ref.srcset.length < 2) return {};
+  return { srcset: ref.srcset, ...(ref.width && ref.height ? { width: ref.width, height: ref.height } : {}) };
+}
+
+export function MediaLibraryDialog({ onClose, onChoose }: { onClose: () => void; onChoose: (url: string, alt: string, sizes: Omit<BookPhotoFile, "url">) => void }) {
   const [items, setItems] = useState<MediaItem[] | null>(null);
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
@@ -46,7 +54,7 @@ export function MediaLibraryDialog({ onClose, onChoose }: { onClose: () => void;
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 10 }}>
           {shown.map((m) => (
             <button key={m.id} type="button" className="rp-btn rp-btn-ghost" style={{ display: "block", padding: 4, height: "auto" }}
-              aria-label={`Add ${m.alt || m.name}`} onClick={() => onChoose(mainUrl(m), m.alt || "")}>
+              aria-label={`Add ${m.alt || m.name}`} onClick={() => onChoose(mainUrl(m), m.alt || "", librarySizes(m))}>
               <img src={mainUrl(m)} alt="" loading="lazy" decoding="async" width={100} height={130} style={{ width: "100%", height: 130, objectFit: "cover" }} />
               <span className="rp-hint" style={{ display: "block", overflowWrap: "anywhere" }}>{m.name}</span>
             </button>

@@ -6,6 +6,7 @@ import { designNumber } from "./designNumber";
 import { getCopy } from "./storeCopy";
 import { contentMaxWidth } from "./headerNav";
 import { regionProps } from "./storefrontRegions";
+import { CARD_PHOTO_SIZES, photoSrcSet } from "./photoSources";
 
 export default function RecentlyViewedRow({ excludeId }: { excludeId?: string }) {
   const { ids } = useRecentlyViewed();
@@ -36,6 +37,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
                 <div className="relative aspect-[3/4] fm-surface rounded-xl overflow-hidden border border-white/[0.05]">
                   <img
                     src={book.photos?.[0]?.url || placeholderImage(settings?.design)}
+                    {...photoSrcSet(book.photos?.[0], CARD_PHOTO_SIZES)}
                     alt={book.title}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     loading="lazy"

@@ -36,13 +36,14 @@ function fakeBrowser(width: number, height: number, encodes = "image/webp") {
 }
 
 describe("prepareMediaVariants", () => {
-  it("makes WebP copies 480/960/1600 px wide, keeping the proportions", async () => {
+  it("makes WebP copies 480/960/1600/2400 px wide, keeping the proportions", async () => {
     fakeBrowser(3000, 2000);
     const out = await prepareMediaVariants(new File(["x"], "Summer.JPG", { type: "image/jpeg" }));
     expect(out.resized).toBe(true);
     expect([out.width, out.height]).toEqual([3000, 2000]);
     expect(out.variants.map(v => [v.width, v.height, v.file.name, v.file.type])).toEqual([
       [480, 320, "Summer-480w.webp", "image/webp"], [960, 640, "Summer-960w.webp", "image/webp"], [1600, 1067, "Summer-1600w.webp", "image/webp"],
+      [2400, 1600, "Summer-2400w.webp", "image/webp"],
     ]);
   });
 
@@ -59,10 +60,10 @@ describe("uploadMediaImage", () => {
   it("uploads every copy under assets/media/<id>/ and saves one record", async () => {
     fakeBrowser(2000, 1000);
     const item = await uploadMediaImage(new File(["x"], "banner.png", { type: "image/png" }), undefined, 1700000000000);
-    expect(uploads).toEqual([480, 960, 1600].map(w => `assets/media/${item.id}/1700000000000-${w}w.webp`));
+    expect(uploads).toEqual([480, 960, 1600, 2000].map(w => `assets/media/${item.id}/1700000000000-${w}w.webp`));
     expect(saved).toEqual([item]);
-    expect(item).toMatchObject({ name: "banner.png", alt: "", focalX: 50, focalY: 50, width: 2000, height: 1000, widths: [480, 960, 1600] });
-    expect(item.bytes).toBe(480 + 960 + 1600);
+    expect(item).toMatchObject({ name: "banner.png", alt: "", focalX: 50, focalY: 50, width: 2000, height: 1000, widths: [480, 960, 1600, 2000] });
+    expect(item.bytes).toBe(480 + 960 + 1600 + 2000);
     expect(item.variants[2].url).toBe(`https://cdn.test/assets/media/${item.id}/1700000000000-1600w.webp`);
   });
 
