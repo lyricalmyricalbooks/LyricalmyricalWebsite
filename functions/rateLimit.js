@@ -80,6 +80,9 @@ const LIMITS = {
   // Endpoints that cost money per call (Shippo rates / address checks, PayPal API).
   shippo: { max: 60, windowMs: 10 * 60 * 1000 },
   paypal: { max: 20, windowMs: 10 * 60 * 1000 },
+  // Checkout address finder (Google Places, billed per lookup): per connection, and for the whole shop per day.
+  address: { max: 120, windowMs: 10 * 60 * 1000 },
+  addressShopDay: { max: 3000, windowMs: 24 * 60 * 60 * 1000 },
 };
 
 module.exports = { clientIpOf, ipKey, serverGeoCountry, nextWindow, hitLimit, LIMITS };

@@ -40,7 +40,7 @@ import { checkoutDetailProblems, detailInputId, expressWalletEnabled, postalCode
 import { comboboxInputProps, optionId } from "./features/site/comboboxAria";
 import { createLatestGuard, signalWithTimeout, RATES_TIMEOUT_MS } from "./features/site/latestRequest";
 import { holdLimitsFrom, holdWarnings } from "./features/site/holdLimits";
-import { searchAddresses, type AddressSuggestion } from "./features/site/addressSuggest";
+import { applySuggestion, newAddressSession, resolveAddress, searchAddresses, type AddressSuggestion } from "./features/site/addressSuggest";
 import { arrivalDateLabel, freeShippingGap } from "./features/site/checkoutNudges";
 import { guessCountryName, parsePinned } from "./features/site/countryPicker";
 import { CountryField } from "./features/site/CountryField";
@@ -148,29 +148,41 @@ function Field({
 }
 
 // ─── Street address with suggestions while typing ────────────────────────────
-function AddressField({ label, value, country, onChange, onPick, listLabel, attribution, id, error }: {
-  label: string; value: string; country: string;
+function AddressField({ label, value, country, state, onChange, onPick, listLabel, attribution, googleAttribution, id, error }: {
+  label: string; value: string; country: string; state: string;
   onChange: (v: string) => void; onPick: (s: AddressSuggestion) => void;
-  listLabel: string; attribution: string; id?: string; error?: string;
+  listLabel: string; attribution: string; googleAttribution: string; id?: string; error?: string;
 }) {
   const listId = useId();
   const [items, setItems] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const typed = useRef(false);
+  const session = useRef(newAddressSession());
+  const picking = useRef(0);
 
   useEffect(() => {
-    if (!typed.current || value.trim().length < 4) { setItems([]); return; }
+    if (!typed.current || value.trim().length < 4) { setItems([]); setOpen(false); return; }
     const ctrl = new AbortController();
     const t = setTimeout(() => {
-      searchAddresses(value, country, ctrl.signal)
-        .then(list => { setItems(list); setActive(-1); setOpen(list.length > 0); })
+      searchAddresses(value, country, ctrl.signal, { state, sessionToken: session.current })
+        .then(list => { if (ctrl.signal.aborted) return; setItems(list); setActive(-1); setOpen(list.length > 0); })
         .catch(() => {});
-    }, 300);
+    }, 250);
     return () => { clearTimeout(t); ctrl.abort(); };
-  }, [value, country]);
+  }, [value, country, state]);
 
-  const pick = (s: AddressSuggestion) => { typed.current = false; setOpen(false); setItems([]); onPick(s); };
+  const pick = async (s: AddressSuggestion) => {
+    typed.current = false; setOpen(false); setItems([]);
+    const ticket = ++picking.current;
+    const full = await resolveAddress(s, value, session.current).catch(() => ({ ...s, street: s.street || s.main || s.label }));
+    session.current = newAddressSession();
+    // The shopper typed again while the address was looked up: keep what they typed.
+    if (ticket !== picking.current || typed.current) return;
+    onPick(full);
+  };
+
+  const credit = items.some(s => s.source === "google") ? googleAttribution : attribution;
 
   return (
     <div className="relative"
@@ -178,9 +190,10 @@ function AddressField({ label, value, country, onChange, onPick, listLabel, attr
         if (!open || items.length === 0) return;
         if (e.key === "ArrowDown") { e.preventDefault(); setActive(a => (a + 1) % items.length); }
         else if (e.key === "ArrowUp") { e.preventDefault(); setActive(a => (a <= 0 ? items.length - 1 : a - 1)); }
-        else if (e.key === "Enter" && active >= 0) { e.preventDefault(); pick(items[active]); }
+        else if (e.key === "Enter" && active >= 0) { e.preventDefault(); void pick(items[active]); }
         else if (e.key === "Escape") setOpen(false);
       }}
+      onFocus={() => { if (typed.current && items.length) setOpen(true); }}
       onBlur={() => setTimeout(() => setOpen(false), 150)}>
       <Field label={label} value={value} onChange={v => { typed.current = true; onChange(v); }} autoComplete="address-line1" required id={id} error={error}
         inputProps={comboboxInputProps({ open: open && items.length > 0, listId, activeIndex: active, count: items.length })} />
@@ -188,14 +201,16 @@ function AddressField({ label, value, country, onChange, onPick, listLabel, attr
         <ul id={listId} role="listbox" aria-label={listLabel} data-studio-target="style:checkout" data-studio-label="Address suggestions"
           className="fm-address-suggest absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-lg border border-slate-300 bg-white shadow-lg">
           {items.map((s, i) => (
-            <li key={s.label} id={optionId(listId, i)} role="option" aria-selected={i === active}>
-              <button type="button" tabIndex={-1} role="presentation" onMouseDown={e => e.preventDefault()} onClick={() => pick(s)}
+            <li key={s.placeId || s.label} id={optionId(listId, i)} role="option" aria-selected={i === active}>
+              <button type="button" tabIndex={-1} role="presentation" onMouseDown={e => e.preventDefault()} onClick={() => void pick(s)}
                 className={`block w-full px-3.5 py-2.5 text-left text-sm text-slate-900 ${i === active ? "bg-slate-100" : "hover:bg-slate-50"}`}>
-                {s.label}
+                {s.secondary
+                  ? <><span className="block font-medium">{s.main}</span><span className="block text-xs text-slate-500">{s.secondary}</span></>
+                  : s.label}
               </button>
             </li>
           ))}
-          {attribution && <li role="presentation" className="px-3.5 py-1.5 text-[10px] text-slate-500">{attribution}</li>}
+          {credit && <li role="presentation" className="px-3.5 py-1.5 text-[10px] text-slate-500">{credit}</li>}
         </ul>
       )}
     </div>
@@ -1956,10 +1971,10 @@ export function Checkout() {
                   value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v, state: v === customer.address.country ? customer.address.state : "" } })} />
                 {!digitalOnly && (checkoutDesign.hideAddressSuggestions
                   ? <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="address-line1" required id={detailInputId("street")} error={fieldErrors.street} />
-                  : <AddressField label={c("coAddress")} value={customer.address.street} country={customer.address.country} id={detailInputId("street")} error={fieldErrors.street}
-                      listLabel={c("coAddressSuggestions")} attribution={c("coAddressAttribution")}
+                  : <AddressField label={c("coAddress")} value={customer.address.street} country={customer.address.country} state={customer.address.state} id={detailInputId("street")} error={fieldErrors.street}
+                      listLabel={c("coAddressSuggestions")} attribution={c("coAddressAttribution")} googleAttribution={c("coAddressAttributionGoogle")}
                       onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: v } }))}
-                      onPick={sug => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: sug.street, city: sug.city || prev.address.city, state: sug.state || prev.address.state, zip: sug.zip || prev.address.zip, country: sug.country || prev.address.country } }))} />)}
+                      onPick={sug => setCustomer(prev => ({ ...prev, address: { ...prev.address, ...applySuggestion(prev.address, sug, { unitField: !checkoutDesign.hideCheckoutAddressUnit }) } }))} />)}
                 {!digitalOnly && !checkoutDesign.hideCheckoutAddressUnit && <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Apartment or unit"><Field label={c("coAddressUnit")} value={customer.address.unit} onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, unit: v } }))} autoComplete="address-line2" /></div>}
                 <div className={`grid grid-cols-1 gap-3 ${digitalOnly ? "" : "sm:grid-cols-3"}`}>
                   {!digitalOnly && <Field label={c("coCity")} value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required id={detailInputId("city")} error={fieldErrors.city} />}

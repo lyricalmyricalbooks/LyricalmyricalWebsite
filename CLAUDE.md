@@ -1850,6 +1850,21 @@ order-confirmation email both use them. Emailed download links stay outside brow
   `checkoutClosed`, `planPriceChange`/`eachBook`, the Location postal code/country) and are pinned by `settingsRound2.test.ts`.
 - **Deploy:** Functions with the frontend. No Firestore rule or index changes (`adminSecrets/{doc}` already admin-only).
 
+## Checkout address finder (12 October 2026)
+
+`features/site/addressSuggest.ts` feeds the street box's suggestions (`AddressField` in `Checkout.tsx`). It first asks the
+`validateAddress` Function (`action: "addressSuggest"`, then `"addressDetails"` on pick; Google Places (New) with a session
+token, `functions/addressLookup.js`) and falls back to Photon/OpenStreetMap when the answer has `fallback: true` (no key, Google
+error, rate limit; the browser then skips Google for 30 / 2 minutes). The Google key lives only in admin-only
+`adminSecrets/addressLookup.googlePlacesKey` (Settings › Shipping › Carrier & labels › **Address finder at checkout**,
+`admin/AddressFinderCard.tsx`, **Check key** = admin action `addressKeyCheck`); it is never sent to browsers. Limits:
+`LIMITS.address` per connection and `LIMITS.addressShopDay` (3,000/day) for the whole shop. The Photon path parses units
+(`parseTypedAddress`: "12-456 Main St" outside the US, Apt/Unit/Suite/#), spells out trailing St/Ave/W (`expandStreet`), ranks
+the typed house number first, biases to the chosen province and fills a postal code only for a matched house. Picking goes
+through `applySuggestion`, which never keeps a postal code/province from a different town and writes a parsed unit into the
+unit box (or the street when Studio hides that box). Credit lines: Text & labels › Checkout › `coAddressAttribution` /
+`coAddressAttributionGoogle`. Deploy Functions with the frontend; no rule or index change.
+
 ## URL redirects (11 October 2026)
 
 Settings › General › **URL redirects** (`admin/RedirectsCard.tsx`) maps an old shop address to a new path or `https://` link,
