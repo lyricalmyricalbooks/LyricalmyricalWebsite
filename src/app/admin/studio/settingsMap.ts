@@ -137,7 +137,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   ],
   productPage: [
     { title: "Page layout", keys: ["productImageLayout", "productContentPosition", "productAlignment", "productDetailsLayout"] },
-    { title: "Photos", keys: ["productImageMaxWidth", "productImageAspect", "productPhotoOutline", "productImageFit", "productImageShadow", "productImageHoverScale", "showZoom", "showAmbientGlow", "glowIntensity", "productImageGlowColor"] },
+    { title: "Photos", keys: ["productImageMaxWidth", "productImageAspect", "productImageFrameMode", "productImageAspectLandscape", "productPhotoOutline", "productImageFit", "productImageShadow", "productImageHoverScale", "showZoom", "showAmbientGlow", "glowIntensity", "productImageGlowColor"] },
     { title: "Title & add-to-bag button", keys: ["productTitleSize", "productSubtitleWeight", "addToBagLabel", "productCtaWidth", "productCtaSize", "productCtaAnimation"] },
     { title: "Extras on the page", keys: ["showSpecs", "showPdpEditionDetails", "showSocialShare", "showBackInStock", "showBundleWidget", "productBundleLayout", "showRelatedProducts", "recentlyViewedCount", "lowStockProductThreshold"] },
   ],
