@@ -56,6 +56,12 @@ export const publicApi = {
     return snap.exists() ? snap.data() : null;
   },
 
+  // Today's CAD→USD/EUR rates, saved by the scheduled refreshExchangeRates Function; checkout charges the same numbers.
+  getExchangeRates: async () => {
+    const snap = await getDoc(doc(liteDb, "settings", "exchangeRates"));
+    return snap.exists() ? snap.data() : null;
+  },
+
   // URL redirects (Settings › General): read only when a shopper lands on a missing page; one small public doc.
   getRedirects: async (): Promise<Redirect[]> => {
     const snap = await getDoc(doc(liteDb, "settings", REDIRECTS_DOC));
