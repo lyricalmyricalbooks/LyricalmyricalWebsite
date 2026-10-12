@@ -385,6 +385,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "categoryChipShowCounts", label: "Show counts on chips", kind: "toggle" },
       { key: "showCatalogControls", label: "Show search, sort & in-stock bar", kind: "toggle" },
       { key: "searchResultLimit", label: "Search pop-up: max results shown", kind: "number", min: 1, max: 24, step: 1 },
+      { key: "searchSuggestions", label: "Search pop-up: popular searches (comma-separated, blank = none)", kind: "textarea" },
     ],
   },
   {

@@ -83,6 +83,11 @@ export function SearchOverlay({
     return () => clearTimeout(t);
   }, [open, query, results.length]);
 
+  const suggestions = useMemo(() => {
+    const raw = typeof design?.searchSuggestions === "string" ? design.searchSuggestions : "";
+    return [...new Set(raw.split(/[,\n]/).map((t: string) => t.trim()).filter(Boolean))].slice(0, 12) as string[];
+  }, [design?.searchSuggestions]);
+
   return (
     <AnimatePresence>
       {open && (
@@ -141,6 +146,23 @@ export function SearchOverlay({
                 <p {...regionProps("searchPrompt")} className="px-5 py-10 text-center text-[10px] tracking-[0.3em] uppercase text-white/30">
                   {c("searchPrompt")}
                 </p>
+              )}
+              {query.trim() === "" && suggestions.length > 0 && (
+                <div {...regionProps("searchSuggestions")} className="px-5 pb-6 text-center">
+                  <p className="mb-3 text-[10px] tracking-[0.3em] uppercase text-white/30">{c("searchSuggestionsLabel")}</p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {suggestions.map(term => (
+                      <button
+                        key={term}
+                        type="button"
+                        onClick={() => { setQuery(term); inputRef.current?.focus(); }}
+                        className="rounded-full border border-white/20 px-3 py-1.5 text-[11px] text-white/70 hover:bg-white/10 hover:text-white"
+                      >
+                        {term}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
               {query.trim() !== "" && results.length === 0 && (
                 <p {...regionProps("searchEmpty")} className="px-5 py-10 text-center text-[10px] tracking-[0.3em] uppercase text-white/30">
