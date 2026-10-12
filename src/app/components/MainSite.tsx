@@ -18,6 +18,7 @@ import { BootSplash } from "./BootSplash";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
 import { preorderActive } from "../features/site/preorder";
+import { comingSoonActive } from "../features/site/comingSoon";
 import { buildNavItems, categoryNames } from "../features/site/navItems";
 import { contentMaxWidth } from "../features/site/headerNav";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
@@ -583,6 +584,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showQuickAdd = storefrontDesign?.showQuickAdd === true;
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
   const showPreorderBadge = storefrontDesign?.showPreorderBadge ?? true;
+  const showComingSoonBadge = storefrontDesign?.showComingSoonBadge ?? true;
   const saleBadgeLabel = storefrontDesign?.saleBadgeLabel || "SALE";
   const showNewBadge = storefrontDesign?.showNewBadge ?? false;
   const newBadgeLabel = storefrontDesign?.newBadgeLabel || "NEW";
@@ -805,7 +807,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             {filteredItems.map((item: any, index: number) => {
               const slug = getBookSlug(item);
               const stock = item.stockLevel ?? 999;
-              const isOutOfStock = stock === 0;
+              // Coming soon books often have no stock yet: they get their own badge, never "Sold out".
+              const isComingSoon = comingSoonActive(item);
+              const isOutOfStock = !isComingSoon && stock === 0;
               const isLowStock = stock > 0 && stock !== 999 && stock <= designNumber(activeDesign, "lowStockCardThreshold", 5);
               // A book sold in editions shows its cheapest edition and never a SALE badge (formatBookPrice does the same).
               const onSale = showsSale(item);
@@ -854,7 +858,17 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       {isOutOfStock && showSoldOutBadge && <SoldOutBadge design={storefrontDesign} label={soldOutLabel} />}
                       {/* Status ribbons */}
                       <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5">
-                        {!isOutOfStock && showPreorderBadge && preorderActive(item) && (
+                        {isComingSoon && showComingSoonBadge && (
+                          <span
+                            data-studio-target="style:labels|copy:Product page"
+                            data-studio-label="Coming soon badge"
+                            style={{ backgroundColor: storefrontDesign?.badgeBgPrimary || "var(--accent, #e8402a)", color: storefrontDesign?.badgeTextPrimary || "var(--on-accent, #100f0d)" }}
+                            className="fm-coming-soon-badge text-[8px] font-bold tracking-widest px-2 py-1 uppercase border border-white/10 rounded-sm"
+                          >
+                            {getCopy(activeDesign, "comingSoonBadge")}
+                          </span>
+                        )}
+                        {!isOutOfStock && !isComingSoon && showPreorderBadge && preorderActive(item) && (
                           <span
                             data-studio-target="style:labels|copy:Product page"
                             data-studio-label="Pre-order badge"
@@ -880,7 +894,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                             {newBadgeLabel}
                           </span>
                         )}
-                        {!isOutOfStock && isLowStock && (
+                        {!isOutOfStock && !isComingSoon && isLowStock && (
                           <span 
                             style={{ 
                               color: storefrontDesign?.lowInventoryColor || "#f59e0b",
@@ -904,7 +918,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                           }}
                           className={`w-full py-3 text-[10px] tracking-[0.2em] font-bold text-center transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 store-btn-primary ${storefrontButtonShadow ? "shadow-xl" : ""} ${storefrontButtonUppercase ? "uppercase" : ""}`}
                         >
-                          {isOutOfStock ? soldOutLabel : storefrontCtaText}
+                          {isOutOfStock ? soldOutLabel : isComingSoon ? getCopy(activeDesign, "comingSoonBadge") : storefrontCtaText}
                         </span>
                       </div>
                     </div>

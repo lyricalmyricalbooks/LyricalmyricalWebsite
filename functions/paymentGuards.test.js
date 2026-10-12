@@ -40,6 +40,10 @@ test('only live, published books (as an edition when they have editions) can be 
   expect(purchaseProblem({ status: 'published', scheduleDate: '2026-10-06' }, null, now)).toBeNull();
   expect(purchaseProblem({ status: 'published', variants: [{ id: 'pb' }] }, null, now)).toBe('choose_edition');
   expect(purchaseProblem({ status: 'published', variants: [{ id: 'pb' }] }, 'pb', now)).toBeNull();
+  // Coming soon books are shown but never sold, whatever the browser sends.
+  expect(purchaseProblem({ status: 'published', comingSoon: true }, null, now)).toBe('unavailable');
+  expect(purchaseProblem({ status: 'published', comingSoon: true, variants: [{ id: 'pb' }] }, 'pb', now)).toBe('unavailable');
+  expect(purchaseProblem({ status: 'published', comingSoon: false }, null, now)).toBeNull();
 });
 
 test('PayPal partial refunds add up to a full refund', () => {

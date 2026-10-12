@@ -1125,9 +1125,31 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                 {lowStock && <p className="be-warn" role="status">⚠ Low stock. Consider reprinting or turning on backorders.</p>}
               </SectionCard>
               )}
+              {!giftCard && <SectionCard title="Coming soon" description="Show this book in the shop before it can be bought. Shoppers get a Coming soon button that signs them up for an email when it's out.">
+                <div className="be-toggles">
+                  <Toggle label="Show as Coming soon (not for sale yet)" checked={!!formData.comingSoon} onChange={(v) => setFormData((prev: any) => ({ ...prev, comingSoon: v, ...(v ? { preorder: false } : {}) }))} />
+                </div>
+                {formData.comingSoon && (
+                  <>
+                    <div className="be-grid">
+                      <div>
+                        <p className="be-note">Shown date = <strong>{formData.publishDate || "none (just “Coming soon”)"}</strong>. Set it in Details › Publication date to show “Coming {formData.publishDate ? formatReleaseDate(releaseDateOf(formData), "en-CA") : "<date>"}”.</p>
+                        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => setTab("details")}>Go to Publication date</button>
+                      </div>
+                      <div className="be-stock-status"><StatusBadge tone="info">Coming soon · not for sale</StatusBadge></div>
+                    </div>
+                    <p className="rp-hint">
+                      Shoppers see a “Coming soon” badge on shop cards and a Coming soon button on the book page instead of Add to bag; pressing it lets them leave their email.
+                      {" "}When the book is ready, turn this switch off and save: it goes on sale and everyone who signed up gets an “Out now” email (for an edition that has stock, or isn't stock-counted).
+                      {" "}It stays on until you turn it off — the publication date doesn't switch it off by itself. Want orders before release instead? Use Pre-order below.
+                    </p>
+                    {formData.status !== "published" && <p className="be-warn" role="status">⚠ Coming soon books only show in the shop once the book's Status is Published.</p>}
+                  </>
+                )}
+              </SectionCard>}
               {!giftCard && <SectionCard title="Pre-order" description="Sell this book before it comes out. On its publication date it becomes a normal book by itself.">
                 <div className="be-toggles">
-                  <Toggle label="Take pre-orders until the publication date" checked={!!formData.preorder} onChange={(v) => set("preorder", v)} />
+                  <Toggle label="Take pre-orders until the publication date" checked={!!formData.preorder} onChange={(v) => setFormData((prev: any) => ({ ...prev, preorder: v, ...(v ? { comingSoon: false } : {}) }))} />
                 </div>
                 {formData.preorder && (
                   <>

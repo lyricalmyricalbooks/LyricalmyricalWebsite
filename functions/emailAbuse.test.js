@@ -219,6 +219,26 @@ test('back-in-stock mail goes to a new guest too, once per address, within the s
   expect(over.db.store.get('stockAlerts/guest').status).toBe('waiting');
 });
 
+// Coming soon: no email while the switch is on; switching it off sends "Out now" to the page's signups.
+const bookEvent = (before, after) => ({ data: { before: { data: () => ({ title: 'Poems', status: 'published', ...before }) }, after: { data: () => ({ title: 'Poems', status: 'published', ...after }) } }, params: { bookId: 'b1' } });
+
+test('a Coming soon book emails its signups only when it comes out', async () => {
+  const waiting = load({ db: makeDb({ ...SETTINGS, 'stockAlerts/fan': alertDoc('fan@example.com') }) });
+  await waiting.exports.onBookRestocked(bookEvent({ comingSoon: true, stockLevel: 0, trackInventory: true }, { comingSoon: true, stockLevel: 50, trackInventory: true }));
+  expect(waiting.sent).toEqual([]);
+  expect(waiting.db.store.get('stockAlerts/fan').status).toBe('waiting');
+
+  const out = load({ db: makeDb({ ...SETTINGS, 'stockAlerts/fan': alertDoc('fan@example.com') }) });
+  await out.exports.onBookRestocked(bookEvent({ comingSoon: true, stockLevel: 50, trackInventory: true }, { comingSoon: false, stockLevel: 50, trackInventory: true }));
+  expect(out.sent.map(m => m.to)).toEqual(['fan@example.com']);
+  expect(out.sent[0].subject).toMatch(/^Out now: Poems/);
+
+  // Sold in editions: a book-wide signup hears when any edition can be bought.
+  const editions = load({ db: makeDb({ ...SETTINGS, 'stockAlerts/fan': alertDoc('fan@example.com') }) });
+  await editions.exports.onBookRestocked(bookEvent({ comingSoon: true, stockLevel: 0, variants: [{ id: 'pb', stock: 4 }] }, { comingSoon: false, stockLevel: 0, variants: [{ id: 'pb', stock: 4 }] }));
+  expect(editions.sent.map(m => m.to)).toEqual(['fan@example.com']);
+});
+
 // ── 27: CTA buttons readable in the light theme ──────────────────────────────────────────────
 const buttonPairs = html => [...risoLayout(html, { theme: 'light' }).matchAll(/<a [^>]*style="([^"]*)"/g)]
   .map(m => ({ bg: /background:\s*(#[0-9a-f]{3,8})/i.exec(m[1])?.[1], fg: /(?:^|;)\s*color:\s*(#[0-9a-f]{3,8})/i.exec(m[1])?.[1] }))

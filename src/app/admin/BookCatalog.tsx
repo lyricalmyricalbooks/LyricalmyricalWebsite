@@ -372,7 +372,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         </div>
       </div>
     ) },
-    { key: "status", header: "Status", render: b => { const s = publicationBadge(b); return <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}><StatusBadge tone={s.tone}>{s.text}</StatusBadge>{(b.isFeatured ?? b.featured) && <StatusBadge tone="primary">Featured</StatusBadge>}{preorderActive(b) && <StatusBadge tone="info">{releaseDateOf(b) ? `Pre-order · ${releaseDateOf(b)}` : "Pre-order"}</StatusBadge>}</span>; } },
+    { key: "status", header: "Status", render: b => { const s = publicationBadge(b); return <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}><StatusBadge tone={s.tone}>{s.text}</StatusBadge>{(b.isFeatured ?? b.featured) && <StatusBadge tone="primary">Featured</StatusBadge>}{b.comingSoon === true && <StatusBadge tone="info">Coming soon</StatusBadge>}{preorderActive(b) && <StatusBadge tone="info">{releaseDateOf(b) ? `Pre-order · ${releaseDateOf(b)}` : "Pre-order"}</StatusBadge>}</span>; } },
     { key: "format", header: "Format", render: b => b.format || "—" },
     { key: "isbn", header: "ISBN / SKU", render: b => <span className="rp-mono">{b.isbn || b.sku || "—"}</span> },
     { key: "stock", header: "Inventory", render: b => { const s = stockOf(b); return inlineCell(b, "stockLevel", <StatusBadge tone={s.tone}>{s.text}</StatusBadge>); } },
@@ -413,7 +413,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
       <FilterBar>
         <div className="rp-grow"><SearchField label="Search books" placeholder="Search title, author, ISBN or SKU…" value={search} onChange={e => setSearch(e.target.value)} /></div>
         <SelectField label="Publication status" hideLabel value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          {[...STATUS_FILTERS, "Pre-order"].map(v => <option key={v} value={v}>{v === "All" ? "All statuses" : v}</option>)}
+          {[...STATUS_FILTERS, "Pre-order", "Coming soon"].map(v => <option key={v} value={v}>{v === "All" ? "All statuses" : v}</option>)}
         </SelectField>
         <SelectField label="Stock" hideLabel value={stockFilter} onChange={e => setStockFilter(e.target.value)}>
           {STOCK_FILTERS.map(v => <option key={v} value={v}>{v === "All" ? "All stock" : v}</option>)}

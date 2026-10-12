@@ -1,6 +1,7 @@
 import { useStudioOverlay } from "./features/site/studioOverlay";
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from "react";
 import { preorderActive, releaseDateOf } from "./features/site/preorder";
+import { comingSoonActive } from "./features/site/comingSoon";
 import { addOnSelection, bundleComponents, giftCardDetails, isGiftCardProduct, saleActive, type GiftCardDetails } from "./features/site/promotions";
 
 /** A paid extra on one copy (signed copy, inscription, gift wrap). Price is per copy, CAD, from the catalog. */
@@ -135,7 +136,8 @@ export function repriceCart(cart: CartItem[], books: any[]): { cart: CartItem[];
     const tracked = !giftCard && book.trackInventory === true && book.allowBackorder !== true && !(variant?.allowBackorder);
     const stock = Number(variant ? (variant.stock ?? variant.stockLevel) : book.stockLevel);
     const stockLimit = tracked && Number.isFinite(stock) ? Math.max(0, stock) : 999;
-    if (stockLimit === 0) { drop(line); continue; }
+    // A book switched back to Coming soon can't be bought until it is out (the server refuses it too).
+    if (stockLimit === 0 || comingSoonActive(book)) { drop(line); continue; }
     const quantity = Math.min(line.quantity, lineQuantityCap(stockLimit));
     // Pre-order wording follows the live catalog: a book released since it was added loses it.
     const preorder = preorderActive(book);
@@ -255,7 +257,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [cart]);
 
   const addToCart = (product: any, variant?: any, quantity: number = 1, options?: CartLineOptions): boolean => {
-    if (!product) return false;
+    // Coming soon books are shown, never sold (Books › edit › Inventory › Coming soon).
+    if (!product || comingSoonActive(product)) return false;
     const giftCard = isGiftCardProduct(product);
     // Gift cards have no stock; backorderable lines have no stock cap (same rule as repriceCart and the server).
     const stockLimit = giftCard || backorderable(product, variant) ? undefined : (variant ? (variant.stockLevel ?? variant.stock) : product.stockLevel);
