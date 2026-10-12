@@ -1,6 +1,6 @@
 {
  "page:empty": [
-  "aria-current=page ×1",
+  "aria-current=page ×2",
   "aria-label=Account ×1",
   "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
@@ -338,7 +338,7 @@
   "href=mailto:shop@example.com ×2"
  ],
  "page:reference": [
-  "aria-current=page ×1",
+  "aria-current=page ×2",
   "aria-label=Account ×1",
   "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
@@ -615,6 +615,7 @@
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:reference": [
+  "aria-current=page ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
@@ -709,7 +710,7 @@
   "href=mailto:shop@example.com ×2"
  ],
  "page:referenceNavEnd": [
-  "aria-current=page ×1",
+  "aria-current=page ×2",
   "aria-label=Account ×1",
   "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
@@ -963,6 +964,7 @@
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:referenceNavEnd": [
+  "aria-current=page ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
@@ -1049,7 +1051,7 @@
   "href=mailto:shop@example.com ×2"
  ],
  "page:modern": [
-  "aria-current=page ×1",
+  "aria-current=page ×2",
   "aria-label=Account ×1",
   "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
@@ -1363,6 +1365,7 @@
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:modern": [
+  "aria-current=page ×1",
   "aria-label=Account ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
@@ -1475,7 +1478,7 @@
   "href=mailto:shop@example.com ×2"
  ],
  "page:modernCenter": [
-  "aria-current=page ×1",
+  "aria-current=page ×2",
   "aria-label=Account ×1",
   "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
@@ -1786,6 +1789,7 @@
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:modernCenter": [
+  "aria-current=page ×1",
   "aria-label=Account ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
@@ -2250,7 +2254,7 @@
   "href=mailto:shop@example.com ×2"
  ],
  "page:modernPageOverrides": [
-  "aria-current=page ×1",
+  "aria-current=page ×2",
   "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
   "aria-label=Open cart ×1",
@@ -2546,6 +2550,7 @@
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:modernPageOverrides": [
+  "aria-current=page ×1",
   "aria-label=Email us ×1",
   "aria-label=Explore ×1",
   "aria-label=Instagram ×1",
@@ -2652,7 +2657,7 @@
   "href=mailto:shop@example.com ×2"
  ],
  "page:footerColumns": [
-  "aria-current=page ×1",
+  "aria-current=page ×2",
   "aria-label=Account ×1",
   "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
@@ -2888,6 +2893,7 @@
   "href=mailto:shop@example.com ×2"
  ],
  "maincoll:footerColumns": [
+  "aria-current=page ×1",
   "aria-label=Email us ×1",
   "aria-label=Main navigation ×1",
   "aria-label=Open cart ×1",
@@ -2968,7 +2974,7 @@
   "href=mailto:shop@example.com ×2"
  ],
  "page:footer4": [
-  "aria-current=page ×1",
+  "aria-current=page ×2",
   "aria-label=Account ×1",
   "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
@@ -3217,6 +3223,7 @@
   "href=mailto:shop@example.com ×3"
  ],
  "maincoll:footer4": [
+  "aria-current=page ×1",
   "aria-label=Email us ×1",
   "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",
@@ -3302,7 +3309,7 @@
   "href=mailto:shop@example.com ×3"
  ],
  "page:footerGroupedOff": [
-  "aria-current=page ×1",
+  "aria-current=page ×2",
   "aria-label=Account ×1",
   "aria-label=Lyricalmyrical Books logo ×1",
   "aria-label=Main navigation ×2",
@@ -3534,6 +3541,7 @@
   "href=mailto:shop@example.com ×1"
  ],
  "maincoll:footerGroupedOff": [
+  "aria-current=page ×1",
   "aria-label=Email us ×1",
   "aria-label=Instagram ×1",
   "aria-label=Main navigation ×1",

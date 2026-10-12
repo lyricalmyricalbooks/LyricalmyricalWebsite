@@ -108,7 +108,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Sizes & weights", keys: ["baseFontSize", "lineHeight", "headingWeight", "bodyWeight", "letterSpacing"] },
   ],
   logo: [
-    { title: "Logo image", keys: ["logoUrl", "logoTint", "logoColor", "shareImageUrl"] },
+    { title: "Logo image", keys: ["logoUrl", "logoTint", "logoColor", "logoHoverColor", "shareImageUrl"] },
     { title: "Text wordmark", keys: ["logoText", "wordmarkStyle", "wordmarkPrimary", "wordmarkSecondary", "wordmarkSecondaryMuted", "wordmarkSecondaryColor", "wordmarkSize", "wordmarkWeight"] },
   ],
   header: [
@@ -118,7 +118,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Icons & buttons in the header", keys: ["hideHeaderSearch", "hideHeaderWishlist", "hideHeaderAccount", "hideCurrencySelector", "hideThemeToggle", "hideAdminLink", "hideCartButton"] },
   ],
   navlinks: [
-    { title: "Link look", keys: ["navLinkColor", "navLinkSize", "navLinkWeight", "navLinkSpacing", "navLinkTransform", "navLinkOpacity"] },
+    { title: "Link look", keys: ["navLinkColor", "navLinkActiveColor", "navLinkSize", "navLinkWeight", "navLinkSpacing", "navLinkTransform", "navLinkOpacity"] },
     { title: "Placement & fitting on one line", keys: ["navPlacement", "navGap", "navLineMode", "navFitMin"] },
     { title: "Drop-down menus", keys: ["navFlatSubcategories", "navDropdownHideAll", "navDropdownBg", "navDropdownTextColor", "navDropdownBorderColor", "navDropdownBorderWidth", "navDropdownTransform", "headerMenuPanelBg", "headerMenuPanelTextColor", "headerMenuPanelBorderColor", "headerMenuPanelRadius"] },
     { title: "Sticker pills", keys: ["navPillRadius", "navPillRotate", "navPillActivePalette"] },
