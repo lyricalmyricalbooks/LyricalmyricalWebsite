@@ -3,7 +3,6 @@ import { consentAllows } from "./lib/consent";
 import { REFERRAL_KEY, referralSourceOf } from "./lib/referralSource";
 import { LazyMotion, MotionConfig } from "motion/react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router";
-import { EditInStudioButton } from "./admin/EditInStudioButton";
 import { ScrollToTop } from "./lib/ScrollToTop";
 import { ThemePreviewBanner } from "./features/site/ThemePreviewBanner";
 import { CartProvider } from "./CartContext";
@@ -85,7 +84,6 @@ export default function App() {
           <CartDrawer />
           <CookieConsent />
           <UnderConstructionWall />
-          <EditInStudioButton />
           <ThemePreviewBanner />
           <Suspense fallback={<BootSplash />}>
                 <Toaster 

@@ -1,5 +1,5 @@
 // Links that open the Design studio at a particular place: `/admin#designer?t=productPage&b=night-pages&tab=style`.
-// Used by What's new, the book editor and the "Edit in Studio" button on the live site.
+// Used by What's new and the book editor.
 
 export type StudioLocation = {
   templateId?: string; showGlobal?: boolean; productSlug?: string; collectionSlug?: string;
@@ -40,7 +40,7 @@ export function studioHash(loc: StudioLocation): string {
   return `#designer${query ? "?" + query : ""}`;
 }
 
-/** The Studio location matching a storefront address (used by "Edit in Studio" on the live site). */
+/** The Studio location matching a storefront address. */
 export function locationForPath(pathname: string, base = "/"): StudioLocation {
   const path = "/" + pathname.slice(base.length).replace(/^\/+/, "");
   const decode = (v: string) => { try { return decodeURIComponent(v); } catch { return v; } };
