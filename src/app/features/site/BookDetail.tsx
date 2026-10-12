@@ -46,6 +46,7 @@ import { resolveDynamicSettings } from "./dynamicSources";
 import { aspectRatioValue } from "./imageAspect";
 import { frameAspect, frameMode, photoRatio } from "./photoFrame";
 import { regionProps, regionVisible } from "./storefrontRegions";
+import { DescriptionText } from "./DescriptionText";
 import { googleFontHref } from "./fonts";
 import { productPageCss, productPageFontNames } from "./productPageStyle";
 import { schemeButtonColors } from "./colorSchemes";
@@ -567,7 +568,7 @@ export default function BookDetail() {
   };
   const detailContent = (id: string) =>
     id === "description" ? (
-      <p {...regionProps("productDescription")} className="fm-pdp-desc text-[15px] leading-[1.75] whitespace-pre-line">{bk.description || getCopy(settings?.design, "noDescription")}</p>
+      <div {...regionProps("productDescription")} className="fm-pdp-desc fm-pdp-desc-text text-[15px] leading-[1.75] whitespace-pre-line">{bk.description ? <DescriptionText text={bk.description} /> : getCopy(settings?.design, "noDescription")}</div>
     ) : id === "specs" ? <div {...regionProps("productSpecs")}>{renderSpecs()}</div> : book ? (
       <div {...regionProps("productReviews")}><ReviewsSection key={book.id} bookId={book.id} hideHeader={true} /></div>
     ) : null;
@@ -1043,10 +1044,10 @@ export default function BookDetail() {
                           <p className="fm-pdp-meta mb-3" style={{ color: "var(--accent, #e8402a)" }}>
                             {getCopy(settings?.design, "productDescriptionLabel")}
                           </p>
-                          <p className="text-[15px] leading-[1.8] whitespace-pre-line">{bk.description}</p>
+                          <div className="fm-pdp-desc-text text-[15px] leading-[1.8] whitespace-pre-line"><DescriptionText text={bk.description} /></div>
                         </div>
                       ) : (
-                        <p {...regionProps("productDescription")} className="text-white/50 text-[14px] leading-[1.8] whitespace-pre-line">{bk.description}</p>
+                        <div {...regionProps("productDescription")} className="fm-pdp-desc-text text-white/50 text-[14px] leading-[1.8] whitespace-pre-line"><DescriptionText text={bk.description} /></div>
                       )
                     )}
                     {hasSpecs && <div {...regionProps("productSpecs")}>{renderSpecs()}</div>}
