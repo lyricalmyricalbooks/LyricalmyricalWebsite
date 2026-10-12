@@ -6,6 +6,7 @@ import { orderAccessHeaders, savedOrderAccess } from "./orderAccessClient";
 import { defaultSettings } from "../admin/defaultSettings";
 import { withRisoNoirDefault } from "../features/site/risoNoir";
 import type { Page } from "../features/site/types";
+import { cleanRedirects, REDIRECTS_DOC, type Redirect } from "../features/site/redirects";
 
 /**
  * The shopper-side reads the storefront needs to render. Kept apart from `admin/api.ts` so the public
@@ -53,6 +54,12 @@ export const publicApi = {
   getThemePreview: async (token: string) => {
     const snap = await getDoc(doc(liteDb, "previewTokens", token));
     return snap.exists() ? snap.data() : null;
+  },
+
+  // URL redirects (Settings › General): read only when a shopper lands on a missing page; one small public doc.
+  getRedirects: async (): Promise<Redirect[]> => {
+    const snap = await getDoc(doc(liteDb, "settings", REDIRECTS_DOC));
+    return cleanRedirects(snap.exists() ? (snap.data() as any).items : []);
   },
 
   getPublishedPages: async (): Promise<Page[]> => {

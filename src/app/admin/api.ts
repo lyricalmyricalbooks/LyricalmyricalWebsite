@@ -1,6 +1,7 @@
 import { duplicateBookData } from "./catalogList";
 import { changedBookFields, lockLinkedStock, removedBookFields, sameValue } from "./bookStockMerge";
 import { PRIVATE_BOOK_KEYS, mergeBookPrivate, privateKeysIn, splitBookPrivate } from "./bookPrivate";
+import { cleanRedirects, REDIRECTS_DOC, type Redirect } from "../features/site/redirects";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
 import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
@@ -598,6 +599,15 @@ export const adminApi = {
     const clean = cleanBookFields(fields);
     await setDoc(doc(db, "settings", BOOK_FIELDS_DOC), { fields: clean, updatedAt: new Date().toISOString() });
     await adminApi.recordAuditLog("catalog", `Updated book fields (${clean.length})`);
+    return clean;
+  },
+
+  // URL redirects (Settings › General): old address → new address, in the public, admin-written settings/redirects doc.
+  getRedirects: publicApi.getRedirects,
+  saveRedirects: async (items: Redirect[]): Promise<Redirect[]> => {
+    const clean = cleanRedirects(items);
+    await setDoc(doc(db, "settings", REDIRECTS_DOC), { items: clean, updatedAt: new Date().toISOString() });
+    await adminApi.recordAuditLog("settings", `Updated URL redirects (${clean.length})`);
     return clean;
   },
 

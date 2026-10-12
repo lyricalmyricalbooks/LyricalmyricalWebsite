@@ -50,6 +50,7 @@ import { paymentHealth } from "./paymentHealth";
 import { stripeSecretKeyProblem } from "./privateKeys";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
+import { RedirectsCard } from "./RedirectsCard";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
 import { saveSectionsInOrder } from "./settingsSave";
 import { TaxesSettings } from "./TaxesSettings";
@@ -285,6 +286,8 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           <p className="rp-hint" style={{ margin: 0 }}>Starter text is a plain-language outline, not legal advice — edit it to match how you actually operate.</p>
         </div>
       </SectionCard>
+
+      <RedirectsCard />
 
       <PrivacyRequestsCard />
 

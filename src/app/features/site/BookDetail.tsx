@@ -18,6 +18,7 @@ import { contentMaxWidth } from "./headerNav";
 import { StoreFooter } from "./StoreFooter";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 import { SectionPageContext } from "../../components/sectionCopy";
+import { useMissingRedirect } from "./useMissingRedirect";
 import { getCopy } from "./storeCopy";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "./preorder";
 import { designNumber } from "./designNumber";
@@ -101,6 +102,7 @@ export default function BookDetail() {
   // A book published after this browser cached the catalog isn't in that cache yet: keep showing
   // Loading (and stay indexable) until this mount's fresh read, rather than a false "not found" + noindex.
   const loading = siteLoading || (!book && !fresh);
+  useMissingRedirect(!book && !loading && !loadError);
   const sectionPage = useMemo(() => ({ book }), [book]);
 
   // Keep the chosen edition's data fresh after a refresh, and start each edition at quantity 1.
