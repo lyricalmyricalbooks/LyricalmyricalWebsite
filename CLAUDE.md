@@ -1858,7 +1858,7 @@ token, `functions/addressLookup.js`) and falls back to Photon/OpenStreetMap when
 error, rate limit; the browser then skips Google for 30 / 2 minutes). The Google key lives only in admin-only
 `adminSecrets/addressLookup.googlePlacesKey` (Settings › Shipping › Carrier & labels › **Address finder at checkout**,
 `admin/AddressFinderCard.tsx`, **Check key** = admin action `addressKeyCheck`); it is never sent to browsers. Limits:
-`LIMITS.address` per connection and `LIMITS.addressShopDay` (3,000/day) for the whole shop. The Photon path parses units
+`LIMITS.address` per connection and `LIMITS.addressShopDay` (300/day, inside Google's 10,000 free requests a month) for the whole shop. The Photon path parses units
 (`parseTypedAddress`: "12-456 Main St" outside the US, Apt/Unit/Suite/#), spells out trailing St/Ave/W (`expandStreet`), ranks
 the typed house number first, biases to the chosen province and fills a postal code only for a matched house. Picking goes
 through `applySuggestion`, which never keeps a postal code/province from a different town and writes a parsed unit into the
