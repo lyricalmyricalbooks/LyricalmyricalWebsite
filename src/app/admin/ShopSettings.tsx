@@ -253,8 +253,8 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
       </SectionCard>
 
       <SectionCard title="Domain & visibility" description="Where customers find the store.">
-        <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="www.yourdomain.com"
-          hint="Adding a domain also requires updating the allowed origins for payments and sign-in — ask your developer before changing it."
+        <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="lyricalmyricalbooks.com"
+          hint="A label for your records only — typing here doesn't move the shop. The switch is done by connecting the domain in Firebase Hosting and setting the SITE_URL repository variable (step-by-step guide: docs/CUSTOM_DOMAIN.md). The shop's checkout code already accepts lyricalmyricalbooks.com and www.lyricalmyricalbooks.com."
           onChange={(e) => set("domain", { custom: e.target.value })} />
       </SectionCard>
 

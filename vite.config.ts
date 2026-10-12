@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { fallbackFiles } from './scripts/spaFallback.mjs'
-import { canonicalHostScript } from './scripts/canonicalHost.mjs'
+import { canonicalHostScript, stampSiteAddress } from './scripts/canonicalHost.mjs'
 
 
 function figmaAssetResolver() {
@@ -41,7 +41,8 @@ function spaFallbackBase(base: string) {
   }
 }
 
-// Sends visitors on the project's default Firebase Hosting addresses to SITE_URL (scripts/canonicalHost.mjs).
+// Sends visitors on the project's default Firebase Hosting addresses (and the www/bare twin of the shop's own
+// domain) to SITE_URL, and names SITE_URL in index.html's built-in links (scripts/canonicalHost.mjs).
 // Inert unless SITE_URL is a site at the root of its host.
 function canonicalHost() {
   const siteUrl = process.env.SITE_URL || 'https://lyricalmyrical-web-v2.web.app'
@@ -51,7 +52,8 @@ function canonicalHost() {
     // Right after <meta charset> (which must stay in the first 1024 bytes), before anything starts loading.
     transformIndexHtml(html: string) {
       if (!/<meta charset[^>]*>/i.test(html)) throw new Error('index.html has no <meta charset> to place the canonical-host script after')
-      return html.replace(/<meta charset[^>]*>/i, tag => `${tag}\n    <script>${canonicalHostScript(siteUrl)}</script>`)
+      const stamped = stampSiteAddress(html, siteUrl) // og:url and the no-JS JSON-LD name SITE_URL, not the default
+      return stamped.replace(/<meta charset[^>]*>/i, tag => `${tag}\n    <script>${canonicalHostScript(siteUrl)}</script>`)
     },
   }
 }

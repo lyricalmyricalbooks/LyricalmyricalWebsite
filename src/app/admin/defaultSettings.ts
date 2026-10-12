@@ -8,7 +8,7 @@ export const defaultSettings = (): any => ({
   // Settings › General › Checkout stock holds: most copies one shopper can have set aside while checking out.
   stockHolds: { perBook: 10, units: 50, orders: 3 },
   maintenance: { enabled: false, message: "WE ARE UPDATING OUR ARCHIVE. PLEASE CHECK BACK SOON." },
-  domain: { subdomain: "lyricalmyrical", custom: "www.lyricalmyricalbooks.com" },
+  domain: { subdomain: "lyricalmyrical", custom: "lyricalmyricalbooks.com" },
   info: { 
     name: "Lyricalmyrical Books", 
     description: "Lyricalmyrical Books is an independent publishing house based in Toronto with roots in Italy, specializing in publishing photography and art books.",
