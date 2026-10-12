@@ -118,6 +118,13 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-qty button:disabled{opacity:.3;}`;
   css += `${S} .fm-pdp-qty output{min-width:40px;display:grid;place-items:center;font-family:${metaFont};font-size:15px;border-inline:1px solid ${cardDivider};}`;
   css += `${S} .fm-pdp-sq{width:52px;height:52px;flex:none;display:grid;place-items:center;background:transparent;border:2px solid rgba(var(--border-rgb), 0.6);color:rgb(var(--fg-rgb));}`;
+  // Sticky add-to-bag bar (pdpStickyBar): fixed to the bottom edge, in the page's own colours.
+  css += `${S} .fm-pdp-sticky{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:${outlineW} solid ${outline};}`;
+  css += `${S} .fm-pdp-sticky-text{display:flex;flex-direction:column;min-width:0;}`;
+  css += `${S} .fm-pdp-sticky-title{font-family:${titleFont};font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgb(var(--fg-rgb));}`;
+  css += `${S} .fm-pdp-sticky-price{font-family:${priceFont};color:${color(d, "pdpPriceColor", "rgb(var(--fg-rgb))")};}`;
+  css += `${S} .fm-pdp-sticky-btn{flex:none;min-height:44px;display:inline-flex;align-items:center;gap:8px;padding:0 20px;font-size:11px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;}`;
+  css += `@media (min-width:${PHONE_MAX + 1}px){${S} .fm-pdp-sticky-phone{display:none;}}`;
   css += `${S} .fm-pdp-sq:hover{border-color:rgb(var(--fg-rgb));}`;
 
   // Details: tabs + bordered panel, catalogue-record specs.
