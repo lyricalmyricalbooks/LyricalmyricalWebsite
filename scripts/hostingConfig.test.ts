@@ -133,4 +133,13 @@ describe('deploy workflows agree', () => {
     expect(storefront).toMatch(/superseded: \$\{\{ steps\.newest\.outputs\.superseded \}\}/);
     expect(storefront).toMatch(/needs\.deploy-hosting\.outputs\.deployed == 'true'/);
   });
+
+  it('builds while the backend deploys, but publishes only after firebase-first succeeded', () => {
+    const storefront = read('.github/workflows/deploy-pages.yml');
+    const job = (name: string) => storefront.slice(storefront.indexOf(`  ${name}:`)).split(/\n  [a-z-]+:\n/)[0];
+    expect(job('build-hosting')).toMatch(/needs: newest\n/);
+    expect(job('deploy-hosting')).toMatch(/needs: \[build-hosting, firebase-first\]/);
+    expect(job('deploy-hosting')).toMatch(/needs\.firebase-first\.result == 'success'/);
+    expect(job('deploy-hosting')).not.toMatch(/actions\/cache/);
+  });
 });

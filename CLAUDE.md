@@ -702,13 +702,15 @@ draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
 **No cancelled runs (12 October 2026).** Merging PRs in quick succession used to cancel the earlier runs (red marks on `main`).
 `ci.yml` now cancels only superseded *pull request* runs (group per PR number / commit on main). `deploy-pages.yml` uses one group
 per run and never cancels; `firebase-first` checks whether the run's commit is still the head of `main` and, if not, finishes green
-as "superseded" without building; `deploy-hosting` re-checks right before `firebase deploy` and `redirect-old-address` only runs
+as "superseded" without building (that check is now its own `newest` job); `deploy-hosting` re-checks right before `firebase deploy` and `redirect-old-address` only runs
 when it deployed. `scripts/hostingConfig.test.ts` forbids `cancel-in-progress: true`. Only the workflows' first real run proves this.
 **Deploy ordering contract (October 2026).** Rules, indexes and Functions go live before the frontend that needs them.
 `deploy-pages.yml`'s `firebase-first` job, on a push to `main`, lists the changed files (GitHub compare API) and, when any
 path watched by `deploy-firebase.yml` changed (keep its regex identical to that workflow's `on.push.paths`), waits for the
-`deploy-firebase.yml` run of the same commit and fails unless it succeeded; the `build-hosting` job `needs` it
-(editing `firebase.json`, including its `hosting` block, therefore also redeploys the backend first). A failed Firebase
+`deploy-firebase.yml` run of the same commit and fails unless it succeeded. `build-hosting` runs alongside it (building
+publishes nothing) and only `deploy-hosting` `needs` it, with `needs.firebase-first.result == 'success'` (October 2026:
+saves the ~2 min backend wait on backend pushes). `build-hosting` caches Chromium and the npx firebase-tools download
+(`actions/cache`); `deploy-hosting`, which holds the key, restores no cache (editing `firebase.json`, including its `hosting` block, therefore also redeploys the backend first). A failed Firebase
 deploy therefore stops the frontend; fix the backend and re-run, or start the storefront by hand (`workflow_dispatch` and the schedule
 skip the wait). A later push that changes no backend file is not held back by an earlier push's Firebase deploy.
 `deploy-firebase.yml` pins `firebase-tools` (`FIREBASE_TOOLS_VERSION`) and no longer passes `--force`, so it never deletes
