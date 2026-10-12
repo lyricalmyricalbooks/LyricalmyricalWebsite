@@ -51,6 +51,7 @@ import { stripeSecretKeyProblem } from "./privateKeys";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { RedirectsCard } from "./RedirectsCard";
+import { AddressFinderCard } from "./AddressFinderCard";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
 import { saveSectionsInOrder } from "./settingsSave";
 import { TaxesSettings } from "./TaxesSettings";
@@ -966,6 +967,7 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
           )}
         </SectionCard>
         )}
+        {shippingView === "carrier" && <AddressFinderCard />}
 
         {shippingView === "profiles" && (
         <>

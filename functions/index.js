@@ -53,6 +53,7 @@ const { refundRetrySuffix, refundPlan, refundedSoFar, restockLinesFor, withoutRe
 const { leftTheShop, restockRefundedOrder } = require("./refundRestock");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
 const { hitLimit, LIMITS, clientIpOf, serverGeoCountry } = require("./rateLimit");
+const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./addressLookup");
 const { publicErrorMessage } = require("./publicErrors");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
 const { preorderActive, preorderLine, preorderEmailLines, releaseDateOf } = require("./preorder");
@@ -5312,6 +5313,18 @@ async function autoApproveShippingAddress(orderId, order) {
   });
 }
 
+// The Google key for the checkout address finder (admin-only adminSecrets/addressLookup), read at most
+// once a minute per instance: the finder asks on nearly every keystroke.
+let addressKeyCache = { at: 0, key: "" };
+async function readAddressLookupKey(fresh = false) {
+  if (!fresh && Date.now() - addressKeyCache.at < 60 * 1000) return addressKeyCache.key;
+  const key = String((await readAdminSecret("addressLookup")).googlePlacesKey || "").trim();
+  addressKeyCache = { at: Date.now(), key: addressKeyProblem(key) ? "" : key };
+  return addressKeyCache.key;
+}
+// One counter for the whole shop (rate limits are keyed by connection): caps what the key can cost per day.
+const SHOP_WIDE_REQUEST = { headers: { "x-forwarded-for": "shop-wide" } };
+
 exports.validateAddress = onBrowserRequest(
   { secrets: [SHIPPO_API_TOKEN] },
   async (req, res) => {
@@ -5321,6 +5334,18 @@ exports.validateAddress = onBrowserRequest(
       res.status(405).send("Method Not Allowed");
       return;
     }
+    // Checkout address finder (Google Places through the shop's key) shares this endpoint.
+    if (ADDRESS_ACTIONS.includes(req.body?.action)) {
+      const out = await handleAddressLookup(req.body, {
+        readKey: readAddressLookupKey,
+        allow: async () => (await hitLimit(db, "address", req, LIMITS.address))
+          && (await hitLimit(db, "address-shop-day", SHOP_WIDE_REQUEST, LIMITS.addressShopDay)),
+        isAdmin: async () => Boolean(await requireAdmin(req, res)),
+      });
+      if (out) res.status(out.status).json(out.body);
+      return;
+    }
+
     if (!(await hitLimit(db, "shippo", req, LIMITS.shippo))) return res.status(429).json({ error: "Too many tries. Please wait a few minutes and try again." });
 
     const { address } = req.body;

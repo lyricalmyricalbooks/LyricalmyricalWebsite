@@ -752,6 +752,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coStripeNote", label: "Card redirect note", default: "After you click “Pay securely,” you’ll complete your card payment on Stripe’s secure checkout." },
       { key: "coAddressSuggestions", label: "Address suggestions list (screen readers)", default: "Address suggestions" },
       { key: "coAddressAttribution", label: "Address suggestions credit line", default: "Suggestions © OpenStreetMap contributors" },
+      { key: "coAddressAttributionGoogle", label: "Address suggestions credit line (Google address finder)", default: "Powered by Google", hint: "Shown when Settings › Shipping › Carrier & labels › Address finder has a Google key. Google asks for this credit." },
       { key: "coCountrySearch", label: "Country picker — search hint", default: "Start typing your country…" },
       { key: "coCountryPopular", label: "Country picker — top group heading", default: "Popular" },
       { key: "coCountryAll", label: "Country picker — full list heading", default: "All countries" },
