@@ -923,6 +923,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         </h3>
                         {displayPrice > 0 && (
                           <span
+                            translate="no"
                             className={`fm-card-price-wrap shrink-0 flex flex-col items-end leading-none font-mono tabular-nums ${priceOnHover ? "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100" : ""}`}
                             style={{ color: storefrontDesign?.productPriceColor || storefrontText }}
                           >

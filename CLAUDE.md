@@ -1885,3 +1885,11 @@ stored in the public, admin-written `settings/redirects` doc (`{ items: [{from, 
 `NotFoundPage`, `BookDetail` with no book, `PageView` with no page — through `useMissingRedirect` (reads
 `publicApi.getRedirects`, never in the Studio preview, keeps the shopper's query, stops after `MAX_REDIRECT_HOPS`), so a real
 page is never hijacked. These are browser redirects, not HTTP 301s. No shopper-visible words, so no Text & labels entry.
+
+## Page translation (12 October 2026)
+
+Shoppers may translate the storefront with the browser's Google Translate. `lib/translateSafeDom.ts` (installed first in
+`main.tsx`) stops React crashing ("removeChild … not a child") when the translator has swapped its text nodes. Translated
+text can't follow later React updates, so live money (card/PDP price, bag lines and totals, checkout summary/total) carries
+`translate="no"` — put it on any new element whose number changes while the shopper watches. Never add
+`<meta name="google" content="notranslate">` or a page-wide `translate="no"`.

@@ -186,7 +186,7 @@ export function CartDrawer() {
                         <div className="flex-1 min-w-0 flex flex-col gap-1">
                           <div className="flex justify-between gap-3 items-start">
                             <h3 className="fm-bag-name">{item.title}</h3>
-                            {showLineTotal && <span className="fm-bag-line">{formatPrice(item.price * item.quantity)}</span>}
+                            {showLineTotal && <span className="fm-bag-line" translate="no">{formatPrice(item.price * item.quantity)}</span>}
                           </div>
                           {item.variantName && <p className="fm-bag-meta">{item.variantName}</p>}
                           {showLineOptions && (item.addOns || []).map((addOn) => (
@@ -264,13 +264,13 @@ export function CartDrawer() {
               <div data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Bag total & checkout" className="fm-bag-pad fm-bag-summary pt-5 pb-6 space-y-4">
                 {showSummary && (
                   <div className="space-y-2">
-                    <div className="fm-bag-row fm-bag-meta"><span>{getCopy(design, "cartSubtotalLabel")}</span><span>{formatPrice(cartTotal)}</span></div>
+                    <div className="fm-bag-row fm-bag-meta"><span>{getCopy(design, "cartSubtotalLabel")}</span><span translate="no">{formatPrice(cartTotal)}</span></div>
                     <div className="fm-bag-row fm-bag-meta"><span>{getCopy(design, "cartShippingLabel")}</span><span>{shippingEstimate !== null && (design.cartDrawerShowShippingPreview ?? true) ? formatPrice(shippingEstimate) : getCopy(design, "cartShippingValue")}</span></div>
                   </div>
                 )}
                 <div className={`fm-bag-row ${showSummary ? "fm-bag-total pt-3" : ""}`}>
                   <span className="fm-bag-meta">{getCopy(design, "cartTotalLabel")}</span>
-                  <span className="fm-bag-total-n">{formatPrice(cartTotal + ((design.cartDrawerShowShippingPreview ?? true) ? shippingEstimate || 0 : 0))}</span>
+                  <span className="fm-bag-total-n" translate="no">{formatPrice(cartTotal + ((design.cartDrawerShowShippingPreview ?? true) ? shippingEstimate || 0 : 0))}</span>
                 </div>
 
                 {showTrustBadges && (
