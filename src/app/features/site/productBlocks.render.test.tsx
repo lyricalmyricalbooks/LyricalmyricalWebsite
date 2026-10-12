@@ -76,4 +76,13 @@ describe("buy box blocks on the product page", () => {
     expect(order(c)).toEqual(["title", "price", "buy"]);
     expect(c.querySelector("[data-store-region=productSaleEnds]")).toBeNull(); // the template's own visibility applies
   });
+  it("shows the old price and the Save badge as click-to-edit parts that Studio can hide", async () => {
+    const shown = await card({});
+    expect(shown.querySelector("[data-store-region=productOldPrice]")?.textContent).toContain("30");
+    expect(shown.querySelector("[data-store-region=productSaveBadge]")?.getAttribute("data-studio-target")).toBe("style:productContent|copy:Product page");
+    const hidden = await card({ productPage: { regions: { productOldPriceVisible: false, productSaveBadgeVisible: false } } });
+    expect(hidden.querySelector("[data-store-region=productOldPrice]")).toBeNull();
+    expect(hidden.querySelector("[data-store-region=productSaveBadge]")).toBeNull();
+    expect(hidden.querySelector(".fm-pdp-price")).not.toBeNull();
+  });
 });

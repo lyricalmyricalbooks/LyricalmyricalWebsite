@@ -777,8 +777,9 @@ export default function BookDetail() {
                       {isOnSale ? (
                         <>
                           <span className="fm-pdp-price" translate="no">{formatBookPrice(book)}</span>
-                          <span className="text-white/25 line-through text-xl">{formatBookPrice(book, true)}</span>
-                          <span
+                          {regionVisible(regionDesign, "productOldPrice") && <span {...regionProps("productOldPrice")} className="text-white/25 line-through text-xl">{formatBookPrice(book, true)}</span>}
+                          {regionVisible(regionDesign, "productSaveBadge") && <span
+                            {...regionProps("productSaveBadge")}
                             className="text-[9px] font-black tracking-widest border px-3 py-1.5 uppercase"
                             style={{
                               color: "var(--success)",
@@ -787,7 +788,7 @@ export default function BookDetail() {
                             }}
                           >
                             {getCopy(settings?.design, "saveAmount", { amount: formatPrice(getBookPrice(book, true) - getBookPrice(book)) })}
-                          </span>
+                          </span>}
                         </>
                       ) : (
                         <span className="fm-pdp-price" translate={retailPrice > 0 ? "no" : undefined}>
