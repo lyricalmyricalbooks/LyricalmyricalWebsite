@@ -29,14 +29,10 @@ env:
   FIREBASE_PROJECT: lyricalmyrical-web-v2
 
 jobs:
-  # Deploy order contract (CLAUDE.md): Firestore rules, indexes and Functions go live BEFORE the frontend that
-  # depends on them. When this push also changed a path deploy-firebase.yml watches, wait for that run and
-  # require it to succeed. Scheduled and manual builds change no backend files, so they pass straight through.
-  firebase-first:
+  newest:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 5
     permissions:
-      actions: read
       contents: read
     outputs:
       superseded: ${{ steps.newest.outputs.superseded }}
@@ -59,8 +55,21 @@ jobs:
             echo "superseded=false" >> "$GITHUB_OUTPUT"
           fi
 
+  # Deploy order contract (CLAUDE.md): Firestore rules, indexes and Functions go live BEFORE the frontend that
+  # depends on them. When this push also changed a path deploy-firebase.yml watches, wait for that run and
+  # require it to succeed. Scheduled and manual builds change no backend files, so they pass straight through.
+  # It runs alongside build-hosting (building publishes nothing); only deploy-hosting waits for it.
+  firebase-first:
+    needs: newest
+    if: needs.newest.outputs.superseded != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      actions: read
+      contents: read
+    steps:
       - name: Wait for the Firebase deploy when this push changed backend files
-        if: github.event_name == 'push' && steps.newest.outputs.superseded != 'true'
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -109,10 +118,10 @@ jobs:
   # Built without any secret (dependencies and Playwright run here); the key only appears in deploy-hosting,
   # which installs nothing.
   build-hosting:
-    needs: firebase-first
+    needs: newest
     # FIREBASE_HOSTING_ENABLED (repository variable) must stay true: it was the switch for the side-by-side step and
     # is now the emergency stop. A manual run from another branch must never publish (the key has no branch rule).
-    if: github.ref == 'refs/heads/main' && vars.FIREBASE_HOSTING_ENABLED == 'true' && needs.firebase-first.outputs.superseded != 'true'
+    if: github.ref == 'refs/heads/main' && vars.FIREBASE_HOSTING_ENABLED == 'true' && needs.newest.outputs.superseded != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
@@ -159,6 +168,17 @@ jobs:
       - run: pnpm install --frozen-lockfile
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
 
+      # Keeps the downloaded Chromium (and the pinned firebase-tools that npx fetches for the emulator check) between
+      # runs. This job holds no secret; deploy-hosting deliberately restores no cache next to its key.
+      - name: Restore the browser and CLI downloads
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ms-playwright
+            ~/.npm/_npx
+          key: build-tools-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-firebase-${{ env.FIREBASE_TOOLS_VERSION }}
+
       - run: pnpm exec playwright install --with-deps chromium
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
 
@@ -197,9 +217,11 @@ jobs:
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
         run: echo "built=true" >> "$GITHUB_OUTPUT"
 
+  # Publishing is the only step that has to wait for the backend: firebase-first must have succeeded (a failed or
+  # skipped firebase-first skips this job, so the frontend never runs ahead of its rules and Functions).
   deploy-hosting:
-    needs: build-hosting
-    if: needs.build-hosting.outputs.built == 'true'
+    needs: [build-hosting, firebase-first]
+    if: needs.build-hosting.outputs.built == 'true' && needs.firebase-first.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
