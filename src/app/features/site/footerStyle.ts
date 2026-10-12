@@ -29,16 +29,19 @@ const RULE = "rgba(var(--fg-rgb, 255, 255, 255), 0.2)";
 
 export function footerStyleCss(d: any = {}): string {
   const s = FOOTER_SCOPE;
-  const padY = num(d.footerPaddingY, 56, 16, 160);
-  const padYPhone = num(d.footerPaddingYMobile, 40, 16, 120);
+  const padY = num(d.footerPaddingY, 32, 16, 160);
+  const padYPhone = num(d.footerPaddingYMobile, 28, 16, 120);
   const colGap = num(d.footerColumnGap, 64, 16, 200);
-  const linkGap = num(d.footerLinkGap, 12, 4, 32);
+  const linkGap = num(d.footerLinkGap, 8, 4, 32);
+  const barPad = num(d.footerBarPaddingY, 12, 4, 40);
   const size = num(d.footerTextSize, 12, 10, 18);
   let css = `${s} .fm-footer-main{padding-top:${padY}px;padding-bottom:${padY}px;}`
     + `@media${DEVICE_MEDIA.mobile}{${s} .fm-footer-main{padding-top:${padYPhone}px;padding-bottom:${padYPhone}px;}}`
     + `${s} .fm-footer-groups{column-gap:${colGap}px;}`
     + `${s} .fm-footer-list>*+*{margin-top:${linkGap}px;}`
-    + `${s} .fm-footer-text{font-size:${size}px !important;}`;
+    + `${s} .fm-footer-text{font-size:${size}px !important;}`
+    + `${s} .fm-footer-brand>[data-empty]{display:none !important;}`
+    + `${s} .fm-footer-bar{padding-top:${barPad}px;padding-bottom:${barPad}px;}`;
   const text = colour(d.footerTextColor);
   const heading = colour(d.footerHeadingColor);
   const hover = colour(d.footerLinkHoverColor);
@@ -57,7 +60,7 @@ export function footerStyleCss(d: any = {}): string {
   if (footerBrandAlign(d) === "center") {
     const vAlign = d.footerBrandVAlign === "top" ? "flex-start" : "center";
     const centred = `${s} .fm-footer-brand{max-width:none;justify-self:stretch;align-self:stretch;display:flex;flex-direction:column;align-items:center;justify-content:${vAlign};text-align:center;}`
-      + `${s} .fm-footer-brand>*+*{margin-top:16px;}${s} .fm-footer-brand img{margin-inline:auto;}`;
+      + `${s} .fm-footer-brand>*{margin-top:0 !important;}${s} .fm-footer-brand>*+*{margin-top:12px !important;}${s} .fm-footer-brand img{margin-inline:auto;}`;
     // Phones stack the logo above the links; "Centre the logo on phones too" centres it there as well.
     css += d.footerBrandCenterMobile !== false ? centred : `@media (min-width:768px){${centred}}`;
   }
@@ -66,7 +69,7 @@ export function footerStyleCss(d: any = {}): string {
   }
   if (d.footerSocialBoxes !== false) {
     const hoverBox = colour(d.footerSocialHoverColor) || accent;
-    css += `${s} .fm-footer-icon-box{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border:1px solid ${rule};transition:border-color .15s,color .15s;}`
+    css += `${s} .fm-footer-icon-box{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid ${rule};transition:border-color .15s,color .15s;}`
       + `${s} .fm-footer-icon-box:hover,${s} .fm-footer-icon-box:focus-visible{border-color:${hoverBox} !important;color:${hoverBox} !important;}`;
   }
   return css;
