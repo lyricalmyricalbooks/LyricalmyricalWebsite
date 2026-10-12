@@ -150,6 +150,13 @@ export function productPageCss(design: any): string {
     + `${S} .fm-pdp-record{grid-template-columns:minmax(0,1fr);}`
     + `${S} .fm-pdp-record dd{border-top:0;padding-top:2px;}`
     + `}`;
+  // Thumbnails on several rows (pdpThumbWrap): a rail under the photo wraps instead of scrolling sideways.
+  // On phones the "beside" rail moves under the photo too, so it wraps there as well.
+  if (d.pdpThumbWrap === true) {
+    const wrap = `flex-wrap:wrap;overflow-x:visible;`;
+    css += `${S} .fm-pdp-media[data-thumbs="below"] .fm-pdp-rail{${wrap}}`;
+    css += `@media (max-width:${PHONE_MAX}px){${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-rail{${wrap}}}`;
+  }
   return css;
 }
 
