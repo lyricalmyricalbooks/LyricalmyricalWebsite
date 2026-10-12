@@ -123,9 +123,11 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Sticker pills", keys: ["navPillRadius", "navPillRotate", "navPillActivePalette"] },
   ],
   footer: [
-    { title: "Footer layout", keys: ["footerNavigationLayout", "footerColumns", "footerLayout", "footerBg"] },
+    { title: "Footer layout", keys: ["footerNavigationLayout", "footerLinksAlign", "footerColumns", "footerLayout", "footerBg"] },
+    { title: "Footer spacing", keys: ["footerPaddingY", "footerPaddingYMobile", "footerColumnGap", "footerLinkGap"] },
+    { title: "Footer text & lines", keys: ["footerTextSize", "footerTextColor", "footerHeadingColor", "footerLinkHoverColor", "showFooterDividers", "footerDividerColor"] },
     { title: "Footer logo", keys: ["footerLogo", "footerLogoUrl", "footerLogoWidth"] },
-    { title: "What the footer shows", keys: ["showFooterExplore", "showFooterConnect", "showFooterLegalHeading", "showFooterLocation", "hideNewsletter", "hideRecentlyViewed", "showSocialInFooter", "showPaymentBadges", "showPoweredBy"] },
+    { title: "What the footer shows", keys: ["showFooterExplore", "showFooterConnect", "showFooterLegalHeading", "showFooterLocation", "hideNewsletter", "hideRecentlyViewed", "showSocialInFooter", "showPaymentBadges", "showPoweredBy", "showFooterAdminLink"] },
     { title: "Social links", keys: ["social.instagram", "social.twitter", "social.facebook", "social.tiktok"] },
   ],
   products: [

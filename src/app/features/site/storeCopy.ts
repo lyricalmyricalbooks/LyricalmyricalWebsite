@@ -141,6 +141,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "footerLinkContact", label: "Link: Contact", default: "Contact" },
       { key: "footerInstagramAria", label: "Instagram icon (read aloud by screen readers)", default: "Instagram" },
       { key: "footerEmailAria", label: "Email icon (read aloud by screen readers)", default: "Email us" },
+      { key: "footerAdmin", label: "Admin link (bottom bar)", default: "Admin" },
       { key: "footerLegalHeading", label: "Legal heading", default: "Legal" },
       { key: "policyTitleShipping", label: "Policy link & page title: Shipping", default: "Shipping Policy" },
       { key: "policyTitleReturns", label: "Policy link & page title: Returns", default: "Returns Policy" },
