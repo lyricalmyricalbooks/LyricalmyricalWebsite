@@ -683,6 +683,17 @@
 .book-editor-riso .be-grid-4 .be-span-2 { grid-column: span 2; }
 .book-editor-riso .be-self-end { align-self: end; }
 .book-editor-riso .be-inline-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.book-editor-riso .be-desc-toolbar { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 6px; padding: 4px; border: 1px solid var(--rp-divider); }
+.book-editor-riso .be-desc-toolbar [aria-pressed="true"] { background: var(--rp-primary); color: var(--rp-on-primary); }
+.book-editor-riso .be-desc-preview { margin-top: 10px; padding: 14px 16px; border: 2px solid var(--rp-border-strong); line-height: 1.75; }
+.book-editor-riso .be-desc-preview .fm-pdp-desc-heading { font-size: 1.25em; font-weight: 700; margin: 14px 0 6px; white-space: normal; }
+.book-editor-riso .be-desc-preview .fm-pdp-desc-subheading { font-size: 1.05em; }
+.book-editor-riso .be-desc-preview .fm-pdp-desc-list { margin: 10px 0; padding-left: 1.4em; white-space: normal; }
+.book-editor-riso .be-desc-preview ul.fm-pdp-desc-list { list-style: disc; }
+.book-editor-riso .be-desc-preview ol.fm-pdp-desc-list { list-style: decimal; }
+.book-editor-riso .be-desc-preview .fm-pdp-desc-quote { margin: 10px 0; padding-left: 1em; border-left: 3px solid var(--rp-primary); font-style: italic; }
+.book-editor-riso .be-desc-preview .fm-pdp-desc-rule { margin: 14px 0; border: 0; border-top: 1px solid currentColor; opacity: .4; }
+.book-editor-riso .be-desc-preview .fm-pdp-desc-link { text-decoration: underline; }
 .book-editor-riso .be-toggles { display: flex; flex-wrap: wrap; gap: 6px 24px; margin-bottom: 14px; }
 .book-editor-riso .be-money { position: relative; }
 .book-editor-riso .be-money-sym { position: absolute; left: 12px; bottom: 12px; color: var(--rp-text-subtle); z-index: 1; pointer-events: none; }

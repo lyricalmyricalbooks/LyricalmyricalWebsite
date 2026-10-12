@@ -14,6 +14,16 @@ import {
   Loader2,
   Copy,
   RefreshCw,
+  Link2,
+  Bold,
+  Italic,
+  Heading2,
+  Heading3,
+  List,
+  ListOrdered,
+  Quote,
+  Minus,
+  Eye,
   GripVertical
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -51,7 +61,9 @@ import { BookSeoPane } from "./BookSeoPane";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/site/preorder";
 import { DEFAULT_CUSTOMS_DESCRIPTION, DEFAULT_HS_CODE, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
-import { MediaLibraryDialog, WeightField } from "./BookEditorFields";
+import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
+import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
+import { DescriptionText } from "../features/site/DescriptionText";
 import { editorDirty, fillEmpty, isbnWarning, lookupIsbn, needsPublishReview, slugClash, slugFollowsTitle, slugLocked, slugifyTitle } from "./bookEditorState";
 import { LOW_STOCK } from "./catalogList";
 import { inventoryLinkApi } from "./inventoryLinkApi";
@@ -90,6 +102,17 @@ interface BookEditorProps {
   /** `stayOpen`: the owner pressed Save (not Save & close) — refresh lists but keep the editor open. */
   onSave: (opts?: { stayOpen?: boolean }) => void;
 }
+
+const DESC_TOOLS: { action: FormatAction; label: string; Icon: typeof Bold }[] = [
+  { action: "bold", label: "Bold", Icon: Bold },
+  { action: "italic", label: "Italic", Icon: Italic },
+  { action: "heading", label: "Heading", Icon: Heading2 },
+  { action: "subheading", label: "Small heading", Icon: Heading3 },
+  { action: "bullets", label: "Bullet list", Icon: List },
+  { action: "numbers", label: "Numbered list", Icon: ListOrdered },
+  { action: "quote", label: "Quote", Icon: Quote },
+  { action: "divider", label: "Divider line", Icon: Minus },
+];
 
 export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps) {
   const { rates } = useCurrency();
@@ -762,6 +785,45 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   };
 
   const set = (name: string, value: any) => setFormData((prev: any) => ({ ...prev, [name]: value }));
+  // Description links: remember the caret so Add link inserts where the owner was typing.
+  const descSelection = useRef<{ start: number; end: number } | null>(null);
+  const [descLink, setDescLink] = useState<{ text: string } | null>(null);
+  const openDescLink = () => {
+    const text = String(formData.description || "");
+    const sel = descSelection.current;
+    setDescLink({ text: sel ? text.slice(sel.start, sel.end).trim() : "" });
+  };
+  const descWrap = useRef<HTMLDivElement>(null);
+  const [descPreview, setDescPreview] = useState(false);
+  const formatDescription = (action: FormatAction) => {
+    const area = descWrap.current?.querySelector("textarea");
+    const text = String(formData.description || "");
+    const start = area ? area.selectionStart : text.length;
+    const end = area ? area.selectionEnd : text.length;
+    const next = applyFormat(text, start, end, action);
+    set("description", next.text);
+    descSelection.current = { start: next.start, end: next.end };
+    requestAnimationFrame(() => { if (area) { area.focus(); area.setSelectionRange(next.start, next.end); } });
+  };
+  const insertDescLink = (label: string, href: string) => {
+    const markup = linkMarkup(label, href);
+    setFormData((prev: any) => {
+      const text = String(prev.description || "");
+      const sel = descSelection.current;
+      const start = sel ? Math.min(sel.start, text.length) : text.length;
+      const end = sel ? Math.min(sel.end, text.length) : text.length;
+      const before = text.slice(0, start);
+      const gap = before && !/\s$/.test(before) ? " " : "";
+      descSelection.current = { start: start + gap.length + markup.length, end: start + gap.length + markup.length };
+      return { ...prev, description: before + gap + markup + text.slice(end) };
+    });
+    setDescLink(null);
+    requestAnimationFrame(() => {
+      const area = descWrap.current?.querySelector("textarea");
+      const at = descSelection.current;
+      if (area && at) { area.focus(); area.setSelectionRange(at.start, at.end); }
+    });
+  };
   const giftCard = isGiftCardProduct(formData);
   const giftAmount = (n: number) => ({
     id: crypto.randomUUID(), name: `CA$${n}`, price: n,
@@ -921,8 +983,27 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                     </div>
                   </div>
                   <div className="be-span-2">
-                    <TextArea label="Description" name="description" value={formData.description} onChange={handleChange} rows={9}
-                      placeholder="Why this book matters, what readers will discover, notes on the edition…" hint={`${(formData.description || "").trim().split(/\s+/).filter(Boolean).length} words`} />
+                    <div className="be-desc-toolbar" role="toolbar" aria-label="Description formatting">
+                      {DESC_TOOLS.map(({ action, label, Icon }) => (
+                        <button key={action} type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title={label} aria-label={label}
+                          onMouseDown={(e) => e.preventDefault()} onClick={() => formatDescription(action)}><Icon size={14} aria-hidden /></button>
+                      ))}
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Add link" onMouseDown={(e) => e.preventDefault()} onClick={openDescLink}><Link2 size={14} aria-hidden /> Add link</button>
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-pressed={descPreview} onClick={() => setDescPreview((v) => !v)}><Eye size={14} aria-hidden /> {descPreview ? "Hide preview" : "Preview"}</button>
+                    </div>
+                    <div ref={descWrap}>
+                      <TextArea label="Description" name="description" value={formData.description} onChange={handleChange} rows={9}
+                        onSelect={(e) => { const t = e.currentTarget; descSelection.current = { start: t.selectionStart, end: t.selectionEnd }; }}
+                        placeholder="Why this book matters, what readers will discover, notes on the edition…"
+                        hint={`${(formData.description || "").trim().split(/\s+/).filter(Boolean).length} words · Select words and use the buttons above for bold, italic, headings, lists, quotes and links. Fonts, sizes and colours: Design › Style › Product page · buy card & details › Description text.`} />
+                    </div>
+                    {descPreview && (
+                      <div className="be-desc-preview" aria-label="Description preview">
+                        <p className="rp-hint">Preview — the shop uses its own fonts and colours.</p>
+                        <div className="fm-pdp-desc-text" style={{ whiteSpace: "pre-line" }}>{formData.description ? <DescriptionText text={formData.description} /> : <span className="rp-hint">Nothing written yet.</span>}</div>
+                      </div>
+                    )}
+                    <DescriptionLinkDialog open={!!descLink} initialText={descLink?.text || ""} onClose={() => setDescLink(null)} onInsert={insertDescLink} />
                   </div>
                 </div>
               </SectionCard>
