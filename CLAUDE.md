@@ -267,6 +267,12 @@ top-level `?preview=true` window: Studio posts the same snapshot on `BroadcastCh
 and `features/site/previewTab.ts` (started in `main.tsx`) re-dispatches it as a window message, answers
 `PREVIEW_READY`, and keeps `?preview=true` on in-app navigation. Unsaved Studio › Pages edits ride
 along in the snapshot (`withDraftPage`) without being saved.
+**Preview follows every edit (12 October 2026):** any change to the draft clears a Themes/Version history preview
+(`themePreview`/`historyPreview`), so the canvas never keeps a previewed look over an edit. Opening a page in Studio › Pages
+switches the canvas to `page:<slug>` (`StudioPages` `onShow`). `rememberPreviewSnapshot` (`previewTab.ts`, first in
+`main.tsx`) stores every snapshot on `window` before React mounts, so lazy pages start from it; the route `ErrorBoundary`
+clears its error on the next snapshot in preview; spacing drags use pointer capture so a release outside the frame still
+ends the pause on preview updates (`inlineEditingRef`).
 
 Preview canvas actions resolve section ownership and block arrays from the
 current draft, including global sections and dynamic `page:<slug>` templates.

@@ -25,10 +25,12 @@ const publicUrl = (slug?: string) => `${window.location.origin}${import.meta.env
 type Say = (kind: "ok" | "err", text: string) => void;
 
 /** Custom storefront pages, managed inside the Studio editor (Pages tab). Pages save immediately — they are not part of the theme draft. */
-export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onReorder, openSlug, active = true, onBusy, loadError = false, onRetryLoad }: {
+export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onShow, onReorder, openSlug, active = true, onBusy, loadError = false, onRetryLoad }: {
   pages: Page[]; setPages: (fn: (p: Page[]) => Page[]) => void; say: Say; onEditSections: (slug: string) => void;
   /** Receives the page being edited (unsaved) so the preview can show it before Save; null when closed. */
   onDraft?: (page: Partial<Page> | null) => void;
+  /** Called with a page's address when it is opened or first saved, so the preview can show that page. */
+  onShow?: (slug: string) => void;
   /** Called with the pages in their new order after an up/down move, so the header bar follows. */
   onReorder?: (ordered: Page[]) => void;
   /** Opens this page's editor (set by Studio's Find anything); `nonce` re-triggers the same slug. */
@@ -53,7 +55,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
   useEffect(() => () => onDraft?.(null), [onDraft]);
   const ordered = useMemo(() => [...pages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)), [pages]);
 
-  const open = (p: Partial<Page>, fresh: boolean) => { setEditing(p); setOriginal(JSON.stringify(p)); setIsNew(fresh); setSlugEdited(!fresh); setError(""); };
+  const open = (p: Partial<Page>, fresh: boolean) => { setEditing(p); setOriginal(JSON.stringify(p)); setIsNew(fresh); setSlugEdited(!fresh); setError(""); if (!fresh && p.slug) onShow?.(p.slug); };
   const openNew = () => open({ title: "", slug: "", body: "", status: "published", showInNav: true, order: pages.length, seoTitle: "", metaDescription: "", seoImage: "" }, true);
   useEffect(() => {
     if (!openSlug) return;
@@ -88,7 +90,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
         captured.body = replaceImageSources(captured.body, swaps);
       }
       let next: Page;
-      if (isNew) { next = await adminApi.createPage(captured); setPages((prev) => [...prev, next]); setIsNew(false); setSlugEdited(true); }
+      if (isNew) { next = await adminApi.createPage(captured); setPages((prev) => [...prev, next]); setIsNew(false); setSlugEdited(true); if (next.slug) onShow?.(next.slug); }
       else { next = await adminApi.updatePage(captured.id!, captured); setPages((prev) => prev.map((p) => (p.id === next.id ? next : p))); }
       setEditing(current => reconcileSavedPage(current, captured, next)); setOriginal(JSON.stringify(next));
       say("ok", "Page saved. Any newer edits remain unsaved.");

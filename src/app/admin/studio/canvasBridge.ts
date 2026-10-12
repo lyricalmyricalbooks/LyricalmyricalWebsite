@@ -63,6 +63,9 @@ export const CANVAS_TOOLS_SOURCE = String.raw`
         function finish(cancel){if(!spacingSession)return;spacingSession=null;document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',cancelPointer);document.removeEventListener('keydown',escape,true);if(original===null)target.removeAttribute('style');else target.setAttribute('style',original);if(!cancel&&next!==value)send({type:'SPACING_COMMIT',sectionId:sectionId,key:key,device:device,value:next});send({type:'TEXT_EDIT_END',cancelled:!!cancel});draw();}
         function up(){finish(false);}function cancelPointer(){finish(true);}function escape(ev){if(ev.key==='Escape'){ev.preventDefault();ev.stopPropagation();finish(true);}}
         spacingSession={finish:finish};document.addEventListener('pointermove',move);document.addEventListener('pointerup',up);document.addEventListener('pointercancel',cancelPointer);document.addEventListener('keydown',escape,true);
+        // Keep the drag's pointer even when it is released outside the preview frame; otherwise the session
+        // (and Studio's "editing in the preview" pause on preview updates) would never end.
+        try{handle.setPointerCapture(e.pointerId);}catch(_){}handle.addEventListener('lostpointercapture',up,{once:true});
       };
       spacingOverlay.appendChild(handle);
     });

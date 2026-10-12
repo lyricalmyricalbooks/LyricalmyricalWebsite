@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PREVIEW_CHANNEL, isPreviewTab, startPreviewTab } from "./previewTab";
+import { PREVIEW_CHANNEL, isPreviewTab, rememberPreviewSnapshot, startPreviewTab } from "./previewTab";
 
 // Studio › "Preview in new tab" — the storefront side of the BroadcastChannel hand-off.
 
@@ -78,5 +78,30 @@ describe("preview tab", () => {
     startPreviewTab(win);
     win.history.pushState(null, "", "/books/altrove");
     expect(pushed[0]).toBe("/books/altrove?preview=true");
+  });
+});
+
+describe("rememberPreviewSnapshot", () => {
+  it("keeps the newest Studio snapshot for pages that mount after it arrived", () => {
+    const { win } = fakeWindow("?preview=true", true);
+    const stop = rememberPreviewSnapshot(win);
+    const design = { accentColor: "#ff0000" };
+    win.dispatchEvent({ origin: "https://shop.example", source: win.parent, data: { type: "STUDIO_PREVIEW_STATE", design, settings: { design }, books: [{ id: "b" }], pages: [] } } as any);
+    expect(win.__studioPreviewDesign).toBe(design);
+    expect(win.__studioPreviewState.books).toEqual([{ id: "b" }]);
+    expect(win.__studioPreviewState.pages).toEqual([]);
+    stop();
+  });
+
+  it("ignores other senders and does nothing outside the preview", () => {
+    const { win } = fakeWindow("?preview=true", true);
+    rememberPreviewSnapshot(win);
+    win.dispatchEvent({ origin: "https://evil.example", source: win.parent, data: { type: "STUDIO_PREVIEW_STATE", design: { a: 1 } } } as any);
+    win.dispatchEvent({ origin: "https://shop.example", source: {}, data: { type: "STUDIO_PREVIEW_STATE", design: { a: 1 } } } as any);
+    expect(win.__studioPreviewDesign).toBeUndefined();
+    const shopper = fakeWindow("", true).win;
+    rememberPreviewSnapshot(shopper);
+    shopper.dispatchEvent({ origin: "https://shop.example", source: shopper.parent, data: { type: "STUDIO_PREVIEW_STATE", design: { a: 1 } } } as any);
+    expect(shopper.__studioPreviewDesign).toBeUndefined();
   });
 });
