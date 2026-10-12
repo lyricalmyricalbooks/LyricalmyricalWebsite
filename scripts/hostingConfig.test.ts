@@ -124,4 +124,13 @@ describe('deploy workflows agree', () => {
       expect(line).toMatch(/--only hosting\b/);
     }
   });
+
+  it('never cancels runs on main, and the storefront deploy skips superseded commits instead', () => {
+    for (const file of ['ci.yml', 'deploy-pages.yml', 'deploy-firebase.yml']) {
+      expect(read(`.github/workflows/${file}`)).not.toMatch(/cancel-in-progress: (true|\$\{\{ github\.event_name != )/);
+    }
+    const storefront = read('.github/workflows/deploy-pages.yml');
+    expect(storefront).toMatch(/superseded: \$\{\{ steps\.newest\.outputs\.superseded \}\}/);
+    expect(storefront).toMatch(/needs\.deploy-hosting\.outputs\.deployed == 'true'/);
+  });
 });

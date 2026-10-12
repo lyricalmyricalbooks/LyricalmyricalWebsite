@@ -8,9 +8,11 @@ on:
   push:
     branches: [main]
 
+# A newer push to the same pull request replaces the older run. Runs on main are per commit and never cancelled:
+# several merges in a row used to cancel each other's checks and leave red "cancelled" marks on main.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Same exact version as deploy-firebase.yml and deploy-pages.yml (scripts/hostingConfig.test.ts).
 env:

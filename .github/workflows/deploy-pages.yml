@@ -15,9 +15,12 @@ on:
 permissions:
   contents: read
 
+# Nothing here is ever cancelled: a cancelled run shows as a red mark on main and could stop mid-deploy. Every run is its
+# own group instead, and a run that is no longer the newest commit on main finishes green as "superseded" (the
+# `newest` step below, re-checked right before the Hosting deploy), so the newest commit is always what ends up live.
 concurrency:
-  group: pages
-  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+  group: pages-${{ github.run_id }}
+  cancel-in-progress: false
 
 # Same exact CLI version as deploy-firebase.yml (scripts/hostingConfig.test.ts keeps them equal): the Hosting deploy
 # holds a Firebase key, so a new release must not run with it unreviewed.
@@ -35,9 +38,29 @@ jobs:
     permissions:
       actions: read
       contents: read
+    outputs:
+      superseded: ${{ steps.newest.outputs.superseded }}
     steps:
+      # A newer commit reached main since this run started: it builds and publishes everything this one would, so this
+      # run stops here (green) instead of racing it.
+      - name: Is this still the newest commit on main?
+        id: newest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$REPO/commits/main" --jq .sha) || { echo "Could not read main's head; carrying on."; echo "superseded=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          if [ "$head" != "$SHA" ] && [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            echo "main has moved on to $head; this run ($SHA) is superseded and will not publish."
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "superseded=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Wait for the Firebase deploy when this push changed backend files
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.newest.outputs.superseded != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -89,7 +112,7 @@ jobs:
     needs: firebase-first
     # FIREBASE_HOSTING_ENABLED (repository variable) must stay true: it was the switch for the side-by-side step and
     # is now the emergency stop. A manual run from another branch must never publish (the key has no branch rule).
-    if: github.ref == 'refs/heads/main' && vars.FIREBASE_HOSTING_ENABLED == 'true'
+    if: github.ref == 'refs/heads/main' && vars.FIREBASE_HOSTING_ENABLED == 'true' && needs.firebase-first.outputs.superseded != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
@@ -181,6 +204,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    outputs:
+      deployed: ${{ steps.newest.outputs.deploy }}
     environment:
       name: firebase-hosting
       url: ${{ needs.build-hosting.outputs.site-url }}
@@ -197,7 +222,26 @@ jobs:
           name: hosting-dist
           path: dist
 
+      # Re-check right before publishing: a newer commit may have landed while this one was building, and an older
+      # build must never replace a newer one.
+      - name: Is this still the newest commit on main?
+        id: newest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$REPO/commits/main" --jq .sha) || head="$SHA"
+          if [ "$head" != "$SHA" ]; then
+            echo "main has moved on to $head; not publishing $SHA."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy to Firebase Hosting
+        if: steps.newest.outputs.deploy == 'true'
         env:
           # A service account with only "Firebase Hosting Admin" (preferred), else the backend deploy key.
           HOSTING_KEY: ${{ secrets.FIREBASE_HOSTING_SERVICE_ACCOUNT }}
@@ -218,6 +262,7 @@ jobs:
             --message "${GITHUB_SHA::12} (${GITHUB_EVENT_NAME})"
 
       - name: Check the live site
+        if: steps.newest.outputs.deploy == 'true'
         env:
           SITE_URL: ${{ needs.build-hosting.outputs.site-url }}
         run: node scripts/hosting-smoke.mjs --base "$SITE_URL"
@@ -226,7 +271,7 @@ jobs:
   # so GitHub Pages never forwards to an address that isn't serving. Schedules don't touch it.
   redirect-old-address:
     needs: [build-hosting, deploy-hosting]
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && needs.deploy-hosting.outputs.deployed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
