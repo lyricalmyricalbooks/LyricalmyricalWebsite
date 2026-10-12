@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, LayoutTemplate, Plus, Sparkles, Trash2 } from "lucide-react";
 import { adminApi } from "../api";
 import { autoSeo, duplicatePage, missingSeo, movePage, seoHints } from "../pageInsights";
-import { dataUrlToFile, firstBodyImage, pastedImageSources, replaceImageSources } from "../../features/site/pageBody";
+import { dataUrlToFile, firstBodyImage, pageBodyText, pastedImageSources, replaceImageSources } from "../../features/site/pageBody";
 import { PageBodyEditor, uploadPagePicture } from "./PageBodyEditor";
 import { ImageUploadButton } from "./ImageUploadButton";
 import { mainUrl } from "./mediaLibrary";
@@ -24,8 +24,10 @@ const publicUrl = (slug?: string) => `${window.location.origin}${import.meta.env
 
 type Say = (kind: "ok" | "err", text: string) => void;
 
+const asIs = (title: string) => title;
+
 /** Custom storefront pages, managed inside the Studio editor (Pages tab). Pages save immediately — they are not part of the theme draft. */
-export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onShow, onReorder, openSlug, active = true, onBusy, loadError = false, onRetryLoad }: {
+export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onShow, onReorder, openSlug, active = true, onBusy, loadError = false, onRetryLoad, formatTitle = asIs, fillSeoRequest }: {
   pages: Page[]; setPages: (fn: (p: Page[]) => Page[]) => void; say: Say; onEditSections: (slug: string) => void;
   /** Receives the page being edited (unsaved) so the preview can show it before Save; null when closed. */
   onDraft?: (page: Partial<Page> | null) => void;
@@ -39,6 +41,11 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
   onBusy?: (busy: boolean) => void;
   loadError?: boolean;
   onRetryLoad?: () => void;
+  /** The shop's tab-title format (Text & labels › Site & sharing › Other pages' tab title), so search
+   *  titles are measured and previewed as shoppers' browsers and Google receive them. */
+  formatTitle?: (title: string) => string;
+  /** Changing nonce = run "Fill in missing search listings" (Studio's Find anything command). */
+  fillSeoRequest?: number;
 }) {
   const [askConfirm, confirmNode] = useConfirm();
   const media = useMediaPicker();
@@ -116,7 +123,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
   }
 
   // Pages whose search title or description is blank and could be written from the page itself.
-  const needsSeo = ordered.filter((p) => Object.keys(missingSeo(p)).length);
+  const needsSeo = ordered.filter((p) => Object.keys(missingSeo(p, formatTitle)).length);
   async function fillAllSeo() {
     if (locked.current || !needsSeo.length) return;
     const count = needsSeo.length;
@@ -129,7 +136,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
     let done = 0;
     try {
       for (const p of needsSeo) {
-        const patch = missingSeo(p);
+        const patch = missingSeo(p, formatTitle);
         try {
           await adminApi.updatePage(p.id, { title: p.title, ...patch });
           setPages((prev) => prev.map((x) => (x.id === p.id ? { ...x, ...patch } : x)));
@@ -140,6 +147,13 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
     if (done === count) say("ok", done === 1 ? "Filled in the search listing for 1 page." : `Filled in search listings for ${done} pages.`);
     else say("err", `Filled in ${done} of ${count} pages. The others couldn't be saved — try again.`);
   }
+
+  useEffect(() => {
+    if (!fillSeoRequest) return;
+    if (editing) { say("ok", "Close this page first (All pages), then fill in the missing search listings."); return; }
+    if (!needsSeo.length) { say("ok", "Every page already has a search title and description."); return; }
+    fillAllSeo();
+  }, [fillSeoRequest]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function move(id: string, dir: -1 | 1) {
     const updates = movePage(ordered, id, dir);
@@ -155,9 +169,9 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
   if (editing) {
     const set = (patch: Partial<Page>) => setEditing((p) => ({ ...p, ...patch }));
     const autoFill = async () => {
-      const auto = autoSeo(editing);
+      const auto = autoSeo(editing, formatTitle);
       if (!auto.seoTitle && !auto.metaDescription) return setError("Write the page title and some text first, then auto-fill.");
-      const blanks = missingSeo(editing);
+      const blanks = missingSeo(editing, formatTitle);
       if (Object.keys(blanks).length) {
         set(blanks);
         say("ok", "Search listing filled in from the page. Check it, then Save page.");
@@ -232,8 +246,11 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
               {editing.seoImage && <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={saving} onClick={() => set({ seoImage: "" })}>Use the page's first picture</button>}
             </div>
           </div>
+          <SearchPreview url={publicUrl(editing.slug || "…")}
+            title={formatTitle((editing.seoTitle || editing.title || "").trim() || "Page title")}
+            description={(editing.metaDescription || "").trim() || pageBodyText(editing.body || "").substring(0, 160)} />
           <ul className="text-[11px] text-neutral-600 space-y-0.5">
-            {seoHints(editing.title || "", editing.seoTitle || "", editing.metaDescription || "").map((h) => (
+            {seoHints(editing.title || "", editing.seoTitle || "", editing.metaDescription || "", formatTitle).map((h) => (
               <li key={h.text}>{h.level === "good" ? "✓ " : "⚠ "}{h.text}</li>
             ))}
           </ul>
@@ -282,6 +299,20 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
           </p>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Roughly how Google lists the page (it may rewrite titles and snippets). Mirrors what PageView sends:
+ *  the search title in the shop's tab-title format and the description, else the start of the page text. */
+function SearchPreview({ url, title, description }: { url: string; title: string; description: string }) {
+  const cut = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
+  return (
+    <div className="border border-neutral-200 rounded-lg p-3 bg-white" aria-label="Search result preview">
+      <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block mb-1">Search preview · approximate</span>
+      <p className="text-[11px] text-neutral-600 break-all">{url}</p>
+      <p className="text-sm leading-snug text-blue-800">{cut(title, 60)}</p>
+      <p className="text-xs leading-snug text-neutral-700">{description ? cut(description, 160) : "Add a description or some page text."}</p>
     </div>
   );
 }
