@@ -58,11 +58,20 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
 
   const open = (p: Partial<Page>, fresh: boolean) => { setEditing(p); setOriginal(JSON.stringify(p)); setIsNew(fresh); setSlugEdited(!fresh); setError(""); if (!fresh && p.slug) onShow?.(p.slug); };
   const openNew = () => open({ title: "", slug: "", body: "", status: "published", showInNav: true, order: pages.length, seoTitle: "", metaDescription: "", seoImage: "" }, true);
+  // Requests already handled, so a page list refresh doesn't reopen the page; an unmatched request waits for the pages to load.
+  const handledOpen = useRef<number | null>(null);
   useEffect(() => {
-    if (!openSlug) return;
+    if (!openSlug || handledOpen.current === openSlug.nonce) return;
     const page = pages.find((p) => p.slug === openSlug.slug);
-    if (page) open(page, false);
-  }, [openSlug?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!page) return;
+    handledOpen.current = openSlug.nonce;
+    if (editing && editing.id === page.id) { onShow?.(page.slug); return; }
+    (async () => {
+      if (locked.current) return;
+      if (dirty && !(await askConfirm({ title: "Discard page changes?", message: `Your unsaved changes to “${editing?.title || "this page"}” will be lost if you open “${page.title}”.`, confirmLabel: "Discard and open" }))) return;
+      open(page, false);
+    })();
+  }, [openSlug?.nonce, pages]); // eslint-disable-line react-hooks/exhaustive-deps
   const back = async () => {
     if (locked.current) return;
     if (dirty && !(await askConfirm({ title: "Discard page changes?", message: "Your unsaved changes to this page will be lost.", confirmLabel: "Discard changes" }))) return;
@@ -76,6 +85,8 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
     if (!editing.slug?.trim()) return setError("A URL slug is required.");
     if (pages.some((p) => p.slug === editing.slug && p.id !== editing.id)) return setError("Another page already uses this slug.");
     const captured = JSON.parse(JSON.stringify(editing));
+    // What the editor held before pasted pictures were uploaded, so a body left untouched during the save takes the uploaded links.
+    const sent = JSON.parse(JSON.stringify(editing));
     locked.current = true; setError(""); setSaving(true); onBusy?.(true);
     try {
       // Pasted pictures arrive as data: text; upload them so the page record stays small and loads fast.
@@ -93,7 +104,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
       let next: Page;
       if (isNew) { next = await adminApi.createPage(captured); setPages((prev) => [...prev, next]); setIsNew(false); setSlugEdited(true); if (next.slug) onShow?.(next.slug); }
       else { next = await adminApi.updatePage(captured.id!, captured); setPages((prev) => prev.map((p) => (p.id === next.id ? next : p))); }
-      setEditing(current => reconcileSavedPage(current, captured, next)); setOriginal(JSON.stringify(next));
+      setEditing(current => reconcileSavedPage(current, sent, next)); setOriginal(JSON.stringify(next));
       say("ok", "Page saved. Any newer edits remain unsaved.");
     } catch (e: any) { say("err", e?.message || "Could not save the page."); }
     finally { locked.current = false; setSaving(false); onBusy?.(false); }
@@ -144,12 +155,15 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
   async function move(id: string, dir: -1 | 1) {
     const updates = movePage(ordered, id, dir);
     if (!updates.length) return;
-    try {
-      await Promise.all(updates.map((u) => adminApi.updatePage(u.id, { ...pages.find((p) => p.id === u.id), order: u.order })));
-      const next = pages.map((p) => { const u = updates.find((x) => x.id === p.id); return u ? { ...p, order: u.order } : p; });
+    const results = await Promise.allSettled(updates.map((u) => adminApi.updatePage(u.id, { ...pages.find((p) => p.id === u.id), order: u.order })));
+    // Apply only the orders that were saved, so the list matches what the shop has.
+    const savedUpdates = updates.filter((_, i) => results[i].status === "fulfilled");
+    if (savedUpdates.length) {
+      const next = pages.map((p) => { const u = savedUpdates.find((x) => x.id === p.id); return u ? { ...p, order: u.order } : p; });
       setPages(() => next);
       onReorder?.([...next].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
-    } catch { say("err", "Could not reorder pages."); }
+    }
+    if (savedUpdates.length < updates.length) say("err", "Could not reorder pages. The list shows the order that was saved — try again.");
   }
 
   if (editing) {

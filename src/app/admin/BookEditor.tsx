@@ -53,7 +53,7 @@ import { useCurrency } from "../CurrencyContext";
 import { BookCustomFields } from "./BookCustomFields";
 import { BookTemplatePicker } from "./BookTemplatePicker";
 import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow } from "../features/site/detailRows";
-import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs } from "./riso/components";
+import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
 import { uploadBookPhoto } from "./bookPhotoUpload";
 import { studioHash } from "../lib/studioLocation";
 
@@ -121,8 +121,14 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   useEffect(() => { setBook(bookProp); }, [bookProp]);
   // Books matched to the inventory app (Inventory › Inventory app link) take their stock from it.
   const [stockLinks, setStockLinks] = useState<InventoryLinks>({});
-  useEffect(() => { inventoryLinkApi.links().then(setStockLinks).catch(() => setStockLinks({})); }, []);
+  // Unknown links (the check failed) keep stock read-only rather than looking editable.
+  const [stockLinksFailed, setStockLinksFailed] = useState(false);
+  useEffect(() => { inventoryLinkApi.links().then(setStockLinks).catch(() => { setStockLinks({}); setStockLinksFailed(true); }); }, []);
   const LINKED_HINT = "Counted in the inventory app. Change it there; the website follows it (Inventory › Inventory app link).";
+  const LINKS_FAILED_HINT = "Couldn't check whether this stock is counted in the inventory app. Close and reopen the book to edit it.";
+  const stockLocked = (variantId: string | null) => !!book?.id && (stockLinksFailed || isStockLinked(stockLinks, book.id, variantId));
+  const stockLockHint = (variantId: string | null) => (stockLocked(variantId) ? (stockLinksFailed ? LINKS_FAILED_HINT : LINKED_HINT) : undefined);
+  const [askConfirm, confirmNode] = useConfirm();
   const [defaultProfileId, setDefaultProfileId] = useState("");
   const [fieldsDirty, setFieldsDirty] = useState(false);
   const [visited, setVisited] = useState<Set<BookTab>>(() => new Set(["details"]));
@@ -194,6 +200,8 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   const [confirmSlug, setConfirmSlug] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const uploadingRef = useRef(false);
+  const [metadataError, setMetadataError] = useState(false);
   const [photoInput, setPhotoInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [initialData, setInitialData] = useState<any>(null);
@@ -209,6 +217,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   const [newCategory, setNewCategory] = useState("");
   const [newCategoryParent, setNewCategoryParent] = useState("");
   const [savingCategory, setSavingCategory] = useState(false);
+  const savingCategoryRef = useRef(false);
+  // What a book had before it was switched to Gift card, so switching back restores it.
+  const preGiftRef = useRef<{ trackInventory: any; variants: any[] } | null>(null);
   const saveRef = useRef<() => void>(() => {});
   // Box set switch: on while the owner is choosing the books, even before the first is added.
   const [boxSetOn, setBoxSetOn] = useState(false);
@@ -234,6 +245,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
 
   useEffect(() => {
     loadMetadata();
+    preGiftRef.current = null;
     adminApi.getAllBooks().then(setRecommendationCatalog).catch(() => setRecommendationError(true));
     const book = bookProp;
     if (book) {
@@ -421,6 +433,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   }, [formData.variants]);
 
   async function loadMetadata() {
+    setMetadataError(false);
     try {
       const [sh, au, settings] = await Promise.all([
         adminApi.getShippingProfiles(),
@@ -454,6 +467,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
       }
     } catch (err) {
       console.error("Failed to load metadata", err);
+      setMetadataError(true);
     }
   }
 
@@ -531,6 +545,8 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     if (!reviewed && needsPublishReview(formData, book ? initialData : null)) { setPublishReview(true); return; }
     // Gift cards are digital and untracked; box sets take stock from the books inside (productExtras).
     const toSave = productForSave(formData);
+    // Edits typed while the save is in flight are kept (and stay unsaved), never replaced by the saved copy.
+    const snapshot = formData;
     setLoading(true);
     try {
       if (book) {
@@ -549,7 +565,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
         // Further saves update this record instead of creating another copy.
         setBook({ ...toSave, id: created.id } as any);
       }
-      setFormData(toSave);
+      setFormData((prev: any) => (prev === snapshot ? toSave : prev));
       setInitialData(toSave);
       onSave({ stayOpen: !close });
     } catch (err: any) {
@@ -582,11 +598,13 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   };
 
   const uploadFiles = async (files: FileList | null) => {
+    if (uploadingRef.current) { toast("Wait for the current upload to finish."); return; }
     const list = Array.from(files || []).filter((f) => f.type.startsWith("image/"));
     if (!list.length) return;
     const room = MAX_BOOK_PHOTOS - (formData.photos?.length || 0);
     if (room <= 0) { toast.error(`Maximum ${MAX_BOOK_PHOTOS} photos allowed`); return; }
     if (list.length > room) toast(`Only ${room} more image${room === 1 ? "" : "s"} fit — extra files skipped.`);
+    uploadingRef.current = true;
     setUploading(true);
     // One bad file no longer stops the rest; the ones that failed are named afterwards.
     const failedNames: string[] = [];
@@ -599,6 +617,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
         failedNames.push(file.name);
       }
     }
+    uploadingRef.current = false;
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (failedNames.length) toast.error(`Couldn't upload: ${failedNames.join(", ")}. The other images were added — try these again.`);
@@ -609,8 +628,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     try {
       const facts = await lookupIsbn(formData.isbn);
       if (!facts) { setIsbnResult({ text: "No public record found for this ISBN (Open Library, Google Books). Fill the details in yourself." }); return; }
-      const { patch, filled } = fillEmpty(formData, facts);
-      if (filled.length) setFormData((prev: any) => ({ ...prev, ...patch }));
+      const { filled } = fillEmpty(formData, facts);
+      // Fill from the latest form, so anything typed during the lookup is kept.
+      if (filled.length) setFormData((prev: any) => ({ ...prev, ...fillEmpty(prev, facts).patch }));
       setIsbnResult({
         text: filled.length ? `Filled ${filled.join(", ")}. Check them before saving — public records can be wrong.` : "Found a record, but every field it has is already filled in. Nothing was changed.",
         cover: facts.coverUrl,
@@ -629,7 +649,8 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     setFormData((prev: any) => {
       const src = (prev.variants || []).find((v: any) => v.id === id);
       if (!src) return prev;
-      return { ...prev, variants: [...prev.variants, { ...src, id: crypto.randomUUID(), name: src.name ? `${src.name} (copy)` : "", sku: src.sku ? `${src.sku}-2` : "" }] };
+      // The copy starts with no stock and no download file: stock and files belong to the original edition.
+      return { ...prev, variants: [...prev.variants, { ...src, id: crypto.randomUUID(), name: src.name ? `${src.name} (copy)` : "", sku: src.sku ? `${src.sku}-2` : "", stock: 0, stockLevel: 0, digitalFileName: "", digitalFilePath: "" }] };
     });
   };
 
@@ -728,7 +749,12 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     }));
   };
 
-  const removeVariant = (id: string) => {
+  const removeVariant = async (id: string) => {
+    const v = (formData.variants || []).find((x: any) => x.id === id);
+    const what = isGiftCardProduct(formData) ? "amount" : "edition";
+    const ok = await askConfirm({ title: `Remove this ${what}?`, confirmLabel: `Remove ${what}`,
+      message: `${v?.name ? `“${v.name}”` : `This ${what}`} will be removed when you save the book. Shoppers will no longer be able to buy it.` });
+    if (!ok) return;
     setFormData((prev: any) => ({
       ...prev,
       variants: (prev.variants || []).filter((v: any) => v.id !== id)
@@ -749,7 +775,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
 
   const createCategory = async () => {
     const name = newCategory.trim();
-    if (!name) return;
+    if (!name || savingCategoryRef.current) return;
     if (categoryDefinitions.some((category) => category.name?.toLocaleLowerCase() === name.toLocaleLowerCase())) {
       toast.error("That category already exists.");
       return;
@@ -762,6 +788,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
       ...(newCategoryParent ? { parentId: newCategoryParent } : {}),
     };
     const next = [...categoryDefinitions, category];
+    savingCategoryRef.current = true;
     setSavingCategory(true);
     try {
       await adminApi.addShopCategory(category);
@@ -779,6 +806,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
       console.error("Failed to create category", error);
       toast.error("Could not create the category. Try again.");
     } finally {
+      savingCategoryRef.current = false;
       setSavingCategory(false);
     }
   };
@@ -830,17 +858,49 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     stock: 0, stockLevel: 0, photoUrl: "", sku: "", weight: "", digital: true,
   });
   // Switching type only changes what the editor shows; nothing is discarded until the book is saved.
-  const setProductType = (type: "book" | "giftCard") => setFormData((prev: any) => {
+  // Switching back to Book restores the inventory setting and editions it had (the CA$ amounts added here go away).
+  const setProductType = (type: "book" | "giftCard") => {
     if (type === "giftCard") {
-      return { ...prev, productType: "giftCard", trackInventory: false, variants: (prev.variants || []).length ? prev.variants : [25, 50, 100].map(giftAmount) };
+      if (!isGiftCardProduct(formData)) preGiftRef.current = { trackInventory: formData.trackInventory, variants: formData.variants || [] };
+      setFormData((prev: any) => ({ ...prev, productType: "giftCard", trackInventory: false, variants: (prev.variants || []).length ? prev.variants : [25, 50, 100].map(giftAmount) }));
+      return;
     }
-    const next = { ...prev };
-    delete next.productType;
-    return next;
-  });
-  const toggleBoxSet = (on: boolean) => {
+    const before = preGiftRef.current;
+    preGiftRef.current = null;
+    setFormData((prev: any) => {
+      const next = { ...prev };
+      delete next.productType;
+      if (before) { next.trackInventory = before.trackInventory; next.variants = before.variants; }
+      return next;
+    });
+  };
+  const toggleBoxSet = async (on: boolean) => {
+    const parts = (formData.bundleItems || []).length;
+    if (!on && parts) {
+      const ok = await askConfirm({ title: "Stop selling this as a box set?", confirmLabel: "Remove the books",
+        message: `This removes the ${parts} book${parts === 1 ? "" : "s"} chosen for this box set. They are gone for good once you save.` });
+      if (!ok) return;
+    }
     setBoxSetOn(on);
     if (!on) set("bundleItems", []);
+  };
+  const removeDigitalFile = async (variantId: string | null) => {
+    const ok = await askConfirm({ title: "Remove this download file?", confirmLabel: "Remove file",
+      message: variantId ? "Buyers of this edition will get the book's main digital file instead, if it has one, once you save." : "Buyers will have no file to download once you save, until you upload a new one." });
+    if (!ok) return;
+    if (variantId) setFormData((prev: any) => ({ ...prev, variants: (prev.variants || []).map((x: any) => x.id === variantId ? { ...x, digitalFileName: "", digitalFilePath: "" } : x) }));
+    else setFormData((prev: any) => ({ ...prev, digitalFileName: "", digitalFileUrl: "", digitalFilePath: "" }));
+  };
+  const copyBookLink = async () => {
+    const slug = book?.slug;
+    if (!slug) return;
+    try {
+      if (!navigator.clipboard) throw new Error("no clipboard");
+      await navigator.clipboard.writeText(`${window.location.origin}${import.meta.env.BASE_URL}books/${slug}`);
+      toast.success("Link copied");
+    } catch {
+      toast.error("Couldn't copy the link. Your browser blocked the clipboard.");
+    }
   };
   const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const num = (n: any) => Number(n) || 0;
@@ -940,6 +1000,13 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
         </div>
       </header>
 
+      {metadataError && (
+        <div role="alert" className="be-alert">
+          <strong>⚠ Couldn't load authors, shipping profiles and categories.</strong> Those lists are empty until they load.{" "}
+          <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => void loadMetadata()}><RefreshCw size={13} aria-hidden /> Try again</button>
+        </div>
+      )}
+      {confirmNode}
       {validationErrors.length > 0 && (
         <div role="alert" className="be-alert">
           <strong>⚠ Fix {validationErrors.length === 1 ? "this" : "these"} before saving:</strong>
@@ -978,7 +1045,8 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                       {addressLocked
                         ? <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => setConfirmSlug(true)}><RefreshCw size={13} aria-hidden /> Change web address</button>
                         : <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => set("slug", slugify(formData.title || ""))}><RefreshCw size={13} aria-hidden /> Regenerate from title</button>}
-                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}${import.meta.env.BASE_URL}books/${formData.slug}`); toast.success("Link copied"); }} disabled={!formData.slug}><Copy size={13} aria-hidden /> Copy link</button>
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => void copyBookLink()} disabled={!book?.slug}
+                        title={!book?.slug ? "Save the book first to get its link." : book.slug !== formData.slug ? "Copies the saved web address. Save to use the new one." : undefined}><Copy size={13} aria-hidden /> Copy link</button>
                     </div>
                   </div>
                   <div className="be-span-2">
@@ -1197,8 +1265,8 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                 </div>
                 <div className="be-grid be-grid-3">
                   <TextField label={`Stock level${hasVariants ? " (from editions)" : ""}`} type="number" name="stockLevel" value={formData.stockLevel} onChange={handleChange}
-                    disabled={hasVariants || (!!book?.id && isStockLinked(stockLinks, book.id, null))}
-                    hint={!hasVariants && book?.id && isStockLinked(stockLinks, book.id, null) ? LINKED_HINT : undefined} />
+                    disabled={hasVariants || stockLocked(null)}
+                    hint={!hasVariants ? stockLockHint(null) : undefined} />
                   <div className="be-stock-status">{formData.trackInventory && stockBadge(num(formData.stockLevel))}</div>
                   <TextField label="Shelf location" name="shelfLocation" value={formData.shelfLocation || ""} onChange={handleChange} placeholder="e.g. B2 or Box 4" hint={hasVariants ? "Shown on the packing checklist for editions without their own shelf location." : "Shown next to this book on the packing checklist."} />
                 </div>
@@ -1265,7 +1333,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                   {formData.digitalFileName ? (
                     <div className="be-file">
                       <div><span className="be-label-xs">Active file</span><code>{formData.digitalFileName}</code></div>
-                      <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => setFormData((prev: any) => ({ ...prev, digitalFileName: "", digitalFileUrl: "", digitalFilePath: "" }))}><Trash2 size={14} aria-hidden /> Remove</button>
+                      <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => void removeDigitalFile(null)}><Trash2 size={14} aria-hidden /> Remove</button>
                     </div>
                   ) : (
                     <>
@@ -1304,7 +1372,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                     <div className="be-variant-tools">
                       {!giftCard && stockBadge(num((v as any).stockLevel ?? v.stock))}
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => duplicateVariant(v.id)}><Copy size={13} aria-hidden /> Duplicate</button>
-                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => removeVariant(v.id)} aria-label={`Remove ${giftCard ? "amount" : "edition"} ${v.name || i + 1}`}><Trash2 size={13} aria-hidden /> Remove</button>
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => void removeVariant(v.id)} aria-label={`Remove ${giftCard ? "amount" : "edition"} ${v.name || i + 1}`}><Trash2 size={13} aria-hidden /> Remove</button>
                     </div>
                     {giftCard ? (
                     <div className="be-grid be-grid-3">
@@ -1321,7 +1389,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                       <TextField label="Price (USD)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).usdPrice ?? 0} onChange={(e) => updateVariant(v.id, "usdPrice", Number(e.target.value))} />
                       <TextField label="Price (EUR)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).eurPrice ?? 0} onChange={(e) => updateVariant(v.id, "eurPrice", Number(e.target.value))} />
                       <TextField label="Stock" type="number" min={0} value={(v as any).stockLevel ?? v.stock ?? 0} onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))}
-                        disabled={!!book?.id && isStockLinked(stockLinks, book.id, v.id)} hint={book?.id && isStockLinked(stockLinks, book.id, v.id) ? LINKED_HINT : undefined} />
+                        disabled={stockLocked(v.id)} hint={stockLockHint(v.id)} />
                       <TextField label="Shelf location" placeholder="e.g. B2" value={(v as any).shelfLocation || ""} onChange={(e) => updateVariant(v.id, "shelfLocation", e.target.value)} hint="Packing checklist; blank = the book's." />
                       <div style={{ gridColumn: "1 / -1" }}>
                         <Toggle label="Digital edition (buyers download a file)" checked={(v as any).digital === true} onChange={(on) => updateVariant(v.id, "digital", on)} />
@@ -1330,7 +1398,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                             {(v as any).digitalFileName ? (
                               <>
                                 <span className="be-label-xs">This edition's file</span> <code>{String((v as any).digitalFileName).replace(/^\d{10,}-/, "")}</code>
-                                <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => setFormData((prev: any) => ({ ...prev, variants: (prev.variants || []).map((x: any) => x.id === v.id ? { ...x, digitalFileName: "", digitalFilePath: "" } : x) }))}><Trash2 size={13} aria-hidden /> Remove</button>
+                                <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => void removeDigitalFile(v.id)}><Trash2 size={13} aria-hidden /> Remove</button>
                               </>
                             ) : (
                               <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={!!uploadingVariantFile}

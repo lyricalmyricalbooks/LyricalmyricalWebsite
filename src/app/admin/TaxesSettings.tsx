@@ -62,7 +62,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
             {gaps.map((g) => (
               <li key={g.country} style={{ padding: "8px 0" }}>
                 <strong>{g.country}:</strong> <span className="rp-hint">{g.regions.join(", ")}</span>{" "}
-                <SecondaryButton size="sm" onClick={() => { setCountry(g.country); setRegion(regionsFor(g.country)?.find(([, n]) => n === g.regions[0])?.[1] || ""); }}>Add {g.regions[0]}</SecondaryButton>
+                <SecondaryButton size="sm" onClick={() => { setCountry(g.country); setRegion(regionsFor(g.country)?.find(([, n]) => n === g.regions[0])?.[1] || ""); }}>Fill in {g.regions[0]}</SecondaryButton>
               </li>
             ))}
           </ul>

@@ -7,7 +7,7 @@ import { BlockFieldEditor, BlockListFieldEditor, getBlockFields, getBlocksKey, g
 import { SECTION_TABS, sectionStyleFields, type SectionTab } from "./sectionStyleSchema";
 import { StudioSectionStyle } from "./StudioSectionStyle";
 import { IconButton, useFocusTrap, usePrompt } from "../riso/components";
-import { findBlock, freshBlockIds, mapBlock, removeBlock, resolveSharedBlocks, type Section, type SharedBlock } from "./studioModel";
+import { findBlock, freshBlockIds, insertBlockAfter, mapBlock, removeBlock, resolveSharedBlocks, type Section, type SharedBlock } from "./studioModel";
 import { updateBlocks } from "./studioWorkflow";
 import { blockLabel } from "./StudioOutline";
 import { autoFitSection, resetPhoneLayout } from "./autoMobile";
@@ -61,6 +61,19 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
     onPatch(patch);
     onNotice?.("Phone and tablet overrides removed from this section.");
   };
+  /** Turns a linked placement into an ordinary block holding the shared content, so later edits stay here. */
+  const makeIndependent = () => {
+    if (!placement?.sharedBlockId) return;
+    const source = sharedBlocks.find(s => s.id === placement.sharedBlockId)?.block;
+    if (!source) { onNotice?.("Its shared source is missing, so there's no content to copy into it."); return; }
+    const { sharedBlockId: _link, ...own } = placement;
+    const copy: any = { ...JSON.parse(JSON.stringify(source)), ...own, id: placement.id };
+    delete copy.sharedBlockId;
+    // Children inherited from the source get their own ids (other placements show the same source children).
+    if (!placement.children && Array.isArray(source.children)) copy.children = source.children.map(freshBlockIds);
+    onPatch(updateBlocks(section, key, list => mapBlock(list, placement.id, () => copy)));
+    onNotice?.("This block is independent now: editing it no longer changes the shared block. Undo (Ctrl+Z) links it again.");
+  };
   const title = block ? blockLabel(block, blocks.indexOf(block), meta?.blockLabel) : meta?.label || section.type;
   return <aside ref={ref} className="studio-inspector" role={overlay ? "dialog" : undefined} aria-modal={overlay || undefined} aria-label="Content settings" tabIndex={-1}>
     {promptNode}
@@ -75,9 +88,10 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
     <div className="studio-inspector-actions">
       {block && <IconButton label="Back to section" onClick={() => onSelectBlock(null)}><ArrowLeft size={15} /></IconButton>}
       <IconButton label={block ? (block.hidden ? "Show block" : "Hide block") : section.visible === false ? "Show section" : "Hide section"} onClick={block ? () => patchBlock({ hidden: !block.hidden }) : onToggle}>{(block ? block.hidden : section.visible === false) ? <EyeOff size={15} /> : <Eye size={15} />}</IconButton>
-      <IconButton label={block ? "Duplicate block" : "Duplicate section"} onClick={block ? () => {
-        const copy = freshBlockIds(block);
-        onPatch(updateBlocks(section, key, list => [...list, copy]));
+      <IconButton label={block ? "Duplicate block" : "Duplicate section"} onClick={block && placement ? () => {
+        // Copy the stored placement (a linked block stays linked) and put it right after the original, in the same group.
+        const copy = freshBlockIds(placement);
+        onPatch(updateBlocks(section, key, list => insertBlockAfter(list, placement.id, copy)));
         onSelectBlock(copy.id);
       } : onDuplicate}><Copy size={15} /></IconButton>
       <IconButton label={block ? "Remove block" : "Delete section"} tone="danger" onClick={block ? () => {
@@ -108,9 +122,10 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
           <label>Alignment<select value={block.responsive?.[device]?.align || ""} onChange={e => patchResponsive("responsive", "align", e.target.value || undefined)}><option value="">Inherit</option><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
           <label><input type="checkbox" checked={Boolean(block.responsive?.[device]?.hidden)} onChange={e => patchResponsive("responsive", "hidden", e.target.checked || undefined)} /> Hide at this size</label>
           {section.type === "CompositionSection" && <div className="studio-grid-fields">
-            {[["column", "Column", 1, 24], ["span", "Width", 1, 24], ["row", "Row", 1, 30], ["rowSpan", "Height", 1, 12], ["z", "Layer", 0, 20]].map(([field, label, min, max]) => <label key={String(field)}>{label}<input type="number" min={Number(min)} max={Number(max)} value={block.grid?.[device]?.[String(field)] || ""} onChange={e => patchResponsive("grid", String(field), e.target.value ? Number(e.target.value) : undefined)} /></label>)}
+            {[["column", "Column", 1, 24], ["span", "Width", 1, 24], ["row", "Row", 1, 30], ["rowSpan", "Height", 1, 12], ["z", "Layer", 0, 20]].map(([field, label, min, max]) => <label key={String(field)}>{label}<input type="number" min={Number(min)} max={Number(max)} value={block.grid?.[device]?.[String(field)] ?? ""} onChange={e => patchResponsive("grid", String(field), e.target.value ? Number(e.target.value) : undefined)} /></label>)}
           </div>}
-          <button className="studio-link-button" onClick={async () => { const name = await askText({ title: "Save as linked shared block", label: "Name", defaultValue: title, confirmLabel: "Save block" }); if (name?.trim()) onSaveShared(block.id, name.trim()); }}>Save as linked shared block</button>
+          {!placement?.sharedBlockId && <button className="studio-link-button" onClick={async () => { const name = await askText({ title: "Save as linked shared block", label: "Name", defaultValue: title, confirmLabel: "Save block" }); if (name?.trim()) onSaveShared(block.id, name.trim()); }}>Save as linked shared block</button>}
+          {placement?.sharedBlockId && <button className="studio-link-button" onClick={makeIndependent}>Make this block independent</button>}
           {block.sharedBlockId && <small>Linked to {sharedBlocks.find(s => s.id === block.sharedBlockId)?.name || "a missing shared block"}. Content updates from its library source; layout stays local.</small>}
         </div>}
       </>}

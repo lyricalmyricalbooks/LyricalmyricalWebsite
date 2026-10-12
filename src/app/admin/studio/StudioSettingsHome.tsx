@@ -11,7 +11,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export function ChangedBadge({ count, label = "changed" }: { count?: number; label?: string }) {
   if (!count) return null;
-  return <span className="studio-changed-badge" aria-label={`${count} ${label}`}>● {count} {label}</span>;
+  return <span className="studio-changed-badge"><span aria-hidden="true">● </span>{count} {label}</span>;
 }
 
 /** Category cards under task headings. Advanced headings stay folded until asked for. */

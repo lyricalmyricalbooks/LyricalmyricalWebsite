@@ -7,8 +7,12 @@ import { childCategories, normalizeCategories, parentOf, renameCategory } from "
 import { ImageUploadButton } from "./ImageUploadButton";
 import { deleteCategory, directlyAssigned, validateCategoryName, type CategoryAction } from "./categoryManager";
 
-type Props = { design: any; published: any; onChange: (cats: any[]) => void; onReorder?: (cats: any[]) => void; onBooksChanged: (books: any[]) => void };
-export function StudioCategories({ design, published, onChange, onReorder, onBooksChanged }: Props) {
+type Props = {
+  design: any; published: any; onChange: (cats: any[]) => void; onReorder?: (cats: any[]) => void; onBooksChanged: (books: any[]) => void;
+  /** Riso confirmation (Studio's askConfirm), asked before changes that write the live catalog at once. */
+  confirm?: (opts: { title: string; message: string; confirmLabel?: string }) => Promise<boolean>;
+};
+export function StudioCategories({ design, published, onChange, onReorder, onBooksChanged, confirm }: Props) {
   const cats = normalizeCategories(Array.isArray(design.categories) ? design.categories : [...CATEGORIES]);
   const live = normalizeCategories(published.categories ?? [...CATEGORIES]);
   const [books, setBooks] = useState<any[]>([]);
@@ -64,6 +68,16 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
     && (membership === "all" || directlyAssigned(b, current) === (membership === "assigned")))
     .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
   const saveAssignments = async () => {
+    // Removing or moving books changes the live shop at once and Discard draft can't undo it: ask first.
+    if (action !== "add" && confirm) {
+      const target = cats.find(c => c.id === destination);
+      const ok = await confirm({
+        title: action === "move" ? "Move books now?" : "Remove books now?",
+        message: `${selected.length} book${selected.length === 1 ? "" : "s"} will be ${action === "move" ? `moved from ${current?.name} to ${target?.name || "the chosen category"}` : `removed from ${current?.name}`}. This changes the live shop now; Discard draft won't undo it.`,
+        confirmLabel: action === "move" ? "Move books" : "Remove books",
+      });
+      if (!ok) return;
+    }
     setBusy(true); setError("");
     try {
       const target = cats.find(c => c.id === destination);
@@ -109,7 +123,7 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
     <SecondaryButton onClick={() => open({ id: `cat-${crypto.randomUUID()}`, name: "", description: "", imageUrl: "", showInNav: true, parentId: null })}>Add category</SecondaryButton>
     {cats.length === 0 && <p>No categories yet. Add one to organize the shop.</p>}
     {cats.filter(c => `${c.name} ${c.description || ""}`.toLowerCase().includes(search.toLowerCase())).map(c => <article key={c.id} className="studio-category-row">
-      <div><strong>{c.name}</strong><p>{loading ? "Loading counts…" : `${books.filter(b => directlyAssigned(b, c)).length} directly assigned books`} · {c.showInNav === false ? "Hidden from menu" : "Shown in menu"}</p>
+      <div><strong>{c.name}</strong><p>{loading ? "Loading counts…" : !loaded ? "Counts unavailable" : `${books.filter(b => directlyAssigned(b, c)).length} directly assigned books`} · {c.showInNav === false ? "Hidden from menu" : "Shown in menu"}</p>
         {parentOf(c, cats) && <p>Under {cats.find(p => p.id === parentOf(c, cats))?.name}</p>}
       </div>
       <div className="studio-category-actions">
@@ -145,7 +159,7 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
           {!liveCurrent && <p>Publish this new category before assigning books.</p>}
           <TextField label="Find books by title, SKU or ISBN" value={bookSearch} onChange={e => setBookSearch(e.target.value)} disabled={busy} />
           <SelectField label="Show books" value={membership} onChange={e => setMembership(e.target.value)} disabled={busy}><option value="all">All books</option><option value="assigned">Assigned here</option><option value="unassigned">Not assigned here</option></SelectField>
-          <SecondaryButton disabled={busy || !loaded} onClick={() => setSelected(filteredBooks.slice(0, 400).map(b => b.id))}>Select matching books (up to 400)</SecondaryButton>
+          <SecondaryButton disabled={busy || !loaded} onClick={() => setSelected(prev => [...new Set([...prev, ...filteredBooks.map(b => b.id)])].slice(0, 400))}>Select matching books (up to 400)</SecondaryButton>
           <SecondaryButton disabled={busy} onClick={() => setSelected([])}>Clear selection</SecondaryButton>
           <div className="studio-category-books">{filteredBooks.map(b => <Checkbox key={b.id} label={`${b.title || "Untitled book"} · ${b.status || "published"}${directlyAssigned(b, current) ? " · assigned" : ""}`} checked={selected.includes(b.id)} disabled={busy || loading} onChange={e => setSelected(e.target.checked ? [...selected, b.id] : selected.filter(id => id !== b.id))} />)}{!loading && !filteredBooks.length && <p>No matching books.</p>}</div>
           <p>{selected.length} books selected (maximum 400 per save).</p>
@@ -160,7 +174,7 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
       {deleting && <div className="studio-category-form">
         {feedback}
         <p>Books are never deleted. Child categories become top-level categories. Publish afterward to remove this category from the shop menu.</p>
-        <p>{books.filter(b => directlyAssigned(b, deleting)).length} directly assigned books.</p>
+        <p>{loaded ? `${books.filter(b => directlyAssigned(b, deleting)).length} directly assigned books.` : "Counts unavailable until the catalog loads."}</p>
         {books.filter(b => directlyAssigned(b, deleting)).length > 400 && <p>For more than 400 assigned books, use Edit → Assigned here to move or remove up to 400 per save before deleting.</p>}
         <SelectField label="What happens to assigned books?" value={deleteMode} disabled={busy || loading} onChange={e => setDeleteMode(e.target.value)}>
           <option value="keep">Keep their existing assignments (menu removal only)</option><option value="remove">Remove this category assignment</option><option value="move">Move them to another category</option>

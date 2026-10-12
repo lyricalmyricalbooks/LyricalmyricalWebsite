@@ -38,8 +38,9 @@ export function useMediaLibrary() {
     setItems(list => list.map(i => (i.id === item.id ? item : i)));
   }, []);
   const remove = useCallback(async (item: MediaItem) => {
-    await mediaApi.remove(item, allPaths(item));
+    const leftOver = (await mediaApi.remove(item, allPaths(item))) || [];
     setItems(list => list.filter(i => i.id !== item.id));
+    return leftOver;
   }, []);
 
   const [picking, setPicking] = useState<null | { title: string; resolve: (item: MediaItem | null) => void }>(null);
@@ -232,7 +233,12 @@ function MediaDetails({ item, usage, lib, onBack, savedThemes, getVersions, getS
     if (scheduled.length) { setError(`This image is used by ${scheduled.join(", ")}. It would break when that goes live or is opened, so it can't be deleted yet. Cancel that schedule (Theme actions › Schedule publishing) or revoke the share link (Themes › Share a preview link) first.`); return; }
     const ok = await askConfirm({ title: "Delete this image?", message: `“${item.name}” and all its sizes will be removed from your library and storage. This can't be undone.`, confirmLabel: "Delete image" });
     if (!ok) return;
-    await act("Deleting…", async () => { await lib.remove(item); say("ok", "Image deleted."); onBack(); });
+    await act("Deleting…", async () => { 
+      const leftOver = await lib.remove(item);
+      if (leftOver.length) say("err", `Image removed from your library, but ${leftOver.length === 1 ? "1 stored file" : `${leftOver.length} stored files`} couldn't be deleted from storage. They're no longer used anywhere.`);
+      else say("ok", "Image deleted.");
+      onBack();
+    });
   };
 
   const sized = [...item.variants].sort((a, b) => a.w - b.w);
@@ -295,7 +301,10 @@ function MediaDetails({ item, usage, lib, onBack, savedThemes, getVersions, getS
             });
           }} />
         <SecondaryButton disabled={!!busy} onClick={() => replaceInput.current?.click()}><RefreshCw size={14} aria-hidden /> Replace image…</SecondaryButton>
-        <SecondaryButton disabled={!!busy} onClick={() => { navigator.clipboard?.writeText(mainUrl(item)).then(() => say("ok", "Image link copied."), () => say("err", "Couldn't copy the link.")); }}><Copy size={14} aria-hidden /> Copy link</SecondaryButton>
+        <SecondaryButton disabled={!!busy} onClick={() => {
+          if (!navigator.clipboard?.writeText) { say("err", `Couldn't copy the link here. Copy it by hand: ${mainUrl(item)}`); return; }
+          navigator.clipboard.writeText(mainUrl(item)).then(() => say("ok", "Image link copied."), () => say("err", "Couldn't copy the link."));
+        }}><Copy size={14} aria-hidden /> Copy link</SecondaryButton>
         <SecondaryButton disabled={!!busy} onClick={remove}><Trash2 size={14} aria-hidden /> Delete image</SecondaryButton>
       </div>
       {busy && <p role="status" className="studio-hint">{busy}</p>}

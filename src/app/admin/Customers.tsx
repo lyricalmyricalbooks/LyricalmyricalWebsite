@@ -46,7 +46,9 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const [consent, setConsent] = useState<{ subscribed: Set<string>; optedOutHashes: Set<string> | null } | null>(null);
   const [hashes, setHashes] = useState<Map<string, string>>(new Map());
   const [notes, setNotes] = useState<Map<string, Note>>(new Map());
-  const [draft, setDraft] = useState<{ note: string; tags: string } | null>(null);
+  // loaded: the stored note for this customer was read, so saving can't replace it with blanks.
+  const [draft, setDraft] = useState<{ note: string; tags: string; loaded: boolean } | null>(null);
+  const [notesState, setNotesState] = useState<"loading" | "ok" | "failed">("loading");
   const [savingNote, setSavingNote] = useState(false);
 
   useEffect(() => { if (initialQuery !== undefined) setQ(initialQuery); }, [initialQuery]);
@@ -60,9 +62,14 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   useEffect(() => {
     load();
     adminApi.getMarketingConsent().then(setConsent).catch(() => setConsent(null));
-    adminApi.listCustomerNotes().then((rows) => setNotes(new Map(rows.map((r) => [r.id, { note: r.note || "", tags: r.tags || [] }]))))
-      .catch(() => { /* notes are optional */ });
+    loadNotes();
   }, []);
+  const loadNotes = () => {
+    setNotesState("loading");
+    adminApi.listCustomerNotes()
+      .then((rows) => { setNotes(new Map(rows.map((r) => [r.id, { note: r.note || "", tags: r.tags || [] }]))); setNotesState("ok"); })
+      .catch((e) => { console.error(e); setNotesState("failed"); });
+  };
 
   const all = useMemo(() => buildCustomers(orders), [orders]);
   useEffect(() => {
@@ -114,13 +121,20 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
     setExportOpen(false);
   };
 
+  const notesReadyFor = (c: CustomerRow) => notesState === "ok" && hashes.has(c.key);
   const openCustomer = (c: CustomerRow) => {
     setOpen(c);
     const n = noteFor(c);
-    setDraft({ note: n?.note || "", tags: (n?.tags || []).join(", ") });
+    setDraft({ note: n?.note || "", tags: (n?.tags || []).join(", "), loaded: notesReadyFor(c) });
   };
+  // Notes (or the customer's id) arrived after the panel opened: show the stored note before allowing a save.
+  useEffect(() => {
+    if (!open || !draft || draft.loaded || !notesReadyFor(open)) return;
+    const n = noteFor(open);
+    setDraft({ note: n?.note || "", tags: (n?.tags || []).join(", "), loaded: true });
+  }, [open, draft, notesState, hashes, notes]); // eslint-disable-line react-hooks/exhaustive-deps
   const saveNote = async () => {
-    if (!open || !draft) return;
+    if (!open || !draft || !draft.loaded) return;
     const id = hashes.get(open.key) || await emailHash(open.key);
     const data = { email: open.key, note: draft.note.slice(0, 5000), tags: parseTags(draft.tags) };
     setSavingNote(true);
@@ -233,8 +247,16 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
                   onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
                 <TextField label="Tags" hint="Separate with commas, e.g. wholesale, author, festival" value={draft.tags}
                   onChange={(e) => setDraft({ ...draft, tags: e.target.value })} />
+                {!draft.loaded && (
+                  <p className="rp-hint" role="status" style={{ margin: 0 }}>
+                    {notesState === "failed"
+                      ? <>Saved notes couldn't be loaded, so saving is off (it would replace this customer's stored note and tags).{" "}
+                          <button type="button" className="rp-link" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", textDecoration: "underline", color: "inherit", font: "inherit" }} onClick={loadNotes}>Try again</button></>
+                      : "Loading the saved note…"}
+                  </p>
+                )}
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <PrimaryButton onClick={saveNote} disabled={savingNote}>{savingNote ? "Saving…" : "Save note"}</PrimaryButton>
+                  <PrimaryButton onClick={saveNote} disabled={savingNote || !draft.loaded}>{savingNote ? "Saving…" : "Save note"}</PrimaryButton>
                   <a className="rp-btn" data-variant="secondary" href={`mailto:${encodeURIComponent(open.email).replace(/%40/g, "@")}`}>Email customer</a>
                 </div>
               </div>

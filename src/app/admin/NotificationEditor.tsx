@@ -250,6 +250,9 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
   const [deliveriesError, setDeliveriesError] = useState("");
   const [deliveryFilter, setDeliveryFilter] = useState<"all" | "attention">("all");
   const [queue, setQueue] = useState<QueuedEmail[]>([]);
+  const [queueError, setQueueError] = useState(false);
+  // Typed "Days after shipping" while editing, so clearing the box doesn't snap back to 14.
+  const [delayDraft, setDelayDraft] = useState<string | null>(null);
   const [queueBusy, setQueueBusy] = useState("");
   // Where a placeholder chip inserts: the field the admin last clicked or typed in, at the caret.
   const [cursor, setCursor] = useState<{ field: "subject" | "body" | "signoff"; start: number | null; end: number | null }>({ field: "body", start: null, end: null });
@@ -289,10 +292,12 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
     try {
       const data = await emailFunction({ action: "emailQueue" });
       setQueue(Array.isArray(data.entries) ? data.entries : []);
+      setQueueError(false);
     } catch (err) {
-      // Older Functions without the queue: the Recent deliveries table still shows every attempt.
+      // Don't hide the card silently: emails may be waiting. Recent deliveries still lists every attempt.
       console.warn("Could not load the email retry queue:", err);
       setQueue([]);
+      setQueueError(true);
     }
   }
 
@@ -347,10 +352,16 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
         };
         if (dbData.brand?.resendApiKey || dbData.resendApiKey) {
           // Older saves left the key in the public doc: move it to adminSecrets now.
-          await adminApi.saveNotificationSettings({ ...dbData, brand: { ...(dbData.brand || {}), resendApiKey: dbData.brand?.resendApiKey || dbData.resendApiKey } })
-            .then(() => adminApi.markKeysMigrated("resend"))
-            .catch(err => console.warn("Could not move Resend key:", err));
-          loaded.brand.resendApiKey = "";
+          // Blank the on-screen copy only once the move succeeded: otherwise the next Save would erase the only copy.
+          try {
+            await adminApi.saveNotificationSettings({ ...dbData, brand: { ...(dbData.brand || {}), resendApiKey: dbData.brand?.resendApiKey || dbData.resendApiKey } });
+            loaded.brand.resendApiKey = "";
+            await adminApi.markKeysMigrated("resend").catch(err => console.warn("Could not mark the Resend key as moved:", err));
+          } catch (err) {
+            console.warn("Could not move Resend key:", err);
+            loaded.brand.resendApiKey = dbData.brand?.resendApiKey || dbData.resendApiKey;
+            toast.error("Couldn't move your saved Resend key to the admin-only store. It has been kept; Save this page to try again.");
+          }
         }
         const flags = await adminApi.getPrivateKeyFlags();
         loaded.brand.resendApiKeyStored = flags.resend;
@@ -677,9 +688,22 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
             <Toggle label="Send this email automatically" checked={enabled} onChange={() => handleToggleActive()} />
             {activeTab === "review_request" && (
               <TextField label="Days after shipping" type="number" min={1} max={90}
-                value={String((currentTemplate as any).delayDays ?? 14)}
+                value={delayDraft ?? String((currentTemplate as any).delayDays ?? 14)}
                 hint="Sent once per order, this many days after it was shipped (1–90). Customers who unsubscribed are skipped."
-                onChange={(e) => handleFieldChange("delayDays" as any, Math.min(90, Math.max(1, Math.round(Number(e.target.value) || 14))) as any)} />
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setDelayDraft(v);
+                  const n = Number(v);
+                  if (v.trim() !== "" && Number.isFinite(n) && n >= 1 && n <= 90) handleFieldChange("delayDays" as any, Math.round(n) as any);
+                }}
+                onBlur={() => {
+                  if (delayDraft !== null) {
+                    const n = Number(delayDraft);
+                    // Empty or invalid keeps the last good value; numbers out of range are clamped.
+                    if (delayDraft.trim() !== "" && Number.isFinite(n)) handleFieldChange("delayDays" as any, Math.min(90, Math.max(1, Math.round(n))) as any);
+                  }
+                  setDelayDraft(null);
+                }} />
             )}
             <TextField label="Subject line" value={currentTemplate.subject} placeholder="Subject line" onSelect={remember("subject")} onChange={(e) => handleFieldChange("subject", e.target.value)} />
             <TextArea label="Body copy" rows={7} value={currentTemplate.body} placeholder="Write your email body here…" onSelect={remember("body")} onChange={(e) => handleFieldChange("body", e.target.value)} />
@@ -739,6 +763,11 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
       </div>
       )}
 
+      {queueError && queue.length === 0 && (
+        <SectionCard title="Waiting to send">
+          <ErrorState title="Couldn't check for emails waiting to send" description="Some emails may be waiting to be tried again. Recent deliveries below still lists every attempt." onRetry={() => { void loadQueue(); }} />
+        </SectionCard>
+      )}
       {queue.length > 0 && (
         <SectionCard title="Waiting to send" description={`Every sender refused these emails, so they are kept and tried again automatically (up to ${MAX_TRIES} tries over about a day). Fix the sending setup above, then choose Retry now.`}
           actions={<SecondaryButton size="sm" onClick={loadQueue}>Refresh</SecondaryButton>} flush>

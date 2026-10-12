@@ -1,7 +1,7 @@
 // Inventory › Inventory app link (docs/INVENTORY_LINK.md): four steps the owner walks once —
 // connect, match books, send website sales, let stock follow the inventory app — then a status view.
 // Every write goes through the server (inventoryLinkApi); this screen only shows and asks.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, ExternalLink, RefreshCw } from "lucide-react";
 import {
   DataTable, Dialog, EmptyState, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField,
@@ -37,7 +37,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
   const [showArchived, setShowArchived] = useState(false);
   const [startDay, setStartDay] = useState("");
   const [preview, setPreview] = useState<StockPreview | null>(null);
-  const [confirmApply, setConfirmApply] = useState<{ readers: number } | null>(null);
+  const [confirmApply, setConfirmApply] = useState<{ readers: number; unknown: boolean } | null>(null);
   const [confirmStart, setConfirmStart] = useState(false);
   const [changingStart, setChangingStart] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
@@ -50,14 +50,24 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
   const suggestions = useMemo(() => (appBooks ? suggestLinks(editions, appBooks, links) : {}), [editions, appBooks, links]);
   const dirty = editions.some((e) => (choices[e.key] ?? "") !== (linkedTo(links, e.bookId, e.variantId) ?? ""));
 
-  const loadStatus = async () => {
+  // The matches last read from the server: a drop-down that differs from them is an unsaved choice.
+  const savedLinks = useRef<InventoryLinks>({});
+  // resetChoices: after saving (or unmatching) the matches, show exactly what the server kept. Otherwise
+  // (Check connection, Sync now, switches, Apply) unsaved drop-down choices are kept.
+  const loadStatus = async (opts: { resetChoices?: boolean } = {}) => {
     setFailed(false);
     try {
       const s = await inventoryLinkApi.status();
       setStatus(s);
       setStartDay((d) => d || s.state?.startDay || s.earliestPaidDay || s.today);
       const saved = s.state?.links || {};
-      setChoices(Object.fromEntries(linkableEditions(books).map((e) => [e.key, linkedTo(saved, e.bookId, e.variantId) || ""])));
+      const before = savedLinks.current;
+      savedLinks.current = saved;
+      setChoices((prev) => Object.fromEntries(linkableEditions(books).map((e) => {
+        const mine = prev[e.key];
+        const unsaved = !opts.resetChoices && mine !== undefined && mine !== (linkedTo(before, e.bookId, e.variantId) || "");
+        return [e.key, unsaved ? mine : linkedTo(saved, e.bookId, e.variantId) || ""];
+      })));
       onLinksChanged?.(saved);
       if (s.state?.connection?.ok) void loadCatalog();
     } catch (e) {
@@ -88,7 +98,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
     const res = await inventoryLinkApi.saveLinks(linksFromChoices(editions, choices));
     setLinkErrors(res.errors);
     toast(res.errors.length ? `Saved, but ${res.errors.length} match${res.errors.length === 1 ? "" : "es"} couldn't be used — see below.` : "Book matches saved.", { tone: res.errors.length ? "warn" : "ok" });
-    await loadStatus();
+    await loadStatus({ resetChoices: true });
   });
 
   // Always possible, even when the inventory app can't be reached: every matched book's stock becomes
@@ -98,7 +108,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
     await inventoryLinkApi.saveLinks({});
     setLinkErrors([]);
     toast("All books unmatched. Their stock is edited on the website again.");
-    await loadStatus();
+    await loadStatus({ resetChoices: true });
   });
 
   const startSales = () => run("start", async () => {
@@ -122,12 +132,13 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
   const askApply = () => run("apply", async () => {
     if (!preview?.rows) return;
     let readers = 0;
+    let unknown = false;
     for (const row of preview.rows) {
       const book = books.find((b) => b.id === row.bookId);
       if (row.to == null || row.from == null || !wakesRestockEmails(book, row.from, row.to)) continue;
-      try { readers += waitingReaders(await inventoryApi.stockAlerts(row.bookId), row.variantId); } catch { /* counted as unknown */ }
+      try { readers += waitingReaders(await inventoryApi.stockAlerts(row.bookId), row.variantId); } catch { unknown = true; }
     }
-    setConfirmApply({ readers });
+    setConfirmApply({ readers, unknown });
   });
 
   const apply = () => run("apply", async () => {
@@ -167,7 +178,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
     await loadStatus();
   });
 
-  if (failed) return <ErrorState title="The inventory app link couldn't be loaded" onRetry={loadStatus} />;
+  if (failed) return <ErrorState title="The inventory app link couldn't be loaded" onRetry={() => loadStatus()} />;
   if (!status) return <LoadingState label="Checking the inventory app link…" />;
 
   const connection = state.connection || {};
@@ -245,7 +256,13 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
             Copy this address:{" "}
             {serviceAccount
               ? <><code className="rp-mono" style={{ overflowWrap: "anywhere" }}>{serviceAccount}</code>{" "}
-                  <SecondaryButton size="sm" icon={<Copy size={14} aria-hidden />} onClick={() => { void navigator.clipboard?.writeText(serviceAccount); toast("Address copied."); }}>Copy</SecondaryButton></>
+                  <SecondaryButton size="sm" icon={<Copy size={14} aria-hidden />} onClick={async () => {
+                    try {
+                      if (!navigator.clipboard?.writeText) throw new Error("no clipboard");
+                      await navigator.clipboard.writeText(serviceAccount);
+                      toast("Address copied.");
+                    } catch { toast("Couldn't copy automatically. Select the address and copy it yourself.", { tone: "warn" }); }
+                  }}>Copy</SecondaryButton></>
               : <span className="rp-hint">it appears here once the updated website is live.</span>}
           </li>
           <li>
@@ -409,6 +426,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
         <p className="rp-card-desc" style={{ margin: 0, fontSize: "var(--rp-text-base)" }}>
           The website's stock for matched books changes to the numbers in the preview, and stock counting is switched on for any matched book that had it off.
           {confirmApply?.readers ? ` ${confirmApply.readers} reader${confirmApply.readers === 1 ? " is" : "s are"} waiting for a book that comes back in stock and will be emailed.` : ""}
+          {confirmApply?.unknown ? " Some back-in-stock sign-ups couldn't be checked just now, so readers who asked to hear when a book is back may be emailed too." : ""}
           {" "}Each change is kept in the book's stock history.
         </p>
       </Dialog>

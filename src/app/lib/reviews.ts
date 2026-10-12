@@ -150,8 +150,9 @@ export const reviewsApi = {
     // One query per 30 ids (Firestore's "in" limit) instead of one read per review.
     const ids = reviews.map(r => r.id).filter(id => id && !out[id]);
     await Promise.all(chunk(ids, 30).map(async part => {
-      const snap = await getDocs(query(collection(liteDb, "reviewContacts"), where(documentId(), "in", part))).catch(() => null);
-      snap?.docs.forEach(d => { out[d.id] = String(d.data().email || ""); });
+      // A failed read throws, so the admin sees "couldn't load" (and can retry) instead of "no email left".
+      const snap = await getDocs(query(collection(liteDb, "reviewContacts"), where(documentId(), "in", part)));
+      snap.docs.forEach(d => { out[d.id] = String(d.data().email || ""); });
     }));
     return out;
   },

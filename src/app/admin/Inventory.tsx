@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, History, Minus, Plus } from "lucide-react";
 import { adminApi } from "./api";
 import { getOrdersCached } from "./ordersCache";
@@ -50,6 +50,8 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
   const [settings, setSettings] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  // Parts of the page that fell back to defaults because they couldn't be read (low-stock line, cost prices, inventory app links).
+  const [partial, setPartial] = useState<string[]>([]);
   const [tab, setTab] = useState<Tab>("all");
   const [q, setQ] = useState("");
   const [threshold, setThreshold] = useState(5);
@@ -69,16 +71,22 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
   const [historyError, setHistoryError] = useState(false);
   // Books matched to the inventory app are counted there (Inventory app link); their stock is read-only here.
   const [links, setLinks] = useState<InventoryLinks>({});
+  // Rows (and the bulk save) already being saved: a fast second click must not apply the change twice.
+  const inFlight = useRef<Set<string>>(new Set());
+  const bulkInFlight = useRef(false);
   const linked = (r: InventoryRow) => r.kind === "stock" && isStockLinked(links, r.bookId, r.variantId);
 
   const load = async () => {
     setFailed(false); setLoading(true);
+    const missed: string[] = [];
+    const orEmpty = (label: string) => (e: unknown) => { console.error(e); missed.push(label); return {} as any; };
     try {
       const [b, o, s, c, l] = await Promise.all([
         adminApi.getAllBooks(), getOrdersCached(),
-        inventoryApi.lowStockSetting().catch(() => ({})), inventoryApi.costs().catch(() => ({})),
-        inventoryLinkApi.links().catch(() => ({})),
+        inventoryApi.lowStockSetting().catch(orEmpty("the saved low-stock line")), inventoryApi.costs().catch(orEmpty("cost prices")),
+        inventoryLinkApi.links().catch(orEmpty("which books the inventory app counts")),
       ]);
+      setPartial(missed);
       setBooks(b); setLinks(l); setOrders(o.filter((x: any) => x.paymentStatus === "paid" && x.isTest !== true));
       setSettings(s); setCosts(c);
       const t = lowStockThreshold(s); setThreshold(t); setThresholdDraft(String(t));
@@ -86,6 +94,11 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
+  // After the inventory app link changes stock: re-read the books only, keeping the page (and the link panel) as it is.
+  const refreshBooks = async () => {
+    try { setBooks(await adminApi.getAllBooks()); }
+    catch (e) { console.error(e); toast("Stock changed, but the list couldn't be refreshed. Reload the page to see the new counts.", { tone: "warn" }); }
+  };
 
   const everything = useMemo(() => buildInventory(books, orders, threshold), [books, orders, threshold]);
   const all = useMemo(() => everything.filter((r) => showHidden || (!r.archived && !r.draft)), [everything, showHidden]);
@@ -133,10 +146,14 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
 
   /** One change through the safe path. Returns the change made, or null. */
   const change = async (r: InventoryRow, ch: StockChange, why: AdjustReason, opts: { quiet?: boolean } = {}): Promise<{ from: number; to: number } | null> => {
-    const preview = ch.kind === "delta" ? Math.max(0, r.stock + ch.delta) : ch.to;
-    if (!(await confirmRestockEmails([{ row: r, from: r.stock, to: preview }]))) return null;
+    if (inFlight.current.has(r.id)) return null;
+    inFlight.current.add(r.id);
     setSaving((s) => new Set(s).add(r.id));
+    let confirmed = false;
     try {
+      const preview = ch.kind === "delta" ? Math.max(0, r.stock + ch.delta) : ch.to;
+      if (!(await confirmRestockEmails([{ row: r, from: r.stock, to: preview }]))) return null;
+      confirmed = true;
       const meta = { reason: why, title: r.title, edition: r.edition };
       let res = await inventoryApi.adjustStock(r.bookId, r.variantId, ch, meta);
       if (!res.ok && res.reason === "conflict" && ch.kind === "set") {
@@ -162,7 +179,19 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
       }
       return { from: res.from, to: res.to };
     } catch (e) { console.error(e); toast(`Could not update ${rowName(r)}`, { tone: "err" }); return null; }
-    finally { setSaving((s) => { const n = new Set(s); n.delete(r.id); return n; }); clearDraft(r.id); }
+    finally {
+      inFlight.current.delete(r.id);
+      setSaving((s) => { const n = new Set(s); n.delete(r.id); return n; });
+      if (confirmed) clearDraft(r.id);
+    }
+  };
+
+  // − / +: with a typed count still in the box, step from that number (one change), else from the saved count.
+  const step = (r: InventoryRow, delta: 1 | -1) => {
+    const raw = drafts[r.id];
+    const typed = raw === undefined ? null : parseStock(raw);
+    if (typed !== null) return change(r, { kind: "set", to: Math.max(0, typed + delta), expected: r.stock }, reason);
+    return change(r, { kind: "delta", delta }, reason);
   };
 
   // Undo puts back the difference (not the old absolute number), so a sale since is kept.
@@ -207,28 +236,31 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
       const c = ch!.kind === "set" ? { ...ch!, expected: r.stock } : ch!;
       return { row: r, ch: c, from: r.stock, to: c.kind === "delta" ? Math.max(0, r.stock + c.delta) : c.to };
     });
-    if (!(await confirmRestockEmails(items))) return;
+    if (bulkInFlight.current) return;
+    bulkInFlight.current = true;
     setBulkSaving(true);
-    const out: Record<string, { ok: boolean; text: string }> = {};
-    const settled = await Promise.allSettled(items.map(async ({ row, ch }) => {
-      const res = await inventoryApi.adjustStock(row.bookId, row.variantId, ch, { reason, title: row.title, edition: row.edition });
-      if (res.ok) { applyLocal(row, res.to); out[row.id] = { ok: true, text: `${res.from} → ${res.to}` }; }
-      else out[row.id] = { ok: false, text: res.reason === "conflict" ? `Changed to ${res.live} meanwhile — not saved` : "Not saved" };
-      return res;
-    }));
-    settled.forEach((s, i) => { if (s.status === "rejected") out[items[i].row.id] = { ok: false, text: "Could not save — try again" }; });
-    const costResults = await Promise.allSettled(pendingCosts.map(([id, v]) => inventoryApi.setCost(id, parseCost(v) as number | null).then(() => [id, parseCost(v)] as const)));
-    const nextCosts = { ...costs };
-    costResults.forEach((c) => { if (c.status === "fulfilled") { const [id, v] = c.value; if (v) nextCosts[id] = v; else delete nextCosts[id]; } });
-    setCosts(nextCosts);
-    const failedCosts = costResults.filter((c) => c.status === "rejected").length;
-    setResults(out);
-    setReceive((d) => Object.fromEntries(Object.entries(d).filter(([id]) => out[id] && !out[id].ok)));
-    setCostDrafts({});
-    setBulkSaving(false);
-    const okCount = Object.values(out).filter((x) => x.ok).length;
-    const failCount = Object.values(out).length - okCount;
-    toast(`${okCount} saved${failCount ? `, ${failCount} not saved (still filled in)` : ""}${failedCosts ? `, ${failedCosts} cost price(s) not saved` : ""}`, { tone: failCount || failedCosts ? "warn" : "ok" });
+    try {
+      if (!(await confirmRestockEmails(items))) return;
+      const out: Record<string, { ok: boolean; text: string }> = {};
+      const settled = await Promise.allSettled(items.map(async ({ row, ch }) => {
+        const res = await inventoryApi.adjustStock(row.bookId, row.variantId, ch, { reason, title: row.title, edition: row.edition });
+        if (res.ok) { applyLocal(row, res.to); out[row.id] = { ok: true, text: `${res.from} → ${res.to}` }; }
+        else out[row.id] = { ok: false, text: res.reason === "conflict" ? `Changed to ${res.live} meanwhile — not saved` : "Not saved" };
+        return res;
+      }));
+      settled.forEach((s, i) => { if (s.status === "rejected") out[items[i].row.id] = { ok: false, text: "Could not save — try again" }; });
+      const costResults = await Promise.allSettled(pendingCosts.map(([id, v]) => inventoryApi.setCost(id, parseCost(v) as number | null).then(() => [id, parseCost(v)] as const)));
+      const nextCosts = { ...costs };
+      costResults.forEach((c) => { if (c.status === "fulfilled") { const [id, v] = c.value; if (v) nextCosts[id] = v; else delete nextCosts[id]; } });
+      setCosts(nextCosts);
+      const failedCosts = costResults.filter((c) => c.status === "rejected").length;
+      setResults(out);
+      setReceive((d) => Object.fromEntries(Object.entries(d).filter(([id]) => out[id] && !out[id].ok)));
+      setCostDrafts({});
+      const okCount = Object.values(out).filter((x) => x.ok).length;
+      const failCount = Object.values(out).length - okCount;
+      toast(`${okCount} saved${failCount ? `, ${failCount} not saved (still filled in)` : ""}${failedCosts ? `, ${failedCosts} cost price(s) not saved` : ""}`, { tone: failCount || failedCosts ? "warn" : "ok" });
+    } finally { bulkInFlight.current = false; setBulkSaving(false); }
   };
 
   const exportCsv = () => {
@@ -257,12 +289,12 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
     const busy = saving.has(r.id) || bulkSaving;
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <IconButton label={`Decrease stock of ${rowName(r)}`} disabled={busy || r.stock <= 0} onClick={() => change(r, { kind: "delta", delta: -1 }, reason)}><Minus size={14} aria-hidden /></IconButton>
+        <IconButton label={`Decrease stock of ${rowName(r)}`} disabled={busy || r.stock <= 0} onMouseDown={(e) => e.preventDefault()} onClick={() => step(r, -1)}><Minus size={14} aria-hidden /></IconButton>
         <input className="rp-input rp-mono" style={{ width: 72, textAlign: "right" }} inputMode="numeric" aria-label={`Stock for ${rowName(r)}`}
           value={drafts[r.id] ?? String(r.stock)} disabled={busy}
           onChange={(e) => setDrafts((d) => ({ ...d, [r.id]: e.target.value }))}
           onBlur={() => commit(r)} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") clearDraft(r.id); }} />
-        <IconButton label={`Increase stock of ${rowName(r)}`} disabled={busy} onClick={() => change(r, { kind: "delta", delta: 1 }, reason)}><Plus size={14} aria-hidden /></IconButton>
+        <IconButton label={`Increase stock of ${rowName(r)}`} disabled={busy} onMouseDown={(e) => e.preventDefault()} onClick={() => step(r, 1)}><Plus size={14} aria-hidden /></IconButton>
       </div>
     );
   };
@@ -309,6 +341,12 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
 
   return (
     <div className="rp-stack">
+      {partial.length > 0 && (
+        <div className="rp-card" role="status" style={{ padding: 12, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", borderColor: "var(--rp-warning)" }}>
+          <span style={{ flex: 1, minWidth: 220 }}>Couldn't load {partial.join(", ")}. The page is using defaults for {partial.length === 1 ? "it" : "them"} until it loads.</span>
+          <SecondaryButton size="sm" onClick={load}>Retry</SecondaryButton>
+        </div>
+      )}
       <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
         <MetricCard label="Units on hand" value={sum.units} footer="Counted print editions" />
         <MetricCard label="Stock value" value={`CA$${sum.value.toFixed(0)}`}
@@ -350,7 +388,7 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
       </SectionCard>
       <details className="rp-card" style={{ padding: 16 }} open={!Object.keys(links).length}>
         <summary style={{ cursor: "pointer", fontWeight: 600 }}>Inventory app link: website sales and stock</summary>
-        <div style={{ marginTop: 12 }}><InventoryLinkPanel books={books} onLinksChanged={setLinks} onStockChanged={load} /></div>
+        <div style={{ marginTop: 12 }}><InventoryLinkPanel books={books} onLinksChanged={setLinks} onStockChanged={refreshBooks} /></div>
       </details>
 
       <Drawer open={!!historyFor} onClose={() => setHistoryFor(null)} title={historyFor ? `Stock history · ${historyFor.title}` : "Stock history"}

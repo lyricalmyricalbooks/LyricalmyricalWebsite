@@ -28,6 +28,7 @@ import { TemplateSections, GlobalSections } from "./components/sectionRender";
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, getDoc, collection } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
+import { AppVerificationError } from "../lib/appVerification";
 import { StorefrontThemeStyle } from "./features/site/StorefrontThemeStyle";
 import { accountsEnabled } from "./features/site/customerAccounts";
 import { getCopy, CopyError, copyErrorText } from "./features/site/storeCopy";
@@ -190,7 +191,8 @@ function AddressField({ label, value, country, state, onChange, onPick, listLabe
         if (!open || items.length === 0) return;
         if (e.key === "ArrowDown") { e.preventDefault(); setActive(a => (a + 1) % items.length); }
         else if (e.key === "ArrowUp") { e.preventDefault(); setActive(a => (a <= 0 ? items.length - 1 : a - 1)); }
-        else if (e.key === "Enter" && active >= 0) { e.preventDefault(); void pick(items[active]); }
+        // Enter with the list open never submits the checkout form; it picks the highlighted address, if any.
+        else if (e.key === "Enter") { e.preventDefault(); if (active >= 0) void pick(items[active]); }
         else if (e.key === "Escape") setOpen(false);
       }}
       onFocus={() => { if (typed.current && items.length) setOpen(true); }}
@@ -390,8 +392,11 @@ export function Checkout() {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Checkout login failed:", err);
+      // Closing the pop-up is the shopper's own choice, not an error.
+      if (err?.code === "auth/popup-closed-by-user" || err?.code === "auth/cancelled-popup-request") return;
+      setNotice({ tone: "error", text: c("coGoogleSignInError") });
     }
   };
 
@@ -411,19 +416,7 @@ export function Checkout() {
         const preview = new URLSearchParams(window.location.search).get("preview") === "true";
         const design = preview ? (window as any).__studioPreviewDesign || siteSettings?.design : siteSettings?.design;
         setSettings({ ...siteSettings, design: resolveSurfaceDesign(design, "/checkout") });
-
-        // Auto-select first available payment gateway
-        const payments = siteSettings?.payments || {};
-        if (payments.stripe?.connected) {
-          setSelectedPaymentMethod("stripe");
-        } else if (payments.paypal?.connected) {
-          setSelectedPaymentMethod("paypal");
-        } else {
-          const firstManual = (payments.manualMethods || []).find((m: any) => m.enabled);
-          if (firstManual) {
-            setSelectedPaymentMethod(`manual_${firstManual.id}`);
-          }
-        }
+        // The payment method follows the loaded settings (effect below), keeping the shopper's own choice.
       } catch (err) {
         console.error("Failed to load checkout settings", err);
         setCatalogState("failed");
@@ -431,6 +424,19 @@ export function Checkout() {
     }
     loadFulfillmentSettings();
   }, []);
+
+  // Once the payment settings are known, a method the shop doesn't offer (e.g. the "stripe" default in a
+  // PayPal- or manual-only shop) gives way to the first one it does; a valid choice is never overridden.
+  useEffect(() => {
+    const payments = settings?.payments;
+    if (!payments) return;
+    const offered = [
+      ...(payments.stripe?.connected ? ["stripe"] : []),
+      ...(payments.paypal?.connected ? ["paypal"] : []),
+      ...(Array.isArray(payments.manualMethods) ? payments.manualMethods : []).filter((m: any) => m?.enabled).map((m: any) => `manual_${m.id}`),
+    ];
+    if (offered.length && !offered.includes(selectedPaymentMethod)) setSelectedPaymentMethod(offered[0]);
+  }, [settings?.payments, selectedPaymentMethod]);
 
   // Preview only replaces appearance; fulfillment and payment settings stay server-sourced.
   useEffect(() => {
@@ -1005,11 +1011,21 @@ export function Checkout() {
   const applyDiscount = async () => {
     // Pasted codes often carry spaces; the server trims too.
     const code = discountCode.trim();
-    if (!code) return;
+    // Enter in the box bypasses the disabled Apply button: one check at a time.
+    if (!code || isApplying) return;
     setIsApplying(true);
     setDiscountError("");
     try {
-      const discount = expandDiscountCategories(await adminApi.validateDiscount(code), settings?.design?.categories);
+      // A refused code reads as invalid/expired; a request that never got an answer (offline, 5xx,
+      // busy) says the code couldn't be checked, so the shopper isn't told a good code is bad.
+      const response = await functionFetch("validateDiscountCode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      }).catch((err: unknown) => { throw err instanceof AppVerificationError ? err : new CopyError(checkoutDesign, "coDiscountUnavailable"); });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new CopyError(checkoutDesign, response.status >= 500 || response.status === 429 ? "coDiscountUnavailable" : "coDiscountExpired");
+      const discount = expandDiscountCategories(data.discount, settings?.design?.categories);
       validateDiscountRestrictions(discount, customer.email, discountableLines, booksMap, discountableCount, discountableTotal);
       setAppliedDiscount(discount);
     } catch (err: any) {
@@ -1023,7 +1039,7 @@ export function Checkout() {
   // Checkout's "Gift card" box: checks the balance now; the server re-checks and holds it at payment.
   const applyGiftCard = async () => {
     const code = giftCardInput.trim().toUpperCase();
-    if (!code) return;
+    if (!code || giftCardApplying) return;
     if (giftCards.length >= 5) { setGiftCardError(c("coGiftCardTooMany")); return; }
     setGiftCardApplying(true);
     setGiftCardError("");
@@ -1540,6 +1556,8 @@ export function Checkout() {
               return;
             }
           }
+          // Not confirmed: the kept order/intent is reused by the next Pay, so a failed form may be reloaded.
+          setInlineAttemptStarted(false);
           setNotice({ tone: "error", text: result.error });
           return;
         }
@@ -1550,6 +1568,9 @@ export function Checkout() {
       }
 
     } catch (err: any) {
+      // No payment was confirmed on this path (pendingCardOrder still remembers the order for the retry),
+      // so "Reload payment form" may be offered again if the card form fails.
+      setInlineAttemptStarted(false);
       if (err?.previousPaidOrderId) {
         // Never charge twice: open the earlier, paid order's confirmation instead.
         pendingCardOrder.current = null;
@@ -1928,7 +1949,13 @@ export function Checkout() {
 
       <div className="mx-auto grid min-h-[calc(100vh-77px)] max-w-6xl grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
         <main {...regionProps("checkoutForm")} className="px-5 py-8 sm:px-8 sm:py-12 lg:border-r lg:border-slate-200 lg:pr-14">
-          <form noValidate onSubmit={e => { e.preventDefault(); void handleCompletePurchase(); }} className="mx-auto max-w-2xl space-y-10">
+          <form noValidate onSubmit={e => { e.preventDefault(); void handleCompletePurchase(); }}
+            // Enter in a text box must not start a payment (implicit submission); only the Pay button does.
+            onKeyDown={e => {
+              const el = e.target as HTMLElement;
+              if (e.key === "Enter" && el.tagName === "INPUT" && !["submit", "button", "checkbox", "radio", "image", "reset"].includes((el as HTMLInputElement).type)) e.preventDefault();
+            }}
+            className="mx-auto max-w-2xl space-y-10">
             <div {...regionProps("checkoutProgress")} className="flex items-center gap-2 text-sm text-slate-500" aria-label={c("coProgressAria")}>
               <span className="font-medium text-[color:var(--accent)]">{c("coStepInfo")}</span>
               <span aria-hidden="true">›</span>
@@ -2148,7 +2175,8 @@ export function Checkout() {
               )}
               <button
                 type="submit"
-                disabled={isCompleting || catalogState !== "ready" || (finalTotal > 0 && selectedPaymentMethod === "stripe" && !stripeRoute.canPay) || (finalTotal > 0 && !hasStripe && !hasPaypal && enabledManualMethods.length === 0)}
+                // Also waits while carrier rates load (the picker shows the loading words), instead of "choose an option".
+                disabled={isCompleting || catalogState !== "ready" || (shippoRatesLoading && !digitalOnly && physicalItems.length > 0 && fulfillmentSelection.method === "shipping") || (finalTotal > 0 && selectedPaymentMethod === "stripe" && !stripeRoute.canPay) || (finalTotal > 0 && !hasStripe && !hasPaypal && enabledManualMethods.length === 0)}
                 className="flex w-full items-center justify-center gap-2 rounded-lg fm-accent-bg px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isCompleting ? <><Loader2 size={18} className="animate-spin" /> {c("coProcessing")}</> : <><Lock size={16} /> {paymentLabel}</>}
@@ -2262,6 +2290,9 @@ export function Checkout() {
                   onKeyDown={e => e.key === "Enter" && applyDiscount()}
                   placeholder={c("coDiscount")}
                   disabled={Boolean(appliedDiscount)}
+                  // Locked while a code is being checked, so a late answer can't apply to a different code.
+                  readOnly={isApplying}
+                  aria-busy={isApplying}
                   className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)] disabled:bg-slate-100"
                 />
               </div>
@@ -2299,6 +2330,8 @@ export function Checkout() {
                           value={giftCardInput}
                           onChange={e => setGiftCardInput(e.target.value.toUpperCase())}
                           onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyGiftCard(); } }}
+                          readOnly={giftCardApplying}
+                          aria-busy={giftCardApplying}
                           placeholder={c("coGiftCardLabel")}
                           aria-label={c("coGiftCardLabel")}
                           autoComplete="off"

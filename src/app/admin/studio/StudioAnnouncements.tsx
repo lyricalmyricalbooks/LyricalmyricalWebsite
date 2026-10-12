@@ -31,7 +31,11 @@ function cleanMessage(a: Announcement): Announcement {
   return out;
 }
 
-export function StudioAnnouncements({ design, change }: { design: any; change: Change }) {
+export function StudioAnnouncements({ design, change, onNotice }: {
+  design: any; change: Change;
+  /** A toast after Remove; `undoable` offers Undo for that removal. */
+  onNotice?: (text: string, undoable?: boolean) => void;
+}) {
   const list: Announcement[] = Array.isArray(design?.announcements) ? design.announcements : [];
   const write = (next: Announcement[], label: string, coalesce?: string) =>
     change(d => writeDesignValue(d, "announcements", next.length ? next : undefined, "all"), { label, coalesce });
@@ -65,7 +69,7 @@ export function StudioAnnouncements({ design, change }: { design: any; change: C
                 onClick={() => write(announcementOps.move(list, a.id, -1), "Move announcement up")}><ArrowUp size={14} /></button>
               <button type="button" className="studio-link-button" aria-label={`Move message ${i + 1} down`} disabled={i === list.length - 1}
                 onClick={() => write(announcementOps.move(list, a.id, 1), "Move announcement down")}><ArrowDown size={14} /></button>
-              <button type="button" className="studio-link-button" onClick={() => write(announcementOps.remove(list, a.id), "Remove announcement message")}>
+              <button type="button" className="studio-link-button" onClick={() => { write(announcementOps.remove(list, a.id), "Remove announcement message"); onNotice?.(`Message ${i + 1} removed.`, true); }}>
                 <Trash2 size={14} /> Remove
               </button>
             </div>

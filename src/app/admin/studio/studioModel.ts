@@ -45,6 +45,18 @@ export function addChildBlock(blocks: StudioBlock[], parentId: string, child: St
   return mapBlock(blocks, parentId, block => ({ ...block, children: [...(block.children || []), child] }));
 }
 
+/** Inserts `block` right after the block `afterId`, at that block's own nesting level (end of the top level if not found). */
+export function insertBlockAfter(blocks: StudioBlock[], afterId: string, block: StudioBlock): StudioBlock[] {
+  let placed = false;
+  const rec = (list: StudioBlock[]): StudioBlock[] => {
+    const i = list.findIndex(b => b.id === afterId);
+    if (i >= 0) { placed = true; return [...list.slice(0, i + 1), block, ...list.slice(i + 1)]; }
+    return list.map(b => !placed && b.children?.length ? { ...b, children: rec(b.children) } : b);
+  };
+  const next = rec(blocks || []);
+  return placed ? next : [...(blocks || []), block];
+}
+
 /** Moves a block before a sibling at the same nesting level. */
 export function moveBlockBefore(blocks: StudioBlock[], movingId: string, beforeId: string): StudioBlock[] {
   const from = blocks.findIndex(block => block.id === movingId), to = blocks.findIndex(block => block.id === beforeId);

@@ -75,6 +75,8 @@ export function SearchOverlay({
       .slice(0, Math.max(1, designNumber(design, "searchResultLimit", 8)))
       .map(x => x.book);
   }, [query, books, design]);
+  // A catalog refresh can shorten the list without a new query: keep the highlighted row inside it.
+  useEffect(() => { setActive(i => (i >= results.length ? Math.max(0, results.length - 1) : i)); }, [results.length]);
 
   // Once shoppers stop typing, note what they looked for and whether it found anything (never stored with a name).
   useEffect(() => {
@@ -127,7 +129,11 @@ export function SearchOverlay({
                   if (!results.length) return;
                   if (e.key === "ArrowDown") { e.preventDefault(); setActive(i => (i + 1) % results.length); }
                   else if (e.key === "ArrowUp") { e.preventDefault(); setActive(i => (i - 1 + results.length) % results.length); }
-                  else if (e.key === "Enter") { e.preventDefault(); navigate(`/books/${bookSlug(results[active])}`); onClose(); }
+                  else if (e.key === "Enter") {
+                    e.preventDefault();
+                    const pick = results[Math.min(active, results.length - 1)];
+                    if (pick) { navigate(`/books/${bookSlug(pick)}`); onClose(); }
+                  }
                 }}
                 placeholder={c("searchPlaceholder")}
                 className="flex-1 bg-transparent outline-none text-sm text-white placeholder:text-[var(--muted)]"

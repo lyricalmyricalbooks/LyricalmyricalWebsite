@@ -390,8 +390,8 @@ export function Discounts() {
     if (!failed) toast.success(`${created.length} single-use codes created`);
     else if (created.length) toast.error(`${created.length} codes created; ${failed} failed. Create the rest again.`);
     else toast.error("No codes could be created. Please try again.");
-    if (created.length) { setDialogOpen(false); setEditing(null); }
-    load();
+    // Nothing created: keep the dialog (and what was typed) as it is for another try.
+    if (created.length) { setDialogOpen(false); setEditing(null); load(); }
   };
 
   const handleDelete = async (d: any) => {

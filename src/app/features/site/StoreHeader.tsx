@@ -466,12 +466,12 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const navGapDesktop = Math.max(12, Math.min(80, sf?.catalogNavGapDesktop ?? 40));
   const navGapMobile = Math.max(8, Math.min(48, sf?.catalogNavGapMobile ?? 18));
   const cartPlacement = sf?.catalogCartPlacement || "top-right";
-  const mastheadText = sf?.catalogMastheadText ?? shop.siteName ?? "Lyricalmyrical Books";
+  const mastheadText = sf?.catalogMastheadText ?? shop.siteName ?? getCopy(design, "siteName");
   const buttonRadius = Math.max(0, Math.min(999, sf?.buttonRadius ?? 999));
   const buttonStyle = sf?.buttonStyle || "solid";
   const buttonUppercase = sf?.buttonUppercase ?? true;
   const buttonShadow = sf?.buttonShadow ?? true;
-  const bagLabel = sf?.cartLabel || "BAG";
+  const bagLabel = sf?.cartLabel || getCopy(design, "cartLabel");
   const stickers = sf?.navStyle === "stickers";
   const showAnnouncement = sf?.showAnnouncement ?? !isReferenceCatalog;
   const announcementShown = showAnnouncement && activeAnnouncements({ ...sf, announcementText: sf?.announcementText ?? shop.announcement }).length > 0;
@@ -560,7 +560,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                 }
                 return (
                   <button key={catName} onClick={() => pick(cat)} className={isActive ? "opacity-100" : "opacity-70 hover:opacity-100"}>
-                    {catName}⌄
+                    {catName}
                   </button>
                 );
               })}
@@ -572,7 +572,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                 <Link to="/admin" className="hover:opacity-70 transition-opacity opacity-40"><span data-studio-copy="navAdmin">{getCopy(design, "navAdmin")}</span></Link>
               )}
               {showBag && cartPlacement === "nav-end" && (
-                <button onClick={() => setIsCartOpen(true)} className="hover:opacity-70 transition-opacity">
+                <button onClick={() => setIsCartOpen(true)} aria-label={getCopy(design, "ariaCart")} className="hover:opacity-70 transition-opacity">
                   {cartCount} | {cartAmount}
                 </button>
               )}
@@ -602,6 +602,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                 cartButton={showBag && (
                   <button
                     onClick={() => setIsCartOpen(true)}
+                    aria-label={getCopy(design, "ariaCart")}
                     className={`group flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2 transition-all hover:scale-[1.02] store-btn-primary ${buttonShadow ? "shadow-lg" : ""} ${stickers ? "fm-sticker-pill" : ""}`}
                     style={{
                       backgroundColor: buttonStyle === "solid" ? buttonBg : "transparent",
@@ -634,7 +635,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
             <div className="mx-auto px-6" style={{ maxWidth }}>{navBar}</div>
           </div>
         )}
-        <MobileStorefrontNav design={design} pages={pages || []} onSearch={onSearch} />
+        <MobileStorefrontNav design={design} pages={pages || []} onSearch={onSearch} showThemeToggle={!design?.hideThemeToggle} />
         <SecondaryStorefrontNav design={design} pages={pages || []} />
       </header>
     </>

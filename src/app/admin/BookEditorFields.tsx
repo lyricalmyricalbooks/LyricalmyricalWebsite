@@ -91,11 +91,11 @@ export function DescriptionLinkDialog({ open, initialText, onClose, onInsert }: 
         <button type="button" className="rp-btn rp-btn-secondary" onClick={onClose}>Cancel</button>
         <button type="button" className="rp-btn rp-btn-primary" onClick={submit}>Insert link</button>
       </>}>
-      <form className="rp-stack" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+      {/* A div, not a form: this dialog renders inside the book editor's form (forms can't nest), so Enter is handled here. */}
+      <div className="rp-stack" onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") { e.preventDefault(); e.stopPropagation(); submit(); } }}>
         <TextField label="Link text" value={text} onChange={(e) => setText(e.target.value)} placeholder="Maclean's Magazine article" hint="Leave blank to show the web address itself." />
         <TextField label="Web address" value={url} onChange={(e) => { setUrl(e.target.value); setError(""); }} placeholder="https://…" inputMode="url" autoFocus error={error || undefined} />
-        <button type="submit" hidden aria-hidden tabIndex={-1} />
-      </form>
+      </div>
     </Dialog>
   );
 }

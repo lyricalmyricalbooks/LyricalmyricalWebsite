@@ -33,7 +33,7 @@ import { StudioCategories } from "./StudioCategories";
 import { categoryNavOrder } from "./categoryManager";
 import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
-import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, renameSavedTheme, serializeThemeFile, themeFileName, type SavedTheme } from "./savedThemes";
+import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, renameSavedTheme, savedThemeLimitProblem, serializeThemeFile, themeFileName, themeNamed, type SavedTheme } from "./savedThemes";
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyThemeKeysToSurfaces } from "../themeScope";
@@ -97,7 +97,9 @@ import { CANDIDATE_ID, deletePreset, deleteSharedBlock, renamePreset, renameShar
 import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
-type Toast = { kind: "ok" | "err"; text: string; action?: { label: string; run: () => void } } | null;
+/** `expect`: the design the toast's Undo belongs to (filled in once the change lands); see `undoAction`. */
+type ToastAction = { label: string; run: () => void; expect?: { present?: any } };
+type Toast = { kind: "ok" | "err"; text: string; action?: ToastAction } | null;
 
 function designChecks(design: any) {
   return buildDesignChecks(design, { sectionFields: getSectionFields, blockFields: getBlockFields, blocksKey: getBlocksKey });
@@ -310,7 +312,8 @@ function MenusPanel({ design, settings, pages, onChange }: { design: any; settin
             const c = [...items]; [c[i], c[j]] = [c[j], c[i]]; set(c);
           }} />
       ))}
-      <button className={btn} onClick={() => set([...items, newMenuItem()])}><Plus size={14} /> Add link</button>
+      {/* An empty footer menu shows the automatic links: adding one keeps them and appends the new link. */}
+      <button className={btn} onClick={() => set([...(which === "footer" && !items.length ? automaticFooterItems({ ...settings, design }, pages) : items), newMenuItem()])}><Plus size={14} /> Add link</button>
     </div>
   );
 }
@@ -453,9 +456,34 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const dirtyDraft = useMemo(() => !sameDesign(design, savedDraft), [design, savedDraft]);
   const unpublished = useMemo(() => !sameDesign(design, published), [design, published]);
 
-  const say = (kind: "ok" | "err", text: string, action?: { label: string; run: () => void }) => {
+  const say = (kind: "ok" | "err", text: string, action?: ToastAction) => {
     setToast({ kind, text, action });
     if (kind === "ok") setTimeout(() => setToast((t) => (t?.text === text ? null : t)), action ? 8000 : 3500);
+  };
+  const histRef = useRef(hist); histRef.current = hist;
+  /** A toast's "Undo" undoes exactly the change the toast names: call it right after that `change(…)`. It records the
+   *  design the change produced; if anything else has changed since (another edit, Undo/Redo), it refuses and points
+   *  the owner at step-by-step Undo instead of undoing a different change. */
+  const undoAction = (): ToastAction => {
+    const expect: { present?: any } = {};
+    // Queued after the change's own update, so it sees the design that change produced.
+    setHist(h => { expect.present = h.present; return h; });
+    return {
+      label: "Undo", expect,
+      run: () => {
+        const h = histRef.current;
+        if (expect.present === undefined || h.present !== expect.present || !h.past.length) {
+          say("err", "That change is no longer the latest one. Use Undo (Ctrl+Z) step by step, or Theme actions › Version history.");
+          return;
+        }
+        setHist(cur => cur.present === expect.present ? undo(cur) : cur);
+      },
+    };
+  };
+  /** Toolbar / shortcut / Find Undo and Redo: a toast's Undo would no longer name the latest change, so it goes. */
+  const stepHistory = (dir: "undo" | "redo") => {
+    setHist(dir === "undo" ? undo : redo);
+    setToast(t => t?.action?.expect ? null : t);
   };
 
   // load pages + books for the preview pickers
@@ -523,9 +551,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       ? { ...shared, block: { ...shared.block, ...patch }, updatedAt: new Date().toISOString() } : shared),
   }));
   const setStyle = (path: string, value: any) => change((d) => applyGlobalStyle(d, path, value, surfaceIds), { label: `Change ${settingLabel(path)}`, coalesce: `style:${path}` });
+  /** Text & labels edits; Reset to default offers Undo, which puts the owner's own wording back. */
+  const setCopy = (key: string, value: string | undefined) => {
+    const prev = designRef.current.copy?.[key];
+    setStyle('copy.' + key, value);
+    if (value === undefined && typeof prev === "string") say("ok", "Label reset to default.", { label: "Undo", run: () => setStyle('copy.' + key, prev) });
+  };
   const applyNoirLook = () => {
     change((d) => applyThemeKeysToSurfaces(d, { ...RISO_NOIR_TOKENS, themeLibraryPreset: RISO_NOIR_ID }, surfaceIds), { label: "Apply Riso Noir look" });
-    say("ok", "Riso Noir applied to the draft — Publish to make it live.", { label: "Undo", run: () => setHist(undo) });
+    say("ok", "Riso Noir applied to the draft — Publish to make it live.", undoAction());
   };
   const installNoirHome = () => {
     const tpl = HOME_LAYOUT_TEMPLATES.find((t) => t.id === RISO_NOIR_ID);
@@ -534,7 +568,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       makeSection(s.type, { ...(getSectionMeta(s.type)?.defaults || {}), ...(s.settings || {}) }))), { label: "Install Riso Noir home layout" });
     setTemplateId("heroPage");
     setShowGlobal(false);
-    say("ok", "Noir homepage layout installed on the draft.", { label: "Undo", run: () => setHist(undo) });
+    say("ok", "Noir homepage layout installed on the draft.", undoAction());
   };
   const applyLibraryTheme = (theme: any) => {
     const palette = PALETTES.find((p: any) => p.id === theme.palettePreset);
@@ -544,20 +578,43 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     };
     for (const k of THEME_APPLIED_KEYS) if (theme[k] !== undefined) base[k] = theme[k];
     change((d) => applyThemeKeysToSurfaces(d, { ...base, ...(theme.global || {}), themeLibraryPreset: theme.id }, surfaceIds), { label: `Apply “${theme.name}” look` });
-    say("ok", `“${theme.name}” applied to the draft (sections and text kept) — Publish to make it live.`, { label: "Undo", run: () => setHist(undo) });
+    say("ok", `“${theme.name}” applied to the draft (sections and text kept) — Publish to make it live.`, undoAction());
   };
+  // One My themes write at a time: a double-click on Duplicate would otherwise save from a stale list and leave an orphan copy.
+  const themesBusyRef = useRef(false);
   const persistThemes = async (next: SavedTheme[], okText: string) => {
+    if (themesBusyRef.current) { say("err", "Still saving My themes — try again in a moment."); return; }
+    themesBusyRef.current = true;
     try { await saveSavedThemes(workspace, savedThemes, next); setSavedThemes(next); say("ok", okText); }
     catch (err: any) { say("err", `Could not save themes: ${err?.message || err}`); }
+    finally { themesBusyRef.current = false; }
+  };
+  /** Saving or renaming onto another theme's name replaces that theme: ask first. */
+  const confirmThemeName = async (name: string, exceptId?: string) => {
+    const other = themeNamed(savedThemes, name, exceptId);
+    return !other || askConfirm({ title: "Replace saved theme?", message: `“${other.name}” is already in My themes and will be replaced. This can't be undone.`, confirmLabel: "Replace theme" });
+  };
+  /** Adds a theme unless My themes is full (adding would silently drop the oldest one). */
+  const addTheme = async (name: string, design: any, okText: string) => {
+    const problem = savedThemeLimitProblem(savedThemes, name);
+    if (problem) { say("err", problem); return; }
+    if (!(await confirmThemeName(name))) return;
+    await persistThemes(addSavedTheme(savedThemes, name, design), okText);
   };
   const saveCurrentAsTheme = async () => {
     const name = await askText({ title: "Save to My themes", label: "Theme name (it saves the whole design: style, text, menus and sections)", confirmLabel: "Save theme" });
     if (name === null) return;
-    persistThemes(addSavedTheme(savedThemes, name, designRef.current), `Saved “${name.trim() || "Untitled theme"}” to My themes.`);
+    await addTheme(name, designRef.current, `Saved “${name.trim() || "Untitled theme"}” to My themes.`);
+  };
+  const duplicateTheme = (t: SavedTheme) => {
+    const next = duplicateSavedTheme(savedThemes, t.id);
+    const problem = next[0] && next[0].id !== savedThemes[0]?.id ? savedThemeLimitProblem(savedThemes, next[0].name) : null;
+    if (problem) { say("err", problem); return; }
+    void persistThemes(next, "Theme duplicated.");
   };
   const applySavedTheme = (t: SavedTheme) => {
     change(() => normalizeDesign(JSON.parse(JSON.stringify(t.design)), defaults), { label: `Load “${t.name}”` });
-    say("ok", `“${t.name}” loaded into the draft — Publish to make it live.`, { label: "Undo", run: () => setHist(undo) });
+    say("ok", `“${t.name}” loaded into the draft — Publish to make it live.`, undoAction());
   };
   // Themes › Publish…: load the theme into the draft, then the usual Publish confirmation (with its summary).
   const publishSavedTheme = (t: SavedTheme) => {
@@ -578,6 +635,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const renameTheme = async (t: SavedTheme) => {
     const name = await askText({ title: "Rename theme", label: "Theme name", defaultValue: t.name, confirmLabel: "Rename" });
     if (name === null || !name.trim()) return;
+    if (!(await confirmThemeName(name, t.id))) return;
     persistThemes(renameSavedTheme(savedThemes, t.id, name), "Theme renamed.");
   };
   const exportTheme = (t: SavedTheme) => {
@@ -590,7 +648,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (!file) return;
     const parsed = parseThemeFile(await file.text());
     if ("error" in parsed) { say("err", parsed.error); return; }
-    persistThemes(addSavedTheme(savedThemes, parsed.name, parsed.design),
+    await addTheme(parsed.name, parsed.design,
       parsed.strippedCustomCode?.length
         ? `Imported “${parsed.name}” into My themes without its custom code (${parsed.strippedCustomCode.join(", ")}). Add code yourself under Style › Custom code only if you trust it.`
         : `Imported “${parsed.name}” into My themes.`);
@@ -619,12 +677,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           uploadFile={uploadStudioImage} />
         {(region || local) && <div className="studio-field-status">
           <small>{own != null && own !== "" ? "Custom value" : region ? "Inherited from larger size / shared layout" : "Inherited from all pages"}</small>
-          {own !== undefined && <button type="button" className="studio-reset" aria-label={'Reset ' + f.label}
+          {own !== undefined && <button type="button" className="studio-reset" aria-label={`${local ? "Reset to global" : "Reset to inherited"}: ${f.label}`}
             onClick={() => setScopedStyle(g.id, f.key, undefined)}>{local ? "Reset to global" : "Reset to inherited"}</button>}
         </div>}
         {differs && <div className="studio-field-status">
           <small>Changed from default</small>
-          <button type="button" className="studio-reset" aria-label={'Reset ' + f.label + ' to default'}
+          <button type="button" className="studio-reset" aria-label={`Reset to default: ${f.label}`}
             onClick={() => setScopedStyle(g.id, f.key, defaultFor(f, defaults))}>Reset to default</button>
         </div>}
       </div>
@@ -1016,7 +1074,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       if (d.type === "CONTEXT_ACTION" && typeof d.sectionId === "string") {
         change(current => applyContextAction(current, d, getBlocksKey));
         if (d.action === "delete" || d.action === "hide") { canvasSelectionRef.current = null; highlight(null,false,null); setSelectedId(null); setBlockId(null); }
-        if (d.action === "delete") say("ok", d.blockId ? "Block deleted." : "Section deleted.", { label: "Undo", run: () => setHist(undo) });
+        if (d.action === "delete") say("ok", d.blockId ? "Block deleted." : "Section deleted.", undoAction());
       }
       if ((d.type === "SPACING_COMMIT" || d.type === "SPACING_RESET") && typeof d.sectionId === "string") {
         change(current => {
@@ -1112,9 +1170,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const index = selected ? sections.findIndex(x => x.id === selected.id) : -1;
     switch (action) {
       case "find": setFindOpen(true); break;
-      case "save": if (leftTab !== "pages") saveDraft(); break;
-      case "undo": setHist(undo); break;
-      case "redo": setHist(redo); break;
+      case "save":
+        if (leftTab === "pages") break;
+        if (!dirtyDraft) say("ok", "No unsaved changes to save.");
+        else if (busy !== null) say("err", "Still saving — try again in a moment.");
+        else saveDraft();
+        break;
+      case "undo": stepHistory("undo"); break;
+      case "redo": stepHistory("redo"); break;
       case "help": setShortcutsOpen(true); break;
       case "desktop": case "tablet": case "mobile": setDevice(action); break;
       case "toggleMode": setMode(m => m === "edit" ? "browse" : "edit"); break;
@@ -1167,7 +1230,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const gone = sections.find(x => x.id === id);
     setList((l) => removeSection(l, id), { label: `Delete ${gone ? sectionTitle(gone).label : "section"}` });
     if (selectedId === id) { setSelectedId(null); setBlockId(null); }
-    say("ok", `Deleted ${gone ? sectionTitle(gone).label : "the section"}.`, { label: "Undo", run: () => setHist(undo) });
+    say("ok", `Deleted ${gone ? sectionTitle(gone).label : "the section"}.`, undoAction());
   };
   const pasteSection = () => {
     if (!copiedSection) return;
@@ -1212,7 +1275,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         for (const k of STYLE_KEYS) delete settings[k];
         return { ...sec, settings: { ...settings, ...JSON.parse(JSON.stringify(copiedStyle)) } };
       }), { label: ids.length > 1 ? `Paste style onto ${ids.length} sections` : "Paste style" });
-      say("ok", ids.length > 1 ? `Style pasted onto ${ids.length} sections.` : "Style pasted.", { label: "Undo", run: () => setHist(undo) });
+      say("ok", ids.length > 1 ? `Style pasted onto ${ids.length} sections.` : "Style pasted.", undoAction());
     },
     moveToPage: ids => { setMoveDest(""); setMoveDialog({ kind: "sections", ids }); },
     saveForReuse: id => { const sec = sections.find(x => x.id === id); if (sec) void saveSection(sec); },
@@ -1221,7 +1284,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     remove: ids => {
       change(d => updateSectionsById(d, ids, () => null), { label: `Delete ${ids.length} section${ids.length === 1 ? "" : "s"}` });
       if (selectedId && ids.includes(selectedId)) { setSelectedId(null); setBlockId(null); }
-      say("ok", `Deleted ${ids.length} section${ids.length === 1 ? "" : "s"}.`, { label: "Undo", run: () => setHist(undo) });
+      say("ok", `Deleted ${ids.length} section${ids.length === 1 ? "" : "s"}.`, undoAction());
     },
     moveBlock: (sectionId, blockId) => { setMoveDest(""); setMoveDialog({ kind: "block", sectionId, blockId }); },
   };
@@ -1232,14 +1295,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       change(d => dialog.ids.reduce((acc, id) => moveSectionTo(acc, id, moveDest), d),
         { label: `Move ${dialog.ids.length === 1 ? "section" : `${dialog.ids.length} sections`} to ${surfaceLabel(moveDest)}` });
       if (selectedId && dialog.ids.includes(selectedId)) { setSelectedId(null); setBlockId(null); }
-      say("ok", `Moved to ${surfaceLabel(moveDest)}.`, { label: "Undo", run: () => setHist(undo) });
+      say("ok", `Moved to ${surfaceLabel(moveDest)}.`, undoAction());
       return;
     }
     const result = moveBlockTo(designRef.current, { fromSectionId: dialog.sectionId, blockId: dialog.blockId, toSectionId: moveDest }, getBlocksKey);
     if (result.error) { say("err", result.error); return; }
     change(() => result.design, { label: "Move block to another section" });
     setSelectedId(moveDest); setBlockId(dialog.blockId);
-    say("ok", "Block moved.", { label: "Undo", run: () => setHist(undo) });
+    say("ok", "Block moved.", undoAction());
   };
   // ── alternate templates (2.8) ──
   const createTemplateAsk = async (base: AltBase, from: string) => {
@@ -1258,7 +1321,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const deleteTemplateNow = (base: AltBase, id: string, name: string) => {
     change(d => deleteAlternate(d, base, id), { label: `Delete template “${name}”` });
     setTemplateId(base); setSelectedId(null); setBlockId(null);
-    say("ok", `Template “${name}” deleted. Anything that used it shows the default layout.`, { label: "Undo", run: () => setHist(undo) });
+    say("ok", `Template “${name}” deleted. Anything that used it shows the default layout.`, undoAction());
   };
   /** Add section › "Add it there instead": add a section to the group or page it is made for, and go there. */
   const addSectionBestPlace = (type: string) => {
@@ -1285,7 +1348,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   const deletePresetNow = (preset: any) => {
     change(d => deletePreset(d, preset.id), { label: "Delete saved section" });
-    say("ok", `“${preset.name}” deleted from your saved sections.`, { label: "Undo", run: () => setHist(undo) });
+    say("ok", `“${preset.name}” deleted from your saved sections.`, undoAction());
   };
   const renameSharedAsk = async (shared: SharedBlock) => {
     const name = await askText({ title: "Rename shared block", label: "Name", defaultValue: shared.name || "", confirmLabel: "Rename" });
@@ -1294,7 +1357,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   const deleteSharedNow = (shared: SharedBlock) => {
     change(d => deleteSharedBlock(d, shared.id), { label: "Delete shared block" });
-    say("ok", `“${shared.name}” deleted. Where it was placed, a copy stays.`, { label: "Undo", run: () => setHist(undo) });
+    say("ok", `“${shared.name}” deleted. Where it was placed, a copy stays.`, undoAction());
   };
   const addPreset = (preset: any) => {
     const source = preset.section;
@@ -1385,14 +1448,22 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const runAction = (id: string) => {
     switch (id) {
       case "save": if (dirtyDraft && busy === null) saveDraft(); else say("ok", "No unsaved changes to save."); break;
-      case "publish": if ((unpublished || dirtyDraft) && busy === null) setConfirmAction("publish"); else say("ok", "Nothing to publish — the live shop already matches this draft."); break;
-      case "discard": if (unpublished && busy === null) setConfirmAction("discard"); else say("ok", "No draft changes to discard."); break;
+      case "publish":
+        if (inlineEditingRef.current) say("err", "Finish or cancel the preview text edit before publishing.");
+        else if (busy !== null) say("err", "Still saving — try again in a moment.");
+        else if (unpublished || dirtyDraft) setConfirmAction("publish"); else say("ok", "Nothing to publish — the live shop already matches this draft.");
+        break;
+      case "discard":
+        if (inlineEditingRef.current) say("err", "Finish or cancel the preview text edit before discarding.");
+        else if (busy !== null) say("err", "Still saving — try again in a moment.");
+        else if (unpublished) setConfirmAction("discard"); else say("ok", "No draft changes to discard.");
+        break;
       case "history": setHistoryOpen(true); loadVersions(); break;
       case "schedule": setSchedule({ themeId: null }); break;
       case "check": setChecksOpen(true); break;
       case "preview-tab": openPreviewTab(); break;
-      case "undo": setHist(undo); break;
-      case "redo": setHist(redo); break;
+      case "undo": stepHistory("undo"); break;
+      case "redo": stepHistory("redo"); break;
       case "device-desktop": setDevice("desktop"); setMobilePanel("preview"); break;
       case "device-tablet": setDevice("tablet"); setMobilePanel("preview"); break;
       case "device-mobile": setDevice("mobile"); setMobilePanel("preview"); break;
@@ -1507,7 +1578,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             )}
             {leftTab === "sections" && adding === null && !showGlobal && isProductTemplate(template.id) && (
               <StudioProductBlocks design={design} templateId={template.id} change={change}
-                onNotice={(text, undoable) => say("ok", text, undoable ? { label: "Undo", run: () => setHist(undo) } : undefined)} />
+                onNotice={(text, undoable) => say("ok", text, undoable ? undoAction() : undefined)} />
             )}
             {leftTab === "sections" && adding === null && template.id === "heroPage" && (
               <div className="m-3 p-3 rounded-lg border border-neutral-200 bg-white text-xs space-y-2">
@@ -1617,7 +1688,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                       </button>
                       <button type="button" aria-label={`Rename ${t.name}`} title="Rename" className={iconBtn} onClick={() => renameTheme(t)}><Pencil size={14} /></button>
                       <button type="button" aria-label={`Duplicate ${t.name}`} title="Duplicate" className={iconBtn}
-                        onClick={() => persistThemes(duplicateSavedTheme(savedThemes, t.id), "Theme duplicated.")}><Copy size={14} /></button>
+                        onClick={() => duplicateTheme(t)}><Copy size={14} /></button>
                       <button type="button" aria-label={`Download ${t.name} as a file`} title="Download file" className={iconBtn} onClick={() => exportTheme(t)}><Download size={14} /></button>
                       <button type="button" aria-label={`Delete ${t.name}`} className={iconBtn}
                         onClick={() => { void askConfirm({ title: "Delete saved theme?", message: `“${t.name}” will be removed from My themes. This can't be undone.`, confirmLabel: "Delete theme" }).then(ok => { if (ok) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }); }}><Trash2 size={14} /></button>
@@ -1636,11 +1707,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 </div>
                   </div>}
                   {styleCategory === "header" && <div className="px-4 pb-4">
-                    <StudioAnnouncements design={design} change={change} />
+                    <StudioAnnouncements design={design} change={change}
+                      onNotice={(text, canUndo) => say("ok", text, canUndo ? undoAction() : undefined)} />
                   </div>}
                   {styleCategory === "schemes" && <div className="px-4 pb-4">
                     <StudioColorSchemes design={design} change={change} confirm={askConfirm}
-                      onNotice={(text, canUndo) => say("ok", text, canUndo ? { label: "Undo", run: () => setHist(undo) } : undefined)} />
+                      onNotice={(text, canUndo) => say("ok", text, canUndo ? undoAction() : undefined)} />
                   </div>}
                   {styleCategory === "paymentIcons" && <div className="px-4 pb-4 space-y-4">
                     <p className="studio-hint">Checkout itself always offers the methods enabled in Settings › Payments.</p>
@@ -1751,7 +1823,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                       <div className="studio-changed-group"><strong>{g.group}</strong>
                         <button type="button" className="studio-reset" onClick={() => setTextCategory(g.group)}>Open category</button></div>
                       <div className="studio-subsection-body">{g.fields.filter(f => typeof design.copy?.[f.key] === "string").map(f => <StudioCopyField key={f.key} field={f} design={design}
-                        onChange={value => setStyle('copy.' + f.key, value)} />)}</div>
+                        onChange={value => setCopy(f.key, value)} />)}</div>
                     </section>
                   ))}
                 </div>}
@@ -1761,11 +1833,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   const fs = g.fields.filter((f) => !q || `${f.label} ${g.group} ${f.default} ${f.key}`.toLowerCase().includes(q));
                   if (!fs.length) return null;
                   const fieldsList = fs.map(f => <StudioCopyField key={f.key} field={f} design={design}
-                    onChange={value => setStyle('copy.' + f.key, value)} />);
+                    onChange={value => setCopy(f.key, value)} />);
                   if (!q) return <div key={g.group} data-studio-panel={`copy:${g.group}`} className="px-4 pb-4 space-y-4">
                     {textSubsectionsFor(g).map((sub, i, all) => <SettingsSubsection key={sub.title || "all"} title={all.length > 1 ? sub.title : ""} noun="word"
                       count={sub.fields.length} changed={changedCopyCount(sub.fields, design)} defaultOpen={i === 0} keys={sub.fields.map(f => f.key)}>
-                      {sub.fields.map(f => <StudioCopyField key={f.key} field={f} design={design} onChange={value => setStyle('copy.' + f.key, value)} />)}
+                      {sub.fields.map(f => <StudioCopyField key={f.key} field={f} design={design} onChange={value => setCopy(f.key, value)} />)}
                     </SettingsSubsection>)}
                   </div>;
                   return (
@@ -1795,7 +1867,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 previewingId={themePreview?.id || null} onPreview={setThemePreview}
                 onSaveCurrent={saveCurrentAsTheme} onImport={file => importTheme(file)}
                 onLoad={t => { setThemePreview(null); applySavedTheme(t); }} onPublish={publishSavedTheme}
-                onRename={renameTheme} onDuplicate={t => persistThemes(duplicateSavedTheme(savedThemes, t.id), "Theme duplicated.")}
+                onRename={renameTheme} onDuplicate={duplicateTheme}
                 onDownload={exportTheme} onSchedule={t => setSchedule({ themeId: t.id })}
                 onDelete={t => { void askConfirm({ title: "Delete saved theme?", message: `“${t.name}” will be removed from My themes. This can't be undone.`, confirmLabel: "Delete theme" }).then(ok => { if (ok) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }); }}
                 onApplyPreset={preset => { setThemePreview(null); applyLibraryTheme(preset); }}
@@ -1814,7 +1886,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
             {leftTab === "menus" && (
               <>
-                <StudioCategories design={design} published={published} onChange={(c) => setStyle("categories", c)}
+                <StudioCategories design={design} published={published} confirm={askConfirm} onChange={(c) => setStyle("categories", c)}
                   onReorder={(c) => change(d => ({ ...d, categories: c, navOrder: categoryNavOrder(d.categories ?? [...CATEGORIES], c, pages, d.navOrder) }))}
                   onBooksChanged={(all) => setBooks(all.filter(b => b.status === "published" || !b.status))} />
                 <NavOrderPanel design={design} pages={pages} onChange={(o) => setStyle("navOrder", o)} onSecondaryChange={(keys) => setStyle("secondaryNavKeys", keys)} />
@@ -1842,12 +1914,19 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             onToggle={() => setList((l) => toggleSection(l, selected.id))} onNotice={(text) => say("ok", text)} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
   );
 
+  const inspectorEmpty = (
+          <div className="studio-inspector-empty" role="note">
+            <strong>Nothing selected</strong>
+            <span>Click any part of the preview, or pick it under Page layout, to edit its words, style and layout here.</span>
+          </div>
+  );
+
   const selectedTabs = useMemo(() => selectedElement ? elementTabs(selectedElement, device, design) : null, [selectedElement, device, design]);
   const elementPanel = selectedElement && selectedTabs && (
           <StudioElementInspector element={selectedElement} path={structurePath(structure, selectedElement.key)} tabs={selectedTabs} design={design}
             deviceLabel={REGION_DEVICE_LABELS[device]} scope={styleScope} pageLabel={template.label} onScope={setStyleScope}
             renderField={({ group, field }) => renderStyleField(group, field)}
-            onCopy={(key, value) => setStyle('copy.' + key, value)}
+            onCopy={(key, value) => setCopy(key, value)}
             onOpenTheme={() => openElementInTheme(selectedElement)}
             onOpenText={group => { setCopyFilter(""); setTextCategory(group); setLeftTab("text"); setMobilePanel("outline"); }}
             onOpenTarget={target => openTarget(target, selectedElement.label)}
@@ -1870,10 +1949,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               onClick={() => setDevice(d)} aria-label={`${d} preview`} aria-pressed={device === d}><Icon size={15} /></button>
           ))}
         </div>
-        <button className={btn} aria-pressed={mode === "browse"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}>{mode === "edit" ? "Edit mode" : "Browse mode"}</button>
+        <button className={btn} title={mode === "edit" ? "Switch to Browse mode" : "Switch to Edit mode"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}>{mode === "edit" ? "Edit mode" : "Browse mode"}</button>
 
-        <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.past.length} onClick={() => setHist(undo)} aria-label="Undo (Ctrl+Z)" title={hist.past.length ? `Undo: ${undoLabel(hist)} (Ctrl+Z)` : "Nothing to undo"}><Undo2 size={15} /></button>
-        <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.future.length} onClick={() => setHist(redo)} aria-label="Redo (Ctrl+Shift+Z)" title={hist.future.length ? `Redo: ${redoLabel(hist)} (Ctrl+Shift+Z or Ctrl+Y)` : "Nothing to redo"}><Redo2 size={15} /></button>
+        <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.past.length} onClick={() => stepHistory("undo")} aria-label="Undo (Ctrl+Z)" title={hist.past.length ? `Undo: ${undoLabel(hist)} (Ctrl+Z)` : "Nothing to undo"}><Undo2 size={15} /></button>
+        <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.future.length} onClick={() => stepHistory("redo")} aria-label="Redo (Ctrl+Shift+Z)" title={hist.future.length ? `Redo: ${redoLabel(hist)} (Ctrl+Shift+Z or Ctrl+Y)` : "Nothing to redo"}><Redo2 size={15} /></button>
         <div className="flex-1" />
         <span className="text-xs font-bold px-2 py-1 rounded-full bg-neutral-100" role="status">
           {dirtyDraft ? "Unsaved changes" : unpublished ? "Draft saved · not live" : "Live"}
@@ -1892,7 +1971,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
       <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
       {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
-      {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={dismissRecovery}>Discard local recovery</SecondaryButton></div>}
+      {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={() => { void askConfirm({ title: "Discard local edits?", message: "The unsaved edits kept on this device will be deleted. This can't be undone.", confirmLabel: "Discard local edits" }).then(ok => { if (ok) dismissRecovery(); }); }}>Discard local recovery</SecondaryButton></div>}
       {themePreview && <div className="studio-recovery studio-incoming" role="status" data-studio-theme-preview>
         <span>Previewing “{themePreview.label}” in the canvas. Your draft hasn't changed.</span>
         <SecondaryButton size="sm" onClick={() => setThemePreview(null)}>Stop preview</SecondaryButton>
@@ -1916,7 +1995,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <div role={toast.kind === "err" ? "alert" : "status"}
           className={`absolute top-16 left-1/2 -translate-x-1/2 z-[350] px-4 py-2 rounded-lg text-sm font-bold shadow-lg ${toast.kind === "err" ? "bg-red-600 text-white" : "bg-neutral-900 text-white"}`}>
           {toast.text}
-          {toast.action && <button className="ml-3 underline" onClick={() => { toast.action!.run(); setToast(null); }}>{toast.action.label}</button>}
+          {toast.action && <button className="ml-3 underline" onClick={() => { const action = toast.action!; setToast(null); action.run(); }}>{toast.action.label}</button>}
           {toast.kind === "err" && <button className="ml-3 underline" onClick={() => setToast(null)}>Dismiss</button>}
         </div>
       )}
@@ -1928,7 +2007,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         {narrow ? <>
           {sidebarPanel}
           {canvasPanel}
-          {selected ? inspectorPanel : elementPanel}
+          {selected ? inspectorPanel : elementPanel || <aside className="studio-inspector" aria-label="Content settings">{inspectorEmpty}</aside>}
         </> : (
           <PanelGroup direction="horizontal" autoSaveId="studio-panels-v1" className="studio-panels">
             <Panel id="studio-left" order={1} defaultSize={24} minSize={18} maxSize={45}>{sidebarPanel}</Panel>
@@ -1936,10 +2015,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             <Panel id="studio-canvas" order={2} minSize={30}>{canvasPanel}</Panel>
             <PanelResizeHandle className="studio-resize-handle" aria-label="Resize the inspector" />
             <Panel id="studio-inspector" order={3} defaultSize={22} minSize={16} maxSize={45}>
-              {selected ? inspectorPanel : elementPanel || <div className="studio-inspector-empty" role="note">
-                <strong>Nothing selected</strong>
-                <span>Click any part of the preview, or pick it under Page layout, to edit its words, style and layout here.</span>
-              </div>}
+              {selected ? inspectorPanel : elementPanel || inspectorEmpty}
             </Panel>
           </PanelGroup>
         )}
@@ -1980,11 +2056,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         onRestoreAll={(v) => {
           change(() => normalizeDesign(v.design, defaults), { label: `Restore “${versionName(v)}”` });
           setHistoryPreview(null); setHistoryOpen(false);
-          say("ok", `“${versionName(v)}” restored to the draft. Save or Publish when ready.`, { label: "Undo", run: () => setHist(undo) });
+          say("ok", `“${versionName(v)}” restored to the draft. Save or Publish when ready.`, undoAction());
         }}
         onRestoreItem={(v, item: DiffItem) => {
           change(d => restoreItem(d, normalizeDesign(v.design, defaults), item), { label: `Restore ${item.label}` });
-          say("ok", `${item.label} restored from “${versionName(v)}”.`, { label: "Undo", run: () => setHist(undo) });
+          say("ok", `${item.label} restored from “${versionName(v)}”.`, undoAction());
         }}
         actions={{ saveCheckpoint: (name, d) => adminApi.saveThemeCheckpoint(name, d) as Promise<ThemeVersion>, update: adminApi.updateThemeVersion, remove: adminApi.deleteThemeVersion }}
         askText={askText} askConfirm={askConfirm} say={(kind, text) => say(kind, text)} />
@@ -1996,7 +2072,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             <ShieldCheck size={14} aria-hidden /> Studio Health on {template.label} ({REGION_DEVICE_LABELS[device].toLowerCase()}): {publishHealth.text}
             {(publishHealth.issues > 0 || publishHealth.tips > 0) && <button type="button" className="studio-link-button" onClick={() => { setConfirmAction(null); setChecksOpen(true); }}>Review</button>}
           </p>}
-          <div className="flex justify-end gap-2"><button className={btn} onClick={() => setConfirmAction(null)}>Cancel</button>{confirmAction === "publish" && <button className={btn} onClick={() => { setConfirmAction(null); setSchedule({ themeId: null }); }}>Schedule instead…</button>}<button className={confirmAction === "publish" ? btnPrimary : `${btn} border-red-300 text-red-700`} onClick={() => { const action = confirmAction; setConfirmAction(null); action === "publish" ? publish() : discard(); }}>{confirmAction === "publish" ? "Publish now" : "Discard draft"}</button></div>
+          <div className="flex justify-end gap-2"><button className={btn} onClick={() => setConfirmAction(null)}>Cancel</button>{confirmAction === "publish" && <button className={btn} onClick={() => { setConfirmAction(null); setSchedule({ themeId: null }); }}>Schedule instead…</button>}<button className={confirmAction === "publish" ? btnPrimary : `${btn} border-red-300 text-red-700`} disabled={busy !== null || Boolean(inlineEditing)} title={busy !== null ? "Still saving — wait a moment" : inlineEditing ? "Finish the preview text edit first" : undefined} onClick={() => { const action = confirmAction; setConfirmAction(null); action === "publish" ? publish() : discard(); }}>{confirmAction === "publish" ? "Publish now" : "Discard draft"}</button></div>
         </div>
       </Dialog>
       <Dialog open={!!conflict} onClose={() => resolveConflict("cancel")} title="Saved in another tab or device"

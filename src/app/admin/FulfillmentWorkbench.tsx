@@ -89,6 +89,8 @@ export function FulfillmentWorkbench({
   const hold = order.operations?.hold;
   const issues = active ? addressIssues(order) : [];
   const labelPending = order.operations?.labelPurchasePending;
+  // A Shippo test-key label carries no parcel: shipping on it would email a dead tracking number.
+  const testLabel = !!order.labelUrl && order.operations?.labelTest === true;
   const addressActive = active && method !== "pickup" && !reviewed && !hold;
   const packingActive = queue === "Ready to pack";
   const shippingActive = queue === "Ready to ship";
@@ -441,7 +443,7 @@ export function FulfillmentWorkbench({
                     {Number.isFinite(Number(order.shipping)) ? ` · paid CA$${Number(order.shipping).toFixed(2)}` : ""}
                   </p>
                 )}
-                {order.labelUrl && order.operations?.labelTest === true && (
+                {testLabel && (
                   <p className="fw-problems" role="alert"><StatusBadge tone="warning">TEST label</StatusBadge> Not a real postage label: it was bought with a Shippo test key, so it won't carry a parcel or track. Use <strong>Wrong label? Replace it</strong> and buy again with your live key before shipping.</p>
                 )}
                 {!order.labelUrl && order.trackingSource === "inventory-app" && order.trackingNumber && (
@@ -470,7 +472,7 @@ export function FulfillmentWorkbench({
                         <ExternalLink size={14} aria-hidden="true" />
                         Print label
                       </a>
-                      <PrimaryButton onClick={onDispatch} disabled={busy}>
+                      <PrimaryButton onClick={onDispatch} disabled={busy || testLabel}>
                         Parcel handed over — mark shipped
                       </PrimaryButton>
                       {onReplaceLabel && (

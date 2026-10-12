@@ -4,6 +4,7 @@ import { regionProps } from "./storefrontRegions";
 import { quickAddChoice } from "./buyable";
 import { useEffect } from "react";
 import { Link } from "react-router";
+import toast from "react-hot-toast";
 import { Heart, ArrowLeft, ShoppingBag, Trash2 } from "lucide-react";
 import { useWishlist } from "../../lib/wishlist";
 import { useSiteData } from "./useSiteData";
@@ -27,7 +28,7 @@ function WishlistContent() {
   // Under the shop header this title bar is a plain row, not a second <header>.
   const TitleBar = useInStoreChrome() ? "div" : "header";
   const { ids, remove } = useWishlist();
-  const { books, settings, loading } = useSiteData();
+  const { books, settings, loading, loadError, retry } = useSiteData();
   const { addToCart } = useCart();
   const { formatBookPrice } = useCurrency();
 
@@ -65,7 +66,19 @@ function WishlistContent() {
         <span {...regionProps("wishlistCount")} className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "wishlistCount", { count: items.length })}</span>
       </TitleBar>
 
-      {items.length === 0 ? (
+      {items.length === 0 && loadError && ids.length > 0 ? (
+        // The catalog read failed: an error with Try again, not a false "your wishlist is empty".
+        <div {...regionProps("wishlistEmpty")} className="flex flex-col items-center justify-center py-32 gap-6 px-6 text-center">
+          <p role="alert" className="text-white/50 text-xs tracking-[0.3em] uppercase">{getCopy(settings?.design, "catalogLoadError")}</p>
+          <button
+            type="button"
+            onClick={retry}
+            className="border border-white/20 px-8 py-3 rounded-full text-[10px] tracking-[0.4em] uppercase hover:bg-white/5 transition-all"
+          >
+            {getCopy(settings?.design, "catalogRetry")}
+          </button>
+        </div>
+      ) : items.length === 0 ? (
         <div {...regionProps("wishlistEmpty")} className="flex flex-col items-center justify-center py-32 gap-6">
           <div className="w-16 h-16 rounded-full border border-white/10 flex items-center justify-center">
             <Heart size={20} strokeWidth={1.4} className="text-white/40" />
@@ -115,7 +128,7 @@ function WishlistContent() {
                 </Link>
                 <div {...regionProps("wishlistActions")} className="flex items-center gap-2 mt-3">
                   <button
-                    onClick={() => addToCart(book, choice.variant)}
+                    onClick={() => { if (!addToCart(book, choice.variant)) toast.error(getCopy(settings?.design, "addToBagFailed")); }}
                     disabled={out}
                     className="flex-1 flex items-center justify-center gap-2 fm-active py-2.5 rounded-full text-[9px] tracking-[0.3em] uppercase font-bold disabled:opacity-30 hover:bg-white/90 transition-all"
                   >

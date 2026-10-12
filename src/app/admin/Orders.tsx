@@ -247,8 +247,9 @@ export function Orders({
   const handleDeleteOrders = async () => {
     const ids = deleteSplit.allowed.map((o) => o.id);
     setConfirmDeleteOrders(false);
-    if (!ids.length) return;
-    const { deleted, failed, refused } = await adminApi.deleteOrders(ids);
+    if (!ids.length || busy) return;
+    setBusy(true);
+    const { deleted, failed, refused } = await adminApi.deleteOrders(ids).finally(() => setBusy(false));
     if (deleted)
       toast.success(`Deleted ${deleted} order${deleted === 1 ? "" : "s"}`);
     if (failed.length)
@@ -260,13 +261,16 @@ export function Orders({
   };
 
   // Keep the order and its payment history, but take it out of the work queues.
-  const handleArchiveSelected = async () => {
+  const handleArchiveSelected = async (archived = true) => {
     const ids = selectedArr;
     setConfirmDeleteOrders(false);
-    if (!ids.length) return;
-    const { changed, failed } = await adminApi.archiveOrders(ids);
-    if (changed) toast.success(`Archived ${changed} order${changed === 1 ? "" : "s"}. They still show under All orders.`);
-    if (failed.length) toast.error(`Could not archive ${failed.length} order${failed.length === 1 ? "" : "s"}`);
+    if (!ids.length || busy) return;
+    setBusy(true);
+    const { changed, failed } = await adminApi.archiveOrders(ids, archived).finally(() => setBusy(false));
+    if (changed) toast.success(archived
+      ? `Archived ${changed} order${changed === 1 ? "" : "s"}. They still show under All orders.`
+      : `Put ${changed} order${changed === 1 ? "" : "s"} back in the work queues.`);
+    if (failed.length) toast.error(`Could not ${archived ? "archive" : "restore"} ${failed.length} order${failed.length === 1 ? "" : "s"}`);
     setSelected(new Set(failed));
     loadOrders();
   };
@@ -333,6 +337,16 @@ export function Orders({
       return sort === "oldest" ? d : -d;
     });
   }, [orders, activeTab, filters, sort]);
+
+  // Ticked orders that a search, date range or sort change hid are unticked, so bulk actions (packing,
+  // delete, archive, CSV, print) only ever act on orders still on screen.
+  useEffect(() => {
+    const visible = new Set(filteredOrders.map((o) => o.id));
+    setSelected((prev) => {
+      const next = new Set([...prev].filter((id) => visible.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filteredOrders]);
 
   // Same date range, search and order type as the rows, so a tab's count matches what opens.
   const tabCounts = useMemo(() => tabCountsFor(orders, filters), [orders, filters]);
@@ -648,6 +662,7 @@ export function Orders({
                 <DestructiveButton
                   size="sm"
                   icon={<Trash2 size={14} aria-hidden />}
+                  disabled={busy}
                   onClick={() => setConfirmDeleteOrders(true)}
                 >
                   Delete
@@ -686,6 +701,11 @@ export function Orders({
                     </PrimaryButton>
                   )}
                 </>
+              )}
+              {selected.size > 0 && orders.filter((o) => selected.has(o.id)).every((o) => o.archivedAt) && (
+                <SecondaryButton size="sm" disabled={busy} onClick={() => handleArchiveSelected(false)}>
+                  Put back in work queues
+                </SecondaryButton>
               )}
               {selected.size > 0 && (
                 <SecondaryButton
@@ -853,11 +873,11 @@ export function Orders({
               Cancel
             </SecondaryButton>
             {deleteSplit.refused.length > 0 && (
-              <SecondaryButton onClick={handleArchiveSelected}>
+              <SecondaryButton disabled={busy} onClick={() => handleArchiveSelected()}>
                 {`Archive ${selectedArr.length} instead`}
               </SecondaryButton>
             )}
-            <DestructiveButton disabled={!deleteSplit.allowed.length} onClick={handleDeleteOrders}>
+            <DestructiveButton disabled={busy || !deleteSplit.allowed.length} onClick={handleDeleteOrders}>
               {`Delete ${deleteSplit.allowed.length} order${deleteSplit.allowed.length === 1 ? "" : "s"}`}
             </DestructiveButton>
           </>

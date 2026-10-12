@@ -82,6 +82,11 @@ function AccountContent() {
   const [orders, setOrders] = useState<any[]>([]);
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [loadingData, setLoadingData] = useState(false);
+  // The order list couldn't be read: say so with Try again instead of looking like "no orders".
+  const [ordersError, setOrdersError] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const buyAgainBusy = useRef(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [digitalItems, setDigitalItems] = useState<Record<string, DigitalEntry[]>>({});
   
@@ -104,6 +109,9 @@ function AccountContent() {
   const { addToCart } = useCart();
   const wishlistCount = liveWishlistCount(wishedIds, books, isLiveBook);
   const { formatPrice } = useCurrency();
+  // Sign-in toasts run after awaits (and from mount effects): read the latest Text & labels, not the first render's.
+  const designRef = useRef<any>(settings?.design);
+  designRef.current = settings?.design;
   // Order amounts are stored in CAD; show them in the shopper's chosen currency like the rest of the store.
   // An order paid in another currency is shown in that currency, like the tracking page.
   const money = (v: number | undefined, o?: any) => {
@@ -126,12 +134,12 @@ function AccountContent() {
       setConfirmingLink(false);
       // Drop the one-time sign-in code from the address bar.
       window.history.replaceState(null, "", window.location.pathname);
-      toast.success(getCopy(settings?.design, "accountSignedInLink"));
+      toast.success(getCopy(designRef.current, "accountSignedInLink"));
     } else {
       console.error("Email link sign in error:", result.error);
       // Keep the confirm-your-email card (and the link's code in the address) so the address can be retyped.
       setConfirmingLink(true);
-      toast.error(getCopy(settings?.design, "accountSignInError"));
+      toast.error(getCopy(designRef.current, "accountSignInError"));
     }
   }
 
@@ -189,6 +197,7 @@ function AccountContent() {
 
   async function loadCustomerData(u: User) {
     setLoadingData(true);
+    setOrdersError(false);
     const stale = () => activeUid.current !== u.uid;
     try {
       const profRef = doc(db, "customers", u.uid);
@@ -250,6 +259,7 @@ function AccountContent() {
       }
     } catch (err) {
       console.error("Failed to load account data", err);
+      if (!stale()) setOrdersError(true);
     } finally {
       if (!stale()) setLoadingData(false);
     }
@@ -304,28 +314,55 @@ function AccountContent() {
       await sendSignInLinkToEmail(auth, email, actionCodeSettings);
       // The link was sent; a blocked store only means the shopper confirms their email on return.
       try { window.localStorage.setItem("emailForSignIn", email); } catch { /* storage blocked */ }
-      if (resendTo) toast.success(getCopy(settings?.design, "accountLinkSent"));
+      if (resendTo) toast.success(getCopy(designRef.current, "accountLinkSent"));
       setLinkSentTo(email);
     } catch (err: any) {
       console.error(err);
-      toast.error(getCopy(settings?.design, "accountMagicLinkError"));
+      toast.error(getCopy(designRef.current, "accountMagicLinkError"));
     } finally {
       setSendingLink(false);
     }
   }
 
   async function handleGoogleSignIn() {
+    if (googleBusy) return;
+    setGoogleBusy(true);
     try {
       const provider = googleProvider || new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      toast.success(getCopy(settings?.design, "accountSignedIn"));
+      toast.success(getCopy(designRef.current, "accountSignedIn"));
     } catch (err: any) {
+      // Closing the Google window (or a second click replacing it) is the shopper's choice, not an error.
+      if (err?.code === "auth/popup-closed-by-user" || err?.code === "auth/cancelled-popup-request") return;
       console.error(err);
-      toast.error(getCopy(settings?.design, "accountGoogleError"));
+      toast.error(getCopy(designRef.current, "accountGoogleError"));
+    } finally {
+      setGoogleBusy(false);
     }
   }
 
+  // Put the address form back to the saved address (Cancel / Abort / Close keep nothing typed).
+  function resetAddressForm() {
+    setAddressForm({
+      street: profile?.defaultAddress?.street || "",
+      city: profile?.defaultAddress?.city || "",
+      state: profile?.defaultAddress?.state || "",
+      zip: profile?.defaultAddress?.zip || "",
+      country: profile?.defaultAddress?.country || "Canada",
+      phone: profile?.phone || "",
+      name: profile?.name || user?.displayName || "",
+    });
+  }
+  function closeAddressForm() {
+    resetAddressForm();
+    setIsEditingAddress(false);
+  }
+
   function buyAgain(o: any) {
+    // A double click must not put every line in the bag twice.
+    if (buyAgainBusy.current) return;
+    buyAgainBusy.current = true;
+    window.setTimeout(() => { buyAgainBusy.current = false; }, 800);
     const plan = reorderPlan(o, books);
     let added = 0;
     let skipped = plan.skipped;
@@ -338,8 +375,8 @@ function AccountContent() {
 
   async function handleSaveAddress(e: React.FormEvent) {
     e.preventDefault();
-    if (!user) return;
-    setLoadingData(true);
+    if (!user || savingAddress) return;
+    setSavingAddress(true);
     try {
       const updatedProfile: CustomerProfile = {
         uid: user.uid,
@@ -361,7 +398,7 @@ function AccountContent() {
     } catch (err: any) {
       toast.error(getCopy(settings?.design, "accountAddressError"));
     } finally {
-      setLoadingData(false);
+      setSavingAddress(false);
     }
   }
 
@@ -483,7 +520,9 @@ function AccountContent() {
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
-                className="w-full fm-active py-4 text-[11px] font-black tracking-[0.2em] uppercase hover:bg-white/90 transition-all flex items-center justify-center gap-2"
+                disabled={googleBusy}
+                aria-busy={googleBusy}
+                className="w-full disabled:opacity-60 fm-active py-4 text-[11px] font-black tracking-[0.2em] uppercase hover:bg-white/90 transition-all flex items-center justify-center gap-2"
               >
                 {getCopy(settings?.design, "accountGoogle")}
               </button>
@@ -601,7 +640,7 @@ function AccountContent() {
                 </p>
               </div>
               <button 
-                onClick={() => setIsEditingAddress(!isEditingAddress)}
+                onClick={() => (isEditingAddress ? closeAddressForm() : setIsEditingAddress(true))}
                 className="text-[9px] font-black tracking-[0.25em] text-cyan-400 hover:text-cyan-300 uppercase shrink-0"
               >
                 {getCopy(settings?.design, isEditingAddress ? "accountClose" : "accountManage")}
@@ -615,7 +654,7 @@ function AccountContent() {
           <section {...regionProps("accountAddressForm")} className="glass-card border border-white/5 rounded-[2.5rem] p-10 animate-in fade-in slide-in-from-top-4 duration-300">
             <div className="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
               <h3 className="text-xs font-black tracking-[0.4em] uppercase text-cyan-400">{getCopy(settings?.design, "accountAddressTitle")}</h3>
-              <button onClick={() => setIsEditingAddress(false)} className="text-[9px] font-black tracking-widest fm-muted hover:text-white uppercase">{getCopy(settings?.design, "accountAbort")}</button>
+              <button onClick={closeAddressForm} className="text-[9px] font-black tracking-widest fm-muted hover:text-white uppercase">{getCopy(settings?.design, "accountAbort")}</button>
             </div>
 
             <form onSubmit={handleSaveAddress} className="space-y-6">
@@ -714,13 +753,15 @@ function AccountContent() {
               <div className="pt-4 flex gap-4">
                 <button
                   type="submit"
-                  className="bg-cyan-600 hover:bg-cyan-500 text-white px-8 py-4 rounded-xl text-[9px] font-black tracking-[0.3em] uppercase transition-all shadow-lg shadow-cyan-600/10"
+                  disabled={savingAddress}
+                  aria-busy={savingAddress}
+                  className="disabled:opacity-60 bg-cyan-600 hover:bg-cyan-500 text-white px-8 py-4 rounded-xl text-[9px] font-black tracking-[0.3em] uppercase transition-all shadow-lg shadow-cyan-600/10"
                 >
                   {getCopy(settings?.design, "accountSaveAddress")}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsEditingAddress(false)}
+                  onClick={closeAddressForm}
                   className="px-6 py-4 text-[9px] font-black tracking-widest fm-muted hover:text-white uppercase"
                 >
                   {getCopy(settings?.design, "accountCancel")}
@@ -737,6 +778,13 @@ function AccountContent() {
             <div className="py-20 flex flex-col items-center justify-center space-y-4">
               <Loader2 className="animate-spin" style={{ color: "var(--accent)" }} size={24} />
               <p className="text-[9px] font-black tracking-[0.3em] fm-muted uppercase">{getCopy(settings?.design, "accountHistoryLoading")}</p>
+            </div>
+          ) : ordersError && orders.length === 0 ? (
+            <div role="alert" className="py-16 text-center space-y-4">
+              <p className="text-white/60 text-xs font-bold tracking-widest uppercase">{getCopy(settings?.design, "accountHistoryError")}</p>
+              <button type="button" onClick={() => user && loadCustomerData(user)} className="text-[10px] font-black uppercase tracking-[0.25em] fm-accent-text hover:underline">
+                {getCopy(settings?.design, "accountHistoryRetry")}
+              </button>
             </div>
           ) : orders.length === 0 ? (
             <div className="py-16 text-center space-y-3">

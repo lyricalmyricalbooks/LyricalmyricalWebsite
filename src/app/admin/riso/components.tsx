@@ -590,9 +590,20 @@ export function ActionMenu({ label, actions }: { label: string; actions: MenuAct
 /** Promise-based replacement for window.confirm: `if (!(await ask({...}))) return;` then render `node`. */
 export function useConfirm() {
   const [state, setState] = useState<null | { title: string; message: string; confirmLabel?: string; resolve: (v: boolean) => void }>(null);
+  // The question on screen. A new ask() answers the one it replaces with "no", so an earlier await never hangs.
+  const pending = useRef<((v: boolean) => void) | null>(null);
   const ask = useCallback((opts: { title: string; message: string; confirmLabel?: string }) =>
-    new Promise<boolean>((resolve) => setState({ ...opts, resolve })), []);
-  const done = (v: boolean) => { state?.resolve(v); setState(null); };
+    new Promise<boolean>((resolve) => {
+      pending.current?.(false);
+      pending.current = resolve;
+      setState({ ...opts, resolve });
+    }), []);
+  const done = (v: boolean) => {
+    const resolve = pending.current || state?.resolve;
+    pending.current = null;
+    resolve?.(v);
+    setState(null);
+  };
   const node = (
     <ConfirmDialog open={!!state} title={state?.title || ""} message={state?.message || ""} confirmLabel={state?.confirmLabel}
       onConfirm={() => done(true)} onCancel={() => done(false)} />

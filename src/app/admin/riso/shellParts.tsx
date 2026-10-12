@@ -30,17 +30,21 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const [books, setBooks] = useState<any[] | null>(null);
+  // "error" lets the next focus try the catalog read again instead of showing "No matches" forever.
+  const [booksState, setBooksState] = useState<"idle" | "loading" | "error" | "ready">("idle");
   const [orders, setOrders] = useState<any[] | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const listId = useId();
 
   // The whole catalog (cached for the session) and every order (shared orders cache), loaded on first focus.
   const ensureData = async () => {
-    if (!books) {
+    if (!books && booksState !== "loading") {
+      setBooksState("loading");
       try {
         if (!catalogCache) catalogCache = adminApi.getAllBooks().catch((e: unknown) => { catalogCache = null; throw e; });
         setBooks(await catalogCache);
-      } catch { setBooks([]); }
+        setBooksState("ready");
+      } catch { setBooksState("error"); }
     }
     if (onOpenOrder || onOpenCustomer) getOrdersCached().then(setOrders).catch(() => setOrders([]));
   };
@@ -49,6 +53,8 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
     if (!shortcut) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
+        // Never reach behind an open dialog (book editor, confirm, etc.).
+        if (document.querySelector('[aria-modal="true"]')) return;
         e.preventDefault();
         boxRef.current?.querySelector("input")?.focus();
       }
@@ -93,17 +99,19 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
         if (e.key === "Escape") setOpen(false);
         else if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, results.length - 1)); }
         else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
-        else if (e.key === "Enter") { e.preventDefault(); choose(results[active]); }
+        else if (e.key === "Enter") { e.preventDefault(); if (showList) choose(results[active]); }
       }}>
       <SearchField label="Search books, orders, customers and admin screens" placeholder="Search books, orders, customers… (Ctrl+K)" value={q}
         role="combobox" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list" aria-keyshortcuts="Control+K Meta+K"
         aria-activedescendant={showList && results[active] ? `${listId}-${active}` : undefined}
         onFocus={() => { setOpen(true); ensureData(); }}
-        onChange={(e) => { setQ(e.target.value); setOpen(true); }} />
+        onChange={(e) => { setQ(e.target.value); setOpen(true); if (booksState === "error") ensureData(); }} />
       {showList && (
         <ul id={listId} role="listbox" className="rp-search-results" aria-label="Search results">
           {results.length === 0
-            ? <li role="option" aria-selected="false" aria-disabled="true"><Search size={14} aria-hidden /> No matches</li>
+            ? <li role="option" aria-selected="false" aria-disabled="true"><Search size={14} aria-hidden />{" "}
+              {booksState === "loading" || booksState === "idle" ? "Loading…"
+                : booksState === "error" ? "Couldn't load books — try again" : "No matches"}</li>
             : results.map((r, i) => (
               <li key={r.key} id={`${listId}-${i}`} role="option" aria-selected={i === active}
                 onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); choose(r); }}>

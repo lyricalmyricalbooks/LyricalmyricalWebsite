@@ -378,8 +378,10 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
             >
               <span data-theme-field="ctaText">{settings.ctaText ?? fb("HeroSection.ctaText")}</span>
             </MagneticButton>
-            {settings.secondaryCtaText && (
-              <button className="px-8 py-3.5 rounded-full border border-white/30 text-[10px] tracking-[0.3em] font-semibold uppercase hover:bg-white/10 transition-colors text-white">
+            {/* A second button with nowhere to go is a dead click: shoppers see it once it has a link
+                (the Studio preview keeps showing it so the owner can see where to add one). */}
+            {settings.secondaryCtaText && (settings.secondaryCtaUrl || inStudioPreview()) && (
+              <button type="button" onClick={() => followBannerLink(settings.secondaryCtaUrl)} className="px-8 py-3.5 rounded-full border border-white/30 text-[10px] tracking-[0.3em] font-semibold uppercase hover:bg-white/10 transition-colors text-white">
                 <span data-theme-field="secondaryCtaText">{settings.secondaryCtaText}</span>
               </button>
             )}
@@ -434,8 +436,9 @@ const sampleHtml = (html: string | undefined, sample: string) => html || (inStud
  * Links typed in Studio ("/page/news", "/?catalog=true") are paths within the shop,
  * which lives under a sub-path on GitHub Pages; a raw href would leave the site.
  */
-function siteHref(url: string | undefined | null) {
-  if (!url) return "#";
+function siteHref(url: string | undefined | null): string | undefined {
+  // No link set: no href at all, so the button/card renders the same but isn't a dead "#" jump to the top.
+  if (!url || !String(url).trim()) return undefined;
   if (!url.startsWith("/") || url.startsWith("//")) return url;
   const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
   return keepPreviewParam(base + url);
@@ -479,11 +482,12 @@ export function ImageBannerSection({ settings, onCtaClick, enableAnimations }: a
             </div>
           )}
         </>
-      ) : (
+      ) : inStudioPreview() ? (
+        // Owner guidance: shown in the Studio preview only, never to shoppers.
         <div className="absolute inset-0 grid place-items-center text-xs font-bold uppercase tracking-[0.25em] text-white/40">
           Add a banner image
         </div>
-      )}
+      ) : null}
       <div className="absolute inset-0" style={{ backgroundColor: "rgb(var(--overlay-rgb, 0, 0, 0))", opacity: settings.overlayOpacity ?? 0.4 }} />
       <div className={`relative z-10 flex w-full p-6 md:p-12 ${position}`}>
         <AnimationContainer enabled={enableAnimations}>
@@ -687,7 +691,7 @@ export function TextContentSection({ settings, enableAnimations }: any) {
                 <p className="text-white/60 text-lg leading-relaxed font-light" style={bStyle(settings)}>{settings.content}</p>
               )
             )}
-            {!settings.title && !settings.content && (
+            {!settings.title && !settings.content && inStudioPreview() && (
               <p className="text-white/60 text-lg leading-relaxed font-light">Add your mission statement or store introduction here.</p>
             )}
           </div>
@@ -892,13 +896,20 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
     return () => { window.removeEventListener("studio:selection", select); window.removeEventListener("studio:mode", mode); };
   }, [slides]);
 
+  // Autoplay waits a full interval after every change (arrows and dots too), stops while the shopper points at
+  // or tabs into the slideshow, and never runs for shoppers who asked their device for reduced motion.
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   useEffect(() => {
-    if (inspecting || !settings.autoplay || slides.length <= 1) return;
-    const t = setInterval(() => setActive((a) => (a + 1) % slides.length), Math.max(2000, settings.autoplaySpeed || 5000));
-    return () => clearInterval(t);
-  }, [slides.length, settings.autoplay, settings.autoplaySpeed, inspecting]);
+    if (inspecting || hovered || focused || !settings.autoplay || slides.length <= 1) return;
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setTimeout(() => setActive((a) => (a + 1) % slides.length), Math.max(2000, settings.autoplaySpeed || 5000));
+    return () => clearTimeout(t);
+  }, [active, slides.length, settings.autoplay, settings.autoplaySpeed, inspecting, hovered, focused]);
 
   if (slides.length === 0) {
+    // Owner guidance: the Studio preview shows how to fill it; shoppers see nothing.
+    if (!inStudioPreview()) return null;
     return (
       <section className="h-[60vh] flex items-center justify-center bg-white/[0.02] text-white/30 text-xs uppercase tracking-widest">
         Add slides to this slideshow
@@ -909,7 +920,13 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
   const slide = slides[active] || slides[0];
 
   return (
-    <section className="relative w-full h-[70vh] min-h-[480px] overflow-hidden">
+    <section
+      className="relative w-full h-[70vh] min-h-[480px] overflow-hidden"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}
+    >
       {slide.imageUrl && (
         <div className="absolute inset-0">
           <StyledImage src={slide.imageUrl} settings={slide} fieldKey="imageUrl" loading="lazy" decoding="async" alt={slide.title || ""} />
@@ -956,7 +973,7 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
           </button>
           <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2">
             {slides.map((_: any, i: number) => (
-              <button key={i} onClick={() => setActive(i)} aria-label={(settings.dotAria ?? fb("SlideshowSection.dotAria")).replace("{n}", String(i + 1))} className={`w-2 h-2 rounded-full transition-all ${i === active ? "bg-white w-6" : "bg-white/40"}`} />
+              <button key={i} type="button" onClick={() => setActive(i)} aria-current={i === active ? "true" : undefined} aria-label={(settings.dotAria ?? fb("SlideshowSection.dotAria")).replace("{n}", String(i + 1))} className={`w-2 h-2 rounded-full transition-all ${i === active ? "bg-white w-6" : "bg-white/40"}`} />
             ))}
           </div>
         </>
@@ -969,19 +986,19 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
 // VIDEO
 // ──────────────────────────────
 
+// YouTube watch / youtu.be / shorts / embed / live links and Vimeo (incl. player.vimeo.com/video/…) links.
+// A link on one of these hosts is never handed to <video>, which can't play a web page.
+const youtubeIdOf = (url: string) => url.match(/(?:youtube(?:-nocookie)?\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|shorts\/|live\/|v\/)|youtu\.be\/)([\w-]{6,})/i)?.[1];
+const vimeoIdOf = (url: string) => url.match(/vimeo\.com\/(?:video\/)?(\d+)/i)?.[1];
+const isVideoPageHost = (url: string) => /youtube(?:-nocookie)?\.com|youtu\.be|vimeo\.com/i.test(url);
+
 export function VideoSection({ settings, enableAnimations }: any) {
   const url = settings.videoUrl || "";
-  const isYoutube = /youtube\.com|youtu\.be/.test(url);
-  const isVimeo = /vimeo\.com/.test(url);
-
   let embed = "";
-  if (isYoutube) {
-    const id = url.match(/(?:v=|youtu\.be\/)([\w-]{6,})/)?.[1];
-    if (id) embed = `https://www.youtube.com/embed/${id}?rel=0`;
-  } else if (isVimeo) {
-    const id = url.match(/vimeo\.com\/(\d+)/)?.[1];
-    if (id) embed = `https://player.vimeo.com/video/${id}`;
-  }
+  const ytId = youtubeIdOf(url);
+  const vmId = ytId ? undefined : vimeoIdOf(url);
+  if (ytId) embed = `https://www.youtube.com/embed/${ytId}?rel=0`;
+  else if (vmId) embed = `https://player.vimeo.com/video/${vmId}`;
 
   return (
     <section style={bgStyle(settings)}>
@@ -1003,13 +1020,14 @@ export function VideoSection({ settings, enableAnimations }: any) {
           <div className="aspect-video w-full overflow-hidden rounded-2xl fm-surface border border-white/10">
             {embed ? (
               <iframe src={embed} title={settings.title ?? fb("VideoSection.title")} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen className="w-full h-full" />
-            ) : url ? (
+            ) : url && !isVideoPageHost(url) ? (
               <video src={url} controls poster={settings.posterUrl} className="w-full h-full object-cover" />
-            ) : (
+            ) : inStudioPreview() ? (
+              // Owner guidance: shown in the Studio preview only, never to shoppers.
               <div className="w-full h-full flex items-center justify-center text-white/30 text-xs uppercase tracking-widest">
                 Paste a YouTube, Vimeo or MP4 URL
               </div>
-            )}
+            ) : null}
           </div>
         </AnimationContainer>
       </div>
@@ -1079,7 +1097,7 @@ export function CollapsibleSection({ settings, enableAnimations }: any) {
               <details key={idx} {...blockEditAttrs(item, idx)} className="border-b border-white/10 group">
                 <summary className="flex items-center justify-between cursor-pointer py-5 text-white text-sm font-bold tracking-wide uppercase" style={bStyle(settings)}>
                   {item.heading || fb("CollapsibleSection.item.heading")}
-                  <span className="text-white/40 group-open:rotate-45 transition-transform">+</span>
+                  <span aria-hidden="true" className="text-white/40 group-open:rotate-45 transition-transform">+</span>
                 </summary>
                 <div
                   className="text-white/60 text-sm pb-6 prose prose-invert max-w-none"
@@ -1333,12 +1351,15 @@ export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any
   const [active, setActive] = useState(0);
   const autoplayMs = Math.max(1500, settings.autoplayMs ?? 4000);
 
+  // A dot press restarts the wait; pointing at or tabbing into the carousel pauses it.
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   useEffect(() => {
-    if (covers.length <= 1) return;
+    if (covers.length <= 1 || hovered || focused) return;
     if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const t = setInterval(() => setActive((a) => (a + 1) % covers.length), autoplayMs);
-    return () => clearInterval(t);
-  }, [covers.length, autoplayMs]);
+    const t = setTimeout(() => setActive((a) => (a + 1) % covers.length), autoplayMs);
+    return () => clearTimeout(t);
+  }, [active, covers.length, autoplayMs, hovered, focused]);
 
   const height =
     settings.height === "full" ? "100vh" : settings.height === "medium" ? "70vh" : "min(88vh, 780px)";
@@ -1348,11 +1369,21 @@ export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any
   const overlayOpacity = Math.max(0, Math.min(1, settings.colorOverlayOpacity ?? 0.3));
 
   return (
-    <section className="relative w-full overflow-hidden" style={{ height, minHeight: 420, ...bgStyle(settings) }}>
+    <section
+      className="relative w-full overflow-hidden"
+      style={{ height, minHeight: 420, ...bgStyle(settings) }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}
+    >
       {covers.length === 0 ? (
-        <div className="absolute inset-0 flex items-center justify-center text-white/30 text-xs uppercase tracking-widest">
-          Add books with cover photos to fill this carousel
-        </div>
+        // Owner guidance: shown in the Studio preview only, never to shoppers.
+        inStudioPreview() ? (
+          <div className="absolute inset-0 flex items-center justify-center text-white/30 text-xs uppercase tracking-widest">
+            Add books with cover photos to fill this carousel
+          </div>
+        ) : null
       ) : (
         covers.map((cover: any, i: number) => (
           <div
@@ -1492,6 +1523,8 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                   aria-label={sc("sectionViewBook", { title: book.title })}
                   onClick={() => openBook(book)}
                   onKeyDown={(e: any) => {
+                    // Keys pressed on the "+" quick-add button inside the card belong to that button.
+                    if (e.target !== e.currentTarget) return;
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
                       openBook(book);
@@ -1533,7 +1566,11 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                         disabled={soldOut}
                         onClick={(e: any) => {
                           e.stopPropagation();
-                          if (!soldOut) addToCart(book, quick.variant);
+                          if (!soldOut && !addToCart(book, quick.variant)) {
+                            // Loaded only when needed: section renderers are also imported by server-side tests and the prerender.
+                            const message = sc("addToBagFailed");
+                            import("react-hot-toast").then((mod) => mod.default.error(message)).catch(() => {});
+                          }
                         }}
                         className={`absolute right-3 bottom-3 w-8 h-8 rounded-full border text-base leading-none flex items-center justify-center transition-colors ${
                           soldOut
@@ -1597,7 +1634,8 @@ export function StaffNotesTableSection({ settings, books, onProductClick, enable
           )}
         </AnimationContainer>
         {rows.length === 0 ? (
-          <p className="py-12 text-center text-sm fm-muted">Add book notes to fill this table.</p>
+          // Owner guidance: shown in the Studio preview only, never to shoppers.
+          inStudioPreview() ? <p className="py-12 text-center text-sm fm-muted">Add book notes to fill this table.</p> : null
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
@@ -1840,7 +1878,9 @@ export function BlogPostsSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function CountdownSection({ settings, enableAnimations }: any) {
-  const target = settings.targetDate ? new Date(settings.targetDate).getTime() : Date.now() + 86400000;
+  // With no date set, count down a fixed day from when the section first showed (not a fresh day each tick).
+  const [defaultTarget] = useState(() => Date.now() + 86400000);
+  const target = settings.targetDate ? new Date(settings.targetDate).getTime() : defaultTarget;
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -2059,7 +2099,7 @@ function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
               className="inline-block px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
               style={buttonStyle}
             >
-              {btn.text || fb("MapSection.btn.text")}
+              {btn.text || fb("RowSection.btn.text")}
             </a>
           ))}
         </div>
@@ -2072,7 +2112,7 @@ function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
           className="inline-block px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
           style={buttonStyle}
         >
-          {block.buttonText || fb("MapSection.block.buttonText")}
+          {block.buttonText || fb("RowSection.block.buttonText")}
         </a>
       </div>
     );
@@ -2080,14 +2120,14 @@ function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
 
   if (kind === "video") {
     const url = block.videoUrl || "";
-    const ytId = url.match(/(?:v=|youtu\.be\/)([\w-]{6,})/)?.[1];
-    const vimeoId = url.match(/vimeo\.com\/(\d+)/)?.[1];
+    const ytId = youtubeIdOf(url);
+    const vimeoId = ytId ? undefined : vimeoIdOf(url);
     const embed = ytId ? `https://www.youtube.com/embed/${ytId}?rel=0` : vimeoId ? `https://player.vimeo.com/video/${vimeoId}` : "";
     return (
       <div {...blockEditAttrs(block, blockIndex)} className="aspect-video w-full overflow-hidden rounded-2xl fm-surface border border-white/10">
         {embed ? (
-          <iframe src={embed} title={block.title || fb("MapSection.block.title")} allow="autoplay; fullscreen" allowFullScreen className="w-full h-full" />
-        ) : url ? (
+          <iframe src={embed} title={block.title || fb("RowSection.block.title")} allow="autoplay; fullscreen" allowFullScreen className="w-full h-full" />
+        ) : url && !isVideoPageHost(url) ? (
           <video src={url} controls className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-white/20 text-xs uppercase tracking-widest">{sc("sectionNoVideo")}</div>
@@ -2157,6 +2197,7 @@ export function RowSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function GallerySection({ settings, enableAnimations }: any) {
+  const sc = useSectionCopy();
   const items = visibleBlocks(settings.items || settings.blocks || []);
   const cols = Math.max(2, Math.min(6, settings.columns ?? 3));
   const textAlign = aClass(settings);
@@ -2176,19 +2217,22 @@ export function GallerySection({ settings, enableAnimations }: any) {
           )}
         </AnimationContainer>
         <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-          {items.map((item: any, idx: number) => (
-            <a
+          {items.map((item: any, idx: number) => {
+            // A tile is a link only when it has one (never the raw image file); only outside sites open a new tab.
+            const linked = !!String(item.linkUrl || "").trim();
+            const external = linked && /^https?:\/\//i.test(item.linkUrl);
+            const Tile: any = linked ? "a" : "div";
+            return (
+            <Tile
               key={idx}
               {...blockEditAttrs(item, idx)}
-              href={siteHref(item.linkUrl || item.imageUrl)}
-              target={item.linkUrl ? "_blank" : undefined}
-              rel="noreferrer"
+              {...(linked ? { href: siteHref(item.linkUrl), ...(external ? { target: "_blank", rel: "noreferrer" } : {}) } : {})}
               className="block aspect-square overflow-hidden rounded-xl bg-white/5"
             >
               {item.imageUrl && (
                 <StyledImage
                   src={item.imageUrl}
-                  alt={item.alt || ""}
+                  alt={item.alt || (linked ? sc("sectionGalleryImageAlt", { n: idx + 1 }) : "")}
                   settings={item}
                   fieldKey="imageUrl"
                   sizes="(min-width: 768px) 25vw, 50vw"
@@ -2197,8 +2241,9 @@ export function GallerySection({ settings, enableAnimations }: any) {
                   imgClassName="transition-transform duration-500 hover:scale-105"
                 />
               )}
-            </a>
-          ))}
+            </Tile>
+            );
+          })}
         </div>
       </div>
     </section>
@@ -2211,19 +2256,17 @@ export function GallerySection({ settings, enableAnimations }: any) {
 
 export function VideoHeroSection({ settings, onCtaClick }: any) {
   const url = settings.videoUrl || "";
-  const isYoutube = /youtube\.com|youtu\.be/.test(url);
-  const isVimeo = /vimeo\.com/.test(url);
-
   // Background embeds need autoplay + mute + loop + no chrome.
   let bgEmbed = "";
-  if (isYoutube) {
-    const id = url.match(/(?:v=|youtu\.be\/)([\w-]{6,})/)?.[1];
-    if (id) bgEmbed = `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&loop=1&controls=0&playlist=${id}&rel=0&playsinline=1`;
-  } else if (isVimeo) {
-    const id = url.match(/vimeo\.com\/(\d+)/)?.[1];
+  const ytId = youtubeIdOf(url);
+  if (ytId) {
+    const id = ytId;
+    bgEmbed = `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&loop=1&controls=0&playlist=${id}&rel=0&playsinline=1`;
+  } else {
+    const id = vimeoIdOf(url);
     if (id) bgEmbed = `https://player.vimeo.com/video/${id}?background=1&autoplay=1&loop=1&muted=1`;
   }
-  const isFile = !!url && !bgEmbed;
+  const isFile = !!url && !bgEmbed && !isVideoPageHost(url);
 
   const overlay = Math.max(0, Math.min(90, settings.overlayOpacity ?? 40)) / 100;
   const align = settings.textAlign === "left" ? "items-start text-left" : settings.textAlign === "right" ? "items-end text-right" : "items-center text-center";
@@ -2254,7 +2297,7 @@ export function VideoHeroSection({ settings, onCtaClick }: any) {
         )}
         {settings.ctaText && (
           <a
-            href={siteHref(settings.ctaLink)}
+            href={siteHref(settings.ctaLink) ?? (onCtaClick ? "#" : undefined)}
             onClick={(e) => { if (onCtaClick && !settings.ctaLink) { e.preventDefault(); onCtaClick(); } }}
             className="mt-8 inline-block px-8 py-3 text-[11px] font-bold tracking-[0.25em] uppercase bg-white text-black rounded-full transition-transform hover:scale-105"
             style={btnS(settings)}
@@ -2393,7 +2436,7 @@ export function PricingTableSection({ settings, onCtaClick, enableAnimations }: 
                 )}
                 {item.ctaText && (
                   <a
-                    href={siteHref(item.ctaLink)}
+                    href={siteHref(item.ctaLink) ?? (onCtaClick ? "#" : undefined)}
                     onClick={(e) => { if (onCtaClick && (!item.ctaLink || item.ctaLink === "/")) { e.preventDefault(); onCtaClick(); } }}
                     className={`mt-8 inline-block text-center px-6 py-3 text-[11px] font-bold tracking-[0.2em] uppercase rounded-full transition-transform hover:scale-105 ${highlighted ? "bg-white text-black" : "bg-white/10 text-white border border-white/20"}`}
                     style={btnS(settings)}
@@ -2615,7 +2658,7 @@ export function FeaturedCollectionSection({ settings, books, onProductClick, ena
                 tabIndex={0}
                 aria-label={sc("sectionViewBook", { title: book.title })}
                 onClick={() => onProductClick?.(book)}
-                onKeyDown={(e: any) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onProductClick?.(book); } }}
+                onKeyDown={(e: any) => { if (e.target !== e.currentTarget) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onProductClick?.(book); } }}
               >
                 <div className="fm-photo-frame relative overflow-hidden bg-white/5" style={{ aspectRatio: "3 / 4" }}>
                   {book.photos?.[0]?.url && <img src={book.photos[0].url} {...photoSrcSet(book.photos[0], CARD_PHOTO_SIZES)} alt={book.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />}

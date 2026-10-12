@@ -38,7 +38,8 @@ export function StudioSearch({ open, onClose, index, context = [], onPick }: {
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") { e.preventDefault(); setActive(i => Math.min(results.length - 1, i + 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setActive(i => Math.max(0, i - 1)); }
-    else if (e.key === "Enter") { e.preventDefault(); pick(results[active]); }
+    // Enter during IME composition confirms the typed characters; it must not open a result.
+    else if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); pick(results[active]); }
   };
 
   let n = -1;
@@ -47,7 +48,7 @@ export function StudioSearch({ open, onClose, index, context = [], onPick }: {
       <div className="studio-find">
         <div className="studio-find-box">
           <Search size={16} aria-hidden />
-          <input ref={inputRef} role="combobox" aria-expanded aria-controls={listId} aria-activedescendant={results.length ? `${listId}-${active}` : undefined}
+          <input ref={inputRef} role="combobox" aria-expanded={results.length > 0} aria-controls={listId} aria-activedescendant={results.length ? `${listId}-${active}` : undefined}
             aria-label="Find a setting, text, page, section or action" autoComplete="off" spellCheck={false}
             placeholder="Search settings, words, pages, books, sections…  (> for commands)" value={q} onChange={e => setQ(e.target.value)} onKeyDown={onKeyDown} />
         </div>

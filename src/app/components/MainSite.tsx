@@ -439,8 +439,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     if (collectionSlug === "all") { pickCategory("ALL"); return; }
     const slugOf = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
     const match = categories.find((c: any) => categoryNames(c).some((n: string) => slugOf(n) === collectionSlug));
+    // An unknown or renamed slug opens every book, never the first category's books under the wrong URL.
     if (match) pickCategory(match);
-    else setShowCatalog(true);
+    else pickCategory("ALL");
   }, [collectionSlug, categories]);
 
   // Sync activeCategory if categories change
@@ -676,7 +677,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             categories,
             activeCategory,
             onPickCategory: pickCategory,
-            onHome: () => setShowCatalog(false),
+            // With "Show a Home page" off the shop opens on the catalog, so the logo returns to its first view.
+            onHome: () => {
+              if (legacyDesign?.showHero === false) { pickCategory(categories[0] ?? "ALL"); window.scrollTo({ top: 0 }); }
+              else setShowCatalog(false);
+            },
             showCatalog,
             announcement: settings?.announcements?.[0]?.message,
             siteName: settings?.info?.name,

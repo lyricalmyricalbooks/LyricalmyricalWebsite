@@ -10,6 +10,8 @@ import { BookImportDialog } from "./BookImportDialog";
 import { MerchantFeedDialog } from "./MerchantFeedDialog";
 import { catalogToCsv, inventoryCsv, planPriceChange, type PriceMode } from "./bulkPricing";
 import { adminApi } from "./api";
+import { inventoryApi } from "./inventoryApi";
+import { liveStockOf } from "./inventoryInsights";
 import toast from "react-hot-toast";
 import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, Pagination,
@@ -264,12 +266,20 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
 
   // New books from an import arrive as drafts: select them so Publish (with its review) is one click away.
   const importDone = (createdIds: string[]) => {
-    if (createdIds.length) { setStatusFilter("All"); setStockFilter("All"); setSearch(""); setTimeout(() => setSelected(createdIds)); }
+    if (createdIds.length) {
+      setStatusFilter("All"); setStockFilter("All"); setCategoryFilter("All"); setFormatFilter("All"); setSearch("");
+      setTimeout(() => setSelected(createdIds));
+    }
     loadBooks();
   };
 
   const deleteOne = async (book: any) => {
-    try { await adminApi.deleteBook(book.id); toast.success("Title deleted"); loadBooks(); } catch { toast.error("Failed to delete"); }
+    try {
+      await adminApi.deleteBook(book.id);
+      setSelected((s) => s.filter((id) => id !== book.id));
+      toast.success("Title deleted");
+      loadBooks();
+    } catch { toast.error("Failed to delete"); }
   };
 
   const duplicate = async (b: any) => {
@@ -296,10 +306,24 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     if (Number(book[field]) === value) return;
     if (field === "retailPrice" && book.isOnSale && Number(book.salePrice) >= value)
       toast(`Note: the sale price CA$${Number(book.salePrice).toFixed(2)} is not below the new price.`);
+    if (field === "stockLevel") {
+      // Stock goes through the safe path (live-count check + a row in the title's stock history), like Inventory.
+      try {
+        const res = await inventoryApi.adjustStock(book.id, null, { kind: "set", to: value, expected: liveStockOf(book, null) ?? 0 }, { reason: "Count correction", title: book.title });
+        if (!res.ok) {
+          toast.error(res.reason === "conflict" ? `${book.title} changed to ${res.live} since the list loaded (a sale?). Not saved — check the number and try again.`
+            : res.reason === "linked" ? `${book.title} is counted in the inventory app. Change it there; the website follows.`
+            : res.reason === "missing" ? `${book.title} no longer exists.`
+            : `${book.title} isn't counted, so its stock can't be changed here.`);
+        } else toast.success(`${book.title}: stock ${res.to}`);
+        loadBooks();
+      } catch { toast.error(`Could not save ${book.title}.`); }
+      return;
+    }
     try {
-      // `book` is what the table loaded: a sale since then keeps its live stock unless stock is what changed.
+      // `book` is what the table loaded: a sale since then keeps its live stock (only the price is written).
       await adminApi.updateBook(book.id, { title: book.title, [field]: value }, book);
-      toast.success(`${book.title}: ${field === "stockLevel" ? `stock ${value}` : `CA$${value.toFixed(2)}`}`);
+      toast.success(`${book.title}: CA$${value.toFixed(2)}`);
       loadBooks();
     } catch { toast.error(`Could not save ${book.title}.`); }
   };

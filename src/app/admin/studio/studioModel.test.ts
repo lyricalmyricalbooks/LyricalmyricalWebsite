@@ -100,3 +100,15 @@ describe("labelled, coalesced undo history", () => {
     expect(h.past).toEqual(["", "Hey"]);
   });
 });
+
+describe("insertBlockAfter", () => {
+  it("puts a duplicate right after the original at the same nesting level", async () => {
+    const { insertBlockAfter } = await import("./studioModel");
+    const blocks: any[] = [{ id: "a" }, { id: "g", children: [{ id: "c1" }, { id: "c2" }] }, { id: "z" }];
+    expect(insertBlockAfter(blocks, "a", { id: "a2" } as any).map(b => b.id)).toEqual(["a", "a2", "g", "z"]);
+    const nested = insertBlockAfter(blocks, "c1", { id: "c1b" } as any);
+    expect(nested.map(b => b.id)).toEqual(["a", "g", "z"]);
+    expect(nested[1].children!.map(b => b.id)).toEqual(["c1", "c1b", "c2"]);
+    expect(insertBlockAfter(blocks, "missing", { id: "n" } as any).map(b => b.id)).toEqual(["a", "g", "z", "n"]);
+  });
+});

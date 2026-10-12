@@ -18,17 +18,25 @@ export const mediaApi = {
     // Firestore refuses `undefined`; a JSON copy drops it.
     await setDoc(doc(db, "media", item.id), JSON.parse(JSON.stringify(item)));
   },
-  /** Deletes the record first, then its files (a left-over file is harmless; a record without files isn't). */
-  remove: async (item: MediaItem, paths: string[]): Promise<void> => {
+  /**
+   * Deletes the record first, then its files (a left-over file is harmless; a record without files isn't).
+   * Returns the storage paths that couldn't be removed (empty when every file is gone).
+   */
+  remove: async (item: MediaItem, paths: string[]): Promise<string[]> => {
     await deleteDoc(doc(db, "media", item.id));
-    await mediaApi.removeFiles(paths);
+    return (await mediaApi.removeFiles(paths)) || [];
   },
-  removeFiles: async (paths: string[]): Promise<void> => {
-    if (!paths.length) return;
+  /** Removes storage files; returns the paths that couldn't be removed (an already-missing file counts as removed). */
+  removeFiles: async (paths: string[]): Promise<string[]> => {
+    if (!paths.length) return [];
     const [{ getStorage, ref, deleteObject }, { getApp }] = await Promise.all([import("firebase/storage"), import("firebase/app")]);
     const storage = getStorage(getApp());
+    const failed: string[] = [];
     await Promise.all(paths.map(path => deleteObject(ref(storage, path)).catch((error: any) => {
-      if (error?.code !== "storage/object-not-found") console.warn("Could not delete media file", path, error?.code || error);
+      if (error?.code === "storage/object-not-found") return;
+      console.warn("Could not delete media file", path, error?.code || error);
+      failed.push(path);
     })));
+    return failed;
   },
 };
