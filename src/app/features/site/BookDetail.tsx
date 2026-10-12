@@ -776,7 +776,7 @@ export default function BookDetail() {
                     <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
                       {isOnSale ? (
                         <>
-                          <span className="fm-pdp-price">{formatBookPrice(book)}</span>
+                          <span className="fm-pdp-price" translate="no">{formatBookPrice(book)}</span>
                           <span className="text-white/25 line-through text-xl">{formatBookPrice(book, true)}</span>
                           <span
                             className="text-[9px] font-black tracking-widest border px-3 py-1.5 uppercase"
@@ -790,7 +790,7 @@ export default function BookDetail() {
                           </span>
                         </>
                       ) : (
-                        <span className="fm-pdp-price">
+                        <span className="fm-pdp-price" translate={retailPrice > 0 ? "no" : undefined}>
                           {retailPrice > 0 ? (selectedVariant ? formatPrice(selectedVariant.price) : formatBookPrice(book)) : getCopy(settings?.design, "priceOnRequest")}
                         </span>
                       )}

@@ -1914,3 +1914,11 @@ page is never hijacked. These are browser redirects, not HTTP 301s. No shopper-v
 public `srcset`/`width`/`height` (library picks carry theirs too). Storefront book images spread
 `photoSrcSet(photo, CARD_PHOTO_SIZES | PDP_PHOTO_SIZES | THUMB_PHOTO_SIZES)` (`features/site/photoSources.ts`) — add it to
 any new book-photo `<img>`; photos without `srcset` render as before. No rule or Function change.
+
+## Page translation (12 October 2026)
+
+Shoppers may translate the storefront with the browser's Google Translate. `lib/translateSafeDom.ts` (installed first in
+`main.tsx`) stops React crashing ("removeChild … not a child") when the translator has swapped its text nodes. Translated
+text can't follow later React updates, so live money (card/PDP price, bag lines and totals, checkout summary/total) carries
+`translate="no"` — put it on any new element whose number changes while the shopper watches. Never add
+`<meta name="google" content="notranslate">` or a page-wide `translate="no"`.

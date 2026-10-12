@@ -1810,12 +1810,12 @@ export function Checkout() {
                       <span className="fm-track-mono shrink-0">{String(i + 1).padStart(2, "0")}</span>
                       <span className="text-white/85 break-words">{item.title}{item.variantName ? ` · ${item.variantName}` : ""} <span className="fm-track-mono">× {item.quantity}</span></span>
                     </span>
-                    <span className="font-mono text-white/70 shrink-0">{orderMoney(Number(item.price || 0) * Number(item.quantity || 0), successOrder, formatPrice)}</span>
+                    <span className="font-mono text-white/70 shrink-0" translate="no">{orderMoney(Number(item.price || 0) * Number(item.quantity || 0), successOrder, formatPrice)}</span>
                   </li>
                 ))}
                 <li className="fm-track-total">
                   <span className="fm-track-display text-2xl">{c("summaryTotal")}</span>
-                  <span className="font-mono text-xl font-bold">{orderChargedTotal(successOrder, formatPrice)}</span>
+                  <span className="font-mono text-xl font-bold" translate="no">{orderChargedTotal(successOrder, formatPrice)}</span>
                 </li>
               </ol>
               {successOrder.shippingMethod && !["pickup", "local_delivery"].includes(successOrder.fulfillment?.method) && (
@@ -2185,7 +2185,7 @@ export function Checkout() {
             data-studio-target="style:checkout|copy:Checkout" data-studio-label="Phone order summary bar"
             className="mx-auto -my-2 flex w-full max-w-2xl items-center justify-between gap-3 py-2 text-sm font-medium text-slate-900 lg:hidden">
             <span className="flex items-center gap-2">{c(summaryOpen ? "coHideSummary" : "coShowSummary")} <span aria-hidden="true">{summaryOpen ? "▴" : "▾"}</span></span>
-            <span className="text-base font-semibold">{formatPrice(finalTotal)}</span>
+            <span className="text-base font-semibold" translate="no">{formatPrice(finalTotal)}</span>
           </button>
           <div className={`mx-auto max-w-2xl lg:sticky lg:top-8 lg:block ${summaryOpen ? "mt-6 block" : "hidden"}`}>
             <div className="mb-6 flex items-center justify-between">
@@ -2218,7 +2218,7 @@ export function Checkout() {
                       <p className="mt-0.5 text-xs font-medium" style={{ color: "var(--warning, #b45309)" }}>{c("coOnlyLeft", { count: item.stockLimit })}</p>
                     )}
                   </div>
-                  <span className="text-sm font-medium text-slate-900">{formatPrice(item.price * item.quantity)}</span>
+                  <span className="text-sm font-medium text-slate-900" translate="no">{formatPrice(item.price * item.quantity)}</span>
                 </div>
               ))}
               {freeGift && (
@@ -2325,8 +2325,8 @@ export function Checkout() {
             <div className="my-7 border-t border-slate-200" />
 
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between text-slate-600"><span>{c("summarySubtotal")}</span><span className="font-medium text-slate-900">{formatPrice(itemsSubtotal)}</span></div>
-              {discountAmount > 0 && <div className="flex justify-between" style={{ color: "var(--success)" }}><span>{appliedDiscount ? c("summaryDiscount") : c("coAutoDiscountLabel", { title: autoPick?.discount?.title || c("summaryDiscount") })}</span><span>-{formatPrice(discountAmount)}</span></div>}
+              <div className="flex justify-between text-slate-600"><span>{c("summarySubtotal")}</span><span className="font-medium text-slate-900" translate="no">{formatPrice(itemsSubtotal)}</span></div>
+              {discountAmount > 0 && <div className="flex justify-between" style={{ color: "var(--success)" }}><span>{appliedDiscount ? c("summaryDiscount") : c("coAutoDiscountLabel", { title: autoPick?.discount?.title || c("summaryDiscount") })}</span><span translate="no">-{formatPrice(discountAmount)}</span></div>}
               <div className="flex justify-between text-slate-600">
                 <span>{c("summaryShipping")}{getActiveShippingDetails()?.serviceName ? ` · ${getActiveShippingDetails()?.serviceName}` : ""}</span>
                 <span className="font-medium text-slate-900">{needsDeliveryChoice ? c("coShipChoose") : isFreeShipping || shippingCost === 0 ? c("coFree") : formatPrice(finalShipping)}</span>
@@ -2341,7 +2341,7 @@ export function Checkout() {
               )}
               <div className="flex justify-between text-slate-600"><span>{c("summaryTax")}</span><span className="font-medium text-slate-900">{taxCost > 0 || taxKnown ? formatPrice(taxCost) : c("coTaxLater")}</span></div>
               {giftCardUse.filter(card => card.minor > 0).map(card => (
-                <div key={card.code} className="flex justify-between text-slate-600"><span>{c("coGiftCardSummary", { last4: card.last4 })}</span><span className="font-medium text-slate-900">-{formatPrice(card.minor / 100)}</span></div>
+                <div key={card.code} className="flex justify-between text-slate-600"><span>{c("coGiftCardSummary", { last4: card.last4 })}</span><span className="font-medium text-slate-900" translate="no">-{formatPrice(card.minor / 100)}</span></div>
               ))}
             </div>
 
@@ -2352,7 +2352,7 @@ export function Checkout() {
                 <p className="text-base font-semibold text-slate-900">{c("summaryTotal")}</p>
                 <p className="mt-0.5 text-xs uppercase tracking-wide text-slate-500">{currency}</p>
               </div>
-              <m.p key={finalTotal} initial={{ opacity: 0.5 }} animate={{ opacity: 1 }} className="text-2xl font-semibold tracking-tight text-slate-950">{formatPrice(finalTotal)}</m.p>
+              <m.p key={finalTotal} initial={{ opacity: 0.5 }} animate={{ opacity: 1 }} className="text-2xl font-semibold tracking-tight text-slate-950" translate="no">{formatPrice(finalTotal)}</m.p>
             </div>
 
             <div className="mt-7 rounded-lg border border-slate-200 bg-white p-4">
