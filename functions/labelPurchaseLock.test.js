@@ -11,9 +11,11 @@ const { addressKey, packingKey, shippoTransactionOutcome } = require("./fulfillm
 
 const ADMIN = { email: "lyricalmyricalbooks@gmail.com", email_verified: true };
 
-function harness({ transaction, identity = ADMIN, pending = false, shippoOrder, refuseLinked = false } = {}) {
+function harness({ transaction, identity = ADMIN, pending = false, shippoOrder, refuseLinked = false, orderPatch = {}, opsPatch = {}, shippo } = {}) {
   const order = { orderId: "AB-1", paymentStatus: "paid", status: "processing", customer: { name: "Reader", email: "reader@example.com", address: { street: "1 Main", city: "Toronto", state: "ON", zip: "M1M1M1", country: "CA" } }, items: [{ id: "b", title: "Book", quantity: 1, format: "Paperback" }] };
   const ops = { addressReviewed: addressKey(order), packed: packingKey(order), quotedShipmentId: "sh_1", quotedAddress: JSON.stringify(order.customer.address), ...(pending ? { labelPurchasePending: true, labelPurchaseStartedAt: "2026-10-01T00:00:00.000Z" } : {}) };
+  Object.assign(order, orderPatch);
+  Object.assign(ops, opsPatch);
   const docs = { orders: { A: order }, "order-operations": { A: ops }, settings: { website: {} } };
   const merge = (target, data) => {
     for (const [k, v] of Object.entries(data)) {
@@ -42,6 +44,7 @@ function harness({ transaction, identity = ADMIN, pending = false, shippoOrder, 
   const shippoCalls = [];
   const fetch = async (url, init = {}) => {
     shippoCalls.push({ url, method: init.method, body: init.body ? JSON.parse(init.body) : undefined });
+    if (shippo) { const answer = shippo(String(url), init); if (answer) return answer; }
     if (String(url).endsWith("/orders/") && shippoOrder) return { ok: true, json: async () => shippoOrder };
     if (String(url).includes("shipments/sh_1")) return { ok: true, json: async () => ({ rates: [{ object_id: "r1", provider: "Canada Post", amount: "12.00" }] }) };
     if (String(url).includes("transactions/")) {
@@ -136,4 +139,65 @@ test("a refusal of the linked purchase is retried once without the link (nothing
   expect(res.code).toBe(200);
   expect(transactionBodies(app).map(b => b.order)).toEqual(["so_1", undefined]);
   expect(app.ops().labelPurchasePending).toBe(false);
+});
+
+// Voiding a label for a refund (mode "voidLabel", functions/labelVoid.js).
+const ok = body => ({ ok: true, json: async () => body });
+const LABELLED = { labelUrl: "https://label", trackingNumber: "1028972402334300", trackingCarrier: "Canada Post" };
+const fakeShippo = ({ tx = { object_id: "tx9", tracking_number: "1028972402334300", status: "SUCCESS" }, list = [], refund = { object_id: "rf1", status: "QUEUED" } } = {}) => (url, init) => {
+  if (url.includes("/transactions/?")) return ok({ results: list, next: null });
+  if (url.includes("/transactions/tx")) return ok(tx);
+  if (url.endsWith("/refunds/") && init.method === "POST") return ok(refund);
+  return null;
+};
+const calls = (app, part) => app.shippoCalls.filter(c => String(c.url).includes(part));
+
+test("a refunded order's unused label can be voided, and the refund is followed", async () => {
+  const app = harness({ orderPatch: { ...LABELLED, status: "refunded", paymentStatus: "refunded" }, opsPatch: { shippoTransactionId: "tx9" }, shippo: fakeShippo() });
+  const res = await app.call({ mode: "voidLabel" });
+  expect(res.code).toBe(200);
+  expect(res.body).toMatchObject({ voided: true, refundState: "pending" });
+  expect(calls(app, "/refunds/")[0].body).toEqual({ transaction: "tx9", async: false });
+  expect(app.docs.orders.A.labelUrl).toBeUndefined();
+  expect(app.ops().labelRefundOpen).toBe(true);
+  expect(app.ops().labelRefunds).toEqual([expect.objectContaining({ transactionId: "tx9", refundId: "rf1", state: "pending", trackingNumber: "1028972402334300" })]);
+});
+
+test("a label bought before its transaction number was saved is found in Shippo by tracking number", async () => {
+  const app = harness({ orderPatch: LABELLED, shippo: fakeShippo({ list: [{ object_id: "txOther", tracking_number: "999", status: "SUCCESS" }, { object_id: "tx9", tracking_number: "1028972402334300", status: "SUCCESS" }] }) });
+  const res = await app.call({ mode: "voidLabel" });
+  expect(res.code).toBe(200);
+  expect(calls(app, "/refunds/")[0].body.transaction).toBe("tx9");
+});
+
+test("a label Shippo is already refunding is not asked for twice", async () => {
+  const app = harness({ orderPatch: LABELLED, opsPatch: { shippoTransactionId: "tx9" }, shippo: fakeShippo({ tx: { object_id: "tx9", tracking_number: "1028972402334300", status: "REFUNDPENDING" } }) });
+  const res = await app.call({ mode: "voidLabel" });
+  expect(res.code).toBe(200);
+  expect(calls(app, "/refunds/")).toEqual([]);
+  expect(app.ops().labelRefunds[0]).toMatchObject({ state: "pending", shippoStatus: "REFUNDPENDING" });
+});
+
+test("a refund Shippo already rejected, or a saved label for another parcel, is refused", async () => {
+  const rejected = harness({ orderPatch: LABELLED, opsPatch: { shippoTransactionId: "tx9" }, shippo: fakeShippo({ tx: { object_id: "tx9", tracking_number: "1028972402334300", status: "REFUNDREJECTED" } }) });
+  expect((await rejected.call({ mode: "voidLabel" })).code).toBe(409);
+  expect(rejected.docs.orders.A.labelUrl).toBe("https://label");
+  const mismatch = harness({ orderPatch: LABELLED, opsPatch: { shippoTransactionId: "tx9" }, shippo: fakeShippo({ tx: { object_id: "tx9", tracking_number: "555", status: "SUCCESS" } }) });
+  const res = await mismatch.call({ mode: "voidLabel" });
+  expect(res.code).toBe(409);
+  expect(calls(mismatch, "/refunds/")).toEqual([]);
+});
+
+test("a parcel that was handed over keeps its label, even after the order is refunded", async () => {
+  const app = harness({ orderPatch: { ...LABELLED, fulfillmentStatus: "shipped", shippedAt: "2026-10-01T00:00:00Z", status: "refunded" }, opsPatch: { shippoTransactionId: "tx9" }, shippo: fakeShippo() });
+  expect((await app.call({ mode: "voidLabel" })).code).toBe(409);
+  expect(app.shippoCalls).toEqual([]);
+});
+
+test("'I already voided it in Shippo' removes the label without calling Shippo or following a refund", async () => {
+  const app = harness({ orderPatch: LABELLED, shippo: fakeShippo() });
+  const res = await app.call({ mode: "voidLabel", confirmedElsewhere: true });
+  expect(res.code).toBe(200);
+  expect(app.shippoCalls).toEqual([]);
+  expect(app.ops().labelRefundOpen).toBeUndefined();
 });
