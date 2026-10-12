@@ -80,6 +80,15 @@ export function CartDrawer() {
   const removeAsIcon = design.cartDrawerRemoveStyle === "icon";
   const fromLeft = design.cartDrawerSide === "left";
   const grayscaleThumbs = design.cartDrawerGrayscaleThumbs ?? false;
+  // Style › Cart drawer › Empty bag: the icon, the button and where the button goes.
+  const showEmptyIcon = design.cartDrawerShowEmptyIcon ?? true;
+  const showEmptyButton = design.cartDrawerShowEmptyButton ?? true;
+  const emptyLink = typeof design.cartDrawerEmptyLink === "string" ? design.cartDrawerEmptyLink.trim() : "";
+  const continueShopping = () => {
+    setIsCartOpen(false);
+    if (/^https?:\/\//i.test(emptyLink)) { window.location.assign(emptyLink); return; }
+    navigate(emptyLink.startsWith("/") ? emptyLink : "/");
+  };
   const itemCount = cart.reduce((n, i) => n + (i.quantity || 0), 0);
 
   // The bar follows Settings › Shipping's own free-shipping rules, so it never promises
@@ -213,14 +222,18 @@ export function CartDrawer() {
               )}
 
               {cart.length === 0 && (
-                <div className="fm-bag-pad py-20 flex flex-col items-center text-center gap-5">
-                  <div className="fm-bag-empty-icon w-16 h-16 flex items-center justify-center">
-                    <ShoppingBag size={24} aria-hidden="true" />
-                  </div>
+                <div data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Empty bag" className="fm-bag-pad py-20 flex flex-col items-center text-center gap-5">
+                  {showEmptyIcon && (
+                    <div className="fm-bag-empty-icon w-16 h-16 flex items-center justify-center">
+                      <ShoppingBag size={24} aria-hidden="true" />
+                    </div>
+                  )}
                   <p className="fm-bag-meta">{getCopy(design, "cartEmpty")}</p>
-                  <button onClick={() => { setIsCartOpen(false); navigate("/"); }} className="fm-bag-cta px-6 min-w-[220px] flex items-center justify-center gap-3">
-                    {getCopy(design, "cartContinue")}
-                  </button>
+                  {showEmptyButton && (
+                    <button onClick={continueShopping} className="fm-bag-cta px-6 min-w-[220px] flex items-center justify-center gap-3">
+                      {getCopy(design, "cartContinue")}
+                    </button>
+                  )}
                 </div>
               )}
 

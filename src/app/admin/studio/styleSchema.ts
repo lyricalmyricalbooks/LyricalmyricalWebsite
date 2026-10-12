@@ -44,6 +44,7 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Free-shipping bar": /^(showFreeShipBar|cartDrawerProgress)/,
   "Bag line items": /^(cartDrawer(ShowItemNumbers|ShowPreorder|ShowLineOptions|Thumb|GrayscaleThumbs|ItemTitleSize|ShowUnitPrice|ShowLineTotal|QtyStyle|RemoveStyle|Border|Muted))/,
   "Bag suggestion": /^(cartDrawer(ShowUpsell|UpsellShadow|Surface|GrayscaleThumbs))/,
+  "Empty bag": /^cartDrawer(ShowEmpty|Empty)/,
   "Bag total & checkout": /^(cartDrawer(ShowSummary|TotalSize|Checkout|ShowCheckoutArrow|ShowDeliveryNote)|showCartTrustBadges)/,
 };
 
@@ -605,6 +606,10 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "cartDrawerShowCheckoutArrow", label: "Arrow on the checkout button", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowShippingPreview", label: "Shipping cost preview in cart", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowDeliveryNote", label: "Delivery note under the button", kind: "toggle", defaultValue: true },
+      // Empty bag
+      { key: "cartDrawerShowEmptyIcon", label: "Bag icon when the bag is empty", kind: "toggle", defaultValue: true },
+      { key: "cartDrawerShowEmptyButton", label: "“Continue shopping” button when the bag is empty", kind: "toggle", defaultValue: true },
+      { key: "cartDrawerEmptyLink", label: "“Continue shopping” goes to (a shop address like /collections/new, or https://…; blank = Home)", kind: "text" },
     ],
   },
   {
