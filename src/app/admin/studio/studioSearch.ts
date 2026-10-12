@@ -10,7 +10,7 @@ import { SHORTCUTS, type ShortcutAction } from "./shortcuts";
 export type StudioTab = "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
 export type StudioActionId =
   | "save" | "publish" | "discard" | "history" | "schedule" | "check" | "preview-tab" | "undo" | "redo"
-  | "device-desktop" | "device-tablet" | "device-mobile" | "mode-toggle" | "autofit-page" | "add-section";
+  | "device-desktop" | "device-tablet" | "device-mobile" | "mode-toggle" | "autofit-page" | "add-section" | "fill-page-seo";
 
 export type SearchTarget =
   | { type: "style"; groupId: string; key?: string }
@@ -117,6 +117,7 @@ const ACTIONS: { id: StudioActionId; title: string; keywords: string }[] = [
   { id: "mode-toggle", title: "Switch Edit / Browse mode", keywords: "click links navigate storefront" },
   { id: "autofit-page", title: "Auto-fit this page for phones", keywords: "responsive mobile layout generate stack small screen" },
   { id: "add-section", title: "Add a section", keywords: "new block library insert hero banner" },
+  { id: "fill-page-seo", title: "Fill in missing search listings (pages)", keywords: "seo auto fill autofill meta description search title google listing pages blank" },
 ];
 
 const TABS: { tab: StudioTab; title: string; keywords: string }[] = [
