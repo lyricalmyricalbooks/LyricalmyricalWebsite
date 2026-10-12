@@ -897,6 +897,11 @@ Bug / edge case the change introduced · the next logical feature · draft/publi
 - Action: Push branch with `git push -u origin <branch>` then create PR via GitHub MCP.
 - Use a descriptive PR title based on the feature/fix being implemented.
 - **After a PR is merged, start the next change on a brand-new branch and open a new PR** — never push commits onto a merged branch to revive it.
+- **Merge your own PRs automatically (owner's standing instruction, 12 October 2026).** Open the PR ready for review (not
+  draft), wait for its checks (`test`, `studio-browser`, `release-note`) to finish, and merge it yourself (merge commit,
+  pinned to the head SHA) once every check is green and GitHub reports no merge conflict. Never merge with a red, pending
+  or missing check; fix the failure first (bring `main` in, re-run the tests) and push. Merging to `main` deploys the live
+  shop. GitHub's own "Allow auto-merge" is off in the repository settings, so the agent does the merge.
 
 ## General Principles
 - Prefer action over investigation when intent is clear.
