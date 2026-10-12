@@ -26,5 +26,13 @@ describe('the shop address a deploy may use', () => {
     for (const bad of ['', 'http://lyricalmyricalbooks.com', 'lyricalmyricalbooks.com', 'https://Shop.com', undefined]) {
       expect(siteAddressProblem(bad, allowed), String(bad)).not.toBeNull();
     }
+    expect(siteAddressProblem('https://Lyricalmyricalbooks.com', allowed)).toMatch(/lower case/);
+  });
+
+  it('the deploy workflows lower-case SITE_URL before checking it (hosts are case-insensitive)', () => {
+    for (const file of ['deploy-pages.yml', 'deploy-firebase.yml']) {
+      const workflow = readFileSync(join(__dirname, '..', '.github', 'workflows', file), 'utf8');
+      expect(workflow, file).toMatch(/CUSTOM_SITE_URL="\$\(printf '%s' "\$CUSTOM_SITE_URL" \| tr '\[:upper:\]' '\[:lower:\]'\)"/);
+    }
   });
 });

@@ -141,6 +141,8 @@ jobs:
         env:
           CUSTOM_SITE_URL: ${{ vars.SITE_URL }}
         run: |
+          # Hosts are case-insensitive; "Lyricalmyricalbooks.com" means lyricalmyricalbooks.com.
+          CUSTOM_SITE_URL="$(printf '%s' "$CUSTOM_SITE_URL" | tr '[:upper:]' '[:lower:]')"
           url="${CUSTOM_SITE_URL:-https://lyricalmyrical-web-v2.web.app}"
           url="${url%/}"
           live=""

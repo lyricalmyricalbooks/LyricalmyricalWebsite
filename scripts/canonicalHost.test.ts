@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import vm from 'node:vm';
-import { canonicalHostScript, moveToCanonicalHost } from './canonicalHost.mjs';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { canonicalHostScript, moveToCanonicalHost, stampSiteAddress, DEFAULT_SITE_URL } from './canonicalHost.mjs';
 
 const project = 'lyricalmyrical-web-v2';
 const at = (href: string) => {
@@ -19,6 +21,16 @@ describe('one public address on Firebase Hosting', () => {
     const domain = 'https://www.lyricalmyricalbooks.com';
     expect(moveToCanonicalHost(domain, project, at(`${site}/track?orderId=1&key=k`))).toBe(`${domain}/track?orderId=1&key=k`);
     expect(moveToCanonicalHost(domain, project, at('https://lyricalmyrical-web-v2.firebaseapp.com/'))).toBe(`${domain}/`);
+  });
+
+  it('sends the www twin to the bare domain, and the bare domain to a www SITE_URL', () => {
+    const apex = 'https://lyricalmyricalbooks.com';
+    expect(moveToCanonicalHost(apex, project, at('https://www.lyricalmyricalbooks.com/books/x?a=1#top'))).toBe(`${apex}/books/x?a=1#top`);
+    expect(moveToCanonicalHost(apex, project, at(`${site}/`))).toBe(`${apex}/`);
+    expect(moveToCanonicalHost('https://www.lyricalmyricalbooks.com', project, at('https://lyricalmyricalbooks.com/track'))).toBe('https://www.lyricalmyricalbooks.com/track');
+    expect(moveToCanonicalHost(apex, project, at(`${apex}/`))).toBeNull();
+    expect(moveToCanonicalHost(apex, project, at('https://shop.lyricalmyricalbooks.com/'))).toBeNull();
+    expect(moveToCanonicalHost(apex, project, at('https://www.lyricalmyricalbooks.com/__/auth/handler'))).toBeNull();
   });
 
   it('does nothing on the canonical host, GitHub Pages, localhost or the prerender server', () => {
@@ -46,5 +58,16 @@ describe('one public address on Firebase Hosting', () => {
 
   it('cannot break out of its <script> tag', () => {
     expect(canonicalHostScript('https://x.web.app/</script><script>alert(1)')).not.toContain('</script>');
+  });
+
+  it("rewrites index.html's built-in address only for another valid SITE_URL", () => {
+    const html = readFileSync(join(__dirname, '..', 'index.html'), 'utf8');
+    expect(html).toContain(`${DEFAULT_SITE_URL}/`);
+    const stamped = stampSiteAddress(html, 'https://lyricalmyricalbooks.com/');
+    expect(stamped).not.toContain(DEFAULT_SITE_URL);
+    expect(stamped).toContain('<meta property="og:url" content="https://lyricalmyricalbooks.com/" />');
+    expect(stampSiteAddress(html, DEFAULT_SITE_URL)).toBe(html);
+    expect(stampSiteAddress(html, 'https://x.com/folder')).toBe(html);
+    expect(stampSiteAddress(html, undefined)).toBe(html);
   });
 });

@@ -716,6 +716,12 @@ draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
   statuses, redirects, bodies and headers in the Hosting emulator (CI and `build-hosting`) and on the live site after each
   deploy. `ALLOWED_ORIGINS` includes web.app (not firebaseapp.com) and, for tabs opened before the move, github.io (remove in the
   cleanup step); it already lists lyricalmyricalbooks.com/www for the shop's own domain later (`docs/FIREBASE_HOSTING.md`).
+- **Own domain (`docs/CUSTOM_DOMAIN.md`, ready, not switched):** the switch is Firebase Hosting › Add custom domain
+  (apex `lyricalmyricalbooks.com`, www redirecting to it) + repository variable `SITE_URL=https://lyricalmyricalbooks.com`
+  + Deploy Firebase, then Deploy storefront. Both workflows lower-case `SITE_URL` first. `moveToCanonicalHost` also moves
+  the www/bare twin of SITE_URL's host; `stampSiteAddress` (in the `canonicalHost` Vite plugin) rewrites index.html's
+  built-in web.app address (`DEFAULT_SITE_URL`) to SITE_URL; after the switch `hosting-smoke.mjs` checks web.app and
+  firebaseapp.com still forward and warns when the www twin doesn't.
 
 **No cancelled runs (12 October 2026).** Merging PRs in quick succession used to cancel the earlier runs (red marks on `main`).
 `ci.yml` now cancels only superseded *pull request* runs (group per PR number / commit on main). `deploy-pages.yml` uses one group
