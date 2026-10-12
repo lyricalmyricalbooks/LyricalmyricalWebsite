@@ -87,6 +87,8 @@ cookie banner again.
 
 ## Your own domain (later)
 
+The step-by-step guide for lyricalmyricalbooks.com is `docs/CUSTOM_DOMAIN.md`. In short:
+
 1. Firebase console › Hosting › **Add custom domain**. Follow the DNS steps and wait for the certificate.
 2. Add the domain to the reCAPTCHA key, to Stripe payment-method domains (test and live, from the admin opened on the
    new domain), and to Firebase Auth authorized domains in both projects. `ALLOWED_ORIGINS` already lists

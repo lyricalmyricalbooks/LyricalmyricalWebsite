@@ -118,9 +118,26 @@ for (const file of ['sitemap.xml', 'robots.txt', 'google-merchant-feed.xml']) {
   if (existsSync(resolve(dist, file))) await check(`/${file}`, { status: 200, cache: 'no-cache' });
 }
 
-// The project's other default address must hand visitors to the canonical one.
-if (live && new URL(base).hostname === `${FIREBASE_PROJECT}.web.app`) {
-  await check('firebaseapp.com /', { url: `https://${FIREBASE_PROJECT}.firebaseapp.com/`, status: 200, contains: 'moveToCanonicalHost' });
+// The project's other default addresses must hand visitors to the canonical one (both of them once the shop has
+// its own domain: emails already sent and old bookmarks still open web.app).
+const liveHost = live ? new URL(base).hostname : '';
+if (live) {
+  for (const host of [`${FIREBASE_PROJECT}.web.app`, `${FIREBASE_PROJECT}.firebaseapp.com`]) {
+    if (host !== liveHost) await check(`${host} /`, { url: `https://${host}/`, status: 200, contains: 'moveToCanonicalHost' });
+  }
+}
+// The www/bare twin of the shop's own domain should forward too: a Firebase console redirect (3xx to the shop) or
+// the same files (whose canonical-host script moves visitors). Only a warning: the twin may not be connected.
+if (live && !liveHost.endsWith('.web.app') && !liveHost.endsWith('.firebaseapp.com') && /^https:/.test(base)) {
+  const twin = liveHost.startsWith('www.') ? liveHost.slice(4) : `www.${liveHost}`;
+  try {
+    const res = await request('/', `https://${twin}/`);
+    const forwards = (res.status >= 300 && res.status < 400 && (res.headers.get('location') || '').startsWith(base))
+      || (res.status === 200 && res.body.includes('moveToCanonicalHost'));
+    if (!forwards) console.log(`::warning::https://${twin}/ answered ${res.status} without forwarding to ${base}. In Firebase console › Hosting, connect ${twin} with "Redirect to ${liveHost}" (docs/CUSTOM_DOMAIN.md).`);
+  } catch (error) {
+    console.log(`::warning::https://${twin}/ didn't answer (${error.message}). Connect it in Firebase console › Hosting as a redirect to ${liveHost} so typed or old www links still reach the shop (docs/CUSTOM_DOMAIN.md).`);
+  }
 }
 
 if (failures.length) {

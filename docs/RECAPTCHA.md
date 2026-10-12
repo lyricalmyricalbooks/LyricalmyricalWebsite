@@ -21,7 +21,7 @@ the owner completes registration and the checks below.
    challenge option off.
 2. Allow these hostnames (without paths): lyricalmyricalbooks.github.io,
    lyricalmyrical-web-v2.web.app (Firebase Hosting), lyricalmyricalbooks.com and
-   www.lyricalmyricalbooks.com. Add any other hostname
+   www.lyricalmyricalbooks.com (the shop's own domain, docs/CUSTOM_DOMAIN.md). Add any other hostname
    actually serving the app. Do not allow localhost on a production key.
 3. In Firebase console > App Check > Apps, register web app
    1:248894589273:web:8bf4b06399c0931f1b6448 with the Enterprise provider and this key.

@@ -22,7 +22,7 @@ export function defaultSiteUrl(functionsSource) {
 /** Why `url` can't be the shop's address, or null. */
 export function siteAddressProblem(url, allowedOrigins) {
   const value = String(url || '').replace(/\/+$/, '');
-  if (!/^https:\/\/[a-z0-9.-]+$/.test(value)) return `SITE_URL must be the shop's https address with no folder (e.g. https://www.example.com), not "${url}".`;
+  if (!/^https:\/\/[a-z0-9.-]+$/.test(value)) return `SITE_URL must be the shop's https address in lower case with no folder (e.g. https://www.example.com), not "${url}".`;
   const { hostname, origin } = new URL(value);
   if (/(^|\.)github\.io$/.test(hostname)) return 'SITE_URL points at GitHub Pages, which now only forwards to the shop.';
   if (!allowedOrigins.includes(origin)) return `${origin} isn't in ALLOWED_ORIGINS (functions/index.js), so checkout there would fail. Add it and deploy the Cloud Functions first.`;
