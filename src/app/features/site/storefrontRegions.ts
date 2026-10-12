@@ -37,7 +37,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "accountOrders", label: "Order count card" }, { id: "accountAddress", label: "Address card", required: true },
     { id: "accountAddressForm", label: "Address form", required: true }, { id: "accountHistory", label: "Order history", required: true },
     { id: "accountDownloads", label: "Purchased downloads", required: true }, { id: "accountShipment", label: "Shipment information", required: true },
-    { id: "accountTrackOrder", label: "Track order link" },
+    { id: "accountTrackOrder", label: "Track order link" }, { id: "accountBuyAgain", label: "Buy again button" },
     { id: "accountLineDetails", label: "Extras, gift cards & box sets under ordered books" },
     { id: "accountGlow", label: "Account background glow" },
   ] },
