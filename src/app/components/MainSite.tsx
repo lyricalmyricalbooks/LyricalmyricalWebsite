@@ -25,6 +25,8 @@ import { StorefrontOverrides } from "../features/site/StorefrontOverrides";
 import { schemeButtonColors } from "../features/site/colorSchemes";
 import { googleFontHref } from "../features/site/fonts";
 import { useCurrency } from "../CurrencyContext";
+import { useCart } from "../CartContext";
+import { quickAddChoice } from "../features/site/buyable";
 import { isEmailAddress, subscribeNewsletter } from "../features/site/newsletterSignup";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
 import { SectionPageContext } from "./sectionCopy";
@@ -361,6 +363,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const navigate = useNavigate();
   const location = useLocation();
   const { formatBookPrice, convertPrice } = useCurrency();
+  const { addToCart } = useCart();
   const { books, settings, pages, loading, loadError, retry } = useSiteData();
 
   // Auto-open catalog view when the editor previews the shop tab
@@ -576,6 +579,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const priceTagBoxed = (storefrontDesign?.catalogPriceStyle ?? (cardStyle === "minimal" ? "plain" : "boxed")) !== "plain";
   const priceOnHover = storefrontDesign?.showPriceOnHover === true;
   const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
+  // Studio › Style › Product cards & grid › Quick add button (off by default).
+  const showQuickAdd = storefrontDesign?.showQuickAdd === true;
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
   const showPreorderBadge = storefrontDesign?.showPreorderBadge ?? true;
   const saleBadgeLabel = storefrontDesign?.saleBadgeLabel || "SALE";
@@ -940,6 +945,26 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       )}
                     </div>
                   </Link>
+                  {showQuickAdd && !isOutOfStock && (() => {
+                    // A book with several editions, extras or a gift-card amount needs a choice first: send it to its page.
+                    const needsChoice = (Array.isArray(item.variants) && item.variants.length > 1) || (Array.isArray(item.addOns) && item.addOns.length > 0) || item.productType === "giftCard" || (Array.isArray(item.bundleItems) && item.bundleItems.length > 0);
+                    const choice = quickAddChoice(item);
+                    const btnClass = "fm-card-quickadd mt-3 w-full min-h-[44px] flex items-center justify-center text-[10px] font-bold tracking-[0.2em] uppercase border border-current hover:opacity-80 transition-opacity";
+                    if (needsChoice || !choice.inStock) {
+                      return needsChoice ? <Link to={`/books/${slug}`} data-studio-target="style:products|copy:Product page" data-studio-label="Quick add button" className={btnClass}>{getCopy(activeDesign, "quickAddChoose")}</Link> : null;
+                    }
+                    return (
+                      <button
+                        type="button"
+                        data-studio-target="style:products|copy:Product page"
+                        data-studio-label="Quick add button"
+                        onClick={() => addToCart(item, choice.variant)}
+                        className={btnClass}
+                      >
+                        {getCopy(activeDesign, "quickAddButton")}
+                      </button>
+                    );
+                  })()}
                 </m.article>
               );
             })}
