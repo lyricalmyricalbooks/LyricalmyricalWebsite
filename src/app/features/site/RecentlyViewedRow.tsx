@@ -21,9 +21,9 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
   if (items.length === 0 || (settings?.design as any)?.showRecentlyViewed === false) return null;
 
   return (
-    <section className="border-t border-white/[0.06]" data-studio-target="copy:Collection & wishlist pages|style:footer" data-studio-label="Recently viewed">
+    <section {...regionProps("recentRow")} className="border-t border-white/[0.06]">
       <div className="mx-auto px-6 py-14" style={{ maxWidth: contentMaxWidth({ ...(settings?.design || {}), ...((settings?.design as any)?.storefront || {}) }) }}>
-        <div className="flex items-center gap-6 mb-8">
+        <div {...regionProps("recentHeading")} className="flex items-center gap-6 mb-8">
           <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">
             {getCopy(settings?.design, "recentlyViewedHeading")}
           </h2>
@@ -34,7 +34,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
             const slug = book.slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
             return (
               <Link key={book.id} to={`/books/${slug}`} className="fm-card group">
-                <div className="relative aspect-[3/4] fm-surface rounded-xl overflow-hidden border border-white/[0.05]">
+                <div {...regionProps("recentPhoto")} className="relative aspect-[3/4] fm-surface rounded-xl overflow-hidden border border-white/[0.05]">
                   <img
                     src={book.photos?.[0]?.url || placeholderImage(settings?.design)}
                     {...photoSrcSet(book.photos?.[0], CARD_PHOTO_SIZES)}
