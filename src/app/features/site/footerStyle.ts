@@ -17,6 +17,16 @@ export function footerLinksAlign(d: any): FooterLinksAlign {
   return d?.footerLinksAlign === "start" || d?.footerLinksAlign === "spread" ? d.footerLinksAlign : "end";
 }
 
+export type FooterBrandAlign = "center" | "start";
+export function footerBrandAlign(d: any): FooterBrandAlign {
+  return d?.footerBrandAlign === "start" ? "start" : "center";
+}
+
+// The look picked in October 2026 (design "E3"): accent line on top, accent group headings, the brand
+// centred in its own area with a thin line beside it, and square social buttons. Each one is its own
+// Studio control; the defaults below are that look.
+const RULE = "rgba(var(--fg-rgb, 255, 255, 255), 0.2)";
+
 export function footerStyleCss(d: any = {}): string {
   const s = FOOTER_SCOPE;
   const padY = num(d.footerPaddingY, 56, 16, 160);
@@ -38,5 +48,26 @@ export function footerStyleCss(d: any = {}): string {
   if (hover) css += `${s} a:hover,${s} a:focus-visible{color:${hover} !important;}`;
   if (divider) css += `${s} .fm-footer-rule{border-color:${divider} !important;}`;
   if (d.showFooterDividers === false) css += `${s} .fm-footer-rule{border-top-width:0 !important;}`;
+  const accent = colour(d.footerAccentColor) || "var(--accent, currentColor)";
+  const rule = divider || RULE;
+  if (d.showFooterAccentLine !== false) {
+    css += `${s}{border-top:${num(d.footerAccentLineWidth, 3, 1, 12)}px solid ${accent} !important;}`;
+  }
+  if (d.footerGroupHeadingsAccent !== false && !heading) css += `${s} .fm-footer-groups .fm-footer-heading{color:${accent} !important;}`;
+  if (footerBrandAlign(d) === "center") {
+    const vAlign = d.footerBrandVAlign === "top" ? "flex-start" : "center";
+    const centred = `${s} .fm-footer-brand{max-width:none;justify-self:stretch;align-self:stretch;display:flex;flex-direction:column;align-items:center;justify-content:${vAlign};text-align:center;}`
+      + `${s} .fm-footer-brand>*+*{margin-top:16px;}${s} .fm-footer-brand img{margin-inline:auto;}`;
+    // Phones stack the logo above the links; "Centre the logo on phones too" centres it there as well.
+    css += d.footerBrandCenterMobile !== false ? centred : `@media (min-width:768px){${centred}}`;
+  }
+  if (d.showFooterBrandDivider !== false) {
+    css += `@media (min-width:768px){${s} .fm-footer-brand{border-right:1px solid ${rule};padding-right:${num(d.footerColumnGap, 64, 16, 200)}px;}}`;
+  }
+  if (d.footerSocialBoxes !== false) {
+    const hoverBox = colour(d.footerSocialHoverColor) || accent;
+    css += `${s} .fm-footer-icon-box{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border:1px solid ${rule};transition:border-color .15s,color .15s;}`
+      + `${s} .fm-footer-icon-box:hover,${s} .fm-footer-icon-box:focus-visible{border-color:${hoverBox} !important;color:${hoverBox} !important;}`;
+  }
   return css;
 }

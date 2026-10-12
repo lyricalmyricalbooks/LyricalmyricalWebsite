@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { footerLinksAlign, footerStyleCss } from "./footerStyle";
+import { footerBrandAlign, footerLinksAlign, footerStyleCss } from "./footerStyle";
 
 describe("footer style controls", () => {
   it("uses the footer's own spacing when nothing is set and no colour overrides", () => {
-    const css = footerStyleCss({});
+    const css = footerStyleCss({ showFooterAccentLine: false, footerGroupHeadingsAccent: false, showFooterBrandDivider: false, footerSocialBoxes: false });
     expect(css).toContain(".fm-footer-main{padding-top:56px;padding-bottom:56px;}");
     expect(css).toContain(".fm-footer-groups{column-gap:64px;}");
     expect(css).toContain(".fm-footer-list>*+*{margin-top:12px;}");
@@ -30,5 +30,34 @@ describe("footer style controls", () => {
     expect(footerLinksAlign({})).toBe("end");
     expect(footerLinksAlign({ footerLinksAlign: "spread" })).toBe("spread");
     expect(footerLinksAlign({ footerLinksAlign: "bogus" })).toBe("end");
+  });
+
+  it("defaults to the E3 look and lets every piece be switched off or recoloured", () => {
+    const css = footerStyleCss({});
+    expect(css).toContain("border-top:3px solid var(--accent, currentColor)");
+    expect(css).toContain(".fm-footer-groups .fm-footer-heading{color:var(--accent, currentColor)");
+    expect(css).toContain(".fm-footer-brand{max-width:none");
+    expect(css).toContain("border-right:1px solid");
+    expect(css).toContain(".fm-footer-icon-box{");
+    const off = footerStyleCss({ showFooterAccentLine: false, footerGroupHeadingsAccent: false, footerBrandAlign: "start", showFooterBrandDivider: false, footerSocialBoxes: false });
+    expect(off).not.toContain("border-top:3px");
+    expect(off).not.toContain(".fm-footer-brand");
+    expect(off).not.toContain(".fm-footer-icon-box");
+    const custom = footerStyleCss({ footerAccentColor: "#ff6fae", footerAccentLineWidth: 6, footerHeadingColor: "#999" });
+    expect(custom).toContain("border-top:6px solid #ff6fae");
+    expect(custom).not.toContain(".fm-footer-groups .fm-footer-heading");
+    expect(footerBrandAlign({ footerBrandAlign: "bogus" })).toBe("center");
+  });
+
+  it("centres the logo on phones, lines it up top on request and colours the square buttons on hover", () => {
+    const css = footerStyleCss({});
+    expect(css).not.toContain("@media (min-width:768px){[data-fm-footer] .fm-footer-brand{max-width:none");
+    expect(css).toContain(".fm-footer-brand{max-width:none");
+    expect(css).toContain("justify-content:center;text-align:center");
+    expect(css).toContain(".fm-footer-icon-box:hover,[data-fm-footer] .fm-footer-icon-box:focus-visible{border-color:var(--accent, currentColor)");
+    const top = footerStyleCss({ footerBrandVAlign: "top", footerBrandCenterMobile: false, footerSocialHoverColor: "#ff6fae" });
+    expect(top).toContain("justify-content:flex-start");
+    expect(top).toContain("@media (min-width:768px){[data-fm-footer] .fm-footer-brand{max-width:none");
+    expect(top).toContain("border-color:#ff6fae !important");
   });
 });

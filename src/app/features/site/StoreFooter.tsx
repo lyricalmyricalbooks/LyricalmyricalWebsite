@@ -103,7 +103,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
       <div style={{ maxWidth: contentMaxWidth(d) }} className="mx-auto px-6">
       <div className={`fm-footer-main fm-footer-text grid grid-cols-1 ${!multiColumn ? "" : grouped ? groupedGrid : fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 md:gap-x-16 text-[11px] text-white/70`}>
         {/* Col 1: Brand */}
-        <div {...regionProps("footerBrand")} className="space-y-4 min-w-0 max-w-sm" data-studio-target="copy:Footer|style:logo|style:catalogElements" data-studio-label="Footer brand">
+        <div {...regionProps("footerBrand")} className="fm-footer-brand space-y-4 min-w-0 max-w-sm" data-studio-target="copy:Footer|style:logo|style:catalogElements" data-studio-label="Footer brand">
           {/* Style › Footer › Footer logo: a picture instead of (or above) the shop name; blank picture = the header logo */}
           {footerLogoSrc && (
             <img
@@ -214,14 +214,14 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
             </div>
           )}
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2.5">
             {d.showSocialInFooter !== false && instagramUrl && (
             <a
               href={instagramUrl}
               target="_blank"
               rel="noopener noreferrer"
               aria-label={getCopy(d, "footerInstagramAria")}
-              className="fm-footer-icon text-white/55 hover:text-white transition-colors"
+              className="fm-footer-icon fm-footer-icon-box text-white/55 hover:text-white transition-colors"
             >
               <Instagram size={14} aria-hidden="true" />
             </a>
@@ -229,7 +229,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
             <a
               href={`mailto:${email}`}
               aria-label={getCopy(d, "footerEmailAria")}
-              className="fm-footer-icon text-white/55 hover:text-white transition-colors"
+              className="fm-footer-icon fm-footer-icon-box text-white/55 hover:text-white transition-colors"
             >
               <Mail size={14} aria-hidden="true" />
             </a>
