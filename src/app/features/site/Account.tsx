@@ -47,6 +47,8 @@ import { GlobalSections, TemplateSections } from "../../components/sectionRender
 import { adminApi } from "../../admin/api";
 import { functionUrl } from "../../lib/functionsBase";
 import toast from "react-hot-toast";
+import { useCart } from "../../CartContext";
+import { reorderPlan } from "./reorder";
 
 type CustomerProfile = {
   uid: string;
@@ -99,6 +101,7 @@ function AccountContent() {
 
   const { ids: wishedIds } = useWishlist();
   const { settings, books } = useSiteData();
+  const { addToCart } = useCart();
   const wishlistCount = liveWishlistCount(wishedIds, books, isLiveBook);
   const { formatPrice } = useCurrency();
   // Order amounts are stored in CAD; show them in the shopper's chosen currency like the rest of the store.
@@ -320,6 +323,17 @@ function AccountContent() {
       console.error(err);
       toast.error(getCopy(settings?.design, "accountGoogleError"));
     }
+  }
+
+  function buyAgain(o: any) {
+    const plan = reorderPlan(o, books);
+    let added = 0;
+    let skipped = plan.skipped;
+    for (const l of plan.lines) {
+      if (addToCart(l.book, l.variant, l.quantity)) added += l.quantity; else skipped++;
+    }
+    if (!added) toast.error(getCopy(settings?.design, "accountBuyAgainNone"));
+    else toast.success(getCopy(settings?.design, skipped ? "accountBuyAgainSome" : "accountBuyAgainDone", { count: added, skipped }));
   }
 
   async function handleSaveAddress(e: React.FormEvent) {
@@ -835,6 +849,16 @@ function AccountContent() {
                         >
                           {getCopy(settings?.design, "accountTrackOrder")} →
                         </Link>
+                        {(o.items?.length || 0) > 0 && (
+                          <button
+                            type="button"
+                            {...regionProps("accountBuyAgain")}
+                            onClick={() => buyAgain(o)}
+                            className="ml-6 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] fm-accent-text hover:underline"
+                          >
+                            {getCopy(settings?.design, "accountBuyAgain")}
+                          </button>
+                        )}
                         
                         {/* E-book downloads section */}
                         {orderDigitalAssets.length > 0 && o.paymentStatus === 'paid' && (
