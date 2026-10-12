@@ -43,6 +43,7 @@ import { bookTemplateSurface, previewTemplate } from "./templateAlternates";
 import { blockLabel, cardSections, productBlocks, type ProductBlock } from "./productBlocks";
 import { resolveDynamicSettings } from "./dynamicSources";
 import { aspectRatioValue } from "./imageAspect";
+import { frameAspect, frameMode, photoRatio } from "./photoFrame";
 import { regionProps, regionVisible } from "./storefrontRegions";
 import { googleFontHref } from "./fonts";
 import { productPageCss, productPageFontNames } from "./productPageStyle";
@@ -87,6 +88,12 @@ export default function BookDetail() {
   const [added, setAdded]             = useState(false);
   const [addingBoth, setAddingBoth]   = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  // Width ÷ height of each product photo, measured once (adaptive frames, photoFrame.ts).
+  const [photoRatios, setPhotoRatios] = useState<Record<string, number>>({});
+  const notePhotoSize = (url: string | undefined, el: HTMLImageElement | null) => {
+    const r = el ? photoRatio(el.naturalWidth, el.naturalHeight) : undefined;
+    if (url && r !== undefined) setPhotoRatios((prev) => (prev[url] === r ? prev : { ...prev, [url]: r }));
+  };
   const [imgBg, setImgBg]             = useState("transparent");
   const [selectedVariant, setSelectedVariant] = useState<any>(null);
   const [qty, setQty]                 = useState(1);
@@ -140,10 +147,13 @@ export default function BookDetail() {
   const productImageShadow     = storefrontDesign.productImageShadow     || "none";
   // "Image zoom" off turns the hover zoom off entirely, whatever the zoom amount is set to.
   const productImageHoverScale  = storefrontDesign.showZoom === false ? 1 : (storefrontDesign.productImageHoverScale ?? 1.05);
+  const productFrameMode       = frameMode(storefrontDesign.productImageFrameMode);
   const productImageFitClass   = storefrontDesign.productImageFit === "contain" ? "object-contain" : "object-cover";
   const productImageFit        = storefrontDesign.productImageFit === "contain" ? "contain" : "cover";
   const productImageMaxWidth   = Math.max(320, Math.min(900, Number(storefrontDesign.productImageMaxWidth) || 560));
   const productImageAspect     = aspectRatioValue(storefrontDesign.productImageAspect && storefrontDesign.productImageAspect !== "grid" ? storefrontDesign.productImageAspect : storefrontDesign.imageAspectRatio || "3:4");
+  const frameFor = (url: string | undefined) =>
+    frameAspect(productFrameMode, url ? photoRatios[url] : undefined, productImageAspect, storefrontDesign.productImageAspectLandscape);
   const productDetailsLayout   = storefrontDesign.productDetailsLayout   || "tabs";
   const productCtaAnimation    = storefrontDesign.productCtaAnimation    || "none";
   const productCtaWidth        = storefrontDesign.productCtaWidth        || "full";
@@ -446,6 +456,19 @@ export default function BookDetail() {
   const isGiftCard    = isGiftCardProduct(book);
   const isBoxSet      = isBundle(book);
   const addOns        = bookAddOns(book);
+  // Adaptive frames: measure every photo up front so switching photos never resizes twice.
+  const photoUrlsKey = productFrameMode === "fixed" ? "" : photos.map((p: any) => p?.url || "").join("\n");
+  useEffect(() => {
+    if (!photoUrlsKey || typeof Image === "undefined") return;
+    let live = true;
+    for (const url of photoUrlsKey.split("\n").filter(Boolean)) {
+      const img = new Image();
+      img.onload = () => { if (live) notePhotoSize(url, img); };
+      img.src = url;
+    }
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photoUrlsKey]);
   const activeUrl     = (selectedVariant && selectedVariant.photoUrl && variantPhotoPinned) ? selectedVariant.photoUrl : (photos[activePhoto]?.url || placeholderImage(settings?.design));
 
   const alignCls      = productAlignment === "center" ? "items-center text-center" : "items-start text-left";
@@ -1055,7 +1078,7 @@ export default function BookDetail() {
                           className="fm-pdp-thumb"
                           style={{ aspectRatio: productImageAspect }}
                         >
-                          <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit }} />
+                          <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
                         </button>
                       ))}
                     </div>
@@ -1070,7 +1093,7 @@ export default function BookDetail() {
                         productImageShadow === "md" ? "shadow-md" :
                         productImageShadow === "xl" ? "shadow-[0_50px_150px_rgba(0,0,0,0.85)]" : "shadow-[0_40px_120px_rgba(0,0,0,0.7)]"
                       }`}
-                      style={{ borderRadius: `${productBorderRadius}px`, aspectRatio: productImageAspect }}
+                      style={{ borderRadius: `${productBorderRadius}px`, aspectRatio: frameFor(activeUrl) }}
                     >
                       {/* Still placeholder while the first photo loads (no pulsing: it flashed over the photo). */}
                       {!imageLoaded && (
@@ -1092,8 +1115,8 @@ export default function BookDetail() {
                           transition={{ duration: 0.45 }}
                           // A photo already in the browser cache (or loaded before the page woke up) never
                           // fires onLoad, which left the placeholder over it; check `complete` too.
-                          ref={(el: HTMLImageElement | null) => { if (el?.complete) setImageLoaded(true); }}
-                          onLoad={() => setImageLoaded(true)}
+                          ref={(el: HTMLImageElement | null) => { if (el?.complete) { setImageLoaded(true); notePhotoSize(activeUrl, el); } }}
+                          onLoad={(e: any) => { setImageLoaded(true); notePhotoSize(activeUrl, e.currentTarget); }}
                           onError={() => setImageLoaded(true)}
                         />
                       </AnimatePresence>
@@ -1186,8 +1209,8 @@ export default function BookDetail() {
               ) : (
                 <div className={productImageLayout === "grid" ? "grid grid-cols-2 gap-4" : "space-y-4"}>
                   {photos.map((photo: any, i: number) => (
-                    <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame fm-photo-frame-pdp overflow-hidden`} style={{ aspectRatio: productImageAspect, borderRadius: `${productBorderRadius}px` }}>
-                      <img src={photo.url} alt={photo.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
+                    <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame fm-photo-frame-pdp overflow-hidden`} style={{ aspectRatio: frameFor(photo.url), borderRadius: `${productBorderRadius}px` }}>
+                      <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} alt={photo.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
                           <span

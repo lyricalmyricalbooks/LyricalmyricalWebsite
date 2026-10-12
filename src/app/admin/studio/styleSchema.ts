@@ -422,6 +422,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "productSubtitleWeight", label: "Subtitle weight", kind: "select", options: [{ value: "light", label: "Light" }, { value: "medium", label: "Medium" }, { value: "bold", label: "Bold" }] },
       { key: "productImageMaxWidth", label: "Photo size (max width)", kind: "range", min: 320, max: 900, step: 10, suffix: "px" },
       { key: "productImageAspect", label: "Photo shape (proportions)", kind: "select", options: [{ value: "grid", label: "Same as shop grid" }, ...PHOTO_RATIO_OPTIONS] },
+      { key: "productImageFrameMode", label: "Frame size (adapt to each photo)", kind: "select", options: [{ value: "fixed", label: "Same shape for every photo" }, { value: "orientation", label: "Smart: portrait, square or landscape frame per photo" }, { value: "exact", label: "Match each photo exactly (no cropping)" }] },
+      { key: "productImageAspectLandscape", label: "Shape for landscape photos (smart frames)", kind: "select", options: PHOTO_RATIO_OPTIONS },
       { key: "productPhotoOutline", label: "Photo outline (arch, circle, hexagon…)", kind: "select", options: [{ value: "grid", label: "Same as shop grid" }, ...PHOTO_OUTLINE_OPTIONS] },
       { key: "productImageFit", label: "Photo fit", kind: "select", options: [{ value: "cover", label: "Full bleed (fill & crop)" }, { value: "contain", label: "Fit whole image" }] },
       { key: "productImageShadow", label: "Image shadow", kind: "select", options: [{ value: "none", label: "None" }, { value: "sm", label: "Sm" }, { value: "md", label: "Md" }, { value: "lg", label: "Lg" }, { value: "xl", label: "Xl" }] },
