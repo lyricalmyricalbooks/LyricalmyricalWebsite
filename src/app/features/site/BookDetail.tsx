@@ -53,6 +53,7 @@ import { findProduct } from "./productRoutes";
 import { bookAddOns, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
+import { CARD_PHOTO_SIZES, PDP_PHOTO_SIZES, THUMB_PHOTO_SIZES, photoSrcSet } from "./photoSources";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 // ── small helper ────────────────────────────────────────────────────────────
@@ -1113,7 +1114,7 @@ export default function BookDetail() {
                           className="fm-pdp-thumb"
                           style={{ aspectRatio: productImageAspect }}
                         >
-                          <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
+                          <img src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt="" loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
                         </button>
                       ))}
                     </div>
@@ -1139,6 +1140,7 @@ export default function BookDetail() {
                         <m.img
                           key={activePhoto}
                           src={activeUrl}
+                          {...(activeUrl === photos[activePhoto]?.url ? photoSrcSet(photos[activePhoto], PDP_PHOTO_SIZES) : {})}
                           alt={(activeUrl === photos[activePhoto]?.url && photos[activePhoto]?.altText?.trim()) || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: activePhoto + 1 })}
                           className={`w-full h-full ${productImageFitClass}`}
                           decoding="async"
@@ -1245,7 +1247,7 @@ export default function BookDetail() {
                 <div className={productImageLayout === "grid" ? "grid grid-cols-2 gap-4" : "space-y-4"}>
                   {photos.map((photo: any, i: number) => (
                     <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame fm-photo-frame-pdp overflow-hidden`} style={{ aspectRatio: frameFor(photo.url), borderRadius: `${productBorderRadius}px` }}>
-                      <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} alt={photo.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
+                      <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, PDP_PHOTO_SIZES)} alt={photo.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
                       {i === 0 && isOutOfStock && (
                         <>
                           <SoldOutVeil design={settings?.design} />
@@ -1355,6 +1357,7 @@ export default function BookDetail() {
                         <div className="relative fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl" style={{ aspectRatio: productImageAspect }}>
                           <img
                             src={(rel as any).photos?.[0]?.url || placeholderImage(settings?.design)}
+                            {...photoSrcSet((rel as any).photos?.[0], CARD_PHOTO_SIZES)}
                             alt={rel.title}
                             loading="lazy"
                             className="w-full h-full transition-transform duration-700 group-hover:scale-105"

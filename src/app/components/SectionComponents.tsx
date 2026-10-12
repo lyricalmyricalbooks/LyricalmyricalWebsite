@@ -18,6 +18,7 @@ import { pickBook, sectionBookQuery, selectBooks } from "../features/site/mercha
 import { aspectRatioValue } from "../features/site/imageAspect";
 import { ResponsiveImage } from "./ResponsiveImage";
 import { mediaKey } from "../features/site/mediaRef";
+import { CARD_PHOTO_SIZES, photoSrcSet } from "../features/site/photoSources";
 
 // ──────────────────────────────
 // Animation helper
@@ -1282,6 +1283,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
                     {book.photos?.[0]?.url && (
                       <img
                         src={book.photos[0].url}
+                        {...photoSrcSet(book.photos[0], CARD_PHOTO_SIZES)}
                         alt={book.title}
                         loading="lazy"
                         decoding="async"
@@ -1500,6 +1502,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                     {book.photos?.[0]?.url && (
                       <img
                         src={book.photos[0].url}
+                        {...photoSrcSet(book.photos[0], CARD_PHOTO_SIZES)}
                         alt={book.title}
                         loading="lazy"
                         decoding="async"
@@ -2608,7 +2611,7 @@ export function FeaturedCollectionSection({ settings, books, onProductClick, ena
                 onKeyDown={(e: any) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onProductClick?.(book); } }}
               >
                 <div className="fm-photo-frame relative overflow-hidden bg-white/5" style={{ aspectRatio: "3 / 4" }}>
-                  {book.photos?.[0]?.url && <img src={book.photos[0].url} alt={book.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />}
+                  {book.photos?.[0]?.url && <img src={book.photos[0].url} {...photoSrcSet(book.photos[0], CARD_PHOTO_SIZES)} alt={book.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />}
                 </div>
                 <h3 className="fm-card-title mt-3 text-[15px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
                 {settings.showPrices !== false && (

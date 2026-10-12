@@ -21,8 +21,8 @@ function item(over: Partial<MediaItem> = {}, stamp = 1): MediaItem {
 const names = { surface: (id: string) => ({ heroPage: "Home", globalSections: "Every page" } as any)[id] || id, section: (s: any) => s.label || s.type };
 
 describe("resized copies", () => {
-  it("makes 480/960/1600 px copies and never enlarges a small picture", () => {
-    expect(mediaWidthsFor(4000)).toEqual([480, 960, 1600]);
+  it("makes 480/960/1600/2400 px copies and never enlarges a small picture", () => {
+    expect(mediaWidthsFor(4000)).toEqual([480, 960, 1600, 2400]);
     expect(mediaWidthsFor(1600)).toEqual([480, 960, 1600]);
     expect(mediaWidthsFor(1200)).toEqual([480, 960, 1200]);
     expect(mediaWidthsFor(300)).toEqual([300]);
@@ -32,7 +32,7 @@ describe("resized copies", () => {
 
 describe("library filters", () => {
   it("flags copies over the page-weight budget (thumb 50 KB, content 150 KB, hero 200 KB)", () => {
-    expect([budgetFor(480), budgetFor(960), budgetFor(1600), budgetFor(0)]).toEqual([50_000, 150_000, 200_000, 200_000]);
+    expect([budgetFor(480), budgetFor(960), budgetFor(1600), budgetFor(2400), budgetFor(0)]).toEqual([50_000, 150_000, 200_000, 450_000, 200_000]);
     expect(isOverBudget(item())).toBe(false);
     const heavy = item();
     heavy.variants[0].bytes = 60_000;

@@ -44,7 +44,7 @@ import { BookCustomFields } from "./BookCustomFields";
 import { BookTemplatePicker } from "./BookTemplatePicker";
 import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow } from "../features/site/detailRows";
 import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs } from "./riso/components";
-import { prepareProductImage } from "./prepareImage";
+import { uploadBookPhoto } from "./bookPhotoUpload";
 import { studioHash } from "../lib/studioLocation";
 
 import { BookSeoPane } from "./BookSeoPane";
@@ -569,9 +569,8 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     const failedNames: string[] = [];
     for (const file of list.slice(0, room)) {
       try {
-        const ready = await prepareProductImage(file);
-        const url = await adminApi.uploadFile(ready, `products/${Date.now()}-${ready.name}`);
-        setFormData((prev: any) => ({ ...prev, photos: [...prev.photos, { url, id: Math.random().toString(36).substr(2, 9), altText: file.name.replace(/\.[^.]+$/, "") }] }));
+        const uploaded = await uploadBookPhoto(file);
+        setFormData((prev: any) => ({ ...prev, photos: [...prev.photos, { ...uploaded, id: Math.random().toString(36).substr(2, 9), altText: file.name.replace(/\.[^.]+$/, "") }] }));
       } catch (err: any) {
         console.error("Upload error:", err);
         failedNames.push(file.name);
@@ -1045,9 +1044,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                 <button type="button" onClick={addPhoto} className="rp-btn rp-btn-secondary"><Plus size={16} aria-hidden /> Add</button>
                 <button type="button" onClick={() => setLibraryOpen(true)} className="rp-btn rp-btn-secondary" disabled={formData.photos.length >= MAX_BOOK_PHOTOS}>Choose from library</button>
               </div>
-              {libraryOpen && <MediaLibraryDialog onClose={() => setLibraryOpen(false)} onChoose={(url, alt) => {
+              {libraryOpen && <MediaLibraryDialog onClose={() => setLibraryOpen(false)} onChoose={(url, alt, sizes) => {
                 setLibraryOpen(false);
-                setFormData((prev: any) => prev.photos.length >= MAX_BOOK_PHOTOS ? prev : ({ ...prev, photos: [...prev.photos, { url, id: Math.random().toString(36).substr(2, 9), altText: alt || "" }] }));
+                setFormData((prev: any) => prev.photos.length >= MAX_BOOK_PHOTOS ? prev : ({ ...prev, photos: [...prev.photos, { url, ...sizes, id: Math.random().toString(36).substr(2, 9), altText: alt || "" }] }));
               }} />}
             </SectionCard>
           )}

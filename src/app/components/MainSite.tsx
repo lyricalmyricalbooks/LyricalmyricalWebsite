@@ -44,6 +44,7 @@ import { resolveMainDesign } from "../features/site/surfaceDesign";
 import { categoryTemplateSurface, previewTemplate } from "../features/site/templateAlternates";
 import { regionProps } from "../features/site/storefrontRegions";
 import { SoldOutBadge, soldOutPhotoStyle } from "../features/site/SoldOutBadge";
+import { CARD_PHOTO_SIZES, photoSrcSet } from "../features/site/photoSources";
 
 const catNameForSEO = (category: any) => typeof category === "string" ? category : category?.name;
 
@@ -56,7 +57,7 @@ export function storefrontCategories(value: unknown) {
 // ──────────────────────────────
 // Image with skeleton loader
 // ──────────────────────────────
-function SkeletonImage({ src, alt, className, style, frameStyle }: { src: string; alt: string; className?: string; style?: CSSProperties; frameStyle?: CSSProperties }) {
+function SkeletonImage({ src, srcSet, sizes, alt, className, style, frameStyle }: { src: string; srcSet?: string; sizes?: string; alt: string; className?: string; style?: CSSProperties; frameStyle?: CSSProperties }) {
   const [loaded, setLoaded] = useState(false);
   return (
     <div className="relative w-full h-full" style={frameStyle}>
@@ -65,6 +66,8 @@ function SkeletonImage({ src, alt, className, style, frameStyle }: { src: string
       )}
       <img
         src={src}
+        srcSet={srcSet}
+        sizes={sizes}
         alt={alt}
         loading="lazy"
         decoding="async"
@@ -846,6 +849,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     <div className={`relative fm-surface fm-photo-frame mb-4 overflow-hidden ${isReferenceCatalog || cardStyle === "minimal" ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius, aspectRatio: imageAspectStyle }}>
                       <SkeletonImage
                         src={item.photos?.[0]?.url || placeholderImage(activeDesign)}
+                        {...photoSrcSet(item.photos?.[0], CARD_PHOTO_SIZES)}
                         alt={item.title}
                         className={`w-full h-full ${storefrontImageFit} transition-transform duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}
                         style={{ objectPosition: `${catalogImageFocalX}% ${catalogImageFocalY}%` }}

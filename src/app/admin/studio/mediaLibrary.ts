@@ -34,6 +34,8 @@ export type MediaFilter = "all" | "unused" | "over" | "noalt";
 export function budgetFor(width: number): number {
   if (width > 0 && width <= 480) return 50_000;
   if (width > 0 && width <= 960) return 150_000;
+  // The 2400 px copy only reaches big retina screens, so it may weigh more.
+  if (width > 1600) return 450_000;
   return 200_000;
 }
 
