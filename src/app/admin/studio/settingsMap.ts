@@ -149,6 +149,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   productCard: [
     { title: "Buy card box", keys: ["pdpCardBg", "pdpCardBorderColor", "pdpCardBorderWidth", "pdpCardShadowColor", "pdpCardShadowOffset", "pdpCardPadding", "pdpCardDividerColor"] },
     { title: "Title, price & stock", keys: ["pdpEditionPicker", "pdpStickyBar", "pdpStickyPhoneOnly", "pdpShowBuyNow", "pdpShowTag", "pdpTagStyle", "pdpTitleFont", "pdpTitleSize", "pdpTitleSizeMobile", "pdpTitleColor", "pdpTitleCase", "pdpPriceFont", "pdpPriceSize", "pdpPriceSizeMobile", "pdpPriceColor", "pdpShowStock", "pdpStockColor"] },
+    { title: "“Notify me” signup box", keys: ["pdpAlertBg", "pdpAlertBorderColor", "pdpAlertBorderWidth", "pdpAlertRadius", "pdpAlertPadding", "pdpAlertHeadingColor", "pdpAlertFieldBorderColor", "pdpAlertButtonBg", "pdpAlertButtonText", "pdpAlertButtonBorderColor"] },
     { title: "Photo frame & thumbnails", keys: ["pdpThumbPosition", "pdpThumbWrap", "pdpThumbSize", "pdpThumbActiveColor", "pdpPhotoBorderColor", "pdpPhotoBorderWidth", "pdpShowCaption"] },
     { title: "Description / Details tabs", keys: ["pdpDetailsPlacement", "pdpSpecsStyle", "pdpTabActiveBg", "pdpTabActiveText", "pdpPanelBorderColor", "pdpPanelTextWidth"] },
     { title: "Description text", keys: ["pdpDescFont", "pdpDescSize", "pdpDescSizeMobile", "pdpDescLineHeight", "pdpDescColor", "pdpDescAlign", "pdpDescLinkColor", "pdpDescLinkUnderline", "pdpDescHeadingFont", "pdpDescHeadingSize", "pdpDescHeadingColor", "pdpDescQuoteColor", "pdpDescBlockGap"] },

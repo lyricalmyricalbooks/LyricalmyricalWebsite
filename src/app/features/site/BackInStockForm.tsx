@@ -74,7 +74,7 @@ export default function BackInStockForm({
 
   const body = (
     <>
-      <p className="text-[11px] font-black tracking-[0.2em] uppercase">{getCopy(design, comingSoon ? "comingSoonAlertHeading" : "alertHeading")}</p>
+      <p className="fm-pdp-alert-heading text-[11px] font-black tracking-[0.2em] uppercase">{getCopy(design, comingSoon ? "comingSoonAlertHeading" : "alertHeading")}</p>
       {status === "success" ? (
         <p role="status" className="mt-2 text-sm opacity-80">{getCopy(design, comingSoon ? "comingSoonAlertSuccess" : "alertSuccess")}</p>
       ) : (
@@ -86,14 +86,14 @@ export default function BackInStockForm({
             placeholder={getCopy(design, "alertPlaceholder")}
             aria-label={getCopy(design, "alertPlaceholder")}
             autoComplete="email"
-            className="min-w-0 flex-1 rounded-xl border border-white/[0.12] bg-transparent px-4 py-3 text-sm outline-none focus:border-white/40"
+            className="fm-pdp-alert-input min-w-0 flex-1 rounded-xl border border-white/[0.12] bg-transparent px-4 py-3 text-sm outline-none focus:border-white/40"
           />
           <button
             type="submit"
             disabled={status === "loading"}
-            className="rounded-xl border border-white/30 px-5 py-3 text-[11px] font-black tracking-[0.2em] uppercase transition-colors hover:bg-white/10 disabled:opacity-50"
+            className="fm-pdp-alert-btn rounded-xl border border-white/30 px-5 py-3 text-[11px] font-black tracking-[0.2em] uppercase transition-colors hover:bg-white/10 disabled:opacity-50"
           >
-            {status === "loading" ? "…" : getCopy(design, "alertButton")}
+            {getCopy(design, status === "loading" ? "alertSending" : "alertButton")}
           </button>
         </form>
       )}
@@ -102,10 +102,11 @@ export default function BackInStockForm({
       )}
     </>
   );
-  // Two wrappers (same look) so each signup keeps its own name in Studio's click-to-edit.
+  // Two wrappers (same look) so each signup keeps its own name in Studio's click-to-edit. Their look is
+  // Style › Product page · buy card & details › "Notify me" signup box (`pdpAlert*`, productPageStyle.ts).
   return comingSoon ? (
-    <div id={id} className="mt-4 rounded-2xl border border-white/[0.08] p-4" data-studio-target="style:productPage|copy:Product page" data-studio-label="Coming soon signup">{body}</div>
+    <div id={id} className="fm-pdp-alert mt-4 rounded-2xl border border-white/[0.08] p-4" data-studio-target="style:productPage|style:productCard|copy:Product page" data-studio-label="Coming soon signup">{body}</div>
   ) : (
-    <div id={id} className="mt-4 rounded-2xl border border-white/[0.08] p-4" data-studio-target="style:productPage|copy:Product page" data-studio-label="Back-in-stock signup">{body}</div>
+    <div id={id} className="fm-pdp-alert mt-4 rounded-2xl border border-white/[0.08] p-4" data-studio-target="style:productPage|style:productCard|copy:Product page" data-studio-label="Back-in-stock signup">{body}</div>
   );
 }
