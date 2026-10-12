@@ -125,6 +125,9 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-sticky-price{font-family:${priceFont};color:${color(d, "pdpPriceColor", "rgb(var(--fg-rgb))")};}`;
   css += `${S} .fm-pdp-sticky-btn{flex:none;min-height:44px;display:inline-flex;align-items:center;gap:8px;padding:0 20px;font-size:11px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;}`;
   css += `@media (min-width:${PHONE_MAX + 1}px){${S} .fm-pdp-sticky-phone{display:none;}}`;
+  // "Buy it now" (pdpShowBuyNow): full-width second button, outlined in the page's text colour.
+  css += `${S} .fm-pdp-buynow{display:flex;width:100%;min-height:48px;margin-top:10px;align-items:center;justify-content:center;font-size:10px;font-weight:900;letter-spacing:.3em;background:transparent;color:rgb(var(--fg-rgb));border:${outlineW} solid ${outline};cursor:pointer;}`;
+  css += `${S} .fm-pdp-buynow:hover{background:rgb(var(--fg-rgb));color:var(--surface);}`;
   css += `${S} .fm-pdp-sq:hover{border-color:rgb(var(--fg-rgb));}`;
 
   // Details: tabs + bordered panel, catalogue-record specs.

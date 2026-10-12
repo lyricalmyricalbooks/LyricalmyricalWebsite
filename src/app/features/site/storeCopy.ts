@@ -205,6 +205,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "pdpEditionChoose", label: "Edition drop-down · prompt", default: "Choose an edition" },
       { key: "pdpEditionMissing", label: "Edition drop-down · nothing chosen message", default: "Please choose an edition first." },
       { key: "pdpEditionSoldOut", label: "Edition drop-down · sold-out note", default: "Sold out" },
+      { key: "pdpBuyNow", label: "“Buy it now” button", default: "Buy it now" },
       { key: "bookAdded", label: "Added-to-bag confirmation", default: "Added to Bag" },
       { key: "bookShare", label: "Share button — label", default: "Share" },
       { key: "alertHeading", label: "Back-in-stock: heading", default: "Notify me when it's back" },

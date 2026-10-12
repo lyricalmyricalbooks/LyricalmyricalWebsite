@@ -152,6 +152,8 @@ export default function BookDetail() {
   // Style › Product page › Sticky add-to-bag bar: a bar that follows the shopper once the buy button has scrolled away.
   const stickyBar              = storefrontDesign.pdpStickyBar === true;
   const stickyPhoneOnly        = storefrontDesign.pdpStickyPhoneOnly !== false;
+  // Style › Product page › "Buy it now" button: adds the chosen copy and opens checkout straight away.
+  const showBuyNow             = storefrontDesign.pdpShowBuyNow === true;
   // Keyed on the book's id: a background catalog refresh hands us a new book
   // object, and that must not snap the shopper's chosen edition back to the first.
   useEffect(() => {
@@ -379,6 +381,24 @@ export default function BookDetail() {
     funnelApi.track("add_to_cart");
     setAdded(true);
     setTimeout(() => setAdded(false), 2500);
+  };
+
+  // "Buy it now": the same checks as Add to bag, then straight to checkout. A line already at its
+  // limit is still in the bag, so checkout is the right place to go.
+  const handleBuyNow = () => {
+    if (!book || isOutOfStock) return;
+    if (book.variants?.length && !selectedVariant) {
+      setEditionError(getCopy(settings?.design, "pdpEditionMissing"));
+      document.getElementById("pdp-edition-select")?.focus();
+      return;
+    }
+    const options = lineOptions();
+    if (!options) return;
+    const ok = addToCart(book, selectedVariant || undefined, showQtyStepper ? qty : 1, options);
+    if (!ok && inBag <= 0) return;
+    if (ok) funnelApi.track("add_to_cart");
+    setIsCartOpen(false);
+    navigate("/checkout");
   };
 
   // "Add both" only pairs with a companion that can actually go in the bag.
@@ -926,6 +946,18 @@ export default function BookDetail() {
                       </button>
                     )}
                   </div>
+                  {showBuyNow && !isOutOfStock && (
+                    <button
+                      type="button"
+                      onClick={handleBuyNow}
+                      className={`fm-pdp-buynow ${buttonUppercase ? "uppercase" : ""}`}
+                      style={{ borderRadius: buttonRadius }}
+                      data-studio-target="style:productCard"
+                      data-studio-label="Buy it now button"
+                    >
+                      {getCopy(settings?.design, "pdpBuyNow")}
+                    </button>
+                  )}
         </Fragment>;
       }
       case "backInStock": {

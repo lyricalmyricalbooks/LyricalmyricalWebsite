@@ -143,7 +143,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   ],
   productCard: [
     { title: "Buy card box", keys: ["pdpCardBg", "pdpCardBorderColor", "pdpCardBorderWidth", "pdpCardShadowColor", "pdpCardShadowOffset", "pdpCardPadding", "pdpCardDividerColor"] },
-    { title: "Title, price & stock", keys: ["pdpEditionPicker", "pdpStickyBar", "pdpStickyPhoneOnly", "pdpShowTag", "pdpTagStyle", "pdpTitleFont", "pdpTitleSize", "pdpTitleSizeMobile", "pdpTitleColor", "pdpTitleCase", "pdpPriceFont", "pdpPriceSize", "pdpPriceSizeMobile", "pdpPriceColor", "pdpShowStock", "pdpStockColor"] },
+    { title: "Title, price & stock", keys: ["pdpEditionPicker", "pdpStickyBar", "pdpStickyPhoneOnly", "pdpShowBuyNow", "pdpShowTag", "pdpTagStyle", "pdpTitleFont", "pdpTitleSize", "pdpTitleSizeMobile", "pdpTitleColor", "pdpTitleCase", "pdpPriceFont", "pdpPriceSize", "pdpPriceSizeMobile", "pdpPriceColor", "pdpShowStock", "pdpStockColor"] },
     { title: "Photo frame & thumbnails", keys: ["pdpThumbPosition", "pdpThumbActiveColor", "pdpPhotoBorderColor", "pdpPhotoBorderWidth", "pdpShowCaption"] },
     { title: "Description / Details tabs", keys: ["pdpDetailsPlacement", "pdpSpecsStyle", "pdpTabActiveBg", "pdpTabActiveText", "pdpPanelBorderColor", "pdpPanelTextWidth"] },
     { title: "Breadcrumb & small labels", keys: ["pdpShowBackLink", "pdpShowBreadcrumb", "pdpMetaFont", "pdpMetaSize", "pdpMetaColor"] },
@@ -291,7 +291,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
   ],
   "Product page": [
     { title: "Photos & breadcrumb", match: /^(pdpCrumb|pdpBreadcrumb|pdpCaption|pdpPhotos|ariaGoToPhoto|ariaPrevPhoto|ariaNextPhoto|bookPhotoAlt|backToCatalog|categoryFallback)/ },
-    { title: "Buy box, stock & pre-orders", match: /^(pdpInStock|pdpBackorder|pdpPreorder|pdpSaleEnds|preorder|addToBag|onlyLeft|saveAmount|priceOnRequest|ariaQty|bookAdded|bookFormat|wishlist|bookShare|bookLinkCopied)/ },
+    { title: "Buy box, stock & pre-orders", match: /^(pdpInStock|pdpBackorder|pdpPreorder|pdpSaleEnds|preorder|addToBag|pdpBuyNow|onlyLeft|saveAmount|priceOnRequest|ariaQty|bookAdded|bookFormat|wishlist|bookShare|bookLinkCopied)/ },
     { title: "Extras, box sets & gift cards", match: /^(pdpAddOn|pdpBoxSet|pdpGift)/ },
     { title: "Description, details & tabs", match: /^(tab|spec|productDescriptionLabel|noDescription|pdpDetailsAria)/ },
     { title: "Back-in-stock alert", match: /^alert/ },

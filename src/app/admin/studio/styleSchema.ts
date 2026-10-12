@@ -459,6 +459,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "pdpCardDividerColor", label: "Lines inside the card", kind: "color" },
       { key: "pdpEditionPicker", label: "Edition picker (signed / unsigned…)", kind: "select", options: [{ value: "", label: "Buttons (first edition picked)" }, { value: "dropdown", label: "Drop-down menu (shopper must choose)" }] },
       { key: "pdpStickyBar", label: "Sticky “Add to bag” bar (follows the shopper once the main button scrolls away)", kind: "toggle" },
+      { key: "pdpShowBuyNow", label: "“Buy it now” button under Add to bag (adds the book and opens checkout)", kind: "toggle" },
       { key: "pdpStickyPhoneOnly", label: "Sticky bar on phones only (off = every screen size)", kind: "toggle" },
       { key: "pdpShowTag", label: "Show category tag", kind: "toggle" },
       { key: "pdpTagStyle", label: "Category tag style", kind: "select", options: [{ value: "filled", label: "Filled (badge colours)" }, { value: "outline", label: "Outline" }] },
