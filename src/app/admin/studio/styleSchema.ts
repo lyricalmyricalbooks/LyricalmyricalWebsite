@@ -411,6 +411,10 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "navDropdownBorderColor", label: "Drop-down border color", kind: "color" },
       { key: "navDropdownBorderWidth", label: "Drop-down border thickness", kind: "range", min: 0, max: 8, step: 1, suffix: "px" },
       { key: "navDropdownTransform", label: "Drop-down link case", kind: "select", options: [{ value: "", label: "Same as header links" }, { value: "none", label: "As typed" }, { value: "uppercase", label: "Uppercase" }, { value: "lowercase", label: "Lowercase" }, { value: "capitalize", label: "Capitalize" }] },
+      { key: "headerMenuPanelBg", label: "Header menu drop-down & mega menu background", kind: "color" },
+      { key: "headerMenuPanelTextColor", label: "Header menu drop-down & mega menu link color", kind: "color" },
+      { key: "headerMenuPanelBorderColor", label: "Header menu drop-down & mega menu border color", kind: "color" },
+      { key: "headerMenuPanelRadius", label: "Header menu drop-down & mega menu corners", kind: "range", min: 0, max: 32, step: 1, suffix: "px" },
     ],
   },
   {

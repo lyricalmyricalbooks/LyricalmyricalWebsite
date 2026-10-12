@@ -119,7 +119,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   navlinks: [
     { title: "Link look", keys: ["navLinkColor", "navLinkSize", "navLinkWeight", "navLinkSpacing", "navLinkTransform", "navLinkOpacity"] },
     { title: "Placement & fitting on one line", keys: ["navPlacement", "navGap", "navLineMode", "navFitMin"] },
-    { title: "Drop-down menus", keys: ["navFlatSubcategories", "navDropdownHideAll", "navDropdownBg", "navDropdownTextColor", "navDropdownBorderColor", "navDropdownBorderWidth", "navDropdownTransform"] },
+    { title: "Drop-down menus", keys: ["navFlatSubcategories", "navDropdownHideAll", "navDropdownBg", "navDropdownTextColor", "navDropdownBorderColor", "navDropdownBorderWidth", "navDropdownTransform", "headerMenuPanelBg", "headerMenuPanelTextColor", "headerMenuPanelBorderColor", "headerMenuPanelRadius"] },
     { title: "Sticker pills", keys: ["navPillRadius", "navPillRotate", "navPillActivePalette"] },
   ],
   footer: [

@@ -384,7 +384,7 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
             {!navBelow && navBar}
           </div>
           <div data-hdr-fixed className="flex shrink-0 flex-nowrap items-center justify-end gap-2 sm:gap-6 md:gap-8" data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart">
-            {storefront.menus?.header?.length > 0 && <div className="mr-2"><StoreMenu items={storefront.menus.header} /></div>}
+            {storefront.menus?.header?.length > 0 && <div className="mr-2"><StoreMenu items={storefront.menus.header} design={storefront} /></div>}
             <HeaderActions
               flags={storefront}
               copyDesign={design}
@@ -589,7 +589,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
             <div data-hdr-fixed data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex shrink-0 flex-nowrap gap-2 sm:gap-6 md:gap-8 items-center flex-1 justify-end ${shop.logoPosition === "right" ? "flex-initial" : ""}`}>
               {shop.logoPosition === "right" && logo}
               {sf?.menus?.header?.length > 0 && (
-                <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={sf.menus.header} /></div>
+                <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={sf.menus.header} design={sf} /></div>
               )}
               <HeaderActions
                 flags={design}
