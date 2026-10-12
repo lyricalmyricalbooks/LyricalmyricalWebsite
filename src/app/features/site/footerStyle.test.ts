@@ -4,9 +4,11 @@ import { footerBrandAlign, footerLinksAlign, footerStyleCss } from "./footerStyl
 describe("footer style controls", () => {
   it("uses the footer's own spacing when nothing is set and no colour overrides", () => {
     const css = footerStyleCss({ showFooterAccentLine: false, footerGroupHeadingsAccent: false, showFooterBrandDivider: false, footerSocialBoxes: false });
-    expect(css).toContain(".fm-footer-main{padding-top:56px;padding-bottom:56px;}");
+    expect(css).toContain(".fm-footer-main{padding-top:32px;padding-bottom:32px;}");
     expect(css).toContain(".fm-footer-groups{column-gap:64px;}");
-    expect(css).toContain(".fm-footer-list>*+*{margin-top:12px;}");
+    expect(css).toContain(".fm-footer-list>*+*{margin-top:8px;}");
+    expect(css).toContain(".fm-footer-brand>[data-empty]{display:none !important;}");
+    expect(css).toContain(".fm-footer-bar{padding-top:12px;padding-bottom:12px;}");
     expect(css).not.toContain("color:");
     expect(css).not.toContain("border-top-width:0");
   });
@@ -41,7 +43,8 @@ describe("footer style controls", () => {
     expect(css).toContain(".fm-footer-icon-box{");
     const off = footerStyleCss({ showFooterAccentLine: false, footerGroupHeadingsAccent: false, footerBrandAlign: "start", showFooterBrandDivider: false, footerSocialBoxes: false });
     expect(off).not.toContain("border-top:3px");
-    expect(off).not.toContain(".fm-footer-brand");
+    expect(off).not.toContain(".fm-footer-brand{max-width");
+    expect(off).not.toContain("border-right:1px");
     expect(off).not.toContain(".fm-footer-icon-box");
     const custom = footerStyleCss({ footerAccentColor: "#ff6fae", footerAccentLineWidth: 6, footerHeadingColor: "#999" });
     expect(custom).toContain("border-top:6px solid #ff6fae");

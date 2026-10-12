@@ -124,7 +124,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   ],
   footer: [
     { title: "Footer layout", keys: ["footerNavigationLayout", "footerLinksAlign", "footerBrandAlign", "footerBrandVAlign", "footerBrandCenterMobile", "showFooterBrandDivider", "footerColumns", "footerLayout", "footerBg"] },
-    { title: "Footer spacing", keys: ["footerPaddingY", "footerPaddingYMobile", "footerColumnGap", "footerLinkGap"] },
+    { title: "Footer spacing", keys: ["footerPaddingY", "footerPaddingYMobile", "footerBarPaddingY", "footerColumnGap", "footerLinkGap"] },
     { title: "Footer text & lines", keys: ["footerTextSize", "footerTextColor", "footerHeadingColor", "footerLinkHoverColor", "showFooterDividers", "footerDividerColor"] },
     { title: "Footer accent", keys: ["showFooterAccentLine", "footerAccentLineWidth", "footerAccentColor", "footerGroupHeadingsAccent", "footerSocialBoxes", "footerSocialHoverColor"] },
     { title: "Footer logo", keys: ["footerLogo", "footerLogoUrl", "footerLogoWidth"] },
