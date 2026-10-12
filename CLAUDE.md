@@ -1797,6 +1797,11 @@ it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badg
   `RATES_TIMEOUT_MS`, falling back to profile rates. Exchange rates come from `exchangeRates.ts` `loadRates` (5 s timeout, 6 h session cache,
   `ratesSource` = live | cached | fallback on `useCurrency()` and `<html data-rates-source>`).
 - **No third-party IP lookup:** checkout starts on `guessCountryName()` (browser language); address suggestions (Photon) stay. Do not re-add an IP-to-country call in the browser.
+- **Starting currency by country (12 October 2026):** `CurrencyContext` starts on the shopper's saved `fm_currency`, else the
+  time-zone guess, then `features/site/visitorCurrency.ts` asks the shop's own `validateDiscountCode` `{ action: "visitorCountry" }`
+  (platform header via `serverGeoCountry`, no database, no third party; cached in localStorage `fm_geo_country` a week, unknown a day)
+  and `currencyForCountry` switches CAD/USD/EUR unless the shopper picked one. Skipped in the Studio preview; the prerender pins CAD.
+  If Cloud Run sends no country header the time-zone guess stays. Charges are unchanged (CAD × today's rate).
 - **Stock holds:** `settings/website.stockHolds` `{ perBook, units, orders }` (Settings › General › **Checkout stock holds**, defaults 10 / 50 / 3)
   is read by the server (`holdLimitsFrom`, `loadHoldLimits`); connection caps are twice / 3x those, never below today's. The bag warns before Pay
   (`holdLimits.ts` `holdWarnings`, region `checkoutHoldWarning`, words `coHoldWarning*`). A payment-time renewal keeps the order's `holders`

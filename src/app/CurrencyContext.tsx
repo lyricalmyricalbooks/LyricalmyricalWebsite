@@ -1,8 +1,9 @@
 import { displayPrice } from "./features/site/displayPrice";
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { ChevronDown } from "lucide-react";
 import { saleActive } from "./features/site/promotions";
 import { FALLBACK_RATES, loadRates, type RatesSource } from "./features/site/exchangeRates";
+import { currencyForCountry, loadVisitorCountry } from "./features/site/visitorCurrency";
 
 export type Currency = "CAD" | "USD" | "EUR";
 
@@ -52,17 +53,24 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [rates, setRates] = useState<Record<Currency, number>>(FALLBACK_RATES);
   const [ratesSource, setRatesSource] = useState<RatesSource>("fallback");
 
+  // Set once the shopper picks a currency, so a late country answer never overrides their choice.
+  const chosenRef = useRef(false);
+
   const setCurrency = (c: Currency) => {
+    chosenRef.current = true;
     setCurrencyState(c);
     // Storage can be blocked (strict privacy settings, some in-app browsers): the choice still works for this visit.
     try { localStorage.setItem("fm_currency", c); } catch { /* not remembered */ }
   };
 
-  // Determine initial currency from localStorage or timezone geolocation
+  // Starting currency: the shopper's own saved choice, else the country their IP address is in
+  // (features/site/visitorCurrency.ts, asked of the shop's server), with the time zone as the instant guess
+  // while that answer arrives or when the platform can't tell.
   useEffect(() => {
     let saved: Currency | null = null;
     try { saved = localStorage.getItem("fm_currency") as Currency | null; } catch { /* storage blocked */ }
     if (saved && ["CAD", "USD", "EUR"].includes(saved)) {
+      chosenRef.current = true;
       setCurrencyState(saved);
       return;
     }
@@ -72,6 +80,15 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     } catch {
       setCurrencyState("CAD");
     }
+
+    // The Studio preview shows the shop as the owner sees it and asks no server for a shopper's location.
+    if (typeof window !== "undefined" && window.location.search.includes("preview=true")) return;
+    let cancelled = false;
+    loadVisitorCountry().then(country => {
+      const fromCountry = currencyForCountry(country);
+      if (!cancelled && fromCountry && !chosenRef.current) setCurrencyState(fromCountry);
+    });
+    return () => { cancelled = true; };
   }, []);
 
   // Live exchange rates, with a timeout and a per-session cache (features/site/exchangeRates.ts).

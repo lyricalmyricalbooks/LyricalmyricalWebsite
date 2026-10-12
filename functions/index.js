@@ -5864,6 +5864,14 @@ exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
     return;
   }
 
+  // The storefront's starting currency: the visitor's country as Google's front end saw their IP
+  // (serverGeoCountry). No database work and no third-party lookup; null when the platform sent none.
+  if (req.body?.action === "visitorCountry") {
+    res.set("Cache-Control", "private, no-store");
+    res.status(200).json({ country: serverGeoCountry(req) || null });
+    return;
+  }
+
   // Checkout's automatic offers (no code): the conditions checkout needs to show the same saving
   // the server will charge. Customer lists and usage counts stay private.
   if (req.body?.action === "automaticDiscounts") {
