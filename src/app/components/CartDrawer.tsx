@@ -3,6 +3,7 @@ import { CartShippingPreview } from "./CartShippingPreview";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { m, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router";
+import toast from "react-hot-toast";
 import { useCart, catalogUnitPrice, MAX_LINE_QUANTITY, repriceCart } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
 import { useSiteData } from "../features/site/useSiteData";
@@ -39,6 +40,33 @@ export function CartDrawer() {
     if (next.changed && next.removed.length === 0) setCart(next.cart);
   }, [fresh, books, cart]);
   const { formatPrice } = useCurrency();
+  // Remove acts at once; the toast's Undo puts the same line (quantity, extras, gift details) back where it was.
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
+  const removeWithUndo = (key: string, item: (typeof cart)[number], index: number) => {
+    removeFromCart(key);
+    const lineKeyOf = (line: (typeof cart)[number]) => line.lineKey || `${line.id}::${line.variantId || ""}`;
+    toast((t) => (
+      <span className="flex items-center gap-3">
+        <span>{getCopy(design, "cartRemoved", { title: item.title })}</span>
+        <button
+          type="button"
+          className="font-black underline min-h-[32px] px-1"
+          onClick={() => {
+            toast.dismiss(t.id);
+            const now = cartRef.current;
+            // Already back in the bag (added again meanwhile): leave it as it is.
+            if (now.some((line) => lineKeyOf(line) === key)) return;
+            const next = [...now];
+            next.splice(Math.min(index, next.length), 0, item);
+            setCart(next);
+          }}
+        >
+          {getCopy(design, "cartRemovedUndo")}
+        </button>
+      </span>
+    ), { id: `cart-removed-${key}`, duration: 6000 });
+  };
   const drawerRef = useRef<HTMLDivElement>(null);
   // Dialog behaviour: focus moves in, Tab is contained, Escape closes, focus returns to the opener.
   useFocusTrap(drawerRef, isCartOpen, () => setIsCartOpen(false));
@@ -206,7 +234,7 @@ export function CartDrawer() {
                               <button onClick={() => updateQuantity(key, 1)} disabled={atLimit || item.quantity >= MAX_LINE_QUANTITY} aria-label={getCopy(design, "cartIncreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><PlusIcon size={12} /></button>
                             </div>
                             <button
-                              onClick={() => removeFromCart(key)}
+                              onClick={() => removeWithUndo(key, item, idx)}
                               aria-label={getCopy(design, "cartRemoveAria", { title: item.title })}
                               className="fm-bag-remove fm-bag-meta min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors"
                             >

@@ -30,12 +30,19 @@ function Source({ card }: { card: any }) {
   return <span>Issued by you</span>;
 }
 
+/** A failure after which the server may still have done the work: the connection dropped, timed out, or it answered with no reason. */
+const outcomeUnknown = (err: any) => err instanceof TypeError || err?.name === "AbortError"
+  || /network|failed to fetch|load failed|timed? ?out|couldn't be updated\.$/i.test(String(err?.message || ""));
+const MAYBE_DONE = "This may have gone through — check the list before trying again.";
+
 const EMPTY_ISSUE = { amount: "25", recipientEmail: "", recipientName: "", message: "", expiresOn: "", note: "", sendEmail: true };
 
 function IssueDialog({ onClose, onIssued }: { onClose: () => void; onIssued: () => void }) {
   const [form, setForm] = useState({ ...EMPTY_ISSUE });
   const [problems, setProblems] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  // After a failure with an unknown outcome, Create stays off so a second click can't issue a second card.
+  const [locked, setLocked] = useState(false);
   const [issued, setIssued] = useState<null | { code: string; last4: string; emailError?: string; emailed: boolean }>(null);
   const set = (k: keyof typeof EMPTY_ISSUE, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -49,7 +56,9 @@ function IssueDialog({ onClose, onIssued }: { onClose: () => void; onIssued: () 
       setIssued({ code: result.code || "", last4: result.last4 || "", emailError: result.emailError, emailed: !!built.payload.sendEmail });
       onIssued();
     } catch (err: any) {
-      setProblems([err?.message || "The gift card couldn't be created."]);
+      const unknown = outcomeUnknown(err);
+      if (unknown) { setLocked(true); onIssued(); }
+      setProblems([`${err?.message || "The gift card couldn't be created."}${unknown ? ` ${MAYBE_DONE}` : ""}`]);
     } finally {
       setSaving(false);
     }
@@ -75,12 +84,12 @@ function IssueDialog({ onClose, onIssued }: { onClose: () => void; onIssued: () 
       description="Create a gift card yourself — for a prize, a refund as store credit or a goodwill gesture. It works at checkout like a bought one."
       footer={<>
         <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-        <PrimaryButton onClick={issue} disabled={saving}>{saving ? "Creating…" : "Create gift card"}</PrimaryButton>
+        <PrimaryButton onClick={issue} disabled={saving || locked}>{saving ? "Creating…" : "Create gift card"}</PrimaryButton>
       </>}>
       <div className="rp-stack" style={{ gap: 16 }}>
         {problems.length > 0 && (
           <div role="alert" className="rp-error-text">
-            <strong>Fix {problems.length === 1 ? "this" : "these"} first:</strong>
+            <strong>{locked ? "Something went wrong:" : `Fix ${problems.length === 1 ? "this" : "these"} first:`}</strong>
             <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>{problems.map((p) => <li key={p}>{p}</li>)}</ul>
           </div>
         )}
@@ -104,6 +113,7 @@ function AdjustDialog({ card, onClose, onDone }: { card: any; onClose: () => voi
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [locked, setLocked] = useState(false);
   const delta = dollarsToMinor(amount);
   const after = Number.isFinite(delta) ? Math.max(0, (Number(card.balanceMinor) || 0) + delta) : null;
   const save = async () => {
@@ -117,7 +127,9 @@ function AdjustDialog({ card, onClose, onDone }: { card: any; onClose: () => voi
         : `Balance is now ${formatMinor(result.balanceMinor)}`);
       onDone();
     } catch (err: any) {
-      setError(err?.message || "The balance couldn't be changed.");
+      const unknown = outcomeUnknown(err);
+      if (unknown) setLocked(true);
+      setError(`${err?.message || "The balance couldn't be changed."}${unknown ? ` ${MAYBE_DONE}` : ""}`);
     } finally { setSaving(false); }
   };
   return (
@@ -125,7 +137,7 @@ function AdjustDialog({ card, onClose, onDone }: { card: any; onClose: () => voi
       description={`Current balance ${formatMinor(card.balanceMinor)}. The balance never goes below $0.`}
       footer={<>
         <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-        <PrimaryButton onClick={save} disabled={saving}>{saving ? "Saving…" : "Save adjustment"}</PrimaryButton>
+        <PrimaryButton onClick={save} disabled={saving || locked}>{saving ? "Saving…" : "Save adjustment"}</PrimaryButton>
       </>}>
       <div className="rp-stack" style={{ gap: 16 }}>
         <TextField label="Amount to add (CA$)" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} data-autofocus
@@ -141,6 +153,7 @@ function ResendDialog({ card, onClose, onDone }: { card: any; onClose: () => voi
   const [to, setTo] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [locked, setLocked] = useState(false);
   const send = async () => {
     const address = to.trim().toLowerCase();
     if (address && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(address)) { setError("Check the email address."); return; }
@@ -151,7 +164,9 @@ function ResendDialog({ card, onClose, onDone }: { card: any; onClose: () => voi
       toast.success(`Gift card emailed to ${address || card.recipientEmail}`);
       onDone();
     } catch (err: any) {
-      setError(err?.message || "The email couldn't be sent.");
+      const unknown = outcomeUnknown(err);
+      if (unknown) setLocked(true);
+      setError(`${err?.message || "The email couldn't be sent."}${unknown ? ` ${MAYBE_DONE}` : ""}`);
     } finally { setSaving(false); }
   };
   return (
@@ -159,7 +174,7 @@ function ResendDialog({ card, onClose, onDone }: { card: any; onClose: () => voi
       description={card.recipientEmail ? `Sends the gift card email to ${card.recipientEmail} again, or to another address below.` : "Enter the address to send the gift card email to."}
       footer={<>
         <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-        <PrimaryButton onClick={send} disabled={saving}>{saving ? "Sending…" : "Send email"}</PrimaryButton>
+        <PrimaryButton onClick={send} disabled={saving || locked}>{saving ? "Sending…" : "Send email"}</PrimaryButton>
       </>}>
       <div className="rp-stack" style={{ gap: 12 }}>
         <TextField label={card.recipientEmail ? "Send to a different address (optional)" : "Send to"} type="email" value={to} onChange={(e) => setTo(e.target.value)} data-autofocus />

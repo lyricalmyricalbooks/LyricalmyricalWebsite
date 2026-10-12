@@ -90,6 +90,7 @@ export function PageBodyEditor({ value, onChange, onUploading }: {
     for (const file of images) {
       try {
         const { url, alt } = await uploadPicture(file);
+        if (!editor()) { setError("A picture was uploaded but couldn't be placed on the page. Add it again."); continue; }
         index = insertPicture(index, url, alt);
       } catch (err) { setError(uploadErrorMessage(err)); }
       finally { setUploading((n) => n - 1); }
@@ -219,7 +220,12 @@ export function PageBodyEditor({ value, onChange, onUploading }: {
             <img src={picked.src} alt="" className="w-12 h-12 object-cover rounded border border-neutral-200" />
             <p className="text-xs font-bold flex-1">Selected picture</p>
             <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" aria-label="Remove picture"
-              onClick={() => { onPicked((q, i) => q.deleteText(i, 1, "user")); setPicked(null); }}>
+              title="Remove picture (Ctrl+Z in the text puts it back)"
+              onClick={() => {
+                // Focus the text again at the removed picture's place so Ctrl/Cmd+Z can bring it back.
+                onPicked((q, i) => { q.deleteText(i, 1, "user"); q.focus(); q.setSelection(i, 0, "silent"); });
+                setPicked(null);
+              }}>
               <Trash2 size={13} aria-hidden /> Remove
             </button>
           </div>

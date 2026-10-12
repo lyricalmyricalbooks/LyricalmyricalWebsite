@@ -18,11 +18,16 @@ export function GmailSendingCard({ lastProblem = null }: { lastProblem?: { at?: 
   const [check, setCheck] = useState<Check>(null);
   const [confirm, confirmNode] = useConfirm();
 
-  useEffect(() => {
+  // A failed read is "unknown", not "not stored" (which would hide Remove and invite a needless re-entry).
+  const [readFailed, setReadFailed] = useState(false);
+  const loadStored = () => {
+    setReadFailed(false);
+    setStored(null);
     getDoc(doc(db, "adminSecrets", "gmail"))
       .then((snap) => setStored(Boolean(snap.exists() && snap.data()?.appPassword)))
-      .catch(() => setStored(false));
-  }, []);
+      .catch(() => setReadFailed(true));
+  };
+  useEffect(() => { loadStored(); }, []);
 
   const cleaned = draft.replace(/\s+/g, "");
   const valid = /^[a-zA-Z]{16}$/.test(cleaned);
@@ -78,8 +83,13 @@ export function GmailSendingCard({ lastProblem = null }: { lastProblem?: { at?: 
       )}
       <TextField label="Gmail app password" type="password" value={draft} autoComplete="new-password"
         placeholder={stored ? "Stored — enter a new password to replace it" : "16 letters, e.g. abcd efgh ijkl mnop"}
-        hint={stored === null ? "Checking…" : stored ? "✓ A password is stored. It is never shown here." : "Create one at myaccount.google.com › Security › App passwords (2-Step Verification must be on)."}
+        hint={readFailed ? "Couldn't check whether a password is stored." : stored === null ? "Checking…" : stored ? "✓ A password is stored. It is never shown here." : "Create one at myaccount.google.com › Security › App passwords (2-Step Verification must be on)."}
         onChange={(e) => setDraft(e.target.value)} />
+      {readFailed && (
+        <p role="alert" className="rp-hint" style={{ margin: "8px 0 0", color: "var(--rp-danger)" }}>
+          ✕ Couldn't read the saved password status. <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={loadStored}>Try again</button>
+        </p>
+      )}
       <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
         <PrimaryButton disabled={!valid || saving} onClick={() => save(cleaned)}>
           {saving ? "Saving…" : "Save password"}

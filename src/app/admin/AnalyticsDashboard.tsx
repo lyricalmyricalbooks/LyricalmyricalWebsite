@@ -95,16 +95,20 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     setReloadKey(k => k + 1);
   };
 
+  // Only the latest Edit click may open the editor: a slower earlier read is ignored.
+  const editRequest = useRef(0);
   const handleEditClick = async (id: string) => {
     if (!onEditBook) return;
+    const request = ++editRequest.current;
     setFetchingBookId(id);
     try {
       const book = await adminApi.getBook(id);
+      if (request !== editRequest.current) return;
       if (book) onEditBook(book); else toast.error("Could not find book records");
     } catch {
-      toast.error("Failed to load book records");
+      if (request === editRequest.current) toast.error("Failed to load book records");
     } finally {
-      setFetchingBookId(null);
+      if (request === editRequest.current) setFetchingBookId(null);
     }
   };
 

@@ -39,6 +39,7 @@ function OrderTrackingContent() {
   const [error, setError] = useState("");
   const [linkSent, setLinkSent] = useState(false);
   const [digitalItems, setDigitalItems] = useState<DigitalEntry[]>([]);
+  const [downloadNotice, setDownloadNotice] = useState("");
   // How the shopper proved the order is theirs (email typed, or the emailed link key); requests reuse it.
   const [access, setAccess] = useState<{ email?: string; key?: string }>({});
   
@@ -48,7 +49,11 @@ function OrderTrackingContent() {
 
   // If order is already found, check if items have digital formats
   useEffect(() => {
+    // A new lookup (or "Look up another order") never shows the previous order's downloads.
+    setDigitalItems([]);
+    setDownloadNotice("");
     if (!order) return;
+    let cancelled = false;
     // ⚡ Bolt: Eliminate sequential DB reads by fetching all items in the order concurrently.
     async function checkDigitalAssets() {
       const booksById: Record<string, any> = {};
@@ -62,9 +67,10 @@ function OrderTrackingContent() {
         })
       );
       // One download per book and edition; box-set parts included (the server checks the same).
-      setDigitalItems(digitalEntries(order, booksById));
+      if (!cancelled) setDigitalItems(digitalEntries(order, booksById));
     }
     checkDigitalAssets();
+    return () => { cancelled = true; };
   }, [order]);
 
   // The "Unsubscribe" link in reminder and newsletter emails lands here: ?unsubscribe=1&e=…&t=…
@@ -99,8 +105,13 @@ function OrderTrackingContent() {
     let cancelled = false;
     setLoading(true);
     publicApi.getPublicOrder(linkedId, { key })
-      .then((found: any) => { if (!cancelled && found) { setOrder(found); setAccess({ key }); } })
-      .catch(() => {})
+      // A wrong or expired key says so instead of leaving a silent, empty form.
+      .then((found: any) => {
+        if (cancelled) return;
+        if (found) { setOrder(found); setAccess({ key }); }
+        else setError(getCopy(settings?.design, "trackError"));
+      })
+      .catch(() => { if (!cancelled) setError(getCopy(settings?.design, "trackError")); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
@@ -150,7 +161,9 @@ function OrderTrackingContent() {
   };
 
   const handleDownload = (itemId: string, variantId = "") => {
-    if (!order || !order.downloadToken) return;
+    if (!order) return;
+    if (!order.downloadToken) { setDownloadNotice(getCopy(settings?.design, "trackDownloadError")); return; }
+    setDownloadNotice("");
     // The download endpoint authorizes via the secret token issued at
     // payment time, not the (guessable) customer email.
     window.open(
@@ -438,6 +451,7 @@ function OrderTrackingContent() {
                       );
                     })}
                   </ul>
+                  {downloadNotice && <div className="fm-track-notice" data-tone="danger" role="alert"><p>{downloadNotice}</p></div>}
                 </section>
               )}
 

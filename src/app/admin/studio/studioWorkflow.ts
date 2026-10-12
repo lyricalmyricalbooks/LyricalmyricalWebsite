@@ -118,11 +118,19 @@ export function applyCanvasAction(design: any, action: {
   return writeSections(design, owner.surface, sections);
 }
 
-/** Advance server fields while retaining edits made since the request started. */
+/**
+ * Advance server fields while retaining edits made since the request started. `captured` is what the
+ * editor held when Save was pressed (before pasted pictures were uploaded); a field still equal to it was
+ * not edited during the save, so the saved value (e.g. the body with uploaded picture links) wins.
+ */
 export function reconcileSavedPage<T extends Record<string, any>>(current: T | null, captured: T, saved: T): T | null {
   if (!current) return null;
   if (JSON.stringify(current) === JSON.stringify(captured)) return saved;
-  return { ...saved, ...current, id: saved.id, createdAt: saved.createdAt, updatedAt: saved.updatedAt };
+  const edited: Record<string, any> = {};
+  for (const key of Object.keys(current)) {
+    if (JSON.stringify(current[key]) !== JSON.stringify(captured[key])) edited[key] = current[key];
+  }
+  return { ...saved, ...edited, id: saved.id, createdAt: saved.createdAt, updatedAt: saved.updatedAt };
 }
 
 export function updateBlocks(section: Section, key: string, update: (blocks: any[]) => any[]) {

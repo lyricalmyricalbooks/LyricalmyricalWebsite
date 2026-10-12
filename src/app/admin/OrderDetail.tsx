@@ -138,14 +138,26 @@ export function OrderDetail({
     return () => { alive = false; };
   }, []);
   const [emailLog, setEmailLog] = useState<any[] | null>(null);
-  useEffect(() => {
+  const [emailLogFailed, setEmailLogFailed] = useState(false);
+  const orderIdRef = useRef(orderId);
+  orderIdRef.current = orderId;
+  const loadEmailLog = () => {
     setEmailLog(null);
-    adminApi.getOrderEmailLog(orderId).then(setEmailLog).catch(() => setEmailLog([]));
+    setEmailLogFailed(false);
+    const forOrder = orderId;
+    adminApi.getOrderEmailLog(forOrder)
+      .then((rows) => { if (forOrder === orderIdRef.current) setEmailLog(rows); })
+      .catch(() => { if (forOrder === orderIdRef.current) { setEmailLog([]); setEmailLogFailed(true); } });
+  };
+  useEffect(() => {
+    loadEmailLog();
   }, [orderId]);
   const [refundAmount, setRefundAmount] = useState("");
   const [refundOther, setRefundOther] = useState("");
   const [refundRestockLines, setRefundRestockLines] = useState<Record<number, number>>({});
-  const [confirmAction, setConfirmAction] = useState<null | "markPaid" | "mismatch" | "resendConfirmation" | "resetDownloads" | "restockRefunded">(null);
+  const [confirmAction, setConfirmAction] = useState<null | "markPaid" | "mismatch" | "giftConflict" | "requestHandled" | "resendConfirmation" | "resetDownloads" | "restockRefunded">(null);
+  const [confirmReleasePreorder, setConfirmReleasePreorder] = useState(false);
+  const [savingPreset, setSavingPreset] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState<
     "all" | "event" | "note"
   >("all");
@@ -220,10 +232,15 @@ export function OrderDetail({
   // Pickup / local delivery hand-off waiting for confirmation (e.g. "mark the order ready for pickup").
   const [localStep, setLocalStep] = useState<string | null>(null);
   const [emailSettings, setEmailSettings] = useState<Record<string, any> | null>(null);
+  // Settings that failed to load are unknown: never promise (or offer) an email we can't vouch for.
+  const [emailSettingsFailed, setEmailSettingsFailed] = useState(false);
   useEffect(() => {
-    adminApi.getNotificationSettings().then(setEmailSettings).catch(() => setEmailSettings(null));
+    adminApi.getNotificationSettings()
+      .then((s) => { setEmailSettings(s); setEmailSettingsFailed(false); })
+      .catch(() => { setEmailSettings(null); setEmailSettingsFailed(true); });
   }, []);
-  const emailOn = (id: string) => emailSettings?.[id]?.enabled !== false;
+  const emailOn = (id: string) => !emailSettingsFailed && emailSettings?.[id]?.enabled !== false;
+  const emailUnknownText = "Couldn't load your email settings, so it isn't known whether the customer will be emailed. Reload the page to check.";
   const carrierName = trackingCarrier === "Other" ? otherCarrier.trim() : trackingCarrier;
 
   function fillTracking(data: any) {
@@ -260,6 +277,8 @@ export function OrderDetail({
   const [labelReplaced, setLabelReplaced] = useState(false);
   const rawLabel = !!(order?.labelUrl && order?.trackingNumber);
   const hasLabel = rawLabel && !labelReplaced;
+  // Bought with a Shippo test key: not real postage, so it must never be dispatched (see the workbench notice).
+  const testLabel = !!order?.labelUrl && order?.operations?.labelTest === true;
   const [showReplaceLabel, setShowReplaceLabel] = useState(false);
 
   // Fill the tracking link from the carrier and number while the dispatch dialog is open,
@@ -316,7 +335,9 @@ export function OrderDetail({
       toast.success(
         editing
           ? "Tracking updated"
-          : emailOn("shipping_confirmation")
+          : emailSettingsFailed
+            ? "Marked shipped"
+            : emailOn("shipping_confirmation")
             ? `Shipped — tracking emailed to ${order?.customer?.email || "the customer"}`
             : "Marked shipped (shipping email is switched off)",
       );
@@ -458,6 +479,8 @@ export function OrderDetail({
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Failed to refund order.");
+      // A refusal may have recorded something (e.g. a failed refund); don't leave stale actions offered.
+      await loadOrder();
     } finally {
       voidingRef.current = false;
       setIsVoiding(false);
@@ -487,6 +510,12 @@ export function OrderDetail({
       } else if (action === "mismatch") {
         await adminApi.resolvePaymentMismatch(orderId);
         toast.success("Marked as refunded");
+      } else if (action === "giftConflict") {
+        await adminApi.resolvePaymentMismatch(orderId);
+        toast.success("Marked as resolved");
+      } else if (action === "requestHandled") {
+        await adminApi.updateOrder(orderId, { customerRequest: { ...order.customerRequest, status: "handled", handledAt: new Date().toISOString() } });
+        toast.success("Request marked handled.");
       } else if (action === "restockRefunded") {
         const result = await adminApi.restockRefundedOrder(orderId);
         toast.success(`${result?.restocked || "The"} book${result?.restocked === 1 ? " is" : "s are"} back in stock`);
@@ -498,7 +527,7 @@ export function OrderDetail({
         toast.success(`Order confirmation sent again to ${order?.customer?.email || "the customer"}`);
       }
       await loadOrder();
-      adminApi.getOrderEmailLog(orderId).then(setEmailLog).catch(() => {});
+      adminApi.getOrderEmailLog(orderId).then((rows) => { setEmailLog(rows); setEmailLogFailed(false); }).catch(() => {});
     } catch (err: any) {
       // The server's own words (e.g. "Card and PayPal orders are marked paid only when…").
       toast.error(err?.message || "Couldn't update the order.");
@@ -519,6 +548,8 @@ export function OrderDetail({
       toast.success("Unpaid order cancelled");
     } catch (err: any) {
       toast.error(err.message || "Failed to cancel unpaid order.");
+      // e.g. 409 paid_in_stripe records reconciliationPending: show it instead of the stale Cancel button.
+      await loadOrder();
     } finally {
       voidingRef.current = false;
       setIsVoiding(false);
@@ -805,7 +836,7 @@ export function OrderDetail({
             setLocalStep(next);
           }}
           onRelease={() => perform("release")}
-          onReleasePreorder={() => perform("release_preorder")}
+          onReleasePreorder={() => setConfirmReleasePreorder(true)}
           onClearAppLabel={() => setConfirmClearAppLabel(true)}
           onClearLabelLock={() => setConfirmClearLabelLock(true)}
         />
@@ -882,10 +913,7 @@ export function OrderDetail({
                 </div>
               )}
               <p className="fw-summary">A full refund in Stripe clears this by itself. If you settled it another way, mark it here.</p>
-              <SecondaryButton onClick={async () => {
-                try { await adminApi.resolvePaymentMismatch(orderId); toast.success("Marked as resolved"); await loadOrder(); }
-                catch (err: any) { toast.error(err.message || "Couldn't update the order."); }
-              }}>Mark resolved</SecondaryButton>
+              <SecondaryButton disabled={working} onClick={() => setConfirmAction("giftConflict")}>Mark resolved</SecondaryButton>
             </SectionCard>
           )}
           {order.customerRequest?.type === "return" && (order.customerRequest.status === "open" || order.returnProgress) && <ReturnWorkbench key={`${order.id}-${order.returnProgress?.state || "requested"}`} order={order} onUpdated={loadOrder} />}
@@ -900,15 +928,7 @@ export function OrderDetail({
               {order.customerRequest.message && <blockquote className="fw-summary">“{order.customerRequest.message}”</blockquote>}
               <SecondaryButton
                 disabled={working}
-                onClick={async () => {
-                  try {
-                    await adminApi.updateOrder(order.id, { customerRequest: { ...order.customerRequest, status: "handled", handledAt: new Date().toISOString() } });
-                    toast.success("Request marked handled.");
-                    await loadOrder();
-                  } catch (err: any) {
-                    toast.error(err?.message || "Couldn't update the request.");
-                  }
-                }}
+                onClick={() => setConfirmAction("requestHandled")}
               >
                 Mark request handled
               </SecondaryButton>
@@ -1139,6 +1159,11 @@ export function OrderDetail({
         <h3 className="rp-label" style={{ marginTop: 16 }}>Emails about this order</h3>
         {emailLog === null ? (
           <p className="rp-hint">Loading delivery log…</p>
+        ) : emailLogFailed ? (
+          <p className="rp-hint" role="alert">
+            Couldn't load the delivery log for this order.{" "}
+            <SecondaryButton size="sm" onClick={loadEmailLog}>Retry</SecondaryButton>
+          </p>
         ) : emailLog.length ? (
           <ol className="fw-activity" aria-label="Emails about this order">
             {emailLog.map((row: any) => (
@@ -1229,8 +1254,10 @@ export function OrderDetail({
                 />
               </div>
               <SecondaryButton
-                disabled={!presetName.trim() || !parcelValid}
+                disabled={savingPreset || !presetName.trim() || !parcelValid}
                 onClick={async () => {
+                  if (savingPreset) return;
+                  setSavingPreset(true);
                   const next = [
                     ...presets.filter((p) => p.name !== presetName.trim()),
                     { name: presetName.trim().slice(0, 60), parcel },
@@ -1241,10 +1268,12 @@ export function OrderDetail({
                     toast.success("Parcel preset saved");
                   } catch {
                     toast.error("Could not save preset");
+                  } finally {
+                    setSavingPreset(false);
                   }
                 }}
               >
-                Save preset
+                {savingPreset ? "Saving…" : "Save preset"}
               </SecondaryButton>
             </div>
           </details>
@@ -1272,7 +1301,7 @@ export function OrderDetail({
             <PrimaryButton
               disabled={
                 isShipping ||
-                (showShipForm === "dispatch" && !!problem) ||
+                (showShipForm === "dispatch" && (!!problem || testLabel)) ||
                 (!hasLabel && (!trackingNumber.trim() || !carrierName)) ||
                 (!!trackingLink.trim() && !cleanTrackingLink(trackingLink))
               }
@@ -1353,9 +1382,16 @@ export function OrderDetail({
               Test tracking link <ExternalLink size={12} aria-hidden />
             </a>
           )}
+          {showShipForm === "dispatch" && testLabel && (
+            <p className="fw-problems" role="alert" style={{ margin: 0 }}>
+              This is a TEST label bought with a Shippo test key, so it won't carry a parcel. Close this, use Wrong label? Replace it and buy a live label before shipping.
+            </p>
+          )}
           {showShipForm === "dispatch" && (
             <p className="rp-hint" role="status" style={{ margin: 0 }}>
-              {emailOn("shipping_confirmation")
+              {emailSettingsFailed
+                ? emailUnknownText
+                : emailOn("shipping_confirmation")
                 ? `Customer will be emailed: Shipping confirmation to ${order.customer?.email || "their address"}, with the tracking link.`
                 : "The Shipping confirmation email is switched off (Settings › Email sender), so the customer will not be emailed."}
             </p>
@@ -1433,7 +1469,9 @@ export function OrderDetail({
         }
       >
         <p className="rp-hint" style={{ margin: 0 }}>
-          {emailOn("shipping_confirmation")
+          {emailSettingsFailed
+            ? emailUnknownText
+            : emailOn("shipping_confirmation")
             ? `${order.trackingCarrier || "Carrier"} · ${order.trackingNumber || "No tracking recorded"}`
             : "The Shipping confirmation email is switched off in Settings › Email sender."}
         </p>
@@ -1731,6 +1769,30 @@ export function OrderDetail({
         onCancel={() => setConfirmAction(null)}
       />
       <ConfirmDialog
+        open={confirmAction === "giftConflict"}
+        title="Mark this gift card problem resolved?"
+        confirmLabel="Mark resolved"
+        message="Only mark this resolved if you refunded or settled it elsewhere. This clears the warning from Needs attention; it does not move any money or mark the order paid."
+        onConfirm={runConfirmed}
+        onCancel={() => setConfirmAction(null)}
+      />
+      <ConfirmDialog
+        open={confirmAction === "requestHandled"}
+        title="Mark the customer's request handled?"
+        confirmLabel="Mark handled"
+        message="The request leaves Needs attention and can't be reopened. Nothing is cancelled, refunded or emailed — do that from More order actions first if you agreed to it."
+        onConfirm={runConfirmed}
+        onCancel={() => setConfirmAction(null)}
+      />
+      <ConfirmDialog
+        open={confirmReleasePreorder}
+        title="Ship this pre-order now?"
+        confirmLabel="Ready to ship now"
+        message="Only continue if every pre-ordered book on this order is in the shop. The order moves to Ready to pack before its release date and stays there even if the date changes."
+        onConfirm={() => { setConfirmReleasePreorder(false); void perform("release_preorder"); }}
+        onCancel={() => setConfirmReleasePreorder(false)}
+      />
+      <ConfirmDialog
         open={confirmAction === "restockRefunded"}
         title="Put the books back in stock?"
         confirmLabel="Put them back"
@@ -1750,7 +1812,9 @@ export function OrderDetail({
         open={confirmAction === "resendConfirmation"}
         title="Resend order confirmation?"
         confirmLabel="Resend email"
-        message={emailOn("order_confirmation")
+        message={emailSettingsFailed
+          ? emailUnknownText
+          : emailOn("order_confirmation")
           ? `Sends the Order confirmed email to ${order.customer?.email || "the customer"} again. The shop's new-order email is not repeated.`
           : "The Order confirmation email is switched off in Settings › Email sender, so nothing will be sent."}
         onConfirm={runConfirmed}

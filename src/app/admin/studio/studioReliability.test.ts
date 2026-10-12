@@ -50,6 +50,16 @@ describe("Studio editing reliability", () => {
     expect(reconcileSavedPage(captured, captured, saved)).toEqual(saved);
     expect(reconcileSavedPage(null, captured, saved)).toBeNull();
   });
+  it("takes the uploaded body after a save that uploaded pasted pictures", () => {
+    const sent = { id: "p1", title: "About", body: '<p><img src="data:image/png;base64,AAAA"></p>' };
+    const saved = { ...sent, body: '<p><img src="https://cdn/x.webp"></p>', updatedAt: "saved" };
+    // Nothing edited during the save: the uploaded body replaces the pasted one.
+    expect(reconcileSavedPage(sent, sent, saved)).toEqual(saved);
+    // Only the title changed during the save: keep it, but still take the uploaded body.
+    expect(reconcileSavedPage({ ...sent, title: "About us" }, sent, saved)).toMatchObject({ title: "About us", body: saved.body });
+    // The body itself changed during the save: the newer typing wins.
+    expect(reconcileSavedPage({ ...sent, body: "<p>New</p>" }, sent, saved)).toMatchObject({ body: "<p>New</p>" });
+  });
   it("checks nested global and custom-page images and reports manual checks as warnings", () => {
     const checks = designChecks({
       globalSections: [{ id: "global", type: "CompositionSection", settings: { items: [

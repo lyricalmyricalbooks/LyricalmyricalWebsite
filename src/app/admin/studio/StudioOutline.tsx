@@ -71,13 +71,23 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
   useEffect(() => { setPicked(p => p.filter(id => sections.some(s => s.id === id))); }, [sections]);
   const pick = (id: string, range: boolean) => setPicked(prev => {
     if (range && lastPick.current) {
-      const a = sections.findIndex(s => s.id === lastPick.current), b = sections.findIndex(s => s.id === id);
-      if (a >= 0 && b >= 0) { const span = sections.slice(Math.min(a, b), Math.max(a, b) + 1).map(s => s.id); return [...new Set([...prev, ...span])]; }
+      // While searching, a range covers only the rows on screen, never hidden sections in between.
+      const rows = visibleRows();
+      const a = rows.findIndex(s => s.id === lastPick.current), b = rows.findIndex(s => s.id === id);
+      if (a >= 0 && b >= 0) { const span = rows.slice(Math.min(a, b), Math.max(a, b) + 1).map(s => s.id); return [...new Set([...prev, ...span])]; }
     }
     lastPick.current = id;
     return prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
   });
   const menus = useRef(new Map<string, HTMLDetailsElement>());
+  // A row's ··· menu closes when the owner clicks anywhere outside it.
+  useEffect(() => {
+    const close = (e: PointerEvent) => {
+      for (const menu of menus.current.values()) if (menu.open && !menu.contains(e.target as Node)) menu.open = false;
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, []);
   const openMenu = (id: string, e: MouseEvent) => {
     const menu = menus.current.get(id); if (!menu) return;
     e.preventDefault(); menu.open = true; menu.querySelector<HTMLButtonElement>("div button")?.focus();
@@ -85,6 +95,7 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
   const [query, setQuery] = useState("");
   const searching = Boolean(query.trim());
   const matches = sections.filter(s => outlineMatches(s, query, getSectionMeta(s.type)?.label));
+  function visibleRows() { return searching ? matches : sections; }
   const previousSelection = useRef(selectedId);
   useEffect(() => {
     if (previousSelection.current === selectedId) return;
@@ -111,7 +122,7 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
       {actions.canPasteStyle && <button onClick={() => actions.pasteStyle(picked)}>Paste style</button>}
       <button onClick={() => actions.moveToPage(picked)}>Move to page…</button>
       <button onClick={() => { actions.remove(picked); setPicked([]); }}>Delete</button>
-      <button onClick={() => setPicked(sections.map(s => s.id))}>Select all</button>
+      <button onClick={() => setPicked(visibleRows().map(s => s.id))}>Select all</button>
       <button onClick={() => setPicked([])}>Clear</button>
     </div>}
     <p className="studio-hint">Drag a handle to reorder. Right-click a section for more actions; Ctrl/⌘-click to pick several.</p>
@@ -134,7 +145,8 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
                 data-hovered={hoveredId === section.id} onMouseEnter={() => onHover?.(section.id)} onMouseLeave={() => onHover?.(null)}
                 onContextMenu={e => openMenu(section.id, e)}>
                 <button {...(searching ? {} : handleProps)} disabled={searching} className="studio-grip" aria-label={`Reorder ${meta?.label || section.type}`}><GripVertical size={15} /></button>
-                {supportsBlocks && <button className="studio-expand" aria-label={`Expand ${meta?.label}`} aria-expanded={open} onClick={() => setExpanded(prev => {
+                {supportsBlocks && <button className="studio-expand" aria-label={`Expand ${meta?.label}`} aria-expanded={open} disabled={searching}
+                  title={searching ? "Matching sections stay open while you search" : undefined} onClick={() => setExpanded(prev => {
                   const next = new Set(prev); next.has(section.id) ? next.delete(section.id) : next.add(section.id); return next;
                 })}><ChevronDown size={14} style={{ transform: open ? undefined : "rotate(-90deg)" }} /></button>}
                 <button className="studio-tree-label" aria-current={selectedId === section.id && !blockId} aria-pressed={actions ? picked.includes(section.id) : undefined}
@@ -144,7 +156,11 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
                 </button>
                 <IconButton label={section.visible === false ? "Show section" : "Hide section"} onClick={() => onToggle(section.id)}>{section.visible === false ? <EyeOff size={14} /> : <Eye size={14} />}</IconButton>
                 <details className="studio-row-menu" ref={el => { if (el) menus.current.set(section.id, el); else menus.current.delete(section.id); }}
-                  onKeyDown={e => { if (e.key === "Escape") (e.currentTarget as HTMLDetailsElement).open = false; }}
+                  onKeyDown={e => {
+                    if (e.key !== "Escape") return;
+                    const menu = e.currentTarget as HTMLDetailsElement;
+                    menu.open = false; menu.querySelector<HTMLElement>("summary")?.focus();
+                  }}
                   onClick={e => { if ((e.target as HTMLElement).closest("div button")) (e.currentTarget as HTMLDetailsElement).open = false; }}>
                   <summary aria-label={`Actions for ${(section as any).label || meta?.label}`}>···</summary><div>
                   {!searching && <>

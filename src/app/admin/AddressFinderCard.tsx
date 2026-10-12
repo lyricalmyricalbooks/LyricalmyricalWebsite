@@ -24,11 +24,16 @@ export function AddressFinderCard() {
   const [check, setCheck] = useState<Check>(null);
   const [confirm, confirmNode] = useConfirm();
 
-  useEffect(() => {
+  // A failed read is "unknown", not "not stored" (which would hide Remove and invite a needless re-entry).
+  const [readFailed, setReadFailed] = useState(false);
+  const loadStored = () => {
+    setReadFailed(false);
+    setStored(null);
     getDoc(doc(db, "adminSecrets", "addressLookup"))
       .then((snap) => setStored(Boolean(snap.exists() && snap.data()?.googlePlacesKey)))
-      .catch(() => setStored(false));
-  }, []);
+      .catch(() => setReadFailed(true));
+  };
+  useEffect(() => { loadStored(); }, []);
 
   const cleaned = draft.trim();
   const problem = googleKeyProblem(cleaned);
@@ -95,9 +100,14 @@ export function AddressFinderCard() {
       </ol>
       <TextField label="Google Maps Platform API key" type="password" value={draft} autoComplete="off"
         placeholder={stored ? "Stored — enter a new key to replace it" : "AIza…"}
-        hint={stored === null ? "Checking…" : stored ? "✓ A key is stored. It is never shown here." : "No key yet: checkout uses the free OpenStreetMap suggestions."}
+        hint={readFailed ? "Couldn't check whether a key is stored." : stored === null ? "Checking…" : stored ? "✓ A key is stored. It is never shown here." : "No key yet: checkout uses the free OpenStreetMap suggestions."}
         error={problem || undefined}
         onChange={(e) => setDraft(e.target.value)} />
+      {readFailed && (
+        <p role="alert" className="rp-hint" style={{ margin: "8px 0 0", color: "var(--rp-danger)" }}>
+          ✕ Couldn't read the saved key status. <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={loadStored}>Try again</button>
+        </p>
+      )}
       <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
         <PrimaryButton disabled={!cleaned || Boolean(problem) || saving} onClick={() => save(cleaned)}>
           {saving ? "Saving…" : "Save key"}

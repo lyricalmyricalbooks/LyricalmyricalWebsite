@@ -20,6 +20,22 @@ export function addSavedTheme(list: SavedTheme[] | undefined, name: string, desi
   return [entry, ...rest].slice(0, MAX_SAVED_THEMES);
 }
 
+/** The theme already called `name` (any capitalisation), other than `exceptId`: saving or renaming onto it replaces it. */
+export function themeNamed(list: SavedTheme[] | undefined, name: string, exceptId?: string): SavedTheme | undefined {
+  const clean = name.trim().slice(0, 60).toLowerCase() || "untitled theme";
+  return (list || []).find((t) => t.id !== exceptId && t.name.toLowerCase() === clean);
+}
+
+/**
+ * Why a new theme called `name` can't be added, or null. At the cap, adding would silently drop the oldest
+ * theme (`addSavedTheme` keeps only MAX_SAVED_THEMES), so Studio refuses instead; replacing a same-named theme is fine.
+ */
+export function savedThemeLimitProblem(list: SavedTheme[] | undefined, name: string): string | null {
+  if (themeNamed(list, name)) return null;
+  return (list || []).length >= MAX_SAVED_THEMES
+    ? `You have the maximum of ${MAX_SAVED_THEMES} themes. Delete one in My themes first.` : null;
+}
+
 export const removeSavedTheme = (list: SavedTheme[] | undefined, id: string) => (list || []).filter((t) => t.id !== id);
 
 const clone = (v: any) => JSON.parse(JSON.stringify(v ?? {}));

@@ -279,6 +279,10 @@ catalog when `showHero` is off and a template-less book link to the book's alter
 outside a section fall through to element selection; a clicked repeated part is kept (`pickedEl`). The canvas/edit maps
 cover `headerSections` and `overlaySections`. "cookie" is a Studio pop-over (`STUDIO_OVERLAYS`; the preview never writes
 consent). Checkout's Pay does nothing in `?preview=true` (`coPreviewNoPay`). Outline rows show `sectionPreviewNote`.
+**Button audit (12 October 2026):** Studio toast Undo buttons go through `undoAction()` (undoes only the change it names);
+the checkout `<form>` blocks Enter-submission from text inputs (only Pay submits); Orders bulk actions act only on visible
+rows (selection is pruned to `filteredOrders`); Books-page inline stock uses `inventoryApi.adjustStock`; My themes refuse
+to save past `MAX_SAVED_THEMES` instead of dropping the oldest. New shopper words from the audit are in Text & labels.
 
 Preview canvas actions resolve section ownership and block arrays from the
 current draft, including global sections and dynamic `page:<slug>` templates.

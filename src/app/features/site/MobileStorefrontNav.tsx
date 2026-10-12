@@ -1,14 +1,24 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { accountsEnabled } from "./customerAccounts";
 import { Link, useLocation } from "react-router";
 import { navActiveColor } from "./headerNav";
 import { CurrencySelector } from "../../CurrencyContext";
 import { splitNavigation, buildNavItems } from "./navItems";
 import { getCopy } from "./storeCopy";
+import { ThemeToggle } from "../../components/theme/ThemeToggle";
 
-export function MobileStorefrontNav({ design, pages, onSearch }: { design: any; pages: any[]; onSearch: () => void }) {
+export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle = false }: { design: any; pages: any[]; onSearch: () => void; showThemeToggle?: boolean }) {
   const ref = useRef<HTMLDetailsElement>(null);
   const { pathname } = useLocation();
+  // A tap or click outside the open menu closes it (like the category drop-downs).
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      const el = ref.current;
+      if (el?.open && !el.contains(e.target as Node)) el.open = false;
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, []);
   const d = { ...design, ...design?.storefront };
   const close = () => { if (ref.current) ref.current.open = false; };
   const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -32,6 +42,7 @@ export function MobileStorefrontNav({ design, pages, onSearch }: { design: any; 
       {!d.hideHeaderWishlist && <Link className={linkClass} onClick={close} to="/wishlist">{getCopy(design, "ariaWishlist")}</Link>}
       {!d.hideHeaderAccount && accountsEnabled(design) && <Link className={linkClass} onClick={close} to="/account">{getCopy(design, "ariaAccount")}</Link>}
       {!d.hideCurrencySelector && <div className="px-6 py-3"><CurrencySelector label={getCopy(design, "currencyLabel")} ariaLabel={getCopy(design, "ariaCurrency")} /></div>}
+      {showThemeToggle && <div className="px-6 py-3"><ThemeToggle label={getCopy(design, "ariaThemeToggle")} /></div>}
     </nav>
   </details>;
 }

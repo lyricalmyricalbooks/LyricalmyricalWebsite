@@ -16,6 +16,8 @@ export function stockAlertId(email: string, bookId: string, variantId = "") {
 /**
  * Saves one alert. The Studio preview runs the real storefront, so there it writes nothing (an alert would email the
  * owner's test address at the next restock). One alert per address + book + edition (the id): asking twice is done.
+ * The fields are kept inside firestore.rules' limits, so a "permission-denied" answer means the alert already
+ * exists (shoppers may create, never overwrite); every other failure (network, unavailable…) is thrown.
  */
 export async function saveStockAlert(input: { email: string; bookId: string; bookTitle: string; variantId?: string; variantName?: string }): Promise<void> {
   if (inEditorPreview()) return;
@@ -23,9 +25,9 @@ export async function saveStockAlert(input: { email: string; bookId: string; boo
   await setDoc(doc(liteDb, "stockAlerts", stockAlertId(clean, input.bookId, input.variantId || "")), {
     email: clean,
     bookId: input.bookId,
-    bookTitle: input.bookTitle,
+    bookTitle: String(input.bookTitle || "").slice(0, 300),
     variantId: input.variantId || "",
-    variantName: input.variantName || "",
+    variantName: String(input.variantName || "").slice(0, 120),
     status: "waiting",
     createdAt: new Date().toISOString(),
   }).catch((err: any) => { if (err?.code !== "permission-denied") throw err; });
@@ -51,7 +53,8 @@ export default function BackInStockForm({
   variantName?: string;
 }) {
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  // "error" = the address doesn't look right; "failed" = the signup couldn't be saved (network, outage…).
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error" | "failed">("idle");
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,7 +68,7 @@ export default function BackInStockForm({
       setStatus("success");
       setEmail("");
     } catch {
-      setStatus("error");
+      setStatus("failed");
     }
   };
 
@@ -94,8 +97,8 @@ export default function BackInStockForm({
           </button>
         </form>
       )}
-      {status === "error" && (
-        <p role="alert" className="mt-2 text-xs opacity-80">{getCopy(design, "alertError")}</p>
+      {(status === "error" || status === "failed") && (
+        <p role="alert" className="mt-2 text-xs opacity-80">{getCopy(design, status === "failed" ? "alertSaveError" : "alertError")}</p>
       )}
     </>
   );

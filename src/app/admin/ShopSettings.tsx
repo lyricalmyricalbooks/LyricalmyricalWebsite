@@ -76,6 +76,8 @@ export function ShopSettings({
 }: any) {
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
+  // A failed read must not look like "No shipping profiles".
+  const [profilesError, setProfilesError] = useState(false);
   // Payments › Shippo opens Shipping straight on Carrier & labels.
   const [shippingStart, setShippingStart] = useState<"overview" | "carrier">("overview");
 
@@ -87,8 +89,10 @@ export function ShopSettings({
     try {
       const b = await adminApi.getShippingProfiles();
       setShippingProfiles(b);
+      setProfilesError(false);
     } catch (err) {
       console.error(err);
+      setProfilesError(true);
     }
   }
 
@@ -132,7 +136,7 @@ export function ShopSettings({
           className="space-y-12"
         >
           {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} onUnderConstruction={onUnderConstruction} />}
-          {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} refreshProfiles={loadShippingProfiles} initialView={shippingStart} />}
+          {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} profilesError={profilesError} refreshProfiles={loadShippingProfiles} initialView={shippingStart} />}
           {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} setOriginalSettings={setOriginalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection}
             onOpenShipping={() => { setActiveTab("shipping"); setShippingStart("carrier"); }} onOpenOrders={onOpenOrders} onOpenNotifications={() => setActiveTab("notifications")} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
@@ -160,7 +164,8 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const dirty = SECTIONS.filter((k) => hasChanges(k));
   useSettingsDirty("general", dirty.length > 0);
   const [confirmMaintenance, setConfirmMaintenance] = useState(false);
-  const set = (section: string, patch: any) => setSettings({ ...settings, [section]: { ...settings[section], ...patch } });
+  // Functional update: a set after an await (e.g. the store-status confirm) must not restore stale values.
+  const set = (section: string, patch: any) => setSettings((prev: any) => ({ ...prev, [section]: { ...prev?.[section], ...patch } }));
 
   const saveAll = async () => {
     // A failed section already shows its own error; only announce success when all saved.
@@ -186,7 +191,8 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
             if (next === status) return;
             // The wall is published straight away (same switch as the top bar); maintenance waits for Save.
             if (next === "construction") { await onUnderConstruction?.(true); return; }
-            if (wall) await onUnderConstruction?.(false);
+            // `false` = the owner cancelled taking the wall down; stop without touching maintenance.
+            if (wall && (await onUnderConstruction?.(false)) === false) return;
             if (next === "maintenance") setConfirmMaintenance(true);
             else set("maintenance", { enabled: false });
           };
@@ -366,10 +372,11 @@ function normalizeRate(r: any) {
   };
 }
 
-function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" }: any) {
+function ShippingSettings({ profiles, profilesError = false, refreshProfiles, initialView = "overview" }: any) {
   const localFulfillmentDraft = useLocalFulfillmentDraft();
   const [askConfirm, confirmNode] = useConfirm();
   const [books, setBooks] = useState<any[]>([]);
+  const [booksError, setBooksError] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [editingProfile, setEditingProfile] = useState<any | null>(null);
   const [shippingView, setShippingView] = useState<"overview" | "profiles" | "carrier" | "local">(initialView);
@@ -428,6 +435,7 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
   };
 
   const handleSaveShippoApiKey = async () => {
+    if (shippoSaving) return;
     const apiKey = shippoApiKey.trim();
     if (!apiKey) {
       setShippoMessage({ type: "error", text: "Enter your Shippo API key before saving." });
@@ -453,8 +461,10 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
     try {
       const b = await adminApi.getAllBooks();
       setBooks(b);
+      setBooksError(false);
     } catch (err) {
       console.error(err);
+      setBooksError(true);
     }
   };
 
@@ -463,8 +473,11 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
     setEditingProfile(JSON.parse(JSON.stringify(profile)));
   };
 
+  const [creatingProfile, setCreatingProfile] = useState(false);
   const handleCreateProfile = async () => {
-    if (!newProfileName.trim()) return;
+    // A double click must not create two profiles.
+    if (!newProfileName.trim() || creatingProfile) return;
+    setCreatingProfile(true);
     try {
       const newProf = await adminApi.createShippingProfile({ name: newProfileName, zones: [] });
       setNewProfileName("");
@@ -473,6 +486,8 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
       handleSelectProfile(newProf);
     } catch {
       toast.error("Error creating shipping profile");
+    } finally {
+      setCreatingProfile(false);
     }
   };
 
@@ -528,7 +543,10 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
     setIsProductModalOpen(true);
   };
 
+  const [savingProducts, setSavingProducts] = useState(false);
   const handleSaveProducts = async () => {
+    if (savingProducts) return;
+    setSavingProducts(true);
     try {
       const wasAssigned = books.filter((b: any) => b.shippingProfileId === editingProfile.id).map((b: any) => b.id);
       const removed = wasAssigned.filter((id: string) => !selectedProductIds.includes(id));
@@ -538,6 +556,8 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
       setIsProductModalOpen(false);
     } catch {
       toast.error("Error updating product assignments");
+    } finally {
+      setSavingProducts(false);
     }
   };
 
@@ -700,7 +720,7 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
         description={`Books that use the “${editingProfile.name}” shipping rates.`}
         footer={<>
           <SecondaryButton onClick={() => setIsProductModalOpen(false)}>Cancel</SecondaryButton>
-          <PrimaryButton onClick={handleSaveProducts}>Save assignments ({selectedProductIds.length})</PrimaryButton>
+          <PrimaryButton onClick={handleSaveProducts} disabled={savingProducts}>{savingProducts ? "Saving…" : `Save assignments (${selectedProductIds.length})`}</PrimaryButton>
         </>}>
         <SearchField label="Search catalog" placeholder="Search catalog by title…" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} data-autofocus />
         <ul className="rp-list" style={{ marginTop: 12, maxHeight: 360, overflowY: "auto", border: "1px solid var(--rp-border)" }} aria-label="Books">
@@ -850,6 +870,11 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
           { id: "local", label: "Pickup & local delivery" },
         ]} />
         {shippingView === "local" && <LocalFulfillmentSettings draft={localFulfillmentDraft} />}
+        {(shippingView === "overview" || shippingView === "profiles") && (profilesError || booksError) && (
+          <ErrorState title="Couldn't load shipping details"
+            description={profilesError ? "Your shipping profiles couldn't be read, so this page may look empty when it isn't. Check your connection and try again." : "Your catalog couldn't be read, so assigned-book counts and checks may be wrong. Check your connection and try again."}
+            onRetry={() => { if (profilesError) refreshProfiles(); if (booksError) loadBooks(); }} />
+        )}
 
         {shippingView === "overview" && (
           <>
@@ -955,7 +980,7 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
                 placeholder={shippoConnected ? "Paste a new key to replace the current one" : "Paste your Shippo API key"}
                 hint="Saved to the protected backend; the full key is never loaded back into this page."
                 onChange={(e) => { setShippoApiKey(e.target.value); if (shippoMessage) setShippoMessage(null); }}
-                onKeyDown={(e) => { if (e.key === "Enter") handleSaveShippoApiKey(); }} />
+                onKeyDown={(e) => { if (e.key === "Enter" && !shippoSaving) handleSaveShippoApiKey(); }} />
             </div>
             <SecondaryButton onClick={() => setShowShippoApiKey((v) => !v)} aria-pressed={showShippoApiKey}>{showShippoApiKey ? "Hide key" : "Show key"}</SecondaryButton>
             <PrimaryButton onClick={handleSaveShippoApiKey} disabled={shippoSaving || !shippoApiKey.trim()}>{shippoSaving ? "Saving…" : "Save & sync"}</PrimaryButton>
@@ -981,13 +1006,13 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
               <span />
               <span style={{ display: "flex", gap: 8 }}>
                 <SecondaryButton onClick={() => { setIsCreatingProfile(false); setNewProfileName(""); }}>Cancel</SecondaryButton>
-                <PrimaryButton onClick={handleCreateProfile} disabled={!newProfileName.trim()}>Create profile</PrimaryButton>
+                <PrimaryButton onClick={handleCreateProfile} disabled={!newProfileName.trim() || creatingProfile}>{creatingProfile ? "Creating…" : "Create profile"}</PrimaryButton>
               </span>
             </div>
           </SectionCard>
         )}
 
-        {profiles.length === 0 ? (
+        {profiles.length === 0 && profilesError ? null : profiles.length === 0 ? (
           <SectionCard><EmptyState icon="🚚" title="No shipping profiles" description="Create a profile with at least one zone and rate so customers can check out." /></SectionCard>
         ) : (
           <ul className="rp-stack" style={{ listStyle: "none", margin: 0, padding: 0 }} aria-label="Shipping profiles">
@@ -1136,10 +1161,15 @@ function ShippingSettings({ profiles, refreshProfiles, initialView = "overview" 
 
 function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications }: any) {
   const [data, setData] = useState<{ orders: any[]; webhook: any; emailLog: any[] } | null>(null);
+  // Reads that failed: their steps are unknown, not "not done".
+  const [failed, setFailed] = useState<string[]>([]);
   const load = async () => {
+    const missed: string[] = [];
+    const soft = <T,>(p: Promise<T>, label: string, fallback: T) => p.catch(() => { missed.push(label); return fallback; });
     const [orders, webhook, emailLog] = await Promise.all([
-      adminApi.getOrders(50).catch(() => []), adminApi.getStripeWebhookStatus().catch(() => null), adminApi.getRecentEmailLog(100).catch(() => []),
+      soft(adminApi.getOrders(50), "orders", [] as any[]), soft(adminApi.getStripeWebhookStatus(), "Stripe webhook status", null as any), soft(adminApi.getRecentEmailLog(100), "email log", [] as any[]),
     ]);
+    setFailed(missed);
     setData({ orders, webhook, emailLog });
   };
   useEffect(() => { load(); }, []);
@@ -1155,6 +1185,7 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications }: an
     <SectionCard title="Test sale walkthrough" description="Rehearse one complete sale before taking real money. Steps tick themselves from your saved settings, orders, Stripe and the email log."
       actions={<SecondaryButton size="sm" onClick={load}>Check again</SecondaryButton>}>
       <p className="rp-hint" style={{ marginTop: 0 }}>{data ? `${doneCount} of ${steps.length} done.` : "Checking…"}</p>
+      {failed.length > 0 && <p role="alert" className="rp-hint" style={{ marginTop: 0, color: "var(--rp-danger)" }}>Couldn't read the {failed.join(", ")} — steps that depend on {failed.length === 1 ? "it" : "them"} are unknown, not necessarily undone. Press Check again.</p>}
       <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }} aria-label="Test sale steps">
         {steps.map((st, i) => (
           <li key={st.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 0", borderTop: i ? "1px solid var(--rp-divider)" : undefined }}>
@@ -1187,6 +1218,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
   // Bumped on save/discard so the write-only key boxes clear with the state.
   const [secretFieldsKey, setSecretFieldsKey] = useState(0);
   const [removingKey, setRemovingKey] = useState<null | "live" | "test">(null);
+  const [registeringDomain, setRegisteringDomain] = useState(false);
   const removeStoredKey = async (mode: "live" | "test") => {
     if (!(await askConfirm({ title: `Remove the stored ${mode} secret key?`, message: mode === "live" ? "Live checkout will use the key set in Firebase Functions (if any) until you enter a new one." : "Test (sandbox) checkout won't work until you enter a new test key.", confirmLabel: "Remove key" }))) return;
     setRemovingKey(mode);
@@ -1195,7 +1227,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
       const flag = mode === "live" ? "secretKeyStored" : "testSecretKeyStored";
       const field = mode === "live" ? "secretKey" : "testSecretKey";
       const patchOf = (prev: any) => ({ ...prev, payments: { ...prev?.payments, stripe: { ...prev?.payments?.stripe, [flag]: false, [field]: "" } } });
-      setSettings(patchOf(settings));
+      setSettings(patchOf);
       setOriginalSettings?.(patchOf);
       setSecretFieldsKey((k) => k + 1);
       toast.success(`Stored ${mode} secret key removed`);
@@ -1215,7 +1247,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
       const flag = mode === "live" ? "clientSecretStored" : "testClientSecretStored";
       const field = mode === "live" ? "clientSecret" : "testClientSecret";
       const patchOf = (prev: any) => ({ ...prev, payments: { ...prev?.payments, paypal: { ...prev?.payments?.paypal, [flag]: false, [field]: "" } } });
-      setSettings(patchOf(settings));
+      setSettings(patchOf);
       setOriginalSettings?.(patchOf);
       setSecretFieldsKey((k) => k + 1);
       toast.success(`Stored ${mode} PayPal secret removed`);
@@ -1423,14 +1455,18 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
                 <p className="rp-hint" style={{ marginTop: 0 }}>
                   Wallet buttons only show in the card form once this site's address is registered with Stripe. Save your Stripe keys first.
                 </p>
-                <SecondaryButton size="sm" onClick={async () => {
+                <SecondaryButton size="sm" disabled={registeringDomain} onClick={async () => {
+                  if (registeringDomain) return;
+                  setRegisteringDomain(true);
                   try {
                     const r = await adminApi.registerStripePaymentDomain(window.location.origin);
                     toast.success(`${r.domain}: Apple Pay ${r.applePay}, Google Pay ${r.googlePay}`);
                   } catch (err: any) {
-                    toast.error(err.message);
+                    toast.error(err.message || "Couldn't register this site with Stripe");
+                  } finally {
+                    setRegisteringDomain(false);
                   }
-                }}>Register this site with Stripe</SecondaryButton>
+                }}>{registeringDomain ? "Registering…" : "Register this site with Stripe"}</SecondaryButton>
               </div>
               <StripeWebhookHealth unsaved={dirty} />
             </>

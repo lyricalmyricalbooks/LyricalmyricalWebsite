@@ -161,7 +161,10 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
       setDrafts((d) => { const { [m.id]: _, ...rest } = d; return rest; });
       toast(`Reply sent to ${m.email}`, { tone: "ok" });
       loadTotals();
-    } catch (e: any) { toast(e?.message || "The reply was not sent.", { tone: "err" }); }
+    } catch (e: any) {
+      // The server may have sent it before the answer was lost: keep the draft and say so, so it isn't sent twice blindly.
+      toast(`${e?.message ? `${e.message} ` : ""}The reply may not have been sent — check the thread before sending again.`, { tone: "err" });
+    }
     finally { setSending(null); }
   };
 
@@ -221,7 +224,7 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
                 <Checkbox label={chosen.length ? `${chosen.length} selected` : "Select all"} checked={allChosen}
                   onChange={(e) => setSelected(e.target.checked ? new Set(list.map((m) => m.id)) : new Set())} />
                 {chosen.length > 0 && <>
-                  <SecondaryButton size="sm" onClick={async () => { if (await setStatuses(chosen, (m) => (hasReplied(m) ? "replied" : "read"))) setSelected(new Set()); }}>Mark read</SecondaryButton>
+                  {filter !== "archived" && <SecondaryButton size="sm" onClick={async () => { if (await setStatuses(chosen, (m) => (hasReplied(m) ? "replied" : "read"))) setSelected(new Set()); }}>Mark read</SecondaryButton>}
                   {filter === "archived"
                     ? <SecondaryButton size="sm" onClick={async () => { if (await setStatuses(chosen, restoredStatus)) setSelected(new Set()); }}>Move to inbox</SecondaryButton>
                     : <SecondaryButton size="sm" onClick={() => archive(chosen)}>Archive</SecondaryButton>}

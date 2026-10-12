@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { adminApi } from './api';
 import type { LocalFulfillmentConfig } from '../features/site/types';
 import { quoteLocalFulfillment, validateLocalFulfillment } from '../features/site/localFulfillment';
-import { SecondaryButton, DestructiveButton, SectionCard, TextField, TextArea, Toggle, SelectField, SaveBar } from './riso/components';
+import { SecondaryButton, DestructiveButton, SectionCard, TextField, TextArea, Toggle, SelectField, SaveBar, useConfirm } from './riso/components';
 import { useSettingsDirty } from './settingsDirty';
 
 // Toronto postal codes all begin with M.
@@ -42,6 +42,14 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
   const dirty = loaded && !!saved && JSON.stringify(saved) !== JSON.stringify(config);
   useSettingsDirty('local-fulfillment', dirty);
   const [postal, setPostal] = useState('');
+  const [askConfirm, confirmNode] = useConfirm();
+  // The chosen "Who can choose pickup" mode per location: a custom list of just ['M'] would otherwise read back as Toronto only.
+  const [areaModes, setAreaModes] = useState<Record<string, 'toronto' | 'custom' | 'everyone'>>({});
+  async function remove(kind: 'pickupLocations' | 'deliveryZones', id: string, name: string) {
+    const what = kind === 'pickupLocations' ? 'pickup location' : 'delivery zone';
+    if (!(await askConfirm({ title: `Remove this ${what}?`, message: `${name ? `“${name}”` : `This ${what}`} will be removed when you save. Discard instead of saving to keep it.`, confirmLabel: `Remove ${what}` }))) return;
+    setConfig(current => ({ ...current, [kind]: current[kind].filter((item: any) => item.id !== id) }));
+  }
   const [subtotal, setSubtotal] = useState('0');
   const errors = validateLocalFulfillment(config);
   function patch(kind: 'pickupLocations' | 'deliveryZones', id: string, change: any) {
@@ -88,12 +96,12 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
     </SectionCard>
     {config.pickupLocations.map((record, index) => {
       const areas = record.postalPrefixes ?? [];
-      const area = !areas.length ? 'everyone' : areas.length === 1 && areas[0].trim().toUpperCase() === 'M' ? 'toronto' : 'custom';
+      const area = areaModes[record.id] ?? (!areas.length ? 'everyone' : areas.length === 1 && areas[0].trim().toUpperCase() === 'M' ? 'toronto' : 'custom');
       return <SectionCard key={record.id} title={record.name || 'New pickup location'}>
         <div className="rp-stack">
           <Toggle label="Show this pickup at checkout" checked={record.enabled} onChange={enabled => patch('pickupLocations', record.id, { enabled })} />
           <TextField label="Name shoppers see" value={record.name} onChange={e => patch('pickupLocations', record.id, { name: e.target.value })} />
-          <SelectField label="Who can choose pickup" hint="Checked against the postal code the shopper enters at checkout." value={area} onChange={e => patch('pickupLocations', record.id, { postalPrefixes: e.target.value === 'toronto' ? [...TORONTO_AREA] : e.target.value === 'everyone' ? [] : areas.length ? areas : ['M'] })}>
+          <SelectField label="Who can choose pickup" hint="Checked against the postal code the shopper enters at checkout." value={area} onChange={e => { const mode = e.target.value as 'toronto' | 'custom' | 'everyone'; setAreaModes(current => ({ ...current, [record.id]: mode })); patch('pickupLocations', record.id, { postalPrefixes: mode === 'toronto' ? [...TORONTO_AREA] : mode === 'everyone' ? [] : areas.length ? areas : ['M'] }); }}>
             <option value="toronto">Toronto only (postal codes starting with M)</option>
             <option value="custom">Specific postal areas…</option>
             <option value="everyone">Everyone, anywhere</option>
@@ -105,7 +113,7 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
           <TextArea label="Opening hours" value={record.hours ?? ''} onChange={e => patch('pickupLocations', record.id, { hours: e.target.value })} />
           <TextArea label="Pickup instructions" hint="E.g. ring the bell, bring your order number." value={record.instructions ?? ''} onChange={e => patch('pickupLocations', record.id, { instructions: e.target.value })} />
           <TextField label="When it's ready" hint="E.g. Ready in 1–2 business days." value={record.estimate ?? ''} onChange={e => patch('pickupLocations', record.id, { estimate: e.target.value })} />
-          <div className="rp-actions"><SecondaryButton disabled={index === 0} onClick={() => move('pickupLocations', index, -1)}>Move up</SecondaryButton><SecondaryButton disabled={index === config.pickupLocations.length - 1} onClick={() => move('pickupLocations', index, 1)}>Move down</SecondaryButton><DestructiveButton onClick={() => setConfig({ ...config, pickupLocations: config.pickupLocations.filter(item => item.id !== record.id) })}>Remove</DestructiveButton></div>
+          <div className="rp-actions"><SecondaryButton disabled={index === 0} onClick={() => move('pickupLocations', index, -1)}>Move up</SecondaryButton><SecondaryButton disabled={index === config.pickupLocations.length - 1} onClick={() => move('pickupLocations', index, 1)}>Move down</SecondaryButton><DestructiveButton onClick={() => void remove('pickupLocations', record.id, record.name)}>Remove</DestructiveButton></div>
         </div>
       </SectionCard>;
     })}
@@ -123,7 +131,7 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
         <TextArea label="Exact postal codes" hint="Six characters each; spaces are accepted. Separated by commas or new lines." value={record.postalCodes.join(', ')} onChange={e => patch('deliveryZones', record.id, { postalCodes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />
         <TextArea label="Public instructions" value={record.instructions ?? ''} onChange={e => patch('deliveryZones', record.id, { instructions: e.target.value })} />
         <TextField label="Public delivery estimate" value={record.estimate ?? ''} onChange={e => patch('deliveryZones', record.id, { estimate: e.target.value })} />
-        <div className="rp-actions"><SecondaryButton disabled={index === 0} onClick={() => move('deliveryZones', index, -1)}>Move up</SecondaryButton><SecondaryButton disabled={index === config.deliveryZones.length - 1} onClick={() => move('deliveryZones', index, 1)}>Move down</SecondaryButton><DestructiveButton onClick={() => setConfig({ ...config, deliveryZones: config.deliveryZones.filter(item => item.id !== record.id) })}>Remove</DestructiveButton></div>
+        <div className="rp-actions"><SecondaryButton disabled={index === 0} onClick={() => move('deliveryZones', index, -1)}>Move up</SecondaryButton><SecondaryButton disabled={index === config.deliveryZones.length - 1} onClick={() => move('deliveryZones', index, 1)}>Move down</SecondaryButton><DestructiveButton onClick={() => void remove('deliveryZones', record.id, record.name)}>Remove</DestructiveButton></div>
       </div>
     </SectionCard>)}
     <SectionCard title="Try a postal code" description="See which pickup and delivery options a shopper at this postal code would get, using the unsaved settings above.">
@@ -135,6 +143,7 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
     <p role="status">{notice}</p>
     </fieldset>
     <SaveBar dirty={dirty} saving={busy} message={errors.length ? `Fix before saving: ${errors[0]}` : 'You have unsaved pickup & delivery changes.'}
-      onSave={() => { if (!errors.length) void save(config); else setNotice(errors.join(' ')); }} onDiscard={() => { if (saved) setConfig(saved); setNotice(''); }} />
+      onSave={() => { if (!errors.length) void save(config); else setNotice(errors.join(' ')); }} onDiscard={() => { if (saved) setConfig(saved); setAreaModes({}); setNotice(''); }} />
+    {confirmNode}
   </div>;
 }

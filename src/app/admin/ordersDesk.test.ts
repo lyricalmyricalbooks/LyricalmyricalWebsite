@@ -69,6 +69,9 @@ describe("orders desk", () => {
     expect(stepOrder(["a", "b", "c"], "c", 1)).toBe("c");
     expect(stepOrder(["a", "b", "c"], "a", -1)).toBe("a");
     expect(stepOrder(["a", "b"], null, 1)).toBe("a");
+    expect(stepOrder(["a", "b"], null, -1)).toBe("b");
+    expect(stepOrder(["a", "b", "c"], "gone", -1)).toBe("c");
+    expect(stepOrder(["a", "b", "c"], "gone", 1)).toBe("a");
     const merged = mergeOrder([{ id: "a", total: 1, operations: { x: 1 } }, { id: "b" }], { id: "a", total: 2 });
     expect(merged![0]).toMatchObject({ total: 2, operations: { x: 1 } });
     expect(merged!.length).toBe(2);

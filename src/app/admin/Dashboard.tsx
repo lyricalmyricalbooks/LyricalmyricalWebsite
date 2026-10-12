@@ -179,6 +179,12 @@ export function Dashboard() {
   const [catalogRefreshKey, setCatalogRefreshKey] = useState(0);
   const [showLogs, setShowLogs] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const userMenuBtn = useRef<HTMLButtonElement>(null);
+  // Opening the administrator menu moves focus to its first item (like riso ActionMenu).
+  useEffect(() => {
+    if (userMenuOpen) userMenuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }, [userMenuOpen]);
   const [helpOpen, setHelpOpen] = useState(false);
 
   const [adminTheme, setAdminTheme] = useState(() => {
@@ -219,23 +225,27 @@ export function Dashboard() {
   }, []);
 
   const [ucSaving, setUcSaving] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [confirm, confirmNode] = useConfirm();
   // Settings sections register their unsaved edits (settingsDirty.ts); the tab can't close on them silently.
   useBeforeUnloadWhenDirty();
-  async function toggleUnderConstruction(on: boolean) {
+  /** True when the owner confirmed and the change was saved; false when cancelled or the save failed. */
+  async function toggleUnderConstruction(on: boolean): Promise<boolean> {
     const ok = await confirm(on
       ? { title: "Close the shop for now?", message: "Shoppers will see the “under construction” wall instead of your books until you turn it off. You can keep working in the admin.", confirmLabel: "Show the wall" }
       : { title: "Open the shop?", message: "The “under construction” wall comes down and shoppers can browse and buy again straight away.", confirmLabel: "Open the shop" });
-    if (!ok) return;
+    if (!ok) return false;
     setUcSaving(true);
     try {
       await adminApi.setUnderConstruction(on);
       const patch = (d: any) => ({ ...(d || {}), showUnderConstruction: on });
       setSettings((p: any) => p && ({ ...p, design: patch(p.design), draftDesign: patch(p.draftDesign) }));
       setOriginalSettings((p: any) => p && ({ ...p, design: patch(p.design), draftDesign: patch(p.draftDesign) }));
+      return true;
     } catch (e) {
       console.error(e);
       toast.error("Couldn't change the under construction wall — nothing was changed. Please try again.");
+      return false;
     } finally {
       setUcSaving(false);
     }
@@ -312,7 +322,16 @@ export function Dashboard() {
   }
 
   const handleLogout = async () => {
-    await adminApi.logout();
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await adminApi.logout();
+    } catch (e) {
+      console.error(e);
+      toast.error("Couldn't log out. Please try again.");
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   const handleEditBook = (book: any) => {
@@ -338,14 +357,16 @@ export function Dashboard() {
     if (ok && originalSettings) setSettings(JSON.parse(JSON.stringify(originalSettings)));
     return ok;
   };
-  const goTo = async (id: string) => {
+  /** Resolves true when the page changed, false when the owner chose to stay on unsaved settings. */
+  const goTo = async (id: string): Promise<boolean> => {
     // Nothing unsaved: switch at once (callers such as What's new set a Settings tab right after).
-    if (isSettingsPage && anyDirty() && !(await leaveSettings())) return;
+    if (isSettingsPage && anyDirty() && !(await leaveSettings())) return false;
     setActiveTab(id);
     setShowEditor(false);
     setSelectedOrder(null);
     if (id === "settings") setSettingsTab("general");
     setSidebarOpen(false);
+    return true;
   };
   const goToChild = async (_parent: string, child: string) => {
     if (child !== navChild && !(await leaveSettings())) return;
@@ -468,7 +489,7 @@ export function Dashboard() {
             </>}
             footer={
               <>
-              <WhatsNew appearance={appearance} onHistoryOpen={() => setSidebarOpen(false)} onNavigate={(link) => { if (link.studio) { window.location.hash = link.studio; return; } goTo(link.tab); if (link.settingsTab) setSettingsTab(link.settingsTab); }} />
+              <WhatsNew appearance={appearance} onHistoryOpen={() => setSidebarOpen(false)} onNavigate={async (link) => { if (link.studio) { window.location.hash = link.studio; return; } if (!(await goTo(link.tab))) return; if (link.settingsTab) setSettingsTab(link.settingsTab); }} />
               <div className="rp-account-card">
                 <div className="rp-account-row">
                   {avatar}
@@ -479,7 +500,7 @@ export function Dashboard() {
                 </div>
                 <div className="rp-account-actions">
                   <SecondaryButton size="sm" icon={<Globe size={14} aria-hidden />} onClick={openSite}>View Site</SecondaryButton>
-                  <SecondaryButton size="sm" icon={<LogOut size={14} aria-hidden />} onClick={handleLogout}>Log Out</SecondaryButton>
+                  <SecondaryButton size="sm" icon={<LogOut size={14} aria-hidden />} onClick={handleLogout} disabled={loggingOut} aria-busy={loggingOut}>{loggingOut ? "Logging out…" : "Log Out"}</SecondaryButton>
                 </div>
               </div>
               </>
@@ -513,10 +534,17 @@ export function Dashboard() {
               <IconButton label={`Switch to ${adminTheme === "light" ? "dark" : "light"} appearance`} onClick={toggleTheme}>
                 {adminTheme === "light" ? <Moon size={20} aria-hidden /> : <Sun size={20} aria-hidden />}
               </IconButton>
-              <div className="rp-menu-wrap"
+              <div className="rp-menu-wrap" ref={userMenuRef}
                 onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setUserMenuOpen(false); }}
-                onKeyDown={(e) => { if (e.key === "Escape") setUserMenuOpen(false); }}>
-                <button type="button" className="rp-icon-btn" style={{ width: "auto", padding: "0 6px", gap: 4 }}
+                onKeyDown={(e) => {
+                  if (!userMenuOpen) return;
+                  const items = Array.from(userMenuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') || []);
+                  const i = items.indexOf(document.activeElement as HTMLElement);
+                  if (e.key === "Escape") { setUserMenuOpen(false); userMenuBtn.current?.focus(); }
+                  else if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+                  else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+                }}>
+                <button ref={userMenuBtn} type="button" className="rp-icon-btn" style={{ width: "auto", padding: "0 6px", gap: 4 }}
                   aria-label="Administrator menu" aria-haspopup="menu" aria-expanded={userMenuOpen}
                   onClick={() => setUserMenuOpen((v) => !v)}>
                   {avatar}<ChevronDown size={14} aria-hidden />
@@ -530,8 +558,8 @@ export function Dashboard() {
                     <button role="menuitem" className="rp-menu-item" onClick={() => { setUserMenuOpen(false); openSite(); }}>
                       <Globe size={16} aria-hidden /> View site
                     </button>
-                    <button role="menuitem" data-tone="danger" className="rp-menu-item" onClick={handleLogout}>
-                      <LogOut size={16} aria-hidden /> Log out
+                    <button role="menuitem" data-tone="danger" className="rp-menu-item" onClick={handleLogout} disabled={loggingOut} aria-busy={loggingOut}>
+                      <LogOut size={16} aria-hidden /> {loggingOut ? "Logging out…" : "Log out"}
                     </button>
                   </div>
                 )}

@@ -995,7 +995,7 @@ function ImageStyleControls({
                 className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase"
               />
               {overlayColor && (
-                <button type="button" onClick={() => onPatch({ [k("overlayColor")]: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>
+                <button type="button" aria-label="Clear overlay colour" title="Clear overlay colour" onClick={() => onPatch({ [k("overlayColor")]: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400"><span aria-hidden="true">✕</span></button>
               )}
             </div>
             <div className="flex items-center justify-between mb-1">
@@ -1017,6 +1017,9 @@ function ImageStyleControls({
             <span className="text-[11px] font-bold text-neutral-700">Hover zoom</span>
             <button
               type="button"
+              role="switch"
+              aria-checked={!!hoverZoom}
+              aria-label="Hover zoom"
               onClick={() => onPatch({ [k("hoverZoom")]: !hoverZoom })}
               className={`w-10 h-5 rounded-full relative transition-all ${hoverZoom ? "bg-blue-600" : "bg-neutral-200"}`}
             >
@@ -1431,8 +1434,9 @@ export function BlockFieldEditor({
       />
       <button
         type="button"
+        disabled={uploading}
         onClick={() => fileInputRef.current?.click()}
-        className="w-full text-[10px] font-bold uppercase tracking-widest py-2 border border-neutral-200 rounded-xl hover:bg-neutral-50 flex items-center justify-center gap-2"
+        className="w-full text-[10px] font-bold uppercase tracking-widest py-2 border border-neutral-200 rounded-xl hover:bg-neutral-50 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-wait"
       >
         <ImageIcon size={11} />
         {uploading ? "Uploading…" : "Upload image"}
@@ -1545,6 +1549,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "ctaText", label: "CTA label", kind: "text" },
     { key: "ctaUrl", label: "CTA link (optional)", kind: "link" },
     { key: "secondaryCtaText", label: "Secondary CTA", kind: "text" },
+    { key: "secondaryCtaUrl", label: "Secondary CTA link (shoppers see the button only once it has a link)", kind: "link" },
     { key: "metaText", label: "Meta text next to CTA (e.g. format · pages)", kind: "text" },
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
@@ -2216,8 +2221,9 @@ export function SectionFieldEditor({
           />
           <button
             type="button"
+            disabled={uploading}
             onClick={() => fileInputRef.current?.click()}
-            className="w-full text-[10px] font-bold uppercase tracking-widest py-2 border border-neutral-200 rounded-xl hover:bg-neutral-50 flex items-center justify-center gap-2"
+            className="w-full text-[10px] font-bold uppercase tracking-widest py-2 border border-neutral-200 rounded-xl hover:bg-neutral-50 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-wait"
           >
             <ImageIcon size={11} />
             {uploading ? "Uploading…" : "Upload image"}

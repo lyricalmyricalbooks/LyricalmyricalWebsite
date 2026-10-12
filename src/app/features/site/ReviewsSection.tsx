@@ -60,6 +60,9 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
   // Firestore's own count and average of ALL approved reviews (the list below is paged, 50 at a time).
   const [summary, setSummary] = useState<{ count: number; average: number } | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  // A failed read says so (with Try again) instead of looking like a book nobody has reviewed.
+  const [loadError, setLoadError] = useState(false);
+  const [moreError, setMoreError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -72,6 +75,8 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
 
   async function load() {
     setLoading(true);
+    setLoadError(false);
+    setMoreError(false);
     try {
       const [list, total] = await Promise.all([reviewsApi.listApproved(bookId), reviewsApi.summary(bookId).catch(() => null)]);
       setReviews(featuredFirst(list));
@@ -79,6 +84,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
     } catch {
       setReviews([]);
       setSummary(null);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -89,10 +95,11 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
     const oldest = [...reviews].map(r => r.createdAt).sort()[0];
     if (!oldest || loadingMore) return;
     setLoadingMore(true);
+    setMoreError(false);
     try {
       const more = await reviewsApi.listApprovedBefore(bookId, oldest);
       setReviews(current => featuredFirst([...current, ...more.filter(m => !current.some(r => r.id === m.id))]));
-    } catch { /* the button stays; the shopper can try again */ } finally {
+    } catch { setMoreError(true); /* the button stays; the shopper can try again */ } finally {
       setLoadingMore(false);
     }
   }
@@ -145,13 +152,18 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
           <header {...regionProps("reviewsHeading")} className="flex items-center justify-between mb-10">
             <div>
               <p className="text-[9px] font-black tracking-[0.4em] uppercase text-white/30 mb-2">{c("reviewsHeading")}</p>
-              <ReviewsSummary count={aggregate.count} average={aggregate.average} />
+              {!loadError && <ReviewsSummary count={aggregate.count} average={aggregate.average} />}
             </div>
           </header>
         )}
 
         {loading ? (
           <p {...regionProps("reviewsEmpty")} className="text-[10px] tracking-widest text-white/30 uppercase">{c("reviewsLoading")}</p>
+        ) : loadError ? (
+          <div {...regionProps("reviewsEmpty")} role="alert" className="mb-12 flex flex-wrap items-center gap-4">
+            <p className="text-white/60 text-sm">{c("reviewsLoadError")}</p>
+            <button type="button" onClick={load} className="text-[10px] tracking-[0.3em] font-bold uppercase underline underline-offset-4">{c("reviewsRetry")}</button>
+          </div>
         ) : reviews.length === 0 ? (
           <p {...regionProps("reviewsEmpty")} className="text-white/40 text-sm mb-12">{c("reviewsEmpty")}</p>
         ) : (
@@ -193,6 +205,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
               className="px-6 py-3 rounded-full border border-white/20 text-[10px] tracking-[0.3em] font-bold uppercase disabled:opacity-50">
               {c("reviewsMore")}
             </button>
+            {moreError && <p role="alert" className="mt-3 text-sm" style={{ color: "var(--danger)" }}>{c("reviewsMoreError")}</p>}
           </div>
         )}
 

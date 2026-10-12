@@ -43,16 +43,20 @@ export function StudioSchedule(p: Props) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [tried, setTried] = useState(false);
+  // The list couldn't be read (not a rules problem): show that with Retry, never "Nothing scheduled."
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = async () => {
     try {
       const [list, status] = await Promise.all([p.api.list(), p.api.status().catch(() => null)]);
-      setEntries(list); setLastRunAt(status?.lastRunAt || null); setUnavailable(false);
-    } catch (err) { setEntries([]); if (denied(err)) setUnavailable(true); }
+      setEntries(list); setLastRunAt(status?.lastRunAt || null); setUnavailable(false); setLoadFailed(false);
+    } catch (err) { setEntries([]); if (denied(err)) setUnavailable(true); else setLoadFailed(true); }
   };
   useEffect(() => {
     if (!p.open) return;
     setSource(p.initialThemeId && p.savedThemes.some(t => t.id === p.initialThemeId) ? `theme:${p.initialThemeId}` : "draft");
+    // A fresh default time each time the dialog opens (not the time Studio was opened).
+    setStart(inAnHour()); setEnd("");
     setTried(false); void load();
   }, [p.open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -144,7 +148,7 @@ export function StudioSchedule(p: Props) {
           </section>
           <section>
             <h3>Coming up and running</h3>
-            {entries === null ? <p className="studio-empty">Loading…</p> : active.length ? <ul className="studio-schedule-list">{active.map(row)}</ul> : <p className="studio-empty">Nothing scheduled.</p>}
+            {entries === null ? <p className="studio-empty">Loading…</p> : loadFailed ? <p className="studio-empty" role="alert">Couldn't load scheduled designs. <SecondaryButton size="sm" onClick={() => { setEntries(null); void load(); }}>Retry</SecondaryButton></p> : active.length ? <ul className="studio-schedule-list">{active.map(row)}</ul> : <p className="studio-empty">Nothing scheduled.</p>}
           </section>
           {past.length > 0 && <section><h3>Earlier</h3><ul className="studio-schedule-list">{past.map(row)}</ul></section>}
         </>}

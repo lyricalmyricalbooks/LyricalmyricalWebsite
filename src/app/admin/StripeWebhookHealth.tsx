@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { PrimaryButton, SecondaryButton, StatusBadge, useConfirm } from "./riso/components";
@@ -29,9 +29,10 @@ export function StripeWebhookHealth({ unsaved = false }: { unsaved?: boolean }) 
   };
 
   const run = async (kind: "check" | "fix" | "recreate") => {
+    const account = report?.mode === "test" ? "test/sandbox" : report?.mode === "live" ? "LIVE" : null;
     if (kind === "recreate" && !(await askConfirm({
-      title: "Replace the Stripe webhook?",
-      message: "This deletes the current endpoint in Stripe and creates a new one with a signing secret the shop knows. Stripe stops retrying deliveries queued for the old endpoint — afterwards, open recent unpaid orders (or use Sync with Stripe) to catch up.",
+      title: account ? `Replace the ${account} Stripe webhook?` : "Replace the Stripe webhook?",
+      message: `${account ? `This affects your ${account} Stripe account. ` : ""}This deletes the current endpoint in Stripe and creates a new one with a signing secret the shop knows. Stripe stops retrying deliveries queued for the old endpoint — afterwards, open recent unpaid orders (or use Sync with Stripe) to catch up.`,
       confirmLabel: "Replace webhook",
     }))) return;
     setBusy(kind);
@@ -50,8 +51,16 @@ export function StripeWebhookHealth({ unsaved = false }: { unsaved?: boolean }) 
 
   // Check once when the card opens, so the owner sees the current state without a click.
   useEffect(() => { run("check"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Check again once the owner saves (unsaved goes true → false), so the result reflects the saved keys.
+  const wasUnsaved = useRef(unsaved);
+  useEffect(() => {
+    if (wasUnsaved.current && !unsaved && !busy) run("check");
+    wasUnsaved.current = unsaved;
+  }, [unsaved]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const state = report ? webhookState(report) : null;
+  // Fix webhook can only create/enable/re-point the endpoint and add events; a signing problem needs Reset.
+  const fixable = !!report && (!report.found || !report.enabled || !!report.wrongUrl || report.missingEvents.length > 0);
 
   return (
     <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
@@ -88,7 +97,7 @@ export function StripeWebhookHealth({ unsaved = false }: { unsaved?: boolean }) 
             <StatusBadge tone={state.noSecret ? "danger" : "success"}>{state.noSecret ? "Missing" : "Set"}</StatusBadge>{" "}
             Signing secret
             <span className="rp-hint" style={{ display: "block", marginTop: 4 }}>A shared password that proves a message really came from Stripe, so nobody can fake a payment.</span>
-            {state.noSecret ? " — the shop can't verify Stripe's messages. Use Fix webhook." : report.savedSecret ? " (saved by the shop)" : " (from Firebase Functions)"}
+            {state.noSecret ? " — the shop can't verify Stripe's messages. Use Reset webhook signing." : report.savedSecret ? " (saved by the shop)" : " (from Firebase Functions)"}
           </li>
           <li style={{ padding: 10 }}>
             <StatusBadge tone={state.signatureFailing ? "danger" : report.lastReceivedAt ? "success" : "neutral"}>{state.signatureFailing ? "Failing" : report.lastReceivedAt ? "Working" : "Waiting for first event"}</StatusBadge>{" "}
@@ -108,7 +117,7 @@ export function StripeWebhookHealth({ unsaved = false }: { unsaved?: boolean }) 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <SecondaryButton size="sm" disabled={!!busy} onClick={testKeys}>{busy === "keys" ? "Testing…" : "Test connection"}</SecondaryButton>
         <SecondaryButton size="sm" disabled={!!busy} onClick={() => run("check")}>{busy === "check" ? "Checking…" : "Check webhook"}</SecondaryButton>
-        {state && state.state !== "healthy" && state.state !== "waiting" && (
+        {state && fixable && (
           <PrimaryButton size="sm" disabled={!!busy} onClick={() => run("fix")}>{busy === "fix" ? "Fixing…" : "Fix webhook"}</PrimaryButton>
         )}
         {state && (state.signatureFailing || state.noSecret) && (

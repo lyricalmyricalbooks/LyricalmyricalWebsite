@@ -100,8 +100,9 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
       if (typingIn(e.target) || document.querySelector("[role='dialog']")) return;
       if (e.key === "/") { e.preventDefault(); search?.focus(); return; }
       if (e.key === "Escape" && keys.current.query) { setQuery(""); return; }
-      if (e.key === "j" || e.key === "k") {
-        const next = stepOrder(keys.current.ids, keys.current.selectedId, e.key === "j" ? 1 : -1);
+      const key = String(e.key || "").toLowerCase();
+      if (key === "j" || key === "k") {
+        const next = stepOrder(keys.current.ids, keys.current.selectedId, key === "j" ? 1 : -1);
         if (next && next !== keys.current.selectedId) { e.preventDefault(); open(next); }
       }
     };
@@ -143,6 +144,12 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
           <p className="rp-hint" style={{ margin: 0 }}>{counts.waitingPayment} waiting on an e-Transfer or cash payment — see <button type="button" className="od-link" onClick={() => pickView("all")}>All</button>.</p>
         )}
       </div>
+      {failed && orders ? (
+        <p className="rp-hint" role="status" style={{ margin: 0, padding: "10px 14px", borderBottom: "1px solid var(--rp-border)" }}>
+          Couldn't refresh orders. Showing the last loaded list.{" "}
+          <button type="button" className="od-link" onClick={() => refresh()}>Try again</button>
+        </p>
+      ) : null}
       {failed && !orders ? (
         <div style={{ padding: 20 }}><EmptyState title="Orders didn't load" description="Check the connection and try again." action={<SecondaryButton size="sm" onClick={refresh}>Try again</SecondaryButton>} /></div>
       ) : !orders ? (

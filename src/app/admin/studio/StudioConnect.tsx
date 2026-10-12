@@ -1,7 +1,7 @@
 // Studio 2.7 · dynamic sources: under a text, picture or link field, "Connect to a detail" swaps the fixed value for
 // a detail of the page the section is on (the book, the open category, the custom page). A connected field shows a
 // chip with Disconnect instead of its editor. Values: features/site/dynamicSources.ts.
-import { createContext, useContext, useId, type ReactNode } from "react";
+import { createContext, useContext, useId, useRef, type ReactNode } from "react";
 import { Link2, Unlink } from "lucide-react";
 import type { BookFieldDef } from "../../features/site/bookFields";
 import { connect, dynamicSources, isDynamic, sourceLabel, type DynamicSource } from "../../features/site/dynamicSources";
@@ -58,6 +58,8 @@ export function ConnectableField({ fieldKind, label, value, onChange, children }
   fieldKind: string; label: string; value: any; onChange: (v: any) => void; children: ReactNode;
 }) {
   const kind = connectableKind(fieldKind);
-  if (isDynamic(value)) return <ConnectedField label={label} path={value.$dyn} onDisconnect={() => onChange("")} />;
-  return <>{children}{kind && <ConnectMenu label={label} kind={kind} onConnect={onChange} />}</>;
+  // The fixed value typed before connecting, so Disconnect in the same session puts it back (else the field is blank).
+  const before = useRef<any>("");
+  if (isDynamic(value)) return <ConnectedField label={label} path={value.$dyn} onDisconnect={() => { onChange(before.current ?? ""); before.current = ""; }} />;
+  return <>{children}{kind && <ConnectMenu label={label} kind={kind} onConnect={(next) => { before.current = value ?? ""; onChange(next); }} />}</>;
 }

@@ -69,10 +69,12 @@ export function StudioThemes(p: Props) {
   const [links, setLinks] = useState<PreviewLink[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
+  // The list couldn't be read (not a rules problem): say so with Retry instead of showing no links.
+  const [linksFailed, setLinksFailed] = useState(false);
 
   const loadLinks = async () => {
-    try { setLinks(await p.links.list()); setUnavailable(false); }
-    catch (err) { setLinks([]); if (denied(err)) setUnavailable(true); }
+    try { setLinks(await p.links.list()); setUnavailable(false); setLinksFailed(false); }
+    catch (err) { setLinks([]); if (denied(err)) setUnavailable(true); else setLinksFailed(true); }
   };
   useEffect(() => { if (share) { setCreated(null); void loadLinks(); } }, [share]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -209,6 +211,7 @@ export function StudioThemes(p: Props) {
               </div>
             )}
           </>}
+          {linksFailed && !unavailable && <p className="studio-share-note" role="alert">Couldn't load your preview links. <SecondaryButton size="sm" onClick={() => void loadLinks()}>Retry</SecondaryButton></p>}
           {links && links.length > 0 && <>
             <h3>Your preview links</h3>
             <ul className="studio-share-list">

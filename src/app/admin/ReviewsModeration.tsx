@@ -80,7 +80,7 @@ function Queue() {
     try {
       const found = await reviewsApi.contactsFor([r]);
       setEmails((current) => ({ ...current, [r.id]: found[r.id] || "(no email left)" }));
-    } catch { toast("Could not load the reviewer's email."); }
+    } catch { toast("Could not load the reviewer's email. Try Show email again.", { tone: "err" }); }
   }
   useEffect(() => { load(); }, []);
   // Book titles are a nicety: if they fail to load, fall back to the raw book ID.
@@ -144,9 +144,12 @@ function Queue() {
     setReplying(null);
     try {
       await reviewsApi.setReply(review.id, replyText);
-      if (approve) await reviewsApi.setStatus(review.id, "approved", { verified: verified(review) });
-      toast(approve ? "Reply saved and review approved" : replyText.trim() ? "Reply published" : "Reply removed");
-    } catch { toast("Could not save the reply."); }
+    } catch { toast("Could not save the reply.", { tone: "err" }); load(); return; }
+    if (approve) {
+      try { await reviewsApi.setStatus(review.id, "approved", { verified: verified(review) }); }
+      catch { toast("The reply was saved, but the review couldn't be approved. Approve it again from the list.", { tone: "err" }); load(); return; }
+    }
+    toast(approve ? "Reply saved and review approved" : replyText.trim() ? "Reply published" : "Reply removed");
     load();
   };
 

@@ -91,8 +91,11 @@ export function appliedFilters(filters: CatalogFilterState, view: { availableFor
   return { formats, priceRange: view.showPrice ? priceRangeFor(filters, rate) : [0, Infinity] };
 }
 
-export function filtersActive(filters: CatalogFilterState, query = "", inStockOnly = false): boolean {
-  return Boolean(query.trim() || inStockOnly || filters.formats.length || filters.minPrice.trim() || filters.maxPrice.trim());
+/** Whether anything narrows the list. With `view`, only filters on screen count (see appliedFilters). */
+export function filtersActive(filters: CatalogFilterState, query = "", inStockOnly = false, view?: { availableFormats: FormatKey[]; showPrice: boolean }): boolean {
+  const formats = view ? appliedFilters(filters, view).formats : filters.formats;
+  const price = (!view || view.showPrice) && Boolean(filters.minPrice.trim() || filters.maxPrice.trim());
+  return Boolean(query.trim() || inStockOnly || formats.length || price);
 }
 
 export function applyCatalogControls(
@@ -186,6 +189,7 @@ export function CatalogControls({
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder={c("filterSearchPlaceholder")}
+            aria-label={c("filterSearchAria")}
             className="w-full bg-white/[0.04] border border-white/10 rounded-full py-3 pl-11 pr-10 text-xs text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30 transition-all"
           />
           {query && (
@@ -203,6 +207,7 @@ export function CatalogControls({
           <select {...regionProps("catalogSort")}
             value={sort}
             onChange={e => setSort(e.target.value as SortKey)}
+            aria-label={c("filterSortAria")}
             className="bg-white/[0.04] border border-white/10 rounded-full py-3 px-5 text-[10px] tracking-widest uppercase text-white/70 outline-none focus:border-white/30 cursor-pointer"
           >
             {SORT_OPTIONS.map(o => (
@@ -256,7 +261,7 @@ export function CatalogControls({
       )}
       <div className="flex flex-wrap items-center gap-4">
         <p {...regionProps("catalogResults")} className="text-[10px] tracking-widest uppercase text-white/30" aria-live="polite">{c("filterResults", { count: resultCount })}</p>
-        {filtersActive(filters, query, inStockOnly) && (
+        {filtersActive(filters, query, inStockOnly, { availableFormats: showFormats ? availableFormats : [], showPrice: showPriceBoxes }) && (
           <button {...regionProps("catalogClear")} type="button" onClick={clearAll} className="text-[10px] tracking-widest uppercase text-white/60 underline underline-offset-4 hover:text-white transition-colors">
             {c("filterClear")}
           </button>

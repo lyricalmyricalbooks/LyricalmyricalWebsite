@@ -77,7 +77,11 @@ export function useStudioPersistence(props: {
   };
 
   const persist = async (kind: Kind, override?: any): Promise<void> => {
-    if (locked.current) return;
+    if (locked.current) {
+      current.current.say("err", kind === "publish" ? "Still saving — press Publish again in a moment."
+        : kind === "discard" ? "Still saving — press Discard again in a moment." : "Still saving — try again in a moment.");
+      return;
+    }
     const size = designSize(override ?? (kind === "discard" ? current.current.published : current.current.design));
     if (size.tooBig) { current.current.say("err", size.text); return; }
     locked.current = true; setBusy(kind);

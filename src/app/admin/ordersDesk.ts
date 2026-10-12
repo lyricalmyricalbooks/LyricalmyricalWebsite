@@ -57,11 +57,11 @@ export function nextToOpen(list: any[], currentId?: string | null): string | nul
   return list[0].id;
 }
 
-/** j / k on the desk: the next (+1) or previous (-1) order in the list; the first when none is open. */
+/** j / k on the desk: the next (+1) or previous (-1) order in the list; when the open order isn't in the list, j goes to the first row and k to the last. */
 export function stepOrder(ids: string[], currentId: string | null, step: 1 | -1): string | null {
   if (!ids.length) return null;
   const i = currentId ? ids.indexOf(currentId) : -1;
-  if (i < 0) return ids[0];
+  if (i < 0) return step < 0 ? ids[ids.length - 1] : ids[0];
   return ids[Math.min(ids.length - 1, Math.max(0, i + step))];
 }
 

@@ -18,6 +18,7 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
   const [confirmRefund, setConfirmRefund] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [confirmCloseApproved, setConfirmCloseApproved] = useState(false);
+  const [confirmDecline, setConfirmDecline] = useState(false);
   const lines = (order.items || []).map((item: any, index: number) => ({ ...item, index })).filter((item: any) => !isDigitalItem({ ...item, format: item.format || item.variantName }));
   // After inspection: did every copy come back? Then the full order is refunded (as before); otherwise the returned books' value.
   const inspected: any[] = Array.isArray(saved?.inspection) ? saved.inspection : [];
@@ -72,7 +73,7 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
       {state === "requested" && <>
         <TextArea label="Customer-visible instructions or decision" hint="Include the return address, packing instructions, deadline and who pays postage. These appear on the secure order tracking page." maxLength={3000} value={instructions} onChange={event => setInstructions(event.target.value)} />
         <PrimaryButton disabled={busy || !instructions.trim() || !lines.length} onClick={() => run("approved")}>Approve and publish instructions</PrimaryButton>
-        <SecondaryButton disabled={busy || !instructions.trim()} onClick={() => run("rejected")}>Decline with explanation</SecondaryButton>
+        <SecondaryButton disabled={busy || !instructions.trim()} onClick={() => setConfirmDecline(true)}>Decline with explanation</SecondaryButton>
         {!lines.length && <p className="rp-hint">This order has no printed books to send back. Refund it from More order actions if you agree, then close the request.</p>}
         <SecondaryButton disabled={busy} onClick={() => setConfirmClose(true)}>Close request without a return</SecondaryButton>
       </>}
@@ -115,6 +116,9 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
     <ConfirmDialog open={confirmCloseApproved} title="Close this return without a refund?" confirmLabel="Close return"
       message="Use this when the parcel never arrived or you decided not to refund. The request leaves Needs attention and the customer is told it is closed. No money moves and nothing is restocked; you can still refund from More order actions later."
       onCancel={() => setConfirmCloseApproved(false)} onConfirm={() => { setConfirmCloseApproved(false); run("closed"); }} />
+    <ConfirmDialog open={confirmDecline} title="Decline this return?" confirmLabel="Decline return"
+      message="Your explanation is published on the customer's secure order tracking page and the request is closed. This can't be undone; no money moves and nothing is restocked."
+      onCancel={() => setConfirmDecline(false)} onConfirm={() => { setConfirmDecline(false); run("rejected"); }} />
     <ConfirmDialog open={confirmClose} title="Close this request without a return?" confirmLabel="Close request"
       message="The customer's request is marked handled and can't be reopened. No money moves and nothing is restocked — refund from More order actions first if you agreed to one."
       onCancel={() => setConfirmClose(false)} onConfirm={() => { setConfirmClose(false); run("close"); }} />

@@ -379,8 +379,9 @@ export default function BookDetail() {
     return { addOns: addOnRequest(addOns, addOnPicks), ...(isGiftCard ? { giftCardDetails: giftForm } : {}) };
   };
 
-  // Coming soon button: open the signup and put the cursor in its email box.
+  // Coming soon button: open the signup and put the cursor in its email box; a second press closes it.
   const openComingSoon = () => {
+    if (soonOpen) { setSoonOpen(false); return; }
     setSoonOpen(true);
     window.setTimeout(() => {
       const input = document.querySelector<HTMLInputElement>("#pdp-coming-soon-signup input[type=email]");
@@ -389,7 +390,8 @@ export default function BookDetail() {
   };
 
   const handleAddToCart = () => {
-    if (!book) return;
+    // While "Added" shows, a second tap must not add another copy.
+    if (!book || added) return;
     if (book.variants?.length && !selectedVariant) {
       setEditionError(getCopy(settings?.design, "pdpEditionMissing"));
       document.getElementById("pdp-edition-select")?.focus();
@@ -404,6 +406,7 @@ export default function BookDetail() {
       // Already at the most this line can hold: open the bag, where the line shows its limit,
       // instead of a click that seems to do nothing.
       if (inBag > 0) setIsCartOpen(true);
+      else toast.error(getCopy(settings?.design, "addToBagFailed"));
       return;
     }
     funnelApi.track("add_to_cart");
@@ -423,7 +426,7 @@ export default function BookDetail() {
     const options = lineOptions();
     if (!options) return;
     const ok = addToCart(book, selectedVariant || undefined, showQtyStepper ? qty : 1, options);
-    if (!ok && inBag <= 0) return;
+    if (!ok && inBag <= 0) { toast.error(getCopy(settings?.design, "addToBagFailed")); return; }
     if (ok) funnelApi.track("add_to_cart");
     setIsCartOpen(false);
     navigate("/checkout");
@@ -434,6 +437,12 @@ export default function BookDetail() {
 
   const handleAddBothToBag = () => {
     if (!book || !bundleBook || isOutOfStock) return;
+    // Same rule as Add to bag: a book sold in editions needs one picked first.
+    if (book.variants?.length && !selectedVariant) {
+      setEditionError(getCopy(settings?.design, "pdpEditionMissing"));
+      document.getElementById("pdp-edition-select")?.focus();
+      return;
+    }
     const options = lineOptions();
     if (!options) return;
     // The edition the shopper has selected (with its extras), and an in-stock edition of the companion book.
@@ -459,7 +468,10 @@ export default function BookDetail() {
     try {
       await navigator.clipboard.writeText(window.location.href);
       toast.success(getCopy(settings?.design, "bookLinkCopied"));
-    } catch { /* clipboard blocked: no false "copied" */ }
+    } catch {
+      // Clipboard blocked: say so instead of a false "copied" (or nothing at all).
+      toast.error(getCopy(settings?.design, "bookShareCopyFailed"));
+    }
   };
 
   const configuredPhotos = (book as any)?.photos;
@@ -509,7 +521,12 @@ export default function BookDetail() {
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photoUrlsKey]);
-  const activeUrl     = (selectedVariant && selectedVariant.photoUrl && variantPhotoPinned) ? selectedVariant.photoUrl : (photos[activePhoto]?.url || placeholderImage(settings?.design));
+  const editionPhotoShown = !!(selectedVariant && selectedVariant.photoUrl && variantPhotoPinned);
+  const activeUrl     = editionPhotoShown ? selectedVariant!.photoUrl : (photos[activePhoto]?.url || placeholderImage(settings?.design));
+  // The photo actually on screen: a pinned edition photo is one of the gallery photos (or none of them),
+  // so the current thumbnail, caption number and alt text follow it rather than the last picked photo.
+  const shownIndex    = editionPhotoShown ? photos.findIndex((p: any) => p?.url === activeUrl) : activePhoto;
+  const shownPhoto    = shownIndex >= 0 ? photos[shownIndex] : undefined;
 
   const alignCls      = productAlignment === "center" ? "items-center text-center" : "items-start text-left";
   const showThumbRail = photos.length > 1 && pdpThumbPosition !== "hidden";
@@ -921,7 +938,7 @@ export default function BookDetail() {
                       onClick={isComingSoon ? openComingSoon : handleAddToCart}
                       disabled={isOutOfStock || (isComingSoon && !showComingSoonSignup)}
                       aria-expanded={isComingSoon && showComingSoonSignup ? soonOpen : undefined}
-                      aria-controls={isComingSoon && showComingSoonSignup ? "pdp-coming-soon-signup" : undefined}
+                      aria-controls={isComingSoon && showComingSoonSignup && soonOpen ? "pdp-coming-soon-signup" : undefined}
                       whileTap={!isOutOfStock ? { scale: 0.97 } : {}}
                       animate={
                         !isOutOfStock && !added && productCtaAnimation === "pulse"
@@ -1143,7 +1160,7 @@ export default function BookDetail() {
                           key={i}
                           type="button"
                           onClick={() => pickPhoto(i)}
-                          aria-current={activePhoto === i}
+                          aria-current={shownIndex === i}
                           aria-label={getCopy(settings?.design, "ariaGoToPhoto", { n: i + 1 })}
                           className="fm-pdp-thumb"
                           style={{ aspectRatio: productImageAspect }}
@@ -1175,7 +1192,7 @@ export default function BookDetail() {
                           key={activePhoto}
                           src={activeUrl}
                           {...(activeUrl === photos[activePhoto]?.url ? photoSrcSet(photos[activePhoto], PDP_PHOTO_SIZES) : {})}
-                          alt={(activeUrl === photos[activePhoto]?.url && photos[activePhoto]?.altText?.trim()) || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: activePhoto + 1 })}
+                          alt={shownPhoto?.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: Math.max(0, shownIndex) + 1 })}
                           className={`w-full h-full ${productImageFitClass}`}
                           decoding="async"
                           {...(activePhoto === 0 ? { fetchpriority: "high" } : {})}
@@ -1235,7 +1252,7 @@ export default function BookDetail() {
                         <>
                           <button
                             onClick={() => pickPhoto(p => Math.max(0, p - 1))}
-                            disabled={activePhoto === 0}
+                            disabled={!editionPhotoShown && activePhoto === 0}
                             aria-label={getCopy(settings?.design, "ariaPrevPhoto")}
                             className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all disabled:opacity-20"
                           >
@@ -1243,7 +1260,7 @@ export default function BookDetail() {
                           </button>
                           <button
                             onClick={() => pickPhoto(p => Math.min(photos.length - 1, p + 1))}
-                            disabled={activePhoto === photos.length - 1}
+                            disabled={!editionPhotoShown && activePhoto === photos.length - 1}
                             aria-label={getCopy(settings?.design, "ariaNextPhoto")}
                             className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all disabled:opacity-20"
                           >
@@ -1260,8 +1277,9 @@ export default function BookDetail() {
                               key={i}
                               onClick={() => pickPhoto(i)}
                               aria-label={getCopy(settings?.design, "ariaGoToPhoto", { n: i + 1 })}
+                              aria-current={shownIndex === i}
                               className={`rounded-full transition-all ${
-                                activePhoto === i ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/30"
+                                shownIndex === i ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/30"
                               }`}
                             />
                           ))}
@@ -1269,10 +1287,10 @@ export default function BookDetail() {
                       )}
                     </div>
 
-                    {pdpShowCaption && (
+                    {pdpShowCaption && shownIndex >= 0 && (
                       <figcaption className="fm-pdp-caption fm-pdp-meta">
-                        <span>{getCopy(settings?.design, "pdpCaption", { n: activePhoto + 1 })}</span>
-                        {photos.length > 1 && <span>{getCopy(settings?.design, "pdpCaptionCount", { n: activePhoto + 1, total: photos.length })}</span>}
+                        <span>{getCopy(settings?.design, "pdpCaption", { n: shownIndex + 1 })}</span>
+                        {photos.length > 1 && <span>{getCopy(settings?.design, "pdpCaptionCount", { n: shownIndex + 1, total: photos.length })}</span>}
                       </figcaption>
                     )}
                   </figure>
