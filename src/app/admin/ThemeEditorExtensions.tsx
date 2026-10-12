@@ -1525,7 +1525,8 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "ruleColor", label: "Line colour", kind: "color" },
     { key: "ruleWidth", label: "Line thickness", kind: "range", min: 0, max: 8, step: 1, suffix: "px" },
     { key: "ruleSpacing", label: "Space above and below the line", kind: "range", min: 0, max: 96, step: 2, suffix: "px" },
-    { key: "textMeasure", label: "Text line length", kind: "select", options: [{ value: "readable", label: "Readable (about 62 characters)" }, { value: "full", label: "Full column width" }] },
+    { key: "textMeasure", label: "Text width (line length)", kind: "select", options: [{ value: "readable", label: "Readable (about 62 characters)" }, { value: "comfortable", label: "Comfortable (about 75 characters)" }, { value: "wide", label: "Wide (about 90 characters)" }, { value: "full", label: "Full width (as wide as the column)" }] },
+    { key: "textWidthPx", label: "Exact text width (0 = use Text width above)", kind: "range", min: 0, max: 1600, step: 20, suffix: "px" },
   ],
   CompositionSection: [
     { key: "title", label: "Section heading", kind: "text" },

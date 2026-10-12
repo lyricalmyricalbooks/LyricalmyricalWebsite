@@ -2417,8 +2417,10 @@ export const CurrentPageContext = createContext<{ title?: string; body?: string;
 const PAGE_STYLE_KEYS = [
   "showEyebrow", "eyebrow", "titleSize", "titleUppercase", "bodySize", "align", "maxWidth", "textColor", "headingColor",
   "titleFont", "titleSizePx", "titleSizePxMobile", "titleWeight", "showRule", "ruleColor", "ruleWidth", "ruleSpacing",
-  "textMeasure", "topSpacing", "headerWidth",
+  "textMeasure", "textWidthPx", "topSpacing", "headerWidth",
 ];
+/** Text width choices (Studio › Style › Custom pages › Text width); "full" = the whole column. */
+const PAGE_TEXT_MEASURES: Record<string, string> = { readable: "62ch", comfortable: "75ch", wide: "90ch" };
 const pageNum = (v: any, min: number, max: number) => {
   const n = Number(v);
   return v === "" || v == null || !Number.isFinite(n) ? undefined : Math.max(min, Math.min(max, n));
@@ -2449,6 +2451,10 @@ export function PageContentSection({ settings: own, enableAnimations }: any) {
   const ruleSpacing = pageNum(settings.ruleSpacing, 0, 96);
   const topSpacing = pageNum(settings.topSpacing, 0, 160);
   const ruleWidth = pageNum(settings.ruleWidth, 0, 8) ?? 2;
+  // An exact width (px) wins over the named choice; "full" (or nothing set) leaves the whole column.
+  const textWidthPx = pageNum(settings.textWidthPx, 0, 2000) || 0;
+  const textMax = textWidthPx ? `${textWidthPx}px` : PAGE_TEXT_MEASURES[settings.textMeasure];
+  const textPlace = settings.align === "center" ? { marginInline: "auto" } : settings.align === "right" ? { marginLeft: "auto" } : {};
   const titleCss = [
     sizeM ? `@media (max-width:767px){[data-page-title="${titleId}"]{font-size:${sizeM}px !important;}}` : "",
     sizeD ? `@media (min-width:768px){[data-page-title="${titleId}"]{font-size:${sizeD}px !important;}}` : "",
@@ -2495,7 +2501,7 @@ export function PageContentSection({ settings: own, enableAnimations }: any) {
           )}
           {settings.showBody !== false && (
             <div
-              className={`leading-[1.8] ${PAGE_BODY_SIZES[settings.bodySize] || PAGE_BODY_SIZES.md} ${align} ${settings.textMeasure === "full" ? "max-w-none" : ""}
+              className={`leading-[1.8] ${PAGE_BODY_SIZES[settings.bodySize] || PAGE_BODY_SIZES.md} ${align} ${textMax ? "" : "max-w-none"}
                 [&_p]:mb-6 [&_h1]:text-4xl [&_h1]:font-black [&_h1]:mb-8 [&_h1]:mt-12 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mb-5 [&_h2]:mt-10
                 [&_h3]:text-xl [&_h3]:font-bold [&_h3]:mb-4 [&_h3]:mt-8 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-6 [&_li]:mb-2
                 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-6 [&_strong]:font-bold [&_em]:italic [&_img]:my-8 [&_img]:max-w-full
@@ -2506,7 +2512,7 @@ export function PageContentSection({ settings: own, enableAnimations }: any) {
                 [&_.ql-indent-1]:pl-8 [&_.ql-indent-2]:pl-16 [&_.ql-indent-3]:pl-24 [&_.ql-indent-4]:pl-32
                 [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:my-8 [&_iframe]:border-0
                 [&_hr]:my-10 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-current/20`}
-              style={{ ...bStyle(settings), ...(settings.textMeasure === "readable" ? { maxWidth: "62ch", ...(settings.align === "center" ? { marginInline: "auto" } : {}) } : {}) }}
+              style={{ ...bStyle(settings), ...(textMax ? { maxWidth: textMax, ...textPlace } : {}) }}
               dangerouslySetInnerHTML={{ __html: body }}
             />
           )}

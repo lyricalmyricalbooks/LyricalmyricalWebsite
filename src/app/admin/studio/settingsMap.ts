@@ -176,7 +176,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   customPages: [
     { title: "What custom pages show", keys: ["showPageFooter", "showNotFoundMessage", "showNotFoundBack", "pageShowEyebrow"] },
     { title: "Page title", keys: ["pageTitleSize", "pageTitleUppercase", "pageTitleColor", "pageTitleFont", "pageTitleSizePx", "pageTitleSizePxMobile", "pageTitleWeight", "pageTopSpacing"] },
-    { title: "Text & column", keys: ["pageChromeStyle", "pageBodySize", "pageTextColor", "pageAlign", "pageWidth", "pageTextMeasure"] },
+    { title: "Text & column", keys: ["pageChromeStyle", "pageBodySize", "pageTextColor", "pageAlign", "pageWidth", "pageTextMeasure", "pageTextWidthPx"] },
     { title: "Line under the title", keys: ["pageShowRule", "pageRuleColor", "pageRuleWidth", "pageRuleSpacing"] },
   ],
 };

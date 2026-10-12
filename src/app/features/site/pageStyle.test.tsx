@@ -58,5 +58,25 @@ describe("custom pages share one Studio-controlled look", () => {
     const html = render({}, { pageShowRule: false, pageTextMeasure: "full" });
     expect(html).not.toContain("<hr");
     expect(html).not.toContain("62ch");
+    expect(html).toContain("max-w-none");
+  });
+
+  it("offers wider text choices and an exact width that wins over them", () => {
+    expect(render({}, { pageTextMeasure: "comfortable" })).toContain("max-width:75ch");
+    expect(render({}, { pageTextMeasure: "wide" })).toContain("max-width:90ch");
+    const exact = render({}, { pageTextMeasure: "readable", pageTextWidthPx: 1000 });
+    expect(exact).toContain("max-width:1000px");
+    expect(exact).not.toContain("62ch");
+    expect(render({}, { pageTextWidthPx: 0 })).toContain("max-width:62ch");
+  });
+
+  it("keeps a narrowed text column on the chosen side", () => {
+    expect(render({}, { pageAlign: "center" })).toContain("margin-inline:auto");
+    expect(render({}, { pageAlign: "right" })).toContain("margin-left:auto");
+  });
+
+  it("a page styled on its own uses its own text width", () => {
+    const html = render({ ownStyle: true, textMeasure: "full", textWidthPx: 720 }, { pageTextMeasure: "readable" });
+    expect(html).toContain("max-width:720px");
   });
 });
