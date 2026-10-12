@@ -1606,6 +1606,20 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   order bought has been spent. Admin alert `gift-cards-not-issued` flags paid gift-card orders with no card after 10 min.
   A box set's pre-order state follows the latest pre-order book inside it (`combinedPreorder`).
 
+## Coming soon books (12 October 2026)
+
+Books › edit › Inventory › **Coming soon** (`comingSoon: true`) shows a published book that can't be bought yet. One rule,
+`features/site/comingSoon.ts` `comingSoonActive` (server: `purchaseProblem` in `functions/paymentGuards.js` refuses it as
+`unavailable`, so every checkout path refuses it). It wins over Pre-order (the editor switches the other off). `addToCart`
+refuses it, `repriceCart` drops saved lines, `quickAddChoice` returns `{ inStock: false, comingSoon: true }`; it is never shown
+as Sold out. Product page: stock line `pdpComingSoon` / `pdpComingSoonDate` (Publication date, `data-state="soon"`), the buy
+button reads `comingSoonButton` and opens `BackInStockForm comingSoon` (`#pdp-coming-soon-signup`, same `stockAlerts` doc for
+the whole book, variantId ""); no qty, Buy it now or sticky bar. Cards: `comingSoonBadge` (shop grid, wishlist, related);
+section quick-add hides. Studio: Style › Badges › `showComingSoonBadge`, Product page › `showComingSoonSignup` (off = the button
+is a disabled label). JSON-LD says OutOfStock. Turning the switch off fires `onBookRestocked` (`before.comingSoon === true`):
+signups get an **Out now** email for editions with stock (`releasePending` carries the wording to `backInStockSweep`); while
+it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badge and status filter. Deploy Functions with the frontend.
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the

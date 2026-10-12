@@ -8,7 +8,7 @@ import { useParams, Link, useNavigate, useLocation } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
   Package, Share2, Check, BookOpen, Globe, Ruler,
-  Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus
+  Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus, Bell
 } from "lucide-react";
 import { useCart, catalogUnitPrice, lineQuantityCap, backorderable } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
@@ -21,6 +21,7 @@ import { SectionPageContext } from "../../components/sectionCopy";
 import { useMissingRedirect } from "./useMissingRedirect";
 import { getCopy } from "./storeCopy";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "./preorder";
+import { comingSoonActive } from "./comingSoon";
 import { designNumber } from "./designNumber";
 import { placeholderImage } from "./constants";
 import type { Book } from "./types";
@@ -87,6 +88,8 @@ export default function BookDetail() {
   const [variantPhotoPinned, setVariantPhotoPinned] = useState(true);
   const pickPhoto = (next: number | ((p: number) => number)) => { setVariantPhotoPinned(false); setActivePhoto(next as any); };
   const [added, setAdded]             = useState(false);
+  // Coming soon: the button opens the "email me when it's out" signup.
+  const [soonOpen, setSoonOpen]       = useState(false);
   const [addingBoth, setAddingBoth]   = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   // Width ÷ height of each product photo, measured once (adaptive frames, photoFrame.ts).
@@ -122,7 +125,7 @@ export default function BookDetail() {
   }, [book]);
   useEffect(() => { setQty(1); setVariantPhotoPinned(true); }, [selectedVariant?.id]);
   // A new book starts with no extras and an empty gift form.
-  useEffect(() => { setAddOnPicks({}); setAddOnError(""); setGiftForm(emptyGift); setGiftError(""); }, [book?.id]);
+  useEffect(() => { setAddOnPicks({}); setAddOnError(""); setGiftForm(emptyGift); setGiftError(""); setSoonOpen(false); }, [book?.id]);
 
   // Studio 2.8: the book's alternate template (Books › edit › Page template); the Studio preview can ask for one.
   const productSurface         = bookTemplateSurface(settings?.design, book, previewTemplate());
@@ -133,6 +136,7 @@ export default function BookDetail() {
   const showSoldOutBadge       = storefrontDesign.showSoldOutBadge       ?? true;
   const showSocialShare        = storefrontDesign.showSocialShare        ?? true;
   const showBackInStock        = storefrontDesign.showBackInStock        ?? true;
+  const showComingSoonSignup   = storefrontDesign.showComingSoonSignup   ?? true;
 
   // Autonomy controls for book detail page
   const showAmbientGlow        = storefrontDesign.showAmbientGlow        ?? settings?.design?.showAmbientGlow        ?? true;
@@ -374,6 +378,15 @@ export default function BookDetail() {
     return { addOns: addOnRequest(addOns, addOnPicks), ...(isGiftCard ? { giftCardDetails: giftForm } : {}) };
   };
 
+  // Coming soon button: open the signup and put the cursor in its email box.
+  const openComingSoon = () => {
+    setSoonOpen(true);
+    window.setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>("#pdp-coming-soon-signup input[type=email]");
+      input?.focus();
+    }, 0);
+  };
+
   const handleAddToCart = () => {
     if (!book) return;
     if (book.variants?.length && !selectedVariant) {
@@ -471,7 +484,9 @@ export default function BookDetail() {
   }, [stickyBar, buyEl]);
   // Oversold stock goes below zero: that is sold out too, not "in stock".
   // An edition with no usable price can't be bought either; treat it like sold out rather than fake an add.
-  const isOutOfStock  = Number(stockLevel) <= 0 || (!!book && !Number.isFinite(catalogUnitPrice(book, selectedVariant || undefined)));
+  // Coming soon (Books › Inventory › Coming soon): not for sale yet, so never "sold out" — the buy button opens the signup instead.
+  const isComingSoon  = comingSoonActive(book);
+  const isOutOfStock  = !isComingSoon && (Number(stockLevel) <= 0 || (!!book && !Number.isFinite(catalogUnitPrice(book, selectedVariant || undefined))));
   const retailPrice   = selectedVariant ? selectedVariant.price : ((book as any)?.retailPrice ?? 0);
   const salePrice     = selectedVariant ? 0 : ((book as any)?.salePrice   ?? 0);
   // Only while the sale is on (inside its optional start/end dates) — the price the server charges.
@@ -500,9 +515,12 @@ export default function BookDetail() {
   const isLowStock    = stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10);
   const isBackorder   = !!(selectedVariant ? (selectedVariant as any).onBackorder : (book as any)?.onBackorder);
   // Pre-order (Books › Inventory › Pre-order): sold before its publication date.
-  const isPreorder    = preorderActive(book);
+  const isPreorder    = !isComingSoon && preorderActive(book);
   const preorderDate  = isPreorder ? formatReleaseDate(releaseDateOf(book)) : "";
-  const stockText     = isOutOfStock
+  const comingDate    = isComingSoon ? formatReleaseDate(releaseDateOf(book)) : "";
+  const stockText     = isComingSoon
+    ? (comingDate ? getCopy(settings?.design, "pdpComingSoonDate", { date: comingDate }) : getCopy(settings?.design, "pdpComingSoon"))
+    : isOutOfStock
     ? getCopy(settings?.design, "soldOutLabel")
     : isPreorder ? (preorderDate ? getCopy(settings?.design, "pdpPreorder", { date: preorderDate }) : getCopy(settings?.design, "pdpPreorderTba"))
     : isBackorder ? getCopy(settings?.design, "pdpBackorder")
@@ -782,7 +800,7 @@ export default function BookDetail() {
                       </span>
                     )}
                     {pdpShowStock && !isGiftCard && (
-                      <span className="fm-pdp-meta fm-pdp-stock" data-state={isOutOfStock ? "out" : isPreorder ? "preorder" : isLowStock ? "low" : "in"}>
+                      <span className="fm-pdp-meta fm-pdp-stock" data-state={isComingSoon ? "soon" : isOutOfStock ? "out" : isPreorder ? "preorder" : isLowStock ? "low" : "in"}>
                         {stockText}
                       </span>
                     )}
@@ -874,7 +892,7 @@ export default function BookDetail() {
                   <div className={`flex flex-wrap gap-2.5 w-full ${
                     productCtaWidth === "auto" && productAlignment === "center" ? "justify-center" : "justify-start"
                   }`}>
-                    {showQtyStepper && !isOutOfStock && (
+                    {showQtyStepper && !isOutOfStock && !isComingSoon && (
                       <div className="fm-pdp-qty">
                         <button
                           type="button"
@@ -898,8 +916,10 @@ export default function BookDetail() {
                     <m.button
                       ref={setBuyEl}
                       data-section="buttons"
-                      onClick={handleAddToCart}
-                      disabled={isOutOfStock}
+                      onClick={isComingSoon ? openComingSoon : handleAddToCart}
+                      disabled={isOutOfStock || (isComingSoon && !showComingSoonSignup)}
+                      aria-expanded={isComingSoon && showComingSoonSignup ? soonOpen : undefined}
+                      aria-controls={isComingSoon && showComingSoonSignup ? "pdp-coming-soon-signup" : undefined}
                       whileTap={!isOutOfStock ? { scale: 0.97 } : {}}
                       animate={
                         !isOutOfStock && !added && productCtaAnimation === "pulse"
@@ -942,6 +962,8 @@ export default function BookDetail() {
                     >
                       {isOutOfStock ? (
                         getCopy(settings?.design, "soldOutLabel")
+                      ) : isComingSoon ? (
+                        <><Bell size={14} /> {getCopy(settings?.design, showComingSoonSignup ? "comingSoonButton" : "pdpComingSoon")}</>
                       ) : added ? (
                         <><Check size={14} strokeWidth={3} /> {getCopy(settings?.design, "bookAdded")}</>
                       ) : (
@@ -973,7 +995,17 @@ export default function BookDetail() {
                       </button>
                     )}
                   </div>
-                  {showBuyNow && !isOutOfStock && (
+                  {isComingSoon && showComingSoonSignup && soonOpen && book && (
+                    <BackInStockForm
+                      key={`soon:${book.id}`}
+                      id="pdp-coming-soon-signup"
+                      comingSoon
+                      design={settings?.design}
+                      bookId={book.id}
+                      bookTitle={book.title}
+                    />
+                  )}
+                  {showBuyNow && !isOutOfStock && !isComingSoon && (
                     <button
                       type="button"
                       onClick={handleBuyNow}
@@ -1364,7 +1396,10 @@ export default function BookDetail() {
                             style={{ objectFit: productImageFit }}
                           />
                           {/* Sold out: same mark as the shop grid (Studio › Style › Product cards & grid › Sold-out badge) */}
-                          {relStock === 0 && showSoldOutBadge && (
+                          {relChoice.comingSoon && showSoldOutBadge && (
+                            <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "comingSoonBadge")} />
+                          )}
+                          {relStock === 0 && !relChoice.comingSoon && showSoldOutBadge && (
                             <>
                               <SoldOutVeil design={settings?.design} />
                               <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "soldOutLabel")} />
@@ -1396,7 +1431,7 @@ export default function BookDetail() {
         )}
 
         {/* ── Sticky add-to-bag bar ── */}
-        {stickyBar && book && !isOutOfStock && buyGone && (
+        {stickyBar && book && !isOutOfStock && !isComingSoon && buyGone && (
           <div
             className={`fm-pdp-sticky${stickyPhoneOnly ? " fm-pdp-sticky-phone" : ""}`}
             role="region"

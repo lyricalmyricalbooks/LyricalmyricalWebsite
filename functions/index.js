@@ -6491,7 +6491,9 @@ function stockOf(item, fallback) {
 const RESTOCK_BATCH = 5;
 const RESTOCK_BUDGET_MS = 240 * 1000;
 
-async function sendRestockAlerts({ bookId, book, docs, deadline }) {
+async function sendRestockAlerts({ bookId, book, docs, deadline, released = false }) {
+  // released = the book just stopped being "Coming soon": signups made on that page get "Out now" wording.
+  // (backInStockSweep can't see the switch any more; it reads the releasePending stamp set below.)
   const stuckBefore = Date.now() - 15 * 60 * 1000;
   const link = siteLink(`/books/${encodeURIComponent(book.slug || bookId)}`);
   const restockSettings = await loadNotificationSettings();
@@ -6530,14 +6532,15 @@ async function sendRestockAlerts({ bookId, book, docs, deadline }) {
     try {
       const title = esc(book.title || alert.bookTitle);
       const variant = alert.variantName ? ` (${esc(alert.variantName)})` : "";
+      const isRelease = released || alert.releasePending === true;
       await sendEmail({
         // Both senders down: the retry queue delivers it later (this trigger won't run again).
         queue: "backInStock",
         to: alert.email,
-        subject: `Back in stock: ${book.title || alert.bookTitle}`,
+        subject: isRelease ? `Out now: ${book.title || alert.bookTitle}` : `Back in stock: ${book.title || alert.bookTitle}`,
         html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-            <h2 style="margin-top:0;">It's back!</h2>
-            <p style="font-size:15px;line-height:1.6;"><strong>${title}</strong>${variant} is available again. Stock is limited, so grab your copy while you can.</p>
+            <h2 style="margin-top:0;">${isRelease ? "It's here!" : "It's back!"}</h2>
+            <p style="font-size:15px;line-height:1.6;"><strong>${title}</strong>${variant} ${isRelease ? "is out now and ready to order." : "is available again. Stock is limited, so grab your copy while you can."}</p>
             ${risoButton(link, "Shop now", restockSettings.brand?.brandColor, restockSettings.brand?.emailTheme)}
             <p style="font-size:12px;color:#888;">You received this because you asked to be notified. This is a one-time message.</p>
           </div>`,
@@ -6577,12 +6580,23 @@ exports.onBookRestocked = onDocumentUpdated(
     if (after.isTest === true) return;
     // (A future release date doesn't skip: the alert would otherwise wait for a second restock.)
     if (after.status && after.status !== "published") return;
+    // Still "Coming soon": nothing can be bought yet, so no email (stock may be filled in ahead of release).
+    if (after.comingSoon === true) return;
 
     // Which variant ids (and the base product, "") just went from 0 to available?
     const restocked = new Set();
+    const afterVariants = Array.isArray(after.variants) ? after.variants : [];
+    // Coming soon switched off = the book is out: everyone who asked on its page hears, for every edition
+    // in stock. Signups there are for the book as a whole (""), so "" counts when any edition can be bought.
+    const released = before.comingSoon === true;
+    if (released) {
+      const anyEdition = afterVariants.some(v => stockOf(v, 999) > 0);
+      if (stockOf(after, 999) > 0 || anyEdition) restocked.add("");
+      for (const v of afterVariants) if (stockOf(v, 999) > 0) restocked.add(String(v.id));
+    }
     if (stockOf(before, 999) <= 0 && stockOf(after, 999) > 0) restocked.add("");
     const beforeVariants = Array.isArray(before.variants) ? before.variants : [];
-    for (const v of Array.isArray(after.variants) ? after.variants : []) {
+    for (const v of afterVariants) {
       const prev = beforeVariants.find(x => x.id === v.id);
       if (prev && stockOf(prev, 999) <= 0 && stockOf(v, 999) > 0) restocked.add(String(v.id));
     }
@@ -6600,8 +6614,8 @@ exports.onBookRestocked = onDocumentUpdated(
     const docs = snap.docs.filter(doc => restocked.has(String(doc.data().variantId || "")));
     if (!docs.length) return;
     // Mark them pending first: whatever this run cannot reach is finished by backInStockSweep.
-    await Promise.all(docs.map(doc => doc.ref.update({ restockPending: true }).catch(() => {})));
-    await sendRestockAlerts({ bookId, book: after, docs, deadline: Date.now() + RESTOCK_BUDGET_MS });
+    await Promise.all(docs.map(doc => doc.ref.update({ restockPending: true, ...(released ? { releasePending: true } : {}) }).catch(() => {})));
+    await sendRestockAlerts({ bookId, book: after, docs, deadline: Date.now() + RESTOCK_BUDGET_MS, released });
   },
 );
 
@@ -6643,14 +6657,17 @@ exports.backInStockSweep = onSchedule(
       if (!byBook.has(bookId)) byBook.set(bookId, []);
       byBook.get(bookId).push(doc);
     }
-    const clear = doc => doc.ref.update({ restockPending: false }).catch(() => {});
+    const clear = doc => doc.ref.update({ restockPending: false, releasePending: false }).catch(() => {});
     for (const [bookId, alerts] of byBook) {
       if (Date.now() >= deadline) break;
       const bookSnap = bookId && !bookId.includes("/") ? await db.collection("books").doc(bookId).get().catch(() => null) : null;
       const book = bookSnap?.exists ? bookSnap.data() : null;
-      if (!book || book.isTest === true || (book.status && book.status !== "published")) { await Promise.all(alerts.map(clear)); continue; }
+      // Back to "Coming soon" before the sweep ran: wait for its next release.
+      if (!book || book.isTest === true || (book.status && book.status !== "published") || book.comingSoon === true) { await Promise.all(alerts.map(clear)); continue; }
       const available = new Set();
       if (stockOf(book, 1) > 0) available.add("");
+      // A release signup is for the whole book: any edition in stock will do.
+      if (alerts.some(doc => doc.data().releasePending === true) && (Array.isArray(book.variants) ? book.variants : []).some(v => stockOf(v, 1) > 0)) available.add("");
       for (const v of Array.isArray(book.variants) ? book.variants : []) if (stockOf(v, 1) > 0) available.add(String(v.id));
       const due = alerts.filter(doc => available.has(String(doc.data().variantId || "")));
       await Promise.all(alerts.filter(doc => !due.includes(doc)).map(clear));

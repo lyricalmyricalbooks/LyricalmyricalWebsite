@@ -1,4 +1,5 @@
 import { preorderActive, releaseDateOf } from '../features/site/preorder';
+import { comingSoonActive } from '../features/site/comingSoon';
 import type { Book } from '../features/site/types';
 import { formatKey } from '../features/site/CatalogControls';
 
@@ -151,7 +152,9 @@ export function siteStructuredData(options: { name: string; url: string; descrip
 export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; ratingSummary?: { count: number; average: number } | null; seller?: string }) {
   const variants = book.variants || [];
   const backorder = book.onBackorder || (variants.length > 0 && variants.every((v: any) => v.onBackorder));
-  const available = variants.length ? variants.some(v => Number(v.stockLevel ?? v.stock ?? 0) > 0) : Number(book.stockLevel ?? 999) > 0;
+  // Coming soon (Books › Inventory): shown but not for sale yet, so it is honestly out of stock.
+  const soon = comingSoonActive(book);
+  const available = !soon && (variants.length ? variants.some(v => Number(v.stockLevel ?? v.stock ?? 0) > 0) : Number(book.stockLevel ?? 999) > 0);
   // Pre-order (Books › Inventory): PreOrder availability, starting on the release day when known.
   const preorder = available && preorderActive(book);
   const release = preorder ? releaseDateOf(book) : '';
@@ -173,7 +176,7 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
       '@type': 'Offer', url: options.url,
       priceCurrency: options.currency,
       price: Number(options.price).toFixed(2),
-      availability: `https://schema.org/${preorder ? 'PreOrder' : backorder ? 'BackOrder' : available ? 'InStock' : 'OutOfStock'}`,
+      availability: `https://schema.org/${preorder ? 'PreOrder' : soon ? 'OutOfStock' : backorder ? 'BackOrder' : available ? 'InStock' : 'OutOfStock'}`,
       ...(release ? { availabilityStarts: release } : {}),
       itemCondition: 'https://schema.org/NewCondition',
       ...(options.seller ? { seller: { '@type': 'Organization', name: options.seller } } : {}),

@@ -95,7 +95,11 @@ function WishlistContent() {
                       alt={book.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
-                    {out && (
+                    {/* Coming soon: the badge alone (it isn't sold out); words in Text & labels › Product page */}
+                    {choice.comingSoon && (
+                      <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "comingSoonBadge")} />
+                    )}
+                    {out && !choice.comingSoon && (
                       <>
                         <SoldOutVeil design={settings?.design} />
                         <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "soldOutLabel")} />
@@ -115,7 +119,7 @@ function WishlistContent() {
                     disabled={out}
                     className="flex-1 flex items-center justify-center gap-2 fm-active py-2.5 rounded-full text-[9px] tracking-[0.3em] uppercase font-bold disabled:opacity-30 hover:bg-white/90 transition-all"
                   >
-                    <ShoppingBag size={11} /> {getCopy(settings?.design, "wishlistAdd")}
+                    <ShoppingBag size={11} /> {getCopy(settings?.design, choice.comingSoon ? "comingSoonBadge" : "wishlistAdd")}
                   </button>
                   <button
                     onClick={() => remove(book.id)}

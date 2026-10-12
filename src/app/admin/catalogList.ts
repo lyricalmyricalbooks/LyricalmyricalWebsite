@@ -35,6 +35,7 @@ export const publicationBadge = (book: any, nowISO?: string) => STATE_BADGE[publ
 export function matchesStatus(book: any, filter: string, nowISO?: string): boolean {
   if (filter === "All") return true;
   if (filter === "Pre-order") return preorderActive(book);
+  if (filter === "Coming soon") return book?.comingSoon === true;
   return publicationState(book, nowISO) === filter.toLowerCase();
 }
 

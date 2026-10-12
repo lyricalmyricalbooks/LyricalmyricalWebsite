@@ -19,3 +19,8 @@ it("skips an in-stock edition that has no price", () => {
   const book = { variants: [{ id: "a", stock: 2 }, { id: "b", stock: 2, price: 30 }] };
   expect(quickAddChoice(book).variant?.id).toBe("b");
 });
+
+it("never quick-adds a Coming soon book, even with stock", () => {
+  expect(quickAddChoice({ comingSoon: true, stockLevel: 5 })).toEqual({ inStock: false, comingSoon: true });
+  expect(quickAddChoice({ comingSoon: false, stockLevel: 5 }).inStock).toBe(true);
+});

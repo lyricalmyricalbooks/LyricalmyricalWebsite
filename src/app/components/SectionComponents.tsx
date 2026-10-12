@@ -1525,7 +1525,8 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                         {category}
                       </span>
                     )}
-                    {settings.showQuickAdd !== false && (
+                    {/* Coming soon books have nothing to add yet: the card links to their page and its signup. */}
+                    {settings.showQuickAdd !== false && !quick.comingSoon && (
                       <button
                         type="button"
                         aria-label={sc(soldOut ? "sectionSoldOutAria" : "sectionQuickAddAria", { title: book.title })}
@@ -2828,7 +2829,7 @@ export function StickyAddToBagSection({ settings }: any) {
   // anything with choices sends the shopper back to the buy box, which handles them.
   const variants = Array.isArray(book.variants) ? book.variants : [];
   const quick = quickAddChoice(book);
-  const needsChoice = variants.length > 1 || (Array.isArray(book.addOns) && book.addOns.length > 0) || book.preorder === true || book.productType === "giftCard";
+  const needsChoice = variants.length > 1 || (Array.isArray(book.addOns) && book.addOns.length > 0) || book.preorder === true || book.comingSoon === true || book.productType === "giftCard";
   const soldOut = !needsChoice && !quick.inStock;
   const photo = book.photos?.[0]?.url;
   const act = () => {
