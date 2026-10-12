@@ -913,6 +913,24 @@ await check("a custom page takes uploaded and pasted pictures, with size, positi
   if ((body.match(/<img /g) || []).length !== 2) throw new Error(`expected two pictures in ${body}`);
 });
 
+await check("a custom page's search listing fills in from the page", desktop, async page => {
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await page.getByRole("button", { name: "Edit About" }).click();
+  await page.getByRole("button", { name: "Auto-fill from page" }).click();
+  if (await page.getByLabel("SEO title").inputValue() !== "About") throw new Error("search title wasn't filled from the page title");
+  if (await page.getByLabel("Meta description").inputValue() !== "We publish books.") throw new Error("description wasn't filled from the page text");
+  if ((await calls(page)).some(c => c.method === "updatePage")) throw new Error("auto-fill saved before Save page");
+  await page.getByRole("button", { name: "All pages" }).click();
+  await page.getByRole("button", { name: "Discard changes" }).click();
+  await page.getByRole("button", { name: /Fill in missing search listings/ }).click();
+  await page.getByRole("button", { name: /^Fill in \d+ pages?$/ }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "updatePage"), null, { timeout: 10000 });
+  const about = (await calls(page)).find(c => c.method === "updatePage" && c.args[0] === "p1")?.args[1];
+  if (about?.seoTitle !== "About" || about?.metaDescription !== "We publish books.") throw new Error(`saved ${JSON.stringify(about)}`);
+  if ("body" in about) throw new Error("bulk fill rewrote the page body");
+  await page.getByRole("button", { name: /Fill in missing search listings/ }).waitFor({ state: "detached", timeout: 5000 });
+});
+
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
