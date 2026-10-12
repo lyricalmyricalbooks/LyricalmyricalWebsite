@@ -693,6 +693,11 @@ draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
   deploy. `ALLOWED_ORIGINS` includes web.app (not firebaseapp.com) and, for tabs opened before the move, github.io (remove in the
   cleanup step); it already lists lyricalmyricalbooks.com/www for the shop's own domain later (`docs/FIREBASE_HOSTING.md`).
 
+**No cancelled runs (12 October 2026).** Merging PRs in quick succession used to cancel the earlier runs (red marks on `main`).
+`ci.yml` now cancels only superseded *pull request* runs (group per PR number / commit on main). `deploy-pages.yml` uses one group
+per run and never cancels; `firebase-first` checks whether the run's commit is still the head of `main` and, if not, finishes green
+as "superseded" without building; `deploy-hosting` re-checks right before `firebase deploy` and `redirect-old-address` only runs
+when it deployed. `scripts/hostingConfig.test.ts` forbids `cancel-in-progress: true`. Only the workflows' first real run proves this.
 **Deploy ordering contract (October 2026).** Rules, indexes and Functions go live before the frontend that needs them.
 `deploy-pages.yml`'s `firebase-first` job, on a push to `main`, lists the changed files (GitHub compare API) and, when any
 path watched by `deploy-firebase.yml` changed (keep its regex identical to that workflow's `on.push.paths`), waits for the
