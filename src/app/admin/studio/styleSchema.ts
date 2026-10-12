@@ -457,6 +457,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "pdpCardPadding", label: "Card inner spacing", kind: "range", min: 8, max: 48, step: 2, suffix: "px" },
       { key: "pdpCardDividerColor", label: "Lines inside the card", kind: "color" },
       { key: "pdpEditionPicker", label: "Edition picker (signed / unsigned…)", kind: "select", options: [{ value: "", label: "Buttons (first edition picked)" }, { value: "dropdown", label: "Drop-down menu (shopper must choose)" }] },
+      { key: "pdpStickyBar", label: "Sticky “Add to bag” bar (follows the shopper once the main button scrolls away)", kind: "toggle" },
+      { key: "pdpStickyPhoneOnly", label: "Sticky bar on phones only (off = every screen size)", kind: "toggle" },
       { key: "pdpShowTag", label: "Show category tag", kind: "toggle" },
       { key: "pdpTagStyle", label: "Category tag style", kind: "select", options: [{ value: "filled", label: "Filled (badge colours)" }, { value: "outline", label: "Outline" }] },
       { key: "pdpTitleFont", label: "Title font", kind: "select", options: [{ value: "", label: "Same as heading font" }, ...FONT_SELECT_OPTIONS] },

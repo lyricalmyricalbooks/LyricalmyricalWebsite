@@ -147,6 +147,9 @@ export default function BookDetail() {
   const productCtaWidth        = storefrontDesign.productCtaWidth        || "full";
   // Style › Product page › Edition picker: "dropdown" makes the shopper choose an edition themselves.
   const editionDropdown        = storefrontDesign.pdpEditionPicker === "dropdown";
+  // Style › Product page › Sticky add-to-bag bar: a bar that follows the shopper once the buy button has scrolled away.
+  const stickyBar              = storefrontDesign.pdpStickyBar === true;
+  const stickyPhoneOnly        = storefrontDesign.pdpStickyPhoneOnly !== false;
   // Keyed on the book's id: a background catalog refresh hands us a new book
   // object, and that must not snap the shopper's chosen edition back to the first.
   useEffect(() => {
@@ -419,6 +422,17 @@ export default function BookDetail() {
   const inBag = cart.filter(item => item.id === book?.id && (item.variantId || undefined) === (selectedVariant?.id || undefined)).reduce((n, item) => n + item.quantity, 0);
   const qtyMax = Math.max(1, lineQuantityCap(stockLevel === 999 || backorderable(book, selectedVariant) ? undefined : Number(stockLevel)) - inBag);
   useEffect(() => { setQty(q => Math.min(q, qtyMax)); }, [qtyMax]);
+  // The sticky bar shows only after the real Add to bag button has scrolled out of view (and not while it is below the fold).
+  const [buyEl, setBuyEl] = useState<HTMLElement | null>(null);
+  const [buyGone, setBuyGone] = useState(false);
+  useEffect(() => {
+    if (!stickyBar || !buyEl || typeof IntersectionObserver === "undefined") { setBuyGone(false); return; }
+    const io = new IntersectionObserver(([entry]) => {
+      setBuyGone(!entry.isIntersecting && entry.boundingClientRect.top < 0);
+    });
+    io.observe(buyEl);
+    return () => io.disconnect();
+  }, [stickyBar, buyEl]);
   // Oversold stock goes below zero: that is sold out too, not "in stock".
   // An edition with no usable price can't be bought either; treat it like sold out rather than fake an add.
   const isOutOfStock  = Number(stockLevel) <= 0 || (!!book && !Number.isFinite(catalogUnitPrice(book, selectedVariant || undefined)));
@@ -833,6 +847,7 @@ export default function BookDetail() {
                       </div>
                     )}
                     <m.button
+                      ref={setBuyEl}
                       data-section="buttons"
                       onClick={handleAddToCart}
                       disabled={isOutOfStock}
@@ -1330,6 +1345,47 @@ export default function BookDetail() {
         {/* ── Reviews ── */}
         {productDetailsLayout === "sections" && book && regionVisible(tokenSource, "productReviews") && (
           <div {...regionProps("productReviews")}><ReviewsSection key={book.id} bookId={book.id} /></div>
+        )}
+
+        {/* ── Sticky add-to-bag bar ── */}
+        {stickyBar && book && !isOutOfStock && buyGone && (
+          <div
+            className={`fm-pdp-sticky${stickyPhoneOnly ? " fm-pdp-sticky-phone" : ""}`}
+            role="region"
+            aria-label={book.title}
+            data-studio-target="style:productCard|copy:Product page"
+            data-studio-label="Sticky add-to-bag bar"
+          >
+            <div className="fm-pdp-sticky-text">
+              <span className="fm-pdp-sticky-title">{book.title}</span>
+              {retailPrice > 0 || !selectedVariant ? (
+                <span className="fm-pdp-sticky-price">
+                  {isOnSale ? formatPrice(Number(salePrice)) : selectedVariant ? formatPrice(selectedVariant.price) : formatBookPrice(book)}
+                </span>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              className="fm-pdp-sticky-btn custom-btn"
+              style={{
+                "--btn-bg": buyButton.bg,
+                "--btn-text": buyButton.text,
+                "--btn-border": "none",
+                "--btn-shadow": "none",
+                borderRadius: buttonRadius,
+              } as React.CSSProperties}
+              onClick={() => {
+                // Choices the bar can't show (edition, add-ons, gift-card form): take the shopper back to the real button.
+                const needsChoices = (book.variants?.length && !selectedVariant) || isGiftCard || addOns.length > 0;
+                if (needsChoices) { buyEl?.scrollIntoView({ behavior: "smooth", block: "center" }); handleAddToCart(); return; }
+                handleAddToCart();
+              }}
+            >
+              {added
+                ? <><Check size={14} strokeWidth={3} /> {getCopy(settings?.design, "bookAdded")}</>
+                : <><ShoppingBag size={14} /> {isPreorder ? getCopy(settings?.design, "preorderButton") : (storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel"))}</>}
+            </button>
+          </div>
         )}
 
         {/* ── Recently viewed ── */}
