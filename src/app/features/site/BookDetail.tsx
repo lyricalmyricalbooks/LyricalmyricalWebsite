@@ -122,6 +122,7 @@ export default function BookDetail() {
   const productImageLayout     = storefrontDesign.productImageLayout     || "slider";
   const productContentPosition = storefrontDesign.productContentPosition || "right";
   const showRelatedProducts    = storefrontDesign.showRelatedProducts    ?? true;
+  const showSoldOutBadge       = storefrontDesign.showSoldOutBadge       ?? true;
   const showSocialShare        = storefrontDesign.showSocialShare        ?? true;
   const showBackInStock        = storefrontDesign.showBackInStock        ?? true;
 
@@ -1189,18 +1190,10 @@ export default function BookDetail() {
                     <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame fm-photo-frame-pdp overflow-hidden`} style={{ aspectRatio: productImageAspect, borderRadius: `${productBorderRadius}px` }}>
                       <img src={photo.url} alt={photo.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
                       {i === 0 && isOutOfStock && (
-                        <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                          <span
-                            className="border text-[10px] font-black tracking-[0.5em] px-8 py-3 rounded-full uppercase"
-                            style={{
-                              backgroundColor: badgeBgSecondary,
-                              color: badgeTextSecondary,
-                              borderColor: `${badgeTextSecondary}33`,
-                            }}
-                          >
-                            {getCopy(settings?.design, "soldOutLabel")}
-                          </span>
-                        </div>
+                        <>
+                          <SoldOutVeil design={settings?.design} />
+                          <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "soldOutLabel")} scale={1.5} />
+                        </>
                       )}
                     </div>
                   ))}
@@ -1310,19 +1303,12 @@ export default function BookDetail() {
                             className="w-full h-full transition-transform duration-700 group-hover:scale-105"
                             style={{ objectFit: productImageFit }}
                           />
-                          {relStock === 0 && (
-                            <div className="absolute inset-0 bg-black/65 flex items-center justify-center">
-                              <span
-                                className="text-[8px] font-black tracking-widest uppercase border px-4 py-2 rounded-full"
-                                style={{
-                                  backgroundColor: badgeBgSecondary,
-                                  color: badgeTextSecondary,
-                                  borderColor: `${badgeTextSecondary}33`,
-                                }}
-                              >
-                                {getCopy(settings?.design, "soldOutLabel")}
-                              </span>
-                            </div>
+                          {/* Sold out: same mark as the shop grid (Studio › Style › Product cards & grid › Sold-out badge) */}
+                          {relStock === 0 && showSoldOutBadge && (
+                            <>
+                              <SoldOutVeil design={settings?.design} />
+                              <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "soldOutLabel")} />
+                            </>
                           )}
                           {/* hover shine */}
                           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
