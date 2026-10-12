@@ -55,14 +55,19 @@ export function footerStyleCss(d: any = {}): string {
   }
   if (d.footerGroupHeadingsAccent !== false && !heading) css += `${s} .fm-footer-groups .fm-footer-heading{color:${accent} !important;}`;
   if (footerBrandAlign(d) === "center") {
-    css += `@media (min-width:768px){${s} .fm-footer-brand{max-width:none;justify-self:stretch;align-self:stretch;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}`
-      + `${s} .fm-footer-brand>*+*{margin-top:16px;}${s} .fm-footer-brand img{margin-inline:auto;}}`;
+    const vAlign = d.footerBrandVAlign === "top" ? "flex-start" : "center";
+    const centred = `${s} .fm-footer-brand{max-width:none;justify-self:stretch;align-self:stretch;display:flex;flex-direction:column;align-items:center;justify-content:${vAlign};text-align:center;}`
+      + `${s} .fm-footer-brand>*+*{margin-top:16px;}${s} .fm-footer-brand img{margin-inline:auto;}`;
+    // Phones stack the logo above the links; "Centre the logo on phones too" centres it there as well.
+    css += d.footerBrandCenterMobile !== false ? centred : `@media (min-width:768px){${centred}}`;
   }
   if (d.showFooterBrandDivider !== false) {
     css += `@media (min-width:768px){${s} .fm-footer-brand{border-right:1px solid ${rule};padding-right:${num(d.footerColumnGap, 64, 16, 200)}px;}}`;
   }
   if (d.footerSocialBoxes !== false) {
-    css += `${s} .fm-footer-icon-box{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border:1px solid ${rule};}`;
+    const hoverBox = colour(d.footerSocialHoverColor) || accent;
+    css += `${s} .fm-footer-icon-box{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border:1px solid ${rule};transition:border-color .15s,color .15s;}`
+      + `${s} .fm-footer-icon-box:hover,${s} .fm-footer-icon-box:focus-visible{border-color:${hoverBox} !important;color:${hoverBox} !important;}`;
   }
   return css;
 }

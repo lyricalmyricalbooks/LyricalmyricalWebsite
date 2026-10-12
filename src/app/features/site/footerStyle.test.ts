@@ -48,4 +48,16 @@ describe("footer style controls", () => {
     expect(custom).not.toContain(".fm-footer-groups .fm-footer-heading");
     expect(footerBrandAlign({ footerBrandAlign: "bogus" })).toBe("center");
   });
+
+  it("centres the logo on phones, lines it up top on request and colours the square buttons on hover", () => {
+    const css = footerStyleCss({});
+    expect(css).not.toContain("@media (min-width:768px){[data-fm-footer] .fm-footer-brand{max-width:none");
+    expect(css).toContain(".fm-footer-brand{max-width:none");
+    expect(css).toContain("justify-content:center;text-align:center");
+    expect(css).toContain(".fm-footer-icon-box:hover,[data-fm-footer] .fm-footer-icon-box:focus-visible{border-color:var(--accent, currentColor)");
+    const top = footerStyleCss({ footerBrandVAlign: "top", footerBrandCenterMobile: false, footerSocialHoverColor: "#ff6fae" });
+    expect(top).toContain("justify-content:flex-start");
+    expect(top).toContain("@media (min-width:768px){[data-fm-footer] .fm-footer-brand{max-width:none");
+    expect(top).toContain("border-color:#ff6fae !important");
+  });
 });

@@ -38,7 +38,12 @@ export const THEME_LIBRARY = [
     productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 0, productCTA: "ADD TO BAG",
     catalogLayoutStyle: "reference", showCatalogControls: true,
     homeLayoutTemplate: RISO_NOIR_ID,
-    global: RISO_NOIR_TOKENS,
+    // The footer look chosen in October 2026 (E3), so applying Riso Noir from another theme brings it back.
+    global: {
+      ...RISO_NOIR_TOKENS,
+      showFooterAccentLine: true, footerAccentLineWidth: 3, footerGroupHeadingsAccent: true, footerBrandAlign: "center",
+      footerBrandVAlign: "middle", footerBrandCenterMobile: true, showFooterBrandDivider: true, footerSocialBoxes: true,
+    },
   },
   {
     id: "lyricalmyrical-riso",
