@@ -1,4 +1,5 @@
 import { physicalItems } from "./fulfillment";
+import { labelRefundProblems } from "./labelRefunds";
 import { currentRows } from "./emailLogDisplay";
 import { describeBackup, type BackupRecord } from "./backupStatus";
 import { waitingPreorderLines, preorderClockStart } from "../features/site/preorder";
@@ -118,6 +119,12 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
 
   const uncertain = orders.filter(o => o.operations?.labelPurchasePending === true);
   if (uncertain.length) out.push(alert("label-purchase-uncertain", "danger", `${plural(uncertain.length, "label purchase needs", "label purchases need")} reconciliation`, `Check the existing transaction in Shippo before retrying: ${list(uncertain)}. An uncertain purchase may already have charged for a label.`, uncertain));
+  // Shippo label refunds asked for from Order detail (followed by the server every 15 minutes).
+  const labelRefund = labelRefundProblems(orders, now);
+  if (labelRefund.rejected.length) out.push(alert("label-refund-rejected", "warning", `Shippo rejected ${plural(labelRefund.rejected.length, "label refund", "label refunds")}`,
+    `The carrier scanned or used the label, so Shippo won't refund it: ${list(labelRefund.rejected)}. Contact Shippo support if the parcel never went out.`, labelRefund.rejected));
+  if (labelRefund.stale.length) out.push(alert("label-refund-stale", "info", `${plural(labelRefund.stale.length, "label refund is", "label refunds are")} still pending after 30 days`,
+    `Check them in Shippo: ${list(labelRefund.stale)}.`, labelRefund.stale));
   // A queued email's newest row is its outcome: one later sent (or stopped) by the retry queue no longer alarms.
   const current = currentRows(emailLog);
   const queuedEmails = current.filter(e => e.status === "queued");

@@ -79,4 +79,4 @@ function shippoDefiniteRefusal(error) {
  const status = Number(error?.shippoStatus);
  return Number.isInteger(status) && status >= 400 && status < 500 && status !== 408;
 }
-module.exports = { labelProblem, externalDispatchProblem, addressKey, packingKey, shippoTransactionOutcome, advancesTracking, shippoDefiniteRefusal };
+module.exports = { labelProblem, externalDispatchProblem, addressKey, packingKey, shippoTransactionOutcome, advancesTracking, shippoDefiniteRefusal, terminal };

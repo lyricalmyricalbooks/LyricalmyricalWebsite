@@ -16,6 +16,7 @@ import {
   packingTicksKey,
   isDigitalItem,
   disputeOpen,
+  terminal,
 } from "./fulfillment";
 import { printOrders, type SlipShop } from "./orderPrint";
 import { getCopy } from "../features/site/storeCopy";
@@ -280,11 +281,15 @@ export function OrderDetail({
   const replaceLabel = async () => {
     setReplacing(true);
     try {
-      await adminApi.voidLabel(orderId, voidedElsewhere);
+      const result = await adminApi.voidLabel(orderId, voidedElsewhere);
+      const finished = order ? terminal(order) : false;
       setShowReplaceLabel(false);
       setVoidedElsewhere(false);
       await loadOrder();
-      toast.success("Label voided. Press Buy Shippo label to get a new one.");
+      const refundNote = result?.refundState === "refunded" ? "Shippo refunded it."
+        : result?.refundState === "pending" ? "Shippo is checking it with the carrier (up to 14 business days); the order shows the result."
+        : "It was removed from this order.";
+      toast.success(`Label voided. ${refundNote}${finished ? "" : " Press Buy Shippo label to get a new one."}`);
     } catch (err: any) {
       toast.error(err?.message || "Couldn't void the label.");
       await loadOrder();
@@ -1754,8 +1759,10 @@ export function OrderDetail({
       <Dialog
         open={showReplaceLabel}
         onClose={() => !replacing && setShowReplaceLabel(false)}
-        title="Replace this label?"
-        description="Use this when the label was bought for the wrong weight, address or service and the parcel has not left the shop."
+        title={order && terminal(order) ? "Void this unused label?" : "Void or replace this label?"}
+        description={order && terminal(order)
+          ? "The order is cancelled or refunded, so this label won't be used. Voiding it asks Shippo to refund the postage."
+          : "Use this when the label was bought for the wrong weight, address or service, or the parcel won't be sent. The parcel must not have left the shop."}
         footer={
           <>
             <SecondaryButton disabled={replacing} onClick={() => setShowReplaceLabel(false)}>Cancel</SecondaryButton>
@@ -1767,7 +1774,7 @@ export function OrderDetail({
       >
         <div className="rp-stack">
           <p style={{ margin: 0 }}>
-            Label <span className="rp-mono">{order.trackingNumber || ""}</span> will be voided with Shippo (unused labels are refunded to your Shippo balance) and removed from this order. You can then buy a new one. Nothing is emailed to the customer.
+            Label <span className="rp-mono">{order.trackingNumber || ""}</span> will be voided with Shippo and removed from this order{order && terminal(order) ? "" : "; you can then buy a new one"}. Shippo refunds labels that are unused and less than 90 days old, usually within 14 business days, as a credit on your Shippo invoice. The refund's progress shows on this order. Nothing is emailed to the customer.
           </p>
           <Checkbox
             label="I already voided it in Shippo — just remove it from this order"
