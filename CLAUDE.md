@@ -1794,8 +1794,13 @@ it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badg
   Keep CLAUDE.md's submission-lock rules: `createCheckoutSubmission().reset()` runs only from `onPageRestored` (browser Back from PayPal).
 - **Retry key:** `cardAttemptKey` (`cardAttempt.ts`) includes the order note and address-check result; add any new order field the shopper can edit to it.
 - **Live rates:** `getShippoRates` answers are dropped unless they belong to the newest request (`createLatestGuard`) and give up after
-  `RATES_TIMEOUT_MS`, falling back to profile rates. Exchange rates come from `exchangeRates.ts` `loadRates` (5 s timeout, 6 h session cache,
-  `ratesSource` = live | cached | fallback on `useCurrency()` and `<html data-rates-source>`).
+  `RATES_TIMEOUT_MS`, falling back to profile rates. Exchange rates: the scheduled `refreshExchangeRates` Function (every 3 h, `functions/exchangeRates.js`)
+  saves CAD→USD/EUR from open.er-api.com in public `settings/exchangeRates` (`usd`, `eur`, `fetchedAt`, `providerUpdatedAt`, `lastError`).
+  Checkout charges through `createRateReader` (5 min instance cache; saved copy while < 36 h old, else a live fetch, else the last
+  saved copy, `FALLBACK_RATES` only if nothing was ever saved; rates outside `SANE_RANGE` are never saved or used). The storefront's
+  `exchangeRates.ts` `loadRates` reads the same doc first (`publicApi.getExchangeRates`), then the feed, then the stale copy
+  (5 s timeout, 1 h tab cache; `CurrencyProvider` re-checks every 15 min). `ratesSource` = live | cached | fallback on
+  `useCurrency()` and `<html data-rates-source>`. Keep the client/server freshness windows and sane bounds equal.
 - **No third-party IP lookup:** checkout starts on `guessCountryName()` (browser language); address suggestions (Photon) stay. Do not re-add an IP-to-country call in the browser.
 - **Starting currency by country (12 October 2026):** `CurrencyContext` starts on the shopper's saved `fm_currency`, else the
   time-zone guess, then `features/site/visitorCurrency.ts` asks the shop's own `validateDiscountCode` `{ action: "visitorCountry" }`

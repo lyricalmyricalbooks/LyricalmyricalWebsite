@@ -857,30 +857,16 @@ function validateDiscountCustomer(discount, email) {
   }
 }
 
-const FALLBACK_RATES = {
-  cad: 1.0,
-  usd: 0.73,
-  eur: 0.67,
-};
+// Exchange rates (functions/exchangeRates.js): checkout charges the saved daily copy in settings/exchangeRates,
+// the same numbers the storefront shows. The scheduled job below refreshes it.
+const { FALLBACK_RATES, createRateReader, refreshStoredRates } = require("./exchangeRates");
+const getExchangeRates = createRateReader({ db });
 
-async function getExchangeRates() {
-  try {
-    const res = await fetchWithTimeout("https://open.er-api.com/v6/latest/CAD", {}, 3000);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.rates) {
-        return {
-          cad: 1.0,
-          usd: data.rates.USD || FALLBACK_RATES.usd,
-          eur: data.rates.EUR || FALLBACK_RATES.eur,
-        };
-      }
-    }
-  } catch (err) {
-    console.warn("Could not fetch live exchange rates on backend, using static fallbacks:", err);
-  }
-  return FALLBACK_RATES;
-}
+exports.refreshExchangeRates = onSchedule({ schedule: "every 3 hours", timeoutSeconds: 60 }, async () => {
+  const saved = await refreshStoredRates({ db });
+  if (saved) console.log(`Exchange rates saved: 1 CAD = ${saved.usd} USD, ${saved.eur} EUR (feed updated ${saved.providerUpdatedAt || "unknown"}).`);
+  else console.warn("Exchange-rate refresh failed: the shop keeps its last saved rates.");
+});
 
 // ──────────────────────────────────────────────────────────────
 // PayPal Orders API helpers

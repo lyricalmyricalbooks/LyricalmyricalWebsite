@@ -2,7 +2,7 @@ import { displayPrice } from "./features/site/displayPrice";
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { ChevronDown } from "lucide-react";
 import { saleActive } from "./features/site/promotions";
-import { FALLBACK_RATES, loadRates, type RatesSource } from "./features/site/exchangeRates";
+import { FALLBACK_RATES, RATES_CACHE_MS, loadRates, type RatesSource } from "./features/site/exchangeRates";
 import { currencyForCountry, loadVisitorCountry } from "./features/site/visitorCurrency";
 
 export type Currency = "CAD" | "USD" | "EUR";
@@ -91,18 +91,21 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   }, []);
 
-  // Live exchange rates, with a timeout and a per-session cache (features/site/exchangeRates.ts).
-  // `ratesSource` says whether the numbers are live, cached, or the fixed fallback.
+  // Today's exchange rates: the shop's saved daily copy (the same numbers checkout charges), with a timeout and a
+  // one-hour per-tab cache (features/site/exchangeRates.ts). A tab left open re-reads them every hour, so prices
+  // follow the next day's rates without a reload. `ratesSource` says whether they are live, cached or the fallback.
   useEffect(() => {
     let cancelled = false;
-    loadRates().then(({ rates: next, source }) => {
+    const refresh = () => loadRates().then(({ rates: next, source }) => {
       if (cancelled) return;
-      setRates(next);
+      setRates(prev => (prev.USD === next.USD && prev.EUR === next.EUR && prev.CAD === next.CAD ? prev : next));
       setRatesSource(source);
-      if (source === "fallback") console.warn("Exchange-rate feed unreachable: showing the fixed fallback rates.");
+      if (source === "fallback") console.warn("Exchange rates unreachable: showing the fixed fallback rates.");
       try { document.documentElement.dataset.ratesSource = source; } catch { /* no document */ }
     });
-    return () => { cancelled = true; };
+    refresh();
+    const timer = setInterval(refresh, RATES_CACHE_MS / 4);
+    return () => { cancelled = true; clearInterval(timer); };
   }, []);
 
   const convertPrice = (priceInCAD: number) => {
