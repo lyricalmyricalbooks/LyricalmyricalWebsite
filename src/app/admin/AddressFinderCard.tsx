@@ -91,7 +91,7 @@ export function AddressFinderCard() {
       <ol className="rp-hint" style={{ margin: "0 0 12px", paddingLeft: 20, lineHeight: 1.6 }}>
         <li>In Google Cloud (console.cloud.google.com), open the project <strong>lyricalmyrical-web-v2</strong> and enable <strong>Places API (New)</strong>.</li>
         <li>APIs &amp; Services › Credentials › Create credentials › API key. Under API restrictions, allow only Places API (New). Leave Application restrictions on None: the shop's server makes the lookups, not shoppers' browsers.</li>
-        <li>Paste the key here and choose Save key. Google bills lookups beyond its monthly free allowance, so set a budget alert in Google Cloud › Billing. The shop also stops using the key after 3,000 lookups a day.</li>
+        <li>Paste the key here and choose Save key. Google bills lookups beyond its monthly free allowance, so set a budget alert in Google Cloud › Billing. The shop also stops using the key after 300 lookups a day (checkout then uses the free suggestions until the next day), which keeps a month inside Google's free allowance.</li>
       </ol>
       <TextField label="Google Maps Platform API key" type="password" value={draft} autoComplete="off"
         placeholder={stored ? "Stored — enter a new key to replace it" : "AIza…"}

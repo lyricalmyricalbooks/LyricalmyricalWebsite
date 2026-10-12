@@ -82,7 +82,8 @@ const LIMITS = {
   paypal: { max: 20, windowMs: 10 * 60 * 1000 },
   // Checkout address finder (Google Places, billed per lookup): per connection, and for the whole shop per day.
   address: { max: 120, windowMs: 10 * 60 * 1000 },
-  addressShopDay: { max: 3000, windowMs: 24 * 60 * 60 * 1000 },
+  // 300 a day (~9,000 a month) stays inside Google's 10,000 free requests per month.
+  addressShopDay: { max: 300, windowMs: 24 * 60 * 60 * 1000 },
 };
 
 module.exports = { clientIpOf, ipKey, serverGeoCountry, nextWindow, hitLimit, LIMITS };
