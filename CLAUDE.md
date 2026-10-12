@@ -456,7 +456,7 @@ in `PageView.tsx`) sets eyebrow, title size/case/colour, text size/colour, align
 width for every custom page. Each "Page content" section follows it unless its **Style this page on
 its own** switch (`ownStyle`) is on; pages without that section render the same component. Default is the Riso "Ruled" layout (Option D): no small "Page" label (`pageShowEyebrow`
 off), the title lined up with the header (`pageWidth: "header"`, same width as the `StoreHeader` row), a line
-under it (`pageShowRule`, `pageRuleColor/Width/Spacing`) and a readable text column (`pageTextMeasure`). Title
+under it (`pageShowRule`, `pageRuleColor/Width/Spacing`) and a readable text column (`pageTextMeasure`: readable 62ch · comfortable 75ch · wide 90ch · full column; `pageTextWidthPx` > 0 sets an exact width and wins; section fields `textMeasure`/`textWidthPx`). Title
 font/size px (desktop + phone)/weight and top spacing are `pageTitleFont`, `pageTitleSizePx*`, `pageTitleWeight`,
 `pageTopSpacing`; the Page content section has the same fields for "Style this page on its own".
 
