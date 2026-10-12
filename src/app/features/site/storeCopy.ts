@@ -401,6 +401,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "filterClearAria", label: "Clear button — screen-reader label", default: "Clear search" },
       { key: "sort_featured", label: "Sort: shop order (Admin › Books › Shop order)", default: "Featured" },
       { key: "sort_newest", label: "Sort: newest", default: "Newest" },
+      { key: "sort_oldest", label: "Sort: oldest first", default: "Oldest" },
       { key: "sort_price_asc", label: "Sort: price low→high", default: "Price ↑" },
       { key: "sort_price_desc", label: "Sort: price high→low", default: "Price ↓" },
       { key: "sort_title_az", label: "Sort: A→Z", default: "A → Z" },

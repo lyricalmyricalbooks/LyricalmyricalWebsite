@@ -71,3 +71,10 @@ describe("price and format filters", () => {
     expect(filtersActive({ ...EMPTY_FILTERS, maxPrice: "20" })).toBe(true);
   });
 });
+
+describe("oldest-first sort", () => {
+  it("orders by createdAt ascending", () => {
+    const books = [{ title: "B", createdAt: "2026-02-01" }, { title: "A", createdAt: "2026-01-01" }];
+    expect(applyCatalogControls(books, "", "oldest", false, [0, Infinity]).map(b => b.title)).toEqual(["A", "B"]);
+  });
+});
