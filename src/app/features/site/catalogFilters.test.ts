@@ -42,6 +42,15 @@ describe("price and format filters", () => {
     expect(applyCatalogControls(all, "", "price_asc", false, [0, Infinity]).map(b => b.id)).toEqual(["e", "p", "a", "h"]);
     expect(applyCatalogControls(all, "", "newest", false, priceRangeFor({ ...EMPTY_FILTERS, minPrice: "10", maxPrice: "20" })).map(b => b.id)).toEqual(["a", "p"]);
   });
+  it("sorts oldest first and on-sale books first", () => {
+    const books = [
+      { id: "old", createdAt: "2020-01-01", retailPrice: 10 },
+      { id: "mid", createdAt: "2021-01-01", retailPrice: 10, isOnSale: true, salePrice: 5 },
+      { id: "new", createdAt: "2022-01-01", retailPrice: 10 },
+    ];
+    expect(applyCatalogControls(books, "", "oldest", false, [0, Infinity]).map(b => b.id)).toEqual(["old", "mid", "new"]);
+    expect(applyCatalogControls(books, "", "sale", false, [0, Infinity]).map(b => b.id)).toEqual(["mid", "new", "old"]);
+  });
   it("reads Min/Max in the shopper's currency", () => {
     // 1 CAD = 0.5 shown units: "6" shown means 12 CAD.
     const [min, max] = priceRangeFor({ ...EMPTY_FILTERS, minPrice: "6", maxPrice: "6" }, 0.5);
