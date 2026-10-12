@@ -1,7 +1,12 @@
-// Shrinks oversized photos before upload (keeps the whole image — no cropping).
-export const MAX_IMAGE_EDGE = 1600;
+// Shrinks oversized photos before upload (keeps the whole image — no cropping). 2400 px keeps a
+// product photo sharp on high-density (retina) screens at the product page's widest setting (900 px).
+export const MAX_IMAGE_EDGE = 2400;
 // Studio banners and backgrounds span the full screen, so they keep a little more detail.
-export const MAX_STUDIO_IMAGE_EDGE = 2000;
+export const MAX_STUDIO_IMAGE_EDGE = 2800;
+/** A photo already within the size limit and below this many bytes is uploaded exactly as chosen. */
+export const KEEP_ORIGINAL_BYTES = 2_500_000;
+/** Encoder quality for a re-saved photo (WebP/JPEG). High enough that type and fine print stay crisp. */
+export const PHOTO_QUALITY = 0.92;
 
 export function fitWithin(width: number, height: number, maxEdge = MAX_IMAGE_EDGE) {
   const scale = Math.min(1, maxEdge / Math.max(width, height, 1));
@@ -14,14 +19,16 @@ export async function prepareProductImage(file: File, maxEdge = MAX_IMAGE_EDGE):
   try {
     const bitmap = await createImageBitmap(file);
     const { width, height, scaled } = fitWithin(bitmap.width, bitmap.height, maxEdge);
-    if (!scaled && file.size < 600_000) { bitmap.close?.(); return file; }
+    if (!scaled && file.size < KEEP_ORIGINAL_BYTES) { bitmap.close?.(); return file; }
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
-    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, width, height);
+    const ctx = canvas.getContext("2d")!;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bitmap, 0, 0, width, height);
     bitmap.close?.();
     const type = file.type === "image/png" ? "image/png" : "image/webp";
-    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, type, 0.86));
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, type, PHOTO_QUALITY));
     if (!blob || blob.size >= file.size) return file;
     const name = file.name.replace(/\.[^.]+$/, "") + (type === "image/png" ? ".png" : ".webp");
     return new File([blob], name, { type });
@@ -31,12 +38,13 @@ export async function prepareProductImage(file: File, maxEdge = MAX_IMAGE_EDGE):
 }
 
 // ── Studio media library (2.4) ─────────────────────────────────────────────
-// Every library picture is stored as WebP copies 480, 960 and 1600 px wide, so phones download the
-// small one and big screens the large one (`srcset`). Smaller originals are never enlarged.
-export const MEDIA_WIDTHS = [480, 960, 1600] as const;
-export const MEDIA_QUALITY = 0.82;
+// Every library picture (and every uploaded book photo) is stored as WebP copies 480, 960, 1600 and
+// 2400 px wide, so phones download the small one and big or retina screens the large one (`srcset`).
+// Smaller originals are never enlarged.
+export const MEDIA_WIDTHS = [480, 960, 1600, 2400] as const;
+export const MEDIA_QUALITY = 0.88;
 
-/** The copy widths made for a picture `originalWidth` px wide: [480, 960, 1600], [480, 960, 1200], [300]… */
+/** The copy widths made for a picture `originalWidth` px wide: [480, 960, 1600, 2400], [480, 960, 1200], [300]… */
 export function mediaWidthsFor(originalWidth: number): number[] {
   const original = Math.round(originalWidth);
   if (!(original > 0)) return [];

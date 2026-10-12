@@ -2,8 +2,10 @@
 import { useEffect, useState } from "react";
 import { joinWeight, splitWeight, WEIGHT_UNITS, type WeightUnit } from "./bookEditorState";
 import { isMediaDenied, mediaApi } from "./mediaApi";
-import { mainUrl, type MediaItem } from "./studio/mediaLibrary";
+import { mainUrl, mediaRefOf, type MediaItem } from "./studio/mediaLibrary";
+import type { BookPhotoFile } from "./bookPhotoUpload";
 import { Dialog, SelectField, TextField } from "./riso/components";
+import { safeHref } from "../features/site/descriptionLinks";
 
 /** Stored as "450 g" / "0.5 kg" / "1 lb" / "8 oz" — the format shippingEngine.parseWeightGrams (client and server) reads. */
 export function WeightField({ label, value, onChange, hint }: { label: string; value: string; onChange: (weight: string) => void; hint?: string }) {
@@ -24,7 +26,14 @@ export function WeightField({ label, value, onChange, hint }: { label: string; v
 }
 
 /** Images › Choose from library: Studio's media records read directly (no Studio context needed). */
-export function MediaLibraryDialog({ onClose, onChoose }: { onClose: () => void; onChoose: (url: string, alt: string) => void }) {
+/** A library picture's resized copies, saved on the book photo so the shop can use `srcset`. */
+function librarySizes(m: MediaItem): Omit<BookPhotoFile, "url"> {
+  const ref = mediaRefOf(m);
+  if (ref.srcset.length < 2) return {};
+  return { srcset: ref.srcset, ...(ref.width && ref.height ? { width: ref.width, height: ref.height } : {}) };
+}
+
+export function MediaLibraryDialog({ onClose, onChoose }: { onClose: () => void; onChoose: (url: string, alt: string, sizes: Omit<BookPhotoFile, "url">) => void }) {
   const [items, setItems] = useState<MediaItem[] | null>(null);
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
@@ -46,13 +55,47 @@ export function MediaLibraryDialog({ onClose, onChoose }: { onClose: () => void;
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 10 }}>
           {shown.map((m) => (
             <button key={m.id} type="button" className="rp-btn rp-btn-ghost" style={{ display: "block", padding: 4, height: "auto" }}
-              aria-label={`Add ${m.alt || m.name}`} onClick={() => onChoose(mainUrl(m), m.alt || "")}>
+              aria-label={`Add ${m.alt || m.name}`} onClick={() => onChoose(mainUrl(m), m.alt || "", librarySizes(m))}>
               <img src={mainUrl(m)} alt="" loading="lazy" decoding="async" width={100} height={130} style={{ width: "100%", height: 130, objectFit: "cover" }} />
               <span className="rp-hint" style={{ display: "block", overflowWrap: "anywhere" }}>{m.name}</span>
             </button>
           ))}
         </div>
       </div>
+    </Dialog>
+  );
+}
+
+/** "macleans.ca/…" → "https://macleans.ca/…"; shop paths and mailto: stay as typed. */
+export function normalizeLinkInput(value: string): string {
+  const v = value.trim();
+  if (!v || v.startsWith("/") || /^[a-z][a-z0-9+.-]*:/i.test(v)) return v;
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return `mailto:${v}`;
+  return `https://${v}`;
+}
+
+/** Books › edit › Details › Description › Add link: link text + web address, inserted as [text](url). */
+export function DescriptionLinkDialog({ open, initialText, onClose, onInsert }: { open: boolean; initialText: string; onClose: () => void; onInsert: (text: string, href: string) => void }) {
+  const [text, setText] = useState("");
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => { if (open) { setText(initialText); setUrl(""); setError(""); } }, [open, initialText]);
+  const submit = () => {
+    const href = safeHref(normalizeLinkInput(url));
+    if (!href) { setError("Enter a full web address, e.g. https://macleans.ca/…"); return; }
+    onInsert(text.trim(), href);
+  };
+  return (
+    <Dialog open={open} onClose={onClose} title="Add link" description="Shoppers see the link text, underlined; clicking it opens the web address in a new tab."
+      footer={<>
+        <button type="button" className="rp-btn rp-btn-secondary" onClick={onClose}>Cancel</button>
+        <button type="button" className="rp-btn rp-btn-primary" onClick={submit}>Insert link</button>
+      </>}>
+      <form className="rp-stack" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        <TextField label="Link text" value={text} onChange={(e) => setText(e.target.value)} placeholder="Maclean's Magazine article" hint="Leave blank to show the web address itself." />
+        <TextField label="Web address" value={url} onChange={(e) => { setUrl(e.target.value); setError(""); }} placeholder="https://…" inputMode="url" autoFocus error={error || undefined} />
+        <button type="submit" hidden aria-hidden tabIndex={-1} />
+      </form>
     </Dialog>
   );
 }

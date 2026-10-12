@@ -5,6 +5,7 @@
 // Pure and storefront-safe.
 import type { BookFieldDef } from "./bookFields";
 import { slugify } from "./storeMenu";
+import { descriptionPlainText } from "./descriptionLinks";
 
 export type DynamicContext = { book?: any; category?: any; page?: any };
 export type DynamicSource = { path: string; label: string; group: "Book" | "Category" | "Page"; kind: "text" | "image" | "link" };
@@ -61,7 +62,7 @@ export function readSource(path: string, ctx: DynamicContext): string {
     const b = ctx.book;
     if (!b) return "";
     if (key === "custom") return sub ? str(b.custom?.[sub]) : "";
-    if (key === "description") return plain(str(b.description));
+    if (key === "description") return plain(descriptionPlainText(str(b.description)));
     if (key === "photo") return str(b.photos?.[0]?.url);
     if (key === "url") return b.slug || b.id ? `/books/${b.slug || b.id}` : "";
     return ["title", "subtitle", "authorName", "publisher", "publishDate", "pageCount", "format", "edition", "isbn"].includes(key) ? str(b[key]) : "";

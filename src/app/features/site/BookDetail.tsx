@@ -8,7 +8,7 @@ import { useParams, Link, useNavigate, useLocation } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
   Package, Share2, Check, BookOpen, Globe, Ruler,
-  Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus
+  Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus, Bell
 } from "lucide-react";
 import { useCart, catalogUnitPrice, lineQuantityCap, backorderable } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
@@ -21,6 +21,7 @@ import { SectionPageContext } from "../../components/sectionCopy";
 import { useMissingRedirect } from "./useMissingRedirect";
 import { getCopy } from "./storeCopy";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "./preorder";
+import { comingSoonActive } from "./comingSoon";
 import { designNumber } from "./designNumber";
 import { placeholderImage } from "./constants";
 import type { Book } from "./types";
@@ -45,6 +46,7 @@ import { resolveDynamicSettings } from "./dynamicSources";
 import { aspectRatioValue } from "./imageAspect";
 import { frameAspect, frameMode, photoRatio } from "./photoFrame";
 import { regionProps, regionVisible } from "./storefrontRegions";
+import { DescriptionText } from "./DescriptionText";
 import { googleFontHref } from "./fonts";
 import { productPageCss, productPageFontNames } from "./productPageStyle";
 import { schemeButtonColors } from "./colorSchemes";
@@ -53,6 +55,7 @@ import { findProduct } from "./productRoutes";
 import { bookAddOns, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
+import { CARD_PHOTO_SIZES, PDP_PHOTO_SIZES, THUMB_PHOTO_SIZES, photoSrcSet } from "./photoSources";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 // ── small helper ────────────────────────────────────────────────────────────
@@ -86,6 +89,8 @@ export default function BookDetail() {
   const [variantPhotoPinned, setVariantPhotoPinned] = useState(true);
   const pickPhoto = (next: number | ((p: number) => number)) => { setVariantPhotoPinned(false); setActivePhoto(next as any); };
   const [added, setAdded]             = useState(false);
+  // Coming soon: the button opens the "email me when it's out" signup.
+  const [soonOpen, setSoonOpen]       = useState(false);
   const [addingBoth, setAddingBoth]   = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   // Width ÷ height of each product photo, measured once (adaptive frames, photoFrame.ts).
@@ -121,7 +126,7 @@ export default function BookDetail() {
   }, [book]);
   useEffect(() => { setQty(1); setVariantPhotoPinned(true); }, [selectedVariant?.id]);
   // A new book starts with no extras and an empty gift form.
-  useEffect(() => { setAddOnPicks({}); setAddOnError(""); setGiftForm(emptyGift); setGiftError(""); }, [book?.id]);
+  useEffect(() => { setAddOnPicks({}); setAddOnError(""); setGiftForm(emptyGift); setGiftError(""); setSoonOpen(false); }, [book?.id]);
 
   // Studio 2.8: the book's alternate template (Books › edit › Page template); the Studio preview can ask for one.
   const productSurface         = bookTemplateSurface(settings?.design, book, previewTemplate());
@@ -132,6 +137,7 @@ export default function BookDetail() {
   const showSoldOutBadge       = storefrontDesign.showSoldOutBadge       ?? true;
   const showSocialShare        = storefrontDesign.showSocialShare        ?? true;
   const showBackInStock        = storefrontDesign.showBackInStock        ?? true;
+  const showComingSoonSignup   = storefrontDesign.showComingSoonSignup   ?? true;
 
   // Autonomy controls for book detail page
   const showAmbientGlow        = storefrontDesign.showAmbientGlow        ?? settings?.design?.showAmbientGlow        ?? true;
@@ -373,6 +379,15 @@ export default function BookDetail() {
     return { addOns: addOnRequest(addOns, addOnPicks), ...(isGiftCard ? { giftCardDetails: giftForm } : {}) };
   };
 
+  // Coming soon button: open the signup and put the cursor in its email box.
+  const openComingSoon = () => {
+    setSoonOpen(true);
+    window.setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>("#pdp-coming-soon-signup input[type=email]");
+      input?.focus();
+    }, 0);
+  };
+
   const handleAddToCart = () => {
     if (!book) return;
     if (book.variants?.length && !selectedVariant) {
@@ -470,7 +485,9 @@ export default function BookDetail() {
   }, [stickyBar, buyEl]);
   // Oversold stock goes below zero: that is sold out too, not "in stock".
   // An edition with no usable price can't be bought either; treat it like sold out rather than fake an add.
-  const isOutOfStock  = Number(stockLevel) <= 0 || (!!book && !Number.isFinite(catalogUnitPrice(book, selectedVariant || undefined)));
+  // Coming soon (Books › Inventory › Coming soon): not for sale yet, so never "sold out" — the buy button opens the signup instead.
+  const isComingSoon  = comingSoonActive(book);
+  const isOutOfStock  = !isComingSoon && (Number(stockLevel) <= 0 || (!!book && !Number.isFinite(catalogUnitPrice(book, selectedVariant || undefined))));
   const retailPrice   = selectedVariant ? selectedVariant.price : ((book as any)?.retailPrice ?? 0);
   const salePrice     = selectedVariant ? 0 : ((book as any)?.salePrice   ?? 0);
   // Only while the sale is on (inside its optional start/end dates) — the price the server charges.
@@ -499,9 +516,12 @@ export default function BookDetail() {
   const isLowStock    = stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10);
   const isBackorder   = !!(selectedVariant ? (selectedVariant as any).onBackorder : (book as any)?.onBackorder);
   // Pre-order (Books › Inventory › Pre-order): sold before its publication date.
-  const isPreorder    = preorderActive(book);
+  const isPreorder    = !isComingSoon && preorderActive(book);
   const preorderDate  = isPreorder ? formatReleaseDate(releaseDateOf(book)) : "";
-  const stockText     = isOutOfStock
+  const comingDate    = isComingSoon ? formatReleaseDate(releaseDateOf(book)) : "";
+  const stockText     = isComingSoon
+    ? (comingDate ? getCopy(settings?.design, "pdpComingSoonDate", { date: comingDate }) : getCopy(settings?.design, "pdpComingSoon"))
+    : isOutOfStock
     ? getCopy(settings?.design, "soldOutLabel")
     : isPreorder ? (preorderDate ? getCopy(settings?.design, "pdpPreorder", { date: preorderDate }) : getCopy(settings?.design, "pdpPreorderTba"))
     : isBackorder ? getCopy(settings?.design, "pdpBackorder")
@@ -548,7 +568,7 @@ export default function BookDetail() {
   };
   const detailContent = (id: string) =>
     id === "description" ? (
-      <p {...regionProps("productDescription")} className="fm-pdp-desc text-[15px] leading-[1.75] whitespace-pre-line">{bk.description || getCopy(settings?.design, "noDescription")}</p>
+      <div {...regionProps("productDescription")} className="fm-pdp-desc fm-pdp-desc-text text-[15px] leading-[1.75] whitespace-pre-line">{bk.description ? <DescriptionText text={bk.description} /> : getCopy(settings?.design, "noDescription")}</div>
     ) : id === "specs" ? <div {...regionProps("productSpecs")}>{renderSpecs()}</div> : book ? (
       <div {...regionProps("productReviews")}><ReviewsSection key={book.id} bookId={book.id} hideHeader={true} /></div>
     ) : null;
@@ -781,7 +801,7 @@ export default function BookDetail() {
                       </span>
                     )}
                     {pdpShowStock && !isGiftCard && (
-                      <span className="fm-pdp-meta fm-pdp-stock" data-state={isOutOfStock ? "out" : isPreorder ? "preorder" : isLowStock ? "low" : "in"}>
+                      <span className="fm-pdp-meta fm-pdp-stock" data-state={isComingSoon ? "soon" : isOutOfStock ? "out" : isPreorder ? "preorder" : isLowStock ? "low" : "in"}>
                         {stockText}
                       </span>
                     )}
@@ -873,7 +893,7 @@ export default function BookDetail() {
                   <div className={`flex flex-wrap gap-2.5 w-full ${
                     productCtaWidth === "auto" && productAlignment === "center" ? "justify-center" : "justify-start"
                   }`}>
-                    {showQtyStepper && !isOutOfStock && (
+                    {showQtyStepper && !isOutOfStock && !isComingSoon && (
                       <div className="fm-pdp-qty">
                         <button
                           type="button"
@@ -897,8 +917,10 @@ export default function BookDetail() {
                     <m.button
                       ref={setBuyEl}
                       data-section="buttons"
-                      onClick={handleAddToCart}
-                      disabled={isOutOfStock}
+                      onClick={isComingSoon ? openComingSoon : handleAddToCart}
+                      disabled={isOutOfStock || (isComingSoon && !showComingSoonSignup)}
+                      aria-expanded={isComingSoon && showComingSoonSignup ? soonOpen : undefined}
+                      aria-controls={isComingSoon && showComingSoonSignup ? "pdp-coming-soon-signup" : undefined}
                       whileTap={!isOutOfStock ? { scale: 0.97 } : {}}
                       animate={
                         !isOutOfStock && !added && productCtaAnimation === "pulse"
@@ -941,6 +963,8 @@ export default function BookDetail() {
                     >
                       {isOutOfStock ? (
                         getCopy(settings?.design, "soldOutLabel")
+                      ) : isComingSoon ? (
+                        <><Bell size={14} /> {getCopy(settings?.design, showComingSoonSignup ? "comingSoonButton" : "pdpComingSoon")}</>
                       ) : added ? (
                         <><Check size={14} strokeWidth={3} /> {getCopy(settings?.design, "bookAdded")}</>
                       ) : (
@@ -972,7 +996,17 @@ export default function BookDetail() {
                       </button>
                     )}
                   </div>
-                  {showBuyNow && !isOutOfStock && (
+                  {isComingSoon && showComingSoonSignup && soonOpen && book && (
+                    <BackInStockForm
+                      key={`soon:${book.id}`}
+                      id="pdp-coming-soon-signup"
+                      comingSoon
+                      design={settings?.design}
+                      bookId={book.id}
+                      bookTitle={book.title}
+                    />
+                  )}
+                  {showBuyNow && !isOutOfStock && !isComingSoon && (
                     <button
                       type="button"
                       onClick={handleBuyNow}
@@ -1010,10 +1044,10 @@ export default function BookDetail() {
                           <p className="fm-pdp-meta mb-3" style={{ color: "var(--accent, #e8402a)" }}>
                             {getCopy(settings?.design, "productDescriptionLabel")}
                           </p>
-                          <p className="text-[15px] leading-[1.8] whitespace-pre-line">{bk.description}</p>
+                          <div className="fm-pdp-desc-text text-[15px] leading-[1.8] whitespace-pre-line"><DescriptionText text={bk.description} /></div>
                         </div>
                       ) : (
-                        <p {...regionProps("productDescription")} className="text-white/50 text-[14px] leading-[1.8] whitespace-pre-line">{bk.description}</p>
+                        <div {...regionProps("productDescription")} className="fm-pdp-desc-text text-white/50 text-[14px] leading-[1.8] whitespace-pre-line"><DescriptionText text={bk.description} /></div>
                       )
                     )}
                     {hasSpecs && <div {...regionProps("productSpecs")}>{renderSpecs()}</div>}
@@ -1113,7 +1147,7 @@ export default function BookDetail() {
                           className="fm-pdp-thumb"
                           style={{ aspectRatio: productImageAspect }}
                         >
-                          <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
+                          <img src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt="" loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
                         </button>
                       ))}
                     </div>
@@ -1139,6 +1173,7 @@ export default function BookDetail() {
                         <m.img
                           key={activePhoto}
                           src={activeUrl}
+                          {...(activeUrl === photos[activePhoto]?.url ? photoSrcSet(photos[activePhoto], PDP_PHOTO_SIZES) : {})}
                           alt={(activeUrl === photos[activePhoto]?.url && photos[activePhoto]?.altText?.trim()) || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: activePhoto + 1 })}
                           className={`w-full h-full ${productImageFitClass}`}
                           decoding="async"
@@ -1245,7 +1280,7 @@ export default function BookDetail() {
                 <div className={productImageLayout === "grid" ? "grid grid-cols-2 gap-4" : "space-y-4"}>
                   {photos.map((photo: any, i: number) => (
                     <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame fm-photo-frame-pdp overflow-hidden`} style={{ aspectRatio: frameFor(photo.url), borderRadius: `${productBorderRadius}px` }}>
-                      <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} alt={photo.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
+                      <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, PDP_PHOTO_SIZES)} alt={photo.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
                       {i === 0 && isOutOfStock && (
                         <>
                           <SoldOutVeil design={settings?.design} />
@@ -1355,13 +1390,17 @@ export default function BookDetail() {
                         <div className="relative fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl" style={{ aspectRatio: productImageAspect }}>
                           <img
                             src={(rel as any).photos?.[0]?.url || placeholderImage(settings?.design)}
+                            {...photoSrcSet((rel as any).photos?.[0], CARD_PHOTO_SIZES)}
                             alt={rel.title}
                             loading="lazy"
                             className="w-full h-full transition-transform duration-700 group-hover:scale-105"
                             style={{ objectFit: productImageFit }}
                           />
                           {/* Sold out: same mark as the shop grid (Studio › Style › Product cards & grid › Sold-out badge) */}
-                          {relStock === 0 && showSoldOutBadge && (
+                          {relChoice.comingSoon && showSoldOutBadge && (
+                            <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "comingSoonBadge")} />
+                          )}
+                          {relStock === 0 && !relChoice.comingSoon && showSoldOutBadge && (
                             <>
                               <SoldOutVeil design={settings?.design} />
                               <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "soldOutLabel")} />
@@ -1393,7 +1432,7 @@ export default function BookDetail() {
         )}
 
         {/* ── Sticky add-to-bag bar ── */}
-        {stickyBar && book && !isOutOfStock && buyGone && (
+        {stickyBar && book && !isOutOfStock && !isComingSoon && buyGone && (
           <div
             className={`fm-pdp-sticky${stickyPhoneOnly ? " fm-pdp-sticky-phone" : ""}`}
             role="region"

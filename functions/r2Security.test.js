@@ -186,6 +186,12 @@ describe('#109 location signal', () => {
     expect(serverGeoCountry({ headers: { 'x-appengine-country': '<script>' } })).toBe('');
     expect(serverGeoCountry({ headers: {} })).toBe('');
   });
+  test('the storefront currency asks the platform header, never a database or a lookup', async () => {
+    const app = harness();
+    expect((await app.call('validateDiscountCode', { action: 'visitorCountry' }, { 'x-appengine-country': 'us' })).body).toEqual({ country: 'US' });
+    expect((await app.call('validateDiscountCode', { action: 'visitorCountry' })).body).toEqual({ country: null });
+    expect(app.counts.discountQueries || 0).toBe(0);
+  });
   test('no shopper address is sent to a third-party lookup', () => {
     expect(source).not.toMatch(/ip-api\.com/);
     expect(source).not.toMatch(/req\.headers\["x-forwarded-for"\]/);

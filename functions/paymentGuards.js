@@ -67,6 +67,8 @@ function purchaseProblem(book, variantId, nowISO = new Date().toISOString()) {
   // Books saved before statuses existed have none; the storefront treats them as published.
   if (book.status && book.status !== "published") return "unavailable";
   if (!releaseArrived(book.scheduleDate, nowISO)) return "unavailable";
+  // Coming soon (Books › edit › Inventory): shown on the shop, not for sale yet (features/site/comingSoon.ts).
+  if (book.comingSoon === true) return "unavailable";
   if (!variantId && Array.isArray(book.variants) && book.variants.length) return "choose_edition";
   return null;
 }

@@ -38,7 +38,12 @@ export default function BackInStockForm({
   bookTitle,
   variantId,
   variantName,
+  comingSoon = false,
+  id,
 }: {
+  /** Signup on a Coming soon book: "email me when it's out" wording (the server sends "Out now" on release). */
+  comingSoon?: boolean;
+  id?: string;
   design?: any;
   bookId: string;
   bookTitle: string;
@@ -64,15 +69,11 @@ export default function BackInStockForm({
     }
   };
 
-  return (
-    <div
-      className="mt-4 rounded-2xl border border-white/[0.08] p-4"
-      data-studio-target="style:productPage|copy:Product page"
-      data-studio-label="Back-in-stock signup"
-    >
-      <p className="text-[11px] font-black tracking-[0.2em] uppercase">{getCopy(design, "alertHeading")}</p>
+  const body = (
+    <>
+      <p className="text-[11px] font-black tracking-[0.2em] uppercase">{getCopy(design, comingSoon ? "comingSoonAlertHeading" : "alertHeading")}</p>
       {status === "success" ? (
-        <p role="status" className="mt-2 text-sm opacity-80">{getCopy(design, "alertSuccess")}</p>
+        <p role="status" className="mt-2 text-sm opacity-80">{getCopy(design, comingSoon ? "comingSoonAlertSuccess" : "alertSuccess")}</p>
       ) : (
         <form onSubmit={submit} className="mt-3 flex flex-col gap-2 sm:flex-row" noValidate>
           <input
@@ -96,6 +97,12 @@ export default function BackInStockForm({
       {status === "error" && (
         <p role="alert" className="mt-2 text-xs opacity-80">{getCopy(design, "alertError")}</p>
       )}
-    </div>
+    </>
+  );
+  // Two wrappers (same look) so each signup keeps its own name in Studio's click-to-edit.
+  return comingSoon ? (
+    <div id={id} className="mt-4 rounded-2xl border border-white/[0.08] p-4" data-studio-target="style:productPage|copy:Product page" data-studio-label="Coming soon signup">{body}</div>
+  ) : (
+    <div id={id} className="mt-4 rounded-2xl border border-white/[0.08] p-4" data-studio-target="style:productPage|copy:Product page" data-studio-label="Back-in-stock signup">{body}</div>
   );
 }

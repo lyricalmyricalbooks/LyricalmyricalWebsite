@@ -1,6 +1,8 @@
 import { preorderActive, releaseDateOf } from '../features/site/preorder';
+import { comingSoonActive } from '../features/site/comingSoon';
 import type { Book } from '../features/site/types';
 import { formatKey } from '../features/site/CatalogControls';
+import { descriptionPlainText } from '../features/site/descriptionLinks';
 
 /** Search descriptions are plain text, even when catalog descriptions are rich HTML. */
 export function searchText(value = ''): string {
@@ -61,7 +63,7 @@ export function bookMetadata(book: Partial<Book>) {
   return {
     title: searchText(book.metaTitle) || searchText(book.title),
     exactTitle: !!searchText(book.metaTitle),
-    description: searchText(book.metaDescription) || snippet(searchText(book.description)),
+    description: searchText(book.metaDescription) || snippet(searchText(descriptionPlainText(book.description))),
     image: book.seoImage?.trim() || book.photos?.[0]?.url || '',
   };
 }
@@ -151,7 +153,9 @@ export function siteStructuredData(options: { name: string; url: string; descrip
 export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; ratingSummary?: { count: number; average: number } | null; seller?: string }) {
   const variants = book.variants || [];
   const backorder = book.onBackorder || (variants.length > 0 && variants.every((v: any) => v.onBackorder));
-  const available = variants.length ? variants.some(v => Number(v.stockLevel ?? v.stock ?? 0) > 0) : Number(book.stockLevel ?? 999) > 0;
+  // Coming soon (Books › Inventory): shown but not for sale yet, so it is honestly out of stock.
+  const soon = comingSoonActive(book);
+  const available = !soon && (variants.length ? variants.some(v => Number(v.stockLevel ?? v.stock ?? 0) > 0) : Number(book.stockLevel ?? 999) > 0);
   // Pre-order (Books › Inventory): PreOrder availability, starting on the release day when known.
   const preorder = available && preorderActive(book);
   const release = preorder ? releaseDateOf(book) : '';
@@ -161,7 +165,7 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
     '@id': options.url + '#book',
     url: options.url,
     name: book.title,
-    description: searchText(book.description),
+    description: searchText(descriptionPlainText(book.description)),
     image: [...new Set([...(book.photos || []).map(p => p.url), book.seoImage].filter((url): url is string => !!url?.trim()).map(url => absolute(url.trim(), options.url)).filter(Boolean))],
     ...(book.isbn ? { isbn: String(book.isbn).trim() } : {}),
     ...bookFacts(book),
@@ -173,7 +177,7 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
       '@type': 'Offer', url: options.url,
       priceCurrency: options.currency,
       price: Number(options.price).toFixed(2),
-      availability: `https://schema.org/${preorder ? 'PreOrder' : backorder ? 'BackOrder' : available ? 'InStock' : 'OutOfStock'}`,
+      availability: `https://schema.org/${preorder ? 'PreOrder' : soon ? 'OutOfStock' : backorder ? 'BackOrder' : available ? 'InStock' : 'OutOfStock'}`,
       ...(release ? { availabilityStarts: release } : {}),
       itemCondition: 'https://schema.org/NewCondition',
       ...(options.seller ? { seller: { '@type': 'Organization', name: options.seller } } : {}),
@@ -187,7 +191,7 @@ export function seoChecks(book: Partial<Book>, listingTitle = bookMetadata(book)
   return [
     { id: 'title', ok: listingTitle.length > 0 && listingTitle.length <= 60, label: 'Use a clear, unique search title; about 60 characters is a useful guide.' },
     { id: 'description', ok: meta.description.length >= 80 && meta.description.length <= 160, label: 'Write a useful search summary of about 80–160 characters. Google may choose its own snippet.' },
-    { id: 'content', ok: searchText(book.description).length >= 100, label: 'Describe this book’s subject, creator and edition in the book description.' },
+    { id: 'content', ok: searchText(descriptionPlainText(book.description)).length >= 100, label: 'Describe this book’s subject, creator and edition in the book description.' },
     { id: 'cover', ok: !!book.photos?.[0]?.url, label: 'Add a cover photo so product results can include an image.' },
     { id: 'alt', ok: !!book.photos?.length && book.photos.every(p => !!p.altText?.trim()), label: 'Describe each book photo with meaningful alt text in Media.' },
     { id: 'isbn', ok: !!book.isbn?.trim(), label: 'Add the ISBN when this edition has one; do not invent an identifier.' },

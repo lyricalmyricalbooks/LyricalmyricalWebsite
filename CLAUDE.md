@@ -1606,6 +1606,20 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   order bought has been spent. Admin alert `gift-cards-not-issued` flags paid gift-card orders with no card after 10 min.
   A box set's pre-order state follows the latest pre-order book inside it (`combinedPreorder`).
 
+## Coming soon books (12 October 2026)
+
+Books › edit › Inventory › **Coming soon** (`comingSoon: true`) shows a published book that can't be bought yet. One rule,
+`features/site/comingSoon.ts` `comingSoonActive` (server: `purchaseProblem` in `functions/paymentGuards.js` refuses it as
+`unavailable`, so every checkout path refuses it). It wins over Pre-order (the editor switches the other off). `addToCart`
+refuses it, `repriceCart` drops saved lines, `quickAddChoice` returns `{ inStock: false, comingSoon: true }`; it is never shown
+as Sold out. Product page: stock line `pdpComingSoon` / `pdpComingSoonDate` (Publication date, `data-state="soon"`), the buy
+button reads `comingSoonButton` and opens `BackInStockForm comingSoon` (`#pdp-coming-soon-signup`, same `stockAlerts` doc for
+the whole book, variantId ""); no qty, Buy it now or sticky bar. Cards: `comingSoonBadge` (shop grid, wishlist, related);
+section quick-add hides. Studio: Style › Badges › `showComingSoonBadge`, Product page › `showComingSoonSignup` (off = the button
+is a disabled label). JSON-LD says OutOfStock. Turning the switch off fires `onBookRestocked` (`before.comingSoon === true`):
+signups get an **Out now** email for editions with stock (`releasePending` carries the wording to `backInStockSweep`); while
+it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badge and status filter. Deploy Functions with the frontend.
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the
@@ -1783,6 +1797,11 @@ for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test
   `RATES_TIMEOUT_MS`, falling back to profile rates. Exchange rates come from `exchangeRates.ts` `loadRates` (5 s timeout, 6 h session cache,
   `ratesSource` = live | cached | fallback on `useCurrency()` and `<html data-rates-source>`).
 - **No third-party IP lookup:** checkout starts on `guessCountryName()` (browser language); address suggestions (Photon) stay. Do not re-add an IP-to-country call in the browser.
+- **Starting currency by country (12 October 2026):** `CurrencyContext` starts on the shopper's saved `fm_currency`, else the
+  time-zone guess, then `features/site/visitorCurrency.ts` asks the shop's own `validateDiscountCode` `{ action: "visitorCountry" }`
+  (platform header via `serverGeoCountry`, no database, no third party; cached in localStorage `fm_geo_country` a week, unknown a day)
+  and `currencyForCountry` switches CAD/USD/EUR unless the shopper picked one. Skipped in the Studio preview; the prerender pins CAD.
+  If Cloud Run sends no country header the time-zone guess stays. Charges are unchanged (CAD × today's rate).
 - **Stock holds:** `settings/website.stockHolds` `{ perBook, units, orders }` (Settings › General › **Checkout stock holds**, defaults 10 / 50 / 3)
   is read by the server (`holdLimitsFrom`, `loadHoldLimits`); connection caps are twice / 3x those, never below today's. The bag warns before Pay
   (`holdLimits.ts` `holdWarnings`, region `checkoutHoldWarning`, words `coHoldWarning*`). A payment-time renewal keeps the order's `holders`
@@ -1885,6 +1904,16 @@ stored in the public, admin-written `settings/redirects` doc (`{ items: [{from, 
 `NotFoundPage`, `BookDetail` with no book, `PageView` with no page — through `useMissingRedirect` (reads
 `publicApi.getRedirects`, never in the Studio preview, keeps the shopper's query, stops after `MAX_REDIRECT_HOPS`), so a real
 page is never hijacked. These are browser redirects, not HTTP 301s. No shopper-visible words, so no Text & labels entry.
+
+## High-quality photos (12 October 2026)
+
+`admin/prepareImage.ts`: photos within `MAX_IMAGE_EDGE` (2400 px; Studio `MAX_STUDIO_IMAGE_EDGE` 2800) and under
+`KEEP_ORIGINAL_BYTES` (2.5 MB) upload untouched; larger ones are re-saved at `PHOTO_QUALITY` 0.92. Library copies are
+480/960/1600/2400 px at 0.88 (`MEDIA_WIDTHS`; the 2400 copy's weight budget is 450 KB). Book photos upload through
+`admin/bookPhotoUpload.ts` `uploadBookPhoto`: the same copies under `products/`, saved on the photo as `url` (largest) +
+public `srcset`/`width`/`height` (library picks carry theirs too). Storefront book images spread
+`photoSrcSet(photo, CARD_PHOTO_SIZES | PDP_PHOTO_SIZES | THUMB_PHOTO_SIZES)` (`features/site/photoSources.ts`) — add it to
+any new book-photo `<img>`; photos without `srcset` render as before. No rule or Function change.
 
 ## Page translation (12 October 2026)
 

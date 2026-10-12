@@ -52,6 +52,8 @@ try {
         sessionStorage.setItem(`fm_visit_${new Date().toISOString().split('T')[0]}`, 'true');
         // Keep the Studio pop-up section group out of the HTML snapshots (PopupSections, POPUP_SUPPRESS_KEY).
         sessionStorage.setItem('lm:popup-suppressed', '1');
+        // Snapshots show prices in the shop's own currency, never the build runner's country (visitorCurrency.ts).
+        localStorage.setItem('fm_currency', 'CAD');
         if (cache) sessionStorage.setItem('site-bootstrap-v1', cache);
       }, publishedCache);
       const page = await context.newPage();

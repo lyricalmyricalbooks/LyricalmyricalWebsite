@@ -45,3 +45,19 @@ it("addToCart doesn't cap a backorderable book at its current stock", async () =
   expect(cart!.cart[0].stockLimit).toBeUndefined();
   await act(async () => root.unmount());
 });
+
+// Coming soon (Books › Inventory): shown, never put in the bag (the server refuses it too).
+it("addToCart refuses a Coming soon book", async () => {
+  localStorage.clear();
+  const container = document.createElement("div");
+  document.body.replaceChildren(container);
+  let cart: ReturnType<typeof useCart> | null = null;
+  function Probe() { cart = useCart(); return null; }
+  const root = createRoot(container);
+  await act(async () => { root.render(<CartProvider><Probe /></CartProvider>); });
+  let added = true;
+  await act(async () => { added = cart!.addToCart({ id: "soon", title: "Soon", retailPrice: 10, stockLevel: 5, comingSoon: true }); });
+  expect(added).toBe(false);
+  expect(cart!.cart).toEqual([]);
+  await act(async () => root.unmount());
+});

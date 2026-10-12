@@ -37,6 +37,42 @@ function sizeRules(selector: string, desktop: number, phone: number, auto: strin
   return css;
 }
 
+/**
+ * Studio › Style › Product page · buy card & details › Description text. Empty controls emit nothing
+ * for the words themselves, so an untouched design looks exactly as before; the formatting pieces
+ * (headings, lists, quotes, dividers) always get token-based defaults.
+ */
+export function descriptionTextCss(d: any): string {
+  const T = `${S} .fm-pdp-desc-text`;
+  let css = "";
+  const size = num(d, "pdpDescSize", 0, 0, 24);
+  const phone = num(d, "pdpDescSizeMobile", 0, 0, 24);
+  if (size) css += `${T}{font-size:${size}px;}`;
+  if (phone) css += `@media (max-width:${PHONE_MAX}px){${T}{font-size:${phone}px;}}`;
+  const lh = num(d, "pdpDescLineHeight", 0, 0, 2.6);
+  if (lh >= 1) css += `${T}{line-height:${lh};}`;
+  if (has(d.pdpDescColor)) css += `${T}{color:${clean(d.pdpDescColor)};}`;
+  if (has(d.pdpDescFont)) css += `${T}{font-family:${font(d.pdpDescFont)};}`;
+  if (d.pdpDescAlign === "center" || d.pdpDescAlign === "justify") css += `${T}{text-align:${d.pdpDescAlign};}`;
+  const gap = num(d, "pdpDescBlockGap", 12, 0, 40);
+  const headingFont = has(d.pdpDescHeadingFont) ? font(d.pdpDescHeadingFont) : "var(--heading-font, inherit)";
+  const headingSize = num(d, "pdpDescHeadingSize", 0, 0, 40);
+  const headingColor = color(d, "pdpDescHeadingColor", "inherit");
+  const linkColor = color(d, "pdpDescLinkColor", "inherit");
+  const quoteColor = color(d, "pdpDescQuoteColor", "var(--accent)");
+  css += `${T} .fm-pdp-desc-heading{font-family:${headingFont};font-size:${headingSize ? `${headingSize}px` : "1.25em"};line-height:1.25;color:${headingColor};margin:${gap * 1.5}px 0 ${gap / 2}px;white-space:normal;}`;
+  css += `${T} .fm-pdp-desc-subheading{font-size:${headingSize ? `${Math.round(headingSize * 0.8)}px` : "1.05em"};}`;
+  css += `${T} > :first-child{margin-top:0;}`;
+  css += `${T} .fm-pdp-desc-list{margin:${gap}px 0;padding-left:1.4em;white-space:normal;}`;
+  css += `${T} ul.fm-pdp-desc-list{list-style:disc;}${T} ol.fm-pdp-desc-list{list-style:decimal;}`;
+  css += `${T} .fm-pdp-desc-list li{margin:.2em 0;}`;
+  css += `${T} .fm-pdp-desc-quote{margin:${gap}px 0;padding-left:1em;border-left:3px solid ${quoteColor};font-style:italic;}`;
+  css += `${T} .fm-pdp-desc-rule{margin:${gap * 1.5}px 0;border:0;border-top:1px solid rgba(var(--border-rgb), 0.45);}`;
+  css += `${T} .fm-pdp-desc-link{color:${linkColor};text-decoration:${d.pdpDescLinkUnderline === false ? "none" : "underline"};}`;
+  css += `${T} strong{font-weight:700;}${T} em{font-style:italic;}`;
+  return css;
+}
+
 export function productPageCss(design: any): string {
   const d = design || {};
 
@@ -70,6 +106,7 @@ export function productPageCss(design: any): string {
 
   let css = "";
   css += `${S} .fm-pdp-desc{max-width:${descWidth ? `${descWidth}ch` : "none"};}`;
+  css += descriptionTextCss(d);
   css += `${S} .fm-pdp-meta{font-family:${metaFont};font-size:${metaSize}px;letter-spacing:.14em;text-transform:uppercase;color:${metaColor};}`;
   css += `${S} .fm-pdp-crumb{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:14px 0;border-bottom:1px solid ${divider};}`;
   css += `${S} .fm-pdp-crumb a{color:inherit;text-decoration:none;}`;
@@ -163,4 +200,4 @@ export function productPageCss(design: any): string {
 
 /** Google Fonts the product-page controls may ask for. */
 export const productPageFontNames = (d: any): string[] =>
-  [d?.pdpTitleFont, d?.pdpPriceFont, d?.pdpMetaFont].filter(Boolean).map(String);
+  [d?.pdpTitleFont, d?.pdpPriceFont, d?.pdpMetaFont, d?.pdpDescFont, d?.pdpDescHeadingFont].filter(Boolean).map(String);
