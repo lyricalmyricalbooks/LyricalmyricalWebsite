@@ -1,4 +1,6 @@
 // Page helpers: SEO guidance, duplication and menu ordering. Pure.
+import { pageBodyText } from "../features/site/pageBody";
+import { snippet } from "../lib/bookSeo";
 export interface SeoHint { level: "good" | "warn"; text: string }
 
 export function seoHints(title: string, seoTitle: string, meta: string): SeoHint[] {
@@ -14,6 +16,32 @@ export function seoHints(title: string, seoTitle: string, meta: string): SeoHint
   else if (m.length > 160) hints.push({ level: "warn", text: `Description may be cut off (${m.length}). Aim for 70–160 characters.` });
   else hints.push({ level: "good", text: `Description length is good (${m.length}).` });
   return hints;
+}
+
+/** Search title and description written from the page itself (Studio › Pages › Auto-fill from page).
+ *  The title is the page title (the storefront adds the shop name around it); the description is the
+ *  body's opening sentences (headings skipped unless the page has nothing else), ending on a whole
+ *  sentence or word within 160 characters. */
+export function autoSeo(page: { title?: string; body?: string }): { seoTitle: string; metaDescription: string } {
+  const title = String(page.title || "").replace(/\s+/g, " ").trim();
+  const body = String(page.body || "");
+  const text = pageBodyText(body.replace(/<h[1-6]\b[^>]*>[\s\S]*?<\/h[1-6]>/gi, " ")) || pageBodyText(body);
+  let description = "";
+  for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+    const next = description ? `${description} ${sentence}` : sentence;
+    if (next.length > 160) break;
+    description = next;
+  }
+  return { seoTitle: snippet(title, 60), metaDescription: description || snippet(text, 160) };
+}
+
+/** Only the search fields this page leaves blank, filled from the page; {} when nothing would change. */
+export function missingSeo(page: { title?: string; body?: string; seoTitle?: string; metaDescription?: string }) {
+  const auto = autoSeo(page);
+  const patch: { seoTitle?: string; metaDescription?: string } = {};
+  if (!String(page.seoTitle || "").trim() && auto.seoTitle) patch.seoTitle = auto.seoTitle;
+  if (!String(page.metaDescription || "").trim() && auto.metaDescription) patch.metaDescription = auto.metaDescription;
+  return patch;
 }
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9 -]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();

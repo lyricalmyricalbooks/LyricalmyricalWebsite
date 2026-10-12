@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, LayoutTemplate, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, LayoutTemplate, Plus, Sparkles, Trash2 } from "lucide-react";
 import { adminApi } from "../api";
-import { duplicatePage, movePage, seoHints } from "../pageInsights";
+import { autoSeo, duplicatePage, missingSeo, movePage, seoHints } from "../pageInsights";
 import { dataUrlToFile, firstBodyImage, pastedImageSources, replaceImageSources } from "../../features/site/pageBody";
 import { PageBodyEditor, uploadPagePicture } from "./PageBodyEditor";
 import { ImageUploadButton } from "./ImageUploadButton";
@@ -48,6 +48,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
   const [isNew, setIsNew] = useState(false);
   const [slugEdited, setSlugEdited] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [filling, setFilling] = useState(false);
   const locked = useRef(false);
   const [error, setError] = useState("");
   const dirty = !!editing && JSON.stringify(editing) !== original;
@@ -114,6 +115,32 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
     catch { say("err", "Could not delete the page."); }
   }
 
+  // Pages whose search title or description is blank and could be written from the page itself.
+  const needsSeo = ordered.filter((p) => Object.keys(missingSeo(p)).length);
+  async function fillAllSeo() {
+    if (locked.current || !needsSeo.length) return;
+    const count = needsSeo.length;
+    if (!(await askConfirm({
+      title: "Fill in missing search listings?",
+      message: `${count === 1 ? "1 page has" : `${count} pages have`} a blank search title or description. Each blank one is written from that page's title and opening sentences and saved straight away. Listings you already wrote stay as they are.`,
+      confirmLabel: count === 1 ? "Fill in 1 page" : `Fill in ${count} pages`,
+    }))) return;
+    locked.current = true; setFilling(true); onBusy?.(true);
+    let done = 0;
+    try {
+      for (const p of needsSeo) {
+        const patch = missingSeo(p);
+        try {
+          await adminApi.updatePage(p.id, { title: p.title, ...patch });
+          setPages((prev) => prev.map((x) => (x.id === p.id ? { ...x, ...patch } : x)));
+          done++;
+        } catch { /* counted below; the rest still run */ }
+      }
+    } finally { locked.current = false; setFilling(false); onBusy?.(false); }
+    if (done === count) say("ok", done === 1 ? "Filled in the search listing for 1 page." : `Filled in search listings for ${done} pages.`);
+    else say("err", `Filled in ${done} of ${count} pages. The others couldn't be saved — try again.`);
+  }
+
   async function move(id: string, dir: -1 | 1) {
     const updates = movePage(ordered, id, dir);
     if (!updates.length) return;
@@ -127,6 +154,20 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
 
   if (editing) {
     const set = (patch: Partial<Page>) => setEditing((p) => ({ ...p, ...patch }));
+    const autoFill = async () => {
+      const auto = autoSeo(editing);
+      if (!auto.seoTitle && !auto.metaDescription) return setError("Write the page title and some text first, then auto-fill.");
+      const blanks = missingSeo(editing);
+      if (Object.keys(blanks).length) {
+        set(blanks);
+        say("ok", "Search listing filled in from the page. Check it, then Save page.");
+        return;
+      }
+      if (auto.seoTitle === editing.seoTitle && auto.metaDescription === editing.metaDescription) return say("ok", "The search listing already matches the page.");
+      if (!(await askConfirm({ title: "Replace your search listing?", message: "Your search title and description will be rewritten from the page's title and opening sentences. Nothing is saved until you press Save page.", confirmLabel: "Replace" }))) return;
+      set(auto);
+      say("ok", "Search listing rewritten from the page. Check it, then Save page.");
+    };
     return (
       <div className="p-4 space-y-4">
         {confirmNode}
@@ -157,7 +198,13 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
           <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editing.showInNav ?? true} onChange={(e) => set({ showInNav: e.target.checked })} /> Include in the storefront header <span className="font-normal text-neutral-500">(on by default for new pages)</span></label>
         </div>
         <div className="space-y-2 border-t border-neutral-200 pt-3">
-          <p className="text-xs font-bold">Search listing (SEO)</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-bold">Search listing (SEO)</p>
+            <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={saving} onClick={autoFill}
+              title="Write the search title and description from this page's title and opening sentences">
+              <Sparkles size={13} aria-hidden /> Auto-fill from page
+            </button>
+          </div>
           <input className={input} value={editing.seoTitle || ""} placeholder={editing.title || "SEO title"} aria-label="SEO title" onChange={(e) => set({ seoTitle: e.target.value })} />
           <textarea className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-xs" rows={3} maxLength={320} aria-label="Meta description"
             value={editing.metaDescription || ""} placeholder="A brief summary for search engines…" onChange={(e) => set({ metaDescription: e.target.value })} />
@@ -209,7 +256,14 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
         <p className="text-sm font-bold">Pages</p>
         <p className="text-xs text-neutral-500">Write About, Shipping or Journal pages. New pages are included in the storefront header by default. Pages save straight away and don't need Publish. Use “Design sections” to lay out a page with banners and galleries.</p>
       </div>
-      <button className={btnPrimary} onClick={openNew}><Plus size={14} /> New page</button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button className={btnPrimary} onClick={openNew} disabled={filling}><Plus size={14} /> New page</button>
+        {needsSeo.length > 0 && (
+          <button className={btn} onClick={fillAllSeo} disabled={filling}>
+            <Sparkles size={13} aria-hidden /> {filling ? "Filling in…" : `Fill in missing search listings (${needsSeo.length})`}
+          </button>
+        )}
+      </div>
       {ordered.length === 0 && <p className="text-xs text-neutral-500 border border-dashed border-neutral-300 rounded-lg p-4">No pages yet. Create one and it can appear in your storefront menu.</p>}
       {ordered.map((p, i) => (
         <div key={p.id} className="border border-neutral-200 rounded-lg p-2 bg-white space-y-1">
