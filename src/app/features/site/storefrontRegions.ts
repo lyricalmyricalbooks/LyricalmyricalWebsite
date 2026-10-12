@@ -25,6 +25,8 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "productDescription", label: "Book description" }, { id: "productSpecs", label: "Book specifications" },
     { id: "productReviews", label: "Book reviews" },
     { id: "productSaleEnds", label: "Sale end date (under the price)" },
+    { id: "productOldPrice", label: "Old price (crossed out during a sale)" },
+    { id: "productSaveBadge", label: "Sale savings badge (Save …)" },
     { id: "productAddOns", label: "Extras (signed copy, inscription, gift wrap)" },
     { id: "productBoxSet", label: "Box set contents" },
     { id: "productGiftCardForm", label: "Gift card recipient form" },
