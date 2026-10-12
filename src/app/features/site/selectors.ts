@@ -4,7 +4,7 @@ import type { Book } from "./types";
 import { bookInCategory } from "./navItems";
 
 const LOGO_DESIGN_FIELDS = [
-  "logoUrl", "logoText", "logoColor", "logoTint", "logoHeight",
+  "logoUrl", "logoText", "logoColor", "logoHoverColor", "logoTint", "logoHeight",
   // Two-part wordmark support (LogoMark renders these when wordmarkStyle is "two-part")
   "wordmarkStyle", "wordmarkPrimary", "wordmarkSecondary", "wordmarkSize", "wordmarkWeight", "wordmarkSecondaryMuted", "wordmarkSecondaryColor", "headingFont",
 ] as const;

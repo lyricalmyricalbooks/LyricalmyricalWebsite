@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { createPortal } from "react-dom";
 import { Link } from "react-router";
 import { getCopy } from "./storeCopy";
+import { navActiveColor } from "./headerNav";
 
 export type NavDropdownEntry = { key: string; label: string; active?: boolean; to?: string; onSelect?: () => void };
 
@@ -147,7 +148,7 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
   };
   const itemStyle = (active?: boolean): CSSProperties => ({
     ...linkStyle,
-    color: design?.navDropdownTextColor || linkStyle.color,
+    color: active ? navActiveColor(design) : design?.navDropdownTextColor || linkStyle.color,
     textTransform: (design?.navDropdownTransform || linkStyle.textTransform) as CSSProperties["textTransform"],
     opacity: active ? 1 : Math.max(0.1, Math.min(1, Number(design?.navLinkOpacity ?? 0.6)) + 0.25),
     display: "block",

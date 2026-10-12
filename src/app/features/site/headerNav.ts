@@ -5,11 +5,18 @@ import { useLayoutEffect, useState, type CSSProperties, type RefObject } from "r
  * page mode on every standalone page) so both stay identical. Every value is a
  * Studio › Style › Navigation links control; the fallbacks are the defaults.
  */
+/**
+ * Colour of the link for the page the shopper is on — Studio › Style › Navigation links ›
+ * "Current page link color" (`navLinkActiveColor`); empty = the site's link hover colour.
+ */
+export const navActiveColor = (design: any): string =>
+  design?.navLinkActiveColor || "var(--link-hover-color, var(--accent))";
+
 export function navLinkStyle(design: any, active: boolean, color?: string): CSSProperties {
   const d = design || {};
   const idle = Math.max(0.1, Math.min(1, Number(d.navLinkOpacity ?? 0.6)));
   return {
-    color: d.navLinkColor || color,
+    color: active ? navActiveColor(d) : d.navLinkColor || color,
     // Scaled by --nav-fit when "Shrink to fit on one line" is on (see useNavFit).
     fontSize: `calc(${Number(d.navLinkSize ?? 11)}px * var(--nav-fit, 1))`,
     fontWeight: Number(d.navLinkWeight ?? 800),
