@@ -17,7 +17,7 @@ import {
 import { CATEGORIES } from "../../features/site/constants";
 import { designEqual } from "../../features/site/designEqual";
 import { splitNavigation, buildNavItems, childCategories, moveNavItem, normalizeCategories, parentOf, reslotPages } from "../../features/site/navItems";
-import { COPY_SCHEMA, DEFAULT_COPY } from "../../features/site/storeCopy";
+import { COPY_SCHEMA, DEFAULT_COPY, getCopy } from "../../features/site/storeCopy";
 import { automaticFooterItems, footerGroup } from "../../features/site/footerNavigation";
 import { MENU_LINK_TYPES, newMenuItem, slugify, type MenuItem } from "../../features/site/storeMenu";
 import {
@@ -334,6 +334,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [workspace] = useState<Workspace>(() => openedWorkspace ?? { draft: settings?.draftDesign ?? settings?.design, rev: 0, savedThemes: settings?.savedThemes || [] });
   const [hist, setHist] = useState(() => initHistory(normalizeDesign(settings?.draftDesign ?? settings?.design, defaults)));
   const design = hist.present;
+  // Search titles in Pages are measured in the draft's tab-title format (Text & labels › Site & sharing).
+  const pageTitleFormat = useCallback((title: string) => getCopy(design, "siteTitleFormat", { title }), [design]);
   const [savedDraft, setSavedDraft] = useState<any>(design);
   const [published, setPublished] = useState<any>(() => normalizeDesign(settings?.design, defaults));
   /** The design that is live right now (settings/website). Fresh from the server, normalised like the rest. */
@@ -410,6 +412,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [findOpen, setFindOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [openPage, setOpenPage] = useState<{ slug: string; nonce: number } | null>(null);
+  const [fillSeoRequest, setFillSeoRequest] = useState(0);
   const canvasSelectionRef = useRef<{sectionId: string; blockId: string | null} | null>(null);
   const inlineEditingRef = useRef(false);
   const [inlineEditing, setInlineEditing] = useState<string | null>(null);
@@ -1470,6 +1473,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "mode-toggle": setMode(m => m === "edit" ? "browse" : "edit"); break;
       case "autofit-page": setLeftTab("sections"); autoFitPage(false); break;
       case "add-section": setLeftTab("sections"); setAdding(sections.length); break;
+      case "fill-page-seo": setLeftTab("pages"); setFillSeoRequest(Date.now()); break;
     }
   };
   const goToResult = (entry: SearchEntry, query = "") => {
@@ -1853,6 +1857,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               <StudioPages pages={pages} setPages={setPages} say={say} onDraft={setDraftPage} onShow={showPageInPreview} openSlug={openPage} onBusy={setPageBusy}
                 loadError={pageLoadError} onRetryLoad={loadPages}
                 active={leftTab === "pages"}
+                formatTitle={pageTitleFormat} fillSeoRequest={fillSeoRequest}
                 onReorder={(ordered) => {
                   const raw: any[] = Array.isArray(design.categories) ? design.categories : [...CATEGORIES];
                   const cats = raw.map((c, i) => (typeof c === "string" ? { id: `cat-${i}`, name: c, description: "", showInNav: true } : c));

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { SectionCard, TextField, TextArea } from './riso/components';
+import toast from 'react-hot-toast';
+import { SectionCard, TextField, TextArea, useConfirm } from './riso/components';
 import { adminApi } from './api';
 import { loadCatalog } from '../features/site/loadCatalog';
 import { resolveProductRoutes } from '../features/site/productRoutes';
 import { getCopy } from '../features/site/storeCopy';
-import { bookMetadata, seoChecks } from '../lib/bookSeo';
+import { autoBookSeo, bookMetadata, seoChecks } from '../lib/bookSeo';
 import type { Book } from '../features/site/types';
 
 // Settings + whole catalog, shared by every opening of this pane for a minute (it used to reload both each time).
@@ -21,6 +22,7 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
   const [design, setDesign] = useState<any>(null);
   const [catalog, setCatalog] = useState<Book[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [askConfirm, confirmNode] = useConfirm();
   useEffect(() => {
     let cancelled = false;
     loadSeoData()
@@ -35,8 +37,28 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
   const url = resolved ? new URL(`${import.meta.env.BASE_URL}books/${encodeURIComponent(resolved.slug)}`, window.location.origin).href : '';
   const image = meta.image || design?.shareImageUrl || '';
   const checks = seoChecks(book, title);
+  // Fills blank search boxes from the book's own catalog facts; asks before replacing written ones.
+  const autoFill = async () => {
+    const auto = autoBookSeo(book, getCopy(design, 'siteName'));
+    if (!auto.metaTitle && !auto.metaDescription) { toast.error('Add the book title and description first, then auto-fill.'); return; }
+    const blankTitle = !(book.metaTitle || '').trim(), blankDescription = !(book.metaDescription || '').trim();
+    if (blankTitle || blankDescription) {
+      if (blankTitle && auto.metaTitle) onChange('metaTitle', auto.metaTitle);
+      if (blankDescription && auto.metaDescription) onChange('metaDescription', auto.metaDescription);
+      toast.success('Search listing filled in from the book. Check it, then save the book.');
+      return;
+    }
+    if (auto.metaTitle === book.metaTitle && auto.metaDescription === book.metaDescription) { toast.success('The search listing already matches the book.'); return; }
+    if (!(await askConfirm({ title: 'Replace the search listing?', message: 'The search title and description will be rewritten from the book’s title, author and description. Nothing is saved until you save the book.', confirmLabel: 'Replace' }))) return;
+    if (auto.metaTitle) onChange('metaTitle', auto.metaTitle);
+    if (auto.metaDescription) onChange('metaDescription', auto.metaDescription);
+    toast.success('Search listing rewritten from the book. Check it, then save the book.');
+  };
   return <>
+    {confirmNode}
     <SectionCard title="Search engine listing" description="Edit this book’s search and sharing details. Google may rewrite titles and snippets; rankings are not guaranteed.">
+      <div><button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={autoFill}
+        title="Write the search title and description from this book's title, author and description">Auto-fill from book</button></div>
       <label className="rp-hint"><input type="checkbox" checked={book.seoNoindex === true} onChange={event => onChange('seoNoindex', event.target.checked)} /> Exclude this listing from search engines</label>
       <p className="rp-hint">Useful for test and duplicate listings. The book stays available in the shop; Google receives noindex and the sitemap omits it.</p>
       <div className="be-grid">

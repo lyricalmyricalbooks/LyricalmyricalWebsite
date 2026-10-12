@@ -42,4 +42,10 @@ describe("pageInsights", () => {
     expect(missingSeo({ ...page, seoTitle: "Mine", metaDescription: " " })).toEqual({ metaDescription: "We make books." });
     expect(missingSeo({ title: "", body: "" })).toEqual({});
   });
+  it("measures the title as the shop sends it and shortens nothing just to fit the name", () => {
+    const fmt = (t: string) => `${t} — Lyricalmyrical Books`;
+    expect(seoHints("About", "", "x".repeat(100), fmt)[0]).toEqual({ level: "good", text: "Title length is good (28 with the shop name)." });
+    expect(seoHints("History of Lyricalmyrical and its friends", "", "x".repeat(100), fmt)[0].level).toBe("warn");
+    expect(autoSeo({ title: "History of Lyricalmyrical and its friends", body: "" }, fmt).seoTitle).toBe("History of Lyricalmyrical and its friends");
+  });
 });

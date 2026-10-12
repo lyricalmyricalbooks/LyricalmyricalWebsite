@@ -918,11 +918,17 @@ await check("a custom page's search listing fills in from the page", desktop, as
   await page.getByRole("button", { name: "Edit About" }).click();
   await page.getByRole("button", { name: "Auto-fill from page" }).click();
   if (await page.getByLabel("SEO title").inputValue() !== "About") throw new Error("search title wasn't filled from the page title");
+  const preview = page.getByLabel("Search result preview");
+  if (!/About — /.test(await preview.innerText()) || !(await preview.innerText()).includes("We publish books.")) throw new Error(`search preview: ${await preview.innerText()}`);
+  await expectText(page, "with the shop name");
   if (await page.getByLabel("Meta description").inputValue() !== "We publish books.") throw new Error("description wasn't filled from the page text");
   if ((await calls(page)).some(c => c.method === "updatePage")) throw new Error("auto-fill saved before Save page");
   await page.getByRole("button", { name: "All pages" }).click();
   await page.getByRole("button", { name: "Discard changes" }).click();
-  await page.getByRole("button", { name: /Fill in missing search listings/ }).click();
+  // Find anything › "Fill in missing search listings" runs the same fill.
+  await page.keyboard.press(`${mod}+k`);
+  await page.getByRole("dialog").getByRole("combobox").fill("fill in missing search");
+  await page.getByRole("dialog").getByRole("option", { name: /Fill in missing search listings/ }).first().click();
   await page.getByRole("button", { name: /^Fill in \d+ pages?$/ }).click();
   await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "updatePage"), null, { timeout: 10000 });
   const about = (await calls(page)).find(c => c.method === "updatePage" && c.args[0] === "p1")?.args[1];

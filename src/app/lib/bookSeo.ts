@@ -34,6 +34,54 @@ export function snippet(text: string, max = 160): string {
   return (space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s.,;:!?\-–—]+$/, '') + '…';
 }
 
+/** The opening whole sentences of `text` that fit in `max` characters; one long first sentence is
+ *  cut on a word instead. Used by the search-listing auto-fill (pages and books). */
+export function leadSentences(text: string, max = 160): string {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim();
+  let out = '';
+  for (const sentence of clean.split(/(?<=[.!?])\s+/)) {
+    const next = out ? `${out} ${sentence}` : sentence;
+    if (next.length > max) break;
+    out = next;
+  }
+  return out || snippet(clean, max);
+}
+
+/** The first of `candidates` whose finished tab title (`format`) fits in `max`; else the last (shortest)
+ *  one, cut on a word only if it alone is longer than `max` (a title is never chopped just to fit the shop name). */
+export function fittingTitle(candidates: string[], format: (title: string) => string = t => t, max = 60): string {
+  const options = [...new Set(candidates.map(c => c.replace(/\s+/g, ' ').trim()).filter(Boolean))];
+  const fit = options.find(c => format(c).length <= max);
+  if (fit) return fit;
+  return snippet(options[options.length - 1] || '', max);
+}
+
+/** Search title + description written from the book's own catalog facts (Books › edit › Search (SEO) ›
+ *  Auto-fill from book). A book's custom search title is used exactly, so it carries the shop name itself
+ *  when there is room ("Title by Author — Shop"). The description is the book description's opening
+ *  sentences, or (with no description) a sentence of real facts: author, format, pages, publisher. */
+export function autoBookSeo(book: Partial<Book> & Record<string, any>, siteName = ''): { metaTitle: string; metaDescription: string } {
+  const title = searchText(book.title);
+  const author = searchText(book.authorName);
+  const site = searchText(siteName);
+  const byline = author ? `${title} by ${author}` : title;
+  const metaTitle = !title ? '' : fittingTitle([
+    site ? `${byline} — ${site}` : '', byline, site ? `${title} — ${site}` : '', title,
+  ]);
+  let metaDescription = leadSentences(searchText(descriptionPlainText(book.description)));
+  if (!metaDescription && title) {
+    const format = searchText(book.edition) || searchText(book.format);
+    const pages = Math.floor(Number(book.pageCount));
+    const facts = [format, pages > 0 ? `${pages} pages` : ''].filter(Boolean).join(', ');
+    metaDescription = leadSentences([
+      `${byline}.`,
+      facts ? `${facts.charAt(0).toUpperCase()}${facts.slice(1)}.` : '',
+      searchText(book.publisher) ? `Published by ${searchText(book.publisher)}.` : '',
+    ].filter(Boolean).join(' '));
+  }
+  return { metaTitle, metaDescription };
+}
+
 /** A valid ISBN-13 (978/979, correct check digit) without hyphens, or ''. Never invented. */
 export function isbn13(value: unknown): string {
   const digits = String(value ?? '').replace(/[\s-]/g, '');

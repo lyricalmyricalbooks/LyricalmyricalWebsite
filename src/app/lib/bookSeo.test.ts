@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bookMetadata, bookStructuredData, breadcrumbData, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, siteStructuredData, snippet } from './bookSeo';
+import { autoBookSeo, bookMetadata, bookStructuredData, breadcrumbData, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, siteStructuredData, snippet } from './bookSeo';
 const book = { id: 'one', title: 'Photo book', description: '<p>Art &amp; photography.</p>', retailPrice: 24, stockLevel: 0, status: 'published', slug: 'photo-book', metaTitle: 'An artist’s photo book', metaDescription: 'A unique collection of photographs.', seoImage: 'https://example.com/share.jpg' };
 describe('book search metadata', () => {
   it('uses saved search fields and sharing image', () => {
@@ -96,5 +96,29 @@ describe('book search metadata', () => {
   it('includes the sharing image in product images without duplicates', () => {
     const data = bookStructuredData({ ...book, photos: [{ url: 'https://example.com/share.jpg' }, { url: '/back.jpg' }] }, { currency: 'CAD', price: 24, url: 'https://example.com/books/one' });
     expect(data.image).toEqual(['https://example.com/share.jpg', 'https://example.com/back.jpg']);
+  });
+});
+
+describe('search listing auto-fill', () => {
+  it('takes whole opening sentences, or cuts one long sentence on a word', () => {
+    expect(leadSentences('One. Two words. ' + 'Long sentence '.repeat(20) + 'end.', 40)).toBe('One. Two words.');
+    expect(leadSentences('word '.repeat(60), 30).endsWith('…')).toBe(true);
+    expect(leadSentences('')).toBe('');
+  });
+  it('picks the first title that fits with the format', () => {
+    expect(fittingTitle(['A very long title that will never fit inside sixty characters at all', 'Short'])).toBe('Short');
+    expect(fittingTitle(['x'.repeat(70)]).length).toBeLessThanOrEqual(60);
+  });
+  it('writes a book title with author and shop name when they fit', () => {
+    const seo = autoBookSeo({ title: 'Night Songs', authorName: 'A. Poet', description: '<p>Poems about the city at night. Second sentence here.</p>' }, 'Lyricalmyrical Books');
+    expect(seo).toEqual({ metaTitle: 'Night Songs by A. Poet — Lyricalmyrical Books', metaDescription: 'Poems about the city at night. Second sentence here.' });
+    const long = autoBookSeo({ title: 'An Extremely Long Title For A Collection Of Poems', authorName: 'Someone Else' }, 'Lyricalmyrical Books');
+    // With the author it would be 65 characters, so the plain title is used.
+    expect(long.metaTitle).toBe('An Extremely Long Title For A Collection Of Poems');
+  });
+  it('describes a book with no description from its real facts only', () => {
+    expect(autoBookSeo({ title: 'Zine', format: 'paperback', pageCount: 32, publisher: 'Lyricalmyrical' }).metaDescription)
+      .toBe('Zine. Paperback, 32 pages. Published by Lyricalmyrical.');
+    expect(autoBookSeo({ title: '' })).toEqual({ metaTitle: '', metaDescription: '' });
   });
 });

@@ -18,6 +18,19 @@ export function wordmarkSecondaryStyle(design: any, dim = 0.6): React.CSSPropert
   return design?.wordmarkSecondaryMuted === false ? undefined : { opacity: dim };
 }
 
+/**
+ * Colour the wordmark turns while it is pointed at, pressed or focused — Studio › Style ›
+ * Logo & wordmark › "Wordmark color when pointed at or clicked" (`logoHoverColor`); empty = the
+ * site's link hover colour. Emitted by StorefrontOverrides on every storefront surface.
+ */
+export function logoHoverCss(design: any): string {
+  const color = design?.logoHoverColor || "var(--link-hover-color, var(--accent))";
+  const on = [":hover", ":active", ":focus-visible"].flatMap((s) => [`a${s} .fm-logo`, `button${s} .fm-logo`]);
+  return `.fm-logo,.fm-logo span{transition:color .15s ease,background-color .15s ease;}`
+    + `${on.join(",")},${on.map((x) => `${x} span`).join(",")}{color:${color}!important;}`
+    + `${on.map((x) => `${x}-tint`).join(",")}{background-color:${color}!important;}`;
+}
+
 export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defaultText?: string }) {
   const height = Math.max(20, Math.min(64, design?.logoHeight ?? 24));
   const logoColor = design?.logoColor;
@@ -30,7 +43,7 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
     const weight = design?.wordmarkWeight ?? 600;
     return (
       <span
-        className="flex items-baseline gap-2 whitespace-nowrap normal-case"
+        className="fm-logo flex items-baseline gap-2 whitespace-nowrap normal-case"
         style={{
           ...((design?.wordmarkFont || design?.headingFont) ? { fontFamily: `'${design.wordmarkFont || design.headingFont}', serif` } : {}),
           fontSize: `min(${size}rem, 6vw)`, // shrinks on phones so the header never overflows
@@ -54,6 +67,7 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
       const maskUrl = `url("${design.logoUrl}")`;
       return (
         <span
+          className="fm-logo fm-logo-tint"
           aria-label={getCopy(design, "logoAlt")}
           style={{
             display: "inline-block",
@@ -77,7 +91,7 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
     return <img src={design.logoUrl} alt={getCopy(design, "logoAlt")} className="object-contain" style={{ height }} />;
   }
 
-  return <span data-studio-style-text="logoText" style={logoColor ? { color: logoColor } : undefined}>{text}</span>;
+  return <span className="fm-logo" data-studio-style-text="logoText" style={logoColor ? { color: logoColor } : undefined}>{text}</span>;
 }
 
 export default LogoMark;

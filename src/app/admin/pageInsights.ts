@@ -1,16 +1,20 @@
 // Page helpers: SEO guidance, duplication and menu ordering. Pure.
 import { pageBodyText } from "../features/site/pageBody";
-import { snippet } from "../lib/bookSeo";
+import { fittingTitle, leadSentences } from "../lib/bookSeo";
 export interface SeoHint { level: "good" | "warn"; text: string }
 
-export function seoHints(title: string, seoTitle: string, meta: string): SeoHint[] {
-  const t = (seoTitle || title || "").trim();
+/** Length guidance for a page's search listing. `formatTitle` is the shop's tab-title format
+ *  (Text & labels › Site & sharing), so the title is measured as Google receives it, shop name included. */
+export function seoHints(title: string, seoTitle: string, meta: string, formatTitle: (title: string) => string = (t) => t): SeoHint[] {
+  const own = (seoTitle || title || "").trim();
+  const t = own ? formatTitle(own).trim() : "";
   const m = (meta || "").trim();
+  const withName = t !== own ? " with the shop name" : "";
   const hints: SeoHint[] = [];
   if (!t) hints.push({ level: "warn", text: "Add a title." });
-  else if (t.length < 20) hints.push({ level: "warn", text: `Title is short (${t.length}). Aim for 30–60 characters.` });
-  else if (t.length > 60) hints.push({ level: "warn", text: `Title may be cut off in search (${t.length}). Aim for 30–60 characters.` });
-  else hints.push({ level: "good", text: `Title length is good (${t.length}).` });
+  else if (t.length < 20) hints.push({ level: "warn", text: `Title is short (${t.length}${withName}). Aim for 30–60 characters.` });
+  else if (t.length > 60) hints.push({ level: "warn", text: `Title may be cut off in search (${t.length}${withName}). Aim for 30–60 characters.` });
+  else hints.push({ level: "good", text: `Title length is good (${t.length}${withName}).` });
   if (!m) hints.push({ level: "warn", text: "Add a meta description (70–160 characters)." });
   else if (m.length < 70) hints.push({ level: "warn", text: `Description is short (${m.length}). Aim for 70–160 characters.` });
   else if (m.length > 160) hints.push({ level: "warn", text: `Description may be cut off (${m.length}). Aim for 70–160 characters.` });
@@ -19,25 +23,19 @@ export function seoHints(title: string, seoTitle: string, meta: string): SeoHint
 }
 
 /** Search title and description written from the page itself (Studio › Pages › Auto-fill from page).
- *  The title is the page title (the storefront adds the shop name around it); the description is the
+ *  The title is the page title (the storefront adds the shop name around it, so `formatTitle` shortens it
+ *  to fit 60 characters with the name); the description is the
  *  body's opening sentences (headings skipped unless the page has nothing else), ending on a whole
  *  sentence or word within 160 characters. */
-export function autoSeo(page: { title?: string; body?: string }): { seoTitle: string; metaDescription: string } {
-  const title = String(page.title || "").replace(/\s+/g, " ").trim();
+export function autoSeo(page: { title?: string; body?: string }, formatTitle: (title: string) => string = (t) => t): { seoTitle: string; metaDescription: string } {
   const body = String(page.body || "");
   const text = pageBodyText(body.replace(/<h[1-6]\b[^>]*>[\s\S]*?<\/h[1-6]>/gi, " ")) || pageBodyText(body);
-  let description = "";
-  for (const sentence of text.split(/(?<=[.!?])\s+/)) {
-    const next = description ? `${description} ${sentence}` : sentence;
-    if (next.length > 160) break;
-    description = next;
-  }
-  return { seoTitle: snippet(title, 60), metaDescription: description || snippet(text, 160) };
+  return { seoTitle: fittingTitle([String(page.title || "")], formatTitle), metaDescription: leadSentences(text) };
 }
 
 /** Only the search fields this page leaves blank, filled from the page; {} when nothing would change. */
-export function missingSeo(page: { title?: string; body?: string; seoTitle?: string; metaDescription?: string }) {
-  const auto = autoSeo(page);
+export function missingSeo(page: { title?: string; body?: string; seoTitle?: string; metaDescription?: string }, formatTitle?: (title: string) => string) {
+  const auto = autoSeo(page, formatTitle);
   const patch: { seoTitle?: string; metaDescription?: string } = {};
   if (!String(page.seoTitle || "").trim() && auto.seoTitle) patch.seoTitle = auto.seoTitle;
   if (!String(page.metaDescription || "").trim() && auto.metaDescription) patch.metaDescription = auto.metaDescription;
