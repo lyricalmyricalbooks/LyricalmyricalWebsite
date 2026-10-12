@@ -421,6 +421,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "searchPlaceholder", label: "Search overlay placeholder", default: "Search books, authors, categories…" },
       { key: "searchCloseAria", label: "Search close — screen-reader label", default: "Close search" },
       { key: "searchPrompt", label: "Search prompt", default: "Start typing to search" },
+      { key: "searchSuggestionsLabel", label: "Popular searches heading", default: "Popular searches" },
       { key: "searchNoResults", label: "No results", default: "No results for “{query}”", hint: "Use {query} for what was typed." },
     ],
   },
