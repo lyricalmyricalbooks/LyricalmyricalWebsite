@@ -35,6 +35,37 @@ function keepPreviewParam(win: Win) {
   });
 }
 
+/**
+ * Studio preview (iframe or new tab): remember the newest snapshot from the very first message, before
+ * React has mounted anything. Lazy pages (product, custom page, tracking, 404…) mount after the iframe's
+ * load event — after Studio's first snapshot — and start from `__studioPreviewState`/`__studioPreviewDesign`,
+ * so without this they showed the published design until the next edit. Returns a cleanup function.
+ */
+export function rememberPreviewSnapshot(win: Win = window as Win): () => void {
+  let preview = false;
+  try { preview = new URLSearchParams(win.location.search).get("preview") === "true"; } catch { /* no location */ }
+  if (!preview) return () => {};
+  const origin = win.location.origin;
+  const onMessage = (event: MessageEvent) => {
+    if (event.origin !== origin || event.source !== win.parent) return;
+    const data = event.data;
+    if (!data || !data.design || typeof data.design !== "object") return;
+    if (data.type === "STUDIO_PREVIEW_STATE") {
+      (win as any).__studioPreviewState = {
+        settings: data.settings,
+        books: Array.isArray(data.books) ? data.books : undefined,
+        pages: Array.isArray(data.pages) ? data.pages : undefined,
+      };
+      win.__studioPreviewDesign = data.design;
+    } else if (data.type === "THEME_UPDATE") {
+      win.__studioPreviewDesign = data.design;
+    }
+  };
+  // Capture phase on window: runs before any component's listener reads the stored snapshot.
+  win.addEventListener("message", onMessage, true);
+  return () => win.removeEventListener("message", onMessage, true);
+}
+
 /** Returns a cleanup function (used by tests); a no-op outside a preview tab. */
 export function startPreviewTab(win: Win = window as Win): () => void {
   if (!isPreviewTab(win) || win.__studioPreviewTab || typeof win.BroadcastChannel === "undefined") return () => {};

@@ -265,6 +265,8 @@ export function useLiveDesign(): Record<string, any> {
       }
     };
     window.addEventListener("message", onMessage);
+    // A snapshot that arrived between the first render and this effect is already on window.
+    setDesign(readCachedDesign());
     return () => window.removeEventListener("message", onMessage);
   }, []);
   return design;

@@ -21,6 +21,22 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: s
     return { error };
   }
 
+  // Studio preview: the next unsaved snapshot retries the page, so fixing the setting that broke it
+  // brings the preview back without a reload (the snapshot itself is kept by rememberPreviewSnapshot).
+  private onPreviewMessage = (event: MessageEvent) => {
+    if (!this.state.error || event.origin !== window.location.origin || event.source !== window.parent) return;
+    const type = event.data?.type;
+    if (type === "STUDIO_PREVIEW_STATE" || type === "THEME_UPDATE") this.setState({ error: null });
+  };
+
+  componentDidMount() {
+    if (typeof window !== "undefined" && window.location.search.includes("preview=true")) window.addEventListener("message", this.onPreviewMessage);
+  }
+
+  componentWillUnmount() {
+    if (typeof window !== "undefined") window.removeEventListener("message", this.onPreviewMessage);
+  }
+
   componentDidCatch(error: Error) {
     console.error("Storefront render error:", error);
     try {

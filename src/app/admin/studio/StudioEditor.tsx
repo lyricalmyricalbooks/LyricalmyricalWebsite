@@ -565,6 +565,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setTimeout(() => setConfirmAction("publish"), 0);
   };
   useEffect(() => { if (leftTab !== "themes") setThemePreview(null); }, [leftTab]);
+  // A theme/version preview shows a different design in the canvas. Any edit to the draft (inspector,
+  // canvas, undo, live sync) ends it, so the canvas never keeps showing the preview over a change.
+  const previewedDesignRef = useRef(design);
+  useEffect(() => {
+    if (previewedDesignRef.current === design) return;
+    previewedDesignRef.current = design;
+    setThemePreview(null);
+    setHistoryPreview(null);
+  }, [design]);
   const renameTheme = async (t: SavedTheme) => {
     const name = await askText({ title: "Rename theme", label: "Theme name", defaultValue: t.name, confirmLabel: "Rename" });
     if (name === null || !name.trim()) return;
@@ -688,7 +697,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const previewDesign = historyPreview?.design || themePreview?.design || (candidate && adding !== null
       ? withCandidate(current, showGlobal ? globalGroup : template.id, getSections(current, target), adding, makeSection(candidate, getSectionMeta(candidate)?.defaults || {}))
       : current);
-    const state = buildPreviewState(settings, previewDesign, withDraftPage(pages, draftPage), books);
+    let state: ReturnType<typeof buildPreviewState>;
+    try { state = buildPreviewState(settings, previewDesign, withDraftPage(pages, draftPage), books); }
+    catch (err) { console.warn("[Studio] preview snapshot could not be built", err); return; }
     try {
       deliverPreviewState(iframeRef.current?.contentWindow, state, window.location.origin);
     } catch (err) { console.warn("[Studio] preview delivery failed", err); }
@@ -1315,6 +1326,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     }
   };
   useEffect(() => { if (leftTab !== "pages") setOpenPage(null); }, [leftTab]);
+  // Pages tab: the canvas follows the page being edited, so its unsaved body/title edits are visible.
+  const showPageInPreview = useCallback((slug: string) => {
+    setShowGlobal(false); setSelectedId(null); setBlockId(null); setTemplateId(`page:${slug}`);
+  }, []);
 
   const flashPanel = (selector: string, focusInside = false) => setTimeout(() => {
     const el = document.querySelector<HTMLElement>(selector);
@@ -1735,7 +1750,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             )}
 
             <div hidden={leftTab !== "pages"}>
-              <StudioPages pages={pages} setPages={setPages} say={say} onDraft={setDraftPage} openSlug={openPage} onBusy={setPageBusy}
+              <StudioPages pages={pages} setPages={setPages} say={say} onDraft={setDraftPage} onShow={showPageInPreview} openSlug={openPage} onBusy={setPageBusy}
                 loadError={pageLoadError} onRetryLoad={loadPages}
                 active={leftTab === "pages"}
                 onReorder={(ordered) => {

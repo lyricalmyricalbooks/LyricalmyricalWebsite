@@ -810,6 +810,48 @@ await check("Schedule publishing saves a campaign in Toronto time and lists it, 
   await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "cancelThemeSchedule"));
 });
 
+await check("an edit while a theme preview is showing ends the preview, and the canvas shows the edit", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await expectText(page, "Home · 1 section");
+  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  const panel = page.locator("[data-studio-panel='themes']");
+  await panel.locator("[data-theme-card^='preset:']").first().getByRole("button", { name: "Preview" }).click();
+  await page.locator("[data-studio-theme-preview]").waitFor({ timeout: 5000 });
+  // Undo changes the draft: the canvas must stop showing the previewed look and follow the draft.
+  await page.locator("[data-studio-theme-preview]").click({ position: { x: 4, y: 4 } });
+  await page.keyboard.press(`${mod}+z`);
+  await page.locator("[data-studio-theme-preview]").waitFor({ state: "detached", timeout: 5000 });
+  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  await expectText(page, "Home · 0 sections");
+});
+
+await check("Pages shows the page being edited in the canvas, with unsaved words", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await page.getByRole("button", { name: "Edit About" }).click();
+  await page.waitForFunction(() => document.querySelector("iframe")?.getAttribute("src")?.includes("/page/about"), null, { timeout: 5000 });
+  await expectText(page, "Preview connected", 30000);
+  await page.locator(".studio-page-body .ql-editor").click();
+  await page.keyboard.type(" Unsaved canvas words");
+  await page.frameLocator("iframe").first().getByText("Unsaved canvas words").first().waitFor({ timeout: 10000 });
+});
+
+await check("a page that loads after the draft changed still shows the unsaved draft", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.evaluate(() => {
+    const f = window.__studioFixture;
+    const draft = JSON.parse(JSON.stringify(f.settings.draftDesign || f.settings.design || {}));
+    f.remoteSave({ ...draft, copy: { ...(draft.copy || {}), trackTitle: "Where is my parcel" } });
+  });
+  await page.getByRole("button", { name: "Page to edit" }).click();
+  await page.getByRole("combobox", { name: "Find a page, collection or book" }).fill("Order tracking");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.querySelector("iframe")?.getAttribute("src")?.includes("/track"), null, { timeout: 5000 });
+  await page.frameLocator("iframe").first().getByText("Where is my parcel").first().waitFor({ timeout: 15000 });
+});
+
 await check("a custom page takes uploaded and pasted pictures, with size, position and description", desktop, async page => {
   await page.getByRole("button", { name: "Pages", exact: true }).click();
   await page.getByRole("button", { name: "Edit About" }).click();
