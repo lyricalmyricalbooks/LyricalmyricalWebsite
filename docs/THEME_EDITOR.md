@@ -244,8 +244,8 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       S, Z, Shift Z / Y, D, Delete, Alt ↑/↓, Esc, 1/2/3 devices, E edit/browse, **?** opens the cheat sheet; the
       preview forwards Ctrl/⌘ shortcuts (`KEY_COMMAND`). Studio links (`lib/studioLocation.ts`:
       `/admin#designer?t=…&b=…&c=…&tab=…&d=…`) open Studio at a page and tool — used by What's new (`links[].studio`),
-      Books › edit › **Design this page**, and an owner-only **Edit in Studio** button on the live site
-      (`admin/EditInStudioButton.tsx`, hidden for shoppers, in the preview and in prerendered HTML).
+      and Books › edit › **Design this page**. (The owner-only floating **Edit in Studio** button on the live
+      site was removed in October 2026 at the owner's request — don't re-add it.)
 - [x] 1.3 Live page structure. Instead of a hand-written element manifest that could drift, the preview bridge
       scans what actually rendered — every `data-fm-section`, `data-store-region` and `data-studio-target`, in
       document order, with its zone (`header` / `footer` / `role=dialog` pop-over / page body), parent, repeat count
