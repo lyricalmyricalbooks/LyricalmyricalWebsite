@@ -24,7 +24,8 @@ const { risoButton, risoLayout, placeItemsTable } = require("./emailTheme");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
-const { labelProblem, addressKey: guardAddressKey, shippoTransactionOutcome, advancesTracking, shippoDefiniteRefusal } = require("./fulfillmentGuard");
+const { labelProblem, addressKey: guardAddressKey, shippoTransactionOutcome, advancesTracking, shippoDefiniteRefusal, terminal: terminalOrder } = require("./fulfillmentGuard");
+const { labelHandedOver, transactionRefundState, findLabelTransaction, refundEntry, openRefunds, applyRefundChecks, REFUND_WINDOW_DAYS: LABEL_REFUND_WINDOW_DAYS } = require("./labelVoid");
 const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
 const { labelRatesFor, isPurchasableRate, isSoldRate: isSoldRateName, isCanadaPostRate: isCanadaPostRateName, soldName } = require("./labelRates");
@@ -5474,46 +5475,80 @@ exports.createShippingLabel = onBrowserRequest(
         res.status(200).json({ cleared: true });
         return;
       }
-      // Replace a wrong label: void it with Shippo (or accept the owner's word that they did), then the
-      // order can buy a fresh one. Only before the parcel is handed over; Shippo refunds unused labels.
+      // Void a label that won't be used (wrong label, or the order was cancelled/refunded before the parcel
+      // left): ask Shippo for the refund (or accept the owner's word that they did it there), take the
+      // label off the order and follow the refund (labelRefunds, checked by unpaidPaymentSweep). Never
+      // after the parcel was handed over. Rules: functions/labelVoid.js.
       if (mode === "voidLabel") {
         const confirmedElsewhere = req.body.confirmedElsewhere === true;
-        const handedOver = o => ["shipped", "out_for_delivery", "delivered", "cancelled", "refunded"].includes(o.fulfillmentStatus) || ["cancelled", "completed"].includes(o.status);
-        if (!order.labelUrl) { res.status(409).json({ error: "This order has no label to replace." }); return; }
-        if (handedOver(order)) { res.status(409).json({ error: "The parcel has already been handed over. To fix the tracking number, use Correct tracking instead." }); return; }
+        if (!order.labelUrl) { res.status(409).json({ error: "This order has no label to void." }); return; }
+        if (labelHandedOver(order)) { res.status(409).json({ error: "The parcel has already been handed over, so its label is in use. To fix the tracking number, use Correct tracking instead." }); return; }
         if (operations.labelPurchasePending) { res.status(409).json({ error: "A label purchase is pending. Check Shippo first." }); return; }
-        let refundStatus = "confirmed in Shippo by the owner";
+        const keepWords = "If you already voided it in Shippo, tick \"I already voided it in Shippo\".";
+        let refundStatus = "VOIDED_IN_SHIPPO";
         let refundId = null;
+        let transactionId = operations.shippoTransactionId || null;
         if (!confirmedElsewhere) {
-          if (!operations.shippoTransactionId) {
-            res.status(409).json({ error: "This label was bought before Shippo's transaction number was saved, so it can't be voided from here. Void it in Shippo, then choose \"I already voided it in Shippo\".", needsConfirmation: true });
-            return;
-          }
           const voidToken = await getShippoToken();
           if (!voidToken) { res.status(500).json({ error: "SHIPPO_API_TOKEN is not configured." }); return; }
-          let refund;
-          try { refund = await callShippo("refunds/", "POST", { transaction: operations.shippoTransactionId, async: false }, voidToken); }
-          catch (err) { res.status(409).json({ error: `Shippo would not void the label: ${String(err.message || err).replace(/^Shippo API error: /, "").slice(0, 300)}. If you already voided it in Shippo, choose "I already voided it in Shippo".`, needsConfirmation: true }); return; }
-          refundStatus = String(refund?.status || "QUEUED").toUpperCase();
-          refundId = refund?.object_id || null;
-          if (refundStatus === "ERROR") { res.status(409).json({ error: "Shippo refused to void this label (it may already be used or too old to refund). If you voided it in Shippo yourself, choose \"I already voided it in Shippo\".", needsConfirmation: true }); return; }
+          // Labels bought before the transaction number was saved: find it in Shippo by tracking number.
+          if (!transactionId && order.trackingNumber) {
+            const since = new Date(Date.now() - (LABEL_REFUND_WINDOW_DAYS + 5) * 24 * 60 * 60 * 1000).toISOString().slice(0, 19);
+            try {
+              for (let page = 1; page <= 5 && !transactionId; page++) {
+                const list = await callShippo(`transactions/?results=100&page=${page}&object_created_gte=${since}`, "GET", null, voidToken);
+                transactionId = findLabelTransaction(list?.results, order.trackingNumber)?.object_id || null;
+                if (!list?.next) break;
+              }
+            } catch (err) { console.warn("voidLabel: transaction lookup failed:", err.message); }
+          }
+          if (!transactionId) {
+            res.status(409).json({ error: `Shippo has no label with tracking number ${order.trackingNumber || "(none)"} from the last ${LABEL_REFUND_WINDOW_DAYS} days, so it can't be voided from here. ${keepWords}`, needsConfirmation: true });
+            return;
+          }
+          // Read the label first: never ask twice, and never void a label that belongs to another parcel.
+          let transaction;
+          try { transaction = await callShippo(`transactions/${encodeURIComponent(transactionId)}/`, "GET", null, voidToken); }
+          catch (err) { res.status(502).json({ error: `Couldn't reach Shippo to check the label: ${String(err.message || err).replace(/^Shippo API error: /, "").slice(0, 200)}. Try again in a minute.` }); return; }
+          if (order.trackingNumber && transaction?.tracking_number && String(transaction.tracking_number).replace(/\s+/g, "") !== String(order.trackingNumber).replace(/\s+/g, "")) {
+            res.status(409).json({ error: `The saved Shippo label (${transaction.tracking_number}) doesn't match this order's tracking number (${order.trackingNumber}). Check the order in Shippo. ${keepWords}`, needsConfirmation: true });
+            return;
+          }
+          const already = transactionRefundState(transaction);
+          if (already === "rejected") { res.status(409).json({ error: `Shippo already refused a refund for this label (the carrier scanned or used it). ${keepWords}`, needsConfirmation: true }); return; }
+          if (already) refundStatus = String(transaction.status || "").toUpperCase();
+          else {
+            let refund;
+            try { refund = await callShippo("refunds/", "POST", { transaction: transactionId, async: false }, voidToken); }
+            catch (err) { res.status(409).json({ error: `Shippo would not void the label: ${String(err.message || err).replace(/^Shippo API error: /, "").slice(0, 300)}. Labels can be refunded only if unused and bought in the last ${LABEL_REFUND_WINDOW_DAYS} days. ${keepWords}`, needsConfirmation: true }); return; }
+            refundStatus = String(refund?.status || "QUEUED").toUpperCase();
+            refundId = refund?.object_id || null;
+            if (refundStatus === "ERROR") { res.status(409).json({ error: `Shippo refused to void this label (it may already be used or older than ${LABEL_REFUND_WINDOW_DAYS} days). ${keepWords}`, needsConfirmation: true }); return; }
+          }
         }
         const nowIso = new Date().toISOString();
-        const old = { trackingNumber: order.trackingNumber || null, trackingCarrier: order.trackingCarrier || null, labelUrl: order.labelUrl, shippoTransactionId: operations.shippoTransactionId || null };
+        const by = adminUser.email || "admin";
+        const old = { trackingNumber: order.trackingNumber || null, trackingCarrier: order.trackingCarrier || null, labelUrl: order.labelUrl, shippoTransactionId: transactionId };
+        const entry = confirmedElsewhere ? null : refundEntry({ transactionId, refundId, trackingNumber: old.trackingNumber, carrier: old.trackingCarrier, status: refundStatus, at: nowIso, by });
+        const finished = terminalOrder(order);
         const replaced = await db.runTransaction(async tx => {
           const [freshOrder, freshOps] = await Promise.all([tx.get(orderRef), tx.get(operationsRef)]);
           const current = freshOrder.data() || {};
-          if (!current.labelUrl || current.labelUrl !== order.labelUrl || handedOver(current) || (freshOps.data() || {}).labelPurchasePending) return false;
+          const ops = freshOps.data() || {};
+          if (!current.labelUrl || current.labelUrl !== order.labelUrl || labelHandedOver(current) || ops.labelPurchasePending) return false;
           const del = admin.firestore.FieldValue.delete();
+          const refunds = entry ? [...(Array.isArray(ops.labelRefunds) ? ops.labelRefunds : []), entry].slice(-20) : ops.labelRefunds;
+          const words = entry ? (entry.state === "refunded" ? "refunded by Shippo" : "refund requested from Shippo") : "voided in Shippo by the owner";
           tx.update(orderRef, { labelUrl: del, trackingNumber: del, trackingCarrier: del, trackingUrl: del, updatedAt: nowIso,
-            activity: admin.firestore.FieldValue.arrayUnion({ type: "note", createdAt: nowIso, message: `Label #${old.trackingNumber || ""} voided so a new one can be bought.` }) });
+            activity: admin.firestore.FieldValue.arrayUnion({ type: "note", createdAt: nowIso, message: `Label #${old.trackingNumber || ""} voided${finished ? "" : " so a new one can be bought"}.` }) });
           tx.set(operationsRef, { shippoTransactionId: del, labelTest: del, quotedShipmentId: del, quotedAddress: del, updatedAt: nowIso,
-            labelHistory: admin.firestore.FieldValue.arrayUnion({ ...old, voidedAt: nowIso, voidedBy: adminUser.email || "admin", refundStatus, refundId }),
-            activity: admin.firestore.FieldValue.arrayUnion({ type: "event", createdAt: nowIso, message: `Label #${old.trackingNumber || ""} voided (${refundStatus}); a new label can be bought.` }) }, { merge: true });
+            ...(entry ? { labelRefunds: refunds, labelRefundOpen: openRefunds(refunds).length > 0 } : {}),
+            labelHistory: admin.firestore.FieldValue.arrayUnion({ ...old, voidedAt: nowIso, voidedBy: by, refundStatus, refundId }),
+            activity: admin.firestore.FieldValue.arrayUnion({ type: "event", createdAt: nowIso, message: `Label #${old.trackingNumber || ""} voided (${words}).` }) }, { merge: true });
           return true;
         });
         if (!replaced) { res.status(409).json({ error: "The order changed. Reload it and try again." }); return; }
-        res.status(200).json({ voided: true, refundStatus });
+        res.status(200).json({ voided: true, refundStatus, refundState: entry ? entry.state : "elsewhere" });
         return;
       }
       const preparationProblem = labelProblem(order, operations);
@@ -6884,8 +6919,45 @@ exports.markOrderPaid = onBrowserRequest(
 const SWEEP_LOOKUP_BATCH = 5;           // Stripe lookups in flight at once
 const SWEEP_LOOKUP_MS = 100 * 1000;     // stop starting payment lookups after this
 const SWEEP_REVERSAL_MS = 190 * 1000;   // stop starting refund/dispute checks after this (function limit: 300 s)
+// Follows label refunds asked for from Orders (mode "voidLabel"): Shippo takes up to ~14 business days and
+// may reject one (the carrier scanned the label). Each pending row is re-read at most hourly; the result is
+// saved on order-operations.labelRefunds and a rejection shows in the admin alerts (labelVoid.js).
+async function checkLabelRefunds(now = Date.now()) {
+  const token = await getShippoToken();
+  if (!token) return { checked: 0 };
+  const snap = await db.collection("order-operations").where("labelRefundOpen", "==", true).limit(40).get();
+  let checked = 0, settled = 0;
+  for (const doc of snap.docs) {
+    const due = openRefunds(doc.data().labelRefunds).filter(e => now - (Date.parse(e.checkedAt || "") || 0) >= 60 * 60 * 1000);
+    if (!due.length) continue;
+    const results = {};
+    for (const entry of due) {
+      try {
+        const found = entry.refundId
+          ? await callShippo(`refunds/${encodeURIComponent(entry.refundId)}/`, "GET", null, token)
+          : await callShippo(`transactions/${encodeURIComponent(entry.transactionId)}/`, "GET", null, token);
+        const status = entry.refundId ? found?.status : (transactionRefundState(found) ? found?.status : "PENDING");
+        if (status) results[entry.refundId || entry.transactionId] = status;
+        checked++;
+      } catch (err) { console.warn(`label refund check ${doc.id}:`, err.message); }
+    }
+    if (!Object.keys(results).length) continue;
+    const at = new Date(now).toISOString();
+    await db.runTransaction(async tx => {
+      const fresh = (await tx.get(doc.ref)).data() || {};
+      const outcome = applyRefundChecks(fresh.labelRefunds, results, at);
+      const done = outcome.entries.filter((e, i) => e?.state !== "pending" && fresh.labelRefunds?.[i]?.state === "pending");
+      settled += done.length;
+      tx.set(doc.ref, { labelRefunds: outcome.entries, labelRefundOpen: outcome.open, updatedAt: at,
+        ...(done.length ? { activity: admin.firestore.FieldValue.arrayUnion(...done.map(e => ({ type: "event", createdAt: at,
+          message: e.state === "refunded" ? `Shippo refunded label #${e.trackingNumber || ""}.` : `Shippo rejected the refund for label #${e.trackingNumber || ""} (the carrier scanned or used it).` }))) } : {}) }, { merge: true });
+    });
+  }
+  return { checked, settled };
+}
+
 exports.unpaidPaymentSweep = onSchedule(
-  { schedule: "every 15 minutes", timeoutSeconds: 300, secrets: [STRIPE_SECRET_KEY, RESEND_API_KEY] },
+  { schedule: "every 15 minutes", timeoutSeconds: 300, secrets: [STRIPE_SECRET_KEY, RESEND_API_KEY, SHIPPO_API_TOKEN] },
   async () => {
     // Studio 3.5: scheduled theme publishes and campaigns ride on this sweep (own try/catch: never blocks payments).
     try { await require("./themeSchedule").runThemeSchedule(db); }
@@ -6968,6 +7040,12 @@ exports.unpaidPaymentSweep = onSchedule(
     } catch (err) {
       console.warn("unpaidPaymentSweep: reversal checks failed:", err.message);
     }
+
+    // Shippo label refunds asked for from Orders (own try/catch: never blocks payments).
+    try {
+      const labels = await checkLabelRefunds();
+      if (labels.settled) console.log("unpaidPaymentSweep: label refunds", labels);
+    } catch (err) { console.warn("unpaidPaymentSweep: label refund checks failed:", err.message); }
 
     // Emails that every sender refused are retried here on a widening schedule, after the payment
     // checks and within a time budget so a backlog can't starve them (own try/catch).

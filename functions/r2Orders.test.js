@@ -189,7 +189,8 @@ test("fault 36: a wrong label is voided with Shippo and the order can buy a new 
   const app = harness({ order, ops: { shippoTransactionId: "tx_old" }, fetchImpl: c => c.url.includes("refunds/") ? ok({ object_id: "rf_1", status: "QUEUED" }) : ok({}) });
   const res = await app.label({ mode: "voidLabel" });
   expect(res.code).toBe(200);
-  expect(app.calls[0].body).toMatchObject({ transaction: "tx_old" });
+  // The label is read first (never refunded twice), then the refund is asked for.
+  expect(app.calls.find(c => c.url.includes("refunds/")).body).toMatchObject({ transaction: "tx_old" });
   expect(app.order().labelUrl).toBeUndefined();
   expect(app.order().trackingNumber).toBeUndefined();
   expect(app.ops().labelHistory[0]).toMatchObject({ trackingNumber: "OLD1", shippoTransactionId: "tx_old", refundStatus: "QUEUED" });
@@ -207,10 +208,13 @@ test("fault 36: Shippo refusing the void leaves the label alone and offers the '
 
 test("fault 36: a label bought before ids were saved can be dropped once the owner says they voided it in Shippo", async () => {
   const app = harness({ order: labelled(), fetchImpl: () => ok({}) });
+  // Shippo is searched by tracking number; nothing found, so nothing is refunded and the label stays.
   expect((await app.label({ mode: "voidLabel" })).code).toBe(409);
+  expect(app.calls.every(c => c.url.includes("transactions/?"))).toBe(true);
+  const before = app.calls.length;
   const confirmed = await app.label({ mode: "voidLabel", confirmedElsewhere: true });
   expect(confirmed.code).toBe(200);
-  expect(app.calls).toEqual([]);
+  expect(app.calls.length).toBe(before);
   expect(app.order().labelUrl).toBeUndefined();
 });
 

@@ -12,7 +12,9 @@ import {
   packingInfo,
   preorderShipDate,
   blockingProblem,
+  terminal,
 } from "./fulfillment";
+import { labelVoidable, labelRefunds, refundWords } from "./labelRefunds";
 import { getTrackingUrl } from "../lib/tracking";
 import { formatReleaseDate } from "../features/site/preorder";
 import { addOnLines, bundlePartsText, giftCardLineText, isFreeGiftLine, isGiftCardLine, linePricing, cad } from "./orderLines";
@@ -159,6 +161,36 @@ export function FulfillmentWorkbench({
       )}
       {order.status === "cancelled" && (
         <p className="fw-notice">This order is cancelled.</p>
+      )}
+      {shipping && onReplaceLabel && labelVoidable(order) && !shippingActive && (
+        <div className="fw-notice" role="status">
+          <div>
+            <strong>Unused label</strong>
+            <p>
+              {terminal(order)
+                ? `This order is cancelled or refunded, but label ${order.trackingNumber || ""} was never used. Void it to get the postage back from Shippo.`
+                : `Label ${order.trackingNumber || ""} hasn't left the shop. If it won't be used, void it to get the postage back from Shippo.`}
+            </p>
+          </div>
+          <SecondaryButton disabled={busy} onClick={onReplaceLabel}>
+            Void label for a refund
+          </SecondaryButton>
+        </div>
+      )}
+      {labelRefunds(order).length > 0 && (
+        <div className="fw-notice" role="status">
+          <div>
+            <strong>Shippo label refunds</strong>
+            {labelRefunds(order).map((entry, index) => (
+              <p key={`${entry.transactionId || entry.trackingNumber}-${index}`}>
+                <StatusBadge tone={entry.state === "refunded" ? "success" : entry.state === "rejected" ? "danger" : "info"}>
+                  {entry.state === "refunded" ? "Refunded" : entry.state === "rejected" ? "Rejected" : "Pending"}
+                </StatusBadge>{" "}
+                {refundWords(entry)}
+              </p>
+            ))}
+          </div>
+        </div>
       )}
       {shipping && method !== "pickup" && (
         <div className="fw-step" data-active={addressActive}>
