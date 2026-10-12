@@ -99,6 +99,8 @@ export const STUDIO_OVERLAYS = [
   { id: "cart" as const, label: "Shopping bag", target: "style:cartDrawer|copy:Cart" },
   { id: "search" as const, label: "Search", target: "copy:Search & filters" },
   { id: "popup" as const, label: "Pop-up", target: "style:popup|copy:Sections" },
+  // Shown in the preview even after this browser answered it (the answer is never changed from the preview).
+  { id: "cookie" as const, label: "Cookie banner", target: "style:overlayLayout|copy:Cookie banner" },
 ];
 
 /** The click-to-edit target to open for a structure item: the first style target, else the first one. */

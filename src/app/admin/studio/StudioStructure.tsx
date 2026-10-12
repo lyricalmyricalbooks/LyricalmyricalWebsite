@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Eye, EyeOff, Lock, PanelTop, PanelBottom, Layers, MessageSquare } from "lucide-react";
 import { IconButton } from "../riso/components";
 import { STUDIO_OVERLAYS, type PageStructure, type StructureItem } from "./pageStructure";
+import type { StudioOverlay } from "../../features/site/studioOverlay";
 import { groupLabel, type SectionGroupKey } from "../../features/site/sectionGroups";
 
 /** Hide/show state of a built-in region at the size being previewed (null = not a region). */
@@ -21,7 +22,7 @@ type Props = {
   groupCounts: Record<string, number>;
   onHover: (key: string | null) => void;
   onOpen: (item: StructureItem) => void;
-  onOverlay: (overlay: "cart" | "search" | "popup" | "close") => void;
+  onOverlay: (overlay: StudioOverlay | "close") => void;
   onOpenTarget: (target: string, label: string) => void;
   regionState: (region: string) => RegionToggle;
   onToggleRegion: (region: string, visible: boolean) => void;

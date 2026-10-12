@@ -1584,7 +1584,10 @@ export function Checkout() {
     }
   };
 
-  const handleCompletePurchase = () => submitPurchase.current(async () => {
+  // The Studio preview runs the real checkout: never create an order or a payment from it.
+  const handleCompletePurchase = () => (typeof window !== "undefined" && window.location.search.includes("preview=true"))
+    ? setNotice({ tone: "info", text: c("coPreviewNoPay") })
+    : submitPurchase.current(async () => {
     setIsCompleting(true);
     try {
       await completePurchase();

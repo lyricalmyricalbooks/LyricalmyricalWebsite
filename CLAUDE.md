@@ -273,6 +273,12 @@ switches the canvas to `page:<slug>` (`StudioPages` `onShow`). `rememberPreviewS
 `main.tsx`) stores every snapshot on `window` before React mounts, so lazy pages start from it; the route `ErrorBoundary`
 clears its error on the next snapshot in preview; spacing drags use pointer capture so a release outside the frame still
 ends the pause on preview updates (`inlineEditingRef`).
+**Preview clicks and links (12 October 2026, round 2):** the bridge reports its route on every load (`route()` at init);
+Studio ignores the page it asked for (`samePreviewPage` vs `previewUrlRef`) and otherwise follows it, mapping `/` to the
+catalog when `showHero` is off and a template-less book link to the book's alternate (`previewRoute` options). Editable words
+outside a section fall through to element selection; a clicked repeated part is kept (`pickedEl`). The canvas/edit maps
+cover `headerSections` and `overlaySections`. "cookie" is a Studio pop-over (`STUDIO_OVERLAYS`; the preview never writes
+consent). Checkout's Pay does nothing in `?preview=true` (`coPreviewNoPay`). Outline rows show `sectionPreviewNote`.
 
 Preview canvas actions resolve section ownership and block arrays from the
 current draft, including global sections and dynamic `page:<slug>` templates.

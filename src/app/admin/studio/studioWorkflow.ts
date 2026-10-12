@@ -238,16 +238,26 @@ export function parseRecovery(raw: string | null, baseline: any): (Recovery & { 
   } catch { return null; }
 }
 
-export function previewRoute(href: string, base: string) {
+export function previewRoute(href: string, base: string, options: {
+  /** false = the shop opens straight on the catalog (Show a Home page off), so "/" is the catalog. */
+  showHero?: boolean;
+  /** A book's own template surface (its alternate), for a book link that names no template. */
+  bookTemplate?: (slug: string) => string;
+} = {}) {
   const url = new URL(href, "https://preview.invalid");
   const prefix = base.endsWith("/") ? base : `${base}/`;
   if (!url.pathname.startsWith(prefix)) return null;
   const path = url.pathname.slice(prefix.length).replace(/\/$/, "");
-  if (!path) return { templateId: url.searchParams.get("catalog") === "true" ? "storefront" : "heroPage" };
+  if (!path) return { templateId: url.searchParams.get("catalog") === "true" || options.showHero === false ? "storefront" : "heroPage" };
   // `?template=<id>` is how Studio previews an alternate template (2.8); "default" (or none) is the default one.
   const alt = url.searchParams.get("template");
   const withAlt = (base: string) => (alt && alt !== "default" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(alt) ? `${base}~${alt}` : base);
-  if (path.startsWith("books/")) return { templateId: withAlt("productPage"), product: decodeURIComponent(path.slice(6)) };
+  if (path.startsWith("books/")) {
+    const product = decodeURIComponent(path.slice(6));
+    // A shopper-style link carries no template: the book shows its own alternate, so Studio edits that one.
+    const templateId = !alt && options.bookTemplate ? options.bookTemplate(product) : withAlt("productPage");
+    return { templateId, product };
+  }
   if (path.startsWith("collections/")) return { templateId: withAlt("collectionPage"), collection: decodeURIComponent(path.slice(12)) };
   if (path.startsWith("page/")) return { templateId: `page:${decodeURIComponent(path.slice(5))}` };
   if (path === "checkout") return { templateId: "cartPage" };
@@ -255,6 +265,17 @@ export function previewRoute(href: string, base: string) {
   if (path === "account" || path.startsWith("account/")) return { templateId: "accountPage" };
   if (path === "track") return { templateId: "trackingPage" };
   return { templateId: "page404" };
+}
+
+/** The same preview page, ignoring `?preview=true`, parameter order and a trailing slash. */
+export function samePreviewPage(a: string, b: string) {
+  const key = (href: string) => {
+    const url = new URL(href, "https://preview.invalid");
+    url.searchParams.delete("preview");
+    url.searchParams.sort();
+    return `${url.pathname.replace(/\/$/, "")}?${url.searchParams.toString()}`;
+  };
+  return key(a) === key(b);
 }
 
 // These groups are consumed through per-page theme tokens. Other controls stay

@@ -49,7 +49,7 @@ import { buildStudioIndex, contextCommands, searchedDevice, type SearchEntry } f
 import { resolveProductRoutes } from "../../features/site/productRoutes";
 import { groupLabel, isGroupSurface, SECTION_GROUP_KEYS, SECTION_GROUPS, type SectionGroupKey } from "../../features/site/sectionGroups";
 import { autoFitSections, autoFitRegions } from "./autoMobile";
-import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, moveBlockTo, moveSectionTo, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, sectionEntries, updateSectionsById, withDraftPage, writeSections } from "./studioWorkflow";
+import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, moveBlockTo, moveSectionTo, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, samePreviewPage, sectionEntries, updateSectionsById, withDraftPage, writeSections } from "./studioWorkflow";
 import { sectionStyleFields, SPACING_CARD_KEYS } from "./sectionStyleSchema";
 import type { OutlineActions } from "./StudioOutline";
 import { useStudioPersistence } from "./useStudioPersistence";
@@ -87,7 +87,7 @@ import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
 import { StudioSectionLibrary } from "./StudioSectionLibrary";
 import { StudioTemplateCard } from "./StudioTemplateCard";
 import { isProductTemplate, StudioProductBlocks } from "./StudioProductBlocks";
-import { ALT_BASE_LABELS, ALT_BASES, alternatesFor, altSurface, createAlternate, deleteAlternate, isAltSurface, parseAltSurface, renameAlternate, type AltBase } from "../../features/site/templateAlternates";
+import { ALT_BASE_LABELS, ALT_BASES, alternatesFor, altSurface, bookTemplateSurface, createAlternate, deleteAlternate, isAltSurface, parseAltSurface, renameAlternate, type AltBase } from "../../features/site/templateAlternates";
 import { DynamicSourcesContext } from "./StudioConnect";
 import type { BookFieldDef } from "../../features/site/bookFields";
 import { hasTokens, isDynamic } from "../../features/site/dynamicSources";
@@ -339,6 +339,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [pageLoadError, setPageLoadError] = useState(false);
   const [pageBusy, setPageBusy] = useState(false);
   const [books, setBooks] = useState<any[]>([]);
+  const booksRef = useRef(books); booksRef.current = books;
   // Link / book / category / page pickers search what Studio already loaded (StudioPickers.tsx).
   const pickerData = useMemo(() => ({ books, pages, categories: design?.categories || [] }), [books, pages, design?.categories]);
   // The page open in Studio › Pages with unsaved edits — shown in the preview only, never saved from here.
@@ -666,6 +667,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, [uiKey, leftTab, templateId, showGlobal, globalGroup, device, zoom, productSlug, collectionSlug]);
 
   // ── preview wiring ──
+  // "Custom pages" (the shared page sections) previews the custom page last shown, not always the first one,
+  // so selecting a shared section on "About" keeps the canvas on About.
+  const [sharedPageSlug, setSharedPageSlug] = useState<string | null>(null);
+  useEffect(() => { if (template.pageSlug) setSharedPageSlug(template.pageSlug); }, [template.pageSlug]);
   const previewUrl = useMemo(() => {
     const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "");
     const withQ = (p: string) => `${base}${p}${p.includes("?") ? "&" : "?"}preview=true`;
@@ -679,7 +684,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "wishlistPage": return withQ("/wishlist");
       case "accountPage": return withQ("/account");
       case "trackingPage": return withQ("/track");
-      case "page": return withQ(`/page/${pages.find((p) => p.status === "published")?.slug || ""}`);
+      case "page": return withQ(`/page/${(sharedPageSlug && pages.some((p) => p.slug === sharedPageSlug) ? sharedPageSlug : pages.find((p) => p.status === "published")?.slug) || ""}`);
       default: {
         const alt = parseAltSurface(template.id);
         if (alt?.base === "productPage") return withQ(`/books/${productSlug || ""}?template=${alt.id}`);
@@ -687,7 +692,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         return withQ(template.pageSlug ? `/page/${template.pageSlug}` : "/");
       }
     }
-  }, [template.id, template.pageSlug, productSlug, collectionSlug, pages]);
+  }, [template.id, template.pageSlug, productSlug, collectionSlug, pages, sharedPageSlug]);
+  const previewUrlRef = useRef(previewUrl); previewUrlRef.current = previewUrl;
 
   // Full-screen "Preview in new tab" windows listen on this channel (features/site/previewTab.ts).
   const channelRef = useRef<BroadcastChannel | null>(null);
@@ -727,7 +733,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       canvas.push({sectionId:section.id,blockId:block.id,actions:contextCapabilities(designRef.current, section.id, block.id, getBlocksKey),gaps:[],bounds:{}});
       scanBlocks(section, block.children || [], linked || Boolean(block.sharedBlockId));
     });
-    const targets: SectionTarget[] = [{ kind: "global" }, ...templates.map(t => ({ kind: "template", id: t.id }) as SectionTarget)];
+    // Every section list the preview can render, including the header (under the header) and pop-up groups,
+    // so their canvas toolbar and double-click text work like any other section's.
+    const targets: SectionTarget[] = [{ kind: "global" }, { kind: "global", group: "headerSections" }, { kind: "global", group: "overlaySections" }, ...templates.map(t => ({ kind: "template", id: t.id }) as SectionTarget)];
     for (const target of targets) for (const section of getSections(designRef.current, target)) {
       const gaps = getSectionFields(section.type).filter(f => GAP_KEYS.includes(f.key));
       canvas.push({sectionId:section.id,blockId:null,actions:contextCapabilities(designRef.current,section.id,undefined,getBlocksKey),addBlock:Boolean(getSectionMeta(section.type)?.blockType),gaps:gaps.map(f=>f.key),bounds:Object.fromEntries(gaps.map(f=>[f.key,{min:f.min ?? 0,max:f.max ?? 240}]))});
@@ -933,10 +941,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       if (d.type === "PREVIEW_ERROR") say("err", `The preview hit an error: ${String(d.message).slice(0, 200)}`);
       if (d.type === "PREVIEW_READY") { setPreviewStatus("ready"); sendPreviewState(); sendCopyMap(); highlight(selectedId); iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); }
       if (d.type === "STUDIO_ROUTE" && typeof d.href === "string") {
-        const route = previewRoute(d.href, import.meta.env.BASE_URL);
+        const route = previewRoute(d.href, import.meta.env.BASE_URL, {
+          showHero: designRef.current?.showHero !== false,
+          bookTemplate: slug => bookTemplateSurface(designRef.current, booksRef.current.find(b => b.slug === slug || b.id === slug)),
+        });
+        // The preview reports its page on every load. The page Studio itself asked for is not a page change
+        // (it keeps a chosen Home / Custom pages template); anything else (a link, a full-page load) is followed.
+        const asked = samePreviewPage(d.href, previewUrlRef.current);
         // Only a real page change resets the selection: the preview also reports its route when it
         // finishes loading, which can arrive after the owner has already selected something.
-        if (route && templates.some(t => t.id === route.templateId) && route.templateId !== templateIdRef.current) { setTemplateId(route.templateId); setShowGlobal(false); setSelectedId(null); setBlockId(null); }
+        if (route && !asked && templates.some(t => t.id === route.templateId) && route.templateId !== templateIdRef.current) { setTemplateId(route.templateId); setShowGlobal(false); setSelectedId(null); setBlockId(null); }
         if (route?.product) setProductSlug(route.product);
         if (route?.collection) setCollectionSlug(route.collection);
         sendPreviewState();
@@ -1020,11 +1034,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         inlineEditingRef.current = false; setInlineEditing(null);
         setTimeout(() => sendPreviewRef.current(), 0);
       }
-      if (d.type === "INLINE_TEXT_COMMIT") change(current => applyInlineText(current, d, {
-        sectionFields: getSectionFields, blockFields: getBlockFields, blocksKey: getBlocksKey,
-        copyKeys: COPY_SCHEMA.flatMap(g => g.fields.map(f => f.key)), styleKeys: INLINE_STYLE_KEYS,
-        applyStyle: (dd, key, value) => applyGlobalStyle(dd, key, value, surfaceIds),
-      }));
+      if (d.type === "INLINE_TEXT_COMMIT") {
+        const schema = {
+          sectionFields: getSectionFields, blockFields: getBlockFields, blocksKey: getBlocksKey,
+          copyKeys: COPY_SCHEMA.flatMap(g => g.fields.map(f => f.key)), styleKeys: INLINE_STYLE_KEYS,
+          applyStyle: (dd: any, key: string, value: string) => applyGlobalStyle(dd, key, value, surfaceIds),
+        };
+        // The preview only sends changed text, so an unchanged draft means the edit was refused (the
+        // part moved, or that field can't be typed here): say so instead of letting the words snap back.
+        if (applyInlineText(designRef.current, d, schema) === designRef.current) say("err", "That text couldn't be changed in the preview. Click the part and edit it in the panel on the right.");
+        else change(current => applyInlineText(current, d, schema));
+      }
       if (d.type === "INLINE_TEXT_UNAVAILABLE") {
         if (d.sectionId) {
           const owner = findSectionOwner(designRef.current, d.sectionId);
@@ -1078,9 +1098,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, [dirtyDraft, draftPage, pageBusy]);
   // One keyboard listener for the whole editor; the latest handlers are read through a ref, so it
   // is registered once. The preview forwards its key presses here too (KEY_COMMAND).
-  const runShortcut = (action: ShortcutAction) => {
+  // `forPanel`: a command that names the panel's section itself (Find › current selection), not a keyboard shortcut.
+  const runShortcut = (action: ShortcutAction, forPanel = false) => {
     if (busy === "discard") return;
     if (inlineEditingRef.current && ["save", "undo", "redo", "delete", "duplicate", "moveUp", "moveDown"].includes(action)) return;
+    // A plain-text click outlines a section in the preview without opening it in the panel; the section
+    // shortcuts act on the panel's section, so refuse them while the outline is on a different one.
+    const outlined = canvasSelectionRef.current?.sectionId;
+    if (!forPanel && outlined && outlined !== selected?.id && ["delete", "duplicate", "moveUp", "moveDown"].includes(action)) {
+      say("err", "The section outlined in the preview isn't the one open in the panel. Click Edit on it first.");
+      return;
+    }
     const index = selected ? sections.findIndex(x => x.id === selected.id) : -1;
     switch (action) {
       case "find": setFindOpen(true); break;
@@ -1310,10 +1338,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const runContext = (id: string) => {
     const sid = selected?.id;
     switch (id) {
-      case "section-duplicate": runShortcut("duplicate"); break;
-      case "section-delete": runShortcut("delete"); break;
-      case "section-up": runShortcut("moveUp"); break;
-      case "section-down": runShortcut("moveDown"); break;
+      case "section-duplicate": runShortcut("duplicate", true); break;
+      case "section-delete": runShortcut("delete", true); break;
+      case "section-up": runShortcut("moveUp", true); break;
+      case "section-down": runShortcut("moveDown", true); break;
       case "section-hide": if (sid) outlineActions.setVisible([sid], false); break;
       case "section-show": if (sid) outlineActions.setVisible([sid], true); break;
       case "section-copy": if (sid) outlineActions.copy(sid); break;
@@ -1528,7 +1556,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               onGlobal={group => { setShowGlobal(true); setGlobalGroup(group); setSelectedId(null); setBlockId(null); }}
               onPage={() => { setShowGlobal(false); setSelectedId(null); setBlockId(null); }}>
               <StudioOutline key={showGlobal ? `__group:${globalGroup}` : template.id}
-              sections={sections} selectedId={selectedId} blockId={blockId}
+              sections={sections} selectedId={selectedId} blockId={blockId} device={device}
               hoveredId={hoverKey?.startsWith("s:") ? hoverKey.slice(2) : null}
               onHover={id => postPreview({ type: "HOVER_NODE", key: id ? `s:${id}` : null })}
               onRename={renameSection} actions={outlineActions}

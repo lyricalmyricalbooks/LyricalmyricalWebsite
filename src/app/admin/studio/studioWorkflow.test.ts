@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeDesign } from "./studioModel";
-import { resolveSaveConflict, applyPageStyle, buildPreviewState, createSnapshotWriter, deliverPreviewState, parseRecovery, previewRoute, updateBlocks, withDraftPage, mergeDesigns, newestRecovery } from "./studioWorkflow";
+import { resolveSaveConflict, applyPageStyle, buildPreviewState, createSnapshotWriter, deliverPreviewState, parseRecovery, previewRoute, samePreviewPage, updateBlocks, withDraftPage, mergeDesigns, newestRecovery } from "./studioWorkflow";
 
 describe("Studio workflow", () => {
   it("normalization is idempotent and never nests page surfaces inside one another", () => {
@@ -69,6 +69,23 @@ describe("Studio workflow", () => {
     expect(previewRoute("/LyricalmyricalWebsiteTrial/account/orders", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "accountPage" });
     expect(previewRoute("/LyricalmyricalWebsiteTrial/track", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "trackingPage" });
     expect(previewRoute("/LyricalmyricalWebsiteTrial/studio-missing-page", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "page404" });
+  });
+  it("follows the shop's own choices for links that name no template", () => {
+    // Show a Home page off: "/" is the catalog.
+    expect(previewRoute("/?preview=true", "/", { showHero: false })).toEqual({ templateId: "storefront" });
+    expect(previewRoute("/?preview=true", "/", { showHero: true })).toEqual({ templateId: "heroPage" });
+    // A book link without ?template= shows the book's own alternate; an explicit template wins.
+    const bookTemplate = (slug: string) => (slug === "poems" ? "productPage~poetry" : "productPage");
+    expect(previewRoute("/books/poems?preview=true", "/", { bookTemplate })).toEqual({ templateId: "productPage~poetry", product: "poems" });
+    expect(previewRoute("/books/poems?template=default&preview=true", "/", { bookTemplate })).toEqual({ templateId: "productPage", product: "poems" });
+    expect(previewRoute("/books/other", "/", { bookTemplate })).toEqual({ templateId: "productPage", product: "other" });
+  });
+  it("recognises the page Studio asked the preview for", () => {
+    expect(samePreviewPage("/books/poems?template=default&preview=true", "https://shop.example/books/poems?template=default&preview=true")).toBe(true);
+    expect(samePreviewPage("/?preview=true", "https://shop.example/?preview=true")).toBe(true);
+    expect(samePreviewPage("/page/about/?preview=true", "https://shop.example/page/about?preview=true")).toBe(true);
+    expect(samePreviewPage("/books/poems?preview=true", "https://shop.example/books/poems?template=default&preview=true")).toBe(false);
+    expect(samePreviewPage("/page/faq?preview=true", "https://shop.example/page/about?preview=true")).toBe(false);
   });
   it("sends a complete draft snapshot and excludes pages shoppers cannot see", () => {
     const design = { primaryColor: "#f00" };

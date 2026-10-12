@@ -7,6 +7,7 @@
 // field not listed in a sub-section still shows under "More settings", so editing power is unchanged.
 
 import { REGION_GROUPS } from "../../features/site/storefrontRegions";
+import type { StudioOverlay } from "../../features/site/studioOverlay";
 import { readStyle, type StyleField, type StyleGroup } from "./styleSchema";
 
 /** Studio-only categories that are not STYLE_GROUPS (they have bespoke panels in StudioEditor). */
@@ -49,7 +50,7 @@ export const THEME_HEADINGS: SettingsHeading[] = [
  * stay on the current page) and a pop-over to open first. Studio then selects the first part on that
  * page linked to the category, in the inspector.
  */
-export const CATEGORY_PAGES: Record<string, { template?: string; overlay?: "cart" | "search" | "popup" }> = {
+export const CATEGORY_PAGES: Record<string, { template?: string; overlay?: StudioOverlay }> = {
   header: {}, navlinks: {}, footer: {}, paymentIcons: {}, popup: { overlay: "popup" },
   products: { template: "storefront" }, catalog: { template: "storefront" }, labels: { template: "productPage" },
   catalogLayout: { template: "storefront" }, productPage: { template: "productPage" }, productCard: { template: "productPage" },
