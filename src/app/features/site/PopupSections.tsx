@@ -62,7 +62,8 @@ export function PopupSections({ design, books = [] }: { design: any; books?: any
   const outline = Math.max(0, Math.min(6, Number(design?.popupBorderWidth ?? 2)));
   const place = position === "bottom-right" ? "items-end justify-end" : position === "bottom" ? "items-end justify-center" : "items-center justify-center";
   return createPortal(
-    <div className={`fixed inset-0 z-[90] flex p-4 ${place}`} style={{ backgroundColor: `rgba(var(--overlay-rgb, 0, 0, 0), ${shade})` }}
+    // Hide on phones also applies when Studio opens the pop-up in the phone preview (CSS follows the frame width).
+    <div className={`fixed inset-0 z-[90] flex p-4 ${place}${hideOnPhones ? " max-md:hidden" : ""}`} style={{ backgroundColor: `rgba(var(--overlay-rgb, 0, 0, 0), ${shade})` }}
       onClick={e => { if (e.target === e.currentTarget) close(); }}>
       <div ref={ref} role="dialog" aria-modal="true" aria-label={getCopy(design, "popupLabel")} tabIndex={-1}
         data-studio-target="style:popup|copy:Sections" data-studio-label="Pop-up"

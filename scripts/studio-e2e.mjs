@@ -852,6 +852,36 @@ await check("a page that loads after the draft changed still shows the unsaved d
   await page.frameLocator("iframe").first().getByText("Where is my parcel").first().waitFor({ timeout: 15000 });
 });
 
+await check("a single click on header words opens that header part, not the search", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("header [data-studio-copy='navSearch']").first().click({ timeout: 15000 });
+  await page.locator("[data-studio-element-inspector]").waitFor({ timeout: 8000 });
+  if (await frame.locator("[role=dialog]").count()) throw new Error("the click opened the search instead of selecting the header");
+});
+
+await check("Pop-overs opens the cookie banner in the preview even after it was answered", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  if (await frame.getByText("your call.").count()) throw new Error("the answered cookie banner showed before Studio asked for it");
+  const panel = page.locator(".studio-structure");
+  await panel.locator("summary", { hasText: "Pop-overs" }).click();
+  await panel.locator(".studio-structure-row", { hasText: "Cookie banner" }).getByRole("button", { name: "Open in preview" }).click();
+  await frame.getByText("your call.").first().waitFor({ timeout: 8000 });
+  // Answering it in the preview never changes this browser's real answer.
+  await frame.getByRole("button", { name: /accept/i }).first().click();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("lm:cookie-consent") || "null")?.decidedAt);
+  if (saved !== "2026-01-01T00:00:00.000Z") throw new Error(`the preview changed the saved cookie answer (${saved})`);
+}, "", page => page.addInitScript(() => {
+  try { localStorage.setItem("lm:cookie-consent", JSON.stringify({ necessary: true, analytics: false, marketing: false, decidedAt: "2026-01-01T00:00:00.000Z" })); } catch { /* blocked */ }
+}));
+
+await check("a full-page link inside the preview moves Studio to that page", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.frames().find(f => f !== page.mainFrame()).evaluate(() => { location.assign("/page/about?preview=true"); });
+  await page.waitForFunction(() => document.querySelector("[aria-label='Page to edit']")?.textContent?.includes("About"), null, { timeout: 15000 });
+});
+
 await check("a custom page takes uploaded and pasted pictures, with size, position and description", desktop, async page => {
   await page.getByRole("button", { name: "Pages", exact: true }).click();
   await page.getByRole("button", { name: "Edit About" }).click();

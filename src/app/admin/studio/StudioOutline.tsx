@@ -7,6 +7,7 @@ import { IconButton, SecondaryButton } from "../riso/components";
 import { addChildBlock, mapBlock, newId, type Section, type StudioBlock } from "./studioModel";
 import { outlineMatches } from "./studioNavigation";
 import { updateBlocks } from "./studioWorkflow";
+import { sectionPreviewNote } from "./sectionStatus";
 
 /** Extra list tools the editor provides (menus, copy/paste, moving, bulk actions). */
 export type OutlineActions = {
@@ -51,8 +52,10 @@ function NestedBlocks({ blocks, section, depth, selectedId, blockId, label, onSe
   </div>;
 }
 
-export function StudioOutline({ sections, selectedId, blockId, onSelect, onReorder, onPatch, onAdd, onDuplicate, onDelete, onToggle, hoveredId, onHover, onRename, actions }: {
+export function StudioOutline({ sections, selectedId, blockId, onSelect, onReorder, onPatch, onAdd, onDuplicate, onDelete, onToggle, hoveredId, onHover, onRename, actions, device = "desktop" }: {
   sections: Section[]; selectedId: string | null; blockId: string | null;
+  /** The previewed size, so rows can say when a section is hidden there (or scheduled) and so missing from the preview. */
+  device?: string;
   onSelect: (sectionId: string, blockId?: string) => void;
   onReorder: (sections: Section[]) => void; onPatch: (id: string, patch: any) => void;
   onAdd: (index: number) => void; onDuplicate: (id: string) => void;
@@ -137,7 +140,7 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
                 <button className="studio-tree-label" aria-current={selectedId === section.id && !blockId} aria-pressed={actions ? picked.includes(section.id) : undefined}
                   onClick={e => { if (actions && (e.ctrlKey || e.metaKey || e.shiftKey)) { e.preventDefault(); pick(section.id, e.shiftKey); return; } setPicked([]); onSelect(section.id); }}>
                   <strong>{picked.includes(section.id) && <Check size={12} className="studio-picked-mark" aria-hidden="true" />}{index + 1}. {(section as any).label || meta?.label || section.type}</strong>
-                  <small>{section.visible === false ? "Hidden · " : ""}{(section as any).label ? `${meta?.label || section.type} · ` : ""}{displayValue(section.settings.title || section.settings.heading) || (supportsBlocks ? `${blocks.length} blocks` : "Section")}</small>
+                  <small>{section.visible === false ? "Hidden · " : sectionPreviewNote(section, device) ? `${sectionPreviewNote(section, device)} · ` : ""}{(section as any).label ? `${meta?.label || section.type} · ` : ""}{displayValue(section.settings.title || section.settings.heading) || (supportsBlocks ? `${blocks.length} blocks` : "Section")}</small>
                 </button>
                 <IconButton label={section.visible === false ? "Show section" : "Hide section"} onClick={() => onToggle(section.id)}>{section.visible === false ? <EyeOff size={14} /> : <Eye size={14} />}</IconButton>
                 <details className="studio-row-menu" ref={el => { if (el) menus.current.set(section.id, el); else menus.current.delete(section.id); }}

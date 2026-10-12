@@ -839,6 +839,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coCardValidationError", label: "Card details validation message", default: "Please check the highlighted payment details." },
       { key: "coCardPaymentError", label: "Card payment error", default: "We couldn’t confirm your payment. Check your order status before retrying or choose another payment method.", multiline: true },
       { key: "coPaymentCanceled", label: "Payment canceled message", default: "Payment was canceled. Your cart is saved — you can review it and try again.", multiline: true },
+      { key: "coPreviewNoPay", label: "Pay pressed in the Studio preview (only shown in Studio)", default: "This is the Studio preview, so paying is switched off here. No order was placed.", multiline: true },
     ],
   },
   {

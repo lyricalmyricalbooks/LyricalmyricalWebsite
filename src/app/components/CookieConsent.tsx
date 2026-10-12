@@ -4,6 +4,7 @@ import { m, AnimatePresence } from "motion/react";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { useLiveDesign } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
+import { useStudioOverlay } from "../features/site/studioOverlay";
 
 const STORAGE_KEY = "lm:cookie-consent";
 
@@ -41,7 +42,13 @@ export function CookieConsent() {
   const design = useLiveDesign();
   const c = (key: string) => getCopy(design, key);
 
+  // Studio preview: Studio opens the banner on request (Page layout › Pop-overs › Cookie banner) even when
+  // this browser has already answered it, and an answer given in the preview is never saved.
+  const inPreview = typeof window !== "undefined" && window.location.search.includes("preview=true");
+  useStudioOverlay("cookie", open => { if (inPreview) setDecided(!open); });
+
   useEffect(() => {
+    if (inPreview && (window as any).__studioOpenOverlay === "cookie") return;
     const existing = readConsent();
     setDecided(!!existing);
     if (existing) {
@@ -51,6 +58,7 @@ export function CookieConsent() {
   }, []);
 
   const decide = (accepted: { analytics: boolean; marketing: boolean }) => {
+    if (inPreview) { setDecided(true); return; }
     writeConsent({
       necessary: true,
       analytics: accepted.analytics,
