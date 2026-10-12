@@ -10,6 +10,7 @@ import { regionProps } from "./storefrontRegions";
 import { GroupedFooterNavigation } from "../../components/GroupedFooterNavigation";
 import { FooterMenu } from "../../components/StoreMenu";
 import { wordmarkSecondaryStyle } from "../../components/LogoMark";
+import { footerLinksAlign, footerStyleCss } from "./footerStyle";
 
 // ──────────────────────────────
 // Payment gateway icons for footer
@@ -83,15 +84,26 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
   const footerLogoMode: string = d.footerLogo === "image" || d.footerLogo === "both" ? d.footerLogo : "";
   const footerLogoSrc: string = footerLogoMode ? String(d.footerLogoUrl || d.logoUrl || "").trim() : "";
   const footerLogoWidth = Math.min(320, Math.max(40, Number(d.footerLogoWidth) || 160));
+  const linksAlign = footerLinksAlign(d);
+  const groupedGrid = linksAlign === "spread" ? "md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]"
+    : linksAlign === "start" ? "md:grid-cols-[auto_minmax(0,1fr)]" : "md:grid-cols-[minmax(0,1fr)_auto]";
+  const groupsLayout = linksAlign === "spread" ? "grid grid-cols-2"
+    : `grid grid-cols-2 sm:flex sm:flex-wrap ${linksAlign === "start" ? "md:justify-self-start" : "md:justify-self-end"}`;
+  const email = settings?.info?.email || "lyricalmyricalbooks@gmail.com";
+  const badges = d?.showPaymentBadges !== false ? resolveFooterBadges(d, settings) : [];
   return (
-    <footer {...regionProps("footerPanel")}
+    <footer {...regionProps("footerPanel")} data-fm-footer=""
       data-studio-target="style:footer|style:catalogElements|copy:Footer" data-studio-label="Footer"
       className="border-t-2 border-white/30 bg-black/40"
       style={d?.footerBg ? { backgroundColor: d.footerBg } : undefined}
     >
-      <div style={{ maxWidth: contentMaxWidth(d) }} className={`mx-auto px-6 py-12 grid grid-cols-1 ${!multiColumn ? "" : grouped ? "md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)]" : fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/70`}>
+      <style>{footerStyleCss(d)}</style>
+      {/* One padded column: the top band, legal row and bottom bar share the same left/right edge, and the
+          divider lines start and end exactly where the text does. */}
+      <div style={{ maxWidth: contentMaxWidth(d) }} className="mx-auto px-6">
+      <div className={`fm-footer-main fm-footer-text grid grid-cols-1 ${!multiColumn ? "" : grouped ? groupedGrid : fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 md:gap-x-16 text-[11px] text-white/70`}>
         {/* Col 1: Brand */}
-        <div className="space-y-4" data-studio-target="copy:Footer|style:logo" data-studio-label="Footer brand">
+        <div {...regionProps("footerBrand")} className="space-y-4 min-w-0 max-w-sm" data-studio-target="copy:Footer|style:logo|style:catalogElements" data-studio-label="Footer brand">
           {/* Style › Footer › Footer logo: a picture instead of (or above) the shop name; blank picture = the header logo */}
           {footerLogoSrc && (
             <img
@@ -116,10 +128,13 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
           {grouped && d.showFooterLocation !== false && <p data-studio-target="copy:Footer|style:footer" data-studio-label="Footer location"><span data-studio-copy="footerLocation">{getCopy(d, "footerLocation")}</span></p>}
         </div>
 
-        {grouped ? <GroupedFooterNavigation settings={settings} pages={pages} /> : <>
+        {grouped ? <div {...regionProps("footerLinks")} data-studio-target="menus:footer|copy:Footer|style:footer|style:catalogElements" data-studio-label="Footer link groups"
+          className={`fm-footer-groups min-w-0 gap-y-0 sm:gap-y-10 ${groupsLayout}`}>
+          <GroupedFooterNavigation settings={settings} pages={pages} />
+        </div> : <>
         {/* Col 2: Navigation */}
         <div className="space-y-3" data-studio-target="menus:footer|copy:Footer|pages" data-studio-label="Footer links">
-          <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerNavHeading">{getCopy(settings?.design, "footerNavHeading")}</span></p>
+          <p className="fm-footer-heading text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerNavHeading">{getCopy(settings?.design, "footerNavHeading")}</span></p>
           {settings?.design?.menus?.footer?.length > 0 ? (
             <FooterMenu items={settings.design.menus.footer} />
           ) : (
@@ -148,7 +163,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
 
         {/* Col 3: Policies / Info */}
         <div className="space-y-3" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer legal & location">
-          {d.showFooterLegalHeading !== false && <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerLegalHeading">{getCopy(settings?.design, "footerLegalHeading")}</span></p>}
+          {d.showFooterLegalHeading !== false && <p className="fm-footer-heading text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerLegalHeading">{getCopy(settings?.design, "footerLegalHeading")}</span></p>}
           {POLICY_KEYS.filter((k) => (settings?.policies as any)?.[k]?.trim()).map((k) => (
             <p key={k}><Link to={`/page/${policySlug(k)}`} className="hover:text-white transition-colors">{policyTitle(settings?.design, k)}</Link></p>
           ))}
@@ -158,7 +173,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
         {/* Col 4: Location (4-column layout only) */}
         {fourCol && d.showFooterLocation !== false && (
           <div className="space-y-3" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer location">
-            <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerLocationHeading">{getCopy(settings?.design, "footerLocationHeading")}</span></p>
+            <p className="fm-footer-heading text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerLocationHeading">{getCopy(settings?.design, "footerLocationHeading")}</span></p>
             <p><span data-studio-copy="footerLocation">{getCopy(settings?.design, "footerLocation")}</span></p>
             <a
               href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
@@ -172,51 +187,63 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
       </div>
 
       {/* No policies written yet → no lone "Legal" heading or empty ruled strip. */}
-      {grouped && policyKeys.length > 0 && <div style={{ maxWidth: contentMaxWidth(d) }} className="mx-auto px-6 py-4 border-t border-white/20 flex flex-wrap items-center gap-x-6 gap-y-3 text-[11px] text-white/70" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer legal links">
-        {d.showFooterLegalHeading !== false && <span className="text-[9px] uppercase tracking-[0.3em] text-white/55" data-studio-copy="footerLegalHeading">{getCopy(d, "footerLegalHeading")}</span>}
+      {grouped && policyKeys.length > 0 && <div {...regionProps("footerLegal")} className="fm-footer-rule fm-footer-text py-5 border-t border-white/20 flex flex-wrap items-baseline gap-x-6 gap-y-3 text-[11px] text-white/70" data-studio-target="copy:Footer|style:footer|style:catalogElements" data-studio-label="Footer legal links">
+        {d.showFooterLegalHeading !== false && <span className="fm-footer-heading text-[9px] uppercase tracking-[0.3em] text-white/55" data-studio-copy="footerLegalHeading">{getCopy(d, "footerLegalHeading")}</span>}
         {policyKeys.map(k => <Link key={k} to={"/page/" + policySlug(k)} className="hover:text-white transition-colors">{policyTitle(d, k)}</Link>)}
       </div>}
 
-      {/* Bottom bar */}
-      <div style={{ maxWidth: contentMaxWidth(d) }} className="border-t border-white/20 mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+      {/* Bottom bar: copyright on the left; payment icons, social icons and the Admin link on the right. */}
+      <div {...regionProps("footerBottom")} data-studio-target="copy:Footer|style:footer|style:catalogElements" data-studio-label="Footer bottom bar"
+        className="fm-footer-rule border-t border-white/20 py-5 flex flex-col items-start gap-4 md:flex-row md:items-center md:justify-between">
         <p className="text-[9px] tracking-widest text-white/55 uppercase">
           <span data-studio-copy="footerCopyright">{getCopy(settings?.design, "footerCopyright")}</span>
         </p>
 
-        {resolveFooterBadges(d, settings).length > 0 && d?.showPaymentBadges !== false && (
-          <div className="flex items-center gap-4 text-white/55 select-none" data-studio-target="style:paymentIcons|style:footer" data-studio-label="Payment icons">
-            {resolveFooterBadges(d, settings).map((badgeId: string) => {
-              const icon = PAYMENT_ICONS[badgeId];
-              if (!icon) return null;
-              return (
-                <div key={badgeId} className="opacity-30 hover:opacity-100 transition-opacity duration-300">
-                  {icon}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="flex gap-4">
-          {d.showSocialInFooter !== false && instagramUrl && (
-          <a
-            href={instagramUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={getCopy(d, "footerInstagramAria")}
-            className="text-white/55 hover:text-white transition-colors"
-          >
-            <Instagram size={14} aria-hidden="true" />
-          </a>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          {badges.length > 0 && (
+            <div className="flex items-center gap-4 text-white/55 select-none" data-studio-target="style:paymentIcons|style:footer" data-studio-label="Payment icons">
+              {badges.map((badgeId: string) => {
+                const icon = PAYMENT_ICONS[badgeId];
+                if (!icon) return null;
+                return (
+                  <div key={badgeId} className="opacity-30 hover:opacity-100 transition-opacity duration-300">
+                    {icon}
+                  </div>
+                );
+              })}
+            </div>
           )}
-          <a
-            href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
-            aria-label={getCopy(d, "footerEmailAria")}
-            className="text-white/55 hover:text-white transition-colors"
-          >
-            <Mail size={14} aria-hidden="true" />
-          </a>
+
+          <div className="flex items-center gap-4">
+            {d.showSocialInFooter !== false && instagramUrl && (
+            <a
+              href={instagramUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={getCopy(d, "footerInstagramAria")}
+              className="fm-footer-icon text-white/55 hover:text-white transition-colors"
+            >
+              <Instagram size={14} aria-hidden="true" />
+            </a>
+            )}
+            <a
+              href={`mailto:${email}`}
+              aria-label={getCopy(d, "footerEmailAria")}
+              className="fm-footer-icon text-white/55 hover:text-white transition-colors"
+            >
+              <Mail size={14} aria-hidden="true" />
+            </a>
+          </div>
+
+          {/* Style › Footer & social links › Show “Admin” link; words in Text & labels › Footer. */}
+          {d.showFooterAdminLink !== false && (
+            <Link to="/admin" rel="nofollow" {...regionProps("footerAdmin")} data-studio-target="copy:Footer|style:footer|style:catalogElements" data-studio-label="Footer admin link"
+              className="fm-footer-icon text-[9px] uppercase tracking-[0.3em] text-white/55 hover:text-white transition-colors">
+              <span data-studio-copy="footerAdmin">{getCopy(d, "footerAdmin")}</span>
+            </Link>
+          )}
         </div>
+      </div>
       </div>
     </footer>
   );

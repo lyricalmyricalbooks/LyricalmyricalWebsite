@@ -1451,6 +1451,7 @@ Stripe payment fields retain Studio colours when readable and choose contrasting
 
 Custom-page navigation resolves published bodies from useSiteData's shared snapshot, including Studio preview updates. Avoid separate slug fetches that clear the header/content on each link; cold custom-page loading retains the shared header.
 Grouped footer navigation defaults to Explore and Participate & connect, with policies in a wrapping row above copyright. Studio > Style > Footer & social links selects grouped/classic layout and group/location/heading visibility; Text & labels > Footer owns headings. Menus > Footer menu can customize automatic links, assign groups, edit destinations/labels, reorder and hide links, preserving sub-links. Contact pages suppress the duplicate automatic email link. Preview click-to-edit and inline copy hooks remain available.
+**Footer layout (12 October 2026):** `StoreFooter` puts every band in one padded column (dividers line up with the text), link groups on the right by default (Style › Footer & social links › **Where the link groups sit**), and a bottom-bar **Admin** link (`showFooterAdminLink`, words Text & labels › Footer › `footerAdmin`). Spacing/text/colour/divider controls (`footerPaddingY*`, `footerColumnGap`, `footerLinkGap`, `footerTextSize`, `footer*Color`, `showFooterDividers`) become CSS in `features/site/footerStyle.ts`; the bands are regions `footerBrand`/`footerLinks`/`footerLegal`/`footerBottom`/`footerAdmin` for per-device element styling.
 
 ## Bug sweep #5 (8 October 2026)
 

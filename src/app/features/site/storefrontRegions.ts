@@ -15,6 +15,11 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "newsletterForm", label: "Newsletter form", copy: "Newsletter" }, { id: "newsletterButton", label: "Newsletter button", copy: "Newsletter", required: true },
     { id: "newsletterStatus", label: "Newsletter success & error", copy: "Newsletter" },
     { id: "footerPanel", label: "Footer layout", required: true, copy: "Footer" },
+    { id: "footerBrand", label: "Footer brand (logo & blurb)", copy: "Footer" },
+    { id: "footerLinks", label: "Footer link groups", copy: "Footer" },
+    { id: "footerLegal", label: "Footer legal row", copy: "Footer" },
+    { id: "footerBottom", label: "Footer bottom bar", copy: "Footer" },
+    { id: "footerAdmin", label: "Footer admin link", copy: "Footer" },
   ] },
   { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx"], regions: [
     { id: "productDescription", label: "Book description" }, { id: "productSpecs", label: "Book specifications" },
