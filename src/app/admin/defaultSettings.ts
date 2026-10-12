@@ -89,6 +89,7 @@ export const defaultSettings = (): any => ({
     productCardStyle: "editorial",
     imageAspectRatio: "3:4",
     showPriceOnHover: false,
+    showQuickAdd: false,
     showCollectionMeta: true,
     showSoldOutBadge: true,
     productCTA: "VIEW",
