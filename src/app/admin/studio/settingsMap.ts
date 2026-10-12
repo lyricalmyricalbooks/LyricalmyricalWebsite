@@ -124,6 +124,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   ],
   footer: [
     { title: "Footer layout", keys: ["footerNavigationLayout", "footerColumns", "footerLayout", "footerBg"] },
+    { title: "Footer logo", keys: ["footerLogo", "footerLogoUrl", "footerLogoWidth"] },
     { title: "What the footer shows", keys: ["showFooterExplore", "showFooterConnect", "showFooterLegalHeading", "showFooterLocation", "hideNewsletter", "hideRecentlyViewed", "showSocialInFooter", "showPaymentBadges", "showPoweredBy"] },
     { title: "Social links", keys: ["social.instagram", "social.twitter", "social.facebook", "social.tiktok"] },
   ],

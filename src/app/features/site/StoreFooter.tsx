@@ -79,6 +79,10 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
   // "Multi-column footer" off → the columns stack into one.
   const multiColumn = d?.footerColumns !== false;
   const headingFontFamily = d?.headingFont ? `'${d.headingFont}', serif` : undefined;
+  // Footer logo picture: "image" (instead of the name) or "both" (above it); empty = the name only, as before.
+  const footerLogoMode: string = d.footerLogo === "image" || d.footerLogo === "both" ? d.footerLogo : "";
+  const footerLogoSrc: string = footerLogoMode ? String(d.footerLogoUrl || d.logoUrl || "").trim() : "";
+  const footerLogoWidth = Math.min(320, Math.max(40, Number(d.footerLogoWidth) || 160));
   return (
     <footer {...regionProps("footerPanel")}
       data-studio-target="style:footer|style:catalogElements|copy:Footer" data-studio-label="Footer"
@@ -88,7 +92,18 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
       <div style={{ maxWidth: contentMaxWidth(d) }} className={`mx-auto px-6 py-12 grid grid-cols-1 ${!multiColumn ? "" : grouped ? "md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)]" : fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/70`}>
         {/* Col 1: Brand */}
         <div className="space-y-4" data-studio-target="copy:Footer|style:logo" data-studio-label="Footer brand">
-          {d?.wordmarkStyle === "two-part" ? (
+          {/* Style › Footer › Footer logo: a picture instead of (or above) the shop name; blank picture = the header logo */}
+          {footerLogoSrc && (
+            <img
+              src={footerLogoSrc}
+              alt={getCopy(d, "logoAlt")}
+              loading="lazy"
+              decoding="async"
+              className="block h-auto object-contain"
+              style={{ width: footerLogoWidth, maxWidth: "100%" }}
+            />
+          )}
+          {footerLogoSrc && footerLogoMode === "image" ? null : d?.wordmarkStyle === "two-part" ? (
             <p className="text-white text-xl" style={{ fontFamily: headingFontFamily, fontWeight: d?.wordmarkWeight ?? 600, letterSpacing: "-0.01em" }}>
               <span data-studio-style-text="wordmarkPrimary">{d.wordmarkPrimary ?? "Lyricalmyrical"}</span> <span data-studio-style-text="wordmarkSecondary" style={wordmarkSecondaryStyle(d)}>{d.wordmarkSecondary ?? "Books"}</span>
             </p>
