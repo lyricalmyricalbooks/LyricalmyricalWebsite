@@ -234,6 +234,8 @@ export default function BookDetail() {
   const pdpShowStock      = tokenSource.pdpShowStock      ?? true;
   const pdpShowCaption    = tokenSource.pdpShowCaption    ?? true;
   const pdpThumbPosition  = tokenSource.pdpThumbPosition  || "side";
+  // Room the side thumbnail rail takes from the photo column (Style › Thumbnail size; 64px → 90px).
+  const thumbRailWidth    = Math.min(160, Math.max(40, Number(tokenSource.pdpThumbSize) || 64)) + 26;
   const pdpDetailsBelow   = (tokenSource.pdpDetailsPlacement || "below") === "below";
   const pdpSpecsRecord    = (tokenSource.pdpSpecsStyle || "record") === "record";
   const headingFontName   = tokenSource.headingFont || tokenSource.font || tokenSource.bodyFont;
@@ -1094,7 +1096,7 @@ export default function BookDetail() {
               data-section="products"
               data-studio-target="style:productCard" data-studio-label="Product photos"
               className="w-full min-w-0 mx-auto lg:mx-0 lg:justify-self-end"
-              style={{ maxWidth: productImageMaxWidth + (showThumbRail && pdpThumbPosition === "side" ? 90 : 0) }}
+              style={{ maxWidth: productImageMaxWidth + (showThumbRail && pdpThumbPosition === "side" ? thumbRailWidth : 0) }}
             >
               {productImageLayout === "slider" ? (
                 <div className="fm-pdp-media" data-thumbs={showThumbRail ? pdpThumbPosition : "none"}>

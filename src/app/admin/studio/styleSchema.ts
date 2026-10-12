@@ -481,6 +481,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "pdpMetaColor", label: "Small label colour", kind: "color" },
       { key: "pdpThumbPosition", label: "Photo thumbnails", kind: "select", options: [{ value: "side", label: "Beside the photo" }, { value: "below", label: "Under the photo" }, { value: "hidden", label: "Hidden" }] },
       { key: "pdpThumbWrap", label: "Thumbnails on several rows (instead of one line you scroll sideways) — under the photo, and on phones", kind: "toggle", defaultValue: false },
+      { key: "pdpThumbSize", label: "Thumbnail size", kind: "range", defaultValue: 64, min: 40, max: 160, step: 4, suffix: "px" },
       { key: "pdpThumbActiveColor", label: "Selected thumbnail border", kind: "color" },
       { key: "pdpPhotoBorderColor", label: "Photo frame & caption border colour", kind: "color" },
       { key: "pdpPhotoBorderWidth", label: "Photo frame border width (0 = none)", kind: "range", min: 0, max: 6, step: 1, suffix: "px" },
