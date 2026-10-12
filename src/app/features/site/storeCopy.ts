@@ -220,6 +220,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "alertHeading", label: "Back-in-stock: heading", default: "Notify me when it's back" },
       { key: "alertPlaceholder", label: "Back-in-stock: email placeholder", default: "your@email.com" },
       { key: "alertButton", label: "Back-in-stock: button", default: "NOTIFY ME" },
+      { key: "alertSending", label: "Back-in-stock & coming-soon signup: button while sending", default: "…" },
       { key: "alertSuccess", label: "Back-in-stock: success message", default: "✓ We'll email you as soon as it's available." },
       { key: "alertError", label: "Back-in-stock: error message", default: "Please enter a valid email and try again." },
       { key: "bookLinkCopied", label: "Share: link copied message", default: "Link copied to clipboard" },

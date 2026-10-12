@@ -73,6 +73,27 @@ export function descriptionTextCss(d: any): string {
   return css;
 }
 
+/**
+ * Studio › Style › Product page · buy card & details › "Notify me" signup box (BackInStockForm: the
+ * back-in-stock and coming-soon signups). Each empty control emits nothing, so an untouched design keeps
+ * the box's built-in look. Doubled classes outrank the Riso corner/colour-utility rules they replace.
+ */
+export function signupBoxCss(d: any): string {
+  const A = `${S} div.fm-pdp-alert.fm-pdp-alert`;
+  let css = "";
+  if (has(d.pdpAlertBg)) css += `${A}{background:${clean(d.pdpAlertBg)};}`;
+  if (has(d.pdpAlertBorderColor)) css += `${A}{border-color:${clean(d.pdpAlertBorderColor)};}`;
+  if (has(d.pdpAlertBorderWidth)) css += `${A}{border-width:${num(d, "pdpAlertBorderWidth", 1, 0, 6)}px;border-style:solid;}`;
+  if (has(d.pdpAlertRadius)) css += `${A}{border-radius:${num(d, "pdpAlertRadius", 0, 0, 32)}px !important;}`;
+  if (has(d.pdpAlertPadding)) css += `${A}{padding:${num(d, "pdpAlertPadding", 16, 8, 48)}px;}`;
+  if (has(d.pdpAlertHeadingColor)) css += `${A} p.fm-pdp-alert-heading{color:${clean(d.pdpAlertHeadingColor)};}`;
+  if (has(d.pdpAlertFieldBorderColor)) css += `${A} input.fm-pdp-alert-input{border-color:${clean(d.pdpAlertFieldBorderColor)};}`;
+  if (has(d.pdpAlertButtonBg)) css += `${A} button.fm-pdp-alert-btn{background:${clean(d.pdpAlertButtonBg)};}${A} button.fm-pdp-alert-btn:hover:not(:disabled){opacity:.85;}`;
+  if (has(d.pdpAlertButtonText)) css += `${A} button.fm-pdp-alert-btn{color:${clean(d.pdpAlertButtonText)};}`;
+  if (has(d.pdpAlertButtonBorderColor)) css += `${A} button.fm-pdp-alert-btn{border-color:${clean(d.pdpAlertButtonBorderColor)};}`;
+  return css;
+}
+
 export function productPageCss(design: any): string {
   const d = design || {};
 
@@ -167,6 +188,7 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-buynow{display:flex;width:100%;min-height:48px;margin-top:10px;align-items:center;justify-content:center;font-size:10px;font-weight:900;letter-spacing:.3em;background:transparent;color:rgb(var(--fg-rgb));border:${outlineW} solid ${outline};cursor:pointer;}`;
   css += `${S} .fm-pdp-buynow:hover{background:rgb(var(--fg-rgb));color:var(--surface);}`;
   css += `${S} .fm-pdp-sq:hover{border-color:rgb(var(--fg-rgb));}`;
+  css += signupBoxCss(d);
 
   // Details: tabs + bordered panel, catalogue-record specs.
   css += `${S} .fm-pdp-tabs [role="tablist"]{display:flex;flex-wrap:wrap;}`;

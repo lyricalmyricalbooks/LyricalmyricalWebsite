@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { productPageCss, productPageFontNames } from "./productPageStyle";
+import { productPageCss, productPageFontNames, signupBoxCss } from "./productPageStyle";
 import { STYLE_GROUPS } from "../../admin/studio/styleSchema";
 
 describe("product page (catalogue card) CSS", () => {
@@ -43,5 +43,36 @@ describe("product page (catalogue card) CSS", () => {
     const keys = new Set([...src.matchAll(/"(pdp[A-Za-z]+)"/g)].map((m) => m[1]));
     const controlled = new Set(STYLE_GROUPS.flatMap((g) => g.fields.map((f) => f.key)));
     expect([...keys].filter((k) => !controlled.has(k))).toEqual([]);
+  });
+});
+
+describe("signupBoxCss (“Notify me” signup box)", () => {
+  it("emits nothing for an untouched design, so the box keeps its built-in look", () => {
+    expect(signupBoxCss({})).toBe("");
+    expect(productPageCss({})).not.toContain("fm-pdp-alert");
+  });
+
+  it("turns each control into a rule on the signup box", () => {
+    const css = signupBoxCss({
+      pdpAlertBg: "#111111", pdpAlertBorderColor: "#ff0000", pdpAlertBorderWidth: 3, pdpAlertRadius: 12,
+      pdpAlertPadding: 24, pdpAlertHeadingColor: "#00ff00", pdpAlertFieldBorderColor: "#0000ff",
+      pdpAlertButtonBg: "#ffee00", pdpAlertButtonText: "#000000", pdpAlertButtonBorderColor: "#123456",
+    });
+    expect(css).toContain("div.fm-pdp-alert.fm-pdp-alert{background:#111111;}");
+    expect(css).toContain("border-width:3px");
+    expect(css).toContain("border-radius:12px !important");
+    expect(css).toContain("padding:24px");
+    expect(css).toContain("p.fm-pdp-alert-heading{color:#00ff00;}");
+    expect(css).toContain("input.fm-pdp-alert-input{border-color:#0000ff;}");
+    expect(css).toContain("button.fm-pdp-alert-btn{background:#ffee00;}");
+    expect(css).toContain("button.fm-pdp-alert-btn{color:#000000;}");
+    expect(css).toContain("button.fm-pdp-alert-btn{border-color:#123456;}");
+    expect(productPageCss({ pdpAlertRadius: 12 })).toContain("border-radius:12px !important");
+  });
+
+  it("clamps numbers and strips CSS-breaking characters", () => {
+    const css = signupBoxCss({ pdpAlertRadius: 999, pdpAlertBg: "red;}body{x:y" });
+    expect(css).toContain("border-radius:32px");
+    expect(css).not.toContain("}body{");
   });
 });
