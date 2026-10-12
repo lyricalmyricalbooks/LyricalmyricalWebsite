@@ -80,12 +80,14 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
       transition: background-color 9999s ease-out 0s;
     }
   `;
+  // The shopping bag shares the checkout's hook; its own Cart drawer › background (or colour scheme) must win there.
+  const bagHasOwnBackground = Boolean(d.cartDrawerBg || d.elementSchemes?.cartDrawer);
   const checkoutCss = hasCheckoutOverrides
     ? `
     [data-fm-checkout]{
       ${d.checkoutAccentColor ? `--accent:${d.checkoutAccentColor};--accent-rgb:${hexToRgbTriplet(d.checkoutAccentColor)};` : ''}
-      ${d.checkoutBgColor ? `background-color:${d.checkoutBgColor} !important;` : ''}
     }
+    ${d.checkoutBgColor ? `${bagHasOwnBackground ? '[data-fm-checkout]:not(.fm-bag)' : '[data-fm-checkout]'}{background-color:${d.checkoutBgColor} !important;}` : ''}
     ${d.checkoutInputRadius != null ? `[data-fm-checkout] input, [data-fm-checkout] select { border-radius: ${d.checkoutInputRadius}px !important; }` : ''}
   `
     : '';

@@ -11,6 +11,8 @@ type Props = {
   path: string[];
   tabs: ElementTabs;
   design: any;
+  /** Published shop settings (Text & labels defaults that come from the shop's own text). */
+  settings?: any;
   deviceLabel: string;
   scope: "all" | "page";
   pageLabel: string;
@@ -75,7 +77,7 @@ export function StudioElementInspector(p: Props) {
       {count > 8 && <input className="studio-search" aria-label={`Search ${current} settings`} placeholder="Find a setting…" value={search} onChange={e => setSearch(e.target.value)} />}
       {current === "words" && <>
         <p className="studio-hint">{p.tabs.wordsNarrowed ? "The words shown in this part." : `All words for ${p.tabs.copyGroups.join(" and ")}.`} Changes apply to every page.</p>
-        {words.map(f => <StudioCopyField key={f.key} field={f} design={p.design} onChange={value => p.onCopy(f.key, value)} />)}
+        {words.map(f => <StudioCopyField key={f.key} field={f} design={p.design} settings={p.settings} onChange={value => p.onCopy(f.key, value)} />)}
       </>}
       {current && current !== "words" && <>
         {current === "layout" && <p className="studio-hint">Sizes and spacing for the {p.deviceLabel.toLowerCase()} preview. Blank values follow the larger size.</p>}

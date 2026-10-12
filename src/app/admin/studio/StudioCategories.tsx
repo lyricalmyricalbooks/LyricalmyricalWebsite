@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { adminApi } from "../api";
 import { Checkbox, Dialog, PrimaryButton, SecondaryButton, SelectField, TextArea, TextField } from "../riso/components";
 import { CATEGORIES } from "../../features/site/constants";
-import { childCategories, normalizeCategories, parentOf, renameCategory } from "../../features/site/navItems";
+import { childCategories, normalizeCategories, parentOf, referenceCategoryLimit, referenceNavCategories, renameCategory, usesReferenceHeader } from "../../features/site/navItems";
 import { ImageUploadButton } from "./ImageUploadButton";
 import { deleteCategory, directlyAssigned, validateCategoryName, type CategoryAction } from "./categoryManager";
 
@@ -113,6 +113,11 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
     if (j < 0 || j >= cats.length) return;
     const next = [...cats]; [next[i], next[j]] = [next[j], next[i]]; (onReorder || onChange)(next);
   };
+  // The default (Reference) shop header shows only the first N visible top-level categories: say so per row.
+  const refLimit = usesReferenceHeader(design) ? referenceCategoryLimit(design) : 0;
+  const refShown = new Set(refLimit ? referenceNavCategories(cats, design).map(c => c.id) : []);
+  const menuState = (c: any) => c.showInNav === false ? "Hidden from menu"
+    : refLimit && !parentOf(c, cats) && !refShown.has(c.id) ? "Not in the shop header (over the limit below)" : "Shown in menu";
   const feedback = <>{error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}</>;
   return <section className="studio-categories rp" data-studio-panel="menus:categories">
     <h3>Shop categories</h3>
@@ -121,9 +126,10 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
     {loading ? <p role="status">Loading full catalog…</p> : error && !editor && !deleting && <SecondaryButton onClick={load}>Retry catalog</SecondaryButton>}
     <TextField label="Find categories" value={search} onChange={e => setSearch(e.target.value)} />
     <SecondaryButton onClick={() => open({ id: `cat-${crypto.randomUUID()}`, name: "", description: "", imageUrl: "", showInNav: true, parentId: null })}>Add category</SecondaryButton>
+    {refLimit > 0 && <p className="studio-hint" data-reference-limit={refLimit}>Your shop header (Reference layout) shows the first {refLimit === 1 ? "category" : `${refLimit} categories`} in this order. To show more, go to Theme settings › Catalog layout (advanced) › Max categories in the nav.</p>}
     {cats.length === 0 && <p>No categories yet. Add one to organize the shop.</p>}
     {cats.filter(c => `${c.name} ${c.description || ""}`.toLowerCase().includes(search.toLowerCase())).map(c => <article key={c.id} className="studio-category-row">
-      <div><strong>{c.name}</strong><p>{loading ? "Loading counts…" : !loaded ? "Counts unavailable" : `${books.filter(b => directlyAssigned(b, c)).length} directly assigned books`} · {c.showInNav === false ? "Hidden from menu" : "Shown in menu"}</p>
+      <div><strong>{c.name}</strong><p>{loading ? "Loading counts…" : !loaded ? "Counts unavailable" : `${books.filter(b => directlyAssigned(b, c)).length} directly assigned books`} · {menuState(c)}</p>
         {parentOf(c, cats) && <p>Under {cats.find(p => p.id === parentOf(c, cats))?.name}</p>}
       </div>
       <div className="studio-category-actions">

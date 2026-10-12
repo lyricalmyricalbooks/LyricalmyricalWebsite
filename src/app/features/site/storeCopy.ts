@@ -924,6 +924,16 @@ export const DEFAULT_COPY: Record<string, string> = COPY_SCHEMA.reduce(
 );
 
 /** Unexpanded copy for authoring: editing a default must retain {year}/{name} tokens. */
+/**
+ * Shop text a storefront part shows when Text & labels has no override for it — today the footer's About
+ * blurb, which falls back to Settings › General's shop description. Studio's Text & labels shows the same
+ * words as its default, so "Using default" matches what shoppers see.
+ */
+export function shopCopyFallback(settings: any, key: string): string | undefined {
+  if (key === "footerAbout") return settings?.info?.description || undefined;
+  return undefined;
+}
+
 export function getCopyTemplate(design: any, key: string): string {
   const override = design?.copy?.[key];
   if (typeof override === "string") return override;

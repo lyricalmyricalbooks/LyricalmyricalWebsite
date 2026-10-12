@@ -937,6 +937,122 @@ await check("a custom page's search listing fills in from the page", desktop, as
   await page.getByRole("button", { name: /Fill in missing search listings/ }).waitFor({ state: "detached", timeout: 5000 });
 });
 
+// Theme settings helpers: open a category card on the Theme settings home, then set one control.
+const openStyleCategory = async (page, title) => {
+  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  const back = page.getByRole("button", { name: "All theme settings" });
+  if (await back.count()) await back.first().click();
+  await page.getByText("Site-wide design").first().waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: new RegExp("^" + title.replace(/[.*+?^${}()|[\]\\&]/g, "\\$&")) }).first().click();
+};
+const styleControl = (page, key, tag) => page.locator(`[data-style-key="${key}"] ${tag}`).first();
+// Search Theme settings for a control by its label and wait for its field.
+const findStyleField = async (page, label, key) => {
+  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  const back = page.getByRole("button", { name: "All theme settings" });
+  if (await back.count()) await back.first().click();
+  await page.getByLabel("Search style settings").fill(label);
+  await page.locator(`[data-style-key="${key}"]`).first().waitFor({ timeout: 5000 });
+};
+const openStyleField = async (page, key) => {
+  if (await page.locator(`[data-style-key="${key}"]`).count()) return;
+  // The field may sit in a folded sub-section: open them all.
+  for (const t of await page.locator(".studio-subsection-toggle[aria-expanded=false]").all()) await t.click().catch(() => {});
+  await page.locator(`[data-style-key="${key}"]`).first().waitFor({ timeout: 5000 });
+};
+
+await check("the default shop header follows the Header menu, link colour, sticker pills and the category limit", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  const bar = frame.locator("header [data-studio-label='Category bar']");
+  await bar.waitFor({ timeout: 15000 });
+  // Navigation › Header menu: a new link shows in the Reference header (it used to show only in Modern).
+  await page.getByRole("button", { name: "Navigation", exact: true }).first().click();
+  await page.locator("[data-studio-panel='menus:links']").getByRole("button", { name: "Add link" }).click();
+  await bar.locator("nav a").first().waitFor({ timeout: 10000 });
+  // Shop categories says how many the Reference header shows.
+  await page.locator("[data-reference-limit='1']").waitFor({ timeout: 5000 });
+  const before = await bar.locator(":scope > button").count();
+  await openStyleCategory(page, "Catalog layout (advanced)");
+  if (await styleControl(page, "catalogLayoutStyle", "select").inputValue() !== "reference") throw new Error("Layout control does not show the Reference layout the shop uses");
+  await openStyleField(page, "referenceCategoryLimit");
+  await styleControl(page, "referenceCategoryLimit", "input[type=range]").fill("4");
+  await bar.locator(":scope > button").nth(before).waitFor({ timeout: 10000 });
+  await openStyleCategory(page, "Navigation links");
+  await styleControl(page, "navLinkColor", "input:not([type=color])").fill("#ff0000");
+  await page.frames().find(f => /preview=true/.test(f.url())).waitForFunction(() => {
+    const b = document.querySelector("header [data-studio-label='Category bar'] > button");
+    return b && getComputedStyle(b).color === "rgb(255, 0, 0)";
+  }, undefined, { timeout: 10000 });
+  await findStyleField(page, "Nav link style", "navStyle");
+  await styleControl(page, "navStyle", "select").selectOption("stickers");
+  await bar.locator(".fm-sticker-pill").first().waitFor({ timeout: 10000 });
+});
+
+await check("Theme settings switches start in the state the shop shows", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await openStyleCategory(page, "Badges & shop labels");
+  const sale = page.getByRole("switch", { name: "Sale badge", exact: true }).first();
+  if (await sale.getAttribute("aria-checked") !== "true") throw new Error("Sale badge switch shows Off while the shop draws the badge");
+  await findStyleField(page, "Line above card title", "catalogCardRuleWidth");
+  if (await styleControl(page, "catalogCardRuleWidth", "input[type=range]").inputValue() !== "2") throw new Error("Line above card title shows 0 while the shop draws 2px");
+});
+
+await check("the bag's own background wins over the checkout background", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await openStyleCategory(page, "Checkout");
+  await openStyleField(page, "checkoutBgColor");
+  await styleControl(page, "checkoutBgColor", "input:not([type=color])").fill("#000000");
+  await page.getByRole("button", { name: "All theme settings" }).first().click();
+  await page.getByRole("button", { name: "Show Cart drawer (shopping bag) on the page" }).click();
+  const frame = page.frames().find(f => /preview=true/.test(f.url()));
+  await frame.waitForSelector(".fm-bag", { timeout: 10000 });
+  await openStyleCategory(page, "Cart drawer (shopping bag)");
+  await openStyleField(page, "cartDrawerBg");
+  await styleControl(page, "cartDrawerBg", "input:not([type=color])").fill("#ff0000");
+  await frame.waitForFunction(() => getComputedStyle(document.querySelector(".fm-bag")).backgroundColor === "rgb(255, 0, 0)", undefined, { timeout: 10000 });
+});
+
+await check("the checkout preview shows a sample book so its look can be edited, and saves no bag", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frames().find(f => /preview=true/.test(f.url()));
+  await frame.waitForFunction(() => location.pathname.endsWith("/checkout") && !!document.querySelector("[data-fm-checkout] form"), undefined, { timeout: 20000 });
+  const bag = await frame.evaluate(() => JSON.parse(localStorage.getItem("fm_cart") || "[]"));
+  if (bag.length) throw new Error(`the preview put the sample book in the bag: ${JSON.stringify(bag)}`);
+}, "#designer?t=cartPage");
+
+await check("Escape cancels a spacing drag even when Studio had the keyboard focus", desktop, async page => {
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await expectText(page, "Preview connected", 30000);
+  await page.waitForTimeout(1500);
+  await page.locator(".studio-outline .studio-tree-label").first().click();
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("[data-studio-overlay][role=toolbar] button").filter({ hasText: /^Spacing$/ }).first().click({ timeout: 10000 });
+  const handle = frame.locator('[role=slider][data-spacing-key="paddingBottom"]').first();
+  await handle.waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const saved = () => page.evaluate(() => window.__studioFixture.calls.filter(c => c.method === "saveDesign").pop().args[0].design.heroPage.sections[0].settings.paddingBottom);
+  const start = await saved();
+  const box = await handle.boundingBox();
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (let i = 1; i <= 8; i++) await page.mouse.move(x, y - i * 4);
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  await page.waitForTimeout(800);
+  if (!(await page.getByRole("button", { name: "Save draft" }).isDisabled())) throw new Error("Escape did not cancel the drag: the padding change was kept");
+  if (await saved() !== start) throw new Error("the cancelled drag was saved");
+});
+
+await check("a sticky add-to-bag bar off a book page is marked as showing only on book pages", desktop, async page => {
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Sticky add-to-bag bar/ }).first().click();
+  await page.locator(".studio-outline").getByText("Shows only on book pages").first().waitFor({ timeout: 5000 });
+});
+
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

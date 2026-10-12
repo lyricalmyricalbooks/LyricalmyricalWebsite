@@ -279,6 +279,14 @@ catalog when `showHero` is off and a template-less book link to the book's alter
 outside a section fall through to element selection; a clicked repeated part is kept (`pickedEl`). The canvas/edit maps
 cover `headerSections` and `overlaySections`. "cookie" is a Studio pop-over (`STUDIO_OVERLAYS`; the preview never writes
 consent). Checkout's Pay does nothing in `?preview=true` (`coPreviewNoPay`). Outline rows show `sectionPreviewNote`.
+**Preview audit (12 October 2026, round 3):** a Style control's `defaultValue` must equal what the storefront draws for an
+unset key (`styleDefaults.test.ts` compares `?? true` / `!== false` / `|| "x"` / `?? n` fallbacks; Studio's default design wins).
+The default **Reference** header (`usesReferenceHeader`, every layout but Modern) renders `menus.header`, sticker pills and only the
+Navigation links values the owner set (`ownNavLinkStyle`), logo alignment and `navGap`; its categories come from
+`referenceNavCategories` (also used by Shop categories' "Not in the shop header" note). Checkout in the preview with an empty bag
+uses a display-only sample line (`previewSampleCart`, never `setCart`); the preview never writes abandoned carts. Shop text a
+storefront part falls back to (footer About → `settings.info.description`) goes through `shopCopyFallback`, which
+`StudioCopyField` shows as the default. `[data-fm-checkout]` background skips `.fm-bag` when the bag has its own.
 **Button audit (12 October 2026):** Studio toast Undo buttons go through `undoAction()` (undoes only the change it names);
 the checkout `<form>` blocks Enter-submission from text inputs (only Pay submits); Orders bulk actions act only on visible
 rows (selection is pruned to `filteredOrders`); Books-page inline stock uses `inventoryApi.adjustStock`; My themes refuse
