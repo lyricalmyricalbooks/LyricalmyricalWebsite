@@ -29,7 +29,9 @@ export function giftFormValid(value: Partial<GiftCardDetails>): boolean {
   try { giftCardDetails(value); return true; } catch { return false; }
 }
 
-const fieldClass = "min-w-0 w-full rounded-xl border border-white/[0.12] bg-transparent px-4 py-3 text-sm outline-none focus:border-white/40";
+// Look: Studio › Style › Product page · buy card & details › Extras & gift card fields (`pdpField*`,
+// productPageStyle.ts `extraFieldsCss`); empty controls keep these built-in classes.
+const fieldClass = "fm-pdp-field min-w-0 w-full rounded-xl border border-white/[0.12] bg-transparent px-4 py-3 text-sm outline-none focus:border-white/40";
 
 export function AddOnPicker({ design, addOns, picks, onChange, error, formatPrice, unitPrice }: {
   design: any;

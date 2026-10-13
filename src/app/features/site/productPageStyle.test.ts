@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { productPageCss, productPageFontNames, signupBoxCss } from "./productPageStyle";
+import { extraFieldsCss, productPageCss, productPageFontNames, signupBoxCss } from "./productPageStyle";
 import { STYLE_GROUPS } from "../../admin/studio/styleSchema";
 
 describe("product page (catalogue card) CSS", () => {
@@ -73,6 +73,33 @@ describe("signupBoxCss (“Notify me” signup box)", () => {
   it("clamps numbers and strips CSS-breaking characters", () => {
     const css = signupBoxCss({ pdpAlertRadius: 999, pdpAlertBg: "red;}body{x:y" });
     expect(css).toContain("border-radius:32px");
+    expect(css).not.toContain("}body{");
+  });
+});
+
+describe("extraFieldsCss (Extras & gift card fields)", () => {
+  it("emits nothing for an untouched design, so the fields keep their built-in look", () => {
+    expect(extraFieldsCss({})).toBe("");
+    expect(productPageCss({})).not.toContain("fm-pdp-field");
+  });
+
+  it("turns each control into a rule on the fields", () => {
+    const css = extraFieldsCss({
+      pdpFieldBg: "#111111", pdpFieldText: "#eeeeee", pdpFieldBorderColor: "#ff0000",
+      pdpFieldBorderWidth: 2, pdpFieldRadius: 6, pdpFieldFocusColor: "#00ff00",
+    });
+    expect(css).toContain(".fm-pdp-field.fm-pdp-field{background:#111111;}");
+    expect(css).toContain(".fm-pdp-field.fm-pdp-field{color:#eeeeee;}");
+    expect(css).toContain(".fm-pdp-field.fm-pdp-field{border-color:#ff0000;}");
+    expect(css).toContain("border-width:2px");
+    expect(css).toContain("border-radius:6px !important");
+    expect(css).toContain(".fm-pdp-field.fm-pdp-field:focus{border-color:#00ff00;}");
+    expect(productPageCss({ pdpFieldRadius: 6 })).toContain("border-radius:6px !important");
+  });
+
+  it("clamps numbers and strips CSS-breaking characters", () => {
+    const css = extraFieldsCss({ pdpFieldRadius: 999, pdpFieldBg: "red;}body{x:y" });
+    expect(css).toContain("border-radius:24px");
     expect(css).not.toContain("}body{");
   });
 });

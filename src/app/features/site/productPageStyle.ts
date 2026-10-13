@@ -94,6 +94,23 @@ export function signupBoxCss(d: any): string {
   return css;
 }
 
+/**
+ * Studio › Style › Product page · buy card & details › Extras & gift card fields: the inscription box
+ * and the gift card recipient form (ProductOptions.tsx, `fm-pdp-field`). Each empty control emits
+ * nothing, so an untouched design keeps the fields' built-in look.
+ */
+export function extraFieldsCss(d: any): string {
+  const F = `${S} .fm-pdp-field.fm-pdp-field`;
+  let css = "";
+  if (has(d.pdpFieldBg)) css += `${F}{background:${clean(d.pdpFieldBg)};}`;
+  if (has(d.pdpFieldText)) css += `${F}{color:${clean(d.pdpFieldText)};}`;
+  if (has(d.pdpFieldBorderColor)) css += `${F}{border-color:${clean(d.pdpFieldBorderColor)};}`;
+  if (has(d.pdpFieldBorderWidth)) css += `${F}{border-width:${num(d, "pdpFieldBorderWidth", 1, 0, 6)}px;border-style:solid;}`;
+  if (has(d.pdpFieldRadius)) css += `${F}{border-radius:${num(d, "pdpFieldRadius", 0, 0, 24)}px !important;}`;
+  if (has(d.pdpFieldFocusColor)) css += `${F}:focus{border-color:${clean(d.pdpFieldFocusColor)};}`;
+  return css;
+}
+
 export function productPageCss(design: any): string {
   const d = design || {};
 
@@ -189,6 +206,7 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-buynow:hover{background:rgb(var(--fg-rgb));color:var(--surface);}`;
   css += `${S} .fm-pdp-sq:hover{border-color:rgb(var(--fg-rgb));}`;
   css += signupBoxCss(d);
+  css += extraFieldsCss(d);
 
   // Details: tabs + bordered panel, catalogue-record specs.
   css += `${S} .fm-pdp-tabs [role="tablist"]{display:flex;flex-wrap:wrap;}`;
