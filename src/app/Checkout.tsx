@@ -5,6 +5,7 @@ import { consentAllows } from "./lib/consent";
 import { trackLink } from "./features/site/orderStatus";
 import { liveCheckoutRates } from "./features/site/canadaPostRates";
 import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
+import { applyFavicon } from "./features/site/favicon";
 import React, { useState, useEffect, useMemo, useRef, useId } from "react";
 import { Link } from "react-router";
 import { useCart, catalogUnitPrice, repriceCart } from "./CartContext";
@@ -426,6 +427,7 @@ export function Checkout() {
         const preview = new URLSearchParams(window.location.search).get("preview") === "true";
         const design = preview ? (window as any).__studioPreviewDesign || siteSettings?.design : siteSettings?.design;
         setSettings({ ...siteSettings, design: resolveSurfaceDesign(design, "/checkout") });
+        applyFavicon(design);
         // The payment method follows the loaded settings (effect below), keeping the shopper's own choice.
       } catch (err) {
         console.error("Failed to load checkout settings", err);
