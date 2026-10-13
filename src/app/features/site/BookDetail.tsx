@@ -8,7 +8,7 @@ import { useParams, Link, useNavigate, useLocation } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
   Package, Share2, Check, BookOpen, Globe, Ruler,
-  Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus, Bell
+  Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus, Bell, Maximize2
 } from "lucide-react";
 import { useCart, catalogUnitPrice, lineQuantityCap, backorderable } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
@@ -32,6 +32,7 @@ import { reviewsApi } from "../../lib/reviews";
 import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
 import ReviewsSection from "./ReviewsSection";
+import { PhotoLightbox } from "./PhotoLightbox";
 import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 import BackInStockForm from "./BackInStockForm";
@@ -85,6 +86,7 @@ export default function BookDetail() {
   const logoDesign    = resolveLogoDesign(settings?.design?.storefront, [settings?.design?.heroPage, settings?.design]);
 
   const [activePhoto, setActivePhoto] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   // A format with its own photo shows it when chosen; picking a thumbnail afterwards wins.
   const [variantPhotoPinned, setVariantPhotoPinned] = useState(true);
   const pickPhoto = (next: number | ((p: number) => number)) => { setVariantPhotoPinned(false); setActivePhoto(next as any); };
@@ -1211,6 +1213,20 @@ export default function BookDetail() {
                         />
                       </AnimatePresence>
 
+                      {/* Enlarge: Studio › Style › Product page · buy card & details › Click photo to enlarge */}
+                      {storefrontDesign.showPhotoLightbox !== false && activeUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setLightboxOpen(true)}
+                          aria-label={getCopy(settings?.design, "ariaEnlargePhoto")}
+                          aria-haspopup="dialog"
+                          data-fm-enlarge
+                          className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white hover:bg-black/80 hover:border-white/20 transition-all"
+                        >
+                          <Maximize2 size={15} />
+                        </button>
+                      )}
+
                       {/* Sold out: Studio › Style › Product cards & grid › Sold-out badge */}
                       {isOutOfStock && (
                         <>
@@ -1288,6 +1304,26 @@ export default function BookDetail() {
                         </div>
                       )}
                     </div>
+
+                    {lightboxOpen && (
+                      <PhotoLightbox
+                        photos={photos.map((ph: any, i: number) => ({
+                          url: ph.url,
+                          srcSet: photoSrcSet(ph, "100vw").srcSet,
+                          alt: ph.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 }),
+                        }))}
+                        start={Math.max(0, shownIndex)}
+                        onIndex={(i) => pickPhoto(i)}
+                        onClose={() => setLightboxOpen(false)}
+                        labels={{
+                          close: getCopy(settings?.design, "ariaClosePhoto"),
+                          prev: getCopy(settings?.design, "ariaPrevPhoto"),
+                          next: getCopy(settings?.design, "ariaNextPhoto"),
+                          dialog: getCopy(settings?.design, "ariaPhotoViewer"),
+                          count: getCopy(settings?.design, "pdpCaptionCount"),
+                        }}
+                      />
+                    )}
 
                     {pdpShowCaption && shownIndex >= 0 && (
                       <figcaption className="fm-pdp-caption fm-pdp-meta">
