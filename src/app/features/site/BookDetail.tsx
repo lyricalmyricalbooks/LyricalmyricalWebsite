@@ -27,7 +27,7 @@ import { placeholderImage } from "./constants";
 import type { Book } from "./types";
 import { trackBookView } from "../../lib/recentlyViewed";
 import { useWishlist } from "../../lib/wishlist";
-import { bookMetadata, bookStructuredData, breadcrumbData, canonicalUrl } from "../../lib/bookSeo";
+import { bookMetadata, bookStructuredData, breadcrumbData, canonicalUrl, defaultBookTitle } from "../../lib/bookSeo";
 import { reviewsApi } from "../../lib/reviews";
 import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
@@ -322,6 +322,8 @@ export default function BookDetail() {
   const seoOffer = seoBook ? bookStructuredData(seoBook, { currency, price: seoPrice, url: bookUrl }).offers.availability : "";
   useSEO(book ? {
     ...bookMetadata(book),
+    // No custom search title: "Title by Author" (Text & labels › Site & sharing) while it stays short.
+    ...(bookMetadata(book).exactTitle ? {} : { title: defaultBookTitle(book, (title, author) => getCopy(settings?.design, "seoBookTitleByline", { title, author })) }),
     description: bookMetadata(book).description || getCopy(settings?.design, "seoBookDescription", { title: book.title }),
     url: bookUrl,
     type: "product",
@@ -1165,7 +1167,7 @@ export default function BookDetail() {
                           className="fm-pdp-thumb"
                           style={{ aspectRatio: productImageAspect }}
                         >
-                          <img src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt="" loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
+                          <img src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt={photo.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
                         </button>
                       ))}
                     </div>

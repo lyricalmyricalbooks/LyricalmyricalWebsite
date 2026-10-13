@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoBookSeo, bookMetadata, bookStructuredData, breadcrumbData, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, siteStructuredData, snippet } from './bookSeo';
+import { autoBookSeo, bookCreators, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, siteStructuredData, snippet } from './bookSeo';
 const book = { id: 'one', title: 'Photo book', description: '<p>Art &amp; photography.</p>', retailPrice: 24, stockLevel: 0, status: 'published', slug: 'photo-book', metaTitle: 'An artist’s photo book', metaDescription: 'A unique collection of photographs.', seoImage: 'https://example.com/share.jpg' };
 describe('book search metadata', () => {
   it('uses saved search fields and sharing image', () => {
@@ -120,5 +120,33 @@ describe('search listing auto-fill', () => {
     expect(autoBookSeo({ title: 'Zine', format: 'paperback', pageCount: 32, publisher: 'Lyricalmyrical' }).metaDescription)
       .toBe('Zine. Paperback, 32 pages. Published by Lyricalmyrical.');
     expect(autoBookSeo({ title: '' })).toEqual({ metaTitle: '', metaDescription: '' });
+  });
+});
+
+describe('book creators from Author / contributors', () => {
+  const byline = (title: string, author: string) => `${title} by ${author}`;
+  it('reads the contributors box, splits lists and skips group credits', () => {
+    expect(bookCreators({ subtitle: 'Ian Willms' })).toEqual(['Ian Willms']);
+    expect(bookCreators({ subtitle: 'Zoe Moss, Lucia Bellemare & Ana Ruiz' })).toEqual(['Zoe Moss', 'Lucia Bellemare', 'Ana Ruiz']);
+    expect(bookCreators({ subtitle: 'Various artists' })).toEqual([]);
+    expect(bookCreators({ subtitle: 'AA.VV.' })).toEqual([]);
+    expect(bookCreators({ subtitle: 'Subverso Magazines x Lyricalmyrical Books' })).toEqual([]);
+    expect(bookCreators({ authorName: 'A. Poet' })).toEqual(['A. Poet']);
+    expect(bookCreators({})).toEqual([]);
+  });
+  it('names the creators in Book JSON-LD when there is no legacy authorName', () => {
+    const data: any = bookStructuredData({ id: 'h', title: 'The Hound', subtitle: 'Ian Willms', price: 65 } as any, { currency: 'CAD', price: 65, url: 'https://shop.test/books/the-hound' });
+    expect(data.author).toEqual([{ '@type': 'Person', name: 'Ian Willms' }]);
+    const group: any = bookStructuredData({ id: 'c', title: 'Collections #1', subtitle: 'Various artists', price: 65 } as any, { currency: 'CAD', price: 65, url: 'https://shop.test/books/c' });
+    expect(group).not.toHaveProperty('author');
+  });
+  it('titles a book "Title by Author" only while it stays short', () => {
+    expect(defaultBookTitle({ title: 'The Hound', subtitle: 'Ian Willms' }, byline)).toBe('The Hound by Ian Willms');
+    expect(defaultBookTitle({ title: 'Collections #1', subtitle: 'Various artists' }, byline)).toBe('Collections #1');
+    expect(defaultBookTitle({ title: 'A Rather Long Photobook Title Indeed', subtitle: 'Someone With A Long Name' }, byline)).toBe('A Rather Long Photobook Title Indeed');
+    expect(defaultBookTitle({ title: 'Untitled' }, byline)).toBe('Untitled');
+  });
+  it('auto-fill uses the contributors box too', () => {
+    expect(autoBookSeo({ title: 'The Hound', subtitle: 'Ian Willms' }, 'Lyricalmyrical Books').metaTitle).toBe('The Hound by Ian Willms — Lyricalmyrical Books');
   });
 });

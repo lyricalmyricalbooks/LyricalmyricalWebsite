@@ -110,7 +110,7 @@ it as an `@graph` (`jsonLdDocument` in `src/app/lib/seo.ts`). Builders live in
 
 - **Home** — `BookStore` (name, description, logo, Instagram/social `sameAs` from
   Studio) linked to a `WebSite`.
-- **Book pages** — `Product`+`Book` with a new-condition `Offer` sold by the shop,
+- **Book pages** — `Product`+`Book` (with `author` Persons from Author / contributors, group credits left out) and a new-condition `Offer` sold by the shop,
   a `BreadcrumbList` (Shop › category › book) and, only when approved shopper reviews
   exist, `aggregateRating` plus up to five named review snippets. Nothing is invented:
   no reviews means no rating. The snapshot waits for `data-seo-reviews="ready"`.

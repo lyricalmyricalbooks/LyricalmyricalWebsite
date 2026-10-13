@@ -46,6 +46,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "seoAccountTitle", label: "Account page title", default: "Your Account" },
       { key: "seoAccountDescription", label: "Account page description", default: "Manage your account, orders and saved addresses." },
       { key: "seoBookLoadingTitle", label: "Book loading search title", default: "Publication" },
+      { key: "seoBookTitleByline", label: "Book page title with author (when a book has no search title)", default: "{title} by {author}", hint: "Use {title} for the book title and {author} for the names in Author / contributors. Used only while it stays under about 50 characters; group credits like \"Various artists\" are left out." },
       { key: "seoBookDescription", label: "Book page description (when a book has none)", default: "{title} — {name}", hint: "Use {title} for the book title and {name} for the site name." },
       { key: "seoCollectionTitle", label: "Collection page title", default: "{category} Collection", hint: "Use {category} for the collection name." },
       { key: "seoCollectionDescription", label: "Collection page description", default: "Browse the {category} collection from {name}.", hint: "Use {category} (lower-case) and {name}." },

@@ -56,13 +56,34 @@ export function fittingTitle(candidates: string[], format: (title: string) => st
   return snippet(options[options.length - 1] || '', max);
 }
 
+/** A credit that names no single creator: "Various artists", "AA.VV.", "Autori vari", "Magazine x Press". */
+const GROUP_CREDIT = /^(various|vari[eo]?\b|aa\.?\s*vv\.?|autori vari|artisti vari|multiple|anthology)|\s[x×]\s/i;
+
+/** The people credited on a book, from the editor's "Author / contributors" box (`subtitle`), else the
+ *  legacy `authorName`. Group credits ("Various artists", "A x B") name no person, so they give none. */
+export function bookCreators(book: Partial<Book> & Record<string, any>): string[] {
+  const credit = searchText(book.subtitle) || searchText(book.authorName);
+  if (!credit || GROUP_CREDIT.test(credit)) return [];
+  return [...new Set(credit.split(/\s*(?:,|;|&|\s\+\s|\sand\s)\s*/i).map(name => name.trim()).filter(name => name.length > 1))].slice(0, 10);
+}
+
+/** The tab/search title a book gets when the owner wrote none: "Title by Author" while that stays short
+ *  (`byline` is Text & labels › Site & sharing › Book page title with author), else just the title. */
+export function defaultBookTitle(book: Partial<Book> & Record<string, any>, byline: (title: string, author: string) => string, max = 50): string {
+  const title = searchText(book.title);
+  const creators = bookCreators(book);
+  if (!title || !creators.length) return title;
+  const withAuthor = byline(title, creators.join(', ')).replace(/\s+/g, ' ').trim();
+  return withAuthor && withAuthor.length <= max ? withAuthor : title;
+}
+
 /** Search title + description written from the book's own catalog facts (Books › edit › Search (SEO) ›
  *  Auto-fill from book). A book's custom search title is used exactly, so it carries the shop name itself
  *  when there is room ("Title by Author — Shop"). The description is the book description's opening
  *  sentences, or (with no description) a sentence of real facts: author, format, pages, publisher. */
 export function autoBookSeo(book: Partial<Book> & Record<string, any>, siteName = ''): { metaTitle: string; metaDescription: string } {
   const title = searchText(book.title);
-  const author = searchText(book.authorName);
+  const author = searchText(book.authorName) || bookCreators(book).join(', ');
   const site = searchText(siteName);
   const byline = author ? `${title} by ${author}` : title;
   const metaTitle = !title ? '' : fittingTitle([
@@ -219,7 +240,11 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
     ...bookFacts(book),
     ...(book.sku ? { sku: book.sku } : {}),
     ...(book.language ? { inLanguage: book.language } : {}),
-    ...(book.authorName ? { author: { '@type': 'Person', name: book.authorName } } : {}),
+    ...(book.authorName
+      ? { author: { '@type': 'Person', name: book.authorName } }
+      : bookCreators(book).length
+        ? { author: bookCreators(book).map(name => ({ '@type': 'Person', name })) }
+        : {}),
     ...(book.publisher ? { publisher: { '@type': 'Organization', name: book.publisher } } : {}),
     offers: {
       '@type': 'Offer', url: options.url,

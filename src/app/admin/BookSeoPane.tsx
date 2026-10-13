@@ -5,7 +5,7 @@ import { adminApi } from './api';
 import { loadCatalog } from '../features/site/loadCatalog';
 import { resolveProductRoutes } from '../features/site/productRoutes';
 import { getCopy } from '../features/site/storeCopy';
-import { autoBookSeo, bookMetadata, seoChecks } from '../lib/bookSeo';
+import { autoBookSeo, bookMetadata, defaultBookTitle, seoChecks } from '../lib/bookSeo';
 import type { Book } from '../features/site/types';
 
 // Settings + whole catalog, shared by every opening of this pane for a minute (it used to reload both each time).
@@ -31,7 +31,7 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
     return () => { cancelled = true; };
   }, []);
   const meta = bookMetadata(book);
-  const title = meta.exactTitle ? meta.title : getCopy(design, 'siteTitleFormat', { title: meta.title });
+  const title = meta.exactTitle ? meta.title : getCopy(design, 'siteTitleFormat', { title: defaultBookTitle(book, (t, author) => getCopy(design, 'seoBookTitleByline', { title: t, author })) || meta.title });
   const description = meta.description || getCopy(design, 'seoBookDescription', { title: book.title || '' });
   const resolved = loaded && book.id ? resolveProductRoutes([...catalog.filter(b => b.id !== book.id), book]).find(b => b.id === book.id) : null;
   const url = resolved ? new URL(`${import.meta.env.BASE_URL}books/${encodeURIComponent(resolved.slug)}`, window.location.origin).href : '';
