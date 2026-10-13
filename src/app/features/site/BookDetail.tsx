@@ -170,6 +170,7 @@ export default function BookDetail() {
   const productCtaWidth        = storefrontDesign.productCtaWidth        || "full";
   // Style › Product page › Edition picker: "dropdown" makes the shopper choose an edition themselves.
   const editionDropdown        = storefrontDesign.pdpEditionPicker === "dropdown";
+  const editionShowPrice       = storefrontDesign.pdpChipShowPrice !== false;
   // Style › Product page › Sticky add-to-bag bar: a bar that follows the shopper once the buy button has scrolled away.
   const stickyBar              = storefrontDesign.pdpStickyBar === true;
   const stickyPhoneOnly        = storefrontDesign.pdpStickyPhoneOnly !== false;
@@ -838,7 +839,7 @@ export default function BookDetail() {
         if (!(book.variants && book.variants.length > 0)) return null;
         return <Fragment key={block.id}>
                   {book.variants && book.variants.length > 0 && (
-                    <div className={`flex flex-col gap-2.5 w-full ${productAlignment === "center" ? "items-center" : "items-start"}`}>
+                    <div className={`flex flex-col gap-2.5 w-full ${productAlignment === "center" ? "items-center" : "items-start"}`} data-studio-target="style:productCard|copy:Product page" data-studio-label="Edition choices">
                       <span id="pdp-format-label" className="fm-pdp-meta">{getCopy(settings?.design, isGiftCard ? "pdpGiftAmountLabel" : "bookFormatLabel")}</span>
                       {editionDropdown ? (
                         <div className="flex flex-col gap-1.5 w-full max-w-[420px]">
@@ -854,7 +855,7 @@ export default function BookDetail() {
                             <option value="" disabled>{getCopy(settings?.design, "pdpEditionChoose")}</option>
                             {book.variants.map((v: any) => (
                               <option key={v.id} value={v.id}>
-                                {v.name}{Number.isFinite(Number(v.price)) && v.price !== null && v.price !== "" ? ` · ${formatPrice(Number(v.price))}` : ""}{Number(v.stockLevel ?? v.stock ?? 0) <= 0 && !v.onBackorder ? ` · ${getCopy(settings?.design, "pdpEditionSoldOut")}` : ""}
+                                {v.name}{editionShowPrice && Number.isFinite(Number(v.price)) && v.price !== null && v.price !== "" ? ` · ${formatPrice(Number(v.price))}` : ""}{Number(v.stockLevel ?? v.stock ?? 0) <= 0 && !v.onBackorder ? ` · ${getCopy(settings?.design, "pdpEditionSoldOut")}` : ""}
                               </option>
                             ))}
                           </select>
@@ -873,7 +874,7 @@ export default function BookDetail() {
                               data-soldout={Number(vStock) <= 0}
                               className="fm-pdp-chip"
                             >
-                              {v.name}{Number.isFinite(Number(v.price)) && v.price !== null && v.price !== "" ? ` · ${formatPrice(Number(v.price))}` : ""}
+                              {v.name}{editionShowPrice && Number.isFinite(Number(v.price)) && v.price !== null && v.price !== "" ? ` · ${formatPrice(Number(v.price))}` : ""}
                             </button>
                           );
                         })}
