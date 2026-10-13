@@ -1,7 +1,7 @@
 import { Search, X } from "lucide-react";
 import { getCopy } from "./storeCopy";
 import { regionProps } from "./storefrontRegions";
-import { displayPrice } from "./displayPrice";
+import { displayPrice, showsSale } from "./displayPrice";
 import { quickAddChoice } from "./buyable";
 import { matchesSearch } from "./bookSearch";
 import { compareShopOrder } from "./shopOrder";
@@ -61,8 +61,8 @@ export function bookInStock(book: any): boolean {
   return quickAddChoice(book).inStock;
 }
 
-export type CatalogFilterState = { formats: FormatKey[]; minPrice: string; maxPrice: string };
-export const EMPTY_FILTERS: CatalogFilterState = { formats: [], minPrice: "", maxPrice: "" };
+export type CatalogFilterState = { formats: FormatKey[]; minPrice: string; maxPrice: string; onSale?: boolean };
+export const EMPTY_FILTERS: CatalogFilterState = { formats: [], minPrice: "", maxPrice: "", onSale: false };
 
 /**
  * The CAD price range for the shopper's Min/Max boxes, which they type in the currency they
@@ -78,24 +78,25 @@ export function priceRangeFor(filters: CatalogFilterState, rate = 1): [number, n
 }
 
 /** Which filters the current view offers: format chips need two formats, a price filter two prices. */
-export function filterView(items: any[]): { availableFormats: FormatKey[]; showPrice: boolean } {
-  return { availableFormats: formatsIn(items), showPrice: new Set(items.map(item => displayPrice(item))).size >= 2 };
+export function filterView(items: any[]): { availableFormats: FormatKey[]; showPrice: boolean; hasSale: boolean } {
+  return { availableFormats: formatsIn(items), showPrice: new Set(items.map(item => displayPrice(item))).size >= 2, hasSale: items.some(item => showsSale(item)) };
 }
 
 /**
  * The filters that actually apply: a format chip or price box that isn't on screen (another
  * category has no such format, or one price) never hides books the shopper can't un-hide.
  */
-export function appliedFilters(filters: CatalogFilterState, view: { availableFormats: FormatKey[]; showPrice: boolean }, rate = 1): { formats: FormatKey[]; priceRange: [number, number] } {
+export function appliedFilters(filters: CatalogFilterState, view: { availableFormats: FormatKey[]; showPrice: boolean; hasSale?: boolean }, rate = 1): { formats: FormatKey[]; priceRange: [number, number]; onSale: boolean } {
   const formats = view.availableFormats.length >= 2 ? filters.formats.filter(key => view.availableFormats.includes(key)) : [];
-  return { formats, priceRange: view.showPrice ? priceRangeFor(filters, rate) : [0, Infinity] };
+  return { formats, priceRange: view.showPrice ? priceRangeFor(filters, rate) : [0, Infinity], onSale: Boolean(filters.onSale && view.hasSale) };
 }
 
 /** Whether anything narrows the list. With `view`, only filters on screen count (see appliedFilters). */
-export function filtersActive(filters: CatalogFilterState, query = "", inStockOnly = false, view?: { availableFormats: FormatKey[]; showPrice: boolean }): boolean {
+export function filtersActive(filters: CatalogFilterState, query = "", inStockOnly = false, view?: { availableFormats: FormatKey[]; showPrice: boolean; hasSale?: boolean }): boolean {
   const formats = view ? appliedFilters(filters, view).formats : filters.formats;
+  const onSale = Boolean(filters.onSale && (!view || view.hasSale));
   const price = (!view || view.showPrice) && Boolean(filters.minPrice.trim() || filters.maxPrice.trim());
-  return Boolean(query.trim() || inStockOnly || formats.length || price);
+  return Boolean(query.trim() || inStockOnly || formats.length || price || onSale);
 }
 
 export function applyCatalogControls(
@@ -105,6 +106,7 @@ export function applyCatalogControls(
   inStockOnly: boolean,
   priceRange: [number, number],
   formats: FormatKey[] = [],
+  onSale = false,
 ) {
   const q = query.trim().toLowerCase();
 
@@ -114,6 +116,7 @@ export function applyCatalogControls(
     }
     // Editions count: a book sold out in paperback but available as an e-book is in stock.
     if (inStockOnly && !bookInStock(item)) return false;
+    if (onSale && !showsSale(item)) return false;
     const price = displayPrice(item);
     if (price < priceRange[0] || price > priceRange[1]) return false;
     if (formats.length) {
@@ -156,6 +159,7 @@ export function CatalogControls({
   setFilters,
   availableFormats = [],
   showPrice = false,
+  hasSale = false,
 }: {
   query: string;
   setQuery: (v: string) => void;
@@ -171,10 +175,13 @@ export function CatalogControls({
   availableFormats?: FormatKey[];
   /** Whether the current view has more than one price (otherwise a price filter is noise). */
   showPrice?: boolean;
+  /** Whether any book in the current view is on sale (otherwise the On sale chip is noise). */
+  hasSale?: boolean;
 }) {
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(design, key, vars);
   const showFormats = !!setFilters && availableFormats.length >= 2;
   const showPriceBoxes = !!setFilters && showPrice;
+  const showSale = !!setFilters && hasSale;
   const toggleFormat = (key: FormatKey) => setFilters?.({ ...filters, formats: filters.formats.includes(key) ? filters.formats.filter(k => k !== key) : [...filters.formats, key] });
   const clearAll = () => { setQuery(""); setInStockOnly(false); setFilters?.(EMPTY_FILTERS); };
   const chip = (active: boolean) => `px-4 py-3 rounded-full text-[10px] tracking-widest uppercase border transition-colors ${
@@ -224,6 +231,16 @@ export function CatalogControls({
           >
             {c("filterInStock")}
           </button>
+          {showSale && (
+            <button {...regionProps("catalogSale")}
+              type="button"
+              aria-pressed={!!filters.onSale}
+              onClick={() => setFilters?.({ ...filters, onSale: !filters.onSale })}
+              className={chip(!!filters.onSale)}
+            >
+              {c("filterOnSale")}
+            </button>
+          )}
         </div>
       </div>
       {(showFormats || showPriceBoxes) && (
@@ -261,7 +278,7 @@ export function CatalogControls({
       )}
       <div className="flex flex-wrap items-center gap-4">
         <p {...regionProps("catalogResults")} className="text-[10px] tracking-widest uppercase text-white/30" aria-live="polite">{c("filterResults", { count: resultCount })}</p>
-        {filtersActive(filters, query, inStockOnly, { availableFormats: showFormats ? availableFormats : [], showPrice: showPriceBoxes }) && (
+        {filtersActive(filters, query, inStockOnly, { availableFormats: showFormats ? availableFormats : [], showPrice: showPriceBoxes, hasSale: showSale }) && (
           <button {...regionProps("catalogClear")} type="button" onClick={clearAll} className="text-[10px] tracking-widest uppercase text-white/60 underline underline-offset-4 hover:text-white transition-colors">
             {c("filterClear")}
           </button>
