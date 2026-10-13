@@ -1228,7 +1228,7 @@ export default function BookDetail() {
                           aria-label={getCopy(settings?.design, "ariaEnlargePhoto")}
                           aria-haspopup="dialog"
                           data-fm-enlarge
-                          className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white hover:bg-black/80 hover:border-white/20 transition-all"
+                          className="fm-lightbox-btn absolute top-4 right-4 z-10 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 text-white hover:bg-black/80 hover:border-white/20 transition-all"
                         >
                           <Maximize2 size={15} />
                         </button>
@@ -1322,6 +1322,7 @@ export default function BookDetail() {
                         start={Math.max(0, shownIndex)}
                         onIndex={(i) => pickPhoto(i)}
                         onClose={() => setLightboxOpen(false)}
+                        showCount={storefrontDesign.pdpViewerShowCount !== false}
                         labels={{
                           close: getCopy(settings?.design, "ariaClosePhoto"),
                           prev: getCopy(settings?.design, "ariaPrevPhoto"),

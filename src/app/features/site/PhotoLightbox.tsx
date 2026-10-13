@@ -11,8 +11,10 @@ type Labels = { close: string; prev: string; next: string; dialog: string; count
  * Arrow keys / buttons move between photos, Escape or a click on the shade closes it.
  * All words come from Text & labels › Product page, so nothing is built in.
  */
-export function PhotoLightbox({ photos, start, labels, onClose, onIndex }: {
+export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCount = true }: {
   photos: LightboxPhoto[]; start: number; labels: Labels; onClose: () => void; onIndex?: (i: number) => void;
+  /** Studio › Style › Product page · buy card & details › Enlarged photo viewer › Show the photo count. */
+  showCount?: boolean;
 }) {
   const [index, setIndex] = useState(Math.min(Math.max(0, start), Math.max(0, photos.length - 1)));
   const ref = useRef<HTMLDivElement>(null);
@@ -38,7 +40,8 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex }: {
 
   const photo = photos[index];
   if (!photo) return null;
-  const btn = "absolute w-11 h-11 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 text-white transition-colors";
+  // Colours/shape: Studio › Style › Product page · buy card & details › Enlarged photo viewer (productPageStyle.ts).
+  const btn = "fm-lightbox-btn absolute w-11 h-11 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 text-white transition-colors";
 
   return (
     <div
@@ -48,7 +51,9 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex }: {
       aria-label={labels.dialog}
       tabIndex={-1}
       data-fm-lightbox
-      className="fixed inset-0 z-[1000] bg-black/95 flex items-center justify-center"
+      data-studio-target="style:productCard|copy:Product page"
+      data-studio-label="Enlarged photo viewer"
+      className="fm-lightbox fixed inset-0 z-[1000] bg-black/95 flex items-center justify-center"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <img
@@ -63,10 +68,12 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex }: {
         <>
           <button type="button" onClick={() => go(index - 1)} aria-label={labels.prev} className={`${btn} left-4 top-1/2 -translate-y-1/2`}><ChevronLeft size={18} /></button>
           <button type="button" onClick={() => go(index + 1)} aria-label={labels.next} className={`${btn} right-4 top-1/2 -translate-y-1/2`}><ChevronRight size={18} /></button>
-          <p className="absolute bottom-4 left-0 right-0 text-center text-[11px] tracking-widest uppercase text-white/70" aria-live="polite">
-            {labels.count.replace("{n}", String(index + 1)).replace("{total}", String(photos.length))}
-          </p>
         </>
+      )}
+      {photos.length > 1 && showCount && (
+        <p className="fm-lightbox-count absolute bottom-4 left-0 right-0 text-center text-[11px] tracking-widest uppercase text-white/70" aria-live="polite">
+          {labels.count.replace("{n}", String(index + 1)).replace("{total}", String(photos.length))}
+        </p>
       )}
     </div>
   );

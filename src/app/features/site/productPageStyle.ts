@@ -111,6 +111,26 @@ export function extraFieldsCss(d: any): string {
   return css;
 }
 
+/**
+ * Studio › Style › Product page · buy card & details › Enlarged photo viewer: the round "enlarge" button
+ * on the main photo and the full-screen viewer it opens (PhotoLightbox.tsx: `fm-lightbox`, `fm-lightbox-btn`,
+ * `fm-lightbox-count`). Each empty control emits nothing, so an untouched design keeps the built-in look.
+ * Doubled classes outrank the Tailwind colour utilities they replace (hover included).
+ */
+export function photoViewerCss(d: any): string {
+  const V = `${S} .fm-lightbox.fm-lightbox`;
+  const B = `${S} .fm-lightbox-btn.fm-lightbox-btn`;
+  let css = "";
+  if (has(d.pdpViewerShade)) css += `${V}{background:${clean(d.pdpViewerShade)};}`;
+  if (has(d.pdpViewerButtonBg)) css += `${B}{background:${clean(d.pdpViewerButtonBg)};}${B}:hover{opacity:.85;}`;
+  if (has(d.pdpViewerButtonIcon)) css += `${B}{color:${clean(d.pdpViewerButtonIcon)};}`;
+  if (has(d.pdpViewerButtonBorderColor)) css += `${B}{border-color:${clean(d.pdpViewerButtonBorderColor)};}`;
+  if (d.pdpViewerButtonShape === "square") css += `${B}{border-radius:0 !important;}`;
+  if (d.pdpViewerButtonShape === "soft") css += `${B}{border-radius:8px !important;}`;
+  if (has(d.pdpViewerCountColor)) css += `${S} .fm-lightbox-count.fm-lightbox-count{color:${clean(d.pdpViewerCountColor)};}`;
+  return css;
+}
+
 export function productPageCss(design: any): string {
   const d = design || {};
 
@@ -207,6 +227,7 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-sq:hover{border-color:rgb(var(--fg-rgb));}`;
   css += signupBoxCss(d);
   css += extraFieldsCss(d);
+  css += photoViewerCss(d);
 
   // Details: tabs + bordered panel, catalogue-record specs.
   css += `${S} .fm-pdp-tabs [role="tablist"]{display:flex;flex-wrap:wrap;}`;
