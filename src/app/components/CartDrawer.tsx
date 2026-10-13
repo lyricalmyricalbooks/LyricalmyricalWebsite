@@ -91,7 +91,13 @@ export function CartDrawer() {
   // Same resolution as MainSite's catalog design (designModel.layerDesign).
   const design = layerDesign(rawDesign, rawDesign.storefront);
   const showFreeShipBar = design.showFreeShipBar ?? true;
-  const showTrustBadges = design.showCartTrustBadges ?? true;
+  // Style › Cart drawer › each badge has its own switch; the row hides when none is left.
+  const trustBadges = [
+    { key: "secure", show: design.cartDrawerShowSecureBadge ?? true, Icon: Lock, copy: "trustSecureLabel" as const },
+    { key: "tracked", show: design.cartDrawerShowTrackedBadge ?? true, Icon: Truck, copy: "trustTrackedLabel" as const },
+    { key: "returns", show: design.cartDrawerShowReturnsBadge ?? true, Icon: ShieldCheck, copy: "trustReturnsLabel" as const },
+  ].filter((badge) => badge.show);
+  const showTrustBadges = (design.showCartTrustBadges ?? true) && trustBadges.length > 0;
   const showCount = design.cartDrawerShowCount ?? true;
   const showNumbers = design.cartDrawerShowItemNumbers ?? true;
   const showUnitPrice = design.cartDrawerShowUnitPrice ?? true;
@@ -302,10 +308,10 @@ export function CartDrawer() {
                 </div>
 
                 {showTrustBadges && (
-                  <ul className="fm-bag-badges fm-bag-meta grid grid-cols-3 gap-2">
-                    <li className="flex items-center justify-center gap-1.5 py-2"><Lock size={12} aria-hidden="true" /><span>{getCopy(design, "trustSecureLabel")}</span></li>
-                    <li className="flex items-center justify-center gap-1.5 py-2"><Truck size={12} aria-hidden="true" /><span>{getCopy(design, "trustTrackedLabel")}</span></li>
-                    <li className="flex items-center justify-center gap-1.5 py-2"><ShieldCheck size={12} aria-hidden="true" /><span>{getCopy(design, "trustReturnsLabel")}</span></li>
+                  <ul className="fm-bag-badges fm-bag-meta grid gap-2" style={{ gridTemplateColumns: `repeat(${trustBadges.length}, minmax(0, 1fr))` }}>
+                    {trustBadges.map(({ key, Icon, copy }) => (
+                      <li key={key} className="flex items-center justify-center gap-1.5 py-2"><Icon size={12} aria-hidden="true" /><span>{getCopy(design, copy)}</span></li>
+                    ))}
                   </ul>
                 )}
 

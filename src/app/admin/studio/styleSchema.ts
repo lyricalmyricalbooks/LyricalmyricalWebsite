@@ -48,7 +48,7 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Bag line items": /^(cartDrawer(ShowItemNumbers|ShowPreorder|ShowLineOptions|Thumb|GrayscaleThumbs|ItemTitleSize|ShowUnitPrice|ShowLineTotal|QtyStyle|RemoveStyle|Border|Muted))/,
   "Bag suggestion": /^(cartDrawer(ShowUpsell|UpsellShadow|Surface|GrayscaleThumbs))/,
   "Empty bag": /^cartDrawer(ShowEmpty|Empty)/,
-  "Bag total & checkout": /^(cartDrawer(ShowSummary|TotalSize|Checkout|ShowCheckoutArrow|ShowDeliveryNote)|showCartTrustBadges)/,
+  "Bag total & checkout": /^(cartDrawer(ShowSummary|TotalSize|Checkout|ShowCheckoutArrow|ShowDeliveryNote|Show(Secure|Tracked|Returns)Badge)|showCartTrustBadges)/,
 };
 
 export const STYLE_GROUPS: StyleGroup[] = [
@@ -697,6 +697,9 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "cartDrawerShowSummary", label: "Show Subtotal & Shipping rows", kind: "toggle", defaultValue: true },
       { key: "cartDrawerTotalSize", label: "Total price size", kind: "range", defaultValue: 32, min: 18, max: 56, step: 1, suffix: "px" },
       { key: "showCartTrustBadges", label: "Secure / Tracked / Returns badges", kind: "toggle", defaultValue: true },
+      { key: "cartDrawerShowSecureBadge", label: "Badge 1 (Secure) in the bag", kind: "toggle", defaultValue: true },
+      { key: "cartDrawerShowTrackedBadge", label: "Badge 2 (Tracked) in the bag", kind: "toggle", defaultValue: true },
+      { key: "cartDrawerShowReturnsBadge", label: "Badge 3 (Returns) in the bag", kind: "toggle", defaultValue: true },
       { key: "cartDrawerCheckoutBg", label: "Checkout button background", kind: "color" },
       { key: "cartDrawerCheckoutText", label: "Checkout button text", kind: "color" },
       { key: "cartDrawerCheckoutHeight", label: "Checkout button height", kind: "range", defaultValue: 56, min: 40, max: 80, step: 2, suffix: "px" },
