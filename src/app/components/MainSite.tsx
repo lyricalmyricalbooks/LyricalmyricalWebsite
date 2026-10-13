@@ -620,19 +620,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     }
   };
 
-  // Apply Favicon
-  useEffect(() => {
-    if (storefrontDesign?.faviconUrl) {
-      let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
-      if (!link) {
-        link = document.createElement("link");
-        link.rel = "icon";
-        document.head.appendChild(link);
-      }
-      link.href = storefrontDesign.faviconUrl;
-    }
-  }, [storefrontDesign?.faviconUrl]);
-
   if (loading) {
     return (
       <BootSplash />

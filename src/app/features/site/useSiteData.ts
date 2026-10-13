@@ -10,6 +10,7 @@ import { readSiteCache, writeSiteCache, SITE_CACHE_EVENT } from "./siteCache";
 import type { Book, SiteSettings, Page } from "./types";
 import { RISO_NOIR_TOKENS, withRisoNoirDefault } from "./risoNoir";
 import { setSiteIdentity } from "../../lib/seo";
+import { applyFavicon } from "./favicon";
 import { applyCustomCode } from "./customCode";
 import { applyBackorderPolicy } from "./backorder";
 import { withBundleStock } from "./bundleStock";
@@ -203,6 +204,8 @@ export function useSiteData() {
 
   // Site name / default title / share image (Studio › Text & labels › Site & sharing) feed every page's <head>.
   useEffect(() => { setSiteIdentity(settings.design); }, [settings.design]);
+  // Studio › Style › Favicon on every storefront page, not only Home.
+  useEffect(() => { applyFavicon(settings.design); }, [settings.design]);
   // Studio › Style › Custom code (public pages only; see customCode.ts).
   // Custom snippets are usually trackers: they wait for the shopper's analytics choice
   // and are re-applied the moment that choice changes.
