@@ -522,7 +522,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     url: onCollectionRoute && routeCategory ? new URL(`${import.meta.env.BASE_URL}collections/${collectionSlug === "all" ? "all" : routeCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`, window.location.origin).href : undefined,
     title: onCollectionRoute ? getCopy(activeDesign, "seoCollectionTitle", { category: routeCategoryName }) : showCatalog ? (getCopy(settings?.design, "seoArchiveTitle") || undefined) : undefined,
     description: onCollectionRoute ? routeCategory?.description || getCopy(activeDesign, "seoCollectionDescription", { category: routeCategoryName.toLowerCase() }) : settings?.info?.description,
-    image: settings?.assets?.profileUrl,
+    // Style › Logo & wordmark › Share image, else the first book's cover. Never `assets.profileUrl`: the shop's
+    // default settings ship a 100px stock photo there, which became every shared/search preview of the home page.
+    image: settings?.design?.shareImageUrl || publishedBooks.find((book: any) => book?.photos?.[0]?.url)?.photos?.[0]?.url || undefined,
     type: "website",
     jsonLd: (() => {
       const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
@@ -541,7 +543,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         name: siteName,
         url: siteBase,
         description: settings?.info?.description || getCopy(settings?.design, "siteDefaultDescription"),
-        logo: storefrontLogoDesign?.logoUrl || settings?.design?.shareImageUrl || settings?.assets?.profileUrl,
+        logo: storefrontLogoDesign?.logoUrl || settings?.design?.shareImageUrl,
         sameAs: Object.values(settings?.design?.social ?? DEFAULT_SOCIAL),
       });
     })(),
