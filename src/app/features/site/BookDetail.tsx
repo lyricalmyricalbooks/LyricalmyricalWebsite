@@ -1329,9 +1329,9 @@ export default function BookDetail() {
 
               {/* Frequently Bought Together Widget */}
               {showBundleWidget !== false && bundleBook && (
-                <div className="mt-8 pt-8 border-t border-white/5 space-y-6">
-                  <h4 className="text-[10px] font-black tracking-[0.3em] uppercase text-white/40">{getCopy(settings?.design, "bundleHeading")}</h4>
-                  <div className={`flex flex-col sm:flex-row items-center gap-6 rounded-3xl p-6 relative overflow-hidden group/bundle transition-all duration-300 ${
+                <div {...regionProps("productBundle")} className="mt-8 pt-8 border-t border-white/5 space-y-6">
+                  <h4 {...regionProps("productBundleHeading")} className="text-[10px] font-black tracking-[0.3em] uppercase text-white/40">{getCopy(settings?.design, "bundleHeading")}</h4>
+                  <div {...regionProps("productBundleCard")} className={`flex flex-col sm:flex-row items-center gap-6 rounded-3xl p-6 relative overflow-hidden group/bundle transition-all duration-300 ${
                     productBundleLayout === "glassmorphic"
                       ? "bg-white/[0.01] backdrop-blur-xl border border-white/10 fm-accent-hover-border"
                       : productBundleLayout === "card"
@@ -1339,7 +1339,7 @@ export default function BookDetail() {
                       : "bg-white/[0.02] border border-white/5 fm-accent-hover-border"
                   }`}>
                     {/* Cover Art Previews */}
-                    <div className="flex items-center gap-4">
+                    <div {...regionProps("productBundleCovers")} className="flex items-center gap-4">
                       <div className="w-16 fm-surface rounded-xl border border-white/10 shadow-lg shrink-0 overflow-hidden" style={{ aspectRatio: productImageAspect }}>
                         <img src={photos[0]?.url || placeholderImage(settings?.design)} alt={book.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
                       </div>
@@ -1358,6 +1358,7 @@ export default function BookDetail() {
                         </p>
                       </div>
                       <button
+                        {...regionProps("productBundleButton")}
                         onClick={handleAddBothToBag}
                         disabled={addingBoth || isOutOfStock}
                         className={`w-full sm:w-fit text-[9px] font-black tracking-[0.2em] px-6 py-3.5 transition-all active:scale-95 custom-btn ${
