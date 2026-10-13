@@ -227,6 +227,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "productDescriptionStyle", label: "Description style", kind: "select", options: [{ value: "plain", label: "Plain" }, { value: "designed", label: "Designed card" }] },
       { key: "showPriceOnHover", label: "Show price only on hover", kind: "toggle" },
       { key: "showQuickAdd", label: "“Add to bag” button under each book in the shop grid (books with several editions get “Choose options”)", kind: "toggle" },
+      { key: "showQuickView", label: "“Quick view” button under each book in the shop grid (opens a pop-up with the cover, price, blurb and Add to bag)", kind: "toggle" },
       { key: "showSoldOutBadge", label: "Show “sold out” badge", kind: "toggle" },
       { key: "soldOutBadgeStyle", label: "Sold-out badge look", kind: "select", options: [{ value: "tag", label: "Corner tag (default)" }, { value: "stamp", label: "Ink stamp across the photo" }, { value: "band", label: "Band across the photo" }, { value: "classic", label: "Small box (old look)" }] },
       { key: "soldOutBadgeBg", label: "Sold-out badge colour (stamp ink / tag / band)", kind: "color" },

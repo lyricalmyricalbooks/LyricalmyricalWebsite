@@ -29,6 +29,7 @@ import { googleFontHref } from "../features/site/fonts";
 import { useCurrency } from "../CurrencyContext";
 import { useCart } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
+import { QuickView } from "../features/site/QuickView";
 import { isEmailAddress, subscribeNewsletter } from "../features/site/newsletterSignup";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
 import { SectionPageContext } from "./sectionCopy";
@@ -369,6 +370,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const location = useLocation();
   const { formatBookPrice, convertPrice } = useCurrency();
   const { addToCart } = useCart();
+  const [quickViewBook, setQuickViewBook] = useState<any>(null);
   const { books, settings, pages, loading, loadError, retry } = useSiteData();
 
   // Auto-open catalog view when the editor previews the shop tab
@@ -592,6 +594,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
   // Studio › Style › Product cards & grid › Quick add button (off by default).
   const showQuickAdd = storefrontDesign?.showQuickAdd === true;
+  // Studio › Style › Product cards & grid › Quick view pop-up (off by default).
+  const showQuickView = storefrontDesign?.showQuickView === true;
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
   const showPreorderBadge = storefrontDesign?.showPreorderBadge ?? true;
   const showComingSoonBadge = storefrontDesign?.showComingSoonBadge ?? true;
@@ -963,6 +967,17 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       )}
                     </div>
                   </Link>
+                  {showQuickView && (
+                    <button
+                      type="button"
+                      data-studio-target="style:products|copy:Product page"
+                      data-studio-label="Quick view button"
+                      onClick={() => setQuickViewBook(item)}
+                      className="fm-card-quickview mt-3 w-full min-h-[44px] flex items-center justify-center text-[10px] font-bold tracking-[0.2em] uppercase underline underline-offset-4 hover:opacity-80 transition-opacity"
+                    >
+                      {getCopy(activeDesign, "quickViewButton")}
+                    </button>
+                  )}
                   {showQuickAdd && !isOutOfStock && (() => {
                     // A book with several editions, extras or a gift-card amount needs a choice first: send it to its page.
                     const needsChoice = (Array.isArray(item.variants) && item.variants.length > 1) || (Array.isArray(item.addOns) && item.addOns.length > 0) || item.productType === "giftCard" || (Array.isArray(item.bundleItems) && item.bundleItems.length > 0);
@@ -989,6 +1004,33 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           </div>
         </main>
         )}
+
+        {quickViewBook && (() => {
+          const qb = quickViewBook;
+          const qChoice = quickAddChoice(qb);
+          const qNeedsChoice = (Array.isArray(qb.variants) && qb.variants.length > 1) || (Array.isArray(qb.addOns) && qb.addOns.length > 0) || qb.productType === "giftCard" || (Array.isArray(qb.bundleItems) && qb.bundleItems.length > 0);
+          const qOnSale = showsSale(qb);
+          return (
+            <QuickView
+              book={qb}
+              href={`/books/${getBookSlug(qb)}`}
+              priceText={cardDisplayPrice(qb) > 0 ? formatBookPrice(qb) : ""}
+              oldPriceText={qOnSale ? formatBookPrice(qb, true) : undefined}
+              needsChoice={qNeedsChoice}
+              canAdd={qNeedsChoice || qChoice.inStock}
+              placeholder={placeholderImage(activeDesign)}
+              labels={{
+                close: getCopy(activeDesign, "quickViewClose"),
+                details: getCopy(activeDesign, "quickViewDetails"),
+                add: getCopy(activeDesign, "quickAddButton"),
+                choose: getCopy(activeDesign, "quickAddChoose"),
+                dialog: getCopy(activeDesign, "quickViewDialog"),
+              }}
+              onAdd={() => addToCart(qb, qChoice.variant)}
+              onClose={() => setQuickViewBook(null)}
+            />
+          );
+        })()}
 
         <GlobalSections
           design={activeDesign}
