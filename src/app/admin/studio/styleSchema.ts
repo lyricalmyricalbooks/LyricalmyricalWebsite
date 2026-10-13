@@ -39,7 +39,7 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Back-in-stock signup": /^(showBackInStock$|pdpAlert)/,
   "Coming soon signup": /^(showComingSoonSignup$|pdpAlert)/,
   "Product title & price": /^(pdpTitle|pdpPrice|productTitleSize|productSubtitleWeight)/,
-  "Product photos": /^(productPhotoOutline|pdpThumb|pdpPhoto|pdpShowCaption|productImage|productBorderRadius|showZoom)/,
+  "Product photos": /^(productPhotoOutline|pdpThumb|pdpPhoto|pdpShowCaption|productImage|productBorderRadius|showZoom|showPhotoEnlarge)/,
   "Product details tabs": /^(pdpDetailsPlacement|pdpSpecsStyle|pdpTab|pdpPanel|productDetailsLayout|showSpecs)/,
   "Breadcrumb": /^(pdpShowBreadcrumb|pdpShowBackLink|pdpMeta)/,
   "Footer brand": /^(footerLogo|logoUrl|logoColor|logoTint|wordmark)/,
@@ -502,6 +502,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showBackInStock", label: "“Notify me when back in stock” box (sold-out items)", kind: "toggle", defaultValue: true },
       { key: "showComingSoonSignup", label: "“Email me when it's out” box (Coming soon books — the Coming soon button opens it)", kind: "toggle", defaultValue: true },
       { key: "showZoom", label: "Image zoom", kind: "toggle" },
+      { key: "showPhotoEnlarge", label: "Enlarge button on the main photo (opens a full-screen viewer)", kind: "toggle", defaultValue: true },
     ],
   },
   {

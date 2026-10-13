@@ -8,7 +8,7 @@ import { useParams, Link, useNavigate, useLocation } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
   Package, Share2, Check, BookOpen, Globe, Ruler,
-  Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus, Bell
+  Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus, Bell, Maximize2
 } from "lucide-react";
 import { useCart, catalogUnitPrice, lineQuantityCap, backorderable } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
@@ -55,6 +55,7 @@ import { findProduct } from "./productRoutes";
 import { bookAddOns, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
+import { PhotoViewer } from "./PhotoViewer";
 import { CARD_PHOTO_SIZES, PDP_PHOTO_SIZES, THUMB_PHOTO_SIZES, photoSrcSet } from "./photoSources";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
@@ -85,6 +86,7 @@ export default function BookDetail() {
   const logoDesign    = resolveLogoDesign(settings?.design?.storefront, [settings?.design?.heroPage, settings?.design]);
 
   const [activePhoto, setActivePhoto] = useState(0);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   // A format with its own photo shows it when chosen; picking a thumbnail afterwards wins.
   const [variantPhotoPinned, setVariantPhotoPinned] = useState(true);
   const pickPhoto = (next: number | ((p: number) => number)) => { setVariantPhotoPinned(false); setActivePhoto(next as any); };
@@ -1092,6 +1094,12 @@ export default function BookDetail() {
       <style>{css}</style>
       <StorefrontOverrides design={tokenSource} />
 
+      {viewerIndex !== null && (() => {
+        const list = photos.map((ph: any, i: number) => ({ url: ph.url, alt: ph.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 }) }));
+        const shown = list.length ? list : [{ url: activeUrl, alt: getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: 1 }) }];
+        return <PhotoViewer photos={shown} index={Math.min(viewerIndex, shown.length - 1)} onIndex={setViewerIndex} onClose={() => setViewerIndex(null)} design={settings?.design} />;
+      })()}
+
       {/* ── ambient glow that follows the book cover ── */}
       {showAmbientGlow !== false && (
         <div
@@ -1247,6 +1255,19 @@ export default function BookDetail() {
                             </span>
                           </div>
                         </div>
+                      )}
+
+                      {/* Enlarge: Studio › Style › Product page · Photos › Enlarge button */}
+                      {storefrontDesign.showPhotoEnlarge !== false && (
+                        <button
+                          type="button"
+                          onClick={() => setViewerIndex(Math.max(0, shownIndex))}
+                          aria-label={getCopy(settings?.design, "pdpEnlarge")}
+                          title={getCopy(settings?.design, "pdpEnlarge")}
+                          className="absolute top-4 right-4 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all"
+                        >
+                          <Maximize2 size={15} aria-hidden="true" />
+                        </button>
                       )}
 
                       {/* Arrow nav */}
