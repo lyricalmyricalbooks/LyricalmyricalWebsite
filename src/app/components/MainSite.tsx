@@ -1,6 +1,7 @@
 import { m, AnimatePresence } from "motion/react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Send, Heart, Zap } from "lucide-react";
+import { queryFromSearch } from "../features/site/searchResultsLink";
 import { Link, useNavigate, useLocation, useParams } from "react-router";
 import { CATEGORIES, placeholderImage, DEFAULT_SOCIAL } from "../features/site/constants";
 import { aspectRatioValue } from "../features/site/imageAspect";
@@ -493,7 +494,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   }, [books, categories]);
 
   // Catalog controls: search + sort + in-stock filter
-  const [searchQuery, setSearchQuery] = useState("");
+  // "See all results" from the search pop-up arrives as /collections/all?q=…
+  const urlQuery = queryFromSearch(location.search);
+  const [searchQuery, setSearchQuery] = useState(urlQuery);
+  useEffect(() => { if (urlQuery) setSearchQuery(urlQuery); }, [urlQuery]);
   const [sort, setSort] = useState<SortKey>("featured");
   const [inStockOnly, setInStockOnly] = useState(false);
   // Format and price filters (Shopify-style); price boxes are typed in the shopper's currency.
@@ -516,7 +520,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const routeCategoryName = routeCategory?.name || "";
   useSEO({
     // Use category membership before shopper search/stock filters.
-    noindex: onCollectionRoute && (!routeCategory || (collectionSlug === "all"
+    noindex: !!urlQuery || onCollectionRoute && (!routeCategory || (collectionSlug === "all"
       ? publishedBooks.length === 0
       : getFilteredItems(books, routeCategory, new Date().toISOString(), categories).length === 0)),
     url: onCollectionRoute && routeCategory ? new URL(`${import.meta.env.BASE_URL}collections/${collectionSlug === "all" ? "all" : routeCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`, window.location.origin).href : undefined,
@@ -595,7 +599,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showNewBadge = storefrontDesign?.showNewBadge ?? false;
   const newBadgeLabel = storefrontDesign?.newBadgeLabel || "NEW";
   const newBadgeDays = Math.max(1, Math.min(365, storefrontDesign?.newBadgeDays ?? 30));
-  const showCatalogControls = storefrontDesign?.showCatalogControls ?? !isReferenceCatalog;
+  const showCatalogControls = (storefrontDesign?.showCatalogControls ?? !isReferenceCatalog) || !!urlQuery;
   
 
   const shopSectionSpacing = Math.max(24, Math.min(120, storefrontDesign?.sectionSpacing ?? 64));

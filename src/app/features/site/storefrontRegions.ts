@@ -88,7 +88,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "searchPanel", label: "Search panel", required: true },
     { id: "searchField", label: "Search input", required: true }, { id: "searchClose", label: "Close search button", required: true },
     { id: "searchResult", label: "Search result row", required: true }, { id: "searchPrompt", label: "Search guidance" }, { id: "searchSuggestions", label: "Popular searches" },
-    { id: "searchEmpty", label: "No search results" }, { id: "searchPhoto", label: "Result cover", image: true },
+    { id: "searchEmpty", label: "No search results" }, { id: "searchSeeAll", label: "See all results link" }, { id: "searchPhoto", label: "Result cover", image: true },
     { id: "searchAuthor", label: "Result author" },
   ] },
   { id: "reviewsLayout", title: "Reviews · layout & elements", copy: "Reviews", files: ["features/site/ReviewsSection.tsx"], regions: [
