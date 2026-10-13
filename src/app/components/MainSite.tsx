@@ -592,6 +592,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
   // Studio › Style › Product cards & grid › Quick add button (off by default).
   const showQuickAdd = storefrontDesign?.showQuickAdd === true;
+  const showCardWishlist = storefrontDesign?.showCardWishlist !== false;
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
   const showSalePercent = storefrontDesign?.showSalePercent ?? false;
   const showPreorderBadge = storefrontDesign?.showPreorderBadge ?? true;
@@ -840,6 +841,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   className={`fm-card group relative transition-[translate,background-color,border-color,box-shadow] duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""} ${cardStyle === "card" ? "fm-surface border border-white/10 p-3" : ""}`}
                   style={cardStyle === "card" ? { borderRadius: storefrontCardRadius } : undefined}
                 >
+                  {showCardWishlist && (
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleWish(item.id); }}
                     aria-label={getCopy(activeDesign, wished ? "wishlistRemoveAria" : "wishlistAddAria")}
@@ -851,6 +853,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   >
                     <Heart size={13} fill={wished ? "currentColor" : "none"} />
                   </button>
+                  )}
                   <Link to={`/books/${slug}`}>
                     <div className={`relative fm-surface fm-photo-frame mb-4 overflow-hidden ${isReferenceCatalog || cardStyle === "minimal" ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius, aspectRatio: imageAspectStyle }}>
                       <SkeletonImage

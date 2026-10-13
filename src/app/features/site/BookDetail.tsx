@@ -139,6 +139,7 @@ export default function BookDetail() {
   const showRelatedProducts    = storefrontDesign.showRelatedProducts    ?? true;
   const showSoldOutBadge       = storefrontDesign.showSoldOutBadge       ?? true;
   const showSocialShare        = storefrontDesign.showSocialShare        ?? true;
+  const showPdpWishlist        = storefrontDesign.showPdpWishlist        ?? true;
   const showBackInStock        = storefrontDesign.showBackInStock        ?? true;
   const showComingSoonSignup   = storefrontDesign.showComingSoonSignup   ?? true;
 
@@ -995,6 +996,7 @@ export default function BookDetail() {
                       )}
                     </m.button>
 
+                    {showPdpWishlist && (
                     <button
                       type="button"
                       data-section="colors"
@@ -1006,6 +1008,7 @@ export default function BookDetail() {
                     >
                       <Heart size={16} fill={wished ? "currentColor" : "none"} />
                     </button>
+                    )}
 
                     {showSocialShare && (
                       <button
