@@ -97,9 +97,13 @@ export function trafficShift(range: Range, now = Date.now()): number {
   return daysBetween(shop, new Date(now).toISOString().slice(0, 10));
 }
 
-/** How many newest daily traffic docs cover the comparison window up to today (with a little slack). */
-export function trafficDocsFor(range: Range, now = Date.now()): number {
-  return Math.min(800, Math.max(70, daysBetween(range.prevStartKey, new Date(now).toISOString().slice(0, 10)) + 3));
+/**
+ * The UTC days of traffic docs a range and its comparison window need (a day of slack each side), read with
+ * adminApi.getDailyAnalyticsBetween — at most 2 × MAX_RANGE_DAYS + 3 docs, however long ago the range is.
+ */
+export function trafficWindow(range: Range, now = Date.now()): { fromKey: string; toKey: string } {
+  const shift = trafficShift(range, now);
+  return { fromKey: addDays(range.prevStartKey, shift - 1), toKey: addDays(range.endKey, shift + 1) };
 }
 
 export type Grain = "day" | "week" | "month";

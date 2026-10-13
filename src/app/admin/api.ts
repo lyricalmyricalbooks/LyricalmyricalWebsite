@@ -1757,6 +1757,18 @@ export const adminApi = {
   // Sales, categories and referrals are worked out from the orders and books the Overview already loads, so
   // nothing is read twice and every figure comes from the same paid orders. 400 days covers a year plus a
   // little of the block before it.
+  /** Daily traffic docs between two UTC day keys (inclusive), oldest first — however far back the window is. */
+  getDailyAnalyticsBetween: async (fromKey: string, toKey: string) => {
+    const snap = await getDocs(query(collection(db, "analytics"), where("date", ">=", fromKey), where("date", "<=", toKey), orderBy("date"), limit(1600)));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  /** The oldest daily traffic doc's day (when the shop's own counter started, or was last reset), or null. */
+  getFirstAnalyticsDay: async (): Promise<string | null> => {
+    const snap = await getDocs(query(collection(db, "analytics"), orderBy("date"), limit(1)));
+    return snap.empty ? null : String(snap.docs[0].data().date || snap.docs[0].id).slice(0, 10);
+  },
+
   getDailyAnalytics: async (days = 400) => {
     const snap = await getDocs(query(collection(db, "analytics"), orderBy("date", "desc"), limit(days)));
     return snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse();

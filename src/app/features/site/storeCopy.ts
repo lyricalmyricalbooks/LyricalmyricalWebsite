@@ -344,7 +344,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "cookieNecessary", label: "Necessary — label", default: "Necessary" },
       { key: "cookieNecessaryText", label: "Necessary — description", default: "required for the cart and checkout to work." },
       { key: "cookieAnalytics", label: "Analytics — label", default: "Analytics" },
-      { key: "cookieAnalyticsText", label: "Analytics — description", default: "anonymous usage statistics so we can improve the site." },
+      { key: "cookieAnalyticsText", label: "Analytics — description", default: "usage statistics (our own visit counter and, when switched on, Google Analytics) so we can improve the site." },
       { key: "cookieMarketing", label: "Marketing — label", default: "Marketing" },
       { key: "cookieMarketingText", label: "Marketing — description", default: "personalized content and abandoned-cart reminders." },
       { key: "cookieAcceptAll", label: "Accept button", default: "Accept all" },

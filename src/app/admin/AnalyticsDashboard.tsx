@@ -16,7 +16,7 @@ import {
   splitRange, stockValue, titleStock, toFulfil, totals, REORDER_COVER_DAYS,
 } from "./overviewInsights";
 import { recordedSince, sumMap } from "./overviewTraffic";
-import { autoGrain, PRESETS, rangeWords, resolveRange, trafficDocsFor, trafficShift, type CompareMode, type Grain, type Preset } from "./overviewRange";
+import { autoGrain, PRESETS, rangeWords, resolveRange, trafficShift, trafficWindow, type CompareMode, type Grain, type Preset } from "./overviewRange";
 import { bucketSeries, buildRangeSeries, CHART_METRICS, metricValue, monthPace, seriesSummary, type ChartMetric } from "./overviewSeries";
 import { googleTraffic, shopRowsIn, shopTraffic } from "./overviewSources";
 import { whatChanged, type Change } from "./overviewChanges";
@@ -69,18 +69,19 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const [costs, setCosts] = useState<Record<string, number>>({});
   const [ga, setGa] = useState<GaState>({ status: "loading" });
   const [lastReset, setLastReset] = useState<{ at: string; removedDays: number } | null>(null);
+  const [firstTrafficDay, setFirstTrafficDay] = useState<string | null>(null);
   const metricIds = useRef(Object.fromEntries(CHART_METRICS.map(m => [m.id, `ov-chart-tab-${m.id}`])) as Record<ChartMetric, string>);
 
   const range = useMemo(() => resolveRange(preset, { custom, compare: compareMode }), [preset, custom, compareMode, reloadKey]);
   useEffect(() => { writePrefs({ preset, compare: compareMode, from: custom.from, to: custom.to, metric }); }, [preset, compareMode, custom, metric]);
 
-  // Enough daily traffic docs for the range AND its comparison window (a year-on-year view needs ~2 years).
-  const needDocs = trafficDocsFor(range);
+  // Every daily traffic doc of the range AND its comparison window, however long ago (a year-on-year view needs ~2 years).
+  const { fromKey: trafficFrom, toKey: trafficTo } = trafficWindow(range);
   const loadDaily = useCallback(() => {
     setDaily(d => ({ rows: d.rows, error: false }));
-    adminApi.getDailyAnalytics(needDocs).then((rows: any[]) => setDaily({ rows, error: false }))
+    adminApi.getDailyAnalyticsBetween(trafficFrom, trafficTo).then((rows: any[]) => setDaily({ rows, error: false }))
       .catch((err: unknown) => { console.error(err); setDaily({ rows: null, error: true }); toast.error("Traffic figures could not be loaded"); });
-  }, [needDocs]);
+  }, [trafficFrom, trafficTo]);
   useEffect(() => { loadDaily(); }, [reloadKey, loadDaily]);
 
   // Google Analytics for exactly this range (and its comparison window), read by the shop's server.
@@ -111,6 +112,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     // Cost prices are admin-only (Inventory); without them profit says "add cost prices", never a guess.
     inventoryApi.costs().then(setCosts).catch(() => setCosts({}));
     googleAnalyticsApi.lastReset().then(setLastReset).catch(() => setLastReset(null));
+    adminApi.getFirstAnalyticsDay().then(setFirstTrafficDay).catch(() => setFirstTrafficDay(null));
   }, [reloadKey]);
 
   const refresh = () => {
@@ -241,6 +243,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const resetTraffic = async () => {
     const result = await googleAnalyticsApi.resetTraffic();
     setLastReset({ at: result.at, removedDays: result.removedDays });
+    setFirstTrafficDay(null);
     toast.success(`Traffic counts reset — ${result.removedDays} day${result.removedDays === 1 ? "" : "s"} cleared. Counting starts now.`);
     loadDaily();
   };
@@ -500,7 +503,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           trafficFailed && ga.status !== "loading" ? <ErrorState title="Traffic unavailable" description="Visits, searches and sources could not be loaded." onRetry={loadDaily} />
           : !traffic ? <LoadingState label="Loading traffic…" />
           : <OverviewMarketing ga={ga} traffic={traffic} dailyCurrent={dailyCurrent} dailyAll={daily.rows || []} current={periods.current} books={books}
-              lastReset={lastReset} onReset={resetTraffic} setActiveTab={setActiveTab} />
+              lastReset={lastReset} firstDay={firstTrafficDay} onReset={resetTraffic} setActiveTab={setActiveTab} />
         ) : (
           <OverviewCustomers key={reloadKey} paid={periods.paid} current={periods.current} startKey={periods.startKey} mix={insights.mix} startMs={periods.start}
             reviews={reviews} subs={subs} audienceFailed={audience.error} setActiveTab={setActiveTab} />

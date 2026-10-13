@@ -31,8 +31,9 @@ export function soldLines(orders: Order[], books: Book[], costs: Record<string, 
     const lines = (o.items || []).filter((i: any) => i?.id && i.giftCard !== true && num(i.quantity) > 0);
     const gross = lines.reduce((s: number, i: any) => s + num(i.price) * num(i.quantity), 0);
     if (gross <= 0) continue;
-    // The order's discount and partial refund are shared across its lines by value.
-    const discountShare = Math.min(1, num(o.discount) / Math.max(gross, num(o.subtotal) || gross));
+    // The order's discount is shared across its book lines by value (gift cards are never discounted, so they are
+    // left out of the base even though the order's subtotal includes them); a partial refund is shared the same way.
+    const discountShare = Math.min(1, num(o.discount) / gross);
     const total = num(o.total);
     const refundShare = total > 0 ? Math.min(1, Math.max(0, num(o.refundedAmountMinor) > 0 ? refundedShare(o) : 0)) : 0;
     for (const i of lines) {

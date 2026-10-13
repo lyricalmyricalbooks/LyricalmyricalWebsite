@@ -16,9 +16,9 @@ export type GaState = { status: "loading" | "off" | "error" | "connected"; answe
 type Row = Record<string, any>;
 
 /** Overview › Dig deeper › Marketing & traffic: how people arrive, what they look for, and where they drop off. */
-export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current, books, lastReset, onReset, setActiveTab }: {
+export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current, books, lastReset, firstDay, onReset, setActiveTab }: {
   ga: GaState; traffic: TrafficFigures; dailyCurrent: Daily[]; dailyAll: Daily[]; current: Order[]; books: Book[];
-  lastReset: { at: string; removedDays: number } | null; onReset: () => Promise<void>; setActiveTab?: (tab: string) => void;
+  lastReset: { at: string; removedDays: number } | null; firstDay: string | null; onReset: () => Promise<void>; setActiveTab?: (tab: string) => void;
 }) {
   const [confirm, confirmNode] = useConfirm();
   const [resetting, setResetting] = useState(false);
@@ -125,7 +125,7 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
         </SectionCard>
       )}
       {ga.status === "error" && (
-        <SectionCard title="Google Analytics isn't connected yet" actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("general")}>Open Google Analytics settings</SecondaryButton>}>
+        <SectionCard title={ga.answer?.code ? "Google Analytics isn't connected yet" : "Google Analytics couldn't be read just now"} actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("general")}>Open Google Analytics settings</SecondaryButton>}>
           <p className="rp-hint" style={{ margin: 0, color: "var(--rp-danger)" }}>✕ {ga.message || "Google Analytics couldn't be read."}</p>
           <p className="rp-hint" style={{ margin: "8px 0 0" }}>The figures below come from the shop's own counter meanwhile.</p>
         </SectionCard>
@@ -202,7 +202,7 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
           actions={<SecondaryButton size="sm" onClick={reset} disabled={resetting}>{resetting ? "Resetting…" : "Start traffic counts again"}</SecondaryButton>}>
           <p className="rp-hint" style={{ margin: 0 }}>
             {lastReset ? `Counting since ${new Date(lastReset.at).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })} (reset by you; ${lastReset.removedDays} earlier day${lastReset.removedDays === 1 ? "" : "s"} cleared).`
-              : traffic.firstKey || dailyAll.length ? `Counting since ${since(dailyAll.map(d => String(d.date || "").slice(0, 10)).filter(Boolean).sort()[0] || null) || "the first recorded day"}.` : "Nothing counted yet."}
+              : firstDay ? `Counting since ${since(firstDay)}.` : "Nothing counted yet."}
             {" "}Reset it once after launch to drop test visits. Orders and revenue are never affected.
           </p>
         </SectionCard>

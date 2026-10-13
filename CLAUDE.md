@@ -1877,7 +1877,8 @@ it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badg
 - **Ranges:** `admin/overviewRange.ts` `resolveRange(preset, { custom, compare })` — Today / 7 / 30 / 90 days, This month,
   Last month, This year, 12 months, Custom (clamped to today, ≤ 731 days); compare = the equally long block before or
   `lastYear` (`yearEarlier`). Toronto day keys; `trafficShift` moves a range ending today onto the UTC-keyed traffic docs
-  (same as the old rolling windows); `trafficDocsFor` sizes `getDailyAnalytics`. Orders split with `splitRange`
+  (same as the old rolling windows); `trafficWindow` gives the UTC days `adminApi.getDailyAnalyticsBetween` reads (the
+  whole comparison window, however long ago). Orders split with `splitRange`
   (`overviewInsights.ts`); `splitPeriods` stays for older callers. The choice is remembered per browser (`lm:overview-view`).
 - **Chart:** `overviewSeries.ts` — `buildRangeSeries` (day points + the matching comparison day), `bucketSeries`
   (day/week/month, `autoGrain`), `metricValue` (revenue, orders, units, aov, visitors, conversion), `seriesSummary`,
@@ -1892,8 +1893,11 @@ it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badg
 - **Google Analytics 4:** Settings › General › **Google Analytics** (`GoogleAnalyticsCard.tsx`, `admin/googleAnalytics.ts`).
   Measurement ID (public) = `settings/website.analytics.ga4MeasurementId`, written only by that card (`updateSettings` drops
   `analytics` so a stale settings form can't put an old ID back); property ID = admin-only `adminSecrets/googleAnalytics`.
-  Storefront: `lib/ga4.ts` loads gtag only after `trackingAllowed()` (analytics consent, not Studio preview/share link, not a
-  signed-in admin), never on `/admin`; declining later sets `ga-disable-<id>`. Events: router `page_view` (`Ga4PageViews` in
+  Storefront: `lib/ga4.ts` loads gtag only after `googleTrackingAllowed()` (analytics consent, not Studio preview/share link,
+  not the shop owner signed in — signed-in customers do count), never on `/admin`; declining later sets `ga-disable-<id>`.
+  **Google only ever gets `cleanLocation()`** (origin + path + `ref`/`utm_*`/click ids): emailed links carry addresses,
+  signed tokens, order keys, sign-in codes and cart ids in the query string. It is set in `config` and before every event.
+  A missing ID (settings not loaded yet) keeps the queue. GA `purchase` is sent only for `paymentStatus === "paid"`. Events: router `page_view` (`Ga4PageViews` in
   App.tsx, `send_page_view: false`), `view_item` (BookDetail, once per session), `add_to_cart` (CartContext.addToCart),
   `begin_checkout` (Checkout), `purchase` (`funnelApi.trackPurchase`, CAD order totals, never test/sandbox). Reports: action
   `ga4Report` on `createStripeCheckoutSession` (`functions/googleAnalytics.js`, admin, `LIMITS.ga4`): the Functions' own

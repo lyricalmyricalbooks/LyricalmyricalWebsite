@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoGrain, bucketKey, resolveRange, trafficDocsFor, trafficShift, yearEarlier } from "./overviewRange";
+import { autoGrain, bucketKey, resolveRange, trafficShift, trafficWindow, yearEarlier } from "./overviewRange";
 import { bucketSeries, buildRangeSeries, metricValue, monthPace, seriesSummary } from "./overviewSeries";
 import { whatChanged } from "./overviewChanges";
 import { costOf, profitSummary, sortTitles, titlePerformance, titlesCsv } from "./overviewProfit";
@@ -40,8 +40,10 @@ describe("resolveRange", () => {
     expect(trafficShift(resolveRange("7d", { now: NOON }), NOON)).toBe(0);
     expect(trafficShift(resolveRange("7d", { now: EVENING }), EVENING)).toBe(1);
     expect(trafficShift(resolveRange("lastMonth", { now: EVENING }), EVENING)).toBe(0);
-    expect(trafficDocsFor(resolveRange("30d", { now: NOON }), NOON)).toBe(70);
-    expect(trafficDocsFor(resolveRange("ytd", { now: NOON, compare: "lastYear" }), NOON)).toBe(653);
+    expect(trafficWindow(resolveRange("30d", { now: NOON }), NOON)).toEqual({ fromKey: "2026-08-14", toKey: "2026-10-14" });
+    expect(trafficWindow(resolveRange("7d", { now: EVENING }), EVENING)).toEqual({ fromKey: "2026-09-30", toKey: "2026-10-15" });
+    // A long custom range from years ago still reads its whole comparison window.
+    expect(trafficWindow(resolveRange("custom", { now: NOON, custom: { from: "2023-01-01", to: "2024-12-31" } }), NOON)).toEqual({ fromKey: "2020-12-30", toKey: "2025-01-01" });
   });
   it("buckets", () => {
     expect(autoGrain(30)).toBe("day"); expect(autoGrain(90)).toBe("week"); expect(autoGrain(365)).toBe("month");
@@ -121,6 +123,12 @@ describe("profit", () => {
     expect(p.cost).toBe(16);
     expect(p.profit).toBeCloseTo(47);
     expect(p.units).toBe(4); expect(p.costedUnits).toBe(3); expect(p.coverage).toBe(75);
+  });
+  it("a gift card in the same order doesn't dilute the book's discount", () => {
+    const o = order({ subtotal: 120, discount: 10, total: 110, items: [{ id: "b1", price: 20, quantity: 1 }, { id: "gc", price: 100, quantity: 1, giftCard: true }] });
+    const p = profitSummary([o], books, {});
+    expect(p.revenue).toBeCloseTo(10);
+    expect(p.profit).toBeCloseTo(2);
   });
   it("builds the title table with change, views, profit and stock", () => {
     const rows = titlePerformance({

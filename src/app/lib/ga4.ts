@@ -1,10 +1,12 @@
 // Google Analytics 4 on the storefront. The measurement ID ("G-…") is set in Settings › General › Google Analytics
 // and published as `settings/website.analytics.ga4MeasurementId`. Google's tag loads only when the visit may be
-// counted (`trackingAllowed`: analytics not declined, not the Studio preview or a share link, not a signed-in admin),
-// never in the prerender (it declines analytics) and never on admin pages. A later "decline" stops it at once
-// (`ga-disable-<id>`). Events: page_view per route, view_item, add_to_cart, begin_checkout and purchase.
+// counted (`googleTrackingAllowed`: analytics not declined, not the Studio preview or a share link, not the shop owner
+// signed in), never in the prerender (it declines analytics) and never on admin pages. A later "decline" stops it at
+// once (`ga-disable-<id>`). Events: page_view per route, view_item, add_to_cart, begin_checkout and purchase.
+// Google only ever sees `cleanLocation()`: emailed links carry addresses, signed tokens and private order keys in
+// their query string, so only `ref`/`utm_*`/click ids are kept.
 import { CONSENT_EVENT, consentAllows } from "./consent";
-import { trackingAllowed } from "./trackingGuard";
+import { googleTrackingAllowed } from "./trackingGuard";
 
 type Params = Record<string, unknown>;
 export interface Ga4Item { item_id: string; item_name: string; price: number; quantity: number; item_variant?: string }
@@ -23,6 +25,21 @@ export function cleanMeasurementId(value: unknown): string {
 
 /** Pages that are never shopper traffic. */
 export const isUntrackedPath = (path: string) => /(^|\/)(admin|studio-fixture)(\/|\.|$|#|\?)/.test(path);
+
+const KEPT_PARAMS = /^(ref|utm_[a-z_]+|gclid|gbraid|wbraid|fbclid)$/i;
+
+/** The page address Google may see: origin + path + campaign parameters only (no emails, tokens, keys, order ids). */
+export function cleanLocation(href: string): string {
+  try {
+    const u = new URL(href);
+    const kept = new URLSearchParams();
+    u.searchParams.forEach((v, k) => { if (KEPT_PARAMS.test(k)) kept.append(k, v.slice(0, 100)); });
+    const q = kept.toString();
+    return `${u.origin}${u.pathname}${q ? `?${q}` : ""}`;
+  } catch {
+    return "";
+  }
+}
 
 /** Order lines → GA4 items (gift cards and box sets included; CAD prices as charged per copy). */
 export function ga4Items(lines: any[]): Ga4Item[] {
@@ -56,8 +73,9 @@ function load(id: string) {
   w.dataLayer = w.dataLayer || [];
   w.gtag = w.gtag || function gtag() { w.dataLayer.push(arguments); };
   w.gtag("js", new Date());
-  // Page views are sent by the router (single-page app), so the automatic first one is off.
-  w.gtag("config", id, { send_page_view: false });
+  // Page views are sent by the router (single-page app), so the automatic first one is off. Google's own events
+  // (session start, engagement) read the page address from here, so they get the cleaned one too.
+  w.gtag("config", id, { send_page_view: false, page_location: cleanLocation(window.location.href) });
   const s = document.createElement("script");
   s.async = true;
   s.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
@@ -66,19 +84,25 @@ function load(id: string) {
 
 async function flush() {
   if (!measurementId || typeof window === "undefined" || !queue.length) return;
-  allowed = allowed || trackingAllowed().catch(() => false);
+  allowed = allowed || googleTrackingAllowed().catch(() => false);
   const ok = await allowed;
   if (!ok || !consentAllows("analytics")) { queue = []; return; }
   load(measurementId);
   const pending = queue;
   queue = [];
-  for (const [name, params] of pending) (window as any).gtag("event", name, { ...params, send_to: measurementId });
+  const gtag = (window as any).gtag;
+  for (const [name, params] of pending) {
+    const page_location = cleanLocation(String(params.page_location || window.location.href));
+    gtag("set", { page_location });
+    gtag("event", name, { ...params, page_location, send_to: measurementId });
+  }
 }
 
 /** Called once the public settings are read. A missing or invalid ID keeps Google Analytics off. */
 export function configureGa4(value: unknown) {
   const id = cleanMeasurementId(value);
-  if (!id || measurementId || typeof window === "undefined") { if (!id) queue = []; return; }
+  // No ID yet may just mean the settings haven't arrived: keep what is queued (MAX_QUEUE bounds it).
+  if (!id || measurementId || typeof window === "undefined") return;
   measurementId = id;
   window.addEventListener(CONSENT_EVENT, () => {
     // Declining analytics stops Google's tag immediately (Google's documented opt-out switch).
@@ -107,7 +131,8 @@ export function ga4Once(key: string, name: string, params: Params = {}) {
 
 export function ga4PageView() {
   if (typeof window === "undefined") return;
-  ga4Event("page_view", { page_location: window.location.href, page_title: document.title });
+  // Captured now (not at send time), so a slow consent check never pairs this view with a later page.
+  ga4Event("page_view", { page_location: cleanLocation(window.location.href), page_title: document.title });
 }
 
 /** Test hook: forget the module state between tests. */

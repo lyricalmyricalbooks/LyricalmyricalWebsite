@@ -175,13 +175,14 @@ async function handleGa4Report(body, deps) {
   const range = cleanRange(body?.range);
   if (!range) return { status: 400, body: { error: "Choose a valid date range." } };
   const batches = buildBatches(range);
-  const answers = [];
-  for (const requests of batches) {
-    const res = await post("batchRunReports", { requests: requests.map(({ key, ...r }) => r) });
-    if (!res.ok) return fail(res);
-    answers.push({ requests, response: res.body });
-  }
-  const realtime = await post("runRealtimeReport", { metrics: [{ name: "activeUsers" }] });
+  // Asked together so the whole read stays well inside the endpoint's time limit.
+  const [realtime, ...results] = await Promise.all([
+    post("runRealtimeReport", { metrics: [{ name: "activeUsers" }] }),
+    ...batches.map(requests => post("batchRunReports", { requests: requests.map(({ key, ...r }) => r) })),
+  ]);
+  const failed = results.find(res => !res.ok);
+  if (failed) return fail(failed);
+  const answers = batches.map((requests, i) => ({ requests, response: results[i].body }));
   return { status: 200, body: { ...base, connected: true, range, report: shapeReport(answers, realtime.ok ? realtime.body : null) } };
 }
 

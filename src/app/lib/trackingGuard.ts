@@ -23,3 +23,21 @@ export async function trackingAllowed(): Promise<boolean> {
   }
   return true;
 }
+
+/** The shop owner's sign-in (the one admin account, CLAUDE.md › Auth & admin access). */
+export const SHOP_OWNER_EMAIL = "lyricalmyricalbooks@gmail.com";
+
+/**
+ * Google Analytics' rule: the same preview and consent checks, but only the shop owner is left out — customers
+ * signed in to their account are real shoppers and their visits and purchases count.
+ */
+export async function googleTrackingAllowed(): Promise<boolean> {
+  if (inEditorPreview() || inThemePreview() || !consentAllows("analytics")) return false;
+  try {
+    const user = await restoredUser(1500);
+    if (user && String(user.email || "").toLowerCase() === SHOP_OWNER_EMAIL) return false;
+  } catch {
+    // Auth unavailable: count the visit rather than lose it.
+  }
+  return true;
+}

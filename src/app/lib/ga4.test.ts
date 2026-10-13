@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./trackingGuard", () => ({ trackingAllowed: vi.fn(async () => true) }));
-import { trackingAllowed } from "./trackingGuard";
-import { __resetGa4ForTests, cleanMeasurementId, configureGa4, ga4Event, ga4Items, isUntrackedPath, purchaseEvent } from "./ga4";
+vi.mock("./trackingGuard", () => ({ googleTrackingAllowed: vi.fn(async () => true) }));
+import { googleTrackingAllowed } from "./trackingGuard";
+import { __resetGa4ForTests, cleanLocation, cleanMeasurementId, configureGa4, ga4Event, ga4Items, isUntrackedPath, purchaseEvent } from "./ga4";
 
 const flush = () => new Promise(r => setTimeout(r, 0));
 
@@ -11,6 +11,14 @@ describe("ga4 helpers", () => {
     expect(cleanMeasurementId(" g-abc123xyz ")).toBe("G-ABC123XYZ");
     expect(cleanMeasurementId("UA-12345-1")).toBe("");
     expect(cleanMeasurementId("123456789")).toBe("");
+  });
+  it("never lets emails, tokens, order keys or sign-in codes reach Google", () => {
+    expect(cleanLocation("https://shop.test/track?unsubscribe=1&e=a%40b.c&t=sig")).toBe("https://shop.test/track");
+    expect(cleanLocation("https://shop.test/track?orderId=LM-1&key=secret#x")).toBe("https://shop.test/track");
+    expect(cleanLocation("https://shop.test/account?oobCode=abc&apiKey=k&mode=signIn")).toBe("https://shop.test/account");
+    expect(cleanLocation("https://shop.test/checkout?cartId=active_a%40b.c")).toBe("https://shop.test/checkout");
+    expect(cleanLocation("https://shop.test/books/salt?utm_source=news&ref=insta&e=x")).toBe("https://shop.test/books/salt?utm_source=news&ref=insta");
+    expect(cleanLocation("not a url")).toBe("");
   });
   it("never counts admin pages", () => {
     expect(isUntrackedPath("/admin")).toBe(true);
@@ -46,8 +54,27 @@ describe("ga4 loading", () => {
     expect(w.dataLayer.some((args: any) => args[0] === "event" && args[1] === "page_view")).toBe(true);
   });
 
+  it("sends only the cleaned address, also to Google's own events", async () => {
+    (globalThis as any).window.location.href = "https://shop.test/track?unsubscribe=1&e=a%40b.c&t=sig";
+    configureGa4("G-TEST1234");
+    ga4Event("view_item", { value: 1 });
+    await flush();
+    const calls = (globalThis as any).window.dataLayer.map((a: any) => [...a]);
+    expect(JSON.stringify(calls)).not.toMatch(/a%40b|sig|unsubscribe/);
+    expect(calls.find((a: any) => a[0] === "config")[2].page_location).toBe("https://shop.test/track");
+    expect(calls.find((a: any) => a[0] === "event")[2].page_location).toBe("https://shop.test/track");
+  });
+
+  it("keeps waiting events while the settings are still loading", async () => {
+    ga4Event("page_view", { page_title: "Landing" });
+    configureGa4(undefined);
+    configureGa4("G-TEST1234");
+    await flush();
+    expect((globalThis as any).window.dataLayer.some((a: any) => a[0] === "event" && a[1] === "page_view")).toBe(true);
+  });
+
   it("loads nothing when the visit may not be counted", async () => {
-    vi.mocked(trackingAllowed).mockResolvedValueOnce(false);
+    vi.mocked(googleTrackingAllowed).mockResolvedValueOnce(false);
     configureGa4("G-TEST1234");
     ga4Event("page_view");
     await flush();
