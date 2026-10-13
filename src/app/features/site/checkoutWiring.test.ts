@@ -58,6 +58,10 @@ describe("Checkout wiring (source text)", () => {
     expect(src).toContain("holdWarnings(cart, booksMap, holdLimitsFrom(settings))");
   });
 
+  it("the packed & tracked note under the total is a Studio region (show/hide + click-to-edit)", () => {
+    expect(src).toContain('regionProps("checkoutReassurance")');
+  });
+
   it("#79 the country list and address list wire combobox ARIA", () => {
     expect(country).toContain("comboboxInputProps(");
     expect(country).toContain("id={optionId(listId, i)}");
