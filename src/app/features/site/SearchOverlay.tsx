@@ -12,6 +12,8 @@ import { designNumber } from "./designNumber";
 import { getCopy } from "./storeCopy";
 import { funnelApi } from "../../lib/commerce";
 import { useFocusTrap } from "../../lib/useFocusTrap";
+import { inEditorPreview } from "../../lib/trackingGuard";
+import { addRecentSearch, readRecentSearches, writeRecentSearches } from "./recentSearches";
 
 type Book = any;
 
@@ -39,6 +41,7 @@ export function SearchOverlay({
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(design, key, vars);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  const [recent, setRecent] = useState<string[]>([]);
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -61,6 +64,7 @@ export function SearchOverlay({
 
   useEffect(() => {
     if (!open) setQuery("");
+    else setRecent(inEditorPreview() ? [] : readRecentSearches());
   }, [open]);
   useEffect(() => setActive(0), [query]);
 
@@ -88,6 +92,17 @@ export function SearchOverlay({
     const t = setTimeout(() => { funnelApi.trackSearch(query, results.length); }, 1200);
     return () => clearTimeout(t);
   }, [open, query, results.length]);
+
+  // Remember searches that found something (this browser only), so the box can offer them next time.
+  useEffect(() => {
+    if (!open || !results.length || inEditorPreview()) return;
+    const t = setTimeout(() => {
+      const next = addRecentSearch(readRecentSearches(), query);
+      writeRecentSearches(next);
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [open, query, results.length]);
+  const showRecent = design?.showRecentSearches !== false && recent.length > 0;
 
   const suggestions = useMemo(() => {
     const raw = typeof design?.searchSuggestions === "string" ? design.searchSuggestions : "";
@@ -156,6 +171,32 @@ export function SearchOverlay({
                 <p {...regionProps("searchPrompt")} className="px-5 py-10 text-center text-[10px] tracking-[0.3em] uppercase text-white/30">
                   {c("searchPrompt")}
                 </p>
+              )}
+              {query.trim() === "" && showRecent && (
+                <div {...regionProps("searchRecent")} className="px-5 pb-6 text-center">
+                  <p className="mb-3 text-[10px] tracking-[0.3em] uppercase text-white/30">
+                    {c("searchRecentLabel")}
+                    <button
+                      type="button"
+                      onClick={() => { writeRecentSearches([]); setRecent([]); inputRef.current?.focus(); }}
+                      className="ml-3 underline underline-offset-4 text-white/50 hover:text-white"
+                    >
+                      {c("searchRecentClear")}
+                    </button>
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {recent.map(term => (
+                      <button
+                        key={term}
+                        type="button"
+                        onClick={() => { setQuery(term); inputRef.current?.focus(); }}
+                        className="rounded-full border border-white/20 px-3 py-1.5 text-[11px] text-white/70 hover:bg-white/10 hover:text-white"
+                      >
+                        {term}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
               {query.trim() === "" && suggestions.length > 0 && (
                 <div {...regionProps("searchSuggestions")} className="px-5 pb-6 text-center">

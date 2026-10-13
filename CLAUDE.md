@@ -1962,3 +1962,8 @@ Shoppers may translate the storefront with the browser's Google Translate. `lib/
 text can't follow later React updates, so live money (card/PDP price, bag lines and totals, checkout summary/total) carries
 `translate="no"` — put it on any new element whose number changes while the shopper watches. Never add
 `<meta name="google" content="notranslate">` or a page-wide `translate="no"`.
+
+**Recent searches (13 October 2026):** the search pop-up lists the shopper's last five searches that found something
+(`features/site/recentSearches.ts`, localStorage `fm_recent_searches_v1`, this browser only, personal-looking terms dropped by
+`cleanSearchTerm`, never stored in the Studio preview) above Popular searches, with a Clear button. Studio › Style › Search
+pop-up › `showRecentSearches` (region `searchRecent`); words are Text & labels › Search & filters (`searchRecent*`).
