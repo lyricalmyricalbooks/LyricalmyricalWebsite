@@ -1,5 +1,6 @@
 import { isLiveBook } from "./liveBook";
 import { searchScore } from "./bookSearch";
+import { searchResultsPath } from "./searchResultsLink";
 import { displayPrice } from "./displayPrice";
 import { regionProps } from "./storefrontRegions";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -63,18 +64,21 @@ export function SearchOverlay({
   }, [open]);
   useEffect(() => setActive(0), [query]);
 
-  const results = useMemo(() => {
+  const { results, totalMatches } = useMemo(() => {
     const q = query.trim();
-    if (!q) return [];
+    if (!q) return { results: [] as any[], totalMatches: 0 };
     // Only books shoppers can open and buy (no drafts, archived or not-yet-released titles).
-    return books
+    const ranked = books
       .filter(b => isLiveBook(b as any))
       .map(b => ({ book: b, s: searchScore(b, q) }))
       .filter(x => x.s > 0)
-      .sort((a, b) => b.s - a.s)
-      .slice(0, Math.max(1, designNumber(design, "searchResultLimit", 8)))
-      .map(x => x.book);
+      .sort((a, b) => b.s - a.s);
+    return {
+      results: ranked.slice(0, Math.max(1, designNumber(design, "searchResultLimit", 8))).map(x => x.book),
+      totalMatches: ranked.length,
+    };
   }, [query, books, design]);
+  const showSeeAll = design?.showSearchSeeAll !== false && totalMatches > results.length;
   // A catalog refresh can shorten the list without a new query: keep the highlighted row inside it.
   useEffect(() => { setActive(i => (i >= results.length ? Math.max(0, results.length - 1) : i)); }, [results.length]);
 
@@ -214,6 +218,15 @@ export function SearchOverlay({
                 );
               })}
             </div>
+            {showSeeAll && (
+              <Link {...regionProps("searchSeeAll")}
+                to={searchResultsPath(query)}
+                onClick={onClose}
+                className="block border-t border-white/10 px-5 py-3 text-center text-[10px] tracking-[0.3em] uppercase text-white/60 hover:bg-white/5 hover:text-white"
+              >
+                {c("searchSeeAll", { count: totalMatches, query: query.trim() })}
+              </Link>
+            )}
           </m.div>
         </m.div>
       )}

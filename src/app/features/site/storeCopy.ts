@@ -433,6 +433,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "searchCloseAria", label: "Search close — screen-reader label", default: "Close search" },
       { key: "searchPrompt", label: "Search prompt", default: "Start typing to search" },
       { key: "searchSuggestionsLabel", label: "Popular searches heading", default: "Popular searches" },
+      { key: "searchSeeAll", label: "Search pop-up: see all results link", default: "See all {count} results", hint: "Use {count} for the number of matches and {query} for what was typed." },
       { key: "searchNoResults", label: "No results", default: "No results for “{query}”", hint: "Use {query} for what was typed." },
     ],
   },
