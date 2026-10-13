@@ -92,3 +92,11 @@ describe("on sale filter", () => {
     expect(filtersActive({ ...EMPTY_FILTERS, onSale: true }, "", false, { ...view, hasSale: false })).toBe(false);
   });
 });
+
+describe("oldest sort", () => {
+  it("lists the earliest-added book first, the reverse of newest", () => {
+    const ids = (sort: any) => applyCatalogControls(all, "", sort, false, [0, Infinity]).map(b => b.id);
+    expect(ids("oldest")).toEqual(["p", "h", "e", "a"]);
+    expect(ids("newest")).toEqual(["a", "e", "h", "p"]);
+  });
+});
