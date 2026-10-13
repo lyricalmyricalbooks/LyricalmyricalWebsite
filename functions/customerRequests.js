@@ -3,7 +3,9 @@
 // they land in Orders › Needs attention (order requests) or Settings › Privacy requests,
 // and the shop decides. Pure helpers here; the handlers live in index.js.
 
-const ORDER_REQUEST_TYPES = ["cancel", "return"];
+// Shoppers may only ask to cancel, before the order ships; the shop takes no returns (owner's
+// decision, October 2026). Returns already open are still worked in Orders › Customer return.
+const ORDER_REQUEST_TYPES = ["cancel"];
 const PRIVACY_REQUEST_TYPES = ["export", "delete"];
 const SHIPPED = ["shipped", "out_for_delivery", "delivered", "completed", "picked_up", "collected"];
 
@@ -12,7 +14,6 @@ const clean = (value, max) => String(value || "").replace(/[\u0000-\u0008\u000b\
 // Why this order can't take this request, or null.
 function orderRequestProblem(order, type) {
   if (!order) return "not_found";
-  if (type === "return" && order.returnProgress) return "already_open";
   if (!ORDER_REQUEST_TYPES.includes(type)) return "invalid";
   if (order.customerRequest && order.customerRequest.status === "open") return "already_open";
   const status = String(order.status || "").toLowerCase();
@@ -22,8 +23,7 @@ function orderRequestProblem(order, type) {
   // A bought label puts a tracking number on the order while the parcel is still in the shop,
   // so only the order's own status says whether it has left.
   const shipped = SHIPPED.includes(fulfillment) || SHIPPED.includes(status);
-  if (type === "cancel" && shipped) return "already_shipped";
-  if (type === "return" && payment !== "paid") return "not_paid";
+  if (shipped) return "already_shipped";
   return null;
 }
 

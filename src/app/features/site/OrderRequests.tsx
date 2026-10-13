@@ -7,25 +7,29 @@ import { regionProps } from "./storefrontRegions";
 
 const SHIPPED = ["shipped", "out_for_delivery", "delivered", "completed", "picked_up", "collected"];
 
-/** Which request the shopper may make for this order (mirrors functions/customerRequests.js). */
-export function requestOptions(order: any): { cancel: boolean; ret: boolean } {
-  if (!order) return { cancel: false, ret: false };
+/**
+ * Which request the shopper may make for this order (mirrors functions/customerRequests.js).
+ * Only cancelling, and only before the parcel ships: the shop doesn't take returns (owner's
+ * decision, October 2026).
+ */
+export function requestOptions(order: any): { cancel: boolean } {
+  if (!order) return { cancel: false };
   const status = String(order.status || "").toLowerCase();
   const payment = String(order.paymentStatus || "").toLowerCase();
-  if (status === "cancelled" || status === "refunded" || payment.startsWith("refund")) return { cancel: false, ret: false };
+  if (status === "cancelled" || status === "refunded" || payment.startsWith("refund")) return { cancel: false };
   const fulfillment = String(order.fulfillmentStatus || "").toLowerCase();
   const shipped = SHIPPED.includes(fulfillment) || SHIPPED.includes(status);
-  return { cancel: !shipped, ret: payment === "paid" };
+  return { cancel: !shipped };
 }
 
 /**
- * "Ask to cancel / return" on the order-tracking page. Sends a request the shop
+ * "Ask to cancel" on the order-tracking page (until the order ships). Sends a request the shop
  * answers by email; it never cancels, refunds or restocks anything by itself.
  */
 export function OrderRequestBox({ design, order, access, onUpdated }: {
   design: any; order: any; access: { email?: string; key?: string }; onUpdated: (order: any) => void;
 }) {
-  const [type, setType] = useState<"" | "cancel" | "return">("");
+  const [type, setType] = useState<"" | "cancel">("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -40,7 +44,7 @@ export function OrderRequestBox({ design, order, access, onUpdated }: {
       {["approved", "received", "inspected"].filter(step => progress[`${step}At`]).map(step => <li key={step}>{getCopy(design, `trackReturn_${step}`)} · {new Date(progress[`${step}At`]).toLocaleDateString()}</li>)}
     </ol>
   </section>;
-  if (!open && !options.cancel && !options.ret) return null;
+  if (!open && !options.cancel) return null;
 
   const send = async () => {
     if (!type || busy) return;
@@ -74,8 +78,7 @@ export function OrderRequestBox({ design, order, access, onUpdated }: {
         <p role="status" className="text-sm leading-6">{getCopy(design, order.customerRequest.type === "cancel" ? "trackReqOpenCancel" : "trackReqOpenReturn")}</p>
       ) : !type ? (
         <div className="flex flex-wrap gap-3">
-          {options.cancel && <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => setType("cancel")}>{getCopy(design, "trackReqCancel")}</button>}
-          {options.ret && <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => setType("return")}>{getCopy(design, "trackReqReturn")}</button>}
+          <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => setType("cancel")}>{getCopy(design, "trackReqCancel")}</button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -85,7 +88,7 @@ export function OrderRequestBox({ design, order, access, onUpdated }: {
           </label>
           <div className="flex flex-wrap gap-3">
             <button type="button" className="fm-track-btn" onClick={send} disabled={busy}>
-              {busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />} {getCopy(design, type === "cancel" ? "trackReqSendCancel" : "trackReqSendReturn")}
+              {busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />} {getCopy(design, "trackReqSendCancel")}
             </button>
             <button type="button" className="fm-track-btn fm-track-btn-ghost" onClick={() => { setType(""); setError(""); }} disabled={busy}>{getCopy(design, "trackReqBack")}</button>
           </div>
