@@ -58,6 +58,8 @@ import { expandDiscountCategories } from "./features/site/discountCategories";
 import { clearSharedDiscount, sharedDiscount } from "./features/site/sharedDiscount";
 import { isGiftCardProduct, bundleComponents, bundleWeightGrams } from "./features/site/promotions";
 import { isLiveBook } from "./features/site/liveBook";
+import { previewSampleCart } from "./features/site/previewSampleCart";
+import { inEditorPreview } from "./lib/trackingGuard";
 import { componentsSummary } from "./features/site/orderLineNotes";
 import { FulfillmentMethodPicker, bestFirst, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
 
@@ -253,10 +255,8 @@ function forgetAttempt(orderId: string) {
 }
 
 export function Checkout() {
-  const { cart, cartTotal, cartCount, clearCart, setCart } = useCart();
+  const { cart: shopperCart, cartTotal: shopperTotal, cartCount: shopperCount, clearCart, setCart: setShopperCart } = useCart();
   const paypalConfirmedAmount = useRef<{ amount: number; currency: string } | null>(null);
-  const cartRef = useRef(cart);
-  cartRef.current = cart;
   const { currency, formatPrice, convertPrice } = useCurrency();
 
   const [isApplying, setIsApplying]     = useState(false);
@@ -318,6 +318,16 @@ export function Checkout() {
   const [books, setBooks] = useState<any[]>(() => cachedSite?.books || []);
   // Prices, stock and shipping are only trusted once checkout has read the live catalog itself.
   const [catalogState, setCatalogState] = useState<"loading" | "ready" | "failed">("loading");
+  // Studio preview with an empty bag: one display-only sample book (never saved), so checkout's
+  // look, words and Cart sections can be edited. Shoppers always get their real bag.
+  const previewSample = useMemo(() => inEditorPreview() && shopperCart.length === 0
+    ? previewSampleCart(books.length ? books : (window as any).__studioPreviewState?.books || []) : [], [shopperCart.length, books]);
+  const cart = previewSample.length ? previewSample : shopperCart;
+  const cartTotal = previewSample.length ? previewSample.reduce((sum, item) => sum + item.price * item.quantity, 0) : shopperTotal;
+  const cartCount = previewSample.length ? previewSample.length : shopperCount;
+  const setCart: typeof setShopperCart = previewSample.length ? () => {} : setShopperCart;
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
   const cartRestoreDone = useRef(false);
   const [settings, setSettings] = useState<any>(() => cachedSite?.settings || null);
   // Until the saved settings arrive (or if they never do) checkout wears the Riso Noir defaults.
@@ -1146,7 +1156,8 @@ export function Checkout() {
 
   useEffect(() => {
     // The cookie banner lists cart reminders under Marketing: a shopper who declined gets none.
-    if (!customer.email || !customer.email.includes("@") || cart.length === 0 || !consentAllows("marketing")) return;
+    // The Studio preview never saves a cart (its bag may be the display-only sample).
+    if (inEditorPreview() || !customer.email || !customer.email.includes("@") || cart.length === 0 || !consentAllows("marketing")) return;
     const t = setTimeout(() => {
       let recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id");
       if (!recoveryCartId) {

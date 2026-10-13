@@ -75,3 +75,17 @@ export function splitNavigation(items: NavItem[], design: any): { primary: NavIt
     : (/^(?:project\s+)?submissions?\b|^(?:our\s+)?history\b|^open[ -]calls?\b/i.test(item.label.trim()) || /^(?:submissions?|history(?:-of-.+)?|open-call)(?:$|-)/i.test(item.page?.slug || "")));
   return { primary: items.filter(item => !isSecondary(item)), secondary: items.filter(isSecondary) };
 }
+
+/** The default ("Reference") shop header: every layout except Studio › Catalog layout (advanced) › Layout = Modern. */
+export const usesReferenceHeader = (design: any) => design?.catalogLayoutStyle !== "modern";
+
+/** How many categories the Reference header's bar shows — Catalog layout (advanced) › "Max categories in the nav". */
+export const referenceCategoryLimit = (design: any) => Math.max(1, Math.min(12, Number(design?.referenceCategoryLimit ?? 1) || 1));
+
+/**
+ * Top-level, visible categories the Reference header's bar shows (first N in Shop categories order). Shared by
+ * StoreHeader and Studio › Menus › Shop categories, so the menu manager can say which categories are left out.
+ */
+export function referenceNavCategories(categories: any[], design: any): any[] {
+  return categories.filter((c: any) => c.showInNav !== false && !parentOf(c, categories)).slice(0, referenceCategoryLimit(design));
+}

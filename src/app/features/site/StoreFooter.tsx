@@ -4,7 +4,7 @@ import { Instagram, Mail } from "lucide-react";
 import { POLICY_KEYS, policySlug, policyTitle } from "./policyPages";
 import { DEFAULT_SOCIAL } from "./constants";
 import { contentMaxWidth } from "./headerNav";
-import { getCopy } from "./storeCopy";
+import { getCopy, shopCopyFallback } from "./storeCopy";
 import { resolveFooterBadges } from "./paymentBadges";
 import { regionProps } from "./storefrontRegions";
 import { GroupedFooterNavigation } from "../../components/GroupedFooterNavigation";
@@ -90,7 +90,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
   const groupsLayout = linksAlign === "spread" ? "grid grid-cols-2"
     : `grid grid-cols-2 sm:flex sm:flex-wrap ${linksAlign === "start" ? "md:justify-self-start" : "md:justify-self-end"}`;
   const email = settings?.info?.email || "lyricalmyricalbooks@gmail.com";
-  const footerAbout: string = String((settings?.design?.copy?.footerAbout != null ? getCopy(settings?.design, "footerAbout") : settings?.info?.description || getCopy(settings?.design, "footerAbout")) ?? "");
+  const footerAbout: string = String((settings?.design?.copy?.footerAbout != null ? getCopy(settings?.design, "footerAbout") : shopCopyFallback(settings, "footerAbout") || getCopy(settings?.design, "footerAbout")) ?? "");
   const footerLocation: string = String(getCopy(d, "footerLocation") ?? "");
   const badges = d?.showPaymentBadges !== false ? resolveFooterBadges(d, settings) : [];
   return (

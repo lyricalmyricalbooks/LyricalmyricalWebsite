@@ -15,6 +15,15 @@ let root: ReturnType<typeof createRoot>;
 afterEach(() => { act(() => root?.unmount()); host.replaceChildren(); });
 
 describe("Studio public element controls", () => {
+  it("shows the footer About blurb the shop really uses (Settings › General description) as its default", () => {
+    const field = COPY_SCHEMA.flatMap(g => g.fields).find(f => f.key === "footerAbout")!;
+    const settings = { info: { description: "Our own shop description." } };
+    root = createRoot(host); act(() => root.render(h(StudioCopyField, { field, design: {}, settings, onChange: () => {} })));
+    expect((host.querySelector("textarea, input") as any).value).toBe("Our own shop description.");
+    act(() => root.render(h(StudioCopyField, { field, design: { copy: { footerAbout: "Typed here" } }, settings, onChange: () => {} })));
+    expect((host.querySelector("textarea, input") as any).value).toBe("Typed here");
+  });
+
   it("clears real copy through the page-aware writer and explicitly resets the default", () => {
     const field = COPY_SCHEMA.flatMap(g => g.fields).find(f => f.key === "wishlistTitle")!;
     let design: any = { wishlistPage: { copy: { wishlistTitle: "Old local value" }, sections: [1] } };

@@ -1559,7 +1559,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <div className="studio-sidebar" aria-label="Editor panel" role="region">
           <div className="studio-panel-context">
             <strong>{panelTitle}</strong>
-            <span>{leftTab === "sections" ? (showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label) + ` · ${sections.length} sections` : `Previewing: ${showGlobal ? groupLabel(globalGroup) : template.label}`}</span>
+            <span>{leftTab === "sections" ? (showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label) + ` · ${sections.length} ${sections.length === 1 ? "section" : "sections"}` : `Previewing: ${showGlobal ? groupLabel(globalGroup) : template.label}`}</span>
             <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : leftTab === "themes" ? "Save, compare, share and switch whole designs." : "Create pages and edit their content or layout."}</small>
           </div>
           <div className="flex-1 overflow-auto" ref={sidebarScrollRef}>
@@ -1634,7 +1634,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               sections={sections} selectedId={selectedId} blockId={blockId} device={device}
               hoveredId={hoverKey?.startsWith("s:") ? hoverKey.slice(2) : null}
               onHover={id => postPreview({ type: "HOVER_NODE", key: id ? `s:${id}` : null })}
-              onRename={renameSection} actions={outlineActions}
+              onRename={renameSection} actions={outlineActions} sharedBlocks={design.sharedBlocks || []} templateId={showGlobal ? "" : template.id}
               onSelect={(id, block) => { setSelectedId(id); setBlockId(block || null); setMobilePanel("settings"); highlight(id, true, block || null); }}
               onReorder={list => setList(() => list)} onPatch={(id, patch) => setList(list => patchSectionSettings(list, id, patch))}
               onAdd={setAdding} onDuplicate={dupSection} onDelete={delSection}
@@ -1826,7 +1826,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                     <section key={g.group} className="studio-subsection">
                       <div className="studio-changed-group"><strong>{g.group}</strong>
                         <button type="button" className="studio-reset" onClick={() => setTextCategory(g.group)}>Open category</button></div>
-                      <div className="studio-subsection-body">{g.fields.filter(f => typeof design.copy?.[f.key] === "string").map(f => <StudioCopyField key={f.key} field={f} design={design}
+                      <div className="studio-subsection-body">{g.fields.filter(f => typeof design.copy?.[f.key] === "string").map(f => <StudioCopyField key={f.key} field={f} design={design} settings={settings}
                         onChange={value => setCopy(f.key, value)} />)}</div>
                     </section>
                   ))}
@@ -1836,12 +1836,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   if (!q && g.group !== textCategory) return null;
                   const fs = g.fields.filter((f) => !q || `${f.label} ${g.group} ${f.default} ${f.key}`.toLowerCase().includes(q));
                   if (!fs.length) return null;
-                  const fieldsList = fs.map(f => <StudioCopyField key={f.key} field={f} design={design}
+                  const fieldsList = fs.map(f => <StudioCopyField key={f.key} field={f} design={design} settings={settings}
                     onChange={value => setCopy(f.key, value)} />);
                   if (!q) return <div key={g.group} data-studio-panel={`copy:${g.group}`} className="px-4 pb-4 space-y-4">
                     {textSubsectionsFor(g).map((sub, i, all) => <SettingsSubsection key={sub.title || "all"} title={all.length > 1 ? sub.title : ""} noun="word"
                       count={sub.fields.length} changed={changedCopyCount(sub.fields, design)} defaultOpen={i === 0} keys={sub.fields.map(f => f.key)}>
-                      {sub.fields.map(f => <StudioCopyField key={f.key} field={f} design={design} onChange={value => setCopy(f.key, value)} />)}
+                      {sub.fields.map(f => <StudioCopyField key={f.key} field={f} design={design} settings={settings} onChange={value => setCopy(f.key, value)} />)}
                     </SettingsSubsection>)}
                   </div>;
                   return (
@@ -1928,7 +1928,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
   const selectedTabs = useMemo(() => selectedElement ? elementTabs(selectedElement, device, design) : null, [selectedElement, device, design]);
   const elementPanel = selectedElement && selectedTabs && (
-          <StudioElementInspector element={selectedElement} path={structurePath(structure, selectedElement.key)} tabs={selectedTabs} design={design}
+          <StudioElementInspector element={selectedElement} path={structurePath(structure, selectedElement.key)} tabs={selectedTabs} design={design} settings={settings}
             deviceLabel={REGION_DEVICE_LABELS[device]} scope={styleScope} pageLabel={template.label} onScope={setStyleScope}
             renderField={({ group, field }) => renderStyleField(group, field)}
             onCopy={(key, value) => setCopy(key, value)}

@@ -1218,7 +1218,7 @@ export default function BookDetail() {
                       )}
 
                       {/* Sale badge */}
-                      {isOnSale && !isOutOfStock && (
+                      {isOnSale && !isOutOfStock && storefrontDesign.showSaleBadge !== false && (
                         <div className="absolute top-5 left-5">
                           <span
                             className="text-[9px] font-black tracking-[0.3em] uppercase px-4 py-2 rounded-full"

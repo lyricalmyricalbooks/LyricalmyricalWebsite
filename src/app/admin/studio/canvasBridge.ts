@@ -55,7 +55,7 @@ export const CANVAS_TOOLS_SOURCE = String.raw`
       handle.style.left=Math.max(4,Math.min(x-50,innerWidth-110))+'px';handle.style.top=Math.max(48,Math.min(y-16,innerHeight-40))+'px';
       var clamp=function(v){return Math.max(limits.min,Math.min(limits.max,v));};
       handle.onkeydown=function(e){if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End','Escape'].indexOf(e.key)<0)return;e.preventDefault();e.stopPropagation();if(e.key==='Escape'){spacingOpen=false;draw();return;}var next=e.key==='Home'?limits.min:e.key==='End'?limits.max:clamp(value+(['ArrowUp','ArrowRight'].indexOf(e.key)>=0?1:-1)*(e.shiftKey?1:4));spacingCommit(key,next);};
-      handle.onpointerdown=function(e){e.preventDefault();e.stopPropagation();if(spacingSession)return;
+      handle.onpointerdown=function(e){e.preventDefault();e.stopPropagation();if(spacingSession)return;try{window.focus();handle.focus({preventScroll:true});}catch(_){}
         var sectionId=selected,device=canvasDevice,original=target.getAttribute('style'),startX=e.screenX,startY=e.screenY,next=value;
         send({type:'TEXT_EDIT_START',label:label+' · '+device});
         var property=spacingProperty(key,target);

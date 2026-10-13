@@ -9,11 +9,12 @@ import { ThemeToggle } from "../../components/theme/ThemeToggle";
 import { liveWishlistCount, useWishlist } from "../../lib/wishlist";
 import { accountsEnabled } from "./customerAccounts";
 import { layerDesign } from "./designModel";
-import { contentMaxWidth, navLineProps, navLinkStyle, useNavBelow, useNavFit } from "./headerNav";
+import { contentMaxWidth, navLineProps, navLinkStyle, ownNavLinkStyle, useNavBelow, useNavFit } from "./headerNav";
+import { PHONE_MAX } from "./breakpoints";
 import { isLiveBook } from "./liveBook";
 import { MobileStorefrontNav } from "./MobileStorefrontNav";
 import { NavDropdown, type NavDropdownEntry } from "./NavDropdown";
-import { buildNavItems, childCategories, parentOf, splitNavigation, type NavItem } from "./navItems";
+import { buildNavItems, childCategories, parentOf, referenceNavCategories, splitNavigation, usesReferenceHeader, type NavItem } from "./navItems";
 import { SearchOverlay } from "./SearchOverlay";
 import { SecondaryStorefrontNav } from "./SecondaryStorefrontNav";
 import { getPublishedBooks } from "./selectors";
@@ -458,15 +459,17 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const buttonText = sf?.buttonTextColor || "#100f0d";
   const maxWidth = contentMaxWidth(sf);
   // Default legacy storefronts into the "reference" masthead layout unless the catalog is "modern".
-  const isReferenceCatalog = sf?.catalogLayoutStyle !== "modern";
+  const isReferenceCatalog = usesReferenceHeader(sf);
   const headerRuleWidth = Math.max(0, Math.min(8, sf?.catalogHeaderRuleWidth ?? (isReferenceCatalog ? 4 : 1)));
   const headerMaxWidth = Math.max(900, Math.min(1800, sf?.catalogHeaderWidth ?? maxWidth));
   const mastheadDesktop = Math.max(28, Math.min(96, sf?.catalogMastheadDesktop ?? 58));
   const mastheadMobile = Math.max(24, Math.min(72, sf?.catalogMastheadMobile ?? 38));
-  const navGapDesktop = Math.max(12, Math.min(80, sf?.catalogNavGapDesktop ?? 40));
+  // Catalog layout › "Nav spacing (desktop)" first, then Navigation links › "Space between links" (the inspector's Layout tab).
+  const navGapDesktop = Math.max(4, Math.min(80, sf?.catalogNavGapDesktop ?? sf?.navGap ?? 40));
   const navGapMobile = Math.max(8, Math.min(48, sf?.catalogNavGapMobile ?? 18));
   const cartPlacement = sf?.catalogCartPlacement || "top-right";
-  const mastheadText = sf?.catalogMastheadText ?? shop.siteName ?? getCopy(design, "siteName");
+  // Logo & wordmark › "Text logo" and "Logo / wordmark color" reach the Reference masthead too.
+  const mastheadText = sf?.catalogMastheadText ?? (sf?.logoText || shop.siteName || getCopy(design, "siteName"));
   const buttonRadius = Math.max(0, Math.min(999, sf?.buttonRadius ?? 999));
   const buttonStyle = sf?.buttonStyle || "solid";
   const buttonUppercase = sf?.buttonUppercase ?? true;
@@ -514,11 +517,12 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
       >
         {isReferenceCatalog ? (
           <div className="mx-auto px-6 py-6" style={{ maxWidth: headerMaxWidth, color: headerTextColor }}>
-            <div className="flex items-start justify-between gap-6">
+            {mastheadDesktop < mastheadMobile && <style>{`.fm-ref-masthead{font-size:${mastheadMobile}px}@media(min-width:${PHONE_MAX + 1}px){.fm-ref-masthead{font-size:${mastheadDesktop}px}}`}</style>}
+            <div className={`flex items-start gap-6 ${shop.logoPosition === "right" ? "flex-row-reverse justify-between" : shop.logoPosition === "center" ? "justify-center relative" : "justify-between"}`}>
               <button
                 onClick={onHome}
-                className="text-left font-black tracking-tight leading-none hover:opacity-80 transition-opacity"
-                style={{ color: headerTextColor, textTransform: sf?.brandTransform || "none", fontSize: `clamp(${mastheadMobile}px, 5vw, ${mastheadDesktop}px)` }}
+                className={`fm-ref-masthead font-black tracking-tight leading-none hover:opacity-80 transition-opacity ${shop.logoPosition === "right" ? "text-right" : shop.logoPosition === "center" ? "text-center" : "text-left"}`}
+                style={{ color: sf?.logoColor || headerTextColor, textTransform: sf?.brandTransform || "none", fontSize: mastheadDesktop < mastheadMobile ? undefined : `clamp(${mastheadMobile}px, 5vw, ${mastheadDesktop}px)` }}
               >
                 <span data-studio-target="style:catalogLayout|style:logo" data-studio-label="Masthead" data-studio-style-text="catalogMastheadText">{mastheadText}</span>
               </button>
@@ -526,7 +530,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                 <button
                   onClick={() => setIsCartOpen(true)}
                   aria-label={getCopy(design, "ariaCart")}
-                  className="flex items-center gap-2 pt-1 text-lg md:text-2xl font-black leading-none hover:opacity-70 transition-opacity"
+                  className={`flex items-center gap-2 pt-1 text-lg md:text-2xl font-black leading-none hover:opacity-70 transition-opacity ${shop.logoPosition === "center" ? "absolute right-0 top-0" : ""}`}
                   style={{ color: headerTextColor }}
                 >
                   <ShoppingCart size={28} strokeWidth={2.4} />
@@ -538,7 +542,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
             </div>
             <div className="mt-6" style={{ borderTop: `${headerRuleWidth}px solid ${sf?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
             <div data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className="py-5 flex flex-wrap items-center text-base font-black" style={{ columnGap: navGapDesktop, rowGap: navGapMobile }}>
-              {categories.filter((c: any) => c.showInNav !== false && !parentOf(c, categories)).slice(0, sf?.referenceCategoryLimit ?? 1).map((cat: any) => {
+              {referenceNavCategories(categories, sf).map((cat: any, index: number) => {
                 const catName = typeof cat === "string" ? cat : cat.name;
                 const isActive = activeName === catName;
                 const subs = childCategories(cat, categories).filter((k: any) => k.showInNav !== false);
@@ -551,22 +555,25 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                       copyDesign={design}
                       studioTarget={false}
                       label={catName}
-                      linkStyle={{ color: headerTextColor, fontSize: "inherit", fontWeight: "inherit", opacity: branchActive ? 1 : 0.7 }}
-                      className="hover:!opacity-100"
+                      linkStyle={{ color: headerTextColor, fontSize: "inherit", fontWeight: "inherit", opacity: branchActive ? 1 : 0.7, ...ownNavLinkStyle(sf, branchActive), ...(stickers ? stickerPillStyle(sf, index, branchActive) : {}) }}
+                      className={`hover:!opacity-100${stickers ? " fm-sticker-pill" : ""}`}
                       all={{ key: `${catName}:all`, label: catName, active: isActive, onSelect: () => pick(cat) }}
                       entries={subs.map((k: any) => ({ key: `cat:${k.id}`, label: k.name, active: activeName === k.name, onSelect: () => pick(categories.find((c: any) => c.id === k.id) || k) }))}
                     />
                   );
                 }
                 return (
-                  <button key={catName} onClick={() => pick(cat)} className={isActive ? "opacity-100" : "opacity-70 hover:opacity-100"}>
+                  <button key={catName} onClick={() => pick(cat)} className={`${isActive ? "opacity-100" : "opacity-70 hover:opacity-100"}${stickers ? " fm-sticker-pill" : ""}`}
+                    style={{ ...ownNavLinkStyle(sf, isActive), ...(stickers ? stickerPillStyle(sf, index, isActive) : {}) }}>
                     {catName}
                   </button>
                 );
               })}
               {splitNavigation(navItems, sf).primary.filter(item => item.kind === "page").map((item: any) => item.page).map((page: any) => (
-                <Link key={page.id} to={`/page/${page.slug}`} className="hover:opacity-70 transition-opacity">{page.title}</Link>
+                <Link key={page.id} to={`/page/${page.slug}`} className="hover:opacity-70 transition-opacity" style={ownNavLinkStyle(sf, location.pathname.endsWith(`/page/${page.slug}`))}>{page.title}</Link>
               ))}
+              {/* Navigation › Header menu: the same links the Modern and page headers show. */}
+              {sf?.menus?.header?.length > 0 && <StoreMenu items={sf.menus.header} design={sf} />}
               {!design?.hideHeaderSearch && <button onClick={onSearch} className="hover:opacity-70 transition-opacity"><span data-studio-copy="navSearch">{getCopy(design, "navSearch")}</span></button>}
               {showSys && (
                 <Link to="/admin" className="hover:opacity-70 transition-opacity opacity-40"><span data-studio-copy="navAdmin">{getCopy(design, "navAdmin")}</span></Link>

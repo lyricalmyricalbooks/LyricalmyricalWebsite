@@ -28,6 +28,24 @@ export function navLinkStyle(design: any, active: boolean, color?: string): CSSP
 }
 
 /**
+ * The Reference shop header keeps its own bold look (large text, header colour) and only takes the
+ * Navigation links values the owner actually set, so an untouched design looks exactly as before.
+ */
+export function ownNavLinkStyle(design: any, active: boolean): CSSProperties {
+  const d = design || {};
+  const set = (v: any) => v !== undefined && v !== null && v !== "";
+  const style: CSSProperties = {};
+  const color = active ? d.navLinkActiveColor || d.navLinkColor : d.navLinkColor;
+  if (color) style.color = color;
+  if (set(d.navLinkSize)) style.fontSize = `${Number(d.navLinkSize)}px`;
+  if (set(d.navLinkWeight)) style.fontWeight = Number(d.navLinkWeight);
+  if (set(d.navLinkSpacing)) style.letterSpacing = `${d.navLinkSpacing}em`;
+  if (set(d.navLinkTransform)) style.textTransform = d.navLinkTransform as CSSProperties["textTransform"];
+  if (!active && set(d.navLinkOpacity)) style.opacity = Math.max(0.1, Math.min(1, Number(d.navLinkOpacity)));
+  return style;
+}
+
+/**
  * Width of the storefront content column — Studio › Style › Layout › "Content width"
  * (`containerWidth`). The header, product page and shop grid all use it so their left
  * edges line up with the logo.

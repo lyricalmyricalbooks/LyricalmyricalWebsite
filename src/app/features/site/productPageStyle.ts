@@ -154,7 +154,7 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-tag{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;font-size:10px;font-weight:900;letter-spacing:.3em;text-transform:uppercase;line-height:1;}`;
   css += `${S} .fm-pdp-tag[data-style="filled"]{background:var(--badge-bg-primary, var(--accent));color:var(--badge-text-primary, var(--on-accent));}`;
   css += `${S} .fm-pdp-tag[data-style="outline"]{border:2px solid currentColor;color:rgb(var(--fg-rgb));}`;
-  css += `${S} .fm-pdp-title{margin:0;font-family:${titleFont};font-weight:400;line-height:.98;overflow-wrap:anywhere;text-wrap:balance;color:${cardTint("pdpTitleColor", "rgb(var(--fg-rgb))")};${titleCase}}`;
+  css += `${S} .fm-pdp-title{margin:0;font-family:${titleFont};font-weight:${has(d.headingWeight) ? Number(d.headingWeight) || 400 : 400};line-height:.98;overflow-wrap:anywhere;text-wrap:balance;color:${cardTint("pdpTitleColor", "rgb(var(--fg-rgb))")};${titleCase}}`;
   css += sizeRules(`${S} .fm-pdp-title`, num(d, "pdpTitleSize", 0, 0, 120), num(d, "pdpTitleSizeMobile", 0, 0, 96), "var(--pdp-title-auto, clamp(34px, 4.6vw, 62px))");
   css += `${S} .fm-pdp-price{font-family:${priceFont};font-weight:400;line-height:1;letter-spacing:.01em;font-variant-numeric:tabular-nums;color:${cardTint("pdpPriceColor", "rgb(var(--fg-rgb))")};}`;
   css += sizeRules(`${S} .fm-pdp-price`, num(d, "pdpPriceSize", 0, 0, 96), num(d, "pdpPriceSizeMobile", 0, 0, 80), "clamp(34px, 5vw, 60px)");

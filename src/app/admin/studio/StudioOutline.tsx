@@ -8,6 +8,7 @@ import { addChildBlock, mapBlock, newId, type Section, type StudioBlock } from "
 import { outlineMatches } from "./studioNavigation";
 import { updateBlocks } from "./studioWorkflow";
 import { sectionPreviewNote } from "./sectionStatus";
+import type { SharedBlock } from "../../features/site/sharedBlocks";
 
 /** Extra list tools the editor provides (menus, copy/paste, moving, bulk actions). */
 export type OutlineActions = {
@@ -18,44 +19,58 @@ export type OutlineActions = {
   moveBlock: (sectionId: string, blockId: string) => void;
 };
 
+const blockWords = (block: any) => displayValue(block.title || block.question || block.heading || block.author || block.alt || block.text);
+
 export function blockLabel(block: any, index: number, fallback = "Block") {
-  return String(displayValue(block.title || block.question || block.heading || block.author || block.alt || block.text) || `${fallback} ${index + 1}`);
+  return String(blockWords(block) || `${fallback} ${index + 1}`);
 }
 
-function NestedBlocks({ blocks, section, depth, selectedId, blockId, label, onSelect, onChange, onMoveBlock }: {
+/** A linked shared block's row reads its source's words (else the shared block's name), not "Column 2". */
+export function outlineBlockLabel(block: any, index: number, fallback: string, library: SharedBlock[] = []) {
+  const source = block?.sharedBlockId ? library.find(item => item.id === block.sharedBlockId) : undefined;
+  if (!source) return blockLabel(block, index, fallback);
+  return String(blockWords({ ...source.block, ...block }) || source.name || `${fallback} ${index + 1}`);
+}
+
+function NestedBlocks({ blocks, section, depth, selectedId, blockId, label, onSelect, onChange, onMoveBlock, library = [] }: {
   blocks: StudioBlock[]; section: Section; depth: number; selectedId: string | null; blockId: string | null;
   label: string; onSelect: (sectionId: string, blockId?: string) => void; onChange: (next: StudioBlock[]) => void;
   onMoveBlock?: (sectionId: string, blockId: string) => void;
+  /** design.sharedBlocks, for naming linked placements. */
+  library?: SharedBlock[];
 }) {
   if (depth >= 3) return null;
+  const nameOf = (block: any, i: number, fallback = label) => outlineBlockLabel(block, i, fallback, library);
   return <div className="studio-blocks" data-depth={depth}>
     <SortableList items={blocks} getId={(b: any) => b.id} onReorder={onChange}>
       {blocks.map((block: StudioBlock, i: number) => <SortableRow key={block.id} id={block.id}>
         {({ handleProps }) => <>
           <div className="studio-tree-row" data-selected={selectedId === section.id && blockId === block.id} data-hidden={block.hidden}>
-            <button {...handleProps} className="studio-grip" aria-label={`Reorder ${blockLabel(block, i)}`}><GripVertical size={13} /></button>
+            <button {...handleProps} className="studio-grip" aria-label={`Reorder ${nameOf(block, i, "Block")}`}><GripVertical size={13} /></button>
             <button className="studio-tree-label" aria-current={selectedId === section.id && blockId === block.id} onClick={() => onSelect(section.id, block.id)}>
-              {blockLabel(block, i, label)}<small>{block.sharedBlockId ? "Linked shared block" : block.type || "content"}{block.children?.length ? ` · ${block.children.length} children` : ""}</small>
+              {nameOf(block, i)}<small>{block.sharedBlockId ? "Linked shared block" : block.type || "content"}{block.children?.length ? ` · ${block.children.length} children` : ""}</small>
             </button>
             <IconButton label={block.hidden ? "Show block" : "Hide block"} onClick={() => onChange(mapBlock(blocks, block.id, b => ({ ...b, hidden: !b.hidden })))}>{block.hidden ? <EyeOff size={13} /> : <Eye size={13} />}</IconButton>
-            {onMoveBlock && <IconButton label={`Move ${blockLabel(block, i, label)} to another section`} onClick={() => onMoveBlock(section.id, block.id)}><ArrowRightLeft size={13} /></IconButton>}
+            {onMoveBlock && <IconButton label={`Move ${nameOf(block, i)} to another section`} onClick={() => onMoveBlock(section.id, block.id)}><ArrowRightLeft size={13} /></IconButton>}
           </div>
-          {block.children?.length ? <NestedBlocks blocks={block.children} section={section} depth={depth + 1} selectedId={selectedId} blockId={blockId} label={label} onSelect={onSelect} onMoveBlock={onMoveBlock}
+          {block.children?.length ? <NestedBlocks blocks={block.children} section={section} depth={depth + 1} selectedId={selectedId} blockId={blockId} label={label} onSelect={onSelect} onMoveBlock={onMoveBlock} library={library}
             onChange={children => onChange(mapBlock(blocks, block.id, b => ({ ...b, children })))} /> : null}
           {depth < 2 && block.type === "group" && <button className="studio-insert" onClick={() => {
             const child = { id: newId(), type: "text", title: "New nested block", body: "" };
             onChange(addChildBlock(blocks, block.id, child)); onSelect(section.id, child.id);
-          }}><Plus size={12} /> Add inside {blockLabel(block, i, label)}</button>}
+          }}><Plus size={12} /> Add inside {nameOf(block, i)}</button>}
         </>}
       </SortableRow>)}
     </SortableList>
   </div>;
 }
 
-export function StudioOutline({ sections, selectedId, blockId, onSelect, onReorder, onPatch, onAdd, onDuplicate, onDelete, onToggle, hoveredId, onHover, onRename, actions, device = "desktop" }: {
+export function StudioOutline({ sections, selectedId, blockId, onSelect, onReorder, onPatch, onAdd, onDuplicate, onDelete, onToggle, hoveredId, onHover, onRename, actions, device = "desktop", sharedBlocks = [], templateId = "" }: {
   sections: Section[]; selectedId: string | null; blockId: string | null;
   /** The previewed size, so rows can say when a section is hidden there (or scheduled) and so missing from the preview. */
   device?: string;
+  /** design.sharedBlocks (linked block names) and the open page template (preview notes). */
+  sharedBlocks?: SharedBlock[]; templateId?: string;
   onSelect: (sectionId: string, blockId?: string) => void;
   onReorder: (sections: Section[]) => void; onPatch: (id: string, patch: any) => void;
   onAdd: (index: number) => void; onDuplicate: (id: string) => void;
@@ -152,7 +167,7 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
                 <button className="studio-tree-label" aria-current={selectedId === section.id && !blockId} aria-pressed={actions ? picked.includes(section.id) : undefined}
                   onClick={e => { if (actions && (e.ctrlKey || e.metaKey || e.shiftKey)) { e.preventDefault(); pick(section.id, e.shiftKey); return; } setPicked([]); onSelect(section.id); }}>
                   <strong>{picked.includes(section.id) && <Check size={12} className="studio-picked-mark" aria-hidden="true" />}{index + 1}. {(section as any).label || meta?.label || section.type}</strong>
-                  <small>{section.visible === false ? "Hidden · " : sectionPreviewNote(section, device) ? `${sectionPreviewNote(section, device)} · ` : ""}{(section as any).label ? `${meta?.label || section.type} · ` : ""}{displayValue(section.settings.title || section.settings.heading) || (supportsBlocks ? `${blocks.length} blocks` : "Section")}</small>
+                  <small>{section.visible === false ? "Hidden · " : sectionPreviewNote(section, device, undefined, templateId) ? `${sectionPreviewNote(section, device, undefined, templateId)} · ` : ""}{(section as any).label ? `${meta?.label || section.type} · ` : ""}{displayValue(section.settings.title || section.settings.heading) || (supportsBlocks ? `${blocks.length} blocks` : "Section")}</small>
                 </button>
                 <IconButton label={section.visible === false ? "Show section" : "Hide section"} onClick={() => onToggle(section.id)}>{section.visible === false ? <EyeOff size={14} /> : <Eye size={14} />}</IconButton>
                 <details className="studio-row-menu" ref={el => { if (el) menus.current.set(section.id, el); else menus.current.delete(section.id); }}
@@ -186,7 +201,7 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
                 </div></details>
               </div>
               {supportsBlocks && open && <div>
-                <NestedBlocks blocks={blocks} section={section} depth={0} selectedId={selectedId} blockId={blockId} label={meta?.blockLabel || "Block"} onSelect={onSelect} onChange={next => patchBlocks(() => next)} onMoveBlock={actions?.moveBlock} />
+                <NestedBlocks blocks={blocks} section={section} depth={0} selectedId={selectedId} blockId={blockId} label={meta?.blockLabel || "Block"} onSelect={onSelect} onChange={next => patchBlocks(() => next)} onMoveBlock={actions?.moveBlock} library={sharedBlocks} />
                 <SecondaryButton onClick={() => {
                   const block = { ...JSON.parse(JSON.stringify(meta?.blockDefaults || {})), id: newId() };
                   patchBlocks(list => [...list, block]); onSelect(section.id, block.id);

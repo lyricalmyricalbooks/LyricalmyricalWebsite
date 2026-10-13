@@ -53,7 +53,7 @@ export function sectionStyleFields(colorSchemes: { id: string; name: string }[] 
 
     style("Boxes & lines", { key: "boxColor", label: "Box fill", kind: "color" }),
     style("Boxes & lines", { key: "raisedBoxColor", label: "Raised box fill", kind: "color" }),
-    style("Boxes & lines", { key: "lineColor", label: "Line / border colour", kind: "color" }),
+    style("Boxes & lines", { key: "lineColor", label: "Line / border colour", kind: "color", hint: "Colours the lines and outlines this section draws (cards, dividers, form boxes). A section with no lines shows no change." }),
 
     style("Buttons", { key: "btnBg", label: "Button background", kind: "color" }),
     style("Buttons", { key: "btnText", label: "Button text", kind: "color" }),
