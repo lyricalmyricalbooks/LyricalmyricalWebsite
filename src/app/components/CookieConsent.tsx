@@ -97,7 +97,7 @@ export function CookieConsent() {
           </p>
 
           {showDetails && (
-            <div className="mb-5 space-y-2 border-y-2 border-[var(--rp-outline)] py-4 text-xs text-[var(--muted)]">
+            <div {...regionProps("cookieChoices")} className="mb-5 space-y-2 border-y-2 border-[var(--rp-outline)] py-4 text-xs text-[var(--muted)]">
               <label className="flex items-start gap-3 opacity-60">
                 <input type="checkbox" checked disabled className="mt-0.5 accent-[var(--accent)]" />
                 <span>
@@ -129,7 +129,7 @@ export function CookieConsent() {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-2.5">
+          <div {...regionProps("cookieActions")} className="flex flex-wrap gap-2.5">
             <button onClick={() => decide({ analytics: true, marketing: true })} className={primary}>
               {c("cookieAcceptAll")}
             </button>
