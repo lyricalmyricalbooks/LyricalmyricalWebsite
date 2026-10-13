@@ -652,7 +652,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
         {/* The shop could not be read and nothing was cached: say so with Retry instead of showing an empty shop. */}
         {loadError && books.length === 0 && (
-          <div role="alert" className="flex flex-wrap items-center justify-center gap-4 px-6 py-3 text-center text-[11px] uppercase tracking-[0.2em]" style={{ backgroundColor: storefrontText, color: storefrontBg }}>
+          <div role="alert" {...regionProps("catalogLoadNotice")} className="flex flex-wrap items-center justify-center gap-4 px-6 py-3 text-center text-[11px] uppercase tracking-[0.2em]" style={{ backgroundColor: storefrontText, color: storefrontBg }}>
             <span>{getCopy(activeDesign, "catalogLoadError")}</span>
             <button type="button" onClick={retry} className="underline underline-offset-4">{getCopy(activeDesign, "catalogRetry")}</button>
           </div>
@@ -760,19 +760,21 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
+                {...regionProps("categoryBanner")}
+                data-studio-target={regionProps("categoryBanner")["data-studio-target"] + "|menus:categories"}
                 className="mb-16 space-y-8"
               >
                 {activeCategory.imageUrl && (
-                  <div className="aspect-[21/9] w-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+                  <div {...regionProps("categoryBannerImage")} className="aspect-[21/9] w-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
                     <img src={activeCategory.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={activeCategory.name} />
                   </div>
                 )}
                 <div className="max-w-3xl">
-                  <h2 className="text-3xl md:text-5xl font-bold tracking-tighter mb-4 uppercase">
+                  <h2 {...regionProps("categoryBannerTitle")} className="text-3xl md:text-5xl font-bold tracking-tighter mb-4 uppercase">
                     {activeCategory.name}
                   </h2>
                   {activeCategory.description && (
-                    <p className="text-sm md:text-base text-white/60 leading-relaxed font-medium">
+                    <p {...regionProps("categoryBannerText")} className="text-sm md:text-base text-white/60 leading-relaxed font-medium">
                       {activeCategory.description}
                     </p>
                   )}
@@ -800,7 +802,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           )}
 
           {filteredItems.length === 0 && (
-            <p className="py-20 text-center text-[10px] tracking-[0.4em] text-white/30 uppercase">
+            <p {...regionProps("catalogEmptyMessage")} className="py-20 text-center text-[10px] tracking-[0.4em] text-white/30 uppercase">
               {getCopy(storefrontDesign, "catalogEmpty")}
             </p>
           )}
