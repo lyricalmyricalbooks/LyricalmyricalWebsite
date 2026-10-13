@@ -173,6 +173,11 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-tag[data-style="outline"]{border:2px solid currentColor;color:rgb(var(--fg-rgb));}`;
   css += `${S} .fm-pdp-title{margin:0;font-family:${titleFont};font-weight:${has(d.headingWeight) ? Number(d.headingWeight) || 400 : 400};line-height:.98;overflow-wrap:anywhere;text-wrap:balance;color:${cardTint("pdpTitleColor", "rgb(var(--fg-rgb))")};${titleCase}}`;
   css += sizeRules(`${S} .fm-pdp-title`, num(d, "pdpTitleSize", 0, 0, 120), num(d, "pdpTitleSizeMobile", 0, 0, 96), "var(--pdp-title-auto, clamp(34px, 4.6vw, 62px))");
+  // Author / contributors line under the title: empty controls keep its built-in look.
+  if (has(d.pdpSubtitleColor)) css += `${S} .fm-pdp-subtitle{color:${cardTint("pdpSubtitleColor", "var(--muted)")};}`;
+  const subtitleSize = num(d, "pdpSubtitleSize", 0, 0, 64);
+  const subtitleSizeMobile = num(d, "pdpSubtitleSizeMobile", 0, 0, 48);
+  if (subtitleSize || subtitleSizeMobile) css += sizeRules(`${S} .fm-pdp-subtitle`, subtitleSize, subtitleSizeMobile, "1.25rem");
   css += `${S} .fm-pdp-price{font-family:${priceFont};font-weight:400;line-height:1;letter-spacing:.01em;font-variant-numeric:tabular-nums;color:${cardTint("pdpPriceColor", "rgb(var(--fg-rgb))")};}`;
   css += sizeRules(`${S} .fm-pdp-price`, num(d, "pdpPriceSize", 0, 0, 96), num(d, "pdpPriceSizeMobile", 0, 0, 80), "clamp(34px, 5vw, 60px)");
   css += `${S} .fm-pdp-stock{display:inline-flex;align-items:center;gap:8px;}`;

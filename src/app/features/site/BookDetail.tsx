@@ -236,6 +236,8 @@ export default function BookDetail() {
   const pdpShowBackLink   = tokenSource.pdpShowBackLink   ?? true;
   const pdpShowBreadcrumb = tokenSource.pdpShowBreadcrumb ?? true;
   const pdpShowTag        = tokenSource.pdpShowTag        ?? true;
+  const pdpShowSubtitle   = tokenSource.pdpShowSubtitle   ?? true;
+  const pdpShowAuthorName = tokenSource.pdpShowAuthorName ?? true;
   const pdpTagStyle       = tokenSource.pdpTagStyle === "outline" ? "outline" : "filled";
   const pdpShowStock      = tokenSource.pdpShowStock      ?? true;
   const pdpShowCaption    = tokenSource.pdpShowCaption    ?? true;
@@ -777,14 +779,15 @@ export default function BookDetail() {
                     >
                       {book.title}
                     </h1>
-                    {bk.subtitle && (
-                      <p className={`text-white/40 text-xl leading-snug ${
+                    {/* Author / contributors line (Style › Product page · buy card & details › Contributors line). */}
+                    {pdpShowSubtitle && bk.subtitle && (
+                      <p data-studio-target="style:productCard" data-studio-label="Book contributors" className={`fm-pdp-subtitle text-white/40 text-xl leading-snug ${
                         productSubtitleWeight === "bold" ? "font-bold" :
                         productSubtitleWeight === "medium" ? "font-normal" : "font-light"
                       }`}>{bk.subtitle}</p>
                     )}
-                    {bk.authorName && (
-                      <p className="fm-pdp-meta">{bk.authorName}</p>
+                    {pdpShowAuthorName && bk.authorName && (
+                      <p className="fm-pdp-meta" data-studio-target="style:productCard" data-studio-label="Book contributors">{bk.authorName}</p>
                     )}
                   </div>
         </Fragment>;
