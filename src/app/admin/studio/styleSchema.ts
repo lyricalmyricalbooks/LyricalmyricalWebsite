@@ -41,7 +41,8 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Product title & price": /^(pdpTitle|pdpPrice|productTitleSize|productSubtitleWeight)/,
   "Product photos": /^(productPhotoOutline|pdpThumb|pdpPhoto|pdpShowCaption|productImage|productBorderRadius|showZoom)/,
   "Product details tabs": /^(pdpDetailsPlacement|pdpSpecsStyle|pdpTab|pdpPanel|productDetailsLayout|showSpecs)/,
-  "Breadcrumb": /^(pdpShowBreadcrumb|pdpShowBackLink|pdpMeta)/,
+  "Breadcrumb": /^(pdpShowBreadcrumb|pdpShowBackLink|pdpShowBackArrow|pdpMeta)/,
+  "Back link": /^(pdpShowBackLink$|pdpShowBackArrow$|pdpMeta)/,
   "Footer brand": /^(footerLogo|logoUrl|logoColor|logoTint|wordmark)/,
   "Bag heading": /^(elementSchemes\.cartDrawer$|cartDrawer(Title|Meta|ShowCount|Padding|Edge))/,
   "Free-shipping bar": /^(showFreeShipBar|cartDrawerProgress)/,
@@ -510,6 +511,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     hint: "The bordered buy card, photo rail and caption, breadcrumb and the Description / Details / Reviews tabs. Leave a colour empty to follow the theme.",
     fields: [
       { key: "pdpShowBackLink", label: "Show “Back” link above the breadcrumb", kind: "toggle" },
+      { key: "pdpShowBackArrow", label: "Show the arrow before the “Back” link", kind: "toggle", defaultValue: true },
       { key: "pdpShowBreadcrumb", label: "Show breadcrumb (Shop / category / title)", kind: "toggle" },
       { key: "pdpCardBg", label: "Card background", kind: "color" },
       { key: "pdpCardBorderColor", label: "Card border colour", kind: "color" },

@@ -155,7 +155,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Photo frame & thumbnails", keys: ["pdpThumbPosition", "pdpThumbWrap", "pdpThumbSize", "pdpThumbActiveColor", "pdpPhotoBorderColor", "pdpPhotoBorderWidth", "pdpShowCaption"] },
     { title: "Description / Details tabs", keys: ["pdpDetailsPlacement", "pdpSpecsStyle", "pdpTabActiveBg", "pdpTabActiveText", "pdpPanelBorderColor", "pdpPanelTextWidth"] },
     { title: "Description text", keys: ["pdpDescFont", "pdpDescSize", "pdpDescSizeMobile", "pdpDescLineHeight", "pdpDescColor", "pdpDescAlign", "pdpDescLinkColor", "pdpDescLinkUnderline", "pdpDescHeadingFont", "pdpDescHeadingSize", "pdpDescHeadingColor", "pdpDescQuoteColor", "pdpDescBlockGap"] },
-    { title: "Breadcrumb & small labels", keys: ["pdpShowBackLink", "pdpShowBreadcrumb", "pdpMetaFont", "pdpMetaSize", "pdpMetaColor"] },
+    { title: "Breadcrumb & small labels", keys: ["pdpShowBackLink", "pdpShowBackArrow", "pdpShowBreadcrumb", "pdpMetaFont", "pdpMetaSize", "pdpMetaColor"] },
   ],
   catalogLayout: [
     { title: "Masthead", keys: ["catalogLayoutStyle", "catalogMastheadText", "brandTransform", "catalogMastheadDesktop", "catalogMastheadMobile", "catalogHeaderWidth", "catalogHeaderRuleWidth"] },

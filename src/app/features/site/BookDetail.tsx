@@ -235,6 +235,8 @@ export default function BookDetail() {
   // Catalogue-card layout (Studio › Style › Product page · buy card & details).
   const pdpShowBackLink   = tokenSource.pdpShowBackLink   ?? true;
   const pdpShowBreadcrumb = tokenSource.pdpShowBreadcrumb ?? true;
+  const pdpShowBackArrow  = tokenSource.pdpShowBackArrow  ?? true;
+  const crumbSeparator    = getCopy(settings?.design, "pdpCrumbSeparator");
   const pdpShowTag        = tokenSource.pdpShowTag        ?? true;
   const pdpTagStyle       = tokenSource.pdpTagStyle === "outline" ? "outline" : "filled";
   const pdpShowStock      = tokenSource.pdpShowStock      ?? true;
@@ -1116,9 +1118,10 @@ export default function BookDetail() {
               // Arriving straight from a link (search, email, social) has no shop page to go back to.
               onClick={() => (location.key === "default" ? navigate("/") : navigate(-1))}
               aria-label={getCopy(settings?.design, "backToCatalog")}
+              data-studio-target="style:productCard|copy:Product page" data-studio-label="Back link"
               className="fm-pdp-meta mt-4 mb-2 inline-flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity"
             >
-              <ArrowLeft size={13} aria-hidden="true" />
+              {pdpShowBackArrow && <ArrowLeft size={13} aria-hidden="true" />}
               {getCopy(settings?.design, "backToCatalog")}
             </button>
           )}
@@ -1132,11 +1135,11 @@ export default function BookDetail() {
               <Link to="/">{getCopy(settings?.design, "pdpCrumbShop")}</Link>
               {categoryLabel && (
                 <>
-                  <span aria-hidden="true">/</span>
+                  {crumbSeparator && <span aria-hidden="true">{crumbSeparator}</span>}
                   <Link to={`/collections/${slugify(categoryLabel)}`}>{categoryLabel}</Link>
                 </>
               )}
-              <span aria-hidden="true">/</span>
+              {crumbSeparator && <span aria-hidden="true">{crumbSeparator}</span>}
               <span aria-current="page" className="min-w-0 truncate">{book.title}</span>
             </nav>
           )}

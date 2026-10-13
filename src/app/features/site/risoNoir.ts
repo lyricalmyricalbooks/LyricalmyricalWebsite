@@ -52,7 +52,7 @@ export const RISO_NOIR_TOKENS: Record<string, any> = {
   productDescriptionStyle: "designed",
   // Product page: the "catalogue card" layout (Style › Product page · buy card & details).
   productDetailsLayout: "tabs", productImageShadow: "none",
-  pdpShowBackLink: true, pdpShowBreadcrumb: true, pdpShowTag: true, pdpTagStyle: "filled",
+  pdpShowBackLink: true, pdpShowBackArrow: true, pdpShowBreadcrumb: true, pdpShowTag: true, pdpTagStyle: "filled",
   pdpShowStock: true, pdpShowCaption: true, pdpThumbPosition: "side", pdpDetailsPlacement: "below",
   // Custom pages: Option D "Ruled" (Style › Custom pages).
   pageShowEyebrow: false, pageWidth: "header", pageTitleSize: "xl", pageShowRule: true,

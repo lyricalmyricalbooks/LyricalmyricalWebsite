@@ -164,6 +164,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
     group: "Product page",
     fields: [
       { key: "pdpCrumbShop", label: "Breadcrumb: first link", default: "Shop" },
+      { key: "pdpCrumbSeparator", label: "Breadcrumb: mark between links", default: "/", hint: "Type › or · to change it; leave it empty for no mark." },
       { key: "pdpBreadcrumbAria", label: "Breadcrumb — screen-reader label", default: "Breadcrumb" },
       { key: "pdpCaption", label: "Photo caption", default: "Fig. {n}", hint: "Use {n} for the photo number." },
       { key: "pdpCaptionCount", label: "Photo caption counter", default: "{n} of {total}", hint: "Use {n} for the photo number and {total} for how many photos." },
