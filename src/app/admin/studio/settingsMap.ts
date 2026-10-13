@@ -136,7 +136,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   products: [
     { title: "Grid & columns", keys: ["productCardStyle", "productColumnsDesktop", "productColumnsMobile", "catalogGridGap", "productHoverEffect"] },
     { title: "Book photos", keys: ["imageAspectRatio", "photoOutline", "productBorderRadius", "placeholderImageUrl"] },
-    { title: "Title & price", keys: ["productTitleColor", "cardTitleSize", "cardTitleSizeMobile", "cardTitleWeight", "cardTitleFont", "cardTitleTracking", "productPriceColor", "cardPriceSize", "cardPriceSizeMobile", "cardPriceWeight", "cardPriceFont", "cardPriceTagBg", "cardPriceOldColor", "catalogPriceStyle", "catalogCardRuleWidth", "showPriceOnHover", "showQuickAdd"] },
+    { title: "Title & price", keys: ["productTitleColor", "cardTitleSize", "cardTitleSizeMobile", "cardTitleWeight", "cardTitleFont", "cardTitleTracking", "productPriceColor", "cardPriceSize", "cardPriceSizeMobile", "cardPriceWeight", "cardPriceFont", "cardPriceTagBg", "cardPriceOldColor", "catalogPriceStyle", "catalogCardRuleWidth", "showPriceOnHover", "showQuickAdd", "showCardWishlist"] },
     { title: "Sold-out badge", keys: ["showSoldOutBadge", "soldOutBadgeStyle", "soldOutBadgeBg", "soldOutBadgeText", "soldOutBadgeSize", "soldOutBadgePosition", "soldOutPhotoFade"] },
     { title: "Badges & stock", keys: ["badgeBgPrimary", "badgeTextPrimary", "badgeBgSecondary", "badgeTextSecondary", "lowInventoryColor", "lowStockCardThreshold", "showCollectionMeta"] },
     { title: "Card button & product-page extras", keys: ["productCTA", "showQtyStepper", "productDescriptionStyle"] },
@@ -145,7 +145,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Page layout", keys: ["productImageLayout", "productContentPosition", "productAlignment", "productDetailsLayout"] },
     { title: "Photos", keys: ["productImageMaxWidth", "productImageAspect", "productImageFrameMode", "productImageAspectLandscape", "productPhotoOutline", "productImageFit", "productImageShadow", "productImageHoverScale", "showZoom", "showAmbientGlow", "glowIntensity", "productImageGlowColor"] },
     { title: "Title & add-to-bag button", keys: ["productTitleSize", "productSubtitleWeight", "addToBagLabel", "productCtaWidth", "productCtaSize", "productCtaAnimation"] },
-    { title: "Extras on the page", keys: ["showSpecs", "showPdpEditionDetails", "showSocialShare", "showBackInStock", "showComingSoonSignup", "showBundleWidget", "productBundleLayout", "showRelatedProducts", "recentlyViewedCount", "lowStockProductThreshold"] },
+    { title: "Extras on the page", keys: ["showSpecs", "showPdpEditionDetails", "showSocialShare", "showPdpWishlist", "showBackInStock", "showComingSoonSignup", "showBundleWidget", "productBundleLayout", "showRelatedProducts", "recentlyViewedCount", "lowStockProductThreshold"] },
   ],
   productCard: [
     { title: "Buy card box", keys: ["pdpCardBg", "pdpCardBorderColor", "pdpCardBorderWidth", "pdpCardShadowColor", "pdpCardShadowOffset", "pdpCardPadding", "pdpCardDividerColor"] },

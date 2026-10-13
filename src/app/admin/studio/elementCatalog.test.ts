@@ -47,7 +47,7 @@ describe("element inspector catalog", () => {
     expect(keys.length).toBeGreaterThan(0);
     // The buy card can also follow a colour scheme (Theme settings › Colour schemes).
     expect(keys).toContain("elementSchemes.buyCard");
-    expect(keys.every(k => /^(elementSchemes\.buyCard$|pdpCard|pdpShowTag|pdpTag|pdpTitle|pdpPrice|pdpShowStock|pdpStock|productCta|addToBagLabel|showQtyStepper|showSocialShare|showBackInStock|showComingSoonSignup)/.test(k))).toBe(true);
+    expect(keys.every(k => /^(elementSchemes\.buyCard$|pdpCard|pdpShowTag|pdpTag|pdpTitle|pdpPrice|pdpShowStock|pdpStock|productCta|addToBagLabel|showQtyStepper|showSocialShare|showPdpWishlist|showBackInStock|showComingSoonSignup)/.test(k))).toBe(true);
     expect(tabs.visibility.every(p => /^(show|hide)[A-Z]/.test(p.field.key))).toBe(true);
   });
 
