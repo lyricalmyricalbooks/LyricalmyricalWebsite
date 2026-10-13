@@ -7,7 +7,7 @@ import { ScrollToTop } from "./lib/ScrollToTop";
 import { ThemePreviewBanner } from "./features/site/ThemePreviewBanner";
 import { CartProvider } from "./CartContext";
 import { CurrencyProvider } from "./CurrencyContext";
-import { Toaster } from "react-hot-toast";
+import { ShopToaster } from "./features/site/ShopToaster";
 import { CartDrawer } from "./components/CartDrawer";
 import { CookieConsent } from "./components/CookieConsent";
 import { UnderConstructionWall } from "./components/UnderConstructionWall";
@@ -86,18 +86,7 @@ export default function App() {
           <UnderConstructionWall />
           <ThemePreviewBanner />
           <Suspense fallback={<BootSplash />}>
-                <Toaster 
-                  position="top-center" 
-                  toastOptions={{
-                    style: {
-                      background: 'var(--surface-2, #171717)',
-                      color: 'var(--text-color, #fff)',
-                      fontSize: '12px',
-                      letterSpacing: '0.05em',
-                      zIndex: 99999,
-                    },
-                  }} 
-                />
+                <ShopToaster />
                 <Routes>
                   <Route path="/" element={
                     <MainSite 

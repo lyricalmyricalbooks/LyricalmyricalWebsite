@@ -30,7 +30,7 @@ const REGION_IDS = REGION_GROUPS.map((g) => g.id);
  */
 export const THEME_HEADINGS: SettingsHeading[] = [
   { id: "system", band: "Site-wide design", title: "", blurb: "Presets, brand, colours, fonts, buttons and spacing used on every page. One change restyles the whole shop.",
-    groups: ["themeLook", "logo", "colors", "schemes", "type", "smallPrint", "buttons", "layout", "effects", "riso"] },
+    groups: ["themeLook", "logo", "colors", "schemes", "type", "smallPrint", "buttons", "layout", "effects", "toasts", "riso"] },
   { id: "chrome", band: "Parts of your shop", title: "Header, menu & footer", blurb: "The parts that repeat at the top and bottom of every page. Tip: click one in the preview to edit it there.",
     groups: ["header", "navlinks", "footer", "popup", "paymentIcons"] },
   { id: "shop", title: "Shop & book pages", blurb: "The book grid, book cards and each book's own page.",
@@ -62,6 +62,7 @@ export const CATEGORY_PAGES: Record<string, { template?: string; overlay?: Studi
 export const GROUP_BLURBS: Record<string, string> = {
   colors: "Page background, text, accent and status colours.",
   schemes: "Named colour sets for sections, book cards, the buy card and the bag, with contrast checks.",
+  toasts: "Where the short “Removed from your bag · Undo” style messages appear, and their colours, size and corners.",
   popup: "When the pop-up opens, how often, where and how wide. Its content is the Pop-up sections in Page layout.",
   type: "Heading, body and menu fonts, sizes and weights.",
   buttons: "Button style, colours and corners.",
