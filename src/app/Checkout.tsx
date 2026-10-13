@@ -1781,7 +1781,7 @@ export function Checkout() {
         <div aria-hidden="true" className="fm-track-strip" />
         <m.div {...regionProps("checkoutSuccess")} initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.35 }}
           className="relative z-10 mx-auto w-full max-w-2xl px-4 sm:px-6 py-12 sm:py-16 space-y-8">
-          <header className="fm-track-card p-6 sm:p-10">
+          <header {...regionProps("checkoutSuccessHeader")} className="fm-track-card p-6 sm:p-10">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <p className="fm-track-mono" style={{ color: "var(--accent)" }}>
                 {isManual
@@ -1811,7 +1811,7 @@ export function Checkout() {
           </header>
 
           {isManual && (
-            <section className="fm-track-card p-6 sm:p-8 space-y-4">
+            <section {...regionProps("checkoutPaymentInstructions")} className="fm-track-card p-6 sm:p-8 space-y-4">
               <h3 className="fm-track-mono flex items-center gap-2" style={{ color: "var(--accent)" }}>
                 <Building size={14} aria-hidden="true" /> {successOrder?.paymentMethod || c("coPaymentInstructions")}
               </h3>
@@ -1889,7 +1889,7 @@ export function Checkout() {
               className="fm-track-btn w-full">
               {c("coTrackOrder")}
             </Link>
-            <Link to="/" className="fm-track-btn fm-track-btn-ghost w-full">
+            <Link {...regionProps("checkoutContinue")} to="/" className="fm-track-btn fm-track-btn-ghost w-full">
               {c("coContinue")}
             </Link>
           </div>
