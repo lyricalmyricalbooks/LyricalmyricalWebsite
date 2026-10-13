@@ -88,6 +88,9 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "checkoutGiftCard", label: "Gift card box" },
     { id: "checkoutPromise", label: "Message under Pay button" }, { id: "checkoutSuccess", label: "Order confirmation", required: true }, { id: "checkoutAccountOffer", label: "Order confirmation: sign-in box", copy: "Checkout" },
     { id: "checkoutSuccessSummary", label: "Order confirmation: order summary", copy: "Checkout" }, { id: "checkoutTrackOrder", label: "Order confirmation: track order button", required: true, copy: "Checkout" },
+    { id: "checkoutSuccessHeader", label: "Order confirmation: thank-you card", required: true, copy: "Checkout" },
+    { id: "checkoutPaymentInstructions", label: "Order confirmation: payment instructions", required: true, copy: "Checkout" },
+    { id: "checkoutContinue", label: "Order confirmation: continue shopping button", copy: "Checkout" },
     { id: "checkoutEmpty", label: "Empty cart", required: true },
   ] },
   { id: "searchLayout", title: "Search · layout & elements", copy: "Search & filters", files: ["features/site/SearchOverlay.tsx"], regions: [
