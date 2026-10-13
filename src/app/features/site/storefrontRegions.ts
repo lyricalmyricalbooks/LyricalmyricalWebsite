@@ -6,7 +6,7 @@ export type RegionGroup = { id: string; title: string; copy: string; files: stri
 export const REGION_GROUPS: RegionGroup[] = [
   { id: "catalogElements", title: "Catalog & shared content · layout", copy: "Search & filters", files: ["features/site/CatalogControls.tsx", "features/site/RecentlyViewedRow.tsx", "components/MainSite.tsx", "features/site/StoreFooter.tsx"], regions: [
     { id: "catalogSearch", label: "Catalog search field" }, { id: "catalogSort", label: "Catalog sort selector" },
-    { id: "catalogStock", label: "In-stock filter" }, { id: "catalogResults", label: "Filter result count" },
+    { id: "catalogStock", label: "In-stock filter" }, { id: "catalogSale", label: "On-sale filter" }, { id: "catalogResults", label: "Filter result count" },
     { id: "catalogFormat", label: "Format filter" }, { id: "catalogPrice", label: "Price filter" },
     { id: "catalogClear", label: "Clear filters button" },
     { id: "recentGrid", label: "Recently viewed grid", grid: true, copy: "Collection & wishlist pages" },

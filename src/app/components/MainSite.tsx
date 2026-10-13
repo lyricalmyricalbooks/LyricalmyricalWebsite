@@ -503,7 +503,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   const filteredItems = useMemo(() => {
     const applied = appliedFilters(catalogFilters, catalogView, displayRate);
-    return applyCatalogControls(baseFilteredItems, searchQuery, sort, inStockOnly, applied.priceRange, applied.formats);
+    return applyCatalogControls(baseFilteredItems, searchQuery, sort, inStockOnly, applied.priceRange, applied.formats, applied.onSale);
   }, [baseFilteredItems, searchQuery, sort, inStockOnly, catalogFilters, catalogView, displayRate]);
 
   const { has: isWished, toggle: toggleWish, ids: wishedIds } = useWishlist();
@@ -802,6 +802,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               setFilters={setCatalogFilters}
               availableFormats={catalogView.availableFormats}
               showPrice={catalogView.showPrice}
+              hasSale={catalogView.hasSale}
             />
           )}
 

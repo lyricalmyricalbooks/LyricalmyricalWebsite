@@ -58,9 +58,9 @@ describe("price and format filters", () => {
   it("never applies a filter the current view doesn't show", () => {
     const onlyPaperbacks = [paperback, { ...paperback, id: "p2", retailPrice: 12 }];
     const view = filterView(onlyPaperbacks);
-    expect(view).toEqual({ availableFormats: ["paperback"], showPrice: false });
+    expect(view).toEqual({ hasSale: false, availableFormats: ["paperback"], showPrice: false });
     const applied = appliedFilters({ formats: ["ebook"], minPrice: "100", maxPrice: "" }, view);
-    expect(applied).toEqual({ formats: [], priceRange: [0, Infinity] });
+    expect(applied).toEqual({ onSale: false, formats: [], priceRange: [0, Infinity] });
     expect(filterView(all).showPrice).toBe(true);
     expect(appliedFilters({ formats: ["ebook", "other"], minPrice: "", maxPrice: "" }, filterView(all)).formats).toEqual(["ebook"]);
   });
@@ -69,5 +69,26 @@ describe("price and format filters", () => {
     expect(filtersActive(EMPTY_FILTERS, " ")).toBe(false);
     expect(filtersActive(EMPTY_FILTERS, "", true)).toBe(true);
     expect(filtersActive({ ...EMPTY_FILTERS, maxPrice: "20" })).toBe(true);
+  });
+});
+
+describe("on sale filter", () => {
+  const sale = { id: "s", title: "Deal", retailPrice: 20, isOnSale: true, salePrice: 12, createdAt: "2026-05-01" };
+  const items = [paperback, sale, editions];
+  it("is offered only when a book in the view is on sale", () => {
+    expect(filterView(items).hasSale).toBe(true);
+    expect(filterView(all).hasSale).toBe(false);
+  });
+  it("keeps only books whose sale is charged, and never applies a hidden chip", () => {
+    const view = filterView(items);
+    const applied = appliedFilters({ ...EMPTY_FILTERS, onSale: true }, view);
+    expect(applied.onSale).toBe(true);
+    expect(applyCatalogControls(items, "", "newest", false, [0, Infinity], [], applied.onSale).map(b => b.id)).toEqual(["s"]);
+    expect(appliedFilters({ ...EMPTY_FILTERS, onSale: true }, filterView(all)).onSale).toBe(false);
+  });
+  it("counts as an active filter so Clear filters appears", () => {
+    const view = { availableFormats: [], showPrice: false, hasSale: true };
+    expect(filtersActive({ ...EMPTY_FILTERS, onSale: true }, "", false, view)).toBe(true);
+    expect(filtersActive({ ...EMPTY_FILTERS, onSale: true }, "", false, { ...view, hasSale: false })).toBe(false);
   });
 });

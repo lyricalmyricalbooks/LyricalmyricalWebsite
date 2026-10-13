@@ -414,6 +414,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "sort_title_az", label: "Sort: A→Z", default: "A → Z" },
       { key: "sort_title_za", label: "Sort: Z→A", default: "Z → A" },
       { key: "filterInStock", label: "In-stock toggle", default: "In stock" },
+      { key: "filterOnSale", label: "On-sale toggle", default: "On sale" },
       { key: "filterFormatLabel", label: "Format filter — heading", default: "Format" },
       { key: "filterFormat_paperback", label: "Format filter: paperback", default: "Paperback" },
       { key: "filterFormat_hardcover", label: "Format filter: hardcover", default: "Hardcover" },
