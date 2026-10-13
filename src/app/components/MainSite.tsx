@@ -29,6 +29,7 @@ import { googleFontHref } from "../features/site/fonts";
 import { useCurrency } from "../CurrencyContext";
 import { useCart } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
+import { QuickView } from "../features/site/QuickView";
 import { isEmailAddress, subscribeNewsletter } from "../features/site/newsletterSignup";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
 import { SectionPageContext } from "./sectionCopy";
@@ -369,6 +370,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const location = useLocation();
   const { formatBookPrice, convertPrice } = useCurrency();
   const { addToCart } = useCart();
+  const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const { books, settings, pages, loading, loadError, retry } = useSiteData();
 
   // Auto-open catalog view when the editor previews the shop tab
@@ -592,6 +594,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
   // Studio › Style › Product cards & grid › Quick add button (off by default).
   const showQuickAdd = storefrontDesign?.showQuickAdd === true;
+  const showQuickView = storefrontDesign?.showQuickView === true;
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
   const showPreorderBadge = storefrontDesign?.showPreorderBadge ?? true;
   const showComingSoonBadge = storefrontDesign?.showComingSoonBadge ?? true;
@@ -848,6 +851,18 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   >
                     <Heart size={13} fill={wished ? "currentColor" : "none"} />
                   </button>
+                  {showQuickView && (
+                    <button
+                      type="button"
+                      data-studio-target="style:products|copy:Product page"
+                      data-studio-label="Quick view button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQuickViewId(item.id); }}
+                      aria-haspopup="dialog"
+                      className="fm-card-quickview absolute top-3 right-14 z-10 min-h-9 px-3 rounded-full backdrop-blur-md bg-black/40 text-white/80 border border-white/10 hover:text-white text-[9px] font-bold tracking-[0.2em] uppercase opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 transition-colors"
+                    >
+                      {getCopy(activeDesign, "quickViewButton")}
+                    </button>
+                  )}
                   <Link to={`/books/${slug}`}>
                     <div className={`relative fm-surface fm-photo-frame mb-4 overflow-hidden ${isReferenceCatalog || cardStyle === "minimal" ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius, aspectRatio: imageAspectStyle }}>
                       <SkeletonImage
@@ -987,6 +1002,20 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               );
             })}
           </div>
+          {showQuickView && quickViewId && (() => {
+            const qb = filteredItems.find((b: any) => b.id === quickViewId);
+            return qb ? (
+              <QuickView
+                book={qb}
+                design={activeDesign}
+                slug={getBookSlug(qb)}
+                soldOut={!comingSoonActive(qb) && (qb.stockLevel ?? 999) === 0}
+                formatPrice={formatBookPrice}
+                onAdd={(b, v) => addToCart(b, v)}
+                onClose={() => setQuickViewId(null)}
+              />
+            ) : null;
+          })()}
         </main>
         )}
 

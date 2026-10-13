@@ -90,6 +90,7 @@ export const defaultSettings = (): any => ({
     imageAspectRatio: "3:4",
     showPriceOnHover: false,
     showQuickAdd: false,
+    showQuickView: false,
     showCollectionMeta: true,
     showSoldOutBadge: true,
     productCTA: "VIEW",
