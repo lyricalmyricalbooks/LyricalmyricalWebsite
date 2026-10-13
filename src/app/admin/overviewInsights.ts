@@ -57,6 +57,19 @@ export function splitPeriods(orders: Order[], days: number, now = Date.now()) {
   };
 }
 
+/** Paid orders inside any range of Toronto days (overviewRange.resolveRange) and inside its comparison window. */
+export function splitRange(orders: Order[], range: { startKey: string; endKey: string; prevStartKey: string; prevEndKey: string }) {
+  const paid = orders.filter(isRealPaidOrder);
+  const inRange = (o: Order, from: string, to: string) => { const k = orderDay(o.createdAt); return k !== "" && k >= from && k <= to; };
+  return {
+    paid,
+    current: paid.filter(o => inRange(o, range.startKey, range.endKey)),
+    previous: paid.filter(o => inRange(o, range.prevStartKey, range.prevEndKey)),
+    start: Date.parse(`${range.startKey}T00:00:00Z`),
+    startKey: range.startKey, prevStartKey: range.prevStartKey, endKey: range.endKey,
+  };
+}
+
 /**
  * The part of a paid order's total that was refunded (CAD). Refunds are recorded in the charged currency
  * (`refundedAmountMinor`), so the share is taken against `expectedAmountMinor` and applied to the CAD `total`.

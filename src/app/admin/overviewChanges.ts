@@ -1,0 +1,89 @@
+// Overview › "What changed": the few movements worth knowing about between the period and the one it is compared
+// with, biggest first. Every line is computed from recorded orders/visits — no guesses. Pure; money is formatted by
+// the caller so currency stays in one place.
+import { bestSellers, change, refundedAmount, type Order, type PeriodTotals } from "./overviewInsights";
+
+export interface Change { id: string; tone: "up" | "down" | "info" | "warn"; title: string; detail: string; weight: number }
+
+const num = (v: unknown) => Number(v) || 0;
+const pct = (n: number) => `${Math.abs(n).toFixed(0)}%`;
+const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+
+function titleRevenue(orders: Order[]): Map<string, { title: string; revenue: number; units: number }> {
+  const m = new Map<string, { title: string; revenue: number; units: number }>();
+  bestSellers(orders, 10_000).forEach(b => m.set(b.id, { title: b.title, revenue: b.revenue, units: b.units }));
+  return m;
+}
+
+function countryRevenue(orders: Order[]): Map<string, number> {
+  const m = new Map<string, number>();
+  orders.forEach(o => {
+    const c = String(o.customer?.address?.country || o.shippingAddress?.country || "").trim();
+    if (c) m.set(c, (m.get(c) || 0) + Math.max(0, num(o.total) - refundedAmount(o)));
+  });
+  return m;
+}
+
+export function whatChanged(input: {
+  cur: PeriodTotals; prev: PeriodTotals; current: Order[]; previous: Order[];
+  visits?: { cur: number; prev: number } | null; before: string; money: (n: number) => string;
+}): Change[] {
+  const { cur, prev, current, previous, visits, before, money } = input;
+  const out: Change[] = [];
+
+  // 1 · Revenue, and what drove it (more orders or bigger baskets).
+  const rev = change(cur.net, prev.net);
+  if (rev !== null && prev.net > 0 && Math.abs(rev) >= 5) {
+    const ordersMove = change(cur.orders, prev.orders) ?? 0;
+    const aovMove = change(cur.aov, prev.aov) ?? 0;
+    const driver = Math.abs(ordersMove) >= Math.abs(aovMove)
+      ? `${ordersMove >= 0 ? "more" : "fewer"} orders (${plural(cur.orders, "order")} vs ${prev.orders.toLocaleString()})`
+      : `${aovMove >= 0 ? "bigger" : "smaller"} baskets (${money(cur.aov)} average vs ${money(prev.aov)})`;
+    out.push({ id: "revenue", tone: rev > 0 ? "up" : "down", weight: Math.abs(cur.net - prev.net) + 1e6,
+      title: `Revenue ${rev > 0 ? "up" : "down"} ${pct(rev)} on ${before}`,
+      detail: `${money(cur.net)} vs ${money(prev.net)}, mostly from ${driver}.` });
+  } else if (prev.net === 0 && cur.net > 0) {
+    out.push({ id: "revenue", tone: "up", weight: cur.net + 1e6, title: `${money(cur.net)} taken — nothing in ${before}`, detail: `${plural(cur.orders, "paid order")} where there were none.` });
+  }
+
+  // 2 · Titles: the biggest riser, the biggest faller, a new arrival.
+  const now = titleRevenue(current), then = titleRevenue(previous);
+  const ids = new Set([...now.keys(), ...then.keys()]);
+  let riser: { id: string; d: number } | null = null, faller: { id: string; d: number } | null = null, fresh: { id: string; r: number } | null = null;
+  ids.forEach(id => {
+    const a = now.get(id)?.revenue || 0, b = then.get(id)?.revenue || 0, d = a - b;
+    if (b === 0 && a > 0) { if (!fresh || a > fresh.r) fresh = { id, r: a }; return; }
+    if (d > 0 && (!riser || d > riser.d)) riser = { id, d };
+    if (d < 0 && (!faller || d < faller.d)) faller = { id, d };
+  });
+  const name = (id: string) => now.get(id)?.title || then.get(id)?.title || "A title";
+  if (riser) { const r = riser as { id: string; d: number }; out.push({ id: `rise-${r.id}`, tone: "up", weight: r.d, title: `${name(r.id)} is climbing`, detail: `+${money(r.d)} on ${before} (${plural(now.get(r.id)?.units || 0, "copy", "copies")} now, ${(then.get(r.id)?.units || 0).toLocaleString()} then).` }); }
+  if (faller) { const f = faller as { id: string; d: number }; out.push({ id: `fall-${f.id}`, tone: "down", weight: -f.d, title: `${name(f.id)} slowed down`, detail: `−${money(-f.d)} on ${before} (${plural(now.get(f.id)?.units || 0, "copy", "copies")} now, ${(then.get(f.id)?.units || 0).toLocaleString()} then).` }); }
+  if (fresh) { const n = fresh as { id: string; r: number }; out.push({ id: `new-${n.id}`, tone: "info", weight: n.r, title: `${name(n.id)} started selling`, detail: `${money(n.r)} from ${plural(now.get(n.id)?.units || 0, "copy", "copies")}, with no sales in ${before}.` }); }
+
+  // 3 · Where it came from: the country that moved most.
+  const cNow = countryRevenue(current), cThen = countryRevenue(previous);
+  let country: { c: string; d: number } | null = null;
+  new Set([...cNow.keys(), ...cThen.keys()]).forEach(c => { const d = (cNow.get(c) || 0) - (cThen.get(c) || 0); if (!country || Math.abs(d) > Math.abs(country.d)) country = { c, d }; });
+  if (country && Math.abs((country as { c: string; d: number }).d) > 0 && cThen.size > 0) {
+    const k = country as { c: string; d: number };
+    out.push({ id: `country-${k.c}`, tone: k.d > 0 ? "up" : "down", weight: Math.abs(k.d) * 0.8, title: `${k.c}: ${k.d > 0 ? "+" : "−"}${money(Math.abs(k.d))}`, detail: `The biggest move by destination (${money(cNow.get(k.c) || 0)} now, ${money(cThen.get(k.c) || 0)} in ${before}).` });
+  }
+
+  // 4 · Traffic and how well it converts.
+  if (visits && visits.prev > 0 && visits.cur > 0) {
+    const v = change(visits.cur, visits.prev) ?? 0;
+    const convNow = (cur.orders / visits.cur) * 100, convThen = (prev.orders / visits.prev) * 100;
+    if (Math.abs(v) >= 10) out.push({ id: "visits", tone: v > 0 ? "up" : "down", weight: Math.abs(v) * 10, title: `Visitors ${v > 0 ? "up" : "down"} ${pct(v)}`, detail: `${visits.cur.toLocaleString()} visitors vs ${visits.prev.toLocaleString()} in ${before}.` });
+    if (Math.abs(convNow - convThen) >= 0.5) out.push({ id: "conversion", tone: convNow > convThen ? "up" : "down", weight: Math.abs(convNow - convThen) * 200, title: `Conversion ${convNow > convThen ? "improved" : "slipped"} to ${convNow.toFixed(1)}%`, detail: `${convThen.toFixed(1)}% of visitors bought in ${before}.` });
+  }
+
+  // 5 · Warnings: discounts eating into price, refunds.
+  if (cur.subtotal > 0 && cur.discountRate - prev.discountRate >= 5) {
+    out.push({ id: "discounts", tone: "warn", weight: cur.discounts, title: `Discounts now take ${cur.discountRate.toFixed(0)}% of list price`, detail: `Up from ${prev.discountRate.toFixed(0)}% — ${money(cur.discounts)} given away in codes and offers.` });
+  }
+  if (cur.revenue > 0 && cur.refunded / cur.revenue >= 0.05) {
+    out.push({ id: "refunds", tone: "warn", weight: cur.refunded * 2, title: `${money(cur.refunded)} refunded`, detail: `${((cur.refunded / cur.revenue) * 100).toFixed(0)}% of what customers paid in this period.` });
+  }
+  return out.sort((a, b) => b.weight - a.weight).slice(0, 6);
+}

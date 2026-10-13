@@ -818,7 +818,15 @@
 .rp-ov-dek { margin: 8px 0 0; max-width: 62ch; font-size: var(--rp-text-base); line-height: 1.55; }
 .rp-ov-switch { display: flex; gap: 2px; padding: 3px; background: var(--rp-inverse); }
 .rp-ov-switch button { min-height: 34px; padding: 0 12px; border: 0; background: transparent; color: var(--rp-on-inverse); font: 800 11px/1 var(--rp-font-body); letter-spacing: 0.09em; text-transform: uppercase; cursor: pointer; }
-.rp-ov-switch button[aria-selected="true"] { background: var(--rp-on-inverse); color: var(--rp-inverse); }
+.rp-ov-switch button[aria-selected="true"], .rp-ov-switch button[aria-pressed="true"] { background: var(--rp-on-inverse); color: var(--rp-inverse); }
+.rp-ov-switch button:disabled { opacity: 0.5; cursor: not-allowed; }
+.rp-ov-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.rp-ov-controls .rp-field { margin: 0; min-width: 170px; }
+.rp-ov-range { flex: 1 1 260px; margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-ov-range strong { color: var(--rp-text); }
+.rp-ov-chart-stats { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; font-size: var(--rp-text-sm); }
+.rp-ov-chart-stats b { font-family: var(--rp-font-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+@media (max-width: 767px) { .rp-ov-controls .rp-field { flex: 1 1 140px; min-width: 0; } }
 .rp-ov-switch button:focus-visible, .rp-ov-run-go:focus-visible, .rp-ov-table-toggle summary:focus-visible { outline: 2px solid var(--rp-on-primary); outline-offset: 2px; }
 .rp-ov-lead-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-top: 6px; font-size: var(--rp-text-sm); }
 .rp-ov-lead .rp-check { color: inherit; }

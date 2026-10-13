@@ -4,6 +4,7 @@ import { REFERRAL_KEY, referralSourceOf } from "./lib/referralSource";
 import { LazyMotion, MotionConfig } from "motion/react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router";
 import { ScrollToTop } from "./lib/ScrollToTop";
+import { ga4PageView } from "./lib/ga4";
 import { ThemePreviewBanner } from "./features/site/ThemePreviewBanner";
 import { CartProvider } from "./CartContext";
 import { CurrencyProvider } from "./CurrencyContext";
@@ -32,6 +33,16 @@ const PageView = lazy(() => import("./features/site/PageView").then(m => ({ defa
 const WishlistPage = lazy(() => import("./features/site/Wishlist"));
 const AccountPage = lazy(() => import("./features/site/Account"));
 const OrderTracking = lazy(() => import("./features/site/OrderTracking"));
+
+/** One Google Analytics page view per route (the page's title is set just after it renders). */
+function Ga4PageViews() {
+  const location = useLocation();
+  useEffect(() => {
+    const t = window.setTimeout(ga4PageView, 400);
+    return () => window.clearTimeout(t);
+  }, [location.pathname, location.search]);
+  return null;
+}
 
 function RouteErrorBoundary({ children }: { children: ReactNode }) {
   const location = useLocation();
@@ -80,6 +91,7 @@ export default function App() {
         <CartProvider>
           <BrowserRouter basename={ROUTER_BASENAME}>
           <ScrollToTop />
+          <Ga4PageViews />
           <RouteErrorBoundary>
           <CartDrawer />
           <CookieConsent />

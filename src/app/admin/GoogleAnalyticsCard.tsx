@@ -1,0 +1,95 @@
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
+import { cleanMeasurementId, cleanPropertyId, googleAnalyticsApi, type Ga4Answer } from "./googleAnalytics";
+import { PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField } from "./riso/components";
+
+// Settings › General › Google Analytics. The measurement ID turns on Google's tag for shoppers (consent-aware,
+// lib/ga4.ts); the property ID lets the Overview read Google's reports through the shop's own server.
+export function GoogleAnalyticsCard() {
+  const [loaded, setLoaded] = useState<{ measurementId: string; propertyId: string } | null>(null);
+  const [readFailed, setReadFailed] = useState(false);
+  const [measurementId, setMeasurementId] = useState("");
+  const [propertyId, setPropertyId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [check, setCheck] = useState<Ga4Answer | null>(null);
+
+  const load = () => {
+    setReadFailed(false);
+    googleAnalyticsApi.load().then((v) => { setLoaded(v); setMeasurementId(v.measurementId); setPropertyId(v.propertyId); })
+      .catch(() => setReadFailed(true));
+  };
+  useEffect(load, []);
+
+  const midProblem = measurementId.trim() && !cleanMeasurementId(measurementId) ? "A measurement ID looks like G-ABC123XYZ (Admin › Data streams › your web stream)." : "";
+  const pidProblem = propertyId.trim() && !cleanPropertyId(propertyId) ? "A property ID is a number of 6–15 digits (Admin › Property details), not the G-… ID." : "";
+  const dirty = !!loaded && (cleanMeasurementId(measurementId) !== loaded.measurementId || cleanPropertyId(propertyId) !== loaded.propertyId);
+
+  const verify = async () => {
+    setChecking(true); setCheck(null);
+    try { setCheck(await googleAnalyticsApi.status()); }
+    catch (err: any) { setCheck({ connected: false, error: err?.message || "Could not check the connection." }); }
+    finally { setChecking(false); }
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await googleAnalyticsApi.save(measurementId, propertyId);
+      const next = { measurementId: cleanMeasurementId(measurementId), propertyId: cleanPropertyId(propertyId) };
+      setLoaded(next); setMeasurementId(next.measurementId); setPropertyId(next.propertyId);
+      toast.success("Google Analytics settings saved");
+      if (next.propertyId) await verify();
+    } catch (err: any) {
+      toast.error(`Could not save: ${err?.message || err}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const tracking = !!loaded?.measurementId;
+  const tone = (ok: boolean) => (ok ? "--rp-success" : "--rp-danger");
+
+  return (
+    <SectionCard title="Google Analytics"
+      description="Counts visitors with Google Analytics 4 and shows its traffic figures on the Overview (channels, landing pages, countries, devices, engagement, people on the site now). Visitors who decline analytics cookies, the design preview and you (signed in as admin) are never counted, and private details in page addresses (email addresses, order links, sign-in codes) are never sent to Google."
+      actions={loaded && <StatusBadge tone={tracking ? "success" : "neutral"}>{tracking ? "Tracking on" : "Off"}</StatusBadge>}>
+      <ol className="rp-hint" style={{ margin: "0 0 12px", paddingLeft: 20, lineHeight: 1.6 }}>
+        <li>At <a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer">analytics.google.com</a> create a GA4 property for the shop (time zone: Toronto, currency: Canadian dollar) and a <strong>Web</strong> data stream for the shop's address.</li>
+        <li>Copy the stream's <strong>Measurement ID</strong> (G-…) into the first box and save: the shop starts sending visits straight away.</li>
+        <li>In the same web stream, open <strong>Enhanced measurement</strong> › Page views › Show advanced settings and turn off <strong>Page changes based on browser history events</strong> (the shop sends its own page views; leaving it on counts each page twice). Then under <strong>Configure tag settings › List unwanted referrals</strong> add <span className="rp-mono">paypal.com</span> and <span className="rp-mono">stripe.com</span>, so a sale isn't credited to the payment page.</li>
+        <li>For the Overview figures, copy the <strong>Property ID</strong> (Admin › Property details) into the second box, then save and press <strong>Check connection</strong>. It tells you the one email to add in Admin › Property access management as a <strong>Viewer</strong>, and whether Google's reporting API needs switching on.</li>
+      </ol>
+      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))" }}>
+        <TextField label="Measurement ID" value={measurementId} placeholder="G-XXXXXXXXXX" autoComplete="off"
+          hint="Public: shoppers' browsers use it to send visits." error={midProblem || undefined} onChange={(e) => setMeasurementId(e.target.value)} />
+        <TextField label="Property ID" value={propertyId} placeholder="123456789" autoComplete="off" inputMode="numeric"
+          hint="Private: only the shop's server uses it to read reports." error={pidProblem || undefined} onChange={(e) => setPropertyId(e.target.value)} />
+      </div>
+      {readFailed && (
+        <p role="alert" className="rp-hint" style={{ margin: "8px 0 0", color: "var(--rp-danger)" }}>
+          ✕ Couldn't read the saved settings. <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={load}>Try again</button>
+        </p>
+      )}
+      <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+        <PrimaryButton disabled={!dirty || !!midProblem || !!pidProblem || saving} onClick={save}>{saving ? "Saving…" : "Save"}</PrimaryButton>
+        {loaded?.propertyId && <SecondaryButton disabled={checking || saving} onClick={verify}>{checking ? "Checking…" : "Check connection"}</SecondaryButton>}
+      </div>
+      {check && (
+        <div role="status" className="rp-hint" style={{ margin: "12px 0 0", padding: 12, border: `1px solid var(${tone(check.connected)})`, color: `var(${tone(check.connected)})`, background: `var(${tone(check.connected)}-tint)` }}>
+          {check.connected
+            ? <>✓ Connected. Google Analytics shows {check.activeNow ?? 0} {check.activeNow === 1 ? "person" : "people"} on the site right now. The Overview's traffic figures now come from Google.</>
+            : <>✕ {check.error || "Not connected yet."}</>}
+          {!check.connected && check.serviceAccount && (
+            <div style={{ marginTop: 8, color: "var(--rp-text)" }}>
+              Shop's service account (add as Viewer): <span className="rp-mono" style={{ userSelect: "all", overflowWrap: "anywhere" }}>{check.serviceAccount}</span>
+            </div>
+          )}
+          {check.code === "api_disabled" && check.enableApiUrl && (
+            <div style={{ marginTop: 8 }}><a href={check.enableApiUrl} target="_blank" rel="noopener noreferrer">Switch on the Google Analytics Data API</a></div>
+          )}
+        </div>
+      )}
+    </SectionCard>
+  );
+}

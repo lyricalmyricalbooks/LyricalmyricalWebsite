@@ -1,3 +1,4 @@
+import { ga4Event, purchaseEvent } from "./ga4";
 import { inEditorPreview, trackingAllowed } from "./trackingGuard";
 import { analyticsKey, cleanSearchTerm, deviceOf } from "./analyticsKeys";
 import { orderDay } from "./shopDay";
@@ -277,6 +278,9 @@ export const funnelApi = {
     let storage: Storage | null = null;
     try { storage = typeof window !== "undefined" ? window.localStorage : null; } catch { storage = null; }
     if (!shouldCountPurchase(orderId, order, storage)) return;
+    // Google Analytics revenue is money received: a manual (e-Transfer/cash) order still waiting for payment isn't sent.
+    const purchase = order?.paymentStatus === "paid" ? purchaseEvent(orderId, order) : null;
+    if (purchase) ga4Event("purchase", purchase);
     await bump({ funnel: { purchase: increment(1) } });
   },
 

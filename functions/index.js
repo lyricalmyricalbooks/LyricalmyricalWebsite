@@ -56,6 +56,8 @@ const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = requir
 const { hitLimit, LIMITS, clientIpOf, serverGeoCountry } = require("./rateLimit");
 const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./addressLookup");
 const { handleAiWrite } = require("./aiWriter");
+const { handleGa4Report, metadataCredentials } = require("./googleAnalytics");
+const { handleTrafficReset } = require("./trafficReset");
 const { publicErrorMessage } = require("./publicErrors");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
 const { preorderActive, preorderLine, preorderEmailLines, releaseDateOf } = require("./preorder");
@@ -1749,6 +1751,8 @@ exports.createStripeCheckoutSession = onBrowserRequest(
     if (req.body?.action === "restockRefunded") return handleRestockRefunded(req, res);
     if (req.body?.action === "backups") return handleBackups(req, res);
     if (req.body?.action === "aiWrite") return handleAiWriteRequest(req, res);
+    if (req.body?.action === "ga4Report") return handleGa4ReportRequest(req, res);
+    if (req.body?.action === "resetTraffic") return handleResetTrafficRequest(req, res);
     if (req.body?.action === "cancelOrder") return handleCancelOrder(req, res);
     if (req.body?.action === "resolvePaymentMismatch") return handleResolveMismatch(req, res);
     if (req.body?.action === "orderRequest") return handleOrderRequest(req, res);
@@ -7214,6 +7218,38 @@ async function handleAiWriteRequest(req, res) {
   } catch (err) {
     console.error("aiWrite failed:", err?.message || err);
     res.status(500).json({ error: "The AI assistant couldn't answer just now. Try again in a minute." });
+  }
+}
+
+// Overview › Google Analytics figures (admin): the GA4 Data API read with this function's own service account.
+async function handleGa4ReportRequest(req, res) {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+  try {
+    const { status, body } = await handleGa4Report(req.body || {}, {
+      readSettings: () => readAdminSecret("googleAnalytics"),
+      allow: () => hitLimit(db, "ga4-report", req, LIMITS.ga4),
+      credentials: () => metadataCredentials(fetch),
+      fetchImpl: fetch,
+      projectId: process.env.GCLOUD_PROJECT || admin.app().options.projectId || "",
+    });
+    res.status(status).json(body);
+  } catch (err) {
+    console.error("ga4Report failed:", err?.message || err);
+    res.status(500).json({ error: "Google Analytics couldn't be read just now. Try again in a minute." });
+  }
+}
+
+// Overview › Start traffic counts again (admin): deletes the shop's own daily traffic counters, never orders.
+async function handleResetTrafficRequest(req, res) {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+  try {
+    const { status, body } = await handleTrafficReset(req.body || {}, { db, by: adminUser.email });
+    res.status(status).json(body);
+  } catch (err) {
+    console.error("resetTraffic failed:", err?.message || err);
+    res.status(500).json({ error: "The traffic counts couldn't be reset. Try again in a minute." });
   }
 }
 

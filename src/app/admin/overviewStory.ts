@@ -14,10 +14,12 @@ export function comparedWith(days: number): string {
 
 export interface LeadStory { headline: string; dek: string }
 
-export function leadStory({ cur, prev, top, days, phrase, money }: {
+export function leadStory({ cur, prev, top, days, phrase, money, before: compared }: {
   cur: PeriodTotals; prev: PeriodTotals; top?: BestSeller | null; days: number; phrase: string; money: (n: number) => string;
+  /** What the period is compared with, when it isn't the equally long block before (overviewRange's `before`). */
+  before?: string;
 }): LeadStory {
-  const before = comparedWith(days);
+  const before = compared || comparedWith(days);
   if (cur.orders === 0) {
     return {
       headline: `No paid orders ${days === 1 ? "yet today" : `in ${phrase}`}`,

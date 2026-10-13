@@ -20,6 +20,7 @@ import {
 import { m } from "motion/react";
 import { adminApi } from "./admin/api";
 import { abandonedCartApi, funnelApi } from "./lib/commerce";
+import { ga4Items, ga4Once } from "./lib/ga4";
 import { functionFetch } from "./lib/functionsBase";
 import { useSEO } from "./lib/seo";
 import { useCurrency } from "./CurrencyContext";
@@ -1151,6 +1152,12 @@ export function Checkout() {
   // Track funnel + abandoned cart on email entry
   useEffect(() => {
     funnelApi.trackCheckoutStart();
+    if (cartRef.current.length) {
+      ga4Once(`begin_checkout_${new Date().toISOString().slice(0, 10)}`, "begin_checkout", {
+        currency: "CAD", value: Math.round(cartRef.current.reduce((s: number, i: any) => s + (Number(i.price) || 0) * (Number(i.quantity) || 0), 0) * 100) / 100,
+        items: ga4Items(cartRef.current),
+      });
+    }
     if (typeof window !== "undefined" && window.location.search.includes("preview=true")) {
       window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
     }

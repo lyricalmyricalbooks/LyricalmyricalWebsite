@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import { EmptyState, GhostButton, SectionCard, StatusBadge } from "./riso/components";
 import { bestSellers, formatMix, topCountries, totals, unitsById, type Book, type Order } from "./overviewInsights";
 import { categoryBreakdown, categoryNames, weekdayMix, type Daily } from "./overviewTraffic";
 import { discountPerformance } from "./discountPerformance";
+import { hourHeatmap, operations } from "./overviewCohorts";
 import { BarRow, ROW, SPLIT, StatRow, money, percent } from "./OverviewParts";
 
 /** Overview › Dig deeper › Sales: what is selling, in which format, where, when and at what discount. */
@@ -19,6 +20,9 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
   const weekdays = useMemo(() => weekdayMix(current), [current]);
   const codes = useMemo(() => [...discountPerformance(current).entries()].sort((a, b) => b[1].revenue - a[1].revenue).slice(0, 5), [current]);
   const maxDay = Math.max(1, ...weekdays.map(d => d.orders));
+  const heat = useMemo(() => hourHeatmap(current), [current]);
+  const ops = useMemo(() => operations(current), [current]);
+  const hoursText = (h: number | null) => (h === null ? "—" : h < 48 ? `${Math.round(h)} hours` : `${(h / 24).toFixed(1)} days`);
 
   return (
     <div className="rp-split" style={SPLIT}>
@@ -110,6 +114,38 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
         {cur.orders === 0 ? <EmptyState title="No orders in this period" description="Weekdays fill in as orders arrive." /> : (
           <ul className="rp-list" aria-label="Orders by weekday">
             {weekdays.map(d => <BarRow key={d.day} label={d.day} value={`${d.orders} order${d.orders === 1 ? "" : "s"} · ${money(d.revenue)}`} share={(d.orders / maxDay) * 100} color="var(--rp-info)" />)}
+          </ul>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Busiest hours" description="Orders by weekday and hour (Toronto time) — when to post, send newsletters or launch">
+        {cur.orders === 0 ? <EmptyState title="No orders in this period" description="The grid fills in as orders arrive." /> : (
+          <div role="img" aria-label={`Orders by weekday and hour. Busiest: ${(() => { let best = { d: "", h: 0, n: 0 }; heat.grid.forEach(r => r.hours.forEach((n, h) => { if (n > best.n) best = { d: r.day, h, n }; })); return `${best.d} ${best.h}:00 with ${best.n} order${best.n === 1 ? "" : "s"}`; })()}`}>
+            <div style={{ display: "grid", gridTemplateColumns: "32px repeat(24, minmax(0, 1fr))", gap: 2, fontSize: 10 }} aria-hidden="true">
+              <span />
+              {Array.from({ length: 24 }, (_, h) => <span key={h} className="rp-mono" style={{ textAlign: "center", color: "var(--rp-text-subtle)" }}>{h % 6 === 0 ? h : ""}</span>)}
+              {heat.grid.map(r => (
+                <Fragment key={r.day}>
+                  <span className="rp-mono" style={{ color: "var(--rp-text-muted)" }}>{r.day}</span>
+                  {r.hours.map((n, h) => (
+                    <span key={h} title={`${r.day} ${h}:00 — ${n} order${n === 1 ? "" : "s"}`}
+                      style={{ height: 18, background: n ? "var(--rp-primary)" : "var(--rp-surface-inset)", opacity: n ? 0.25 + 0.75 * (n / Math.max(1, heat.max)) : 1, border: "1px solid var(--rp-divider)" }} />
+                  ))}
+                </Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard flush title="Fulfilment & payments" description="How fast paid orders ship, and how customers pay">
+        {cur.orders === 0 ? <EmptyState title="No orders in this period" description="Shipping speed and payment methods appear once orders arrive." /> : (
+          <ul className="rp-list" aria-label="Fulfilment and payments">
+            <StatRow label="Typical time to ship" hint={ops.shipped ? `median from payment to dispatch, ${ops.shipped} shipped order${ops.shipped === 1 ? "" : "s"}` : "no order shipped yet in this period"} value={hoursText(ops.medianHoursToShip)} />
+            <StatRow label="Shipped within 2 days" value={ops.within2DaysRate === null ? "—" : percent(ops.within2DaysRate, 0)} />
+            {ops.payments.map(p => <StatRow key={p.key} label={`Paid by ${p.key}`} hint={`${p.orders} order${p.orders === 1 ? "" : "s"}`} value={money(p.revenue)} />)}
+            {ops.currencies.length > 1 && ops.currencies.map(c => <StatRow key={c.key} label={`Checked out in ${c.key}`} hint={`${c.orders} order${c.orders === 1 ? "" : "s"} · shown in CA$`} value={money(c.revenue)} tone="muted" />)}
+            {ops.partlyRefunded > 0 && <StatRow label="Partly refunded orders" value={ops.partlyRefunded} tone="danger" />}
           </ul>
         )}
       </SectionCard>
