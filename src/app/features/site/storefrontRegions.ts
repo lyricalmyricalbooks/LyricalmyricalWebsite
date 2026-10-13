@@ -111,7 +111,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "cookiePanel", label: "Cookie panel", required: true, copy: "Cookie banner" }, { id: "cookieTag", label: "Cookie tag", copy: "Cookie banner" },
     { id: "cookieHeading", label: "Cookie heading", copy: "Cookie banner" }, { id: "cookieBody", label: "Cookie explanation", required: true, copy: "Cookie banner" },
     { id: "cookieChoices", label: "Cookie choices (necessary, analytics, marketing)", required: true, copy: "Cookie banner" },
-    { id: "cookieActions", label: "Cookie buttons (accept, reject, choose)", required: true, copy: "Cookie banner" },
+    { id: "cookieActions", label: "Cookie buttons (accept, reject, customize)", required: true, copy: "Cookie banner" },
     { id: "constructionArtwork", label: "Construction background" }, { id: "constructionPanel", label: "Construction panel", required: true },
     { id: "constructionTag", label: "Construction tag" }, { id: "constructionHeading", label: "Construction heading" },
     { id: "constructionBody", label: "Construction explanation" }, { id: "constructionFootnote", label: "Construction footnote" },
