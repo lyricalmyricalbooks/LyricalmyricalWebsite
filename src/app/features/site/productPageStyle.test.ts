@@ -3,6 +3,18 @@ import { extraFieldsCss, productPageCss, productPageFontNames, signupBoxCss } fr
 import { STYLE_GROUPS } from "../../admin/studio/styleSchema";
 
 describe("product page (catalogue card) CSS", () => {
+  it("keeps the original edition buttons until Edition choices controls are set", () => {
+    const css = productPageCss({});
+    expect(css).toContain(".fm-pdp-chip{min-height:44px;padding:0 16px;background:transparent;border:2px solid rgba(var(--border-rgb), 0.6);font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}");
+    expect(css).toContain('.fm-pdp-chip[aria-pressed="true"]{background:var(--active-bg);border-color:var(--active-bg);color:var(--active-fg);}');
+    expect(css).toContain('.fm-pdp-chip[data-soldout="true"]{text-decoration:line-through;opacity:.55;}');
+    const set = productPageCss({ pdpChipTextSize: 14, pdpChipCase: "none", pdpChipTextColor: "#111111", pdpChipBorderColor: "#222222", pdpChipBorderWidth: 1, pdpChipRadius: 999, pdpChipActiveBg: "#333333", pdpChipActiveText: "#444444", pdpChipSoldOutStrike: false });
+    expect(set).toContain("border:1px solid #222222;font-size:14px");
+    expect(set).toContain("text-transform:none;color:#111111;border-radius:32px;");
+    expect(set).toContain('[aria-pressed="true"]{background:#333333;border-color:#333333;color:#444444;}');
+    expect(set).toContain('.fm-pdp-chip[data-soldout="true"]{opacity:.55;}');
+  });
+
   it("falls back to theme tokens when no control is set", () => {
     const css = productPageCss({});
     expect(css).toContain("background:var(--surface)");

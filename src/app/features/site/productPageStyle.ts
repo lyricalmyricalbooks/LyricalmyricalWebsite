@@ -184,10 +184,13 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-select:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}`;
   css += `${S} .fm-pdp-select[aria-invalid="true"]{border-color:var(--danger);}`;
   css += `${S} .fm-pdp-select option{background:var(--surface);color:rgb(var(--fg-rgb));}`;
-  css += `${S} .fm-pdp-chip{min-height:44px;padding:0 16px;background:transparent;border:2px solid rgba(var(--border-rgb), 0.6);font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}`;
+  // Edition buttons (Style › Product page · buy card & details › Edition choices; defaults = the original look).
+  const chipActiveBg = cardTint("pdpChipActiveBg", "var(--active-bg)");
+  const chipRadius = num(d, "pdpChipRadius", 0, 0, 32);
+  css += `${S} .fm-pdp-chip{min-height:44px;padding:0 16px;background:transparent;border:${num(d, "pdpChipBorderWidth", 2, 0, 6)}px solid ${cardTint("pdpChipBorderColor", "rgba(var(--border-rgb), 0.6)")};font-size:${num(d, "pdpChipTextSize", 11, 9, 18)}px;font-weight:800;letter-spacing:.16em;text-transform:${d.pdpChipCase === "none" ? "none" : "uppercase"};color:${cardTint("pdpChipTextColor", "var(--muted)")};${chipRadius ? `border-radius:${chipRadius}px;` : ""}}`;
   css += `${S} .fm-pdp-chip:hover{border-color:rgb(var(--fg-rgb));color:rgb(var(--fg-rgb));}`;
-  css += `${S} .fm-pdp-chip[aria-pressed="true"]{background:var(--active-bg);border-color:var(--active-bg);color:var(--active-fg);}`;
-  css += `${S} .fm-pdp-chip[data-soldout="true"]{text-decoration:line-through;opacity:.55;}`;
+  css += `${S} .fm-pdp-chip[aria-pressed="true"]{background:${chipActiveBg};border-color:${chipActiveBg};color:${cardTint("pdpChipActiveText", "var(--active-fg)")};}`;
+  css += `${S} .fm-pdp-chip[data-soldout="true"]{${d.pdpChipSoldOutStrike === false ? "" : "text-decoration:line-through;"}opacity:.55;}`;
   css += `${S} .fm-pdp-qty{display:inline-flex;align-items:stretch;height:52px;flex:none;border:2px solid ${outline};}`;
   css += `${S} .fm-pdp-qty button{width:44px;display:grid;place-items:center;background:transparent;}`;
   css += `${S} .fm-pdp-qty button:hover:not(:disabled){background:var(--surface-2);}`;
