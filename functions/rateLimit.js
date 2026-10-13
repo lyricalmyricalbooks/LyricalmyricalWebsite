@@ -84,6 +84,8 @@ const LIMITS = {
   address: { max: 120, windowMs: 10 * 60 * 1000 },
   // 300 a day (~9,000 a month) stays inside Google's 10,000 free requests per month.
   addressShopDay: { max: 300, windowMs: 24 * 60 * 60 * 1000 },
+  // Admin AI writing assistant (Google Gemini free tier allows ~10 requests a minute).
+  aiWrite: { max: 40, windowMs: 10 * 60 * 1000 },
 };
 
 module.exports = { clientIpOf, ipKey, serverGeoCountry, nextWindow, hitLimit, LIMITS };

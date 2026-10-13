@@ -24,7 +24,9 @@ import {
   Quote,
   Minus,
   Eye,
-  GripVertical
+  GripVertical,
+  Sparkles,
+  Undo2
 } from "lucide-react";
 import { motion } from "motion/react";
 import toast from "react-hot-toast";
@@ -58,6 +60,7 @@ import { uploadBookPhoto } from "./bookPhotoUpload";
 import { studioHash } from "../lib/studioLocation";
 
 import { BookSeoPane } from "./BookSeoPane";
+import { askAi, bookAiInput } from "./aiWriter";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/site/preorder";
 import { DEFAULT_CUSTOMS_DESCRIPTION, DEFAULT_HS_CODE, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
@@ -832,6 +835,30 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     descSelection.current = { start: next.start, end: next.end };
     requestAnimationFrame(() => { if (area) { area.focus(); area.setSelectionRange(next.start, next.end); } });
   };
+  // Write with AI (Gemini, Settings › General › AI writing assistant): drafts or improves the description in
+  // the box; the text before it stays one click away (Undo AI draft).
+  const [descAiBusy, setDescAiBusy] = useState(false);
+  const [descBeforeAi, setDescBeforeAi] = useState<string | null>(null);
+  const writeDescriptionWithAi = async () => {
+    const current = String(formData.description || "");
+    if (!String(formData.title || "").trim()) { toast.error("Give the book a title first."); return; }
+    if (current.trim() && !(await askConfirm({
+      title: "Improve the description with AI?",
+      message: "Gemini rewrites the description from what is written now and the book's details. You can undo it, and nothing is saved until you save the book. Check every fact before saving.",
+      confirmLabel: "Improve it",
+    }))) return;
+    setDescAiBusy(true);
+    try {
+      const { description } = await askAi("bookDescription", bookAiInput(formData));
+      setDescBeforeAi(current);
+      set("description", description);
+      toast.success("Description drafted with AI. Check every fact, then save the book.");
+    } catch (err: any) {
+      toast.error(err?.message || "The AI assistant couldn't answer.");
+    } finally {
+      setDescAiBusy(false);
+    }
+  };
   const insertDescLink = (label: string, href: string) => {
     const markup = linkMarkup(label, href);
     setFormData((prev: any) => {
@@ -1057,6 +1084,15 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                       ))}
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Add link" onMouseDown={(e) => e.preventDefault()} onClick={openDescLink}><Link2 size={14} aria-hidden /> Add link</button>
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-pressed={descPreview} onClick={() => setDescPreview((v) => !v)}><Eye size={14} aria-hidden /> {descPreview ? "Hide preview" : "Preview"}</button>
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" disabled={descAiBusy} onClick={() => void writeDescriptionWithAi()}
+                        title="Draft this description with Google Gemini (Settings › General › AI writing assistant)">
+                        {descAiBusy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Sparkles size={14} aria-hidden />} {descAiBusy ? "Writing…" : (formData.description || "").trim() ? "Improve with AI" : "Write with AI"}
+                      </button>
+                      {descBeforeAi !== null && (
+                        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { set("description", descBeforeAi); setDescBeforeAi(null); }}>
+                          <Undo2 size={14} aria-hidden /> Undo AI draft
+                        </button>
+                      )}
                     </div>
                     <div ref={descWrap}>
                       <TextArea label="Description" name="description" value={formData.description} onChange={handleChange} rows={9}
