@@ -86,6 +86,8 @@ const LIMITS = {
   addressShopDay: { max: 300, windowMs: 24 * 60 * 60 * 1000 },
   // Admin AI writing assistant (Google Gemini free tier allows ~10 requests a minute).
   aiWrite: { max: 40, windowMs: 10 * 60 * 1000 },
+  // Admin Overview reads of Google Analytics (each is 3 Data API calls; GA4 allows thousands a day).
+  ga4: { max: 60, windowMs: 10 * 60 * 1000 },
 };
 
 module.exports = { clientIpOf, ipKey, serverGeoCountry, nextWindow, hitLimit, LIMITS };

@@ -12,6 +12,7 @@ import { RISO_NOIR_TOKENS, withRisoNoirDefault } from "./risoNoir";
 import { setSiteIdentity } from "../../lib/seo";
 import { applyFavicon } from "./favicon";
 import { applyCustomCode } from "./customCode";
+import { configureGa4 } from "../../lib/ga4";
 import { applyBackorderPolicy } from "./backorder";
 import { withBundleStock } from "./bundleStock";
 import { resolveProductRoutes } from "./productRoutes";
@@ -218,6 +219,9 @@ export function useSiteData() {
   useEffect(() => {
     applyCustomCode(consentAllows("analytics") ? settings.design : null, location.pathname);
   }, [settings.design, location.pathname, consentVersion]);
+  // Google Analytics 4 (Settings › General › Google Analytics); lib/ga4.ts decides whether this visit may be counted.
+  const ga4Id = (settings as any)?.analytics?.ga4MeasurementId;
+  useEffect(() => { configureGa4(ga4Id); }, [ga4Id]);
 
   // Shoppers only ever see live books. Drafts/scheduled books show only inside a real
   // Studio preview (the editor's snapshot is present) — "?preview=true" alone isn't enough.

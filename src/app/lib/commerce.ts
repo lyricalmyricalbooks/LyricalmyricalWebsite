@@ -1,3 +1,4 @@
+import { ga4Event, purchaseEvent } from "./ga4";
 import { inEditorPreview, trackingAllowed } from "./trackingGuard";
 import { analyticsKey, cleanSearchTerm, deviceOf } from "./analyticsKeys";
 import { orderDay } from "./shopDay";
@@ -277,6 +278,8 @@ export const funnelApi = {
     let storage: Storage | null = null;
     try { storage = typeof window !== "undefined" ? window.localStorage : null; } catch { storage = null; }
     if (!shouldCountPurchase(orderId, order, storage)) return;
+    const purchase = purchaseEvent(orderId, order);
+    if (purchase) ga4Event("purchase", purchase);
     await bump({ funnel: { purchase: increment(1) } });
   },
 

@@ -664,7 +664,10 @@ export const adminApi = {
     const docRef = doc(db, "settings", "website");
     const { publicSettings, secrets } = splitWebsiteSecrets(settings);
     await adminApi.writePrivateKeys(secrets);
-    const { payload, options: writeOptions } = themeWrite(publicSettings, options.publish);
+    // `analytics` (the Google Analytics measurement ID) is written only by Settings › General › Google Analytics
+    // (googleAnalyticsApi.save); a settings form holding an older copy must never put it back.
+    const { analytics: _ownedByGaCard, ...ownedHere } = publicSettings as Record<string, any>;
+    const { payload, options: writeOptions } = themeWrite(ownedHere, options.publish);
     await setDoc(docRef, payload, writeOptions);
     // The primary write already succeeded. An audit failure must not report a
     // failed publish and encourage a duplicate operation.

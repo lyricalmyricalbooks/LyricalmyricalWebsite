@@ -1872,6 +1872,39 @@ it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badg
   `pruneOldCarts` deletes carts older than 30 days. `nightlyFirestoreBackup` deletes `backups/<day>/` folders older than 30 days (needs Storage delete on the bucket;
   a failure is recorded as `pruneError`). No new Firestore rules or indexes. Deploy Functions with the frontend.
 
+## Overview analytics 2.0 + Google Analytics (13 October 2026)
+
+- **Ranges:** `admin/overviewRange.ts` `resolveRange(preset, { custom, compare })` — Today / 7 / 30 / 90 days, This month,
+  Last month, This year, 12 months, Custom (clamped to today, ≤ 731 days); compare = the equally long block before or
+  `lastYear` (`yearEarlier`). Toronto day keys; `trafficShift` moves a range ending today onto the UTC-keyed traffic docs
+  (same as the old rolling windows); `trafficDocsFor` sizes `getDailyAnalytics`. Orders split with `splitRange`
+  (`overviewInsights.ts`); `splitPeriods` stays for older callers. The choice is remembered per browser (`lm:overview-view`).
+- **Chart:** `overviewSeries.ts` — `buildRangeSeries` (day points + the matching comparison day), `bucketSeries`
+  (day/week/month, `autoGrain`), `metricValue` (revenue, orders, units, aov, visitors, conversion), `seriesSummary`,
+  `monthPace` (labelled projection, shown under the headline). "Today" charts the last 7 days.
+- **What changed:** `overviewChanges.ts` `whatChanged` (revenue + driver, title riser/faller/new, country, visitors,
+  conversion, discount share, refunds; max 6, biggest first). **Profit/Titles:** `overviewProfit.ts` — line revenue after
+  the order's discount and partial-refund share; cost = `inventoryCosts/{bookId}` (`inventoryApi.costs`) else
+  `book.costPrice`; digital lines cost 0; unknown cost is left out and reported as coverage, never guessed; gift cards
+  skipped. `titlePerformance` + `OverviewTitles.tsx` (Dig deeper › **Titles**, CSV). **Customers:** `overviewCohorts.ts`
+  `cohortRetention`, `repeatTiming`, `newVsReturningRevenue`; **Sales:** `operations` (median paid→shipped, payment/currency
+  mix) and `hourHeatmap` (Toronto weekday × hour).
+- **Google Analytics 4:** Settings › General › **Google Analytics** (`GoogleAnalyticsCard.tsx`, `admin/googleAnalytics.ts`).
+  Measurement ID (public) = `settings/website.analytics.ga4MeasurementId`, written only by that card (`updateSettings` drops
+  `analytics` so a stale settings form can't put an old ID back); property ID = admin-only `adminSecrets/googleAnalytics`.
+  Storefront: `lib/ga4.ts` loads gtag only after `trackingAllowed()` (analytics consent, not Studio preview/share link, not a
+  signed-in admin), never on `/admin`; declining later sets `ga-disable-<id>`. Events: router `page_view` (`Ga4PageViews` in
+  App.tsx, `send_page_view: false`), `view_item` (BookDetail, once per session), `add_to_cart` (CartContext.addToCart),
+  `begin_checkout` (Checkout), `purchase` (`funnelApi.trackPurchase`, CAD order totals, never test/sandbox). Reports: action
+  `ga4Report` on `createStripeCheckoutSession` (`functions/googleAnalytics.js`, admin, `LIMITS.ga4`): the Functions' own
+  service account token from the metadata server (scope analytics.readonly) — no key stored. Owner setup: add that service
+  account (shown by **Check connection**) as a Viewer on the GA4 property and enable the Analytics Data API in the project.
+  `overviewSources.ts` gives one `TrafficFigures` shape: `googleTraffic(report)` when connected, else `shopTraffic(daily…)`.
+- **Reset:** Marketing & traffic › The shop's own counter › **Start traffic counts again** → action `resetTraffic`
+  (`functions/trafficReset.js`, admin, typed `RESET`) deletes every `analytics/<date>` doc and records
+  `systemStatus/trafficReset` (`at`, `removedDays`). Never touches orders, revenue or Google Analytics.
+- Deploy Functions with the frontend. No Firestore rule or index change.
+
 ## Round-2 digital downloads (10 October 2026)
 
 `downloadDigitalAsset` rules live in `functions/digitalDelivery.js` (pure, `digitalDownloads.test.js`); the endpoint and the

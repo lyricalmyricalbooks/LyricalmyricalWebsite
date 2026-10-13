@@ -2,51 +2,60 @@ import { openFirstActionQueue, openOrdersQueue } from "./Orders";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { adminApi } from "./api";
+import { inventoryApi } from "./inventoryApi";
 import { getOrdersCached } from "./ordersCache";
 import { salesReportCsv } from "./salesReport";
 import { launchReadiness } from "./launchReadiness";
 import toast from "react-hot-toast";
 import {
   Checkbox, DataTable, EmptyState, ErrorState, LoadingState, SecondaryButton, SectionCard,
-  SectionHead, StatusBadge, Tabs, type Column,
+  SectionHead, SelectField, StatusBadge, Tabs, TextField, type BadgeTone, type Column,
 } from "./riso/components";
 import {
   bestSellers, customerMix, dormantStock, newestSales, newsletterSummary, orderStatusWords, orderTodos, reprintWatch, reviewSummary,
-  splitPeriods, stockValue, titleStock, toFulfil, totals, REORDER_COVER_DAYS,
+  splitRange, stockValue, titleStock, toFulfil, totals, REORDER_COVER_DAYS,
 } from "./overviewInsights";
-import { buildSeries, conversionRate, dailyDocsNeeded, dailyWindow, funnelRates, funnelTotals, sumField, type SeriesPoint } from "./overviewTraffic";
-import { Figure, ReadinessPanel, RunRow, Trend, money, percent } from "./OverviewParts";
+import { recordedSince, sumMap } from "./overviewTraffic";
+import { autoGrain, PRESETS, rangeWords, resolveRange, trafficDocsFor, trafficShift, type CompareMode, type Grain, type Preset } from "./overviewRange";
+import { bucketSeries, buildRangeSeries, CHART_METRICS, metricValue, monthPace, seriesSummary, type ChartMetric } from "./overviewSeries";
+import { googleTraffic, shopRowsIn, shopTraffic } from "./overviewSources";
+import { whatChanged, type Change } from "./overviewChanges";
+import { profitSummary, titlePerformance } from "./overviewProfit";
+import { googleAnalyticsApi } from "./googleAnalytics";
+import { shopDayKey } from "../lib/shopDay";
+import { Figure, ReadinessPanel, RunRow, SPLIT, ROW, Trend, money, percent } from "./OverviewParts";
 import { leadStory } from "./overviewStory";
 import { OverviewSales } from "./OverviewSales";
-import { OverviewMarketing } from "./OverviewMarketing";
+import { OverviewMarketing, type GaState } from "./OverviewMarketing";
 import { OverviewCustomers } from "./OverviewCustomers";
 import { OverviewStock } from "./OverviewStock";
+import { OverviewTitles } from "./OverviewTitles";
 
-type Period = "today" | "7d" | "30d" | "90d" | "365d";
-type Section = "sales" | "marketing" | "customers" | "stock";
-const PERIODS: Array<{ id: Period; label: string; days: number; phrase: string }> = [
-  { id: "today", label: "Today", days: 1, phrase: "today" },
-  { id: "7d", label: "7 days", days: 7, phrase: "the last 7 days" },
-  { id: "30d", label: "30 days", days: 30, phrase: "the last 30 days" },
-  { id: "90d", label: "90 days", days: 90, phrase: "the last 90 days" },
-  { id: "365d", label: "1 year", days: 365, phrase: "the last year" },
-];
+type Section = "sales" | "titles" | "marketing" | "customers" | "stock";
 const SECTION_COPY: Record<Section, string> = {
-  sales: "What is selling, in which format, where, and at what discount.",
-  marketing: "How people find you, what they search for, and where they drop off.",
-  customers: "Who buys, who comes back, and what happens to the carts people leave.",
+  sales: "What is selling, in which format, where, when and at what discount — and how fast it ships.",
+  titles: "Every title side by side: copies, revenue, change, interest, profit and stock.",
+  marketing: "How people find you, which pages they land on, what they search for, and where they drop off.",
+  customers: "Who buys, who comes back and when, and what happens to the carts people leave.",
   stock: "What to reprint, what is gathering dust, what is running low, and who is waiting.",
 };
-const shortDate = (key: string) => {
-  const d = new Date(`${key}T12:00:00Z`);
-  return isNaN(d.getTime()) ? key : d.toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" });
+const PREFS_KEY = "lm:overview-view";
+type Prefs = { preset?: Preset; compare?: CompareMode; from?: string; to?: string; metric?: ChartMetric };
+const readPrefs = (): Prefs => { try { return JSON.parse(window.localStorage.getItem(PREFS_KEY) || "{}") || {}; } catch { return {}; } };
+const writePrefs = (p: Prefs) => { try { window.localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* per-browser convenience only */ } };
+const CHANGE_BADGE: Record<Change["tone"], { tone: BadgeTone; text: string }> = {
+  up: { tone: "success", text: "▲ Up" }, down: { tone: "danger", text: "▼ Down" }, info: { tone: "info", text: "● New" }, warn: { tone: "warning", text: "! Check" },
 };
 
 export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?: (tab: string) => void; onEditBook?: (book: any) => void }) {
-  const [period, setPeriod] = useState<Period>("30d");
+  const saved = useMemo(readPrefs, []);
+  const [preset, setPreset] = useState<Preset>(saved.preset && PRESETS.some(p => p.id === saved.preset) ? saved.preset : "30d");
+  const [compareMode, setCompareMode] = useState<CompareMode>(saved.compare === "lastYear" ? "lastYear" : "previous");
+  const [custom, setCustom] = useState({ from: saved.from || "", to: saved.to || "" });
+  const [metric, setMetric] = useState<ChartMetric>(CHART_METRICS.some(m => m.id === saved.metric) ? saved.metric as ChartMetric : "revenue");
+  const [grainChoice, setGrainChoice] = useState<Grain | "auto">("auto");
   const [section, setSection] = useState<Section>("sales");
-  const [chartTab, setChartTab] = useState<"traffic" | "revenue">("revenue");
-  const [compare, setCompare] = useState(true);
+  const [showCompare, setShowCompare] = useState(true);
   const [fetchingBookId, setFetchingBookId] = useState<string | null>(null);
   const [loadedAt, setLoadedAt] = useState<Date | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -55,21 +64,34 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const [allOrders, setAllOrders] = useState<{ orders: any[] | null; error: boolean }>({ orders: null, error: false });
   const [stock, setStock] = useState<{ books: any[] | null; error: boolean }>({ books: null, error: false });
   const [audience, setAudience] = useState<{ data: { reviews: any[]; subscribers: any[]; pendingReviews?: number | null; approvedReviews?: { count: number; average: number | null } | null } | null; error: boolean }>({ data: null, error: false });
-  // Unread messages and open privacy requests for the run sheet (null = couldn't be counted).
   const [counts, setCounts] = useState<{ unreadMessages: number | null; openPrivacyRequests: number | null } | null>(null);
-  const chartTabIds = useRef({ revenue: "ov-chart-tab-revenue", traffic: "ov-chart-tab-traffic" });
   const [launch, setLaunch] = useState<{ parts: any | null; error: boolean }>({ parts: null, error: false });
+  const [costs, setCosts] = useState<Record<string, number>>({});
+  const [ga, setGa] = useState<GaState>({ status: "loading" });
+  const [lastReset, setLastReset] = useState<{ at: string; removedDays: number } | null>(null);
+  const metricIds = useRef(Object.fromEntries(CHART_METRICS.map(m => [m.id, `ov-chart-tab-${m.id}`])) as Record<ChartMetric, string>);
 
-  // Enough daily traffic docs for the period AND the equally long block before it (a 1-year view needs ~2 years).
-  const needDays = dailyDocsNeeded((PERIODS.find(p => p.id === period) || PERIODS[2]).days);
+  const range = useMemo(() => resolveRange(preset, { custom, compare: compareMode }), [preset, custom, compareMode, reloadKey]);
+  useEffect(() => { writePrefs({ preset, compare: compareMode, from: custom.from, to: custom.to, metric }); }, [preset, compareMode, custom, metric]);
+
+  // Enough daily traffic docs for the range AND its comparison window (a year-on-year view needs ~2 years).
+  const needDocs = trafficDocsFor(range);
   const loadDaily = useCallback(() => {
     setDaily(d => ({ rows: d.rows, error: false }));
-    adminApi.getDailyAnalytics(needDays).then((rows: any[]) => setDaily({ rows, error: false }))
+    adminApi.getDailyAnalytics(needDocs).then((rows: any[]) => setDaily({ rows, error: false }))
       .catch((err: unknown) => { console.error(err); setDaily({ rows: null, error: true }); toast.error("Traffic figures could not be loaded"); });
-  }, [needDays]);
-
-  // Traffic reloads when the period needs more history (or on Refresh), not with every other source.
+  }, [needDocs]);
   useEffect(() => { loadDaily(); }, [reloadKey, loadDaily]);
+
+  // Google Analytics for exactly this range (and its comparison window), read by the shop's server.
+  useEffect(() => {
+    let live = true;
+    setGa(g => ({ status: "loading", answer: g.answer }));
+    googleAnalyticsApi.report({ startDate: range.startKey, endDate: range.endKey, prevStartDate: range.prevStartKey, prevEndDate: range.prevEndKey })
+      .then(answer => { if (live) setGa(answer.connected ? { status: "connected", answer } : answer.code === "no_property" ? { status: "off", answer } : { status: "error", answer, message: answer.error }); })
+      .catch((err: any) => { if (live) setGa({ status: "error", message: err?.message || "Google Analytics couldn't be read." }); });
+    return () => { live = false; };
+  }, [range.startKey, range.endKey, range.prevStartKey, range.prevEndKey, reloadKey]);
 
   useEffect(() => {
     Promise.all([
@@ -78,7 +100,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       adminApi.getRecentEmailLog(5),
     ]).then(([settings, shippingProfiles, emailLog]) => setLaunch({ parts: { settings, shippingProfiles, emailLog }, error: false }))
       .catch(() => setLaunch({ parts: null, error: true }));
-    // The whole catalogue and every order, so 90-day and 1-year figures are never cut off.
+    // The whole catalogue and every order, so 1-year and year-on-year figures are never cut off.
     getOrdersCached({ force: reloadKey > 0 }).then((o: any[]) => { setAllOrders({ orders: o, error: false }); setLoadedAt(new Date()); })
       .catch(() => setAllOrders({ orders: null, error: true }));
     adminApi.getAllBooks().then((b: any[]) => setStock({ books: b, error: false }))
@@ -86,6 +108,9 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     adminApi.getAudienceSnapshot().then((d: any) => setAudience({ data: d, error: false }))
       .catch(() => setAudience({ data: null, error: true }));
     adminApi.getAdminBadgeCounts().then(setCounts).catch(() => setCounts({ unreadMessages: null, openPrivacyRequests: null }));
+    // Cost prices are admin-only (Inventory); without them profit says "add cost prices", never a guess.
+    inventoryApi.costs().then(setCosts).catch(() => setCosts({}));
+    googleAnalyticsApi.lastReset().then(setLastReset).catch(() => setLastReset(null));
   }, [reloadKey]);
 
   const refresh = () => {
@@ -112,12 +137,10 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     }
   };
 
-  const meta = PERIODS.find(p => p.id === period)!;
-  const days = meta.days;
   const books = stock.books || [];
 
   // Everything sales-related comes from paid, real orders — one source of truth for revenue, orders and conversion.
-  const periods = useMemo(() => (allOrders.orders ? splitPeriods(allOrders.orders, days) : null), [allOrders.orders, days]);
+  const periods = useMemo(() => (allOrders.orders ? splitRange(allOrders.orders, range) : null), [allOrders.orders, range]);
   const insights = useMemo(() => {
     if (!periods || !allOrders.orders) return null;
     const rows = titleStock(periods.paid, books);
@@ -125,32 +148,35 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       top: bestSellers(periods.current, 1)[0] ?? null,
       cur: totals(periods.current), prev: totals(periods.previous),
       mix: customerMix(periods.paid, periods.current, periods.start),
-      shelf: stockValue(books), reprint: reprintWatch(rows), dormant: dormantStock(rows).slice(0, 5),
+      shelf: stockValue(books), stockRows: rows, reprint: reprintWatch(rows), dormant: dormantStock(rows).slice(0, 5),
       fulfil: toFulfil(allOrders.orders),
+      profit: profitSummary(periods.current, books, costs),
+      pace: monthPace(periods.paid, shopDayKey(Date.now())),
     };
-  }, [periods, allOrders.orders, books]);
+  }, [periods, allOrders.orders, books, costs]);
 
   const readiness = useMemo(() => {
     if (!launch.parts || !allOrders.orders || !stock.books) return null;
     return launchReadiness({ ...launch.parts, books: stock.books, orders: allOrders.orders });
   }, [launch.parts, allOrders.orders, stock.books]);
 
-  // Traffic is recorded per calendar day; windows use the same day keys as the orders above.
-  const dw = useMemo(() => dailyWindow(daily.rows || [], days), [daily.rows, days]);
-  const trafficReady = daily.rows !== null;
-  const visits = { cur: sumField(dw.current, "visits"), prev: sumField(dw.previous, "visits") };
-  const trafficSince = dw.firstKey && dw.firstKey > dw.startKey ? dw.firstKey : null;
-  const conv = insights ? { cur: conversionRate(insights.cur.orders, visits.cur), prev: conversionRate(insights.prev.orders, visits.prev) } : null;
-  const funnel = useMemo(() => funnelRates(funnelTotals(dw.current)), [dw.current]);
-  const cartToCheckout = funnel[2].ofPrevious;
+  // Traffic: Google Analytics when connected, else the shop's own counters (UTC-keyed, shifted onto shop days).
+  const shift = trafficShift(range);
+  const gaReport = ga.status === "connected" ? ga.answer?.report : undefined;
+  const traffic = useMemo(() => (gaReport ? googleTraffic(gaReport) : daily.rows ? shopTraffic(daily.rows, range, shift) : null), [gaReport, daily.rows, range, shift]);
+  const trafficReady = ga.status !== "loading" && traffic !== null;
+  const trafficFailed = !gaReport && daily.error;
+  const dailyCurrent = useMemo(() => shopRowsIn(daily.rows || [], range.startKey, range.endKey, shift), [daily.rows, range, shift]);
+  const visits = traffic ? traffic.visitors : { cur: 0, prev: 0 };
+  const conv = insights && trafficReady ? { cur: visits.cur > 0 ? (insights.cur.orders / visits.cur) * 100 : 0, prev: visits.prev > 0 ? (insights.prev.orders / visits.prev) * 100 : 0 } : null;
+  const funnel = traffic?.funnel;
+  const sourceName = traffic?.source === "google" ? "Google Analytics" : "shop counter";
 
   const reviews = useMemo(() => {
     if (!audience.data) return null;
     const s = reviewSummary(audience.data.reviews);
-    // The server count sees every pending review, not just the newest 200.
     const server = {
       ...(typeof audience.data.pendingReviews === "number" ? { pending: audience.data.pendingReviews } : {}),
-      // Approved count and average come from every approved review, not the newest 200.
       ...(audience.data.approvedReviews ? { approved: audience.data.approvedReviews.count, average: audience.data.approvedReviews.average } : {}),
     };
     return { ...s, ...server };
@@ -158,14 +184,33 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const todos = useMemo(() => (allOrders.orders ? orderTodos(allOrders.orders) : null), [allOrders.orders]);
   const subs = audience.data && periods ? newsletterSummary(audience.data.subscribers, periods.start) : null;
 
-  // "Today" has no hourly data, so its chart shows the last 7 days for context.
-  const chartDays = period === "today" ? 7 : days;
-  const series: SeriesPoint[] = useMemo(() => (periods ? buildSeries(periods.paid, daily.rows || [], chartDays) : []), [periods, daily.rows, chartDays]);
-  const sumOf = (f: keyof SeriesPoint) => series.reduce((a, p) => a + (p[f] as number), 0);
-  const chartSummary = series.length
-    ? `${chartTab === "traffic" ? "Visitors and sales" : "Net revenue"} over ${series.length} day${series.length === 1 ? "" : "s"}: ` +
-      (chartTab === "traffic" ? `${sumOf("visits").toLocaleString()} visitors, ${sumOf("orders").toLocaleString()} sales.` : `${money(sumOf("revenue"))} from ${sumOf("orders").toLocaleString()} paid orders.`)
+  // The chart. "Today" has no hourly data, so it shows the last 7 days for context.
+  const chartRange = useMemo(() => (range.preset === "today" ? resolveRange("7d", { compare: compareMode }) : range), [range, compareMode]);
+  const grain: Grain = grainChoice === "auto" ? autoGrain(chartRange.days) : grainChoice;
+  const metricMeta = CHART_METRICS.find(m => m.id === metric) || CHART_METRICS[0];
+  // Google's figures cover only the chosen range, so "Today"'s 7-day context can't chart Google visitors.
+  const visitorsCharted = trafficReady && !(range.preset === "today" && traffic?.source === "google");
+  const metricUsable = !metricMeta.needsTraffic || visitorsCharted;
+  const buckets = useMemo(() => (periods ? bucketSeries(buildRangeSeries(periods.paid, chartRange, traffic?.visitsOn || (() => 0)), grain) : []), [periods, chartRange, traffic, grain]);
+  const chartData = useMemo(() => buckets.map(b => ({ key: b.date, label: b.label, value: metricValue(b, metric), prev: metricValue(b, metric, true) })), [buckets, metric]);
+  const summary = useMemo(() => seriesSummary(buckets, metric), [buckets, metric]);
+  const fmt = (v: number | null) => (v === null ? "—" : metricMeta.kind === "money" ? money(v) : metricMeta.kind === "percent" ? percent(v, 2) : Math.round(v).toLocaleString());
+  const axisFmt = (v: number) => (metricMeta.kind === "money" ? (v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${Math.round(v)}`) : metricMeta.kind === "percent" ? `${v}%` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v));
+  const chartEmpty = chartData.every(d => !d.value) && chartData.every(d => !d.prev);
+  const chartSummary = buckets.length
+    ? `${metricMeta.label} by ${grain} over ${chartRange.phrase}: ${fmt(summary.value)}${summary.previous !== null ? ` (${fmt(summary.previous)} in ${chartRange.before})` : ""}.${summary.best ? ` Best ${grain}: ${summary.best.label}, ${fmt(summary.best.value)}.` : ""}`
     : "No chart data for this period.";
+
+  const changes = useMemo(() => (insights && periods ? whatChanged({
+    cur: insights.cur, prev: insights.prev, current: periods.current, previous: periods.previous,
+    visits: trafficReady ? visits : null, before: range.before, money,
+  }) : null), [insights, periods, trafficReady, visits.cur, visits.prev, range.before]);
+
+  const titleRows = useMemo(() => (periods ? titlePerformance({
+    current: periods.current, previous: periods.previous, books, costs,
+    viewsById: recordedSince(daily.rows || [], "bookViews") ? sumMap(dailyCurrent, "bookViews") : null,
+    stock: insights?.stockRows || [],
+  }) : []), [periods, books, costs, daily.rows, dailyCurrent, insights]);
 
   // Real sales only: abandoned/unpaid card attempts and test orders are not orders to look at here.
   const recentOrders = useMemo(() => newestSales(allOrders.orders || []), [allOrders.orders]);
@@ -184,123 +229,162 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     a.href = url; a.download = `sales-report-${periods.startKey}-to-${periods.endKey}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
-  const onChartTabKey = (e: React.KeyboardEvent) => {
+  const onMetricKey = (e: React.KeyboardEvent) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
     e.preventDefault();
-    const next = chartTab === "revenue" ? "traffic" : "revenue";
-    const target = e.key === "Home" ? "revenue" : e.key === "End" ? "traffic" : next;
-    setChartTab(target);
-    requestAnimationFrame(() => document.getElementById(chartTabIds.current[target])?.focus());
+    const ids = CHART_METRICS.map(m => m.id);
+    const i = ids.indexOf(metric);
+    const target = e.key === "Home" ? ids[0] : e.key === "End" ? ids[ids.length - 1] : ids[(i + (e.key === "ArrowRight" ? 1 : ids.length - 1)) % ids.length];
+    setMetric(target);
+    requestAnimationFrame(() => document.getElementById(metricIds.current[target])?.focus());
+  };
+  const resetTraffic = async () => {
+    const result = await googleAnalyticsApi.resetTraffic();
+    setLastReset({ at: result.at, removedDays: result.removedDays });
+    toast.success(`Traffic counts reset — ${result.removedDays} day${result.removedDays === 1 ? "" : "s"} cleared. Counting starts now.`);
+    loadDaily();
   };
 
   const ordersLoading = !insights && !allOrders.error;
   const stockLoading = stock.books === null && !stock.error;
   const KPI_WAIT = "Loading…";
-  const trafficFooter = (text: string) => (daily.error ? "Traffic unavailable" : !trafficReady ? KPI_WAIT : text);
+  const trafficFooter = (text: string) => (trafficFailed ? "Traffic unavailable" : !trafficReady ? KPI_WAIT : text);
   const refreshLabel = loadedAt ? `Updated ${loadedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Loading…";
 
-  const story = insights ? leadStory({ cur: insights.cur, prev: insights.prev, top: insights.top, days, phrase: meta.phrase, money }) : null;
+  const story = insights ? leadStory({ cur: insights.cur, prev: insights.prev, top: insights.top, days: range.preset === "today" ? 1 : Math.max(2, range.days), phrase: range.phrase, money, before: range.before }) : null;
   const openTodos = insights && reviews && todos ? insights.fulfil.length + reviews.pending + insights.reprint.length + insights.shelf.soldOut
     + todos.requests.length + todos.giftCardsMissing.length + todos.awaitingRelease.length
     + (counts?.unreadMessages || 0) + (counts?.openPrivacyRequests || 0) : null;
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const onFlare = "var(--rp-on-primary)";
+  const cartStep = funnel && funnel.add_to_cart > 0 ? (funnel.checkout_start / funnel.add_to_cart) * 100 : null;
+  const profit = insights?.profit;
 
   return (
     <div className="rp-stack rp-ov">
-      {/* 1 · Masthead: the date, freshness and the one period control for every figure that depends on it */}
+      {/* 1 · Masthead: the date, freshness and the period control for every figure that depends on it */}
       <header className="rp-ov-mast">
         <div className="rp-ov-dateline">
           <span>{today}</span>
-          <span aria-live="polite">{refreshLabel}</span>
+          <span aria-live="polite">{refreshLabel}{traffic ? ` · traffic from ${sourceName}` : ""}</span>
         </div>
         <div className="rp-ov-mast-row">
           <h2 className="rp-ov-title">The shop today</h2>
           <div className="rp-ov-mast-actions">
             <SecondaryButton size="sm" onClick={refresh} disabled={ordersLoading}>Refresh</SecondaryButton>
             <SecondaryButton size="sm" onClick={downloadReport} disabled={!periods}>Download sales report (CSV)</SecondaryButton>
-            <Tabs<Period> label="Period" value={period} onChange={setPeriod} tabs={PERIODS.map(p => ({ id: p.id, label: p.label }))} />
           </div>
+        </div>
+        <div className="rp-ov-controls">
+          <SelectField label="Period" value={preset} onChange={e => setPreset(e.target.value as Preset)}>
+            {PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </SelectField>
+          {preset === "custom" && (
+            <>
+              <TextField label="From" type="date" value={custom.from} max={custom.to || shopDayKey(Date.now())} onChange={e => setCustom(c => ({ ...c, from: e.target.value }))} />
+              <TextField label="To" type="date" value={custom.to} min={custom.from || undefined} max={shopDayKey(Date.now())} onChange={e => setCustom(c => ({ ...c, to: e.target.value }))} />
+            </>
+          )}
+          <SelectField label="Compare with" value={compareMode} onChange={e => setCompareMode(e.target.value as CompareMode)}>
+            <option value="previous">The period before</option>
+            <option value="lastYear">The same days last year</option>
+          </SelectField>
+          <p className="rp-ov-range" aria-live="polite">
+            <strong>{range.phrase[0].toUpperCase() + range.phrase.slice(1)}</strong>{range.preset !== "custom" && <> · {rangeWords(range.startKey, range.endKey)}</>}
+            <span> · compared with {range.before} ({rangeWords(range.prevStartKey, range.prevEndKey)})</span>
+            {preset === "custom" && range.preset !== "custom" && <span> · pick both dates to use a custom range</span>}
+          </p>
         </div>
       </header>
 
       {/* 2 · Launch checks: a slim strip while anything is open, gone once everything is green */}
       <ReadinessPanel error={launch.error} items={readiness} onRetry={refresh} onOpen={tab => setActiveTab?.(tab)} />
 
-      {/* 3 · Lead story (flare) beside today's run sheet (ink) */}
+      {/* 3 · Lead story (flare) with the chart, beside today's run sheet (ink) */}
       <div className="rp-ov-front">
         <article className="rp-ov-lead" aria-labelledby="ov-lead-title">
           <div className="rp-ov-lead-head">
             <div style={{ minWidth: 0 }}>
-              <div className="rp-ov-eyebrow">Lead story · {meta.phrase}</div>
+              <div className="rp-ov-eyebrow">Lead story · {range.phrase}</div>
               <h2 id="ov-lead-title" className="rp-ov-headline">
                 {allOrders.error ? "Sales figures unavailable" : story ? story.headline : "Counting this period's sales…"}
               </h2>
               <p className="rp-ov-dek">
-                {allOrders.error ? "Orders could not be loaded, so revenue can't be calculated." : story ? story.dek
-                  : "Paid orders are loading."}
+                {allOrders.error ? "Orders could not be loaded, so revenue can't be calculated." : story ? story.dek : "Paid orders are loading."}
                 {insights && insights.cur.refunded > 0 && ` After ${money(insights.cur.refunded)} refunded.`}
               </p>
-            </div>
-            <div className="rp-ov-switch" role="tablist" aria-label="Chart">
-              {(["revenue", "traffic"] as const).map(id => (
-                <button key={id} id={chartTabIds.current[id]} type="button" role="tab" aria-selected={chartTab === id}
-                  aria-controls="ov-chart-panel" tabIndex={chartTab === id ? 0 : -1} onKeyDown={onChartTabKey} onClick={() => setChartTab(id)}>
-                  {id === "revenue" ? "Revenue" : "Traffic"}
-                </button>
-              ))}
+              {insights?.pace && insights.pace.soFar > 0 && (
+                <p className="rp-ov-dek" style={{ marginTop: 4 }}>
+                  This month: {money(insights.pace.soFar)} in {insights.pace.daysIn} days — on pace for about <strong>{money(Math.round(insights.pace.projected))}</strong> by month end (a projection at this month's daily average).
+                </p>
+              )}
             </div>
           </div>
+          <div className="rp-ov-switch" role="tablist" aria-label="Chart measure" style={{ marginTop: 14, flexWrap: "wrap" }}>
+            {CHART_METRICS.map(m => (
+              <button key={m.id} id={metricIds.current[m.id]} type="button" role="tab" aria-selected={metric === m.id}
+                aria-controls="ov-chart-panel" tabIndex={metric === m.id ? 0 : -1} onKeyDown={onMetricKey} onClick={() => setMetric(m.id)}>
+                {m.label}
+              </button>
+            ))}
+          </div>
 
-          <div id="ov-chart-panel" role="tabpanel" aria-labelledby={chartTabIds.current[chartTab]}>
+          <div id="ov-chart-panel" role="tabpanel" aria-labelledby={metricIds.current[metric]}>
           {allOrders.error ? <ErrorState title="Chart unavailable" description="Orders could not be loaded, so the trend can't be drawn." onRetry={refresh} />
-            : chartTab === "traffic" && daily.error ? <ErrorState title="Traffic unavailable" description="Visits could not be loaded." onRetry={loadDaily} />
-            : !periods || (chartTab === "traffic" && !trafficReady) ? <LoadingState label="Loading chart…" />
-            : series.length === 0 || (sumOf(chartTab === "traffic" ? "visits" : "revenue") === 0 && sumOf("orders") === 0) ? (
+            : metricMeta.needsTraffic && trafficFailed ? <ErrorState title="Traffic unavailable" description="Visits could not be loaded." onRetry={loadDaily} />
+            : !periods || (metricMeta.needsTraffic && !trafficReady) ? <LoadingState label="Loading chart…" />
+            : !metricUsable ? <p className="rp-ov-dek" style={{ marginTop: 16 }}>Google Analytics visitors chart over a longer period — choose 7 days or more.</p>
+            : chartEmpty ? (
               <p className="rp-ov-dek" style={{ marginTop: 16 }}>
-                {chartTab === "traffic" ? "Visits and sales will chart here once the storefront records them." : "Revenue will chart here once customers place paid orders."}
+                {metricMeta.needsTraffic ? "Visitors will chart here once the storefront records them." : "This will chart here once customers place paid orders."}
               </p>
             ) : (
               <>
                 <p className="rp-sr-only">{chartSummary}</p>
-                <div style={{ height: 240, width: "100%", marginTop: 12 }} role="img" aria-label={chartSummary}>
+                <div className="rp-ov-chart-stats" aria-hidden="true">
+                  <span><b>{fmt(summary.value)}</b> {metricMeta.kind === "money" && metric === "aov" ? "average" : "in total"}{summary.previous !== null && <> · <Trend now={summary.value || 0} before={summary.previous || 0} /></>}</span>
+                  {summary.perDay !== null && <span><b>{fmt(summary.perDay)}</b> a day</span>}
+                  {summary.best && <span>Best {grain}: <b>{summary.best.label}</b> ({fmt(summary.best.value)})</span>}
+                </div>
+                <div style={{ height: 240, width: "100%", marginTop: 8 }} role="img" aria-label={chartSummary}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={series} margin={{ left: 0, right: 8, top: 8 }}>
+                    <AreaChart data={chartData} margin={{ left: 0, right: 8, top: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={onFlare} strokeOpacity={0.18} />
-                      <XAxis dataKey="date" axisLine={false} tickLine={false} minTickGap={24} tick={{ fontSize: 11, fill: onFlare }} tickFormatter={shortDate} />
-                      <YAxis axisLine={false} tickLine={false} width={40} tick={{ fontSize: 11, fill: onFlare }} />
-                      <Tooltip labelFormatter={(k) => shortDate(String(k))} contentStyle={{ background: "var(--rp-surface)", border: "2px solid var(--rp-border-strong)", borderRadius: 0, color: "var(--rp-text)", fontSize: 12 }} />
-                      {chartTab === "traffic" ? (
-                        <>
-                          {compare && <Area type="monotone" dataKey="prevVisits" name="Visitors (before)" stroke={onFlare} strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 4" fill="none" />}
-                          <Area type="monotone" dataKey="visits" name="Visitors" stroke={onFlare} strokeWidth={3} fill={onFlare} fillOpacity={0.14} />
-                          <Area type="monotone" dataKey="orders" name="Sales" stroke="var(--rp-surface)" strokeWidth={2.5} fill="none" />
-                        </>
-                      ) : (
-                        <>
-                          {compare && <Area type="monotone" dataKey="prevRevenue" name="Net revenue before (CA$)" stroke={onFlare} strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 4" fill="none" />}
-                          <Area type="monotone" dataKey="revenue" name="Net revenue (CA$)" stroke={onFlare} strokeWidth={3} fill={onFlare} fillOpacity={0.14} />
-                        </>
-                      )}
+                      <XAxis dataKey="label" axisLine={false} tickLine={false} minTickGap={24} tick={{ fontSize: 11, fill: onFlare }} />
+                      <YAxis axisLine={false} tickLine={false} width={48} tick={{ fontSize: 11, fill: onFlare }} tickFormatter={axisFmt} />
+                      <Tooltip formatter={(v: any, name: any) => [fmt(v === null || v === undefined ? null : Number(v)), name]}
+                        contentStyle={{ background: "var(--rp-surface)", border: "2px solid var(--rp-border-strong)", borderRadius: 0, color: "var(--rp-text)", fontSize: 12 }} />
+                      {showCompare && <Area type="monotone" dataKey="prev" name={`${metricMeta.label} (${chartRange.compare === "lastYear" ? "last year" : "before"})`} stroke={onFlare} strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 4" fill="none" connectNulls />}
+                      <Area type="monotone" dataKey="value" name={metricMeta.label} stroke={onFlare} strokeWidth={3} fill={onFlare} fillOpacity={0.14} connectNulls />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
                 <div className="rp-ov-lead-foot">
                   <span className="rp-ov-legend">
-                    <span><i data-line="solid" aria-hidden="true" />{chartTab === "traffic" ? "Visitors" : "Net revenue"}</span>
-                    {chartTab === "traffic" && <span><i data-line="light" aria-hidden="true" />Sales</span>}
-                    {compare && <span><i data-line="dashed" aria-hidden="true" />{period === "today" ? "Week before" : "Period before"}</span>}
+                    <span><i data-line="solid" aria-hidden="true" />{metricMeta.label}{metricMeta.needsTraffic ? ` · ${sourceName}` : ""}</span>
+                    {showCompare && <span><i data-line="dashed" aria-hidden="true" />{chartRange.compare === "lastYear" ? "Same days last year" : range.preset === "today" ? "Week before" : "Period before"}</span>}
                   </span>
-                  <Checkbox label="Compare with the period before" checked={compare} onChange={e => setCompare(e.target.checked)} />
+                  <span style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                    <span className="rp-ov-switch" role="group" aria-label="Group the chart by">
+                      {(["auto", "day", "week", "month"] as const).map(g => (
+                        <button key={g} type="button" aria-pressed={grainChoice === g} onClick={() => setGrainChoice(g)}>
+                          {g === "auto" ? `Auto (${autoGrain(chartRange.days)})` : g}
+                        </button>
+                      ))}
+                    </span>
+                    <Checkbox label="Show comparison" checked={showCompare} onChange={e => setShowCompare(e.target.checked)} />
+                  </span>
                 </div>
-                {period === "today" && <p className="rp-ov-dek" style={{ marginTop: 4 }}>Hourly data isn't recorded — the chart shows the last 7 days for context.</p>}
+                {range.preset === "today" && <p className="rp-ov-dek" style={{ marginTop: 4 }}>Hourly data isn't recorded — the chart shows the last 7 days for context.</p>}
                 <details className="rp-ov-table-toggle">
                   <summary>View chart data as a table</summary>
                   <div style={{ marginTop: 8 }}>
-                    <DataTable caption="Chart data" rows={series} rowKey={(d: SeriesPoint) => d.date}
-                      columns={chartTab === "traffic"
-                        ? [{ key: "d", header: "Date", render: (d: SeriesPoint) => d.date }, { key: "v", header: "Visitors", numeric: true, render: (d: SeriesPoint) => d.visits }, { key: "o", header: "Sales", numeric: true, render: (d: SeriesPoint) => d.orders }]
-                        : [{ key: "d", header: "Date", render: (d: SeriesPoint) => d.date }, { key: "r", header: "Net revenue", numeric: true, render: (d: SeriesPoint) => money(d.revenue) }, { key: "o", header: "Orders", numeric: true, render: (d: SeriesPoint) => d.orders }]} />
+                    <DataTable caption="Chart data" rows={chartData} rowKey={d => d.key}
+                      columns={[
+                        { key: "d", header: grain === "day" ? "Date" : grain === "week" ? "Week" : "Month", render: d => d.label },
+                        { key: "v", header: metricMeta.label, numeric: true, render: d => fmt(d.value) },
+                        { key: "p", header: chartRange.compare === "lastYear" ? "Last year" : "Before", numeric: true, render: d => fmt(d.prev) },
+                      ]} />
                   </div>
                 </details>
               </>
@@ -313,6 +397,9 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <h2 id="ov-run-title" className="rp-ov-run-title">Today's run sheet</h2>
           <div className="rp-ov-run-total" aria-hidden="true">{openTodos === null ? "…" : openTodos}</div>
           <p className="rp-ov-run-sub">{openTodos === null ? "Counting…" : openTodos === 0 ? "Nothing needs you right now." : `${openTodos} thing${openTodos === 1 ? "" : "s"} need${openTodos === 1 ? "s" : ""} you`}</p>
+          {gaReport && gaReport.activeNow !== null && (
+            <p className="rp-ov-run-sub"><strong style={{ color: "var(--rp-primary-hover)" }}>{gaReport.activeNow}</strong> {gaReport.activeNow === 1 ? "person is" : "people are"} on the site now (Google Analytics)</p>
+          )}
           <ul className="rp-list" aria-label="Things that need attention">
             <RunRow label="paid orders waiting to ship" count={insights ? insights.fulfil.length : null} loading={ordersLoading}
               detail={insights && insights.fulfil[0] ? `Oldest has waited ${insights.fulfil[0].ageDays} day${insights.fulfil[0].ageDays === 1 ? "" : "s"}` : ""}
@@ -349,12 +436,14 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             foot={insights ? <><Trend now={insights.cur.orders} before={insights.prev.orders} /> {insights.cur.units.toLocaleString()} books sold</> : KPI_WAIT} />
           <Figure label="Average order" value={insights ? money(insights.cur.aov) : "…"}
             foot={insights ? <><Trend now={insights.cur.aov} before={insights.prev.aov} /> per paid order</> : KPI_WAIT} />
-          <Figure label="Visitors" value={trafficReady ? visits.cur.toLocaleString() : daily.error ? "—" : "…"}
-            foot={trafficReady ? <><Trend now={visits.cur} before={visits.prev} /> {trafficSince ? `recorded since ${shortDate(trafficSince)}` : "sessions"}</> : trafficFooter(KPI_WAIT)} />
-          <Figure label="Visitors → sale" value={conv && trafficReady ? percent(conv.cur) : daily.error ? "—" : "…"}
-            foot={conv && trafficReady ? <><Trend now={conv.cur} before={conv.prev} /> paid orders ÷ visits</> : trafficFooter(KPI_WAIT)} />
-          <Figure label="Cart → checkout" value={trafficReady && funnel[1].count > 0 && cartToCheckout !== null ? percent(cartToCheckout, 0) : trafficReady ? "—" : "…"}
-            foot={trafficReady ? (funnel[1].count > 0 ? `${funnel[2].count.toLocaleString()} of ${funnel[1].count.toLocaleString()} carts reached checkout` : "no carts recorded yet") : trafficFooter(KPI_WAIT)} />
+          <Figure label="Visitors" value={trafficReady ? visits.cur.toLocaleString() : trafficFailed ? "—" : "…"}
+            foot={trafficReady ? <><Trend now={visits.cur} before={visits.prev} /> {sourceName}</> : trafficFooter(KPI_WAIT)} />
+          <Figure label="Visitors → sale" value={conv ? percent(conv.cur) : trafficFailed ? "—" : "…"}
+            foot={conv ? <><Trend now={conv.cur} before={conv.prev} /> paid orders ÷ visitors</> : trafficFooter(KPI_WAIT)} />
+          <Figure label="Bag → checkout" value={trafficReady && cartStep !== null ? percent(cartStep, 0) : trafficReady ? "—" : "…"}
+            foot={trafficReady && funnel ? (funnel.add_to_cart > 0 ? `${funnel.checkout_start.toLocaleString()} checkouts from ${funnel.add_to_cart.toLocaleString()} bag adds` : "no bag adds recorded yet") : trafficFooter(KPI_WAIT)} />
+          <Figure label="Gross profit" value={profit ? (profit.costedUnits > 0 ? money(profit.profit) : "—") : "…"}
+            foot={profit ? (profit.costedUnits > 0 ? `${profit.margin === null ? "—" : percent(profit.margin, 0)} margin · cost known for ${percent(profit.coverage, 0)} of copies` : "add cost prices in Inventory to see profit") : KPI_WAIT} />
           <Figure label="Returning readers" value={insights ? percent(insights.mix.returningRate, 0) : "…"}
             foot={insights ? `${insights.mix.returning} returning · ${insights.mix.fresh} new` : KPI_WAIT} />
           <Figure label="Refunds & codes" tone={insights && insights.cur.refunded > 0 ? "warn" : undefined} value={insights ? money(insights.cur.refunded + insights.cur.discounts) : "…"}
@@ -362,17 +451,38 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         </section>
       )}
 
-      {/* 5 · Newest orders */}
+      {/* 5 · What changed, beside the newest orders */}
+      <div className="rp-split" style={SPLIT}>
+        <SectionCard flush title="What changed" description={`The biggest moves compared with ${range.before}`}>
+          {allOrders.error ? <ErrorState title="Changes unavailable" description="Orders could not be loaded." onRetry={refresh} />
+            : !changes ? <LoadingState label="Comparing…" />
+            : changes.length === 0 ? <EmptyState icon="≈" title="Nothing moved much" description={`Sales, titles and traffic are close to ${range.before}.`} />
+            : (
+              <ul className="rp-list" aria-label="What changed">
+                {changes.map(c => (
+                  <li key={c.id} style={ROW}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, overflowWrap: "anywhere" }}>{c.title}</div>
+                      <div className="rp-hint">{c.detail}</div>
+                    </div>
+                    <StatusBadge tone={CHANGE_BADGE[c.tone].tone}>{CHANGE_BADGE[c.tone].text}</StatusBadge>
+                  </li>
+                ))}
+              </ul>
+            )}
+        </SectionCard>
         <SectionCard flush title="Newest orders" actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("orders")}>All orders</SecondaryButton>}>
           {allOrders.error ? <ErrorState title="Orders unavailable" description="Recent orders could not be loaded." />
             : !allOrders.orders ? <LoadingState label="Loading orders…" />
             : <DataTable caption="Newest orders" columns={recentColumns} rows={recentOrders} rowKey={o => o.id}
                 empty={<EmptyState title="No orders yet" description="New orders appear here as soon as customers check out." />} />}
         </SectionCard>
+      </div>
+
       {/* 6 · Detail, grouped by the question you're asking */}
       <SectionHead kicker="Inside this issue" title="Dig deeper" subcopy={SECTION_COPY[section]}
         actions={<Tabs<Section> label="Detail" value={section} onChange={setSection}
-          tabs={[{ id: "sales", label: "Sales" }, { id: "marketing", label: "Marketing & traffic" }, { id: "customers", label: "Customers" }, { id: "stock", label: "Stock" }]} />} />
+          tabs={[{ id: "sales", label: "Sales" }, { id: "titles", label: "Titles" }, { id: "marketing", label: "Marketing & traffic" }, { id: "customers", label: "Customers" }, { id: "stock", label: "Stock" }]} />} />
 
       {section === "stock" ? (
         stock.error ? <ErrorState title="Stock unavailable" description="Books could not be loaded." onRetry={refresh} />
@@ -381,14 +491,19 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       ) : allOrders.error ? <ErrorState title="Details unavailable" description="Orders could not be loaded, so these lists can't be calculated." onRetry={refresh} />
         : !insights || !periods ? <LoadingState label="Calculating…" />
         : section === "sales" ? (
-          <OverviewSales current={periods.current} previous={periods.previous} books={books} dailyCurrent={dw.current}
+          <OverviewSales current={periods.current} previous={periods.previous} books={books} dailyCurrent={dailyCurrent}
             categoriesSetting={launch.parts?.settings?.design?.categories} onEditBook={handleEditClick} fetchingBookId={fetchingBookId} />
+        ) : section === "titles" ? (
+          <OverviewTitles rows={titleRows} startKey={range.startKey} endKey={range.endKey} viewsRecorded={!!recordedSince(daily.rows || [], "bookViews")}
+            costsKnown={!!profit && profit.costedUnits > 0} onEditBook={handleEditClick} fetchingBookId={fetchingBookId} />
         ) : section === "marketing" ? (
-          daily.error ? <ErrorState title="Traffic unavailable" description="Visits, searches and sources could not be loaded." onRetry={loadDaily} />
-          : !trafficReady ? <LoadingState label="Loading traffic…" />
-          : <OverviewMarketing dailyCurrent={dw.current} dailyAll={daily.rows || []} current={periods.current} books={books} />
+          trafficFailed && ga.status !== "loading" ? <ErrorState title="Traffic unavailable" description="Visits, searches and sources could not be loaded." onRetry={loadDaily} />
+          : !traffic ? <LoadingState label="Loading traffic…" />
+          : <OverviewMarketing ga={ga} traffic={traffic} dailyCurrent={dailyCurrent} dailyAll={daily.rows || []} current={periods.current} books={books}
+              lastReset={lastReset} onReset={resetTraffic} setActiveTab={setActiveTab} />
         ) : (
-          <OverviewCustomers key={reloadKey} paid={periods.paid} mix={insights.mix} startMs={periods.start} reviews={reviews} subs={subs} audienceFailed={audience.error} setActiveTab={setActiveTab} />
+          <OverviewCustomers key={reloadKey} paid={periods.paid} current={periods.current} startKey={periods.startKey} mix={insights.mix} startMs={periods.start}
+            reviews={reviews} subs={subs} audienceFailed={audience.error} setActiveTab={setActiveTab} />
         )}
     </div>
   );

@@ -1,3 +1,4 @@
+import { ga4Event, ga4Items } from "./lib/ga4";
 import { useStudioOverlay } from "./features/site/studioOverlay";
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from "react";
 import { preorderActive, releaseDateOf } from "./features/site/preorder";
@@ -312,6 +313,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return [...prev, { ...draft, quantity: nextCartQuantity(0, quantity, limit) }];
     });
     setIsCartOpen(true);
+    ga4Event("add_to_cart", { currency: "CAD", value: round2(price * quantity), items: ga4Items([{ ...draft, quantity }]) });
     return true;
   };
 

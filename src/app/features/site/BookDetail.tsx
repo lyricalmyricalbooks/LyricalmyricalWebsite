@@ -54,7 +54,8 @@ import { schemeButtonColors } from "./colorSchemes";
 
 import { findProduct } from "./productRoutes";
 import { bookAddOns, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
-import { salePercentOff } from "./displayPrice";
+import { displayPrice, salePercentOff } from "./displayPrice";
+import { ga4Once } from "../../lib/ga4";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
 import { CARD_PHOTO_SIZES, PDP_PHOTO_SIZES, THUMB_PHOTO_SIZES, photoSrcSet } from "./photoSources";
@@ -358,6 +359,8 @@ export default function BookDetail() {
       trackBookView(book.id);
       funnelApi.track("view");
       funnelApi.trackProductView(book.id);
+      const price = Math.round((displayPrice(book) || 0) * 100) / 100;
+      ga4Once(`view_${book.id}`, "view_item", { currency: "CAD", value: price, items: [{ item_id: book.id, item_name: String(book.title || "Book").slice(0, 100), price, quantity: 1 }] });
       const bookCategories = (book as any)?.categories || (book as any)?.genres || [];
       bookCategories.forEach((cat: string) => {
         funnelApi.trackCategory(cat);

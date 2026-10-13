@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { EmptyState, ErrorState, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
+import { DataTable, EmptyState, ErrorState, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge, type Column } from "./riso/components";
 import type { Order } from "./overviewInsights";
 import { cartRecovery } from "./overviewTraffic";
 import { buildCustomers, customerStats, SEGMENT_LABELS } from "./customerInsights";
+import { cohortRetention, newVsReturningRevenue, repeatTiming } from "./overviewCohorts";
+import { shopDayKey } from "../lib/shopDay";
 import { abandonedCartApi } from "../lib/commerce";
 import { SPLIT, StatRow, money, percent } from "./OverviewParts";
 
@@ -11,8 +13,8 @@ type Reviews = { pending: number; approved: number; average: number | null } | n
 type Subs = { total: number; added: number } | null;
 
 /** Overview › Dig deeper › Customers: who buys, who comes back, and what happens to carts people leave. */
-export function OverviewCustomers({ paid, mix, startMs, reviews, subs, audienceFailed, setActiveTab }: {
-  paid: Order[]; mix: Mix; startMs: number; reviews: Reviews; subs: Subs; audienceFailed: boolean; setActiveTab?: (tab: string) => void;
+export function OverviewCustomers({ paid, current, startKey, mix, startMs, reviews, subs, audienceFailed, setActiveTab }: {
+  paid: Order[]; current: Order[]; startKey: string; mix: Mix; startMs: number; reviews: Reviews; subs: Subs; audienceFailed: boolean; setActiveTab?: (tab: string) => void;
 }) {
   // Carts are read only when this tab is opened (the panel mounts then), so the Overview itself stays light.
   const [carts, setCarts] = useState<{ rows: any[] | null; error: boolean }>({ rows: null, error: false });
@@ -26,6 +28,23 @@ export function OverviewCustomers({ paid, mix, startMs, reviews, subs, audienceF
   const stats = useMemo(() => customerStats(customers), [customers]);
   const top = useMemo(() => [...customers].sort((a, b) => b.totalSpent - a.totalSpent).slice(0, 5), [customers]);
   const recovery = useMemo(() => (carts.rows ? cartRecovery(carts.rows, startMs) : null), [carts.rows, startMs]);
+  const cohorts = useMemo(() => cohortRetention(paid, shopDayKey(Date.now()), 12, 6), [paid]);
+  const timing = useMemo(() => repeatTiming(paid), [paid]);
+  const split = useMemo(() => newVsReturningRevenue(paid, current, startKey), [paid, current, startKey]);
+  const monthName = (m: string) => new Date(`${m}-15T12:00:00Z`).toLocaleDateString(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
+  const cohortColumns: Column<(typeof cohorts)[number]>[] = [
+    { key: "m", header: "First order", lead: true, render: r => monthName(r.month) },
+    { key: "c", header: "Customers", numeric: true, render: r => r.customers },
+    ...Array.from({ length: 6 }, (_, k) => ({
+      key: `m${k + 1}`, header: `+${k + 1} mo`, numeric: true,
+      render: (r: (typeof cohorts)[number]) => {
+        const v = r.cells[k];
+        if (v === null) return <span style={{ color: "var(--rp-text-subtle)" }}>·</span>;
+        return <span style={{ display: "inline-block", minWidth: 40, padding: "2px 4px", background: v > 0 ? `color-mix(in srgb, var(--rp-primary) ${Math.round(30 + 70 * Math.min(1, v / 50))}%, transparent)` : "transparent" }}>{v.toFixed(0)}%</span>;
+      },
+    })),
+    { key: "r", header: "Spent", numeric: true, render: r => money(r.revenue) },
+  ];
 
   return (
     <>
@@ -35,11 +54,19 @@ export function OverviewCustomers({ paid, mix, startMs, reviews, subs, audienceF
         <MetricCard label="Repeat customers" value={percent(stats.repeatRate * 100, 0)}
           footer={`${stats.repeat} of ${stats.total} customers ever bought twice`} />
         <MetricCard label="Lifetime value" value={money(stats.avgLtv)} footer="average spend per customer, all time" />
+        <MetricCard label="Revenue from returning" value={percent(split.returningShare, 0)} footer={`${money(split.returning)} returning · ${money(split.fresh)} new this period`} />
+        <MetricCard label="Time to come back" value={timing.medianDays === null ? "—" : `${timing.medianDays} days`}
+          footer={timing.within90Rate === null ? "median to a second order" : `median · ${percent(timing.within90Rate, 0)} back within 90 days`} />
         <MetricCard label="Subscribers" value={subs ? subs.total.toLocaleString() : audienceFailed ? "—" : "…"}
           footer={subs ? `+${subs.added} in this period` : audienceFailed ? "Newsletter unavailable" : "Loading…"} />
       </div>
 
       <div className="rp-split" style={SPLIT}>
+        <SectionCard flush title="Do customers come back?" description="Each row is the customers whose first order was in that month; the cells show the share who bought again 1–6 months later (· = not yet)">
+          {cohorts.length === 0 ? <EmptyState title="No customers yet" description="Cohorts appear after the first paid orders." />
+            : <DataTable caption="Repeat purchases by first-order month" columns={cohortColumns} rows={cohorts} rowKey={r => r.month} />}
+        </SectionCard>
+
         <SectionCard flush title="Top customers" description="By total spend, all time"
           actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("customers")}>All customers</SecondaryButton>}>
           {top.length === 0 ? <EmptyState title="No customers yet" description="Customers appear after their first paid order." /> : (
