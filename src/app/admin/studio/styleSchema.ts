@@ -310,6 +310,24 @@ export const STYLE_GROUPS: StyleGroup[] = [
     ],
   },
   {
+    id: "toasts",
+    title: "Pop-up messages",
+    hint: "The short messages that appear for a few seconds: “Removed from your bag · Undo”, “Link copied”, add-to-bag problems and account notices. Their words are in Text & labels.",
+    fields: [
+      { key: "toastPosition", label: "Where messages appear", kind: "select", defaultValue: "top-center", options: [
+        { value: "top-center", label: "Top centre" }, { value: "top-right", label: "Top right" }, { value: "top-left", label: "Top left" },
+        { value: "bottom-center", label: "Bottom centre" }, { value: "bottom-right", label: "Bottom right" }, { value: "bottom-left", label: "Bottom left" }] },
+      { key: "toastBg", label: "Message background", kind: "color" },
+      { key: "toastTextColor", label: "Message text colour", kind: "color" },
+      { key: "toastFontSize", label: "Message text size", kind: "range", min: 10, max: 20, step: 1, suffix: "px", defaultValue: 12 },
+      { key: "toastTracking", label: "Message letter spacing", kind: "range", min: 0, max: 0.3, step: 0.01, suffix: "em", defaultValue: 0.05 },
+      { key: "toastRadius", label: "Message corner rounding", kind: "range", min: 0, max: 24, step: 1, suffix: "px", defaultValue: 8 },
+      { key: "toastBorderWidth", label: "Message outline width", kind: "range", min: 0, max: 6, step: 1, suffix: "px", defaultValue: 0 },
+      { key: "toastBorderColor", label: "Message outline colour", kind: "color" },
+      { key: "toastMaxWidth", label: "Widest a message can be", kind: "range", min: 240, max: 640, step: 10, suffix: "px", defaultValue: 350 },
+    ],
+  },
+  {
     id: "footer",
     title: "Footer & social links",
     fields: [
