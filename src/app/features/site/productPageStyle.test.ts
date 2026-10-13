@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extraFieldsCss, productPageCss, productPageFontNames, signupBoxCss } from "./productPageStyle";
+import { extraFieldsCss, photoViewerCss, productPageCss, productPageFontNames, signupBoxCss } from "./productPageStyle";
 import { STYLE_GROUPS } from "../../admin/studio/styleSchema";
 
 describe("product page (catalogue card) CSS", () => {
@@ -101,5 +101,29 @@ describe("extraFieldsCss (Extras & gift card fields)", () => {
     const css = extraFieldsCss({ pdpFieldRadius: 999, pdpFieldBg: "red;}body{x:y" });
     expect(css).toContain("border-radius:24px");
     expect(css).not.toContain("}body{");
+  });
+});
+
+describe("photoViewerCss (Enlarged photo viewer)", () => {
+  it("emits nothing for an untouched design, so the built-in look stays", () => {
+    expect(photoViewerCss({})).toBe("");
+    expect(photoViewerCss({ pdpViewerButtonShape: "", pdpViewerShowCount: true })).toBe("");
+  });
+  it("styles the viewer, its buttons and the photo count", () => {
+    const css = photoViewerCss({
+      pdpViewerShade: "#111", pdpViewerButtonBg: "#fff", pdpViewerButtonIcon: "#000",
+      pdpViewerButtonBorderColor: "#f00", pdpViewerButtonShape: "square", pdpViewerCountColor: "#0f0",
+    });
+    expect(css).toContain(".fm-lightbox.fm-lightbox{background:#111;}");
+    expect(css).toContain(".fm-lightbox-btn.fm-lightbox-btn{background:#fff;}");
+    expect(css).toContain("color:#000;");
+    expect(css).toContain("border-color:#f00;");
+    expect(css).toContain("border-radius:0 !important;");
+    expect(css).toContain(".fm-lightbox-count.fm-lightbox-count{color:#0f0;}");
+    expect(photoViewerCss({ pdpViewerButtonShape: "soft" })).toContain("border-radius:8px");
+  });
+  it("is part of the product page CSS and strips unsafe characters", () => {
+    expect(productPageCss({ pdpViewerShade: "red" })).toContain(".fm-lightbox.fm-lightbox{background:red;}");
+    expect(photoViewerCss({ pdpViewerShade: "red;}body{x" })).not.toContain("}body{");
   });
 });
