@@ -3,6 +3,7 @@ import { searchScore } from "./bookSearch";
 import { searchResultsPath } from "./searchResultsLink";
 import { displayPrice } from "./displayPrice";
 import { regionProps } from "./storefrontRegions";
+import { addRecentSearch, readRecentSearches, writeRecentSearches } from "./recentSearches";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { m, AnimatePresence } from "motion/react";
@@ -39,6 +40,14 @@ export function SearchOverlay({
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(design, key, vars);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  const [recent, setRecent] = useState<string[]>([]);
+  const showRecent = design?.showRecentSearches !== false && recent.length > 0;
+  // Remember a search only once the shopper acts on it (opens a result or "see all"); never in the Studio preview.
+  const remember = () => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true") return;
+    if (window.self !== window.top) return;
+    writeRecentSearches(addRecentSearch(readRecentSearches(), query));
+  };
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -61,6 +70,7 @@ export function SearchOverlay({
 
   useEffect(() => {
     if (!open) setQuery("");
+    else setRecent(readRecentSearches());
   }, [open]);
   useEffect(() => setActive(0), [query]);
 
@@ -136,7 +146,7 @@ export function SearchOverlay({
                   else if (e.key === "Enter") {
                     e.preventDefault();
                     const pick = results[Math.min(active, results.length - 1)];
-                    if (pick) { navigate(`/books/${bookSlug(pick)}`); onClose(); }
+                    if (pick) { remember(); navigate(`/books/${bookSlug(pick)}`); onClose(); }
                   }
                 }}
                 placeholder={c("searchPlaceholder")}
@@ -156,6 +166,32 @@ export function SearchOverlay({
                 <p {...regionProps("searchPrompt")} className="px-5 py-10 text-center text-[10px] tracking-[0.3em] uppercase text-white/30">
                   {c("searchPrompt")}
                 </p>
+              )}
+              {query.trim() === "" && showRecent && (
+                <div {...regionProps("searchRecent")} className="px-5 pb-6 text-center">
+                  <p className="mb-3 text-[10px] tracking-[0.3em] uppercase text-white/30">
+                    {c("searchRecentLabel")}
+                    <button
+                      type="button"
+                      onClick={() => { writeRecentSearches([]); setRecent([]); inputRef.current?.focus(); }}
+                      className="ml-3 underline tracking-[0.2em] text-white/40 hover:text-white"
+                    >
+                      {c("searchRecentClear")}
+                    </button>
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {recent.map(term => (
+                      <button
+                        key={term}
+                        type="button"
+                        onClick={() => { setQuery(term); inputRef.current?.focus(); }}
+                        className="rounded-full border border-white/20 px-3 py-1.5 text-[11px] text-white/70 hover:bg-white/10 hover:text-white"
+                      >
+                        {term}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
               {query.trim() === "" && suggestions.length > 0 && (
                 <div {...regionProps("searchSuggestions")} className="px-5 pb-6 text-center">
@@ -189,7 +225,7 @@ export function SearchOverlay({
                     role="option"
                     aria-selected={idx === active}
                     to={`/books/${bookSlug(b)}`}
-                    onClick={onClose}
+                    onClick={() => { remember(); onClose(); }}
                     className={`flex items-center gap-4 px-5 py-3 hover:bg-white/5 transition-colors border-b border-white/5 last:border-b-0 ${idx === active ? "bg-white/10" : ""}`}
                   >
                     <div {...regionProps("searchPhoto")} className="w-12 h-16 fm-surface-2 overflow-hidden rounded flex-shrink-0">
@@ -221,7 +257,7 @@ export function SearchOverlay({
             {showSeeAll && (
               <Link {...regionProps("searchSeeAll")}
                 to={searchResultsPath(query)}
-                onClick={onClose}
+                onClick={() => { remember(); onClose(); }}
                 className="block border-t border-white/10 px-5 py-3 text-center text-[10px] tracking-[0.3em] uppercase text-white/60 hover:bg-white/5 hover:text-white"
               >
                 {c("searchSeeAll", { count: totalMatches, query: query.trim() })}

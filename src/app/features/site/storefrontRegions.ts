@@ -97,7 +97,7 @@ export const REGION_GROUPS: RegionGroup[] = [
   { id: "searchLayout", title: "Search · layout & elements", copy: "Search & filters", files: ["features/site/SearchOverlay.tsx"], regions: [
     { id: "searchPanel", label: "Search panel", required: true },
     { id: "searchField", label: "Search input", required: true }, { id: "searchClose", label: "Close search button", required: true },
-    { id: "searchResult", label: "Search result row", required: true }, { id: "searchPrompt", label: "Search guidance" }, { id: "searchSuggestions", label: "Popular searches" },
+    { id: "searchResult", label: "Search result row", required: true }, { id: "searchPrompt", label: "Search guidance" }, { id: "searchSuggestions", label: "Popular searches" }, { id: "searchRecent", label: "Recent searches" },
     { id: "searchEmpty", label: "No search results" }, { id: "searchSeeAll", label: "See all results link" }, { id: "searchPhoto", label: "Result cover", image: true },
     { id: "searchAuthor", label: "Result author" },
   ] },
