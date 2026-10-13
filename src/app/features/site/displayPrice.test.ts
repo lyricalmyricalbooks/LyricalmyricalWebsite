@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayPrice, editionPrices, showsSale } from "./displayPrice";
+import { displayPrice, editionPrices, salePercentOff, showsSale } from "./displayPrice";
 
 describe("displayPrice", () => {
   it("uses the book's own (sale) price when it has one", () => {
@@ -42,5 +42,14 @@ describe("scheduled sales", () => {
     expect(showsSale(upcoming, now)).toBe(false);
     expect(displayPrice(running, false, now)).toBe(15);
     expect(showsSale(running, now)).toBe(true);
+  });
+});
+
+describe("salePercentOff", () => {
+  it("rounds the saving to whole percent and ignores non-sales", () => {
+    expect(salePercentOff({ isOnSale: true, retailPrice: 20, salePrice: 16 })).toBe(20);
+    expect(salePercentOff({ isOnSale: true, retailPrice: 20, salePrice: 20 })).toBe(0);
+    expect(salePercentOff({ retailPrice: 20 })).toBe(0);
+    expect(salePercentOff({ isOnSale: true, retailPrice: 20, salePrice: 10, variants: [{ price: 20 }] })).toBe(0);
   });
 });

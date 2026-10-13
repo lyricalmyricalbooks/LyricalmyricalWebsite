@@ -34,7 +34,7 @@ import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
 import { SectionPageContext } from "./sectionCopy";
 import { useWishlist, liveWishlistCount } from "../lib/wishlist";
 import { isLiveBook } from "../features/site/liveBook";
-import { displayPrice as cardDisplayPrice, showsSale } from "../features/site/displayPrice";
+import { displayPrice as cardDisplayPrice, showsSale, salePercentOff } from "../features/site/displayPrice";
 import { useSEO } from "../lib/seo";
 import { breadcrumbData, collectionStructuredData, siteStructuredData } from "../lib/bookSeo";
 import { CatalogControls, applyCatalogControls, appliedFilters, filterView, EMPTY_FILTERS, type CatalogFilterState, type SortKey } from "../features/site/CatalogControls";
@@ -593,6 +593,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // Studio › Style › Product cards & grid › Quick add button (off by default).
   const showQuickAdd = storefrontDesign?.showQuickAdd === true;
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
+  const showSalePercent = storefrontDesign?.showSalePercent ?? false;
   const showPreorderBadge = storefrontDesign?.showPreorderBadge ?? true;
   const showComingSoonBadge = storefrontDesign?.showComingSoonBadge ?? true;
   const saleBadgeLabel = storefrontDesign?.saleBadgeLabel || "SALE";
@@ -886,7 +887,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                             style={{ backgroundColor: storefrontDesign?.badgeBgPrimary || "rgb(244 63 94 / 0.9)", color: storefrontDesign?.badgeTextPrimary || "#ffffff" }}
                             className="text-[8px] font-bold tracking-widest px-2 py-1 uppercase border border-white/10 rounded-sm"
                           >
-                            {saleBadgeLabel}
+                            {(() => { const pct = showSalePercent ? salePercentOff(item) : 0; return pct ? getCopy(activeDesign, "saleBadgePercent", { label: saleBadgeLabel, percent: pct }) : saleBadgeLabel; })()}
                           </span>
                         )}
                         {!isOutOfStock && isNewArrival && showNewBadge && (

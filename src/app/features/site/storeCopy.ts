@@ -172,6 +172,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "pdpPreorder", label: "Stock line (pre-order)", default: "Pre-order · ships {date}", hint: "Shown while a book is on pre-order (Books › Inventory › Pre-order). Use {date} for the release date." },
       { key: "pdpPreorderTba", label: "Stock line (pre-order, no date yet)", default: "Pre-order · release date to be announced", hint: "Shown for a pre-order with no publication date set." },
       { key: "preorderButton", label: "Pre-order button", default: "PRE-ORDER", hint: "Replaces the Add to bag button text while a book is on pre-order." },
+      { key: "saleBadgePercent", label: "Sale badge with the saving (book cards & product page)", default: "{label} −{percent}%", hint: "Use {label} for the sale badge text and {percent} for the saving. Shown only when Theme settings › Badges & shop labels › Show the saving on the sale badge is on." },
       { key: "preorderBadge", label: "Pre-order badge (book cards)", default: "Pre-order", hint: "Small badge on shop cards. Turn it off in Theme settings › Badges & shop labels." },
       { key: "pdpComingSoon", label: "Stock line (coming soon)", default: "Coming soon", hint: "Shown while a book is set to Coming soon (Books › Inventory › Coming soon) and has no publication date." },
       { key: "pdpComingSoonDate", label: "Stock line (coming soon, with a date)", default: "Coming {date}", hint: "Shown for a Coming soon book with a publication date. Use {date} for the date." },
