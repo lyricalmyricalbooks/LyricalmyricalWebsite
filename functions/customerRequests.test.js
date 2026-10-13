@@ -13,10 +13,10 @@ test("a bought but undispatched label does not count as shipped", () => {
   expect(orderRequestProblem({ paymentStatus: "paid", fulfillmentStatus: "processing", labelUrl: "https://label", trackingNumber: "1Z" }, "cancel")).toBeNull();
 });
 
-test("returns need a paid order; closed orders and open requests are refused", () => {
-  expect(orderRequestProblem({ paymentStatus: "unpaid" }, "return")).toBe("not_paid");
-  expect(orderRequestProblem({ paymentStatus: "paid", fulfillmentStatus: "delivered" }, "return")).toBeNull();
-  expect(orderRequestProblem({ status: "cancelled" }, "return")).toBe("closed");
+test("shoppers can't ask for a return; closed orders and open requests are refused", () => {
+  expect(orderRequestProblem({ paymentStatus: "paid", fulfillmentStatus: "delivered" }, "return")).toBe("invalid");
+  expect(orderRequestProblem({ paymentStatus: "paid" }, "return")).toBe("invalid");
+  expect(orderRequestProblem({ status: "cancelled" }, "cancel")).toBe("closed");
   expect(orderRequestProblem({ paymentStatus: "paid", customerRequest: { status: "open" } }, "cancel")).toBe("already_open");
   expect(orderRequestProblem({ paymentStatus: "paid" }, "bogus")).toBe("invalid");
 });
