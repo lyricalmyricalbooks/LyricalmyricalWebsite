@@ -149,7 +149,7 @@ export function ShopSettings({
 }
 const POLICY_STARTERS: Record<PolicyKey, string> = {
   shipping: "We process orders within 1–3 business days of payment. Carrier transit time is additional and shown at checkout for your destination and selected service.\n\nYou will receive an email with tracking once your order ships. Digital titles are available to download immediately after payment.",
-  returns: "If your book arrives damaged or incorrect, contact us within 30 days of delivery and we will replace it or refund you.\n\nDigital downloads are non-refundable once accessed, unless the file is faulty.",
+  returns: "Once an order has shipped it can't be returned. Until it ships, you can ask to cancel it from the order tracking page (the link is in your order confirmation email).\n\nIf your book arrives damaged or incorrect, contact us within 30 days of delivery and we will replace it or refund you.\n\nDigital downloads are non-refundable once accessed, unless the file is faulty.",
   privacy: "We collect only what we need to fulfil your order and, if you opt in, send you our newsletter: your name, email, shipping address and order details.\n\nPayments are processed by Stripe; we never see or store your card number. We do not sell your personal information. You can ask us to delete your data at any time.",
   terms: "By placing an order you agree that the details you provide are accurate and that you are authorised to use the payment method.\n\nPrices are shown in Canadian dollars unless stated otherwise. We may cancel and refund an order if a title is unavailable or a pricing error occurred.",
 };
