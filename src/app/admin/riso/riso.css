@@ -311,6 +311,8 @@
 /* ── Cards ─────────────────────────────────────────────────────────────── */
 .rp-card { background: var(--rp-surface); border: var(--rp-hair) solid var(--rp-border); border-radius: var(--rp-radius-lg); box-shadow: var(--rp-shadow); }
 .rp-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; border-bottom: var(--rp-hair) solid var(--rp-divider); }
+.rp-card-fold { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; margin-top: -3px; padding: 0; border: 0; background: transparent; color: var(--rp-text); cursor: pointer; }
+.rp-card-fold:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
 .rp-card-title { margin: 0; font-size: var(--rp-text-lg); font-weight: 600; color: var(--rp-text); }
 .rp-card-desc { margin: 4px 0 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
 .rp-card-body { padding: 20px; }

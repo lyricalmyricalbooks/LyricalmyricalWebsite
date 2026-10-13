@@ -141,22 +141,49 @@ export function PageHeader({ title, description, breadcrumbs, actions }: {
 
 /* ── Cards ───────────────────────────────────────────────────────────── */
 
-export function SectionCard({ title, description, actions, children, bodyClassName, flush, ...rest }: {
+const FOLD_KEY = "lm:card-folded:";
+function readFolded(key: string): boolean {
+  try { return localStorage.getItem(FOLD_KEY + key) === "1"; } catch { return false; }
+}
+function writeFolded(key: string, folded: boolean) {
+  try { folded ? localStorage.setItem(FOLD_KEY + key, "1") : localStorage.removeItem(FOLD_KEY + key); } catch { /* storage blocked */ }
+}
+
+/**
+ * A titled card. Cards with a title can be folded down to just their heading (chevron button); the choice is
+ * remembered per browser by `foldKey` (default: the title). Pass `collapsible={false}` to keep a card always open.
+ */
+export function SectionCard({ title, description, actions, children, bodyClassName, flush, collapsible, foldKey, ...rest }: {
   title?: string; description?: string; actions?: ReactNode; children: ReactNode; bodyClassName?: string; flush?: boolean;
+  collapsible?: boolean; foldKey?: string;
   "data-print"?: "hide";
 }) {
+  const canFold = collapsible !== false && !!title;
+  const key = foldKey || title || "";
+  const [folded, setFolded] = useState(() => canFold && readFolded(key));
+  const bodyId = useId();
+  const toggle = () => setFolded(f => { writeFolded(key, !f); return !f; });
+  const isFolded = canFold && folded;
   return (
-    <section className="rp-card" {...rest}>
+    <section className="rp-card" data-folded={isFolded || undefined} {...rest}>
       {(title || actions) && (
-        <div className="rp-card-head">
-          <div>
-            {title && <h2 className="rp-card-title">{title}</h2>}
-            {description && <p className="rp-card-desc">{description}</p>}
+        <div className="rp-card-head" style={isFolded ? { borderBottom: 0 } : undefined}>
+          <div style={canFold ? { display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0 } : undefined}>
+            {canFold && (
+              <button type="button" className="rp-card-fold" aria-expanded={!isFolded} aria-controls={bodyId}
+                aria-label={`${isFolded ? "Expand" : "Collapse"} ${title}`} title={isFolded ? "Expand" : "Collapse"} onClick={toggle}>
+                <ChevronRight size={18} aria-hidden style={{ transform: isFolded ? "none" : "rotate(90deg)", transition: "transform .15s" }} />
+              </button>
+            )}
+            <div style={{ minWidth: 0 }}>
+              {title && <h2 className="rp-card-title" onClick={canFold ? toggle : undefined} style={canFold ? { cursor: "pointer" } : undefined}>{title}</h2>}
+              {description && <p className="rp-card-desc">{description}</p>}
+            </div>
           </div>
-          {actions}
+          {!isFolded && actions}
         </div>
       )}
-      <div className={flush ? bodyClassName : cx("rp-card-body", bodyClassName)}>{children}</div>
+      <div id={bodyId} hidden={isFolded} className={flush ? bodyClassName : cx("rp-card-body", bodyClassName)}>{children}</div>
     </section>
   );
 }
