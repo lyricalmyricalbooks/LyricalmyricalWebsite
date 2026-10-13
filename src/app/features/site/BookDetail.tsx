@@ -1382,15 +1382,15 @@ export default function BookDetail() {
 
         {/* ── Related books ── */}
         {showRelatedProducts && otherBooks.length > 0 && (
-          <section data-section="products" data-studio-target="style:productPage|copy:Product page" data-studio-label="Recommended books" className="relative z-10 mt-16 border-t border-white/[0.06]">
+          <section data-section="products" {...regionProps("relatedBooks")} className="relative z-10 mt-16 border-t border-white/[0.06]">
             <div className="mx-auto px-6 py-20" style={{ maxWidth: pageMaxWidth }}>
-              <div className="flex items-center gap-6 mb-12">
+              <div {...regionProps("relatedHeading")} className="flex items-center gap-6 mb-12">
                 <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">
                   {getCopy(settings?.design, "relatedHeading")}
                 </h2>
                 <div className="flex-1 h-px bg-white/[0.06]" />
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 lg:gap-8">
+              <div {...regionProps("relatedGrid")} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 lg:gap-8">
                 {otherBooks.map((rel, i) => {
                   // Link by id when there is no slug (the product page resolves ids too).
                   const relSlug  = (rel as any).slug || rel.id;
@@ -1406,7 +1406,7 @@ export default function BookDetail() {
                       className="fm-card group"
                     >
                       <Link to={`/books/${relSlug}`}>
-                        <div className="relative fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl" style={{ aspectRatio: productImageAspect }}>
+                        <div {...regionProps("relatedPhoto")} className="relative fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl" style={{ aspectRatio: productImageAspect }}>
                           <img
                             src={(rel as any).photos?.[0]?.url || placeholderImage(settings?.design)}
                             {...photoSrcSet((rel as any).photos?.[0], CARD_PHOTO_SIZES)}
