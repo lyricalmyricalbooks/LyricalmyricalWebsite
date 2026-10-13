@@ -496,7 +496,8 @@ function OrderTrackingContent() {
         </AnimatePresence>
       </div>
 
-      {!order && <div className="px-5 sm:px-8 relative z-10"><PrivacyRequestBox design={settings?.design} /></div>}
+      {/* On/off is Theme settings › Customer accounts (showPrivacyRequestForm); the region is `required` so it has no second switch. */}
+      {!order && settings?.design?.showPrivacyRequestForm === true && <div className="px-5 sm:px-8 relative z-10"><PrivacyRequestBox design={settings?.design} /></div>}
 
       <TemplateSections design={settings?.design} templateId="trackingPage" books={books} />
       <GlobalSections design={settings?.design} books={books} />

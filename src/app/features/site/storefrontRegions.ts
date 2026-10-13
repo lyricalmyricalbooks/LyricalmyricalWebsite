@@ -64,7 +64,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "trackingHelp", label: "Help line" },
     { id: "trackingLineDetails", label: "Extras, gift cards & box sets under ordered books" },
     { id: "trackingPreorder", label: "Pre-order shipping note" },
-    { id: "trackingRequests", label: "Cancel & return requests" }, { id: "trackingPrivacy", label: "Privacy request form (copy / delete my data)" },
+    { id: "trackingRequests", label: "Cancel & return requests" }, { id: "trackingPrivacy", label: "Privacy request form (copy / delete my data)", required: true },
     { id: "trackingGlow", label: "Tracking background glow" },
   ] },
   { id: "stripePaymentLayout", title: "Checkout · Stripe payment section", copy: "Checkout", files: ["features/site/StripePaymentSection.tsx"], regions: [
