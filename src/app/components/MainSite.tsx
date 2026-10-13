@@ -29,6 +29,7 @@ import { googleFontHref } from "../features/site/fonts";
 import { useCurrency } from "../CurrencyContext";
 import { useCart } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
+import { QuickView } from "../features/site/QuickView";
 import { isEmailAddress, subscribeNewsletter } from "../features/site/newsletterSignup";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
 import { SectionPageContext } from "./sectionCopy";
@@ -592,6 +593,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
   // Studio › Style › Product cards & grid › Quick add button (off by default).
   const showQuickAdd = storefrontDesign?.showQuickAdd === true;
+  const showQuickView = storefrontDesign?.showQuickView === true;
+  const [quickViewBook, setQuickViewBook] = useState<any>(null);
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
   const showPreorderBadge = storefrontDesign?.showPreorderBadge ?? true;
   const showComingSoonBadge = storefrontDesign?.showComingSoonBadge ?? true;
@@ -963,6 +966,17 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       )}
                     </div>
                   </Link>
+                  {showQuickView && (
+                    <button
+                      type="button"
+                      data-studio-target="style:products|copy:Product page"
+                      data-studio-label="Quick view button"
+                      onClick={() => setQuickViewBook({ book: item, slug })}
+                      className="fm-card-quickview mt-3 w-full min-h-[44px] flex items-center justify-center text-[10px] font-bold tracking-[0.2em] uppercase underline underline-offset-4 hover:opacity-70 transition-opacity"
+                    >
+                      {getCopy(activeDesign, "quickViewButton")}
+                    </button>
+                  )}
                   {showQuickAdd && !isOutOfStock && (() => {
                     // A book with several editions, extras or a gift-card amount needs a choice first: send it to its page.
                     const needsChoice = (Array.isArray(item.variants) && item.variants.length > 1) || (Array.isArray(item.addOns) && item.addOns.length > 0) || item.productType === "giftCard" || (Array.isArray(item.bundleItems) && item.bundleItems.length > 0);
@@ -989,6 +1003,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           </div>
         </main>
         )}
+
+        {quickViewBook && <QuickView book={quickViewBook.book} slug={quickViewBook.slug} design={activeDesign} onClose={() => setQuickViewBook(null)} />}
 
         <GlobalSections
           design={activeDesign}
