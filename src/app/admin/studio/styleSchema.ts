@@ -165,6 +165,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     title: "Customer accounts",
     fields: [
       { key: "customerAccounts", label: "Customer accounts (sign-in, account page and order history). Off = customers check out as guests and get carrier tracking links by email", kind: "toggle", defaultValue: true },
+      { key: "showPrivacyRequestForm", label: "Show the “Your data” box on the order tracking page (shoppers ask for a copy of their data, or for it to be deleted)", kind: "toggle", defaultValue: false },
     ],
   },
   {
