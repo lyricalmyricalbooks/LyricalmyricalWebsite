@@ -279,7 +279,7 @@ export function CatalogControls({
         </div>
       )}
       <div className="flex flex-wrap items-center gap-4">
-        <p {...regionProps("catalogResults")} className="text-[10px] tracking-widest uppercase text-white/30" aria-live="polite">{c("filterResults", { count: resultCount })}</p>
+        <p {...regionProps("catalogResults")} className="text-[10px] tracking-widest uppercase text-white/30" aria-live="polite">{c(resultCount === 1 ? "filterResultsOne" : "filterResults", { count: resultCount })}</p>
         {filtersActive(filters, query, inStockOnly, { availableFormats: showFormats ? availableFormats : [], showPrice: showPriceBoxes, hasSale: showSale }) && (
           <button {...regionProps("catalogClear")} type="button" onClick={clearAll} className="text-[10px] tracking-widest uppercase text-white/60 underline underline-offset-4 hover:text-white transition-colors">
             {c("filterClear")}

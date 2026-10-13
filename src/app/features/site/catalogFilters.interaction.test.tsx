@@ -39,7 +39,7 @@ it("format chips, price boxes and Clear filters narrow and restore the shop grid
   await act(async () => { chips[2].click(); });
   expect(chips[2].getAttribute("aria-pressed")).toBe("true");
   expect(titles()).toEqual(["Poems"]);
-  expect(container.textContent).toContain("1 results");
+  expect(container.textContent).toContain("1 result");
 
   await act(async () => { chips[2].click(); });
   const max = container.querySelectorAll<HTMLInputElement>('[data-store-region="catalogPrice"] input')[1];

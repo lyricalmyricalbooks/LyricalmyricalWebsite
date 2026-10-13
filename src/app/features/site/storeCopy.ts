@@ -428,6 +428,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "filterPriceMax", label: "Price filter: highest price box", default: "Max" },
       { key: "filterClear", label: "Clear all filters button", default: "Clear filters" },
       { key: "filterResults", label: "Result count", default: "{count} results", hint: "Use {count} for the number of results." },
+      { key: "filterResultsOne", label: "Result count: exactly one", default: "{count} result", hint: "Shown instead of the result count when exactly one book matches. Use {count} for the number." },
       { key: "searchDialogAria", label: "Search overlay — screen-reader label", default: "Search products" },
       { key: "searchPlaceholder", label: "Search overlay placeholder", default: "Search books, authors, categories…" },
       { key: "searchCloseAria", label: "Search close — screen-reader label", default: "Close search" },
