@@ -29,3 +29,11 @@ export function showsSale(book: any, now: Date = new Date()): boolean {
   if (!book || editionPrices(book).length) return false;
   return saleActive(book, now) && Number(book.salePrice) < (Number(book.retailPrice) || 0);
 }
+
+/** Whole-percent saving of a sale ("20" for CA$ 20 -> CA$ 16), or 0 when the book isn't on a real sale. */
+export function salePercentOff(book: any, now: Date = new Date()): number {
+  if (!showsSale(book, now)) return 0;
+  const base = Number(book.retailPrice) || 0;
+  const pct = Math.round((1 - Number(book.salePrice) / base) * 100);
+  return pct >= 1 && pct <= 99 ? pct : 0;
+}

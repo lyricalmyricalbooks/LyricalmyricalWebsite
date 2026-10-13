@@ -589,6 +589,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     fields: [
       { key: "showSaleBadge", label: "Sale badge", kind: "toggle", defaultValue: true },
       { key: "saleBadgeLabel", label: "Sale badge text", kind: "text" },
+      { key: "showSalePercent", label: "Show the saving on the sale badge (e.g. “Sale −20%”)", kind: "toggle", defaultValue: false },
       { key: "showNewBadge", label: "New badge", kind: "toggle" },
       { key: "newBadgeLabel", label: "New badge text", kind: "text" },
       { key: "newBadgeDays", label: "“New” for how many days", kind: "range", defaultValue: 30, min: 1, max: 180, step: 1 },

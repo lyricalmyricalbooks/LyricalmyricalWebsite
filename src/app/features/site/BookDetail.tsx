@@ -54,6 +54,7 @@ import { schemeButtonColors } from "./colorSchemes";
 
 import { findProduct } from "./productRoutes";
 import { bookAddOns, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
+import { salePercentOff } from "./displayPrice";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
 import { CARD_PHOTO_SIZES, PDP_PHOTO_SIZES, THUMB_PHOTO_SIZES, photoSrcSet } from "./photoSources";
@@ -1245,7 +1246,7 @@ export default function BookDetail() {
                               color: badgeTextPrimary,
                             }}
                           >
-                            {getCopy(settings?.design, "saleBadgeLabel")}
+                            {(() => { const pct = storefrontDesign.showSalePercent ? salePercentOff(book) : 0; const label = getCopy(settings?.design, "saleBadgeLabel"); return pct ? getCopy(settings?.design, "saleBadgePercent", { label, percent: pct }) : label; })()}
                           </span>
                         </div>
                       )}
