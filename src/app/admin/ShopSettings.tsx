@@ -52,6 +52,7 @@ import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { RedirectsCard } from "./RedirectsCard";
 import { AddressFinderCard } from "./AddressFinderCard";
+import { AiWriterCard } from "./AiWriterCard";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
 import { saveSectionsInOrder } from "./settingsSave";
 import { TaxesSettings } from "./TaxesSettings";
@@ -295,6 +296,8 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
       </SectionCard>
 
       <RedirectsCard />
+
+      <AiWriterCard />
 
       <PrivacyRequestsCard />
 

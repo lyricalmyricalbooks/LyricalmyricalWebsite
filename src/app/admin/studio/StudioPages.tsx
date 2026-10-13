@@ -10,6 +10,7 @@ import { useMediaPicker } from "./mediaPicker";
 import { uploadErrorMessage } from "./mediaUpload";
 import type { Page } from "../../features/site/types";
 import { reconcileSavedPage } from "./studioWorkflow";
+import { askAi } from "../aiWriter";
 import { useConfirm } from "../riso/components";
 
 const btn =
@@ -58,12 +59,15 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
   const [filling, setFilling] = useState(false);
   const locked = useRef(false);
   const [error, setError] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
   const dirty = !!editing && JSON.stringify(editing) !== original;
   useEffect(() => { onDraft?.(dirty ? editing : null); }, [dirty, editing, onDraft]);
   useEffect(() => () => onDraft?.(null), [onDraft]);
   const ordered = useMemo(() => [...pages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)), [pages]);
 
-  const open = (p: Partial<Page>, fresh: boolean) => { setEditing(p); setOriginal(JSON.stringify(p)); setIsNew(fresh); setSlugEdited(!fresh); setError(""); if (!fresh && p.slug) onShow?.(p.slug); };
+  // Bumped each time a page opens, so a slow AI draft never lands on a different page.
+  const openCount = useRef(0);
+  const open = (p: Partial<Page>, fresh: boolean) => { openCount.current += 1; setEditing(p); setOriginal(JSON.stringify(p)); setIsNew(fresh); setSlugEdited(!fresh); setError(""); if (!fresh && p.slug) onShow?.(p.slug); };
   const openNew = () => open({ title: "", slug: "", body: "", status: "published", showInNav: true, order: pages.length, seoTitle: "", metaDescription: "", seoImage: "" }, true);
   // Requests already handled, so a page list refresh doesn't reopen the page; an unmatched request waits for the pages to load.
   const handledOpen = useRef<number | null>(null);
@@ -82,6 +86,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
   const back = async () => {
     if (locked.current) return;
     if (dirty && !(await askConfirm({ title: "Discard page changes?", message: "Your unsaved changes to this page will be lost.", confirmLabel: "Discard changes" }))) return;
+    openCount.current += 1;
     setEditing(null);
   };
 
@@ -196,6 +201,26 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
       set(auto);
       say("ok", "Search listing rewritten from the page. Check it, then Save page.");
     };
+    // Write with AI (Gemini, Settings › General › AI writing assistant): same rule as Auto-fill. The storefront wraps
+    // the search title in the shop's title format, so the server is told how much room that takes.
+    const writeWithAi = async () => {
+      if (!(editing.title || "").trim() && !pageBodyText(editing.body || "").trim()) return say("err", "Write the page title or some text first.");
+      const written = (editing.seoTitle || "").trim() || (editing.metaDescription || "").trim();
+      if (written && !(await askConfirm({ title: "Rewrite your search listing with AI?", message: "Gemini writes a new search title and description from the page. Nothing is saved until you press Save page.", confirmLabel: "Rewrite" }))) return;
+      setAiBusy(true);
+      const opened = openCount.current;
+      try {
+        const out = await askAi("pageSeo", { title: editing.title || "", text: pageBodyText(editing.body || "") }, { titleSuffix: Math.max(0, formatTitle("").length) });
+        if (opened !== openCount.current) return;
+        const patch = { ...(out.seoTitle ? { seoTitle: out.seoTitle } : {}), ...(out.metaDescription ? { metaDescription: out.metaDescription } : {}) };
+        setEditing((p) => (p && opened === openCount.current ? { ...p, ...patch } : p));
+        say("ok", "Search listing drafted with AI. Check it, then Save page.");
+      } catch (err: any) {
+        say("err", err?.message || "The AI assistant couldn't answer.");
+      } finally {
+        setAiBusy(false);
+      }
+    };
     return (
       <div className="p-4 space-y-4">
         {confirmNode}
@@ -228,10 +253,16 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
         <div className="space-y-2 border-t border-neutral-200 pt-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-bold">Search listing (SEO)</p>
-            <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={saving} onClick={autoFill}
-              title="Write the search title and description from this page's title and opening sentences">
-              <Sparkles size={13} aria-hidden /> Auto-fill from page
-            </button>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={saving} onClick={autoFill}
+                title="Write the search title and description from this page's title and opening sentences">
+                <Sparkles size={13} aria-hidden /> Auto-fill from page
+              </button>
+              <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={saving || aiBusy} onClick={() => void writeWithAi()}
+                title="Draft the search title and description with Google Gemini (Settings › General › AI writing assistant)">
+                <Sparkles size={13} aria-hidden /> {aiBusy ? "Writing…" : "Write with AI"}
+              </button>
+            </div>
           </div>
           <input className={input} value={editing.seoTitle || ""} placeholder={editing.title || "SEO title"} aria-label="SEO title" onChange={(e) => set({ seoTitle: e.target.value })} />
           <textarea className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-xs" rows={3} maxLength={320} aria-label="Meta description"

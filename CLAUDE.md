@@ -1935,6 +1935,18 @@ through `applySuggestion`, which never keeps a postal code/province from a diffe
 unit box (or the street when Studio hides that box). Credit lines: Text & labels › Checkout › `coAddressAttribution` /
 `coAddressAttributionGoogle`. Deploy Functions with the frontend; no rule or index change.
 
+## AI writing assistant (13 October 2026)
+
+Settings › General › **AI writing assistant** (`admin/AiWriterCard.tsx`) stores a free Google AI Studio (Gemini) key and an
+optional house style in admin-only `adminSecrets/ai` (`geminiKey`, `voice`); never in public settings. **Write with AI** buttons:
+Books › edit › Search (SEO) (`bookSeo` → metaTitle/metaDescription), Books › edit › Details description toolbar (`bookDescription`,
+plain paragraphs, **Undo AI draft**) and Studio › Pages › Search listing (`pageSeo`; the server is told the shop-title suffix length).
+All go through `admin/aiWriter.ts` `askAi` → `createStripeCheckoutSession` `action: "aiWrite"` (admin only, `LIMITS.aiWrite`) →
+`functions/aiWriter.js` (pure, tested): JSON-schema output, honesty rules (no invented facts), retired models fall through
+`MODELS` on 404, plain-English errors (`aiErrorMessage`). `bookAiInput` sends public catalog facts only — never cost, stock,
+shelf, files, customers or orders (free-tier prompts may be used by Google). Drafts land in the editor; nothing is saved by
+the AI path. Written fields are replaced only after a Riso confirm. Deploy Functions with the frontend; no rule or index change.
+
 ## URL redirects (11 October 2026)
 
 Settings › General › **URL redirects** (`admin/RedirectsCard.tsx`) maps an old shop address to a new path or `https://` link,

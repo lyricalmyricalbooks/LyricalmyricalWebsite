@@ -55,6 +55,7 @@ const { leftTheShop, restockRefundedOrder } = require("./refundRestock");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
 const { hitLimit, LIMITS, clientIpOf, serverGeoCountry } = require("./rateLimit");
 const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./addressLookup");
+const { handleAiWrite } = require("./aiWriter");
 const { publicErrorMessage } = require("./publicErrors");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
 const { preorderActive, preorderLine, preorderEmailLines, releaseDateOf } = require("./preorder");
@@ -1747,6 +1748,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
     if (req.body?.action === "backupNow") return handleBackupNow(req, res);
     if (req.body?.action === "restockRefunded") return handleRestockRefunded(req, res);
     if (req.body?.action === "backups") return handleBackups(req, res);
+    if (req.body?.action === "aiWrite") return handleAiWriteRequest(req, res);
     if (req.body?.action === "cancelOrder") return handleCancelOrder(req, res);
     if (req.body?.action === "resolvePaymentMismatch") return handleResolveMismatch(req, res);
     if (req.body?.action === "orderRequest") return handleOrderRequest(req, res);
@@ -7193,6 +7195,25 @@ async function handleBackups(req, res) {
   } catch (err) {
     console.error("backups admin failed:", err);
     res.status(500).json({ error: "Couldn't read the backups. Try again in a minute." });
+  }
+}
+
+// Admin AI writing assistant (Books › edit, Studio › Pages): Google Gemini with the key in adminSecrets/ai.
+async function handleAiWriteRequest(req, res) {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+  try {
+    const { status, body } = await handleAiWrite(req.body || {}, {
+      readSettings: async () => {
+        const saved = await readAdminSecret("ai");
+        return { apiKey: saved.geminiKey, voice: saved.voice };
+      },
+      allow: () => hitLimit(db, "ai-write", req, LIMITS.aiWrite),
+    });
+    res.status(status).json(body);
+  } catch (err) {
+    console.error("aiWrite failed:", err?.message || err);
+    res.status(500).json({ error: "The AI assistant couldn't answer just now. Try again in a minute." });
   }
 }
 

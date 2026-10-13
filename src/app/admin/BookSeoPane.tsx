@@ -7,6 +7,7 @@ import { resolveProductRoutes } from '../features/site/productRoutes';
 import { getCopy } from '../features/site/storeCopy';
 import { autoBookSeo, bookMetadata, defaultBookTitle, seoChecks } from '../lib/bookSeo';
 import type { Book } from '../features/site/types';
+import { askAi, bookAiInput } from './aiWriter';
 
 // Settings + whole catalog, shared by every opening of this pane for a minute (it used to reload both each time).
 let seoCache: { at: number; promise: Promise<[any, Book[]]> } | null = null;
@@ -54,11 +55,32 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
     if (auto.metaDescription) onChange('metaDescription', auto.metaDescription);
     toast.success('Search listing rewritten from the book. Check it, then save the book.');
   };
+  // Write with AI (Gemini, Settings › General › AI writing assistant): same rule as Auto-fill — blank boxes are
+  // filled straight away, written ones only after asking. The title is used exactly, so it may carry the shop name.
+  const [aiBusy, setAiBusy] = useState(false);
+  const writeWithAi = async () => {
+    if (!(book.title || '').trim()) { toast.error('Give the book a title first.'); return; }
+    const written = (book.metaTitle || '').trim() || (book.metaDescription || '').trim();
+    if (written && !(await askConfirm({ title: 'Rewrite the search listing with AI?', message: 'Gemini writes a new search title and description from the book’s details. Nothing is saved until you save the book.', confirmLabel: 'Rewrite' }))) return;
+    setAiBusy(true);
+    try {
+      const out = await askAi('bookSeo', bookAiInput(book), { siteName: getCopy(design, 'siteName') });
+      if (out.metaTitle) onChange('metaTitle', out.metaTitle);
+      if (out.metaDescription) onChange('metaDescription', out.metaDescription);
+      toast.success('Search listing drafted with AI. Check it, then save the book.');
+    } catch (err: any) {
+      toast.error(err?.message || 'The AI assistant couldn’t answer.');
+    } finally {
+      setAiBusy(false);
+    }
+  };
   return <>
     {confirmNode}
     <SectionCard title="Search engine listing" description="Edit this book’s search and sharing details. Google may rewrite titles and snippets; rankings are not guaranteed.">
       <div><button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={autoFill}
-        title="Write the search title and description from this book's title, author and description">Auto-fill from book</button></div>
+        title="Write the search title and description from this book's title, author and description">Auto-fill from book</button>
+        {' '}<button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => void writeWithAi()} disabled={aiBusy}
+          title="Draft the search title and description with Google Gemini (Settings › General › AI writing assistant)">{aiBusy ? 'Writing…' : '✦ Write with AI'}</button></div>
       <label className="rp-hint"><input type="checkbox" checked={book.seoNoindex === true} onChange={event => onChange('seoNoindex', event.target.checked)} /> Exclude this listing from search engines</label>
       <p className="rp-hint">Useful for test and duplicate listings. The book stays available in the shop; Google receives noindex and the sitemap omits it.</p>
       <div className="be-grid">
