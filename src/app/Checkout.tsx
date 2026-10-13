@@ -2404,7 +2404,7 @@ export function Checkout() {
               <m.p key={finalTotal} initial={{ opacity: 0.5 }} animate={{ opacity: 1 }} className="text-2xl font-semibold tracking-tight text-slate-950" translate="no">{formatPrice(finalTotal)}</m.p>
             </div>
 
-            <div className="mt-7 rounded-lg border border-slate-200 bg-white p-4">
+            <div {...regionProps("checkoutReassurance")} className="mt-7 rounded-lg border border-slate-200 bg-white p-4">
               <div className="flex items-start gap-3">
                 <Package size={18} className="mt-0.5 shrink-0 text-slate-500" />
                 <div>

@@ -86,6 +86,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "checkoutPreorder", label: "Pre-order shipping notice" },
     { id: "checkoutHoldWarning", label: "Large-order limit warning (above Pay)" },
     { id: "checkoutGiftCard", label: "Gift card box" },
+    { id: "checkoutReassurance", label: "Packed & tracked note (under the total)" },
     { id: "checkoutPromise", label: "Message under Pay button" }, { id: "checkoutSuccess", label: "Order confirmation", required: true }, { id: "checkoutAccountOffer", label: "Order confirmation: sign-in box", copy: "Checkout" },
     { id: "checkoutSuccessSummary", label: "Order confirmation: order summary", copy: "Checkout" }, { id: "checkoutTrackOrder", label: "Order confirmation: track order button", required: true, copy: "Checkout" },
     { id: "checkoutSuccessHeader", label: "Order confirmation: thank-you card", required: true, copy: "Checkout" },
