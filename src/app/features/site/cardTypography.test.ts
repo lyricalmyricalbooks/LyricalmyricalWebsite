@@ -59,9 +59,10 @@ describe("smallPrintCss", () => {
 
   it("raises phone card title and price below the floor", () => {
     const css = cardTypographyCss({ cardTitleSizeMobile: 2, cardPriceSizeMobile: 9 });
-    expect(css).toContain(".fm-card-title{font-size:12px");
-    expect(css).toContain(".fm-card-price{font-size:12px");
-    expect(cardTypographyCss({ cardTitleSizeMobile: 2, phoneMinTextSize: 0 })).toContain(".fm-card-title{font-size:2px");
+    expect(css).toContain(".fm-card-title{font-size:14px");
+    expect(css).toContain(".fm-card-price{font-size:14px");
+    expect(cardTypographyCss({ cardTitleSizeMobile: 2, cardTitlePhoneMin: 0 })).toContain(".fm-card-title{font-size:12px");
+    expect(cardTypographyCss({ cardTitleSizeMobile: 2, cardTitlePhoneMin: 0, phoneMinTextSize: 0 })).toContain(".fm-card-title{font-size:2px");
   });
 
   it("only raises sizes below the minimum", () => {
