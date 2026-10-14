@@ -4864,7 +4864,6 @@ async function marketingUnsubscribeKey() {
 }
 
 const ABANDONED_CART_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const ABANDONED_CART_THROTTLE_MS = 3 * 24 * 60 * 60 * 1000;
 const ABANDONED_CART_MAX_ITEMS = 20;
 const ABANDONED_CART_BATCH = 500;
 const { digestSince, digestNeedsOperations, DIGEST_ORDER_LIMIT } = require("./orderDigest");
@@ -4943,14 +4942,19 @@ exports.abandonedCartSweep = onSchedule(
       if (!lines.length || emailedThisRun.has(email)) return;
       emailedThisRun.add(email);
 
-      // One reminder per address per throttle window, however many cart docs exist for it.
+      // One reminder per address, ever (owner's request, 14 October 2026), however many carts it leaves.
+      // The record keeps no expiresAt, so the collection's TTL never frees the address for another one;
+      // older records written with a 30-day expiry lose it the next time they stop a reminder.
       const throttleRef = db.collection("abandoned-cart-throttle").doc(crypto.createHash("sha256").update(email).digest("hex"));
       let previousThrottle = null;
       const throttled = await db.runTransaction(async tx => {
         const t = await tx.get(throttleRef);
-        if (t.exists && Date.now() - Date.parse(t.data().lastSentAt || 0) < ABANDONED_CART_THROTTLE_MS) return true;
+        if (t.exists && t.data().lastSentAt) {
+          if (t.data().expiresAt) tx.set(throttleRef, { lastSentAt: t.data().lastSentAt });
+          return true;
+        }
         previousThrottle = t.exists ? t.data() : null;
-        tx.set(throttleRef, { lastSentAt: new Date().toISOString(), expiresAt: retainFor(30) });
+        tx.set(throttleRef, { lastSentAt: new Date().toISOString() });
         return false;
       }).catch(() => true);
       if (throttled) {

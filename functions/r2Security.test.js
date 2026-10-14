@@ -224,6 +224,7 @@ describe('#72 retention of server-only bookkeeping', () => {
     expect(fs.readFileSync(path.join(here, 'emailThrottle.js'), 'utf8')).toMatch(/expiresAt: new Date/);
     expect(source).toMatch(/stripeEventId: event\.id,\s*processedAt: new Date\(\)\.toISOString\(\),\s*expiresAt: retainFor\(90\)/);
     expect(source).toMatch(/claimedAt: new Date\(\)\.toISOString\(\), expiresAt: retainFor\(400\)/);
-    expect(source).toMatch(/lastSentAt: new Date\(\)\.toISOString\(\), expiresAt: retainFor\(30\)/);
+    // Abandoned-cart reminders: one per address ever, so that record is kept (no expiresAt).
+    expect(source).toMatch(/tx\.set\(throttleRef, \{ lastSentAt: new Date\(\)\.toISOString\(\) \}\)/);
   });
 });
