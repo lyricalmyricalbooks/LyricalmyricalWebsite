@@ -301,6 +301,8 @@ const carrier = [{ provider: 'Canada Post', servicelevel: { name: 'Expedited Par
 test('fault 54: a cheaper profile rate cannot stand in for live carrier rates that exist', async () => {
   const app = harness({ docs: shippingSetup(), carrierRates: carrier });
   await expect(app.resolveShipping(physical, shipOrder('Standard'), profiles, false, app.docs.settings.website, 30)).rejects.toThrow(/no longer available/);
+  // Coded, so checkout knows to fetch the carrier's rates again instead of refusing every retry.
+  await expect(app.resolveShipping(physical, shipOrder('Standard'), profiles, false, app.docs.settings.website, 30)).rejects.toMatchObject({ code: 'shipping_rates_changed' });
   const live = await app.resolveShipping(physical, shipOrder('Canada Post Expedited Parcel'), profiles, false, app.docs.settings.website, 30);
   expect(live.cost).toBe(19.5);
 });
@@ -311,6 +313,12 @@ test('fault 55: a carrier outage after a live rate was picked says so, not "we d
   // A profile rate still works when the carrier is down.
   const fallback = await harness({ docs: shippingSetup(), carrierFails: true }).resolveShipping(physical, shipOrder('Standard'), profiles, false, {}, 30);
   expect(fallback.cost).toBe(8);
+});
+
+test('a refused profile rate reaches checkout with its code, so the shopper gets fresh carrier rates', async () => {
+  const app = harness({ docs: { ...shippingSetup(), books: { book: { status: 'published', format: 'Paperback', retailPrice: 30, weight: '400 g', shippingProfileId: 'general' } }, 'shipping-profiles': { general: profiles[0] } }, carrierRates: carrier });
+  const order = { ...shipOrder('Standard'), items: [{ id: 'book', quantity: 1 }] };
+  await expect(app.priceOrder(order)).rejects.toMatchObject({ status: 400, code: 'shipping_rates_changed' });
 });
 
 // ── Fault 56 ─────────────────────────────────────────────────────────────────────────────

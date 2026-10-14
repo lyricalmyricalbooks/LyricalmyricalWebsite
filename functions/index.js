@@ -1003,7 +1003,9 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
       // Live rates exist now, so a cheaper profile rate may not stand in for them: the shop would pay the
       // carrier's real price for the label and collect the profile price. The profile fallback is only for
       // when the carrier gave no rates at all (handled above) or could not be reached.
-      throw new Error("That live carrier rate is no longer available. Please review the shipping options and try again.");
+      // Coded so checkout fetches the live rates again and shows them (it may have fallen back to profile
+      // rates because its own rate request failed or timed out).
+      throw Object.assign(new Error("That live carrier rate is no longer available. Please review the shipping options and try again."), { code: "shipping_rates_changed" });
       })().catch(err => {
         if (/no longer available/.test(err.message)) throw err;
         console.warn("Live carrier rates unavailable, using profile rates:", err.message);
@@ -1296,7 +1298,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
   try {
     shipResult = await resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical);
   } catch (err) {
-    throw new PricingError(err.message);
+    throw new PricingError(err.message, err.code === "shipping_rates_changed" ? err.code : undefined);
   }
   const shipping = shipResult.cost;
   let tax;
@@ -1832,7 +1834,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         }
         return res.status(200).json({ orderId, trackingKey, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
       } catch (err) {
-        return res.status(400).json({ error: publicErrorMessage(err, "We could not place this order. Please check your details and try again."), ...(["hold_limit", "store_closed"].includes(err.code) ? { code: err.code } : {}) });
+        return res.status(400).json({ error: publicErrorMessage(err, "We could not place this order. Please check your details and try again."), ...(["hold_limit", "store_closed", "shipping_rates_changed"].includes(err.code) ? { code: err.code } : {}) });
       }
     }
 
@@ -1874,7 +1876,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         if (!paidNow) return res.status(409).json({ error: "Your gift card balance changed. Review your order and try again.", code: "gift_card_rejected" });
         return res.status(200).json({ paid: true });
       } catch (err) {
-        return res.status(400).json({ error: publicErrorMessage(err, "We could not complete this order. Please check your details and try again."), ...(err.code && /^(gift_card|discount_|hold_limit|store_closed)/.test(err.code) ? { code: err.code.startsWith("gift_card") ? "gift_card_rejected" : err.code } : {}) });
+        return res.status(400).json({ error: publicErrorMessage(err, "We could not complete this order. Please check your details and try again."), ...(err.code && /^(gift_card|discount_|hold_limit|store_closed|shipping_rates_changed)/.test(err.code) ? { code: err.code.startsWith("gift_card") ? "gift_card_rejected" : err.code } : {}) });
       }
     }
 
