@@ -1154,7 +1154,7 @@ on the order). Both checks run in `fetchValidDiscount` / both checkout paths; to
   (client `checkoutFulfillment.ts`, server `functions/localFulfillment.js`): missing means 100.
 - **Abandoned carts:** `firestore.rules` limits browser writes to the cart fields and blocks `notified*`, and a
   recovered cart can't be reopened. `abandonedCartSweep` rebuilds items and prices from `books`, escapes the text,
-  skips carts older than 7 days and throttles to one reminder per address every 3 days (`abandoned-cart-throttle`,
+  skips carts older than 7 days and sends one reminder per address ever (`abandoned-cart-throttle`, no TTL on those records,
   server-only), plus a shop-wide cap of 25 reminders per Toronto day (`abandoned-cart-throttle/_daily`,
   `nextDailyCount`); the email uses only a plain first name from the cart (`reminderFirstName`, else "there"). Deploy rules and functions together.
 - Order tracking accepts `#`/spaces in order numbers (`features/site/orderNumber.ts`).

@@ -673,6 +673,26 @@ describe("abandoned-cart reminders can't be used to spam strangers", () => {
     expect(app.delivered[0].html).toContain("Hi Buy,");
   });
 
+  test("an address gets one reminder ever, however many carts it leaves", async () => {
+    const app = harness({ gmailFails: false, docs: docs() });
+    await app.exports.abandonedCartSweep();
+    expect(app.delivered).toHaveLength(1);
+    const [record] = Object.values(app.docs["abandoned-cart-throttle"]);
+    expect(record.expiresAt).toBeUndefined();
+    app.docs["abandoned-carts"].c2 = cart();
+    await app.exports.abandonedCartSweep();
+    expect(app.delivered).toHaveLength(1);
+    expect(app.docs["abandoned-carts"].c2.notifySkipped).toBe("throttled");
+  });
+
+  test("an older reminder record from months ago still stops a second one and loses its expiry", async () => {
+    const key = require("crypto").createHash("sha256").update("stranger@example.org").digest("hex");
+    const app = harness({ gmailFails: false, docs: docs({ "abandoned-cart-throttle": { [key]: { lastSentAt: "2026-01-01T00:00:00.000Z", expiresAt: new Date("2026-01-31") } } }) });
+    await app.exports.abandonedCartSweep();
+    expect(app.delivered).toHaveLength(0);
+    expect(app.docs["abandoned-cart-throttle"][key]).toEqual({ lastSentAt: "2026-01-01T00:00:00.000Z" });
+  });
+
   test("over the daily cap nothing is sent and the cart waits for tomorrow", async () => {
     const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     const app = harness({ gmailFails: false, docs: docs({ "abandoned-cart-throttle": { _daily: { day, count: 25 } } }) });
