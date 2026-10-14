@@ -47,7 +47,7 @@ import { applySuggestion, newAddressSession, resolveAddress, searchAddresses, ty
 import { arrivalDateLabel, freeShippingGap } from "./features/site/checkoutNudges";
 import { guessCountryName, parsePinned } from "./features/site/countryPicker";
 import { CountryField } from "./features/site/CountryField";
-import { matchTaxRate } from "./features/site/taxRate";
+import { activeTaxRates, matchTaxRate } from "./features/site/taxRate";
 import { designNumber } from "./features/site/designNumber";
 import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
 import { readSiteCache } from "./features/site/siteCache";
@@ -422,7 +422,7 @@ export function Checkout() {
           loadCatalog((size, cursor) => adminApi.getStorefrontBooks(size, cursor))
         ]);
         setShippingProfiles(profiles);
-        setTaxRates(siteSettings?.taxes?.rates || []);
+        setTaxRates(activeTaxRates(siteSettings));
         setBooks(bookList);
         setCatalogState("ready");
         const preview = new URLSearchParams(window.location.search).get("preview") === "true";

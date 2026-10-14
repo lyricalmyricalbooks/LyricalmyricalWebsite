@@ -2,15 +2,15 @@ import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { COUNTRIES } from "../features/site/shippingZones";
 import { regionsFor } from "../features/site/postalRegion";
-import { uncoveredTaxRegions } from "../features/site/taxRate";
+import { taxCollectionOn, uncoveredTaxRegions } from "../features/site/taxRate";
 import {
-  DataTable, DestructiveButton, EmptyState, PrimaryButton, SaveBar, SecondaryButton, SectionCard, SelectField, StatusBadge, TextField, useConfirm, type Column,
+  DataTable, DestructiveButton, EmptyState, PrimaryButton, SaveBar, SecondaryButton, SectionCard, SelectField, StatusBadge, TextField, Toggle, useConfirm, type Column,
 } from "./riso/components";
 import { cleanTaxRate, taxRateProblem, type TaxRate } from "./taxRatesEdit";
 import { useSettingsDirty } from "./settingsDirty";
 
 // Settings › Taxes. Edits settings.taxes.rates in place (same shape the server matches on);
-// nothing is live until Save.
+// nothing is live until Save. settings.taxes.collect === false switches all tax off (server + checkout).
 export function TaxesSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
   const [ask, confirmNode] = useConfirm();
   const [country, setCountry] = useState("Canada");
@@ -19,12 +19,15 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
   const [tried, setTried] = useState(false);
   const rates: TaxRate[] = settings.taxes?.rates || [];
   const savedRates: TaxRate[] = originalSettings?.taxes?.rates || [];
+  const collecting = taxCollectionOn(settings);
   const dirty = hasChanges("taxes");
   useSettingsDirty("taxes", dirty);
 
   const regionChoices = regionsFor(country);
   const problem = taxRateProblem({ country, region, rate }, rates);
-  const gaps = useMemo(() => (rates.length ? uncoveredTaxRegions(rates) : []), [rates]);
+  const gaps = useMemo(() => (collecting && rates.length ? uncoveredTaxRegions(rates) : []), [collecting, rates]);
+  // Off keeps every rate saved, so switching back on restores them.
+  const setCollecting = (on: boolean) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), rates, collect: on } });
   const setRates = (next: TaxRate[]) => setSettings({ ...settings, taxes: { ...(settings.taxes || {}), rates: next } });
   const savedKey = (r: TaxRate) => `${r.country}|${r.region}|${r.rate}`.toLowerCase();
   const saved = new Set(savedRates.map(savedKey));
@@ -50,7 +53,16 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
 
   return (
     <div className="rp-stack">
-      <SectionCard title="Tax rates" description="Charged at checkout on books (gift cards are never taxed). A province/state rate wins over a country-wide one. Use 0% for places you don't collect in.">
+      <SectionCard title="Tax collection" description="When this is off, checkout charges no sales tax on any order, whatever rates are listed below. Your rates stay saved for when you turn it back on.">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+          <Toggle label="Collect sales tax at checkout" checked={collecting} onChange={setCollecting} />
+          {collecting
+            ? <StatusBadge tone="success">Collecting tax</StatusBadge>
+            : <StatusBadge tone="warning">Tax switched off</StatusBadge>}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Tax rates" description={`Charged at checkout on books (gift cards are never taxed). A province/state rate wins over a country-wide one. Use 0% for places you don't collect in.${collecting ? "" : " Not charged while tax collection is off."}`}>
         {rates.length === 0
           ? <EmptyState icon="%" title="No tax rates yet" description="Without a rate, checkout charges no tax. Add one below." />
           : <DataTable caption="Tax rates" rows={rates.map((r, index) => ({ ...r, index }))} rowKey={(r) => `${r.index}`} columns={columns} />}
@@ -89,8 +101,8 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
         <p className="rp-hint" style={{ margin: "12px 0 0" }}>Added rates apply once you choose Save. Check your rates with your accountant — this is not tax advice.</p>
       </SectionCard>
 
-      <SaveBar dirty={dirty} saving={savingSection === "taxes"} message="You have unsaved tax rates."
-        onSave={async () => { if (await saveSection("taxes", { taxes: settings.taxes })) toast.success("Tax rates saved"); }}
+      <SaveBar dirty={dirty} saving={savingSection === "taxes"} message="You have unsaved tax settings."
+        onSave={async () => { if (await saveSection("taxes", { taxes: settings.taxes })) toast.success("Tax settings saved"); }}
         onDiscard={() => setSettings({ ...settings, taxes: JSON.parse(JSON.stringify(originalSettings?.taxes ?? { rates: [] })) })} />
       {confirmNode}
     </div>

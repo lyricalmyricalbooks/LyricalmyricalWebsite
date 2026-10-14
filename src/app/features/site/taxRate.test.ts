@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { matchTaxRate } from "./taxRate";
+import { activeTaxRates, matchTaxRate, taxCollectionOn } from "./taxRate";
 
 const rates = [
   { country: "Canada", region: "Ontario", rate: 13 },
@@ -14,4 +14,12 @@ it("matches province names and codes the same way the server does", () => {
   expect(matchTaxRate(rates, "United States", "New York")?.rate).toBe(8);
   expect(matchTaxRate(rates, "United States", "TX")).toBeNull();
   expect(matchTaxRate(rates, "France", "")).toBeNull();
+});
+
+it("tax collection is on unless the owner switched it off, and off means no rates", () => {
+  expect(taxCollectionOn({})).toBe(true);
+  expect(taxCollectionOn({ taxes: { rates } })).toBe(true);
+  expect(taxCollectionOn({ taxes: { rates, collect: false } })).toBe(false);
+  expect(activeTaxRates({ taxes: { rates } })).toEqual(rates);
+  expect(activeTaxRates({ taxes: { rates, collect: false } })).toEqual([]);
 });

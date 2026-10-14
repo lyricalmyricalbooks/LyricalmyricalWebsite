@@ -47,3 +47,13 @@ export function uncoveredTaxRegions(rates: { country?: string; region?: string }
   }
   return out;
 }
+
+/** Settings › Taxes › "Collect sales tax". Missing = on (older shops); mirrors functions/index.js. */
+export function taxCollectionOn(settings: any): boolean {
+  return settings?.taxes?.collect !== false;
+}
+
+/** The rates checkout may charge: none while tax collection is switched off. */
+export function activeTaxRates<T>(settings: any): T[] {
+  return taxCollectionOn(settings) ? (settings?.taxes?.rates || []) : [];
+}
