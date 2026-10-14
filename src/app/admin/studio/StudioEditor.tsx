@@ -12,7 +12,7 @@ import { adminApi } from "../api";
 import { uploadStudioImage } from "./mediaUpload";
 import {
   SECTION_REGISTRY, SectionFieldEditor, buildPageTemplates, type PageTemplateMeta,
-  getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, DEFAULT_COLOR_SCHEMES,
+  getBlockFields, getBlocksKey, getSectionFields, fieldBounds, getSectionMeta, DEFAULT_COLOR_SCHEMES,
 } from "../ThemeEditorExtensions";
 import { CATEGORIES } from "../../features/site/constants";
 import { designEqual } from "../../features/site/designEqual";
@@ -104,6 +104,10 @@ type Toast = { kind: "ok" | "err"; text: string; action?: ToastAction } | null;
 function designChecks(design: any) {
   return buildDesignChecks(design, { sectionFields: getSectionFields, blockFields: getBlockFields, blocksKey: getBlocksKey });
 }
+
+/** React 18 (what runs here) renders `inert` only from a string value ("" = present); `inert={true}` is
+ *  dropped with a warning. The installed @types/react 19 types it as boolean, so bridge that one prop. */
+const inertWhen = (on: boolean) => (on ? { inert: "" } : {}) as { inert?: boolean };
 
 const DEVICE_W = { desktop: "1200px", tablet: "820px", mobile: "390px" } as const;
 
@@ -799,7 +803,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const targets: SectionTarget[] = [{ kind: "global" }, { kind: "global", group: "headerSections" }, { kind: "global", group: "overlaySections" }, ...templates.map(t => ({ kind: "template", id: t.id }) as SectionTarget)];
     for (const target of targets) for (const section of getSections(designRef.current, target)) {
       const gaps = getSectionFields(section.type).filter(f => GAP_KEYS.includes(f.key));
-      canvas.push({sectionId:section.id,blockId:null,actions:contextCapabilities(designRef.current,section.id,undefined,getBlocksKey),addBlock:Boolean(getSectionMeta(section.type)?.blockType),gaps:gaps.map(f=>f.key),bounds:Object.fromEntries(gaps.map(f=>[f.key,{min:f.min ?? 0,max:f.max ?? 240}]))});
+      canvas.push({sectionId:section.id,blockId:null,actions:contextCapabilities(designRef.current,section.id,undefined,getBlocksKey),addBlock:Boolean(getSectionMeta(section.type)?.blockType),gaps:gaps.map(f=>f.key),bounds:Object.fromEntries(gaps.map(f=>[f.key,fieldBounds(f)]))});
       for (const field of getSectionFields(section.type)) if (["text", "textarea", "html", "richtext"].includes(field.kind)) editable.push({ sectionId: section.id, blockId: null, key: field.key, label: field.label, multiline: field.kind !== "text", format: ["html", "richtext"].includes(field.kind) ? "html" : undefined, editable: !isConnectedValue(section.settings[field.key]) && (field.kind === "text" || field.kind === "textarea" || canInlineFormat(String(section.settings[field.key] ?? "")) && ["html", "richtext"].includes(field.kind)), text: isDynamic(section.settings[field.key]) ? "" : String(section.settings[field.key] ?? "") });
       scanBlocks(section, resolveSharedBlocks(section.settings[getBlocksKey(section.type)] || section.settings.blocks || [], designRef.current.sharedBlocks || []));
     }
@@ -1086,7 +1090,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           const allowed = [...PADDING_KEYS,...gapFields.map(f => f.key)];
           if(d.type === "SPACING_RESET") return allowed.reduce((dd,key)=>applySpacing(dd,{...d,key,value:null},allowed),current);
           const field = gapFields.find(f => f.key === d.key);
-          if(field && (d.value < (field.min ?? 0) || d.value > (field.max ?? 240))) return current;
+          if(field && (d.value < fieldBounds(field).min || d.value > fieldBounds(field).max)) return current;
           return applySpacing(current,d,allowed);
         });
       }
@@ -2007,7 +2011,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
       <MediaPickerContext.Provider value={mediaLib.pickerApi}>
       <FocusContext.Provider value={focus}>
-      <div className="studio-workspace" {...(busy === "discard" ? { inert: "" } : {})}>
+      <div className="studio-workspace" {...inertWhen(busy === "discard")}>
         <StudioRail active={leftTab} onSelect={id => { setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setSelectedElement(null); setMobilePanel("outline"); }} />
         {narrow ? <>
           {sidebarPanel}

@@ -1993,6 +1993,12 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   ],
 };
 
+/** A field's numeric limits: its own min/max for number and range fields, else the fallback (0–240 px spacing). */
+export function fieldBounds(field: SectionFieldSchema, fallback = { min: 0, max: 240 }): { min: number; max: number } {
+  if (field.kind !== "number" && field.kind !== "range") return fallback;
+  return { min: field.min ?? fallback.min, max: field.max ?? fallback.max };
+}
+
 export function getSectionFields(type: string): SectionFieldSchema[] {
   return SECTION_FIELDS[type] || [];
 }
