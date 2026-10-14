@@ -163,37 +163,25 @@ test('privacy requests from many fake addresses stay within the shop-wide email 
   expect([...app.db.store.keys()].filter(k => k.startsWith('privacyRequests/')).length).toBe(70);
 });
 
-// ── 26: reminders and alerts need proof the address has an owner ─────────────────────────────
+// ── 26: guests who only typed their email are reminded, once per address ever ─────────────────
 const cartDoc = (email, extra = {}) => ({ email, recovered: false, updatedAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(), items: [{ id: 'b1', qty: 1 }], ...extra });
 const BOOK = { 'books/b1': { title: 'Poems', retailPrice: 20, status: 'published' } };
-const checkoutAttempt = email => ({ 'orders/o1': { customer: { email }, stripePaymentIntentId: 'pi_1', paymentStatus: 'unpaid' } });
 const runSweep = app => app.exports.abandonedCartSweep({});
+const checkoutAttempt = email => ({ 'orders/o1': { customer: { email }, stripePaymentIntentId: 'pi_1', paymentStatus: 'unpaid' } });
 
-test('a forged cart for a stranger gets no reminder', async () => {
-  const app = load({ db: makeDb({ ...SETTINGS, ...BOOK, 'abandoned-carts/c1': cartDoc('victim@example.com') }) });
+test('a guest who only typed their email at checkout gets a reminder', async () => {
+  const app = load({ db: makeDb({ ...SETTINGS, ...BOOK, 'abandoned-carts/c1': cartDoc('guest@example.com') }) });
   await runSweep(app);
-  expect(app.sent).toEqual([]);
+  expect(app.sent.map(m => m.to)).toEqual(['guest@example.com']);
 });
 
-test('a cart whose address has a checkout attempt gets its reminder', async () => {
-  const app = load({ db: makeDb({ ...SETTINGS, ...BOOK, ...checkoutAttempt('shopper@example.com'), 'abandoned-carts/c1': cartDoc('shopper@example.com') }) });
+test('carts naming the same address reach it once, ever', async () => {
+  const db = makeDb({ ...SETTINGS, ...BOOK, 'abandoned-carts/c1': cartDoc('someone@example.com'), 'abandoned-carts/c2': cartDoc('someone@example.com') });
+  const app = load({ db });
   await runSweep(app);
-  expect(app.sent.map(m => m.to)).toEqual(['shopper@example.com']);
-});
-
-test('an order a browser wrote itself (no server payment field) is not proof', async () => {
-  const app = load({ db: makeDb({ ...SETTINGS, ...BOOK, 'orders/o1': { customer: { email: 'victim@example.com' }, paymentStatus: 'unpaid' }, 'abandoned-carts/c1': cartDoc('victim@example.com') }) });
+  db.store.set('abandoned-carts/c3', cartDoc('someone@example.com'));
   await runSweep(app);
-  expect(app.sent).toEqual([]);
-});
-
-test('a verified signed-in account is proof; an unverified one is not', async () => {
-  const verified = load({ db: makeDb({ ...SETTINGS, ...BOOK, 'abandoned-carts/c1': cartDoc('member@example.com') }), users: { 'member@example.com': { email: 'member@example.com', emailVerified: true } } });
-  await runSweep(verified);
-  expect(verified.sent.length).toBe(1);
-  const unverified = load({ db: makeDb({ ...SETTINGS, ...BOOK, 'abandoned-carts/c1': cartDoc('member@example.com') }), users: { 'member@example.com': { email: 'member@example.com', emailVerified: false } } });
-  await runSweep(unverified);
-  expect(unverified.sent).toEqual([]);
+  expect(app.sent.map(m => m.to)).toEqual(['someone@example.com']);
 });
 
 test('reminders also stop when the shop-wide email budget is used up', async () => {

@@ -63,7 +63,6 @@ const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOw
 const { preorderActive, preorderLine, preorderEmailLines, releaseDateOf } = require("./preorder");
 const digitalDelivery = require("./digitalDelivery");
 const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCount } = require("./emailThrottle");
-const { hasOwnershipProof } = require("./emailProof");
 const { paypalCredentials } = require("./paypalCredentials");
 const { shopOrigin, checkoutClosed, dailyDigestEnabled, backupStatusRecord } = require("./shopSettings");
 const { runInBatches, backupFoldersToPrune } = require("./sweepLimits");
@@ -4913,11 +4912,6 @@ exports.abandonedCartSweep = onSchedule(
       return bookCache.get(id);
     };
     const emailedThisRun = new Set();
-    const proofCache = new Map();
-    const ownershipProofOnce = email => {
-      if (!proofCache.has(email)) proofCache.set(email, hasOwnershipProof(db, admin.auth(), email));
-      return proofCache.get(email);
-    };
 
     await runInBatches(pending, 10, async (doc) => {
       const c = doc.data();
@@ -4925,9 +4919,9 @@ exports.abandonedCartSweep = onSchedule(
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
       // Someone who unsubscribed never gets another reminder.
       if ((await db.collection("marketing-optout").doc(optOutId(email)).get()).exists) return;
-      // Carts are written by anonymous browsers: only an address with proof of an owner (a
-      // checkout attempt or a verified account) is ever emailed. Others stay unsent and age out.
-      if (!(await ownershipProofOnce(email))) return;
+      // Guests who only typed their email at checkout are reminded too (owner's choice, 14 October 2026).
+      // A cart naming a stranger is still bounded: one reminder per address ever, the 25-a-day cap, the
+      // shop-wide email budget, no visitor text in the email and an unsubscribe link.
 
       const lines = [];
       for (const item of (Array.isArray(c.items) ? c.items : []).slice(0, ABANDONED_CART_MAX_ITEMS)) {
