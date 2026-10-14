@@ -58,3 +58,6 @@
     font-size: max(16px, 1em) !important;
   }
 }
+
+/* Phone navigation tabs scroll sideways without a visible bar. */
+.fm-mobile-tabs::-webkit-scrollbar { display: none; }

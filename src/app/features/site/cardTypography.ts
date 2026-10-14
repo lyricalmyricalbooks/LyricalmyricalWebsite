@@ -1,3 +1,5 @@
+import { phoneMinText } from "./smallPrint";
+
 // One place that turns the Studio › Style › "Product cards & grid" title/price controls into CSS,
 // so every storefront book card (shop grid, collection, wishlist, search) obeys them.
 // Cards opt in with these class names:
@@ -18,8 +20,8 @@ const clean = (v: any) => String(v).replace(/[;{}<>]/g, "");
 /** Phone breakpoint used by the size controls (below = phone, at/above = desktop). */
 const DESKTOP_MIN = 768;
 
-function sizeRules(selector: string, desktop: number, mobile: number): string {
-  const phone = mobile || desktop;
+function sizeRules(selector: string, desktop: number, mobile: number, floor = 0): string {
+  const phone = mobile || desktop ? Math.max(mobile || desktop, floor) : 0;
   let css = "";
   if (phone) css += `@media (max-width:${DESKTOP_MIN - 1}px){${selector}{font-size:${phone}px !important;}}`;
   if (desktop) css += `@media (min-width:${DESKTOP_MIN}px){${selector}{font-size:${desktop}px !important;}}`;
@@ -29,6 +31,7 @@ function sizeRules(selector: string, desktop: number, mobile: number): string {
 export function cardTypographyCss(design: any): string {
   const d = design || {};
   const S = "[data-fm-store]";
+  const floor = phoneMinText(d);
   let css = "";
 
   const title: string[] = [];
@@ -39,14 +42,14 @@ export function cardTypographyCss(design: any): string {
     title.push(`letter-spacing:${Number(d.cardTitleTracking)}em !important;`);
   }
   if (title.length) css += `${S} .fm-card-title{${title.join("")}}`;
-  css += sizeRules(`${S} .fm-card-title`, num(d.cardTitleSize), d.cardTitleSizeMobile === undefined ? 16 : num(d.cardTitleSizeMobile));
+  css += sizeRules(`${S} .fm-card-title`, num(d.cardTitleSize), d.cardTitleSizeMobile === undefined ? 16 : num(d.cardTitleSizeMobile), floor);
 
   const wrap: string[] = [];
   if (d.productPriceColor) wrap.push(`color:${clean(d.productPriceColor)} !important;`);
   if (d.cardPriceFont) wrap.push(`font-family:${font(d.cardPriceFont)} !important;`);
   if (wrap.length) css += `${S} .fm-card-price-wrap{${wrap.join("")}}`;
   if (d.cardPriceWeight) css += `${S} .fm-card-price{font-weight:${num(d.cardPriceWeight) || 700} !important;}`;
-  css += sizeRules(`${S} .fm-card-price`, num(d.cardPriceSize), d.cardPriceSizeMobile === undefined ? 16 : num(d.cardPriceSizeMobile));
+  css += sizeRules(`${S} .fm-card-price`, num(d.cardPriceSize), d.cardPriceSizeMobile === undefined ? 16 : num(d.cardPriceSizeMobile), floor);
   if (d.cardPriceTagBg) css += `${S} .fm-card-price-tag{background-color:${clean(d.cardPriceTagBg)} !important;}`;
   if (d.cardPriceOldColor) css += `${S} .fm-card-price-old{color:${clean(d.cardPriceOldColor)} !important;opacity:1 !important;}`;
 
