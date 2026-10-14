@@ -42,6 +42,7 @@ import { isStripePublishableKey, stripeCheckoutState, createCheckoutSubmission, 
 import { checkoutDetailProblems, detailInputId, expressWalletEnabled, postalCodeOptional, type DetailField } from "./features/site/checkoutDetails";
 import { comboboxInputProps, optionId } from "./features/site/comboboxAria";
 import { createLatestGuard, signalWithTimeout, RATES_TIMEOUT_MS } from "./features/site/latestRequest";
+import { liveRatesAddressReady, shouldRefetchRates } from "./features/site/liveRateRequest";
 import { holdLimitsFrom, holdWarnings } from "./features/site/holdLimits";
 import { applySuggestion, newAddressSession, resolveAddress, searchAddresses, type AddressSuggestion } from "./features/site/addressSuggest";
 import { arrivalDateLabel, freeShippingGap } from "./features/site/checkoutNudges";
@@ -300,6 +301,8 @@ export function Checkout() {
   const [giftCardError, setGiftCardError] = useState("");
   const [giftCardApplying, setGiftCardApplying] = useState(false);
   const [shippoRatesLoading, setShippoRatesLoading] = useState(false);
+  // Bumped when the server refuses Pay because the shown rates aren't the carrier's current ones.
+  const [ratesRefresh, setRatesRefresh] = useState(0);
 
 
   const cartDestination = useRef(readCartDestination());
@@ -859,10 +862,15 @@ export function Checkout() {
       setAvailableRates([]);
       return;
     }
-    if (!addr.street?.trim() || !addr.city?.trim() || !addr.state?.trim() || !addr.zip?.trim() || cart.length === 0) {
+    // Same address boxes as Pay needs (no state outside Canada/US): the server prices live rates for
+    // any such address, so profile rates shown for it would be refused at Pay.
+    if (!liveRatesAddressReady(addr) || cart.length === 0) {
       calculateStaticProfileRates();
       return;
     }
+    // Pay waits from now, not only once the request starts after the pause below: a rate picked
+    // during that pause would be a stale or profile rate the server refuses.
+    setShippoRatesLoading(true);
 
     // Only the newest request may change the quotes or the loading state: an older answer for a
     // previous address is dropped, and a carrier that never answers is given up on.
@@ -923,7 +931,7 @@ export function Checkout() {
       request.abort();
       setShippoRatesLoading(false);
     };
-  }, [customer.address.street, customer.address.unit, customer.address.city, customer.address.state, customer.address.zip, customer.address.country, cart, shippingProfiles, cartTotal, catalogItems, freeGift?.id]);
+  }, [customer.address.street, customer.address.unit, customer.address.city, customer.address.state, customer.address.zip, customer.address.country, cart, shippingProfiles, cartTotal, catalogItems, freeGift?.id, ratesRefresh]);
 
 
   useEffect(() => {
@@ -1225,6 +1233,12 @@ export function Checkout() {
       return Object.assign(new CopyError(checkoutDesign, "coPreviousPaid"), { previousPaidOrderId: data.previousOrderId as string });
     }
     if (response.status !== 400 && response.status !== 409) return null;
+    // The shown rates were profile rates (the browser's carrier request failed or timed out) or old
+    // carrier rates: fetch the carrier's rates again and make the shopper pick from them.
+    if (shouldRefetchRates(data)) {
+      setFulfillmentSelection(current => (current.method === "shipping" ? { ...current, optionId: "" } : current));
+      setRatesRefresh(n => n + 1);
+    }
     // Per-shopper hold cap (functions/stockHolds.js HOLD_LIMITS): the shop's own words.
     if (data?.code === "hold_limit") return new CopyError(checkoutDesign, "coHoldLimit");
     // Settings › General › Store status › Maintenance: the server refuses every new checkout.
