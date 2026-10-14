@@ -157,6 +157,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     hint: "The tiny captions, eyebrows, meta lines and counters used across the whole shop. Leave a control empty to keep the current look.",
     fields: [
       { key: "smallPrintMinSize", label: "Minimum size (0 = automatic)", kind: "range", min: 0, max: 18, step: 1, suffix: "px" },
+      { key: "phoneMinTextSize", label: "Smallest text on phones (0 = off)", kind: "range", min: 0, max: 16, step: 1, suffix: "px", defaultValue: 12 },
       { key: "smallPrintColor", label: "Text color (buttons and filled badges keep their own)", kind: "color" },
       { key: "smallPrintCase", label: "Letter case", kind: "select", options: [{ value: "", label: "Automatic" }, { value: "uppercase", label: "UPPERCASE" }, { value: "none", label: "As typed" }] },
       { key: "smallPrintTracking", label: "Letter spacing", kind: "range", min: 0, max: 0.5, step: 0.02, suffix: "em" },
@@ -285,6 +286,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "announcementRotateSeconds", label: "Seconds each message shows (several messages)", kind: "range", min: 2, max: 20, step: 1, suffix: "s", defaultValue: 5 },
       { key: "navStyle", label: "Nav link style", kind: "select", options: [{ value: "default", label: "Plain" }, { value: "stickers", label: "Sticker pills" }] },
       { key: "showMobileNavigation", label: "Show phone navigation", kind: "toggle", defaultValue: true },
+      { key: "mobileNavStyle", label: "Phone navigation style", kind: "select", options: [{ value: "tabs", label: "Tabs across the top" }, { value: "menu", label: "Drop-down menu" }], defaultValue: "tabs" },
+      { key: "mobileNavTabSize", label: "Phone tab text size", kind: "range", min: 11, max: 22, step: 1, suffix: "px", defaultValue: 14 },
       { key: "showStoreChromeOnUtilityPages", label: "Show the shop header & footer on wishlist, account, order tracking and missing pages", kind: "toggle", defaultValue: true },
       { key: "hideHeaderSearch", label: "Hide search icon", kind: "toggle" },
       { key: "hideHeaderWishlist", label: "Hide wishlist (heart) icon", kind: "toggle" },

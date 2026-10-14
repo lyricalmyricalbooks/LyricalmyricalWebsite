@@ -46,12 +46,26 @@ describe("cardTypographyCss", () => {
 });
 
 describe("smallPrintCss", () => {
-  it("emits nothing until a control is set", () => {
-    expect(smallPrintCss({})).toBe("");
+  it("emits nothing until a control is set (with the phone floor off)", () => {
+    expect(smallPrintCss({ phoneMinTextSize: 0 })).toBe("");
+  });
+
+  it("keeps tiny labels at 12px or more on phones by default", () => {
+    const css = smallPrintCss({});
+    expect(css).toContain("@media (max-width:767px)");
+    expect(css).toContain('[class~="text-[11px]"]{font-size:12px');
+    expect(css).not.toMatch(/^\[data-fm-store\]/);
+  });
+
+  it("raises phone card title and price below the floor", () => {
+    const css = cardTypographyCss({ cardTitleSizeMobile: 2, cardPriceSizeMobile: 9 });
+    expect(css).toContain(".fm-card-title{font-size:12px");
+    expect(css).toContain(".fm-card-price{font-size:12px");
+    expect(cardTypographyCss({ cardTitleSizeMobile: 2, phoneMinTextSize: 0 })).toContain(".fm-card-title{font-size:2px");
   });
 
   it("only raises sizes below the minimum", () => {
-    const css = smallPrintCss({ smallPrintMinSize: 10 });
+    const css = smallPrintCss({ smallPrintMinSize: 10, phoneMinTextSize: 0 });
     expect(css).toContain('[class~="text-[8px]"]{font-size:10px');
     expect(css).toContain('[class~="text-[9px]"]{font-size:10px');
     expect(css).not.toContain('[class~="text-[10px]"]');

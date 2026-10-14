@@ -27,6 +27,8 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
   const linkClass = "block min-h-11 px-6 py-3 hover:opacity-70";
   // The link for the page on screen wears Style › Navigation links › "Current page link color".
   const here = (to: string) => pathname.endsWith(to) ? { "aria-current": "page" as const, style: { color: navActiveColor(d) } } : {};
+  // Style › Header layout › "Phone navigation style": tabs across the top (default) or the drop-down menu.
+  if (mobileNavStyle(d) === "tabs") return <MobileNavTabs design={design} d={d} groups={groups} showThemeToggle={showThemeToggle} pathname={pathname} slug={slug} />;
   return <details ref={ref} className="md:hidden" data-studio-target="style:header|menus:categories|copy:Header" data-studio-label="Mobile navigation"
     onKeyDown={e => { if (e.key === "Escape") { close(); ref.current?.querySelector("summary")?.focus(); } }}>
     <summary className="min-h-11 cursor-pointer px-6 py-3 font-semibold">{getCopy(design, "navMenu")}</summary>
@@ -45,4 +47,45 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
       {showThemeToggle && <div className="px-6 py-3"><ThemeToggle label={getCopy(design, "ariaThemeToggle")} /></div>}
     </nav>
   </details>;
+}
+
+/** "tabs" (a sideways-scrolling row of links) unless Studio picked the drop-down "menu". */
+export const mobileNavStyle = (d: any): "tabs" | "menu" => (d?.mobileNavStyle === "menu" ? "menu" : "tabs");
+
+function MobileNavTabs({ design, d, groups, showThemeToggle, pathname, slug }: { design: any; d: any; groups: ReturnType<typeof splitNavigation>; showThemeToggle: boolean; pathname: string; slug: (s: string) => string }) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const tabs: { key: string; to: string; label: string }[] = [];
+  for (const item of groups.primary) {
+    if (item.kind === "page") { tabs.push({ key: item.key, to: `/page/${item.page.slug}`, label: item.label }); continue; }
+    tabs.push({ key: item.key, to: `/collections/${slug(item.label)}`, label: item.label });
+    for (const c of item.children.filter(c => c.showInNav !== false)) tabs.push({ key: `cat:${c.id}`, to: `/collections/${slug(c.name)}`, label: c.name });
+  }
+  const secondary: typeof tabs = [];
+  if (d.showSecondaryNavigation !== false) for (const item of groups.secondary) if (item.kind === "page") secondary.push({ key: item.key, to: `/page/${item.page.slug}`, label: item.label });
+  const extras: typeof tabs = [];
+  if (!d.hideHeaderWishlist) extras.push({ key: "wishlist", to: "/wishlist", label: getCopy(design, "ariaWishlist") });
+  if (!d.hideHeaderAccount && accountsEnabled(design)) extras.push({ key: "account", to: "/account", label: getCopy(design, "ariaAccount") });
+  const activeKey = [...tabs, ...secondary, ...extras].find(t => pathname.endsWith(t.to))?.key;
+  // Bring the current page's tab into view when it sits past the right edge.
+  useEffect(() => {
+    const row = rowRef.current;
+    const el = row?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (row && el && (el.offsetLeft + el.offsetWidth > row.scrollLeft + row.clientWidth || el.offsetLeft < row.scrollLeft)) row.scrollLeft = Math.max(0, el.offsetLeft - 24);
+  }, [activeKey]);
+  const tab = (t: { key: string; to: string; label: string }) => {
+    const on = t.key === activeKey;
+    return <Link key={t.key} to={t.to} aria-current={on ? "page" : undefined}
+      className={`flex min-h-11 shrink-0 items-center border-b-2 font-semibold ${on ? "" : "border-transparent opacity-80 hover:opacity-100"}`}
+      style={on ? { color: navActiveColor(d), borderColor: "currentColor" } : undefined}>{t.label}</Link>;
+  };
+  const size = Number(d.mobileNavTabSize) > 0 ? Number(d.mobileNavTabSize) : 14;
+  return <nav aria-label={getCopy(design, "ariaMainNavigation")} className="md:hidden border-t border-current/20" data-studio-target="style:header|menus:categories|copy:Header" data-studio-label="Mobile navigation">
+    <div ref={rowRef} className="fm-mobile-tabs flex items-stretch gap-6 overflow-x-auto whitespace-nowrap px-6" style={{ scrollbarWidth: "none", fontSize: size }}>
+      {tabs.map(tab)}
+      {secondary.length > 0 && <div role="group" aria-label={getCopy(design, "secondaryNavigationAria")} className="contents" data-studio-target="menus:header-order|style:header|copy:Header" data-studio-label="Publisher navigation">{secondary.map(tab)}</div>}
+      {extras.map(tab)}
+      {!d.hideCurrencySelector && <div className="flex shrink-0 items-center"><CurrencySelector label={getCopy(design, "currencyLabel")} ariaLabel={getCopy(design, "ariaCurrency")} /></div>}
+      {showThemeToggle && <div className="flex shrink-0 items-center"><ThemeToggle label={getCopy(design, "ariaThemeToggle")} /></div>}
+    </div>
+  </nav>;
 }
