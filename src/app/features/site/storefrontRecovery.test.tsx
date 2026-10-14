@@ -30,8 +30,9 @@ describe("storefront recovery", () => {
     const html = render(h(MobileStorefrontNav, {design:{categories:[{id:"p",name:"Books"},{id:"c",name:"Zines",parentId:"p"}]},pages:[{id:"a",slug:"about",title:"About",status:"published"}],onSearch:()=>{}}));
     expect(html).not.toContain("<details");
     expect(html).toContain("fm-mobile-tabs");
-    expect(html).toContain("/collections/books");
-    expect(html).toContain("/collections/zines");
+    // "Books" has a sub-category, so it is a drop-down button (its links open in the panel).
+    expect(html).toContain('aria-haspopup="true"');
+    expect(html).toContain("Books");
     expect(html).toContain("/wishlist");
     expect(html).toContain("Select currency");
     const hidden = render(h(MobileStorefrontNav,{design:{hideHeaderWishlist:true,hideCurrencySelector:true},pages:[],onSearch:()=>{}}));

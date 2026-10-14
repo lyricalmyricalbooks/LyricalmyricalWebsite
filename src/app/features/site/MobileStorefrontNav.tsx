@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { accountsEnabled } from "./customerAccounts";
 import { Link, useLocation } from "react-router";
 import { navActiveColor } from "./headerNav";
+import { NavDropdown } from "./NavDropdown";
 import { CurrencySelector } from "../../CurrencyContext";
 import { splitNavigation, buildNavItems } from "./navItems";
 import { getCopy } from "./storeCopy";
@@ -54,25 +55,34 @@ export const mobileNavStyle = (d: any): "tabs" | "menu" => (d?.mobileNavStyle ==
 
 function MobileNavTabs({ design, d, groups, showThemeToggle, pathname, slug }: { design: any; d: any; groups: ReturnType<typeof splitNavigation>; showThemeToggle: boolean; pathname: string; slug: (s: string) => string }) {
   const rowRef = useRef<HTMLDivElement>(null);
-  const tabs: { key: string; to: string; label: string }[] = [];
+  // A category with sub-categories opens a drop-down (All + each sub-category), like the desktop header.
+  const tabs: { key: string; to: string; label: string; children?: { key: string; to: string; label: string }[] }[] = [];
   for (const item of groups.primary) {
     if (item.kind === "page") { tabs.push({ key: item.key, to: `/page/${item.page.slug}`, label: item.label }); continue; }
-    tabs.push({ key: item.key, to: `/collections/${slug(item.label)}`, label: item.label });
-    for (const c of item.children.filter(c => c.showInNav !== false)) tabs.push({ key: `cat:${c.id}`, to: `/collections/${slug(c.name)}`, label: c.name });
+    const children = item.children.filter(c => c.showInNav !== false).map(c => ({ key: `cat:${c.id}`, to: `/collections/${slug(c.name)}`, label: c.name }));
+    tabs.push({ key: item.key, to: `/collections/${slug(item.label)}`, label: item.label, children: children.length ? children : undefined });
   }
   const secondary: typeof tabs = [];
   if (d.showSecondaryNavigation !== false) for (const item of groups.secondary) if (item.kind === "page") secondary.push({ key: item.key, to: `/page/${item.page.slug}`, label: item.label });
   const extras: typeof tabs = [];
   if (!d.hideHeaderWishlist) extras.push({ key: "wishlist", to: "/wishlist", label: getCopy(design, "ariaWishlist") });
   if (!d.hideHeaderAccount && accountsEnabled(design)) extras.push({ key: "account", to: "/account", label: getCopy(design, "ariaAccount") });
-  const activeKey = [...tabs, ...secondary, ...extras].find(t => pathname.endsWith(t.to))?.key;
+  const activeKey = [...tabs.flatMap(t => [t, ...(t.children || [])]), ...secondary, ...extras].find(t => pathname.endsWith(t.to))?.key;
   // Bring the current page's tab into view when it sits past the right edge.
   useEffect(() => {
     const row = rowRef.current;
     const el = row?.querySelector<HTMLElement>('[aria-current="page"]');
     if (row && el && (el.offsetLeft + el.offsetWidth > row.scrollLeft + row.clientWidth || el.offsetLeft < row.scrollLeft)) row.scrollLeft = Math.max(0, el.offsetLeft - 24);
   }, [activeKey]);
-  const tab = (t: { key: string; to: string; label: string }) => {
+  const tab = (t: { key: string; to: string; label: string; children?: { key: string; to: string; label: string }[] }) => {
+    if (t.children) {
+      const on = t.key === activeKey || t.children.some(c => c.key === activeKey);
+      return <NavDropdown key={t.key} design={d} copyDesign={design} label={t.label}
+        className={`min-h-11 shrink-0 border-b-2 font-semibold ${on ? "" : "border-transparent opacity-80"}`}
+        linkStyle={on ? { color: navActiveColor(d), borderColor: "currentColor" } : { color: d.navLinkColor || d.headerColor || "var(--text)" }}
+        all={{ key: `${t.key}:all`, label: t.label, to: t.to, active: t.key === activeKey }}
+        entries={t.children.map(c => ({ ...c, active: c.key === activeKey }))} />;
+    }
     const on = t.key === activeKey;
     return <Link key={t.key} to={t.to} aria-current={on ? "page" : undefined}
       className={`flex min-h-11 shrink-0 items-center border-b-2 font-semibold ${on ? "" : "border-transparent opacity-80 hover:opacity-100"}`}
