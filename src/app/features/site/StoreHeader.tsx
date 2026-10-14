@@ -198,7 +198,7 @@ function AnnouncementBar({ design, show, fallback, shop }: { design: any; show: 
       <div
         data-studio-target="style:header"
         data-studio-label="Announcement bar"
-        className="px-6 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.3em]"
+        className="fm-announce px-6 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.3em]"
         style={{ backgroundColor: design.announcementBg || "var(--accent)", color: design.announcementColor || "var(--on-accent)" }}
         {...pause}
       >
@@ -209,7 +209,7 @@ function AnnouncementBar({ design, show, fallback, shop }: { design: any; show: 
   const colors = { backgroundColor: design?.announcementBg || "#e8402a", color: design?.announcementColor || "#100f0d" };
   if (design?.announcementScrolling) {
     return (
-      <div data-section="announcements" data-studio-target="style:header" data-studio-label="Announcement bar" className="overflow-hidden py-2.5 sticky top-0 z-[60]" style={colors}>
+      <div data-section="announcements" data-studio-target="style:header" data-studio-label="Announcement bar" className="fm-announce overflow-hidden py-2.5 sticky top-0 z-[60]" style={colors}>
         <div
           className="flex w-max animate-marquee font-bold uppercase"
           style={{
@@ -236,7 +236,7 @@ function AnnouncementBar({ design, show, fallback, shop }: { design: any; show: 
     );
   }
   return (
-    <div data-section="announcements" data-studio-target="style:header" data-studio-label="Announcement bar" className="text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]" style={colors} {...pause}>
+    <div data-section="announcements" data-studio-target="style:header" data-studio-label="Announcement bar" className="fm-announce text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]" style={colors} {...pause}>
       <AnnouncementMessage key={index} text={current.text} link={current.link} editable={single} />
     </div>
   );
@@ -377,7 +377,7 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
         className={`${storefront.stickyHeader ?? true ? "sticky top-0" : "relative"} z-50`}
         style={{ backgroundColor: headerBg, color: headerColor }}
       >
-        <div ref={rowRef} className="mx-auto flex flex-nowrap items-center justify-between gap-4 px-6 py-4" style={{ maxWidth, color: headerColor }}>
+        <div ref={rowRef} className="fm-hdr-row mx-auto flex flex-nowrap items-center justify-between gap-4 px-6 py-4" style={{ maxWidth, color: headerColor }}>
           <div className="flex min-w-0 flex-1 items-center gap-8 md:gap-12">
             <Link to="/" data-hdr-fixed className="flex shrink-0 items-center" aria-label={getCopy(design, "logoAlt")}>
               <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefront} /></span>
@@ -398,7 +398,7 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
                 <button
                   onClick={() => setIsCartOpen(true)}
                   aria-label={getCopy(design, "ariaCart")}
-                  className="store-btn-primary group flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2 transition-all hover:scale-[1.02]"
+                  className="fm-hdr-cart store-btn-primary group flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2 transition-all hover:scale-[1.02]"
                   style={{ backgroundColor: storefront.buttonColor || "var(--accent)", color: storefront.buttonTextColor || "var(--on-accent)" }}
                 >
                   <span className="text-[10px] font-semibold uppercase tracking-[0.2em]">{storefront.cartLabel || getCopy(design, "cartLabel")}</span>
@@ -587,7 +587,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
             <div style={{ borderTop: `${headerRuleWidth}px solid ${sf?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
           </div>
         ) : (
-          <div ref={headerRowRef} className="mx-auto px-6 py-4 flex flex-nowrap items-center justify-between gap-4" style={{ maxWidth }}>
+          <div ref={headerRowRef} className="fm-hdr-row mx-auto px-6 py-4 flex flex-nowrap items-center justify-between gap-4" style={{ maxWidth }}>
             <div className={`flex min-w-0 items-center gap-8 md:gap-12 flex-1 ${shop.logoPosition === "center" ? "" : "flex-initial"}`}>
               {shop.logoPosition === "left" && logo}
               {!navBelow && navBar}
@@ -610,7 +610,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                   <button
                     onClick={() => setIsCartOpen(true)}
                     aria-label={getCopy(design, "ariaCart")}
-                    className={`group flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2 transition-all hover:scale-[1.02] store-btn-primary ${buttonShadow ? "shadow-lg" : ""} ${stickers ? "fm-sticker-pill" : ""}`}
+                    className={`fm-hdr-cart group flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2 transition-all hover:scale-[1.02] store-btn-primary ${buttonShadow ? "shadow-lg" : ""} ${stickers ? "fm-sticker-pill" : ""}`}
                     style={{
                       backgroundColor: buttonStyle === "solid" ? buttonBg : "transparent",
                       color: buttonStyle === "solid" ? buttonText : buttonBg,

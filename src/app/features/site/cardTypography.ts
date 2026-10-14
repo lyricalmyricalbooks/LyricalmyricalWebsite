@@ -31,7 +31,9 @@ function sizeRules(selector: string, desktop: number, mobile: number, floor = 0)
 export function cardTypographyCss(design: any): string {
   const d = design || {};
   const S = "[data-fm-store]";
-  const floor = phoneMinText(d);
+  // Style › Product cards & grid › "Smallest card title & price on phones" (default 14, 0 = off).
+  const cardMin = Number(d.cardTitlePhoneMin ?? 14);
+  const floor = Math.max(phoneMinText(d), Number.isFinite(cardMin) && cardMin > 0 ? cardMin : 0);
   let css = "";
 
   const title: string[] = [];
@@ -50,6 +52,10 @@ export function cardTypographyCss(design: any): string {
   if (wrap.length) css += `${S} .fm-card-price-wrap{${wrap.join("")}}`;
   if (d.cardPriceWeight) css += `${S} .fm-card-price{font-weight:${num(d.cardPriceWeight) || 700} !important;}`;
   css += sizeRules(`${S} .fm-card-price`, num(d.cardPriceSize), d.cardPriceSizeMobile === undefined ? 16 : num(d.cardPriceSizeMobile), floor);
+  // Style › Product cards & grid › "Price under the title on phones" (default on): long titles get the full card width.
+  if (d.cardPriceStackPhone !== false) {
+    css += `@media (max-width:${DESKTOP_MIN - 1}px){${S} .fm-card-meta{flex-direction:column;gap:6px;}${S} .fm-card-meta .fm-card-price-wrap{align-items:flex-start;}${S} .fm-card-meta .fm-card-title{overflow-wrap:anywhere;}}`;
+  }
   if (d.cardPriceTagBg) css += `${S} .fm-card-price-tag{background-color:${clean(d.cardPriceTagBg)} !important;}`;
   if (d.cardPriceOldColor) css += `${S} .fm-card-price-old{color:${clean(d.cardPriceOldColor)} !important;opacity:1 !important;}`;
 

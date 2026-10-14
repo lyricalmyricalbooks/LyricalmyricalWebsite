@@ -937,7 +937,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       className={cardRuleWidth > 0 ? "pt-3" : ""}
                       style={cardRuleWidth > 0 ? { borderTop: `${cardRuleWidth}px solid rgba(var(--fg-rgb), 0.85)` } : undefined}
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="fm-card-meta flex items-start justify-between gap-3">
                         <h3
                           className={`fm-card-title ${isReferenceCatalog ? "text-lg md:text-xl font-black tracking-tight" : "text-sm tracking-wider font-medium"} leading-tight min-w-0 break-words`}
                           style={{ color: storefrontDesign?.productTitleColor || storefrontText, textTransform: storefrontTitleTransform }}
