@@ -1036,7 +1036,14 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
   return { cost: picked.price, method: picked.name, estimate: shippingEstimateOf(picked.deliveryDays) };
 }
 
+// Mirrors taxCollectionOn in src/app/features/site/taxRate.ts (missing = on).
+function taxCollectionOn(settings) {
+  return settings?.taxes?.collect !== false;
+}
+
 function authoritativeTax(items, discountAmount, discount, booksById, settings, order, fulfillment) {
+  // Settings › Taxes › "Collect sales tax" off: no tax on any order. Rates stay saved for turning it back on.
+  if (!taxCollectionOn(settings)) return 0;
   const rates = settings.taxes?.rates || [];
   const discountedPhysical = discountedPhysicalSubtotal(items, discountAmount, discount, booksById);
   const taxableTotal = Math.max(0, items.reduce((sum, item) => sum + item.price * item.quantity, 0) - discountAmount);

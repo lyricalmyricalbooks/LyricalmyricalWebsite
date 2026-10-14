@@ -1,7 +1,7 @@
 import { summarizeShipping } from "./shippingHealth";
 import { paymentHealth } from "./paymentHealth";
 import { isRealPaidOrder } from "./overviewInsights";
-import { uncoveredTaxRegions } from "../features/site/taxRate";
+import { taxCollectionOn, uncoveredTaxRegions } from "../features/site/taxRate";
 
 /** Admin-only "Ready to sell?" checks. Read-only guidance; nothing here changes data. */
 export type ReadinessStatus = "ok" | "warn" | "block";
@@ -66,8 +66,11 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   items.push({ id: "catalog-test-content", label: testTitles.length ? `${plural(testTitles.length, "published title")} may be test content` : "No obvious test titles found", detail: testTitles.length ? testTitles.slice(0, 3).map(b => b.title).join(", ") + ". Review before launch; legitimate titles can match this check." : "This title check does not replace an owner review of the public catalog.", status: testTitles.length ? "warn" : "ok", tab: "catalog", action: "Review Books" });
 
   // Sales tax (charged server-side from Settings › Taxes rates)
-  const rates = (settings?.taxes?.rates || []).filter((r: any) => Number(r?.rate) > 0);
-  items.push(rates.length
+  const collecting = taxCollectionOn(settings);
+  const rates = collecting ? (settings?.taxes?.rates || []).filter((r: any) => Number(r?.rate) > 0) : [];
+  items.push(!collecting
+    ? { id: "tax", label: "Sales tax collection is switched off", detail: "Checkout charges no tax on any order. Turn it back on in Taxes if you are registered to collect.", status: "ok", tab: "taxes", action: "Open Taxes" }
+    : rates.length
     ? { id: "tax", label: "Sales tax rates are set", detail: plural(rates.length, "tax rate"), status: "ok", tab: "taxes", action: "Open Taxes" }
     : { id: "tax", label: "No sales tax rates", detail: "Checkout charges no tax. Add GST/HST/PST rates if you are registered to collect them.", status: "warn", tab: "taxes", action: "Open Taxes" });
   // A country with some rates but a province/state with none silently charges $0 there.

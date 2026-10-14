@@ -31,6 +31,13 @@ describe("launchReadiness", () => {
     expect(readinessSummary(items)).toBe("block");
   });
 
+  it("treats switched-off tax collection as a decision, not a gap", () => {
+    const settings = { ...goodSettings, taxes: { rates: [{ country: "Canada", region: "Ontario", rate: 13 }], collect: false } };
+    const items = launchReadiness({ settings, books: [goodBook], shippingProfiles: [{}], emailLog: [], orders: [] });
+    expect(status(items, "tax")).toBe("ok");
+    expect(items.find(i => i.id === "taxGaps")).toBeUndefined();
+  });
+
   it("names incomplete books and ignores drafts", () => {
     const items = launchReadiness({ settings: goodSettings, books: [goodBook, { title: "No price", retailPrice: 0, photos: [{}], description: "d" }, { title: "Draft", status: "draft" }], shippingProfiles: [{}], emailLog: [{ status: "sent" }], orders: [] });
     const books = items.find(i => i.id === "books")!;

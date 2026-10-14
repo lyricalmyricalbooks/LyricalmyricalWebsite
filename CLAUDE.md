@@ -1396,6 +1396,9 @@ limits what one code can take off an order ("20% off, up to $15"). The server en
   before Stripe, PayPal, manual-payment, or free checkout can settle; payment revalidates/renews the hold. Reservation-store failures fail closed;
   expected stock conflicts after a provider capture stay unpaid and raise an inventory-reconciliation alert. Holds release on payment or cancel and expire automatically.
 - **Tax gaps:** Overview › Ready to sell lists provinces/states with no matching rate (`uncoveredTaxRegions`).
+- **Tax switch (14 October 2026):** Settings › Taxes › **Collect sales tax at checkout** saves `settings.taxes.collect` (missing = on).
+  `false` = no tax on any order: server `authoritativeTax` returns 0 (`taxCollectionOn`, mirrored in `features/site/taxRate.ts`),
+  checkout uses `activeTaxRates`, readiness skips the tax checks. Rates stay saved. Deploy Functions with the frontend.
 - **Customer requests:** order tracking has *Ask to cancel* only, until the order ships (no shopper return requests since
   13 October 2026; `ORDER_REQUEST_TYPES` = cancel; open returns still show) (`action: "orderRequest"`, `order.customerRequest`,
   Needs attention + Order detail › Mark request handled) and *Your data* (`action: "privacyRequest"` →
