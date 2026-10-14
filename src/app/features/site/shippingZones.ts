@@ -185,6 +185,7 @@ export type ShippingZoneLike = {
   countries?: string[];   // ISO codes
   continents?: string[];  // Continent names
   restOfWorld?: boolean;
+  rates?: unknown[];      // Rates offered in this zone (see shippingEngine)
 };
 
 // A zone is a catch-all if explicitly flagged, or named like one (preserves the

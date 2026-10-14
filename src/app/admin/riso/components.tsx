@@ -358,7 +358,7 @@ export function Pagination({ page, pageCount, onPage }: { page: number; pageCoun
 }
 
 export function Tabs<T extends string>({ tabs, value, onChange, label }: {
-  tabs: Array<{ id: T; label: string; count?: number }>; value: T; onChange: (id: T) => void; label: string;
+  tabs: Array<{ id: T; label: string; count?: number }>; value: T; onChange: (id: NoInfer<T>) => void; label: string;
 }) {
   const onKey = (e: React.KeyboardEvent, i: number) => {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;

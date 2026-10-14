@@ -18,9 +18,10 @@ function insert(html: string, parent: HTMLElement) {
     const el = node as HTMLElement;
     let out: HTMLElement = el.cloneNode(true) as HTMLElement;
     if (el.tagName === "SCRIPT") {
-      out = document.createElement("script");
-      for (const a of Array.from(el.attributes)) out.setAttribute(a.name, a.value);
-      out.text = el.textContent || "";
+      const script = document.createElement("script");
+      for (const a of Array.from(el.attributes)) script.setAttribute(a.name, a.value);
+      script.text = el.textContent || "";
+      out = script;
     }
     out.setAttribute(ATTR, "");
     parent.appendChild(out);

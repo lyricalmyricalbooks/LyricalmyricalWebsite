@@ -1,12 +1,6 @@
 {
-  "src/app/admin/BookEditor.tsx": 1,
-  "src/app/admin/BookSeoPane.tsx": 2,
-  "src/app/admin/Discounts.tsx": 1,
   "src/app/admin/OrderDetail.tsx": 5,
-  "src/app/admin/ShopSettings.tsx": 1,
   "src/app/admin/studio/StudioEditor.tsx": 5,
   "src/app/admin/studio/StudioOutline.tsx": 1,
-  "src/app/admin/studio/StudioSpacingControls.tsx": 4,
-  "src/app/features/site/customCode.ts": 1,
-  "src/app/features/site/shippingEngine.ts": 1
+  "src/app/admin/studio/StudioSpacingControls.tsx": 4
 }
