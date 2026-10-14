@@ -892,6 +892,11 @@ it. Don't add new compat rules for new work; compose the components instead.
 ## Conventions & gotchas
 
 - Path alias `@` → `src/` (see `vite.config.ts`).
+- `package.json` `pnpm.overrides` pins `@grpc/grpc-js` ≥1.14.6 and `protobufjs` ≥7.6.5: every `firebase` release (to 13.0)
+  still asks for `@grpc/grpc-js ~1.9`, which has a high advisory. Only Firestore's Node build loads it, never the browser.
+  Keep the override until `@firebase/firestore` moves on. Functions run on firebase-admin 13 (v14 removes the
+  `admin.firestore()` / `admin.auth()` namespace API that `functions/*.js` and the restore/migration scripts use; migrate those first).
+- `@types/react` is 19 while React is 18.3: React 18 renders `inert` only from `""` (see `inertWhen` in `StudioEditor.tsx`).
 - `figma:asset/...` imports resolve to `src/assets/` via a custom Vite plugin;
   `ImageWithFallback` in `components/figma/` handles broken images.
 - The site lives at the root of its Firebase Hosting address, but builds can still use a sub-path (`SITE_BASE`) — be

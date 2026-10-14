@@ -56,7 +56,7 @@ function NestedBlocks({ blocks, section, depth, selectedId, blockId, label, onSe
           {block.children?.length ? <NestedBlocks blocks={block.children} section={section} depth={depth + 1} selectedId={selectedId} blockId={blockId} label={label} onSelect={onSelect} onMoveBlock={onMoveBlock} library={library}
             onChange={children => onChange(mapBlock(blocks, block.id, b => ({ ...b, children })))} /> : null}
           {depth < 2 && block.type === "group" && <button className="studio-insert" onClick={() => {
-            const child = { id: newId(), type: "text", title: "New nested block", body: "" };
+            const child: StudioBlock = { id: newId(), type: "text", title: "New nested block", body: "" };
             onChange(addChildBlock(blocks, block.id, child)); onSelect(section.id, child.id);
           }}><Plus size={12} /> Add inside {nameOf(block, i)}</button>}
         </>}

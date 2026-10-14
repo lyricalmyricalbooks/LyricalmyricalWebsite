@@ -1314,7 +1314,7 @@ export const adminApi = {
   getPublicOrder: publicApi.getPublicOrder,
 
   // Admin only: the order plus its private fulfillment record.
-  getOrderById: async (id: string) => {
+  getOrderById: async (id: string): Promise<(Record<string, any> & { id: string; operations: Record<string, any> }) | null> => {
     const docRef = doc(db, "orders", id);
     const snap = await getDoc(docRef);
     if (!snap.exists()) return null;
