@@ -184,7 +184,12 @@
 .rp-skip-link:focus { top: 12px; }
 
 /* ── App shell ─────────────────────────────────────────────────────────── */
-.rp-app { display: flex; height: 100vh; height: 100dvh; overflow: hidden; background: var(--rp-canvas); }
+/* The shell is pinned to the window: anything else on the page (a stray storefront
+   element, a closed dialog's leftovers) can't make the document taller and let the
+   page scroll the shell up, leaving the dark site background showing underneath. */
+.rp-app { position: fixed; inset: 0; display: flex; overflow: hidden; background: var(--rp-canvas); }
+html:has(.rp-app), body:has(.rp-app) { overflow: hidden; background: #faf6ec; }
+html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearance="dark"] .rp-app) { background: #262624; }
 .rp-app-body { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .rp-workspace {
   flex: 1; overflow-y: auto; padding: var(--rp-space-6) clamp(16px, 4vw, 56px) 96px;
