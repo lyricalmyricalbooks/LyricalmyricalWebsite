@@ -1326,7 +1326,7 @@ the order (which woke `onOrderUpdated`/`onOrderInventoryPush`); the admin status
 `PAID_STATUSES`) the orders paid since the last sweep minus 30 min; every 6 h, or with no/old record, after a short scan
 filled its 500 page, or when `systemStatus/stripeReversalRecheck.at` is not older than the last re-read, it re-reads all paid
 orders of 120 days (newest first, ≤5,000) and drops orders that left. `revertFailedRefund` writes that request
-(`requestReversalRecheck`), because a reverted refund is paid again with its old `paidAt`, which the short scan can't see.
+(`requestReversalRecheck`, straight after its transaction, before the revenue write: a retried webhook can't ask again), because a reverted refund is paid again with its old `paidAt`, which the short scan can't see.
 Due orders (40 + 10 spare) are read whole with `getAll` (never with no ids); orders the admin just synced free their slots for
 the next due ones (up to 3 rounds, `MAX_DUE_READS` 150). `onChecked` runs only after the sync applied, an unanswered order is
 retried each sweep after the simply-due ones, the record (a copy) is saved by `stopBy` even if Stripe hangs, no check starts

@@ -2,7 +2,7 @@
 // it checks the paid orders, keeps the check times in systemStatus/stripeReversalChecks instead of
 // writing to orders, reads the Stripe settings once per sweep, and the next sweep reads no orders when
 // nothing is due. The admin's "Sync with Stripe" still stamps the order, and a reverted refund asks the
-// next sweep to re-read every paid order.
+// next sweep to re-read every paid order, even when a later write in the revert fails.
 import { expect, test } from "vitest";
 import fs from "fs";
 import path from "path";
@@ -23,11 +23,12 @@ function harness(orders) {
   const reads = {};
   const queries = [];
   const orderWrites = [];
+  const failNextSet = new Set(); // collection names whose next set() throws, like a Firestore timeout
   const count = (key, n = 1) => { reads[key] = (reads[key] || 0) + n; };
   const ref = (name, id) => ({
     id, path: `${name}/${id}`, name,
     async get() { count(`${name}/${id}`); const data = docs[name]?.[id]; return { id, exists: !!data, data: () => data && structuredClone(data) }; },
-    async set(data, opts) { docs[name] ||= {}; docs[name][id] = opts?.merge ? { ...(docs[name][id] || {}), ...data } : structuredClone(data); if (name === "orders") orderWrites.push({ id, data }); },
+    async set(data, opts) { if (failNextSet.delete(name)) throw new Error("DEADLINE_EXCEEDED"); docs[name] ||= {}; docs[name][id] = opts?.merge ? { ...(docs[name][id] || {}), ...data } : structuredClone(data); if (name === "orders") orderWrites.push({ id, data }); },
     async update(data) { docs[name][id] = { ...(docs[name][id] || {}), ...data }; if (name === "orders") orderWrites.push({ id, data }); },
     async delete() { delete docs[name]?.[id]; },
   });
@@ -87,7 +88,7 @@ function harness(orders) {
   const module = { exports: {} };
   const patch = "\nsendEmail = async () => ({ ok: true });\nmodule.exports.__test = { checkStripeReversal, handleCheckoutStatus, revertFailedRefund };";
   vm.runInNewContext(`${source}${patch}`, { module, exports: module.exports, require: mockRequire, process, Buffer, console: { ...console, log() {}, warn() {} }, setTimeout, clearTimeout, URL, AbortController, structuredClone, fetch: async () => { throw new Error("no network"); } }, { filename: "index.js" });
-  return { docs, reads, queries, orderWrites, stripeCalls, sweep: module.exports.unpaidPaymentSweep, ...module.exports.__test };
+  return { docs, reads, queries, orderWrites, failNextSet, stripeCalls, sweep: module.exports.unpaidPaymentSweep, ...module.exports.__test };
 }
 
 const ago = (ms) => new Date(Date.now() - ms).toISOString();
@@ -184,4 +185,20 @@ test("a refund reverted weeks later asks the next sweep to re-read every paid or
   await app.sweep();
   expect(app.stripeCalls.map((c) => c.pi)).toEqual(["pi_R"]);
   expect(Object.keys(app.docs.systemStatus.stripeReversalChecks.orders)).toEqual(["R"]);
+});
+
+test("the re-check request survives a revenue write that fails after the refund was reverted", async () => {
+  const app = harness([paid("R", 60 * DAY, {
+    paymentStatus: "refunded", status: "cancelled", activity: [],
+    refund: { provider: "stripe", id: "re_1", status: "succeeded" }, refundedAt: ago(50 * DAY),
+  })]);
+  app.failNextSet.add("analytics");
+  await expect(app.revertFailedRefund("R", { refundId: "re_1", source: "Stripe webhook" })).rejects.toThrow("DEADLINE_EXCEEDED");
+  expect(app.docs.orders.R.paymentStatus).toBe("paid");
+  expect(app.docs.systemStatus.stripeReversalRecheck.orderId).toBe("R");
+  // Stripe retries the webhook: the order is already paid again, so nothing is reverted or asked twice…
+  expect(await app.revertFailedRefund("R", { refundId: "re_1", source: "Stripe webhook" })).toEqual({ reverted: false });
+  // …and the first request is enough for the next sweep to find and check it.
+  await app.sweep();
+  expect(app.stripeCalls.map((c) => c.pi)).toEqual(["pi_R"]);
 });

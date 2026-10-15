@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
-const { runReversalChecks, paidOrderScanner, readState, scanPlan, mergeScan, capEntries, dueOrderIds, MAX_TRACKED, SCAN_LIMIT, SCAN_FIELDS, PAID_STATUSES, MAX_DUE_READS } = require("./reversalSchedule.js");
+const { runReversalChecks, paidOrderScanner, readState, scanPlan, mergeScan, capEntries, dueOrderIds, MAX_TRACKED, SCAN_LIMIT, SCAN_FIELDS, PAID_STATUSES, MAX_DUE_READS, DUE_ROUNDS, DUE_SPARE } = require("./reversalSchedule.js");
 
 const MIN = 60 * 1000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const T0 = Date.parse("2026-10-15T12:00:00Z");
@@ -124,6 +124,7 @@ describe("reversal schedule", () => {
     await run(io, T0);
     const oldest35 = Array.from({ length: 35 }, (_, i) => `o${69 - i}`);
     expect(io.tried).toHaveLength(40);
+    expect(io.fetched).toHaveLength(40 + DUE_SPARE); // one read of the due orders, no more rounds once 40 are chosen
     expect(io.tried.slice(0, 5).sort()).toEqual(["new0", "new1", "new2", "new3", "new4"]);
     expect(io.tried.slice(5)).toEqual(oldest35); // oldest check first, in that order
     // The next sweep takes the next oldest 35.
@@ -152,14 +153,50 @@ describe("reversal schedule", () => {
     for (const o of synced) expect(io.record.orders[o.id][1]).toBe(T0 - HOUR);
   });
 
-  it("stops reading due orders after a few rounds when they all turn out just synced", async () => {
-    const synced = Array.from({ length: 200 }, (_, i) => paid(`s${i}`, T0 - 3 * DAY - i * MIN, { stripeCheckedAt: iso(T0 - HOUR) }));
+  const allSynced = (n) => {
+    const synced = Array.from({ length: n }, (_, i) => paid(`s${i}`, T0 - 3 * DAY - i * MIN, { stripeCheckedAt: iso(T0 - HOUR) }));
     const { io } = shop(synced);
     io.record = { v: 1, scannedFrom: iso(T0 - 15 * MIN), reconciledAt: iso(T0 - HOUR), orders: Object.fromEntries(synced.map((o) => [o.id, [Date.parse(o.paidAt), T0 - 7 * HOUR, 0]])) };
-    await run(io, T0);
+    return io;
+  };
+
+  it("stops reading due orders after a few rounds when they all turn out just synced", async () => {
+    const io = allSynced(200);
+    await run(io, T0, { limit: 10 }); // 3 rounds of 10 + spare stay under the read cap
+    expect(io.fetched).toHaveLength(DUE_ROUNDS * (10 + DUE_SPARE));
+    expect(new Set(io.fetched).size).toBe(io.fetched.length);
+    expect(io.checked).toEqual([]);
+  });
+
+  it("never reads more due orders than the cap in one sweep", async () => {
+    const io = allSynced(300);
+    await run(io, T0, { limit: 60 }); // 3 rounds of 60 + spare would pass the cap
     expect(io.fetched).toHaveLength(MAX_DUE_READS);
     expect(new Set(io.fetched).size).toBe(MAX_DUE_READS);
     expect(io.checked).toEqual([]);
+  });
+
+  it("a due-order read that fails stops the rounds; what was read is still checked and the rest stay due", async () => {
+    // 30 just synced sort first, then 80 really due: round 1 reads 30 synced + 20 due, round 2 fails.
+    const synced = Array.from({ length: 30 }, (_, i) => paid(`s${i}`, T0 - 3 * DAY - i * MIN, { stripeCheckedAt: iso(T0 - HOUR) }));
+    const due = Array.from({ length: 80 }, (_, i) => paid(`d${i}`, T0 - 4 * DAY - i * MIN));
+    const { io } = shop([...synced, ...due]);
+    io.record = {
+      v: 1, scannedFrom: iso(T0 - 15 * MIN), reconciledAt: iso(T0 - HOUR),
+      orders: Object.fromEntries([
+        ...synced.map((o) => [o.id, [Date.parse(o.paidAt), T0 - 7 * HOUR, T0 - 7 * HOUR]]),
+        ...due.map((o) => [o.id, [Date.parse(o.paidAt), T0 - 6.5 * HOUR, T0 - 6.5 * HOUR]]),
+      ]),
+    };
+    const read = io.getOrders;
+    let calls = 0;
+    io.getOrders = async (ids) => { calls += 1; if (calls === 2) throw new Error("deadline exceeded"); return read(ids); };
+    await run(io, T0);
+    expect(calls).toBe(2); // no third round after the failure
+    expect(io.checked).toHaveLength(20);
+    expect(io.warnings.some((w) => w.includes("could not read the due orders"))).toBe(true);
+    const stillDue = due.filter((o) => io.record.orders[o.id][1] === T0 - 6.5 * HOUR);
+    expect(stillDue).toHaveLength(60);
   });
 
   it("drops orders that left: refunded elsewhere, deleted, or past 120 days", async () => {
@@ -295,23 +332,24 @@ describe("reversal schedule", () => {
   });
 
   it("no check starts after the stop time, and checks still running then don't change the saved record", async () => {
-    const start = Date.now();
-    const orders = Array.from({ length: 20 }, (_, i) => paid(`o${i}`, start - DAY - i * MIN));
+    const orders = Array.from({ length: 20 }, (_, i) => paid(`o${i}`, T0 - DAY - i * MIN));
     const { io } = shop(orders);
     let saved = null;
     io.writeState = async (r) => { saved = r; };
+    // The sweep's clock reads T0 until the first check starts and T0 + 100 after that, past the stop
+    // time; the stop timer itself is real (80 ms) and fires while the first batch (200 ms) still runs.
+    let clock = T0;
     const started = [];
     io.check = async (order, onChecked) => {
-      started.push({ id: order.id, at: Date.now() });
+      started.push(order.id);
+      clock = T0 + 100;
       await new Promise((resolve) => setTimeout(resolve, 200));
       onChecked();
     };
-    await runReversalChecks(io, { deadline: start + 10000, stopBy: start + 80, batch: 5 });
-    const returned = Date.now();
+    await runReversalChecks(io, { now: () => clock, deadline: T0 + 10000, stopBy: T0 + 80, batch: 5 });
     const snapshot = JSON.stringify(saved);
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    await new Promise((resolve) => setTimeout(resolve, 500));
     expect(started).toHaveLength(5); // only the first batch, already running at the stop time
-    expect(started.every((s) => s.at <= returned)).toBe(true);
     expect(JSON.stringify(saved)).toBe(snapshot);
     expect(Object.values(saved.orders).every(([, checkedMs]) => checkedMs === 0)).toBe(true);
   });

@@ -11,7 +11,7 @@
 // of paid orders is re-read every 6 hours to drop orders that left and add anything the short scan can't
 // see. A refund reverted long after the payment (paid again with its old paidAt) asks for that re-read on
 // the next sweep through systemStatus/stripeReversalRecheck { at }, so it is not left waiting.
-// The I/O is passed in (paidOrderScanner only builds the query), so this file is pure.
+// The I/O is passed in, so this file is pure; paidOrderScanner(db) runs the paid-order scan against the db it is given.
 
 const { reversalWatched, ordersDueReversalCheck, REVERSAL_RECHECK_MS, REVERSAL_WINDOW_MS } = require("./stripeRecovery");
 const { runInBatches } = require("./sweepLimits");

@@ -2904,6 +2904,9 @@ async function revertFailedRefund(orderId, { refundId = null, source = "", charg
     reverted = true;
     revenue = sandboxPaid ? null : { amount: Number(order.total) || 0, paidDay: typeof order.paidAt === "string" ? order.paidAt.split("T")[0] : null };
   });
+  // Ask the refund/dispute sweep to re-read every paid order before anything else can
+  // throw: a retried webhook finds the order already paid again and can't ask a second time.
+  if (reverted) await requestReversalRecheck(orderId);
   if (revenue) {
     const day = revenue.paidDay || new Date().toISOString().split("T")[0];
     await db.collection("analytics").doc(day).set({
@@ -2914,7 +2917,6 @@ async function revertFailedRefund(orderId, { refundId = null, source = "", charg
       refundedRevenue: admin.firestore.FieldValue.increment(-revenue.amount),
     }, { merge: true });
   }
-  if (reverted) await requestReversalRecheck(orderId);
   return { reverted };
 }
 
