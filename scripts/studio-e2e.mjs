@@ -1053,6 +1053,19 @@ await check("a sticky add-to-bag bar off a book page is marked as showing only o
   await page.locator(".studio-outline").getByText("Shows only on book pages").first().waitFor({ timeout: 5000 });
 });
 
+await check("adding a section to a custom page makes its text a movable Page content section", desktop, async page => {
+  await page.getByRole("button", { name: "Page to edit" }).click();
+  await page.getByRole("combobox", { name: /Find a page/ }).fill("About");
+  await page.keyboard.press("Enter");
+  await page.locator("[data-studio-panel=page-content]").waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  const rows = page.locator(".studio-outline");
+  await rows.getByText("2. Page content").waitFor({ timeout: 5000 });
+  await rows.getByText("1. Newsletter").waitFor({ timeout: 5000 });
+  if (await page.locator("[data-studio-panel=page-content]").count()) throw new Error("the fixed-text card is still shown");
+});
+
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
