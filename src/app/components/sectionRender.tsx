@@ -1,4 +1,5 @@
 import { sectionSpacingCss } from "./sectionSpacing";
+import { sectionStepCss } from "../features/site/designTokens";
 import { Component, useEffect, type ReactNode } from "react";
 import { m } from "motion/react";
 import { useNavigate } from "react-router";
@@ -303,7 +304,7 @@ export function SectionList({
             }}
           >
             <SectionFontOverride sectionId={section.id} settings={s} />
-            <style>{sectionSpacingCss(section.id, s)}</style>
+            <style>{sectionSpacingCss(section.id, s) + sectionStepCss(section.id, s.spacingStep)}</style>
             {(s.mobilePaddingTop != null || s.mobilePaddingBottom != null || s.mobileFontScale != null || s.mobileColumns != null || s.mobileHeadingSize != null) && <style>{`@media${UP_TO.mobile}{${s.mobileHeadingSize != null ? `#section-${section.id} :is(h1,h2){font-size:${Math.max(12, Math.min(120, Number(s.mobileHeadingSize)))}px!important;}` : ""}#section-${section.id}{${s.mobileFontScale != null ? `font-size:${Number(s.mobileFontScale)}%;` : ""}}${s.mobileColumns != null ? `#section-${section.id} .grid{grid-template-columns:repeat(${Math.max(1, Math.min(4, Number(s.mobileColumns)))},minmax(0,1fr))!important;}` : ""}}`}</style>}
             <SectionScopedCss sectionId={section.id} css={s.customCss} />
             {hasGlowHover && <style>{HOVER_GLOW_CSS}</style>}

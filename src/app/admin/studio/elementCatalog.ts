@@ -116,4 +116,4 @@ export function visibleTabs(tabs: ElementTabs): ElementTabId[] {
 }
 
 /** Style categories that belong to the whole site rather than one part of a page (Theme settings only). */
-export const GLOBAL_STYLE_GROUPS = ["schemes", "buttons", "smallPrint", "effects", "riso", "code", "toasts"];
+export const GLOBAL_STYLE_GROUPS = ["tokens", "schemes", "buttons", "smallPrint", "effects", "riso", "code", "toasts"];

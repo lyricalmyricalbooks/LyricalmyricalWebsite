@@ -30,7 +30,7 @@ const REGION_IDS = REGION_GROUPS.map((g) => g.id);
  */
 export const THEME_HEADINGS: SettingsHeading[] = [
   { id: "system", band: "Site-wide design", title: "", blurb: "Presets, brand, colours, fonts, buttons and spacing used on every page. One change restyles the whole shop.",
-    groups: ["themeLook", "logo", "colors", "schemes", "type", "smallPrint", "buttons", "layout", "effects", "toasts", "riso"] },
+    groups: ["themeLook", "logo", "colors", "schemes", "type", "tokens", "smallPrint", "buttons", "layout", "effects", "toasts", "riso"] },
   { id: "chrome", band: "Parts of your shop", title: "Header, menu & footer", blurb: "The parts that repeat at the top and bottom of every page. Tip: click one in the preview to edit it there.",
     groups: ["header", "navlinks", "footer", "popup", "paymentIcons"] },
   { id: "shop", title: "Shop & book pages", blurb: "The book grid, book cards and each book's own page.",
@@ -83,6 +83,7 @@ export const GROUP_BLURBS: Record<string, string> = {
   accounts: "Turn customer accounts on or off.",
   customPages: "One look for every custom page: title, text, width and the line under the title.",
   layout: "How wide your content is and the space around it.",
+  tokens: "One type scale, spacing unit, corner set and focus and pressed look for the whole shop.",
   smallPrint: "The tiny labels and captions everywhere, all at once.",
   elements: "Switch whole storefront features on or off.",
   code: "Your own CSS or scripts (public pages only).",
@@ -96,6 +97,12 @@ export const blurbFor = (group: StyleGroup | undefined, id: string): string =>
  * Keys not listed land in a final "More settings" sub-section — nothing can disappear.
  */
 export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }[]> = {
+  tokens: [
+    { title: "Type scale", keys: ["typeScale", "typeScaleBase", "typeScaleFluid"] },
+    { title: "Spacing", keys: ["spaceUnit", "phoneSpaceScale"] },
+    { title: "Corners", keys: ["radiusScale"] },
+    { title: "Focus & pressed states", keys: ["focusRingWidth", "inputFocusColor", "buttonPress"] },
+  ],
   schemes: [
     { title: "Parts of the shop that follow a scheme", keys: ["elementSchemes.cards", "elementSchemes.buyCard", "elementSchemes.cartDrawer"] },
   ],

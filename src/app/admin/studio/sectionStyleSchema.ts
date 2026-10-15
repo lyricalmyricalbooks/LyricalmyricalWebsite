@@ -4,6 +4,7 @@
 // (components/sectionRender.tsx, sectionStyleHelpers.ts) — no data changes.
 import { BACKDROP_BLUR_OPTIONS, BOX_SHADOW_OPTIONS, CORNER_RADIUS_OPTIONS, HOVER_EFFECTS, SECTION_ANIMATIONS, SECTION_FONT_OPTIONS, SHAPE_DIVIDER_STYLES } from "../../components/sectionStyleHelpers";
 import { PADDING_KEYS } from "../../features/site/breakpoints";
+import { SPACE_STEPS } from "../../features/site/designTokens";
 
 export type SectionTab = "style" | "layout" | "visibility";
 type Option = { value: string; label: string };
@@ -79,6 +80,9 @@ export function sectionStyleFields(colorSchemes: { id: string; name: string }[] 
     layout("Width", { key: "containerWidth", label: "Content width", kind: "select", options: inherit([
       { value: "xs", label: "XS · Narrow" }, { value: "sm", label: "SM · Small" }, { value: "md", label: "MD · Medium" },
       { value: "lg", label: "LG · Wide" }, { value: "xl", label: "XL · Extra wide" }, { value: "full", label: "Full · No limit" }]) }),
+    layout("Spacing", { key: "spacingStep", label: "Space above and below (from Design scales)", kind: "select",
+      options: [{ value: "", label: "— Use the padding numbers —" }, ...SPACE_STEPS.map(s => ({ value: s.value, label: `${s.label} (${s.units} units)` }))],
+      hint: "Uses the spacing unit set in Theme settings › Design scales, so every section stays in step. Padding numbers typed in Spacing still win." }),
     layout("Width", { key: "fullWidth", label: "Full width (edge to edge)", kind: "toggle" }),
     layout("Phones", { key: "mobileFontScale", label: "Phone text scale", kind: "number", min: 60, max: 140, suffix: "%", hint: "Blank = 100%." }),
     layout("Phones", { key: "mobileHeadingSize", label: "Phone heading size", kind: "number", min: 12, max: 120, suffix: "px", hint: "Blank = automatic." }),

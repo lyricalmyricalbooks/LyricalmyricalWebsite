@@ -15,6 +15,11 @@ describe("section style schema", () => {
     expect(new Set(keys).size).toBe(keys.length);
     expect(fields.every(f => ["style", "layout", "visibility"].includes(f.tab))).toBe(true);
   });
+  it("offers a Design scales spacing step (3.0 phase 2)", () => {
+    const f = fields.find(x => x.key === "spacingStep") as any;
+    expect(f.tab).toBe("layout");
+    expect(f.options.map((o: any) => o.value)).toEqual(["", "xs", "s", "m", "l", "xl"]);
+  });
   it("adds hiding on tablets", () => {
     expect(fields.find(f => f.key === "hideOnTablet")?.tab).toBe("visibility");
   });
