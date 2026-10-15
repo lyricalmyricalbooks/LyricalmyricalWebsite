@@ -42,7 +42,7 @@ export const PREVIEW_BRIDGE_SOURCE = String.raw`(function(){
     if(d.type==='SET_STYLE_TEXT_MAP'&&Array.isArray(d.items)){styleTextMap=d.items;refreshTextHints();}
   });
   // Studio shortcuts keep working while the preview has focus (Ctrl/Cmd + K, S, Z, Y, D).
-  document.addEventListener('keydown',function(e){if(editing||!(e.ctrlKey||e.metaKey)||e.altKey||closest(e.target,'input,textarea,select,[contenteditable=true]'))return;var k=(e.key||'').toLowerCase();if(['k','s','z','y','d'].indexOf(k)<0)return;e.preventDefault();send({type:'KEY_COMMAND',key:k,ctrl:e.ctrlKey,meta:e.metaKey,shift:e.shiftKey,alt:false});},true);
+  document.addEventListener('keydown',function(e){if(editing&&(e.ctrlKey||e.metaKey)&&!e.altKey&&(e.key||'').toLowerCase()==='s'){e.preventDefault();send({type:'KEY_COMMAND',key:'s',ctrl:e.ctrlKey,meta:e.metaKey,shift:false,alt:false});return;}if(editing||!(e.ctrlKey||e.metaKey)||e.altKey||closest(e.target,'input,textarea,select,[contenteditable=true]'))return;var k=(e.key||'').toLowerCase();if(['k','s','z','y','d'].indexOf(k)<0)return;e.preventDefault();send({type:'KEY_COMMAND',key:k,ctrl:e.ctrlKey,meta:e.metaKey,shift:e.shiftKey,alt:false});},true);
   document.addEventListener('mouseover',function(e){if(mode!=='edit'||closest(e.target,'[data-studio-overlay]'))return;var b=closest(e.target,BLK),sec=closest(e.target,SEC);
     var textTarget=resolveTextTarget(e.target);if(textTarget){place(hover,textTarget.node,textTarget.editable?'Text · double-click to type':'Formatted text · use inspector');return;}
     if(b||sec){place(hover,b||sec,b?'Block · click to edit':'Section · click to edit');return;}

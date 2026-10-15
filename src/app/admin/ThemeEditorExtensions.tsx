@@ -1509,7 +1509,8 @@ type SectionFieldSchema =
   | { key: string; label: string; kind: "number"; min?: number; max?: number; step?: number; suffix?: string }
   | { key: string; label: string; kind: "range"; min: number; max: number; step?: number; suffix?: string }
   | { key: string; label: string; kind: "select"; options: { value: string; label: string }[] }
-  | { key: string; label: string; kind: "toggle" }
+  /** `defaultValue: true` = the storefront treats an unset value as on, so the switch shows on. */
+  | { key: string; label: string; kind: "toggle"; defaultValue?: boolean }
   | { key: string; label: string; kind: "date" }
   | PickerFieldSchema;
 
@@ -1548,13 +1549,13 @@ const ALIGN_OPTIONS = [
 const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   PageContentSection: [
     { key: "ownStyle", label: "Style this page on its own (off = match every page via Style › Custom pages)", kind: "toggle" },
-    { key: "showEyebrow", label: "Show small label above title", kind: "toggle" },
+    { key: "showEyebrow", label: "Show small label above title", kind: "toggle", defaultValue: true },
     { key: "eyebrow", label: "Small label", kind: "text" },
-    { key: "showTitle", label: "Show page title", kind: "toggle" },
+    { key: "showTitle", label: "Show page title", kind: "toggle", defaultValue: true },
     { key: "titleOverride", label: "Title (blank = the page's name)", kind: "text" },
     { key: "titleSize", label: "Title size", kind: "select", options: [{ value: "sm", label: "Small" }, { value: "md", label: "Medium" }, { value: "lg", label: "Large" }, { value: "xl", label: "Extra large" }] },
     { key: "titleUppercase", label: "Uppercase title", kind: "toggle" },
-    { key: "showBody", label: "Show page text", kind: "toggle" },
+    { key: "showBody", label: "Show page text", kind: "toggle", defaultValue: true },
     { key: "bodyOverride", label: "Text (blank = the text from Pages)", kind: "textarea", rows: 6 },
     { key: "bodySize", label: "Text size", kind: "select", options: [{ value: "sm", label: "Small" }, { value: "md", label: "Medium" }, { value: "lg", label: "Large" }] },
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
@@ -1699,10 +1700,10 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "separator", label: "Separator", kind: "text" },
     { key: "speed", label: "Scroll duration", kind: "range", min: 5, max: 120, step: 1, suffix: "s" },
     { key: "fontSize", label: "Font size", kind: "range", min: 10, max: 120, step: 1, suffix: "px" },
-    { key: "bold", label: "Bold", kind: "toggle" },
+    { key: "bold", label: "Bold", kind: "toggle", defaultValue: true },
     { key: "fontWeight", label: "Font weight override", kind: "number", min: 100, max: 900, step: 100 },
     { key: "letterSpacing", label: "Letter spacing (em)", kind: "number", min: 0, max: 0.5, step: 0.02 },
-    { key: "uppercase", label: "Uppercase", kind: "toggle" },
+    { key: "uppercase", label: "Uppercase", kind: "toggle", defaultValue: true },
     { key: "background", label: "Background color", kind: "color" },
     { key: "color", label: "Text color", kind: "color" },
   ],
@@ -1718,7 +1719,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "nextAria", label: "Next-slide button label (screen readers)", kind: "text" },
     { key: "dotAria", label: "Slide dot label (screen readers, {n} = slide number)", kind: "text" },
     { key: "autoplay", label: "Autoplay", kind: "toggle" },
-    { key: "autoplaySpeed", label: "Autoplay speed (ms)", kind: "number", min: 1500, max: 15000, step: 250 },
+    { key: "autoplaySpeed", label: "Autoplay speed (ms)", kind: "number", min: 2000, max: 15000, step: 250 },
   ],
   VideoSection: [
     { key: "eyebrow", label: "Eyebrow label", kind: "text" },
@@ -1780,8 +1781,8 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
       { value: "uppercase", label: "Uppercase" },
       { value: "capitalize", label: "Capitalize" },
     ] },
-    { key: "showPrices", label: "Show prices", kind: "toggle" },
-    { key: "showBadges", label: "Show sale/new badges", kind: "toggle" },
+    { key: "showPrices", label: "Show prices", kind: "toggle", defaultValue: true },
+    { key: "showBadges", label: "Show sale/new badges", kind: "toggle", defaultValue: true },
     { key: "saleLabel", label: "Sale badge text", kind: "text" },
   ],
 
@@ -1791,8 +1792,8 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
     { key: "columns", label: "Columns", kind: "range", min: 1, max: 4, step: 1 },
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
-    { key: "showDates", label: "Show dates", kind: "toggle" },
-    { key: "showExcerpts", label: "Show excerpts", kind: "toggle" },
+    { key: "showDates", label: "Show dates", kind: "toggle", defaultValue: true },
+    { key: "showExcerpts", label: "Show excerpts", kind: "toggle", defaultValue: true },
     { key: "ctaText", label: "CTA label", kind: "text" },
     { key: "accentColor", label: "Accent color", kind: "color" },
   ],
@@ -1914,8 +1915,8 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "titleItalic", label: "Italic headline", kind: "toggle" },
     ...bookSourceFields("Which book covers"),
     { key: "productLimit", label: "Max covers", kind: "range", min: 1, max: 24, step: 1 },
-    { key: "autoplayMs", label: "Auto-advance speed (ms)", kind: "number", min: 1500, max: 15000, step: 250 },
-    { key: "showDots", label: "Show dots", kind: "toggle" },
+    { key: "autoplayMs", label: "Auto-advance speed (ms)", kind: "number", min: 2000, max: 15000, step: 250 },
+    { key: "showDots", label: "Show dots", kind: "toggle", defaultValue: true },
     { key: "scrimOpacity", label: "Bottom scrim darkness", kind: "range", min: 0, max: 1, step: 0.05 },
     { key: "taglineColor", label: "Tagline color", kind: "color" },
     { key: "colorOverlay", label: "Color overlay", kind: "color" },
@@ -1938,10 +1939,10 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "columnsDesktop", label: "Desktop columns", kind: "range", min: 1, max: 4, step: 1 },
     { key: "columnsMobile", label: "Mobile columns", kind: "range", min: 1, max: 2, step: 1 },
     { key: "imageAspectRatio", label: "Cover aspect ratio", kind: "select", options: PHOTO_RATIO_OPTIONS },
-    { key: "showCategoryTag", label: "Show category tag", kind: "toggle" },
-    { key: "showQuickAdd", label: "Show quick-add button", kind: "toggle" },
-    { key: "showPrices", label: "Show prices", kind: "toggle" },
-    { key: "showFormatLine", label: "Show format line", kind: "toggle" },
+    { key: "showCategoryTag", label: "Show category tag", kind: "toggle", defaultValue: true },
+    { key: "showQuickAdd", label: "Show quick-add button", kind: "toggle", defaultValue: true },
+    { key: "showPrices", label: "Show prices", kind: "toggle", defaultValue: true },
+    { key: "showFormatLine", label: "Show format line", kind: "toggle", defaultValue: true },
     { key: "overlayColor", label: "Cover color overlay", kind: "color" },
     { key: "overlayOpacity", label: "Overlay opacity", kind: "range", min: 0, max: 1, step: 0.02 },
     { key: "overlayBlend", label: "Blend overlay into covers (duotone)", kind: "toggle" },
@@ -1952,8 +1953,8 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   StaffNotesTableSection: [
     { key: "title", label: "Title", kind: "text" },
     { key: "backgroundColor", label: "Background color", kind: "color" },
-    { key: "showCategory", label: "Show category column", kind: "toggle" },
-    { key: "showFormat", label: "Show format column", kind: "toggle" },
+    { key: "showCategory", label: "Show category column", kind: "toggle", defaultValue: true },
+    { key: "showFormat", label: "Show format column", kind: "toggle", defaultValue: true },
     { key: "colTitleLabel", label: "Title column label", kind: "text" },
     { key: "colCategoryLabel", label: "Category column label", kind: "text" },
     { key: "colFormatLabel", label: "Format column label", kind: "text" },
@@ -1968,7 +1969,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "productLimit", label: "How many books", kind: "range", min: 1, max: 12, step: 1 },
     { key: "columnsDesktop", label: "Columns · desktop", kind: "range", min: 2, max: 6, step: 1 },
     { key: "columnsMobile", label: "Columns · phone", kind: "range", min: 1, max: 3, step: 1 },
-    { key: "showPrices", label: "Show prices", kind: "toggle" },
+    { key: "showPrices", label: "Show prices", kind: "toggle", defaultValue: true },
     { key: "viewAllText", label: "“View all” link text (blank = no link)", kind: "text" },
     { key: "align", label: "Title alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
@@ -1977,8 +1978,8 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "productSlug", label: "Book", kind: "book", empty: "Blank = the book on a book page, else the first book" },
     { key: "quote", label: "Line of praise (optional)", kind: "textarea", rows: 3 },
     { key: "quoteSource", label: "Who said it", kind: "text" },
-    { key: "showDescription", label: "Show the book's description", kind: "toggle" },
-    { key: "showPrice", label: "Show the price", kind: "toggle" },
+    { key: "showDescription", label: "Show the book's description", kind: "toggle", defaultValue: true },
+    { key: "showPrice", label: "Show the price", kind: "toggle", defaultValue: true },
     { key: "ctaText", label: "Button text", kind: "text" },
     { key: "imagePosition", label: "Cover position", kind: "select", options: [{ value: "left", label: "Left" }, { value: "right", label: "Right" }] },
     { key: "accentColor", label: "Accent colour", kind: "color" },
@@ -1995,7 +1996,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "title", label: "Title (optional)", kind: "text" },
     { key: "layout", label: "Layout", kind: "select", options: [{ value: "mosaic", label: "Mosaic (one big, the rest small)" }, { value: "stagger", label: "Staggered row" }, { value: "strip", label: "Even strip" }] },
     { key: "gap", label: "Space between pictures", kind: "range", min: 0, max: 48, step: 2, suffix: "px" },
-    { key: "showCaptions", label: "Show captions", kind: "toggle" },
+    { key: "showCaptions", label: "Show captions", kind: "toggle", defaultValue: true },
   ],
   PromoStripSection: [
     { key: "text", label: "Text", kind: "text" },
@@ -2021,7 +2022,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "optionsText", label: "Button text when the shopper must choose an edition or option", kind: "text" },
     { key: "soldOutText", label: "Text when sold out", kind: "text" },
     { key: "addedText", label: "Message after adding (read aloud by screen readers)", kind: "text" },
-    { key: "showPrice", label: "Show the price", kind: "toggle" },
+    { key: "showPrice", label: "Show the price", kind: "toggle", defaultValue: true },
     { key: "showOnPhonesOnly", label: "Only on phones and tablets", kind: "toggle" },
   ],
   EphemeraRowSection: [
@@ -2181,22 +2182,24 @@ export function SectionFieldEditor({
           </select>
         </div>
       );
-    case "toggle":
+    case "toggle": {
+      const on = Boolean(value ?? (field as any).defaultValue);
       return (
         <div className="flex items-center justify-between bg-white border border-neutral-200 rounded-xl px-3 py-2">
           <span className="text-[11px] font-bold text-neutral-700">{field.label}</span>
           <button
             type="button"
-            role="switch" aria-checked={Boolean(value)} aria-label={field.label}
-            onClick={() => onChange(!value)}
-            className={`w-10 h-5 rounded-full relative transition-all ${value ? "bg-blue-600" : "bg-neutral-200"}`}
+            role="switch" aria-checked={on} aria-label={field.label}
+            onClick={() => onChange(!on)}
+            className={`w-10 h-5 rounded-full relative transition-all ${on ? "bg-blue-600" : "bg-neutral-200"}`}
           >
             <span
-              className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${value ? "left-6" : "left-1"}`}
+              className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${on ? "left-6" : "left-1"}`}
             />
           </button>
         </div>
       );
+    }
     case "date":
       return (
         <div>

@@ -53,4 +53,13 @@ describe("unset Studio fields", () => {
     expect(select.value).toBe("left");
     expect([...select.options].some(o => /default/i.test(o.textContent || ""))).toBe(false);
   });
+
+  it("shows a default-on switch as on until it is turned off", async () => {
+    const field = { key: "uppercase", label: "Uppercase", kind: "toggle", defaultValue: true };
+    let el = await mount(field, undefined);
+    expect(el.querySelector("[role=switch]")!.getAttribute("aria-checked")).toBe("true");
+    await act(async () => root!.unmount());
+    el = await mount(field, false);
+    expect(el.querySelector("[role=switch]")!.getAttribute("aria-checked")).toBe("false");
+  });
 });

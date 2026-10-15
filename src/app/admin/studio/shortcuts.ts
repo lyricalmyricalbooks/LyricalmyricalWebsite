@@ -20,7 +20,7 @@ export const SHORTCUTS: { action: ShortcutAction; keys: string; label: string; g
   { action: "toggleMode", keys: "E", label: "Switch between Edit and Browse mode", group: "Preview" },
 ];
 
-export type KeyInput = { key: string; ctrl?: boolean; meta?: boolean; shift?: boolean; alt?: boolean; typing?: boolean; dialogOpen?: boolean };
+export type KeyInput = { key: string; ctrl?: boolean; meta?: boolean; shift?: boolean; alt?: boolean; typing?: boolean; dialogOpen?: boolean; /** Focus is on a button or link (Backspace there must not delete). */ onControl?: boolean };
 
 /** Which Studio action a key press means, or null. Plain-key shortcuts never fire while typing. */
 export function resolveShortcut(e: KeyInput): ShortcutAction | null {
@@ -38,7 +38,8 @@ export function resolveShortcut(e: KeyInput): ShortcutAction | null {
   if (e.alt && key === "ArrowUp") return "moveUp";
   if (e.alt && key === "ArrowDown") return "moveDown";
   if (e.alt) return null;
-  if (key === "Delete" || key === "Backspace") return "delete";
+  // Backspace is "delete" on Mac keyboards, but on a focused button it reads as "go back": only Delete works there.
+  if (key === "Delete" || (key === "Backspace" && !e.onControl)) return "delete";
   if (key === "Escape") return "deselect";
   if (key === "?") return "help";
   if (key === "1") return "desktop";
