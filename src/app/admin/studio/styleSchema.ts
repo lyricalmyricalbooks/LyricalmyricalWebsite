@@ -7,6 +7,7 @@ import { FONT_SELECT_OPTIONS } from "../../features/site/fonts";
 import { PHOTO_OUTLINE_OPTIONS, PHOTO_RATIO_OPTIONS } from "../../features/site/photoShapes";
 import { REGION_GROUPS, REGION_DEVICES, REGION_DEVICE_LABELS, REGION_SUFFIXES, regionKey, regionFieldDevice, type RegionDevice } from "../../features/site/storefrontRegions";
 import { ELEMENT_SCHEME_TARGETS } from "../../features/site/colorSchemes";
+import { RADIUS_SCALES, TYPE_SCALES } from "../../features/site/designTokens";
 
 // `defaultValue` is what the storefront itself uses when the key is unset, so an untouched slider or
 // toggle shows the real setting instead of its minimum / "off".
@@ -180,6 +181,23 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "sectionSpacing", label: "Space between sections", kind: "range", min: 0, max: 160, step: 4, suffix: "px" },
       { key: "cardRadius", label: "Card corner radius (boxed card style only)", kind: "range", min: 0, max: 30, step: 1, suffix: "px" },
       { key: "lazySections", label: "Draw sections lower on the page only when shoppers scroll near them (faster first load)", kind: "toggle", defaultValue: true },
+    ],
+  },
+  {
+    // Studio 3.0 phase 2: shared values (features/site/designTokens.ts). Every scale is off until chosen.
+    id: "tokens",
+    title: "Design scales",
+    hint: "Shared sizes the whole shop draws from. A section's own settings still win.",
+    fields: [
+      { key: "typeScale", label: "Heading size scale", kind: "select", options: [{ value: "", label: "Off (each section sets its own heading sizes)" }, ...TYPE_SCALES.map(t => ({ value: t.value, label: t.label }))] },
+      { key: "typeScaleBase", label: "Scale starts from (body text size)", kind: "range", min: 12, max: 24, step: 1, suffix: "px", defaultValue: 16 },
+      { key: "typeScaleFluid", label: "Shrink headings smoothly on smaller screens", kind: "toggle", defaultValue: true },
+      { key: "spaceUnit", label: "Spacing unit (sections' Space above and below are multiples of it)", kind: "range", min: 2, max: 16, step: 1, suffix: "px", defaultValue: 8 },
+      { key: "phoneSpaceScale", label: "Spacing on phones", kind: "range", min: 40, max: 100, step: 5, suffix: "%", defaultValue: 75 },
+      { key: "radiusScale", label: "Corner set (cards, buy card, order slip)", kind: "select", options: [{ value: "", label: "Off (each part's own corners)" }, ...Object.entries(RADIUS_SCALES).map(([value, r]) => ({ value, label: r.label }))] },
+      { key: "focusRingWidth", label: "Keyboard focus ring width (its colour: Riso print treatment › Keyboard focus ring)", kind: "range", min: 1, max: 6, step: 1, suffix: "px", defaultValue: 2 },
+      { key: "inputFocusColor", label: "Box border while typing in it", kind: "color" },
+      { key: "buttonPress", label: "Buttons when pressed", kind: "select", options: [{ value: "", label: "No change" }, { value: "shrink", label: "Shrink slightly" }, { value: "sink", label: "Sink into their shadow" }] },
     ],
   },
   {

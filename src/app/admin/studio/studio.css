@@ -570,3 +570,15 @@
 .studio-breadcrumb button { background: transparent; border: 0; padding: 2px 4px; color: var(--rp-text); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .studio-breadcrumb [aria-current] { color: var(--rp-text); font-weight: 700; }
 .studio-breadcrumb button:focus-visible { outline: 2px solid var(--rp-focus); }
+
+/* Theme settings › Design scales preview (3.0 phase 2). */
+.studio-scale-preview { display: grid; gap: 14px; padding: 12px; border: 1px solid var(--rp-border); background: var(--rp-canvas); }
+.studio-scale-preview h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 6px; }
+.studio-scale-type, .studio-scale-space { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.studio-scale-type li { display: flex; align-items: baseline; gap: 10px; }
+.studio-scale-type span { font-family: var(--rp-font-display); line-height: 1; min-width: 2.2em; }
+.studio-scale-type small, .studio-scale-space small { font-size: 11px; color: var(--rp-text-subtle); }
+.studio-scale-space li { display: flex; align-items: center; gap: 10px; }
+.studio-scale-space span { height: 8px; background: var(--rp-primary); border: 1px solid var(--rp-border-strong); flex: none; }
+.studio-scale-radius { display: flex; gap: 8px; }
+.studio-scale-radius span { width: 56px; height: 40px; display: grid; place-items: center; font-size: 11px; border: 2px solid var(--rp-border-strong); background: var(--rp-surface); }

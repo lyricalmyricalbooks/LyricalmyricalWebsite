@@ -395,7 +395,11 @@ bulk edit — never splice section arrays by hand.
 `openHealth()`, never `setChecksOpen` directly), **Changes** (undo steps; jump with `jumpBy` in `studioModel.ts`; draft vs live
 via `summariseDiff`, only while open) and **Setup** (`studio/setupChecklist.ts`, pure). Its open state and tab live in
 `studioUiState.ts`. Shortcuts: `G` then a letter for workspaces (`GO_KEYS`), `W` Workbench, `A` Add section, `[`/`]` sections;
-`StudioBreadcrumb.tsx` shows Page › Section › Block. The rest of the Studio 3.0 roadmap (tokens, free placement, motion,
+`StudioBreadcrumb.tsx` shows Page › Section › Block.
+**Design scales (3.0 phase 2):** Theme settings › Design scales (`tokens`, `features/site/designTokens.ts`, emitted by
+`storefrontOverridesCss`): type scale → `--fm-step-0…5` (fluid clamp; section h1–h4), spacing unit + phone multiplier
+(sections' Layout › Space above and below = `spacingStep`, `sectionStepCss`), corner set (`--rp-card-radius`), focus ring
+width, field focus border, pressed buttons. All off until chosen; a section's own values still win. The rest of the Studio 3.0 roadmap (tokens, free placement, motion,
 block library, brand wizard, site-wide Health; AI/languages/A-B need the owner's go-ahead) is in `docs/THEME_EDITOR.md`.
 
 Studio is a Shopify-style theme editor under `/admin`. **Read
