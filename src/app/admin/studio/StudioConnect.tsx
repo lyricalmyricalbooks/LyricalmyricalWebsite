@@ -5,6 +5,7 @@ import { createContext, useContext, useId, useRef, type ReactNode } from "react"
 import { Link2, Unlink } from "lucide-react";
 import type { BookFieldDef } from "../../features/site/bookFields";
 import { connect, dynamicSources, isDynamic, sourceLabel, type DynamicSource } from "../../features/site/dynamicSources";
+import { StudioAiRewrite } from "./StudioAiRewrite";
 
 export type DynamicSourcesValue = { fields: BookFieldDef[] };
 export const DynamicSourcesContext = createContext<DynamicSourcesValue | null>(null);
@@ -54,12 +55,14 @@ export function ConnectMenu({ label, kind, onConnect }: { label: string; kind: D
 }
 
 /** Wraps a field editor: connected → chip; otherwise the editor plus the Connect menu (when the field can connect). */
-export function ConnectableField({ fieldKind, label, value, onChange, children }: {
+export function ConnectableField({ fieldKind, label, value, onChange, children, aiWhere }: {
   fieldKind: string; label: string; value: any; onChange: (v: any) => void; children: ReactNode;
+  /** The section's name, told to the AI when the owner chooses Rewrite with AI (3.0 phase 8). */
+  aiWhere?: string;
 }) {
   const kind = connectableKind(fieldKind);
   // The fixed value typed before connecting, so Disconnect in the same session puts it back (else the field is blank).
   const before = useRef<any>("");
   if (isDynamic(value)) return <ConnectedField label={label} path={value.$dyn} onDisconnect={() => { onChange(before.current ?? ""); before.current = ""; }} />;
-  return <>{children}{kind && <ConnectMenu label={label} kind={kind} onConnect={(next) => { before.current = value ?? ""; onChange(next); }} />}</>;
+  return <>{children}<StudioAiRewrite kind={fieldKind} label={label} where={aiWhere} value={value} onChange={onChange} />{kind && <ConnectMenu label={label} kind={kind} onConnect={(next) => { before.current = value ?? ""; onChange(next); }} />}</>;
 }

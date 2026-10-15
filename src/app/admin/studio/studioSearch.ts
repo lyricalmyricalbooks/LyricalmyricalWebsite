@@ -11,7 +11,7 @@ export type StudioTab = "sections" | "style" | "text" | "menus" | "pages" | "med
 export type StudioActionId =
   | "save" | "publish" | "discard" | "history" | "schedule" | "check" | "preview-tab" | "undo" | "redo"
   | "device-desktop" | "device-tablet" | "device-mobile" | "mode-toggle" | "autofit-page" | "add-section" | "fill-page-seo"
-  | "workbench-health" | "workbench-changes" | "workbench-setup" | "brand-kit" | "site-health";
+  | "workbench-health" | "workbench-changes" | "workbench-setup" | "brand-kit" | "site-health" | "ai-draft";
 
 export type SearchTarget =
   | { type: "style"; groupId: string; key?: string }
@@ -120,6 +120,7 @@ const ACTIONS: { id: StudioActionId; title: string; keywords: string }[] = [
   { id: "mode-toggle", title: "Switch Edit / Browse mode", keywords: "click links navigate storefront" },
   { id: "autofit-page", title: "Auto-fit this page for phones", keywords: "responsive mobile layout generate stack small screen" },
   { id: "add-section", title: "Add a section", keywords: "new block library insert hero banner" },
+  { id: "ai-draft", title: "Draft a section with AI", keywords: "ai gemini write generate draft section words copy assistant magic" },
   { id: "workbench-changes", title: "Show this session's changes (undo history)", keywords: "workbench history steps go back undo several timeline what did i change edits list" },
   { id: "workbench-setup", title: "Setup checklist (get the shop ready)", keywords: "workbench launch onboarding getting started to do progress logo fonts colours share image" },
   { id: "brand-kit", title: "Brand kit (logo, colours, type and Home page in one go)", keywords: "brand kit wizard setup logo palette colours personality fonts starter home page onboarding" },

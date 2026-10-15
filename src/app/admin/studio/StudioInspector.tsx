@@ -144,10 +144,10 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
         {!fields.length && <p className="studio-hint">{search ? "No matching settings." : blocks.length ? "This section's words live in its blocks: select one in the outline. Colours and spacing are in the Style and Layout tabs." : "This section has no words to edit here. Use the Style and Layout tabs."}</p>}
         {fields.map(f => <div key={f.key} className="studio-field">
           {block ? f.kind === "list" ? <BlockListFieldEditor field={f as any} value={block[f.key]} onChange={v => patchBlock({ [f.key]: v })} /> :
-            <ConnectableField fieldKind={f.kind} label={f.label} value={block[f.key]} onChange={v => patchBlock({ [f.key]: v })}>
+            <ConnectableField fieldKind={f.kind} label={f.label} aiWhere={`${meta?.label || section.type} › ${meta?.blockLabel || "block"}`} value={block[f.key]} onChange={v => patchBlock({ [f.key]: v })}>
               <BlockFieldEditor field={f as any} value={block[f.key]} onChange={v => patchBlock({ [f.key]: v })} uploadFile={uploadStudioImage} block={block} onPatchBlock={patchBlock} />
             </ConnectableField> :
-            <ConnectableField fieldKind={f.kind} label={f.label} value={section.settings[f.key]} onChange={v => onPatch({ [f.key]: v })}>
+            <ConnectableField fieldKind={f.kind} label={f.label} aiWhere={meta?.label || section.type} value={section.settings[f.key]} onChange={v => onPatch({ [f.key]: v })}>
               <SectionFieldEditor field={f as any} value={section.settings[f.key]} settings={section.settings} onChange={v => onPatch({ [f.key]: v })} onPatch={onPatch} uploadFile={uploadStudioImage} />
             </ConnectableField>}
         </div>)}

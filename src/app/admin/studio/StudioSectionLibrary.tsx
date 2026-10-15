@@ -5,6 +5,8 @@ import { ArrowLeft, Pencil, Search, Trash2 } from "lucide-react";
 import type { SharedBlock } from "../../features/site/sharedBlocks";
 import { libraryGroups, placementHint, sharedBlockUsage, type LibraryMeta } from "./sectionLibrary";
 import { SectionThumb } from "./sectionThumbs";
+import { StudioAiDraft } from "./StudioAiDraft";
+import type { Section } from "./studioModel";
 
 export type LibraryProps = {
   registry: LibraryMeta[];
@@ -24,6 +26,11 @@ export type LibraryProps = {
   onRenameShared: (shared: SharedBlock) => void;
   onDeleteShared: (shared: SharedBlock) => void;
   onClose: () => void;
+  /** Add section › Draft with AI (3.0 phase 8): show a drafted section on the page / add it. */
+  onDraftPreview?: (section: Section | null) => void;
+  onAddDraft?: (section: Section) => void;
+  /** Changes when Find anything › Draft a section with AI opens the panel: the AI form starts open. */
+  draftOpen?: number;
 };
 
 export function StudioSectionLibrary(p: LibraryProps) {
@@ -59,6 +66,7 @@ export function StudioSectionLibrary(p: LibraryProps) {
       </div>
 
       <div className="studio-library-body" onMouseLeave={() => point(null)}>
+        {p.onDraftPreview && p.onAddDraft && !q && <StudioAiDraft key={p.draftOpen || 0} startOpen={Boolean(p.draftOpen)} onPreview={p.onDraftPreview} onAdd={p.onAddDraft} />}
         {presets.length > 0 && (
           <section className="studio-library-group">
             <h3>Your saved sections</h3>
