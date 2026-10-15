@@ -45,7 +45,7 @@ export function StudioAiDraft({ onPreview, onAdd, startOpen = false }: { onPrevi
       <summary><Sparkles size={14} aria-hidden /> Draft a section with AI</summary>
       <p className="studio-hint">Say what it should be about; the AI writes the words and the section shows on the page to try. Nothing is added until you choose Add to page. It never adds prices, dates, reviews or quotes you didn't give it.</p>
       <label className="studio-field">Kind of section
-        <select value={type} onChange={e => { setType(e.target.value); show(null); }} aria-label="Kind of section to draft">
+        <select value={type} disabled={busy} onChange={e => { setType(e.target.value); show(null); }} aria-label="Kind of section to draft">
           {types.map(([t, spec]) => <option key={t} value={t}>{spec.label}</option>)}
         </select>
       </label>

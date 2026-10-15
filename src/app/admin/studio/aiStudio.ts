@@ -26,9 +26,28 @@ export const keepsTokens = (before: string, after: string) => tokensOf(before).e
 /** Visible words in a value (HTML tags and placeholders don't count). */
 const words = (v: string) => String(v || "").replace(/<[^>]*>/g, " ").replace(TOKEN_RE, " ").replace(/&nbsp;/g, " ").trim();
 
+/** Longest text the AI rewrites in one go (the server refuses longer rather than cut it). Same in functions/aiWriter.js. */
+export const REWRITE_MAX = { plain: 4000, html: 8000 } as const;
 /** Whether a field shows "Rewrite with AI": a plain, non-empty value of a text kind (not connected to a detail). */
 export function canRewrite(kind: string, value: unknown): value is string {
-  return REWRITE_KINDS.has(kind) && typeof value === "string" && !isDynamic(value) && words(value).length > 0 && value.length <= 8000;
+  return REWRITE_KINDS.has(kind) && typeof value === "string" && !isDynamic(value) && words(value).length > 0;
+}
+
+const SIMPLE_TAGS = new Set(["p", "br", "strong", "b", "em", "i", "u", "a", "ul", "ol", "li", "h2", "h3", "h4", "blockquote"]);
+/**
+ * Why a value can't be rewritten (or "" when it can): too long, or rich text holding things the AI can't carry over
+ * (pictures, videos, alignment, colours, big headings…), which a rewrite would otherwise drop without a word.
+ */
+export function rewriteProblem(kind: string, value: string): string {
+  const format = rewriteFormat(kind);
+  if (value.length > REWRITE_MAX[format]) return `This text is too long to rewrite in one go (over ${REWRITE_MAX[format].toLocaleString("en-CA")} characters). Split it, or rewrite a part at a time.`;
+  if (format !== "html") return "";
+  for (const m of value.matchAll(/<([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g)) {
+    const tag = m[1].toLowerCase(), attrs = m[2].replace(/\s+(href|target|rel)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "").trim().replace(/\/$/, "").trim();
+    if (!SIMPLE_TAGS.has(tag) || attrs)
+      return "This text has pictures, videos, alignment, colours or other formatting the AI can't keep, so it isn't rewritten here. Rewrite a plain part, or edit it by hand.";
+  }
+  return "";
 }
 
 /** Sections the AI may draft and the words it writes for each. Must equal functions/aiWriter.js DRAFT_TYPES

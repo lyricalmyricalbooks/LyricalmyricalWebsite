@@ -1080,6 +1080,25 @@ await check("Rewrite with AI: a section title is rewritten as one undoable chang
   if (value !== "Copyright {year}, the press") throw new Error(`the field changed to "${value}"`);
 });
 
+await check("Rewrite with AI on rich text: the toast's Undo puts the old words back even after the editor tidies the HTML", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.evaluate(() => {
+    window.__studioFixture.aiAnswer = body => body.task === "rewrite"
+      ? { status: 200, data: { result: { text: "<p><b>Our</b> story, told <a href=\"/page/about\">here</a>.</p>" } } }
+      : undefined;
+  });
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Text Content/ }).first().click();
+  await page.getByRole("button", { name: "Rewrite Content with AI" }).click();
+  await page.getByRole("button", { name: "Improve" }).click();
+  const frame = page.frameLocator('iframe[title="Live preview"]');
+  await frame.getByText("story, told").first().waitFor({ timeout: 10000 });
+  await page.waitForTimeout(400);
+  await page.getByRole("button", { name: "Undo" }).first().click();
+  await frame.getByText("story, told").first().waitFor({ state: "detached", timeout: 10000 });
+  await frame.getByText("Add your mission statement").first().waitFor({ timeout: 10000 });
+});
+
 await check("Draft a section with AI: the draft shows on the page, Add to page saves one section with its blocks, and a missing key points at the AI settings", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Add section" }).first().click();

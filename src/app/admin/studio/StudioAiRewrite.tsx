@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useId, useRef, useState } from "r
 import { Loader2, Sparkles } from "lucide-react";
 import { AiWriteError, askAi } from "../aiWriter";
 import { SecondaryButton } from "../riso/components";
-import { canRewrite, HOW_CHOICES, keepsTokens, rewriteFormat, type RewriteHow } from "./aiStudio";
+import { canRewrite, HOW_CHOICES, keepsTokens, rewriteFormat, rewriteProblem, type RewriteHow } from "./aiStudio";
 import { sanitizeRichText } from "./richText";
 
 export type StudioAiValue = {
@@ -23,6 +23,9 @@ export function StudioAiRewrite({ kind, label, where, value, onChange }: {
   const [busy, setBusy] = useState(false);
   const [custom, setCustom] = useState("");
   const latest = useRef(value); latest.current = value;
+  // The newest onChange: a block field's onChange rebuilds the block list from the section as it was rendered, so an
+  // answer arriving seconds later must use the one from the latest render (or it would undo edits made meanwhile).
+  const latestChange = useRef(onChange); latestChange.current = onChange;
   const live = useRef(true);
   useEffect(() => () => { live.current = false; }, []);
   const menuId = useId();
@@ -32,7 +35,10 @@ export function StudioAiRewrite({ kind, label, where, value, onChange }: {
     if (busy) return;
     const before = String(value);
     const format = rewriteFormat(kind);
-    setOpen(false); setBusy(true);
+    setOpen(false);
+    const problem = rewriteProblem(kind, before);
+    if (problem) { ai.notify("err", problem); return; }
+    setBusy(true);
     try {
       const result = await askAi("rewrite", { text: before, format, label, where: where || "", how, ...(how === "custom" ? { instruction: custom.trim() } : {}) }, { siteName: ai.siteName });
       let next = String(result.text || "");
@@ -41,7 +47,8 @@ export function StudioAiRewrite({ kind, label, where, value, onChange }: {
       if (!keepsTokens(before, next)) throw new AiWriteError("The AI dropped a {placeholder} from the text, so nothing was changed. Try again.");
       // The owner kept typing while the AI worked: their words win.
       if (latest.current !== before) { ai.notify("err", `“${label}” changed while the AI was writing, so its answer was left out.`); return; }
-      onChange(next);
+      if (next === before) { ai.notify("ok", `The AI had nothing to change in “${label}”.`); return; }
+      latestChange.current(next);
       ai.notify("ok", `Rewrote “${label}” with AI. Check it reads right; Undo puts the old words back.`, { undo: true });
       setCustom("");
     } catch (err) {

@@ -5,7 +5,7 @@ vi.mock("react-quill", () => ({ default: () => null }));
 vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 import { describe, expect, it } from "vitest";
 import { getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, SECTION_REGISTRY } from "../ThemeEditorExtensions";
-import { canRewrite, DRAFT_TYPES, keepsTokens, rewriteFormat, sectionFromDraft, tokensOf } from "./aiStudio";
+import { canRewrite, DRAFT_TYPES, keepsTokens, REWRITE_MAX, rewriteFormat, rewriteProblem, sectionFromDraft, tokensOf } from "./aiStudio";
 
 const server = createRequire(import.meta.url)("../../../../functions/aiWriter.js");
 
@@ -57,5 +57,17 @@ describe("Studio AI rules", () => {
     const text = sectionFromDraft("TextContentSection", { title: "T", content: "<p>x</p><script>bad()</script>" }, getSectionMeta as any, getBlocksKey, h => h.replace(/<script[\s\S]*?<\/script>/g, ""))!;
     expect(text.settings.content).toBe("<p>x</p>");
     expect(sectionFromDraft("TestimonialsSection", { title: "x" }, getSectionMeta as any, getBlocksKey)).toBeNull();
+  });
+
+  it("won't rewrite rich text it would lose parts of, or text longer than the server takes", () => {
+    expect(rewriteProblem("richtext", '<p>Hi <a href="/x" target="_blank" rel="noopener noreferrer">us</a><br></p><ul><li>a</li></ul>')).toBe("");
+    for (const html of ['<p class="ql-align-center">x</p>', '<p><img src="https://x.test/a.png"></p>', '<iframe class="ql-video" src="https://v"></iframe>', "<h1>Big</h1>", '<p><span style="color:red">x</span></p>', "<p><s>old</s></p>"])
+      expect(rewriteProblem("richtext", html), html).toMatch(/can't keep/);
+    expect(rewriteProblem("textarea", "x".repeat(REWRITE_MAX.plain))).toBe("");
+    expect(rewriteProblem("textarea", "x".repeat(REWRITE_MAX.plain + 1))).toMatch(/too long/);
+    expect(REWRITE_MAX).toEqual(server.REWRITE_MAX);
+    // The server refuses the same rich text.
+    expect(server.richTextProblem('<p><img src="x"></p>')).toMatch(/can't keep/);
+    expect(server.richTextProblem('<p><a href="/x" target="_blank" rel="noopener">a</a></p>')).toBe("");
   });
 });

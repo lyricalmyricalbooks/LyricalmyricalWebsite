@@ -111,7 +111,7 @@ import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
 /** `expect`: the design the toast's Undo belongs to (filled in once the change lands); see `undoAction`. */
-type ToastAction = { label: string; run: () => void; expect?: { present?: any } };
+type ToastAction = { label: string; run: () => void; expect?: { present?: any; past?: any[] } };
 type Toast = { kind: "ok" | "err"; text: string; action?: ToastAction } | null;
 
 function designChecks(design: any) {
@@ -539,14 +539,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
    *  design the change produced; if anything else has changed since (another edit, Undo/Redo), it refuses and points
    *  the owner at step-by-step Undo instead of undoing a different change. */
   const undoAction = (): ToastAction => {
-    const expect: { present?: any } = {};
+    const expect: { present?: any; past?: any[] } = {};
     // Queued after the change's own update, so it sees the design that change produced.
-    setHist(h => { expect.present = h.present; return h; });
+    setHist(h => { expect.present = h.present; expect.past = h.past; return h; });
     return {
       label: "Undo", expect,
       run: () => {
         const h = histRef.current;
-        if (expect.present === undefined || h.present !== expect.present || !h.past.length) {
+        // The same step may have absorbed a follow-up edit of the same field (coalescing keeps `past` as it was), e.g. the
+        // rich-text editor rewriting the HTML into its own form: that is still the change this toast names.
+        if (expect.present === undefined || !h.past.length || (h.present !== expect.present && h.past !== expect.past)) {
           say("err", "That change is no longer the latest one. Use Undo (Ctrl+Z) step by step, or Theme actions › Version history.");
           return;
         }

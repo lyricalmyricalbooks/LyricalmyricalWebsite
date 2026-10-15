@@ -1,7 +1,7 @@
 import { createRequire } from "module";
 import { describe, expect, it, vi } from "vitest";
 
-const { buildRequest, parseResponse, handleAiWrite, DRAFT_TYPES, REWRITE_HOW, sanitizeHtml, tokensOf } = createRequire(import.meta.url)("./aiWriter");
+const { buildRequest, parseResponse, handleAiWrite, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, sanitizeHtml, tokensOf } = createRequire(import.meta.url)("./aiWriter");
 
 const KEY = "AIza" + "x".repeat(35);
 const reply = (status, data) => ({ ok: status >= 200 && status < 300, status, json: async () => data });
@@ -36,6 +36,25 @@ describe("Studio AI: rewrite a field", () => {
     expect(() => parseResponse("rewrite", gemini({ text: '<p><a href="https://evil.test">us</a></p>' }), ctx)).toThrow(/link/);
     expect(sanitizeHtml('<a href="javascript:alert(1)">x</a>')).toBe("<a>x</a>");
     expect(tokensOf("{a} {a} {{b.c}}")).toEqual(["{a}", "{{b.c}}"]);
+  });
+
+  it("keeps phone and relative links like the Studio editor does", () => {
+    const ctx = { input: { text: '<p>Call <a href="tel:+14165550100">us</a> or read <a href="about">about</a></p>', format: "html" } };
+    expect(parseResponse("rewrite", gemini({ text: '<p>Phone <a href="tel:+14165550100">us</a>, or see <a href="about">about us</a></p>' }), ctx).text).toContain('href="tel:+14165550100"');
+  });
+
+  it("refuses text it would cut or rich text it would lose parts of, instead of changing it", async () => {
+    const long = await handleAiWrite({ task: "rewrite", input: { text: "x".repeat(REWRITE_MAX.plain + 1) } }, deps());
+    expect(long.status).toBe(400);
+    expect(long.body.error).toMatch(/too long/);
+    const pic = await handleAiWrite({ task: "rewrite", input: { text: '<p>Hi</p><p><img src="x"></p>', format: "html" } }, deps());
+    expect(pic.status).toBe(400);
+    expect(pic.body.error).toMatch(/can't keep/);
+  });
+
+  it("gives longer answers room and explains an answer cut short", () => {
+    expect(buildRequest("rewrite", { text: "Hi" }).generationConfig.maxOutputTokens).toBe(8192);
+    expect(() => parseResponse("rewrite", { candidates: [{ content: { parts: [{ text: '{"text":"Hal' }] }, finishReason: "MAX_TOKENS" }] }, { input: { text: "Hi" } })).toThrow(/too long/);
   });
 
   it("says when there's nothing to rewrite", async () => {

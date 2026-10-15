@@ -68,4 +68,35 @@ describe("Rewrite with AI", () => {
     act(() => root.render(h(StudioAiRewrite, { kind: "text", label: "Title", value: "Hi", onChange: vi.fn() })));
     expect(host.textContent).not.toContain("Rewrite");
   });
+
+  it("doesn't touch the field, or offer an Undo, when the AI has nothing to change", async () => {
+    askAi.mockResolvedValue({ text: "Already right" });
+    const onChange = vi.fn();
+    const notify = mount({ kind: "text", label: "Title", value: "Already right", onChange });
+    click("Rewrite with AI"); click("Fix spelling");
+    await settle();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledWith("ok", expect.stringMatching(/nothing to change/));
+    expect(notify.mock.calls.some(c => c[2]?.undo)).toBe(false);
+  });
+  it("refuses rich text with pictures before asking the AI", async () => {
+    const notify = mount({ kind: "richtext", label: "Content", value: '<p>Hi</p><p><img src="https://x.test/a.png"></p>', onChange: vi.fn() });
+    click("Rewrite with AI"); click("Improve");
+    await settle();
+    expect(askAi).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledWith("err", expect.stringMatching(/can't keep/));
+  });
+  it("hands the answer to the newest onChange, so edits made while waiting aren't undone", async () => {
+    let resolve!: (v: any) => void;
+    askAi.mockReturnValue(new Promise(r => { resolve = r; }));
+    const first = vi.fn(), second = vi.fn(), notify = vi.fn();
+    mount({ kind: "text", label: "Answer", value: "Old", onChange: first }, notify);
+    click("Rewrite with AI"); click("Improve");
+    // Another field of the same block changed: the inspector re-renders with a fresh onChange (same value here).
+    act(() => root.render(h(StudioAiContext.Provider, { value: { notify } }, h(StudioAiRewrite, { kind: "text", label: "Answer", value: "Old", onChange: second }))));
+    resolve({ text: "New" });
+    await settle();
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledWith("New");
+  });
 });

@@ -94,7 +94,8 @@ const TOKEN_RE = /\{\{[^{}]{1,60}\}\}|\{[A-Za-z][A-Za-z0-9_.]{0,40}\}/g;
 /** The {placeholders} (and {{book.title}}-style connected details) a text uses: they must survive a rewrite. */
 const tokensOf = text => [...new Set(String(text || "").match(TOKEN_RE) || [])];
 const HTML_TAGS = new Set(["p", "br", "strong", "b", "em", "i", "u", "a", "ul", "ol", "li", "h2", "h3", "h4", "blockquote"]);
-const safeHref = h => /^(https?:\/\/|mailto:|\/(?!\/)|#)/i.test(h) && !/[\s"'<>]/.test(h);
+// Same rule as the Studio rich-text editor (src/app/admin/studio/richText.ts safeRichHref).
+const safeHref = h => !/[\u0000-\u0020\u007f"'<>]/.test(h) && (/^(https?:|mailto:|tel:)/i.test(h) || (/^(\/|#|\?|\.\.?\/)/.test(h) && !h.startsWith("//")) || !/[:\\]/.test(h));
 /** Keeps only simple formatting tags (and http(s)/relative links); everything else becomes its text. */
 function sanitizeHtml(html) {
   return String(html || "")
@@ -110,6 +111,16 @@ function sanitizeHtml(html) {
     })
     .trim();
 }
+const REWRITE_MAX = { plain: 4000, html: 8000 };
+const SIMPLE_TAGS = HTML_TAGS;
+/** Rich text a rewrite would lose parts of (pictures, video, alignment, colours…): refused instead of quietly dropped. */
+function richTextProblem(html) {
+  for (const m of String(html || "").matchAll(/<([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g)) {
+    const tag = m[1].toLowerCase(), attrs = m[2].replace(/\s+(href|target|rel)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "").trim().replace(/\/$/, "").trim();
+    if (!SIMPLE_TAGS.has(tag) || attrs) return "This text has pictures, videos, alignment, colours or other formatting the AI can't keep, so it isn't rewritten here. Rewrite a plain part, or edit it by hand.";
+  }
+  return "";
+}
 const hrefsOf = html => [...String(html || "").matchAll(/\bhref\s*=\s*"([^"]*)"/gi)].map(m => m[1].replace(/&amp;/g, "&"));
 function rewriteInput(input) {
   const i = input && typeof input === "object" ? input : {};
@@ -117,7 +128,7 @@ function rewriteInput(input) {
   const how = Object.prototype.hasOwnProperty.call(REWRITE_HOW, i.how) || i.how === "custom" ? i.how : "improve";
   return {
     format, how,
-    text: format === "html" ? clip(String(i.text || ""), 8000) : clip(String(i.text || ""), 4000),
+    text: clip(String(i.text || ""), REWRITE_MAX[format]),
     label: clip(i.label, 80), where: clip(i.where, 80), instruction: how === "custom" ? oneLine(clip(i.instruction, 200)) : "",
   };
 }
@@ -267,7 +278,7 @@ function buildRequest(task, input, ctx = {}, model = MODELS[0]) {
   const spec = TASKS[task];
   const generationConfig = {
     temperature: 0.7,
-    maxOutputTokens: 2048,
+    maxOutputTokens: task === "rewrite" || task === "sectionDraft" ? 8192 : 2048,
     responseMimeType: "application/json",
     responseSchema: spec.schemaFor ? spec.schemaFor(input || {}) : spec.schema,
   };
@@ -287,6 +298,7 @@ function parseResponse(task, data, ctx = {}) {
   const cand = Array.isArray(data?.candidates) ? data.candidates[0] : null;
   const text = (Array.isArray(cand?.content?.parts) ? cand.content.parts : [])
     .filter(p => p && !p.thought && typeof p.text === "string").map(p => p.text).join("").trim();
+  if (cand?.finishReason === "MAX_TOKENS") throw Object.assign(new Error("The text is too long for the AI to finish in one go. Try a shorter part."), { status: 502, friendly: true });
   if (!text) {
     const why = cand?.finishReason === "SAFETY" ? "Google's safety filter declined to write this one." : "Gemini sent back an empty answer.";
     throw Object.assign(new Error(`${why} Try again.`), { status: 502, friendly: true });
@@ -383,6 +395,13 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
   if (!Object.prototype.hasOwnProperty.call(TASKS, task)) return { status: 400, body: { error: "Unknown AI task." } };
   const input = body?.input && typeof body.input === "object" && !Array.isArray(body.input) ? body.input : {};
   if (task === "sectionDraft" && !draftSpec(input.type)) return { status: 400, body: { error: "That section can't be drafted with AI." } };
+  if (task === "rewrite") {
+    const format = input.format === "html" ? "html" : "plain";
+    const text = String(input.text || "");
+    if (text.length > REWRITE_MAX[format]) return { status: 400, body: { error: `This text is too long to rewrite in one go (over ${REWRITE_MAX[format]} characters). Split it, or rewrite a part at a time.` } };
+    const problem = format === "html" ? richTextProblem(text) : "";
+    if (problem) return { status: 400, body: { error: problem } };
+  }
   const raw = task === "pageSeo" || task === "rewrite" || task === "sectionDraft";
   if (!TASKS[task].needs(raw ? input : bookFacts(input))) {
     const why = { pageSeo: "Write the page title or some text first.", rewrite: "There's no text to rewrite yet.", sectionDraft: "Say what the section should be about first." };
@@ -396,4 +415,4 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
   }
 }
 
-module.exports = { MODELS, TASKS, DRAFT_TYPES, REWRITE_HOW, tokensOf, sanitizeHtml, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
+module.exports = { MODELS, TASKS, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
