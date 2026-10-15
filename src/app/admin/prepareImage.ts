@@ -47,13 +47,20 @@ export const MEDIA_QUALITY = 0.88;
 // Book photos (covers and spreads) carry fine type, so they get one bigger copy and a higher
 // quality: the product page photo is up to 900 px wide, which a 3x phone or retina laptop draws
 // with ~2700 real pixels, and the full-screen photo viewer can use the 3200 px copy. Shop cards and
-// phones still download a small copy (`srcset`), so their page weight is unchanged.
-export const BOOK_PHOTO_WIDTHS = [480, 960, 1600, 2400, 3200] as const;
+// phones download a small copy (`srcset`): the card-sized copies (≤ 960 px, plus a 640 px one for
+// retina phones and laptops) are saved at 0.82, which halves their weight with no visible change at
+// card size — Storage bandwidth is billed per download (October 2026). functions/imageCopies.js makes
+// the same copies for photos uploaded before these existed; keep the two ladders equal.
+export const BOOK_PHOTO_WIDTHS = [480, 640, 960, 1600, 2400, 3200] as const;
 export const BOOK_PHOTO_QUALITY = 0.95;
+export const BOOK_CARD_COPY_MAX = 960;
+export const BOOK_CARD_QUALITY = 0.82;
+/** The quality a book photo copy of this width is saved at. */
+export const bookPhotoQuality = (width: number) => (width <= BOOK_CARD_COPY_MAX ? BOOK_CARD_QUALITY : BOOK_PHOTO_QUALITY);
 /** Largest edge of a book photo uploaded as one file (when the browser can't make the copies). */
 export const MAX_BOOK_IMAGE_EDGE = 3200;
 
-export type VariantOptions = { widths?: readonly number[]; quality?: number };
+export type VariantOptions = { widths?: readonly number[]; quality?: number | ((width: number) => number) };
 
 /** The copy widths made for a picture `originalWidth` px wide: [480, 960, 1600, 2400], [480, 960, 1200], [300]… */
 export function mediaWidthsFor(originalWidth: number, ladder: readonly number[] = MEDIA_WIDTHS): number[] {
@@ -75,7 +82,7 @@ export type PreparedMedia = { width: number; height: number; variants: MediaVari
  */
 export async function prepareMediaVariants(file: File, options: VariantOptions = {}): Promise<PreparedMedia> {
   const ladder = options.widths ?? MEDIA_WIDTHS;
-  const quality = options.quality ?? MEDIA_QUALITY;
+  const qualityOf = (w: number) => (typeof options.quality === "function" ? options.quality(w) : options.quality ?? MEDIA_QUALITY);
   const original: PreparedMedia = { width: 0, height: 0, variants: [{ width: 0, height: 0, file }], resized: false };
   if (!/^image\/(jpeg|png|webp)$/.test(file.type) || typeof createImageBitmap !== "function") return original;
   let bitmap: ImageBitmap | null = null;
@@ -92,6 +99,7 @@ export async function prepareMediaVariants(file: File, options: VariantOptions =
       const ctx = canvas.getContext("2d")!;
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(bitmap, 0, 0, w, h);
+      const quality = qualityOf(w);
       let blob = await new Promise<Blob | null>(res => canvas.toBlob(res, "image/webp", quality));
       // Browsers without a WebP encoder hand back PNG; use JPEG for photos instead (PNG keeps transparency).
       if (blob && blob.type !== "image/webp" && file.type !== "image/png") blob = await new Promise<Blob | null>(res => canvas.toBlob(res, "image/jpeg", quality));

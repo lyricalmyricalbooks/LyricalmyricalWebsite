@@ -65,6 +65,7 @@ import { previewSampleCart } from "./features/site/previewSampleCart";
 import { inEditorPreview } from "./lib/trackingGuard";
 import { componentsSummary } from "./features/site/orderLineNotes";
 import { FulfillmentMethodPicker, bestFirst, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
+import { smallPhotoUrl } from "./features/site/photoSources";
 
 // ─── State / province drop-down for countries with a fixed list ──────────────
 function RegionField({ value, onChange, label, choose, regions, id, error }: { value: string; onChange: (v: string) => void; label: string; choose: string; regions: [string, string][]; id?: string; error?: string }) {
@@ -512,7 +513,7 @@ export function Checkout() {
           const restoredItems = (cartData.items || []).map((item: any) => {
             const matchedBook = localBooksMap.get(item.id);
             if (matchedBook) {
-              const photoUrl = matchedBook.photos?.[0]?.url || "";
+              const photoUrl = smallPhotoUrl(matchedBook.photos?.[0]);
               const shippingProfileId = matchedBook.shippingProfileId || "";
 
               let variantName = item.variantName || "";
@@ -792,7 +793,7 @@ export function Checkout() {
   const freeGift = useMemo(() => {
     if (activeDiscount?.type !== "gift") return null;
     const found = giftOffer(activeDiscount);
-    return found ? { id: found.book.id, variantId: found.variant?.id, title: found.book.title || "", variantName: found.variant?.name, price: found.price, photoUrl: found.variant?.photoUrl || found.book.photos?.[0]?.url || "" } : null;
+    return found ? { id: found.book.id, variantId: found.variant?.id, title: found.book.title || "", variantName: found.variant?.name, price: found.price, photoUrl: found.variant?.photoUrl || smallPhotoUrl(found.book.photos?.[0]) } : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDiscount, booksMap, cart]);
   const freeGiftPrice = freeGift?.price || 0;

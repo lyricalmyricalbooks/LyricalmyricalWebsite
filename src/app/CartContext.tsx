@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useMemo, ReactNode } fr
 import { preorderActive, releaseDateOf } from "./features/site/preorder";
 import { comingSoonActive } from "./features/site/comingSoon";
 import { addOnSelection, bundleComponents, giftCardDetails, isGiftCardProduct, saleActive, type GiftCardDetails } from "./features/site/promotions";
+import { smallPhotoUrl } from "./features/site/photoSources";
 
 /** A paid extra on one copy (signed copy, inscription, gift wrap). Price is per copy, CAD, from the catalog. */
 export type CartAddOn = { id: string; label: string; price: number; text?: string };
@@ -284,7 +285,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       title: product.title,
       price,
       quantity: 0,
-      photoUrl: (variant && variant.photoUrl) ? variant.photoUrl : (product.photos?.[0]?.url || ""),
+      photoUrl: (variant && variant.photoUrl) ? variant.photoUrl : smallPhotoUrl(product.photos?.[0]),
       stripePriceId: variant?.stripePriceId || product.stripePriceId || "",
       stockLimit: typeof stockLimit === "number" ? stockLimit : undefined,
       shippingProfileId: product.shippingProfileId || "",

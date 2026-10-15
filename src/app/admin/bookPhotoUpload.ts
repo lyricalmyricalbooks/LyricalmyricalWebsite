@@ -1,5 +1,5 @@
-// Book photo uploads (Books › edit › Photos). Each photo is stored as sharp WebP copies 480–3200 px
-// wide at quality 0.95 (`prepareMediaVariants` with BOOK_PHOTO_WIDTHS), so the product page and the
+// Book photo uploads (Books › edit › Photos). Each photo is stored as WebP copies 480–3200 px wide
+// (`prepareMediaVariants` with BOOK_PHOTO_WIDTHS; 0.82 up to card size, 0.95 above), so the product page and the
 // full-screen viewer show a crisp copy on retina screens while shop cards and phones download a small
 // one. The book keeps the largest copy as its `url` (shared links, search engines, emails) plus a
 // public `srcset` list the storefront turns into `<img srcset>` (features/site/photoSources.ts).
@@ -8,7 +8,7 @@
 // decode the file, keep the old single upload.
 import { adminApi } from "./api";
 import { mediaApi } from "./mediaApi";
-import { BOOK_PHOTO_QUALITY, BOOK_PHOTO_WIDTHS, MAX_BOOK_IMAGE_EDGE, prepareMediaVariants, prepareProductImage } from "./prepareImage";
+import { BOOK_PHOTO_WIDTHS, bookPhotoQuality, MAX_BOOK_IMAGE_EDGE, prepareMediaVariants, prepareProductImage } from "./prepareImage";
 import type { MediaVariantRef } from "../features/site/mediaRef";
 
 export type BookPhotoFile = { url: string; srcset?: MediaVariantRef[]; width?: number; height?: number; originalUrl?: string };
@@ -20,7 +20,7 @@ export function bookPhotoPath(stamp: number, fileName: string): string {
 }
 
 export async function uploadBookPhoto(file: File, now = Date.now()): Promise<BookPhotoFile> {
-  const prepared = await prepareMediaVariants(file, { widths: BOOK_PHOTO_WIDTHS, quality: BOOK_PHOTO_QUALITY });
+  const prepared = await prepareMediaVariants(file, { widths: BOOK_PHOTO_WIDTHS, quality: bookPhotoQuality });
   if (!prepared.resized) {
     const ready = await prepareProductImage(file, MAX_BOOK_IMAGE_EDGE);
     return { url: await adminApi.uploadFile(ready, bookPhotoPath(now, ready.name)) };
