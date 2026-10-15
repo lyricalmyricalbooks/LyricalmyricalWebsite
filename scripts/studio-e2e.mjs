@@ -527,6 +527,15 @@ await check("Block picker: pointing at a block tries it on the page, clicking ad
   await page.getByRole("button", { name: /^Undo/ }).click();
   saved = await lastDesign();
   if (composition(saved).settings.items.length !== items.length - 1) throw new Error("Undo did not remove the added block");
+  // Closing the picker without adding takes the try-on block and its "not added yet" label off the page.
+  await page.locator("[data-studio-panel='block-clipboard']").getByRole("button", { name: "Add block…" }).click();
+  await picker.locator("[data-block-choice='new:button']").hover();
+  await frame.locator("[data-fm-block='__studio-block-candidate']").first().waitFor({ state: "attached", timeout: 10000 });
+  await frame.getByText("Preview · not added yet").first().waitFor({ timeout: 5000 });
+  await picker.getByRole("button", { name: "Back to sections" }).click();
+  await frame.locator("[data-fm-block='__studio-block-candidate']").waitFor({ state: "detached", timeout: 10000 });
+  await page.waitForTimeout(500);
+  if (await frame.getByText("Preview · not added yet").count()) throw new Error("the preview still labels the closed try-on block");
 });
 
 await check("Copy block in one section and paste it into another section of the same kind", desktop, async page => {

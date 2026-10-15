@@ -76,3 +76,16 @@ describe("preview candidate block", () => {
     expect(design.heroPage.sections[0].settings.items).toHaveLength(1);
   });
 });
+
+describe("paste depth", () => {
+  it("refuses a spot where the pasted block's inner blocks would go deeper than 3 levels", async () => {
+    const { fitsAfter } = await import("./blockLibrary");
+    const tree = [{ id: "g1", type: "group", children: [{ id: "g2", type: "group", children: [{ id: "t3", type: "text" }] }] }];
+    const group = { id: "x", type: "group", children: [{ id: "y", type: "text" }] };
+    expect(fitsAfter(tree, "t3", { id: "z", type: "text" })).toBe(true);
+    expect(fitsAfter(tree, "t3", group)).toBe(false);
+    expect(fitsAfter(tree, "g2", group)).toBe(true);
+    expect(fitsAfter(tree, null, group)).toBe(true);
+    expect(fitsAfter(tree, "missing", group)).toBe(false);
+  });
+});

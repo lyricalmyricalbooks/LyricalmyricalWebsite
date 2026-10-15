@@ -119,11 +119,25 @@ describe("header and footer colour schemes (Theme settings › Colour schemes)",
       expect(footer).toContain("background-color:var(--bg-color)");
       expect(footer).not.toContain("#654321");
     }
-    const pageDesign = { ...base, headerBg: "#123456", colorSchemes: [noir], elementSchemes: { header: "noir" } };
+    // Every part inside the header gives way too: logo text, rules and the phone menu's drop-down tab.
+    for (const layout of ["reference", "modern"]) {
+      const own = { ...base, catalogLayoutStyle: layout, logoColor: "#ff00aa", headerColor: "#aa00ff", borderColor: "#00ffaa", colorSchemes: [noir], elementSchemes: { header: "noir" } };
+      site.data = { settings: settingsFor(own), pages, books, loading: false, fresh: true };
+      const html = render(h(MainSite, { showCatalog: true, setShowCatalog: () => {} }));
+      const header = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
+      for (const colour of ["#ff00aa", "#aa00ff", "#00ffaa"]) expect(header, `${layout} ${colour}`).not.toContain(colour);
+      // Without the scheme the same design does paint those colours (so the check above means something).
+      site.data = { settings: settingsFor({ ...own, elementSchemes: {} }), pages, books, loading: false, fresh: true };
+      const plain = render(h(MainSite, { showCatalog: true, setShowCatalog: () => {} }));
+      expect(plain.slice(plain.indexOf("<header"), plain.indexOf("</header>")), layout).toContain("#ff00aa");
+    }
+    const pageDesign = { ...base, headerBg: "#123456", logoColor: "#ff00aa", headerColor: "#aa00ff", colorSchemes: [noir], elementSchemes: { header: "noir" } };
     site.data = { settings: settingsFor(pageDesign), pages, books, loading: false, fresh: true };
     const page = render(h(StoreHeader, { design: pageDesign, pages, books } as any), "/page/about");
     expect(headerOf(page)).toContain("var(--bg-color)");
     expect(headerOf(page)).not.toContain("#123456");
+    const pageHeader = page.slice(page.indexOf("<header"), page.indexOf("</header>"));
+    for (const colour of ["#ff00aa", "#aa00ff"]) expect(pageHeader, colour).not.toContain(colour);
   });
 });
 

@@ -139,7 +139,7 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
     }
   };
 
-  const borderColor = design?.navDropdownBorderColor || design?.borderColor || "rgba(var(--border-rgb, 177, 177, 170), 1)";
+  const borderColor = design?.navDropdownBorderColor || (headerScheme ? "var(--border-color)" : design?.borderColor) || "rgba(var(--border-rgb, 177, 177, 170), 1)";
   const panelStyle: CSSProperties = {
     position: "fixed",
     top: pos?.top ?? 0,

@@ -329,7 +329,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
       {loadError && <div role="alert" className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between gap-3"><span>Pages could not be loaded. Your existing list is preserved.</span><button className={btn} onClick={onRetryLoad}>Retry</button></div>}
       <div>
         <p className="text-sm font-bold">Pages</p>
-        <p className="text-xs text-neutral-500">Write About, Shipping or Journal pages. New pages are included in the storefront header by default. Pages save straight away and don't need Publish. Use “Design sections” to lay out a page with banners and galleries.</p>
+        <p className="text-xs text-neutral-500">Write About, Shipping or Journal pages. Blank pages and most starters are added to the storefront header (each page has its own switch). Pages save straight away and don't need Publish. Use “Design sections” to lay out a page with banners and galleries.</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <button className={btnPrimary} onClick={() => setStarters(v => !v)} disabled={filling} aria-expanded={starters} aria-controls="studio-page-starters"><Plus size={14} /> New page</button>

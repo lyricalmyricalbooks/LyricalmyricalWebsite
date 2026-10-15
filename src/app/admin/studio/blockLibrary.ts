@@ -1,6 +1,6 @@
 // Block library 3.0 (Studio 3.0 phase 5): a clipboard for blocks, the choices the block picker offers, and the
 // preview-only candidate block shown while the owner points at a choice. Pure helpers; StudioEditor owns the state.
-import { freshBlockIds, insertBlockAfter, newId, type SharedBlock, type StudioBlock } from "./studioModel";
+import { freshBlockIds, insertBlockAfter, MAX_BLOCK_DEPTH, newId, type SharedBlock, type StudioBlock } from "./studioModel";
 import { updateSectionsById } from "./studioWorkflow";
 
 /** A copied block and the section type it came from (blocks only paste into sections of the same type, whose
@@ -22,6 +22,23 @@ export function pasteBlock(blocks: StudioBlock[], clip: BlockClip, afterId?: str
   const copy = freshBlockIds(clip.block);
   if (!clip.block.children) delete copy.children;
   return { list: afterId ? insertBlockAfter(blocks, afterId, copy) : [...blocks, copy], id: copy.id! };
+}
+
+const depthOf = (blocks: StudioBlock[], id: string, depth = 0): number => {
+  for (const b of blocks || []) {
+    if (b.id === id) return depth;
+    const inner = depthOf(b.children || [], id, depth + 1);
+    if (inner >= 0) return inner;
+  }
+  return -1;
+};
+const levels = (b: StudioBlock): number => 1 + Math.max(0, ...(b.children || []).map(levels));
+
+/** Whether `block` can sit beside `afterId` without its inner blocks going deeper than blocks may nest (they would be
+ *  dropped). A missing `afterId` means the top level. */
+export function fitsAfter(blocks: StudioBlock[], afterId: string | null | undefined, block: StudioBlock): boolean {
+  const at = afterId ? depthOf(blocks, afterId) : 0;
+  return at >= 0 && at + levels(block) <= MAX_BLOCK_DEPTH;
 }
 
 /** Thumbnail drawing used for a choice (StudioBlockPicker). */

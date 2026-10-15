@@ -92,7 +92,7 @@ import type { StudioLocation } from "../../lib/studioLocation";
 import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
 import { StudioSectionLibrary } from "./StudioSectionLibrary";
 import { StudioBlockPicker } from "./StudioBlockPicker";
-import { BLOCK_CANDIDATE_ID, blockChoices, canPasteBlock, copyBlock, pasteBlock, withBlockCandidate, type BlockChoice, type BlockClip } from "./blockLibrary";
+import { BLOCK_CANDIDATE_ID, blockChoices, canPasteBlock, copyBlock, fitsAfter, pasteBlock, withBlockCandidate, type BlockChoice, type BlockClip } from "./blockLibrary";
 import { StudioTemplateCard } from "./StudioTemplateCard";
 import { isProductTemplate, StudioProductBlocks } from "./StudioProductBlocks";
 import { ALT_BASE_LABELS, ALT_BASES, alternatesFor, altSurface, bookTemplateSurface, createAlternate, deleteAlternate, isAltSurface, parseAltSurface, renameAlternate, type AltBase } from "../../features/site/templateAlternates";
@@ -451,7 +451,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [copiedBlock, setCopiedBlock] = useState<BlockClip | null>(null);
   const [blockPicker, setBlockPicker] = useState<string | null>(null);
   const [blockCandidate, setBlockCandidate] = useState<any>(null);
-  useEffect(() => { if (!blockPicker) setBlockCandidate(null); }, [blockPicker]);
+  const pickerWasOpen = useRef(false);
+  useEffect(() => {
+    if (blockPicker) { pickerWasOpen.current = true; return; }
+    setBlockCandidate(null);
+    if (!pickerWasOpen.current) return;
+    pickerWasOpen.current = false;
+    // The preview may still have the try-on block selected: point it back at the real selection.
+    if (blockId === BLOCK_CANDIDATE_ID) setBlockId(null);
+    try { iframeRef.current?.contentWindow?.postMessage({ type: "HIGHLIGHT_SECTION", instanceId: selectedId, blockId: blockId === BLOCK_CANDIDATE_ID ? null : blockId, scroll: false }, window.location.origin); } catch { /* ignore */ }
+  }, [blockPicker]); // eslint-disable-line react-hooks/exhaustive-deps
   // A section's look (Style / Layout / Visibility settings) copied from the outline, to paste onto others.
   const [copiedStyle, setCopiedStyle] = useState<Record<string, any> | null>(null);
   // "Move to…" dialog: sections to another page, or a block to another section.
@@ -1385,15 +1394,25 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       say("ok", copiedBlock ? `That block came from a ${getSectionMeta(copiedBlock.sectionType)?.label || "different"} section, so it only pastes into one of those.` : "Copy a block first: select it and choose Copy block.");
       return;
     }
-    insertBlockInto(section.id, pasteBlock([], copiedBlock!).list[0], afterId, "Paste block");
-    say("ok", "Block pasted.", undoAction());
+    const linkedTo = copiedBlock!.block.sharedBlockId;
+    if (linkedTo && !(designRef.current.sharedBlocks || []).some((x: SharedBlock) => x.id === linkedTo)) {
+      say("ok", "The copied block was linked to a shared block that has since been deleted, so there's nothing to paste. Copy the block again.");
+      return;
+    }
+    const block = pasteBlock([], copiedBlock!).list[0];
+    const key = getBlocksKey(section.type);
+    // Blocks nest 3 levels deep at most; a group pasted beside a deeply nested block goes at the end instead of losing its inner blocks.
+    const fits = fitsAfter(section.settings[key] || section.settings.blocks || [], afterId, block);
+    insertBlockInto(section.id, block, fits ? afterId : null, "Paste block");
+    say("ok", fits ? "Block pasted." : "Block pasted at the end of the section: there it keeps all the blocks inside it (blocks nest 3 levels deep at most).", undoAction());
   };
   const pickerChoices = useMemo(() => {
     if (!pickerOwner) return [];
     const section = pickerOwner.section, meta = getSectionMeta(section.type);
     const key = getBlocksKey(section.type);
     return blockChoices(meta ? { ...meta, type: section.type } : undefined, {
-      existing: section.settings?.[key] || section.settings?.blocks || [], sharedBlocks: design.sharedBlocks || [], clip: copiedBlock,
+      existing: section.settings?.[key] || section.settings?.blocks || [], sharedBlocks: design.sharedBlocks || [],
+      clip: copiedBlock?.block.sharedBlockId && !(design.sharedBlocks || []).some((x: SharedBlock) => x.id === copiedBlock.block.sharedBlockId) ? null : copiedBlock,
       labelOf: (b, i) => blockLabel(b, i, meta?.blockLabel),
     });
   }, [pickerOwner, design.sharedBlocks, copiedBlock]);

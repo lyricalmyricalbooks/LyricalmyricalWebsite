@@ -384,7 +384,7 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
         <div ref={rowRef} className="fm-hdr-row mx-auto flex flex-nowrap items-center justify-between gap-4 px-6 py-4" style={{ maxWidth, color: headerColor }}>
           <div className="flex min-w-0 flex-1 items-center gap-8 md:gap-12">
             <Link to="/" data-hdr-fixed className="flex shrink-0 items-center" aria-label={getCopy(design, "logoAlt")}>
-              <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefront} /></span>
+              <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={scheme ? { ...storefront, logoColor: undefined } : storefront} /></span>
             </Link>
             {!navBelow && navBar}
           </div>
@@ -507,7 +507,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   );
   const logo = (
     <button onClick={onHome} style={{ color: headerTextColor }} data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center">
-      <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={shop.logoDesign} /></span>
+      <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={headerScheme ? { ...shop.logoDesign, logoColor: undefined } : shop.logoDesign} /></span>
     </button>
   );
   const cartAmount = cartTotal > 0 ? formatPrice(cartTotal) : formatPrice(Number(sf?.catalogCartTotalPlaceholder ?? 0));
@@ -549,7 +549,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                 </button>
               )}
             </div>
-            <div className="mt-6" style={{ borderTop: `${headerRuleWidth}px solid ${sf?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
+            <div className="mt-6" style={{ borderTop: `${headerRuleWidth}px solid ${(!headerScheme && sf?.borderColor) || headerBorderColor || "#B1B1AA"}` }} />
             <div data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className="py-5 flex flex-wrap items-center text-base font-black" style={{ columnGap: navGapDesktop, rowGap: navGapMobile }}>
               {referenceNavCategories(categories, sf).map((cat: any, index: number) => {
                 const catName = typeof cat === "string" ? cat : cat.name;
@@ -593,7 +593,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                 </button>
               )}
             </div>
-            <div style={{ borderTop: `${headerRuleWidth}px solid ${sf?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
+            <div style={{ borderTop: `${headerRuleWidth}px solid ${(!headerScheme && sf?.borderColor) || headerBorderColor || "#B1B1AA"}` }} />
           </div>
         ) : (
           <div ref={headerRowRef} className="fm-hdr-row mx-auto px-6 py-4 flex flex-nowrap items-center justify-between gap-4" style={{ maxWidth }}>
