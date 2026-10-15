@@ -9,7 +9,7 @@ import { ThemeToggle } from "../../components/theme/ThemeToggle";
 import { liveWishlistCount, useWishlist } from "../../lib/wishlist";
 import { accountsEnabled } from "./customerAccounts";
 import { layerDesign } from "./designModel";
-import { contentMaxWidth, navLineProps, navLinkStyle, ownNavLinkStyle, pillRadius, useNavBelow, useNavFit } from "./headerNav";
+import { catalogHeaderMaxWidth, contentMaxWidth, navLineProps, navLinkStyle, ownNavLinkStyle, pillRadius, useNavBelow, useNavFit } from "./headerNav";
 import { PHONE_MAX } from "./breakpoints";
 import { isLiveBook } from "./liveBook";
 import { MobileStorefrontNav } from "./MobileStorefrontNav";
@@ -465,7 +465,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   // Default legacy storefronts into the "reference" masthead layout unless the catalog is "modern".
   const isReferenceCatalog = usesReferenceHeader(sf);
   const headerRuleWidth = Math.max(0, Math.min(8, sf?.catalogHeaderRuleWidth ?? (isReferenceCatalog ? 4 : 1)));
-  const headerMaxWidth = Math.max(900, Math.min(1800, sf?.catalogHeaderWidth ?? maxWidth));
+  const headerMaxWidth = catalogHeaderMaxWidth(sf);
   const mastheadDesktop = Math.max(28, Math.min(96, sf?.catalogMastheadDesktop ?? 58));
   const mastheadMobile = Math.max(24, Math.min(72, sf?.catalogMastheadMobile ?? 38));
   // Catalog layout › "Space between category links, desktop" first, then Navigation links › "Space between links" (the inspector's Layout tab).

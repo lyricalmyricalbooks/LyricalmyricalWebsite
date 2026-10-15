@@ -1378,6 +1378,28 @@ const openStyleField = async (page, key) => {
   await page.locator(`[data-style-key="${key}"]`).first().waitFor({ timeout: 5000 });
 };
 
+await check("full width and the shop filter bar: off until switched on, then the shop runs to the edges with All · categories · In stock (no numbers)", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const preview = () => page.frames().find(f => /preview=true/.test(f.url()));
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("[data-studio-label='Product grid']").first().waitFor({ timeout: 15000 });
+  if (await frame.locator(".fm-filter-bar").count()) throw new Error("the filter bar shows before it is switched on");
+  const toggle = async (label, key) => { await findStyleField(page, label, key); await page.locator(`[data-style-key="${key}"] [role=switch]`).first().click(); };
+  await toggle("full screen width", "fullWidth");
+  await preview().waitForFunction(() => { const m = document.querySelector("main"); return !!m && getComputedStyle(m).maxWidth === "100%"; }, null, { timeout: 10000 });
+  await toggle("shop filter bar beside", "showShopFilterBar");
+  await findStyleField(page, "Heading (leave empty", "catalogHeading");
+  await styleControl(page, "catalogHeading", "input").fill("Publications");
+  await findStyleField(page, "Heading case", "catalogHeadingCase");
+  await styleControl(page, "catalogHeadingCase", "select").selectOption("none");
+  const bar = frame.locator(".fm-filter-bar");
+  await bar.waitFor({ timeout: 10000 });
+  const words = (await bar.locator("button").allInnerTexts()).join(" ");
+  if (/\d/.test(words)) throw new Error(`the filter bar shows numbers: ${words}`);
+  if (!/in stock/i.test(words)) throw new Error(`no In stock button: ${words}`);
+  await preview().waitForFunction(() => { const h = document.querySelector(".fm-catalog-heading"); return !!h && getComputedStyle(h).textTransform === "none"; }, null, { timeout: 10000 });
+});
+
 await check("the default shop header follows the Header menu, link colour, sticker pills and the category limit", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const frame = page.frameLocator("iframe").first();

@@ -97,6 +97,12 @@ export const blurbFor = (group: StyleGroup | undefined, id: string): string =>
  * Keys not listed land in a final "More settings" sub-section — nothing can disappear.
  */
 export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }[]> = {
+  catalog: [
+    { title: "Heading", keys: ["catalogHeading", "catalogHeadingFont", "catalogHeadingSize", "catalogHeadingSizeMobile", "catalogHeadingCase", "catalogHeadingColor", "showCatalogCount"] },
+    { title: "Shop filter bar", keys: ["showShopFilterBar", "shopFilterBarCounts", "shopFilterBarInStock", "shopFilterBarFont", "shopFilterBarBorderColor", "shopFilterBarActiveColor"] },
+    { title: "Category chips", keys: ["showCategoryChips", "categoryChipShowCounts"] },
+    { title: "Search, sort & in-stock bar", keys: ["showCatalogControls", "searchResultLimit", "showSearchSeeAll", "showRecentSearches", "searchSuggestions"] },
+  ],
   tokens: [
     { title: "Type scale", keys: ["typeScale", "typeScaleBase", "typeScaleFluid"] },
     { title: "Spacing", keys: ["spaceUnit", "phoneSpaceScale"] },

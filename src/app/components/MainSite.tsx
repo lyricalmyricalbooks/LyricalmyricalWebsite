@@ -21,7 +21,8 @@ import { getCopy } from "../features/site/storeCopy";
 import { preorderActive } from "../features/site/preorder";
 import { comingSoonActive } from "../features/site/comingSoon";
 import { buildNavItems, categoryNames } from "../features/site/navItems";
-import { contentMaxWidth } from "../features/site/headerNav";
+import { catalogHeaderMaxWidth, contentMaxWidth } from "../features/site/headerNav";
+import { shopFilterBarCategories, shopFilterBarCounts, shopFilterBarInStock, showShopFilterBar } from "../features/site/shopFilterBar";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { StorefrontOverrides } from "../features/site/StorefrontOverrides";
 import { schemeButtonColors } from "../features/site/colorSchemes";
@@ -593,7 +594,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontDesktopColumns = Math.max(2, Math.min(6, storefrontDesign?.productColumnsDesktop ?? (isReferenceCatalog ? 3 : 4)));
   const storefrontCardRadius = Math.max(0, Math.min(30, storefrontDesign?.cardRadius ?? 8));
   const storefrontGridGap = Math.max(8, Math.min(72, storefrontDesign?.catalogGridGap ?? 20));
-  const storefrontHeaderMaxWidth = Math.max(900, Math.min(1800, storefrontDesign?.catalogHeaderWidth ?? storefrontMaxWidth));
+  const storefrontHeaderMaxWidth = catalogHeaderMaxWidth(storefrontDesign);
   const storefrontImageFit = storefrontDesign?.catalogImageFit === "contain" ? "object-contain" : "object-cover";
   const storefrontTitleTransform = (storefrontDesign?.catalogTitleTransform || (isReferenceCatalog ? "none" : "uppercase")) as any;
   const catalogImageFocalX = Math.max(0, Math.min(100, storefrontDesign?.catalogImageFocalX ?? 50));
@@ -624,6 +625,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const newBadgeLabel = storefrontDesign?.newBadgeLabel || "NEW";
   const newBadgeDays = Math.max(1, Math.min(365, storefrontDesign?.newBadgeDays ?? 30));
   const showCatalogControls = (storefrontDesign?.showCatalogControls ?? !isReferenceCatalog) || !!urlQuery;
+  // Style › Catalog page header & filters › shop filter bar (All · categories · In stock), off by default.
+  const filterBarOn = showShopFilterBar(storefrontDesign);
+  const filterBarCounts = shopFilterBarCounts(storefrontDesign);
+  const filterBarInStock = shopFilterBarInStock(storefrontDesign);
   
 
   const shopSectionSpacing = Math.max(24, Math.min(120, storefrontDesign?.sectionSpacing ?? 64));
@@ -728,19 +733,43 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             <TemplateSections design={activeDesign} templateId={onCollectionRoute ? categoryTemplateSurface(activeDesign, categories.find((c: any) => c?.id && c.id === activeCategory?.id) || activeCategory, previewTemplate()) : "storefront"} books={books} />
           </SectionPageContext.Provider>
 
-          {/* Catalog heading + title count */}
-          {(storefrontDesign?.catalogHeading || storefrontDesign?.showCatalogCount) && (
-            <div data-studio-target="style:catalog" data-studio-label="Catalog heading" className="flex items-baseline justify-between flex-wrap gap-4 mb-8">
-              {storefrontDesign?.catalogHeading && (
-                // A collection page's one <h1> is its category name (below), so the catalog heading steps down there.
-                onCollectionRoute
-                  ? <h2 className="text-3xl md:text-5xl tracking-tight m-0">{storefrontDesign.catalogHeading}</h2>
-                  : <h1 className="text-3xl md:text-5xl tracking-tight m-0">{storefrontDesign.catalogHeading}</h1>
+          {/* Catalog heading + title count, with the shop filter bar beside them (Style › Catalog page header & filters) */}
+          {(storefrontDesign?.catalogHeading || storefrontDesign?.showCatalogCount || filterBarOn) && (
+            <div data-studio-target="style:catalog" data-studio-label="Catalog heading" className={`flex justify-between flex-wrap gap-4 mb-8 ${filterBarOn ? "items-end" : "items-baseline"}`}>
+              {(storefrontDesign?.catalogHeading || storefrontDesign?.showCatalogCount) && (
+                <div className="flex items-baseline flex-wrap gap-4">
+                  {storefrontDesign?.catalogHeading && (
+                    // A collection page's one <h1> is its category name (below), so the catalog heading steps down there.
+                    onCollectionRoute
+                      ? <h2 className="fm-catalog-heading text-3xl md:text-5xl tracking-tight m-0">{storefrontDesign.catalogHeading}</h2>
+                      : <h1 className="fm-catalog-heading text-3xl md:text-5xl tracking-tight m-0">{storefrontDesign.catalogHeading}</h1>
+                  )}
+                  {storefrontDesign?.showCatalogCount && (
+                    <span className="text-xs fm-muted">
+                      {getCopy(activeDesign, filteredItems.length === 1 ? "catalogCountOne" : "catalogCountMany", { count: filteredItems.length })}
+                    </span>
+                  )}
+                </div>
               )}
-              {storefrontDesign?.showCatalogCount && (
-                <span className="text-xs fm-muted">
-                  {getCopy(activeDesign, filteredItems.length === 1 ? "catalogCountOne" : "catalogCountMany", { count: filteredItems.length })}
-                </span>
+              {filterBarOn && (
+                <div role="group" aria-label={getCopy(activeDesign, "filterBarAria")} data-studio-target="style:catalog|menus:categories|copy:Search & filters" data-studio-label="Shop filter bar" className="fm-filter-bar">
+                  {[{ name: "ALL", value: "ALL" as any }, ...shopFilterBarCategories(categories).map((c: any) => ({ name: typeof c === "string" ? c : c.name, value: c }))].map((chip: any) => {
+                    const isActive = chip.value === "ALL"
+                      ? activeCategory === "ALL"
+                      : (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === chip.name;
+                    return (
+                      <button key={chip.name} type="button" onClick={() => pickCategory(chip.value)} aria-pressed={isActive}>
+                        {chip.value === "ALL" ? getCopy(activeDesign, "catalogAllCategories") : chip.name}
+                        {filterBarCounts && ` · ${categoryChipCounts[chip.name] ?? 0}`}
+                      </button>
+                    );
+                  })}
+                  {filterBarInStock && (
+                    <button type="button" onClick={() => setInStockOnly(!inStockOnly)} aria-pressed={inStockOnly}>
+                      {getCopy(activeDesign, "filterInStock")}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}

@@ -274,7 +274,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
     group: "Catalog & empty states",
     fields: [
       { key: "catalogEmpty", label: "No results message", default: "No publications match these filters." },
-      { key: "catalogAllCategories", label: "All-categories chip", default: "ALL" },
+      { key: "catalogAllCategories", label: "All-categories chip and shop filter bar “All” button", default: "ALL" },
       { key: "catalogCountOne", label: "Title count (1)", default: "{count} title", hint: "Use {count} for the number." },
       { key: "catalogCountMany", label: "Title count (many)", default: "{count} titles", hint: "Use {count} for the number." },
     ],
@@ -425,7 +425,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "sort_price_desc", label: "Sort: price high→low", default: "Price ↓" },
       { key: "sort_title_az", label: "Sort: A→Z", default: "A → Z" },
       { key: "sort_title_za", label: "Sort: Z→A", default: "Z → A" },
-      { key: "filterInStock", label: "In-stock toggle", default: "In stock" },
+      { key: "filterInStock", label: "In-stock toggle (also the shop filter bar's “In stock” button)", default: "In stock" },
+      { key: "filterBarAria", label: "Shop filter bar name read by screen readers", default: "Filter books" },
       { key: "filterOnSale", label: "On-sale toggle", default: "On sale" },
       { key: "filterFormatLabel", label: "Format filter — heading", default: "Format" },
       { key: "filterFormat_paperback", label: "Format filter: paperback", default: "Paperback" },
