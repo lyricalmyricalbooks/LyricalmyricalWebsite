@@ -21,3 +21,11 @@ export function galleryPhotos<T>(photos: T[], showVideos: boolean): T[] {
 export function stillPhotos<T>(photos: T[]): T[] {
   return photos.filter((p) => !isVideoItem(p));
 }
+
+/** Book videos always start without sound (the shopper can unmute with the player's own control).
+ *  React doesn't reliably reflect the `muted` prop onto the element, so set it directly as well. */
+export function muteVideo(el: HTMLVideoElement | null): void {
+  if (!el) return;
+  el.defaultMuted = true;
+  el.muted = true;
+}

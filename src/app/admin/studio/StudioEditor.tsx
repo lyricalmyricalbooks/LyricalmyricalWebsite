@@ -28,6 +28,7 @@ import {
 import { menuLinksTo, redirectsAfterRename, renamePageInMenus } from "./pageRename";
 import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, schemeFieldOptions, type StyleField, type StyleGroup } from "./styleSchema";
 import { StudioColorSchemes } from "./StudioColorSchemes";
+import { StudioScalePreview } from "./StudioScalePreview";
 import { StudioAnnouncements } from "./StudioAnnouncements";
 import { StudioPages } from "./StudioPages";
 import { StudioCategories } from "./StudioCategories";
@@ -1807,6 +1808,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                     <StudioAnnouncements design={design} change={change}
                       onNotice={(text, canUndo) => say("ok", text, canUndo ? undoAction() : undefined)} />
                   </div>}
+                  {styleCategory === "tokens" && <div className="px-4 pb-4"><StudioScalePreview design={design} /></div>}
                   {styleCategory === "schemes" && <div className="px-4 pb-4">
                     <StudioColorSchemes design={design} change={change} confirm={askConfirm}
                       onNotice={(text, canUndo) => say("ok", text, canUndo ? undoAction() : undefined)} />

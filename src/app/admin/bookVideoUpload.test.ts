@@ -43,3 +43,14 @@ describe("videos in the photo list", () => {
     expect(stillPhotos([video, photo])).toEqual([photo]);
   });
 });
+
+describe("muteVideo", () => {
+  it("starts a book video without sound", async () => {
+    const { muteVideo } = await import("../features/site/bookVideo");
+    const el = { muted: false, defaultMuted: false } as unknown as HTMLVideoElement;
+    muteVideo(el);
+    expect(el.muted).toBe(true);
+    expect(el.defaultMuted).toBe(true);
+    expect(() => muteVideo(null)).not.toThrow();
+  });
+});

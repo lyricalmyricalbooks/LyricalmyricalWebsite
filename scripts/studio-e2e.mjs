@@ -435,6 +435,33 @@ await check("Media explains a library whose rules aren't deployed", desktop, asy
   await expectText(page, "The media library isn't switched on yet");
 }, "?media=denied");
 
+await check("Design scales: a heading scale reaches the preview and a section's spacing step saves", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await page.getByRole("button", { name: /^Design scales/ }).first().click();
+  const preview = page.locator("[data-studio-scale-preview]");
+  await preview.getByText(/Choose a heading size scale/).waitFor({ timeout: 5000 });
+  await page.locator('[data-style-key="typeScale"] select').selectOption("perfect-fourth");
+  await preview.getByText(/Page title \(h1\)/).waitFor({ timeout: 5000 });
+  const frame = page.frames().find(f => /preview=true/.test(f.url()));
+  if (!frame) throw new Error("no preview frame");
+  await frame.waitForFunction(() => {
+    const root = document.querySelector("[data-fm-store]");
+    return root && getComputedStyle(root).getPropertyValue("--fm-step-4").includes("clamp(");
+  }, null, { timeout: 10000 });
+  // A section picks a spacing step on its Layout tab.
+  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: /^Newsletter/ }).first().click();
+  await page.getByRole("tablist", { name: "Section settings" }).getByRole("tab", { name: "Layout" }).click();
+  await page.locator("[data-section-style-key=spacingStep] select").selectOption("l");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const saved = (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design;
+  if (saved.typeScale !== "perfect-fourth") throw new Error("the type scale was not saved");
+  if (saved.heroPage.sections.find(s => s.type === "NewsletterSection")?.settings?.spacingStep !== "l") throw new Error("the spacing step was not saved");
+});
+
 await check("a new colour scheme reaches a section in the preview, and deleting it warns", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();

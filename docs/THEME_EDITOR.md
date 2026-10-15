@@ -603,15 +603,25 @@ without a yes.
 - [x] **Breadcrumb** (`StudioBreadcrumb.tsx`) under the top bar: Page › Section › Block (or the selected built-in
   part); earlier parts step back out.
 
-### Phase 2 — Shared values with layers (Stripe Appearance API / Squarespace Site Styles / Webflow variable modes)
-- [ ] A "Design tokens" category:
-  - type scale (base size + ratio, fluid `clamp()` sizes; closes the old auto-clamp item)
-  - spacing scale
-  - corner and shadow scales
-  - named value sets ("modes", e.g. a seasonal look) that schedules and campaigns can switch.
-- [ ] Section and region number fields can point at a token instead of a raw number (stored as `{ "$token": "space.3" }`,
-  resolved like `$dyn`).
-- [ ] State rules: hover, focus and active looks for buttons, inputs, links and cards, edited in one place.
+### Phase 2 — Shared values with layers — DONE (15 October 2026)
+- [x] Theme settings › **Design scales** (`tokens` group; pure CSS in `features/site/designTokens.ts`, emitted last by
+  `storefrontOverridesCss`). Every scale is off until chosen, so an unset design renders as before.
+  - **Type scale:** ratio + base size. `typeSteps` gives `--fm-step-0…5`; with **Shrink headings smoothly** on they are
+    fluid `clamp()` sizes between 390 px and 1200 px wide. Section h1–h4 follow it; a section's own heading size still wins.
+    This closes the old "auto clamp() typography" item.
+  - **Spacing:** `--fm-space-unit` (`spaceUnit`) and a phone multiplier (`phoneSpaceScale`). Sections pick
+    Layout › Spacing › **Space above and below** (`spacingStep`: xs/s/m/l/xl = 2/4/8/12/16 units, `sectionStepCss`).
+    These are plain rules, so typed padding numbers (inline) and per-device spacing overrides (!important) still win.
+  - **Corners:** `radiusScale` sets `--fm-radius-s/m/l` and `--rp-card-radius` (buy card, order slip and the other parts
+    that read it).
+  - **States:** focus ring width (`focusRingWidth`; its colour stays Riso print treatment › Keyboard focus ring), border
+    of a field being typed in (`inputFocusColor`), and pressed buttons (`buttonPress`, only when the shopper allows motion).
+  - `StudioScalePreview.tsx` draws the scales live above the controls.
+- Deviations from the plan:
+  - Shadows already had Effects › Card shadow depth (`shadowScale`), so there is no second shadow set.
+  - Named value **modes** are not built. Scheduling & campaigns (3.5) already switch a whole design on a date, which
+    covers the seasonal case. Revisit if the owner wants modes inside one design.
+  - Section fields refer to tokens only through `spacingStep`; a general `{ "$token": … }` reference was not needed yet.
 
 ### Phase 3 — Free placement (Squarespace Fluid Engine)
 - [ ] Drag and resize Flexible composition blocks on a grid drawn over the preview, per device, snapping to the existing

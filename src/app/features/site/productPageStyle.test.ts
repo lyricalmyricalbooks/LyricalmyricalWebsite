@@ -139,3 +139,16 @@ describe("photoViewerCss (Enlarged photo viewer)", () => {
     expect(photoViewerCss({ pdpViewerShade: "red;}body{x" })).not.toContain("}body{");
   });
 });
+
+describe("thumbnails on several rows (pdpThumbWrap)", () => {
+  it("become a grid exactly as wide as the photo, on phones and computers", () => {
+    const css = productPageCss({ pdpThumbWrap: true, pdpThumbSize: 120 });
+    const grid = "display:grid;grid-template-columns:repeat(auto-fill,minmax(min(120px,100%),1fr));overflow:visible;";
+    expect(css).toContain(`.fm-pdp-media[data-thumbs="below"] .fm-pdp-rail{${grid}}`);
+    expect(css).toContain('.fm-pdp-media[data-thumbs="below"] .fm-pdp-thumb{width:100%;}');
+    expect(css).toMatch(/@media \(max-width:\d+px\)\{[^}]*\.fm-pdp-media\[data-thumbs="side"\] \.fm-pdp-rail\{display:grid;/);
+  });
+  it("leave the single scrolling row alone when off", () => {
+    expect(productPageCss({})).not.toContain("auto-fill");
+  });
+});
