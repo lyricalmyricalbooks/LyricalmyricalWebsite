@@ -35,12 +35,15 @@ const previewSnapshot = (): PreviewSnapshot | null => (isPreviewUrl() ? (window 
 const SITE_DATA_FRESH_MS = 30_000;
 let siteDataRequest: Promise<[any[], any, any]> | null = null;
 let siteDataLoadedAt = 0;
+// The last successful read, so a page mounting just after it (the server-rendered landing page) starts with it.
+let lastSiteData: [any[], any, any] | null = null;
 function loadSiteData() {
   if (!siteDataRequest || Date.now() - siteDataLoadedAt >= SITE_DATA_FRESH_MS) {
     // Infinity marks an in-flight request, which every consumer should join.
     siteDataLoadedAt = Infinity;
     siteDataRequest = readSiteData().then(result => {
       siteDataLoadedAt = Date.now();
+      lastSiteData = result;
       return result;
     }, error => {
       siteDataRequest = null;
@@ -65,9 +68,26 @@ async function readSiteData(): Promise<[any[], any, any]> {
   ]);
 }
 
+/**
+ * Starts the shop data read early (main.tsx, landing on a server-rendered page). Null when nothing needs waiting
+ * for: the Studio preview, a share preview, or this tab already has the data cached.
+ */
+export function preloadSiteData(): Promise<unknown> | null {
+  if (typeof window === "undefined" || isPreviewUrl() || inThemePreview() || readSiteCache()) return null;
+  return loadSiteData();
+}
+
+/** Data a just-finished early read already has, in the session cache's shape (never for previews). */
+function preloadedSiteData() {
+  if (!lastSiteData || isPreviewUrl() || inThemePreview()) return null;
+  const [books, settings, pages] = lastSiteData;
+  if (!Array.isArray(books) || !Array.isArray(pages) || !settings || typeof settings !== "object") return null;
+  return { books, settings: { ...settings }, pages };
+}
+
 export function useSiteData() {
   const location = useLocation();
-  const [cached] = useState(() => typeof window !== "undefined" ? readSiteCache() : null);
+  const [cached] = useState(() => typeof window !== "undefined" ? readSiteCache() || preloadedSiteData() : null);
   const snap = previewSnapshot();
   const [books, setBooks] = useState<Book[]>(snap?.books || cached?.books || []);
   const [settings, setSettings] = useState<SiteSettings>(() => {

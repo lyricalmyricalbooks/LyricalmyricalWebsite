@@ -1,7 +1,8 @@
 import { sectionSpacingCss } from "./sectionSpacing";
 import { sectionStepCss } from "../features/site/designTokens";
 import { entranceTiming, sectionMotionCss, wantsReveal } from "./sectionMotion";
-import { Component, useEffect, useRef, type ReactNode } from "react";
+import { Component, useEffect, useRef, useState, type ReactNode } from "react";
+import { arrivedPrerendered } from "../lib/prerenderedPage";
 import { m } from "motion/react";
 import { useNavigate } from "react-router";
 import * as Sections from "./SectionComponents";
@@ -165,8 +166,10 @@ function MotionWatcher({ sectionId }: { sectionId: string }) {
 
 /** Entrance animation wrapper driven by section.settings.animation. */
 function SectionReveal({ animation, enableAnimations, timing, children }: any) {
+  // Landing here as server-rendered HTML: the section is already on screen, so it doesn't animate in again.
+  const [arrived] = useState(arrivedPrerendered);
   const mode = animation || (enableAnimations ? "" : "none");
-  if (mode === "none" || mode === "" || prefersReducedMotion()) return children;
+  if (arrived || mode === "none" || mode === "" || prefersReducedMotion()) return children;
   const initials: Record<string, any> = {
     "fade-up": { opacity: 0, y: 36 },
     fade: { opacity: 0 },

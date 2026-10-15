@@ -1,5 +1,5 @@
 import { m, AnimatePresence } from "motion/react";
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Send, Heart, Zap } from "lucide-react";
 import { queryFromSearch } from "../features/site/searchResultsLink";
 import { Link, useNavigate, useLocation, useParams } from "react-router";
@@ -47,6 +47,7 @@ import { categoryTemplateSurface, previewTemplate } from "../features/site/templ
 import { regionProps } from "../features/site/storefrontRegions";
 import { SoldOutBadge, soldOutPhotoStyle } from "../features/site/SoldOutBadge";
 import { CARD_PHOTO_SIZES, photoSrcSet } from "../features/site/photoSources";
+import { arrivedPrerendered } from "../lib/prerenderedPage";
 
 const catNameForSEO = (category: any) => typeof category === "string" ? category : category?.name;
 
@@ -59,19 +60,30 @@ export function storefrontCategories(value: unknown) {
 // ──────────────────────────────
 // Image with skeleton loader
 // ──────────────────────────────
-function SkeletonImage({ src, srcSet, sizes, alt, className, style, frameStyle }: { src: string; srcSet?: string; sizes?: string; alt: string; className?: string; style?: CSSProperties; frameStyle?: CSSProperties }) {
+function SkeletonImage({ src, srcSet, sizes, alt, className, style, frameStyle, priority }: { src: string; srcSet?: string; sizes?: string; alt: string; className?: string; style?: CSSProperties; frameStyle?: CSSProperties; priority?: "high" | "eager" }) {
   const [loaded, setLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+  // A photo the browser already has (the page's own HTML loaded it, or an earlier visit) shows at once
+  // instead of fading in again from the skeleton.
+  useLayoutEffect(() => {
+    const img = imgRef.current;
+    if (img?.complete && img.naturalWidth > 0) setLoaded(true);
+  }, [src]);
   return (
     <div className="relative w-full h-full" style={frameStyle}>
       {!loaded && (
-        <div className="absolute inset-0 fm-surface-2 animate-pulse" />
+        <div data-fm-skeleton className="absolute inset-0 fm-surface-2 animate-pulse" />
       )}
       <img
+        ref={imgRef}
+        data-fm-fade
         src={src}
         srcSet={srcSet}
         sizes={sizes}
         alt={alt}
-        loading="lazy"
+        // The first row is on screen at once: fetch it straight away (the first photos first).
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority === "high" ? "high" : undefined}
         decoding="async"
         className={`${className} transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
         style={style}
@@ -365,6 +377,8 @@ ${design?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(design) : "
 // Main exported component
 // ──────────────────────────────
 export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
+  // Landing here as server-rendered HTML: the books are already on screen, so they don't fade in a second time.
+  const [skipEntrance] = useState(arrivedPrerendered);
   const navigate = useNavigate();
   const location = useLocation();
   const { formatBookPrice, convertPrice } = useCurrency();
@@ -830,7 +844,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               return (
                 <m.article
                   key={item.id || index}
-                  initial={(storefrontDesign?.enableAnimations ?? true) ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }}
+                  initial={skipEntrance ? false : (storefrontDesign?.enableAnimations ?? true) ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={(storefrontDesign?.enableAnimations ?? true)
                     // Stagger only the first rows: deep in a big catalog, cards must not sit invisible for seconds.
@@ -860,6 +874,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         src={item.photos?.[0]?.url || placeholderImage(activeDesign)}
                         {...photoSrcSet(item.photos?.[0], CARD_PHOTO_SIZES)}
                         alt={item.title}
+                        priority={index < 2 ? "high" : index < 4 ? "eager" : undefined}
                         className={`w-full h-full ${storefrontImageFit} transition-transform duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}
                         style={{ objectPosition: `${catalogImageFocalX}% ${catalogImageFocalY}%` }}
                         frameStyle={isOutOfStock && showSoldOutBadge ? soldOutPhotoStyle(storefrontDesign) : undefined}

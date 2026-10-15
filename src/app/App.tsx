@@ -15,6 +15,8 @@ import { UnderConstructionWall } from "./components/UnderConstructionWall";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { BootSplash } from "./components/BootSplash";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { endPrerenderedHandoff, prerenderedHtml, whenPrerenderedReady } from "./lib/prerenderedPage";
+import { preloadSiteData } from "./features/site/useSiteData";
 
 // import.meta.env.BASE_URL is the Vite `base` config (e.g. "/LyricalmyricalWebsite/").
 // Strip the trailing slash so React Router treats it as a basename.
@@ -25,11 +27,12 @@ const loadMotionFeatures = () => import("./lib/motionFeatures").then(m => m.defa
 
 // Lazy-loaded components for performance
 const NotFoundPage = lazy(() => import("./features/site/NotFoundPage"));
-const MainSite = lazy(() => import("./components/MainSite"));
+// Pages that can arrive as server-rendered HTML wait for the shop data on that first load (prerenderedPage.ts).
+const MainSite = lazy(whenPrerenderedReady(() => import("./components/MainSite"), preloadSiteData));
 const Dashboard = lazy(() => import("./admin/Dashboard").then(m => ({ default: m.Dashboard })));
 const Checkout = lazy(() => import("./Checkout").then(m => ({ default: m.Checkout })));
-const BookDetail = lazy(() => import("./features/site/BookDetail"));
-const PageView = lazy(() => import("./features/site/PageView").then(m => ({ default: m.PageView })));
+const BookDetail = lazy(whenPrerenderedReady(() => import("./features/site/BookDetail"), preloadSiteData));
+const PageView = lazy(whenPrerenderedReady(() => import("./features/site/PageView").then(m => ({ default: m.PageView })), preloadSiteData));
 const WishlistPage = lazy(() => import("./features/site/Wishlist"));
 const AccountPage = lazy(() => import("./features/site/Account"));
 const OrderTracking = lazy(() => import("./features/site/OrderTracking"));
@@ -41,6 +44,22 @@ function Ga4PageViews() {
     const t = window.setTimeout(ga4PageView, 400);
     return () => window.clearTimeout(t);
   }, [location.pathname, location.search]);
+  return null;
+}
+
+/** While the landing page's code and data load, keep showing its server-rendered HTML instead of the splash. */
+function PageLoading() {
+  const location = useLocation();
+  const html = prerenderedHtml(ROUTER_BASENAME + location.pathname);
+  if (html) return <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: html }} />;
+  return <BootSplash />;
+}
+
+/** The first navigation ends the hand-over from the server-rendered landing page. */
+function PrerenderedHandoff() {
+  const location = useLocation();
+  const [first] = useState(location.key);
+  useEffect(() => { if (location.key !== first) endPrerenderedHandoff(); }, [location.key, first]);
   return null;
 }
 
@@ -97,7 +116,8 @@ export default function App() {
           <CookieConsent />
           <UnderConstructionWall />
           <ThemePreviewBanner />
-          <Suspense fallback={<BootSplash />}>
+          <PrerenderedHandoff />
+          <Suspense fallback={<PageLoading />}>
                 <ShopToaster />
                 <Routes>
                   <Route path="/" element={

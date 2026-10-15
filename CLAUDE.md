@@ -1090,6 +1090,17 @@ no layout/drag); don't put CSS `transition-all`/`transition-transform` on an ele
 The prerender blocks Lite's REST writes (`documents:commit`). Check with `npx vite build`: the `index-*.js`
 entry was ~205 KB gzipped after this change.
 
+## Prerendered page hand-over (15 October 2026)
+
+The landing page's server-rendered HTML stays on screen until the app can draw the same page with data
+(`lib/prerenderedPage.ts`): `main.tsx` keeps `#root`'s HTML and starts `preloadSiteData()`; App's Suspense fallback
+(`PageLoading`) re-shows that HTML instead of `BootSplash`; `MainSite`/`BookDetail`/`PageView` are wrapped in
+`whenPrerenderedReady` (their code resolves once the shop data is in, max 5 s) and `useSiteData` starts from that read
+(`preloadedSiteData`). Pages mounted during the hand-over skip their entrance animation (`arrivedPrerendered`: MainSite
+cards, `SectionReveal`); the first navigation ends it. Never in the Studio preview or a share preview. The snapshot
+(`captureDocument`) loads Google Fonts as preload+onload (deduped) and shows SkeletonImage photos (`data-fm-fade`,
+`data-fm-skeleton` removed). The first shop cards load eagerly (`priority`, first two `fetchpriority="high"`).
+
 ## Storefront loading performance (4 October 2026)
 
 Storefront components share one catalog/settings/published-pages bootstrap request, including
