@@ -518,7 +518,8 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
         {isReferenceCatalog ? (
           <div className="mx-auto px-6 py-6" style={{ maxWidth: headerMaxWidth, color: headerTextColor }}>
             {mastheadDesktop < mastheadMobile && <style>{`.fm-ref-masthead{font-size:${mastheadMobile}px}@media(min-width:${PHONE_MAX + 1}px){.fm-ref-masthead{font-size:${mastheadDesktop}px}}`}</style>}
-            <div className={`flex items-start gap-6 ${shop.logoPosition === "right" ? "flex-row-reverse justify-between" : shop.logoPosition === "center" ? "justify-center relative" : "justify-between"}`}>
+            {/* Wraps so a long masthead never pushes the bag off a phone screen; the bag then sits on its own line. */}
+            <div className={`flex flex-wrap items-start gap-x-6 gap-y-3 ${shop.logoPosition === "right" ? "flex-row-reverse justify-between" : shop.logoPosition === "center" ? "justify-center relative" : "justify-between"}`}>
               <button
                 onClick={onHome}
                 className={`fm-ref-masthead font-black tracking-tight leading-none hover:opacity-80 transition-opacity ${shop.logoPosition === "right" ? "text-right" : shop.logoPosition === "center" ? "text-center" : "text-left"}`}
@@ -530,7 +531,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                 <button
                   onClick={() => setIsCartOpen(true)}
                   aria-label={getCopy(design, "ariaCart")}
-                  className={`flex items-center gap-2 pt-1 text-lg md:text-2xl font-black leading-none hover:opacity-70 transition-opacity ${shop.logoPosition === "center" ? "absolute right-0 top-0" : ""}`}
+                  className={`flex shrink-0 items-center gap-2 pt-1 text-lg md:text-2xl font-black leading-none whitespace-nowrap hover:opacity-70 transition-opacity ${shop.logoPosition === "center" ? "absolute right-0 top-0" : shop.logoPosition === "right" ? "" : "ml-auto"}`}
                   style={{ color: headerTextColor }}
                 >
                   <ShoppingCart size={28} strokeWidth={2.4} />

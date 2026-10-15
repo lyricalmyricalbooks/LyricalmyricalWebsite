@@ -20,7 +20,7 @@ export const CANVAS_TOOLS_SOURCE = String.raw`
   }
   var canvasMap=[],canvasDevice='desktop',canvasBar=null,spacingOverlay=null,spacingOpen=false,spacingSession=null;
   function canvasMeta(){return canvasMap.find(function(x){return x.sectionId===selected&&x.blockId===block;});}
-  function toolButton(label,fn,disabled){var b=document.createElement('button');b.type='button';b.textContent=label;b.disabled=!!disabled;b.setAttribute('aria-label',label);b.style.cssText='min-height:32px;padding:5px 8px;background:#fff;color:#111;border:1px solid #111;font:12px system-ui;cursor:pointer;';b.onclick=function(e){e.preventDefault();e.stopPropagation();fn();};return b;}
+  function toolButton(label,fn,disabled){var b=document.createElement('button');b.type='button';b.textContent=label;b.disabled=!!disabled;b.setAttribute('aria-label',label);b.style.cssText='flex-shrink:0;white-space:nowrap;min-height:32px;padding:5px 8px;background:#fff;color:#111;border:1px solid #111;font:12px system-ui;cursor:pointer;';b.onclick=function(e){e.preventDefault();e.stopPropagation();fn();};return b;}
   function overlay(role,label){var n=document.createElement('div');n.setAttribute('data-studio-overlay','');n.setAttribute('role',role);n.setAttribute('aria-label',label);document.body.appendChild(n);return n;}
   function drawCanvasTools(){
     var focusedKey=document.activeElement&&document.activeElement.getAttribute('data-spacing-key');
@@ -29,6 +29,8 @@ export const CANVAS_TOOLS_SOURCE = String.raw`
     var node=selectedNode(),meta=canvasMeta();if(mode!=='edit'||!selected||selected==='__studio-candidate'||!node||editing||spacingSession)return;
     canvasBar=overlay('toolbar',block?'Selected block actions':'Selected section actions');
     canvasBar.style.cssText='position:fixed;z-index:100000;display:flex;flex-wrap:wrap;gap:4px;max-width:calc(100vw - 16px);padding:5px;background:#fff;color:#111;border:2px solid #059669;box-shadow:2px 2px 0 #111;';
+    // Phone-width previews dock the bar at the bottom: one row that scrolls sideways, so it covers as little of the page as possible.
+    if(innerWidth<600){canvasBar.style.flexWrap='nowrap';canvasBar.style.overflowX='auto';canvasBar.style.width='calc(100vw - 16px)';}
     var action=function(name){send({type:'CONTEXT_ACTION',sectionId:selected,blockId:block,action:name});};
     canvasBar.appendChild(toolButton('Edit',function(){if(block&&meta&&!meta.actions){var field=node.querySelector('[data-theme-field]'),target=resolveTextTarget(field);if(target&&target.editable){startTextEdit(target);return;}}send({type:'SECTION_SELECT',instanceId:selected,blockId:meta&&!meta.actions?null:block});}));
     if(meta&&meta.actions){canvasBar.appendChild(toolButton('Move up',function(){action('up');},!meta.actions.up));canvasBar.appendChild(toolButton('Move down',function(){action('down');},!meta.actions.down));
