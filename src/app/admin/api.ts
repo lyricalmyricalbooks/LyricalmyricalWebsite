@@ -12,6 +12,10 @@ import { themeWrite } from "./themeWrite";
 import { draftFieldUpdate, readDraftField } from "./themeStore";
 import { splitWebsiteSecrets, splitNotificationSecrets, resendKeyProblem, type SecretPatch } from "./privateKeys";
 import { toCountryCodes } from "./shippingCountries";
+import { keepPhotoCopies, removedPhotos, shownUrls, unusedBookFiles } from "./bookFileCleanup";
+import { mediaApi } from "./mediaApi";
+/** Cache-Control for uploaded shop pictures (mirrors functions/imageCopies.js IMMUTABLE). */
+export const PUBLIC_FILE_CACHE = "public, max-age=31536000, immutable";
 
 // Blank / invalid / negative -> null (rule off); otherwise the number.
 const nonNegativeOrNull = (v: any) => {
@@ -245,6 +249,7 @@ export const adminApi = {
       }
       return { pubRemoved, privRemoved };
     };
+    let photosBefore: unknown = undefined;
     if (loaded) {
       dataToSave = await runTransaction(db, async tx => {
         const snap = await tx.get(docRef);
@@ -259,6 +264,9 @@ export const adminApi = {
         // The live book as the editor saw it: public record with the private document on top.
         const live = mergeBookPrivate(snap.data(), privSnap.exists() ? privSnap.data() : null);
         const changes = lockLinkedStock(changedBookFields(dataToSave, loaded, live), live, links, id);
+        photosBefore = live.photos;
+        // Copies the server made after the editor opened (functions/imageCopies.js) stay on the photos.
+        if ("photos" in changes) changes.photos = keepPhotoCopies(changes.photos, live.photos);
         const updatedAt = new Date().toISOString();
         const { pub, priv } = splitBookPrivate(changes);
         const { pubRemoved, privRemoved } = removalsFor(removed);
@@ -278,6 +286,9 @@ export const adminApi = {
       if (Object.keys(priv).length) await setDoc(privRef, { ...priv, updatedAt }, { mergeFields: [...Object.keys(priv), "updatedAt"] });
     }
     await adminApi.recordAuditLog("catalog", `Updated book: ${dataToSave.title}`);
+    // Photos taken off the book: their files leave Storage too (unless another book or an order shows them).
+    const gone = removedPhotos(photosBefore, dataToSave.photos);
+    if (gone.length) void adminApi.removeBookFiles(gone);
     // The pre-order switch or release date changed: paid, unsent pre-orders follow it, whichever screen saved
     // (editor, CSV import). `preorderSync` says how that went so the caller can tell the owner.
     let preorderSync: { updated: number; failed: boolean } | undefined;
@@ -321,12 +332,32 @@ export const adminApi = {
       const snap = await getDoc(doc(db, "books", id));
       const title = snap.exists() ? snap.data().title : id;
       await deleteDoc(doc(db, "books", id));
+      const photos = snap.exists() ? snap.data().photos : null;
+      if (Array.isArray(photos) && photos.length) void adminApi.removeBookFiles(photos);
       // A subcollection document outlives its parent, so the private fields are removed with the book.
       await deleteDoc(privateBookRef(id)).catch(() => {});
       await adminApi.recordAuditLog("catalog", `Deleted book: ${title}`);
     } catch (err) {
       await deleteDoc(doc(db, "books", id));
       await deleteDoc(privateBookRef(id)).catch(() => {});
+    }
+  },
+
+  /**
+   * Deletes the Storage files of photos no longer on a book (see admin/bookFileCleanup.ts). Runs after the
+   * save, never blocks it, and leaves any file another book or an order line still shows.
+   */
+  removeBookFiles: async (gone: unknown[]): Promise<string[]> => {
+    try {
+      const { getApp } = await import("firebase/app");
+      const bucket = String(getApp().options.storageBucket || "");
+      const [books, orders] = await Promise.all([adminApi.getAllBooks({ includePrivate: false }), adminApi.getAllOrders()]);
+      const paths = unusedBookFiles(gone, shownUrls(books as any[], orders as any[]), bucket);
+      const failed = await mediaApi.removeFiles(paths);
+      return paths.filter(p => !failed.includes(p));
+    } catch (error) {
+      console.warn("Could not clean up removed book photos", error);
+      return [];
     }
   },
 
@@ -375,7 +406,9 @@ export const adminApi = {
       import("firebase/app"),
     ]);
     const storageRef = ref(getStorage(getApp()), path);
-    const snapshot = await uploadBytes(storageRef, file);
+    // Every public upload path is unique (timestamp/id in the name, never overwritten), so browsers may keep
+    // the file for a year instead of Storage's default "private, max-age=0" re-download on every visit.
+    const snapshot = await uploadBytes(storageRef, file, { cacheControl: PUBLIC_FILE_CACHE });
     return await getDownloadURL(snapshot.ref);
   },
 

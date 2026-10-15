@@ -2025,6 +2025,25 @@ never rendered; kept so copies can be remade). Storefront book images spread
 `photoSrcSet(photo, CARD_PHOTO_SIZES | PDP_PHOTO_SIZES | THUMB_PHOTO_SIZES)` (`features/site/photoSources.ts`) — add it to
 any new book-photo `<img>`; photos without `srcset` render as before. No rule or Function change.
 
+## Storage bandwidth (15 October 2026)
+
+Storage is billed per download, so shoppers must never get an original photo where a copy will do.
+- **Copies for old photos:** the scheduled `storageImageSweep` (every 15 min, 1 GiB, `functions/imageCopies.js`, sharp) gives
+  every book photo with no `srcset` (the 10 October import) WebP copies beside the original (`<name>-<w>w.webp`, ladder
+  480/640/960/1600/2400/3200 capped at the original width, q82 up to 960, q95 above; a copy heavier than the original is
+  replaced by the original itself) and adds `srcset`/`width`/`height` in a transaction. It never deletes, overwrites or changes
+  `url`. Progress and unreadable pictures: admin-only `systemStatus/imageCopies`. Keep its ladder equal to `BOOK_PHOTO_WIDTHS` /
+  `bookPhotoQuality` (`admin/prepareImage.ts`), which new uploads use.
+- **Caching:** every shop upload path is unique, so pictures/videos carry `Cache-Control: public, max-age=31536000, immutable`
+  (`PUBLIC_FILE_CACHE` in `adminApi.uploadFile`, the video upload, server copies); the same sweep stamps it on older objects
+  (skips `backups/`, `digital-assets/`). Never upload to a path that is later overwritten.
+- **Small pictures:** fixed-size thumbnails (bag/checkout lines, search, bag suggestion, sticky bar, bundle covers) use
+  `smallPhotoUrl(photo, minWidth)` (`features/site/photoSources.ts`); responsive ones spread `photoSrcSet` (`FEATURE_PHOTO_SIZES` for
+  featured/spotlight sections). Never render `photos[n].url` directly for a shopper.
+- **Removed photos:** `adminApi.updateBook` deletes the `products/` files of photos a save took off (and `deleteBook` those of the
+  book) through `removeBookFiles` (`admin/bookFileCleanup.ts`), unless another book, edition, sharing image or order line shows
+  them; library pictures (assets/) are never deleted. A save keeps server-made copies (`keepPhotoCopies`).
+
 ## Book videos (15 October 2026)
 
 Books › edit › Images › **Add video** (or drop a video on the images) adds MP4/WebM/MOV files (≤ `MAX_BOOK_VIDEO_BYTES` 50 MB,

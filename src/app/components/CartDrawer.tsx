@@ -22,6 +22,7 @@ import { bagFreeShipThreshold, shippableBagTotal } from "../features/site/freeSh
 let shippingProfilesLoad: Promise<any[] | null> | null = null;
 const loadShippingProfiles = () => (shippingProfilesLoad ||= publicApi.getShippingProfiles().catch(() => { shippingProfilesLoad = null; return null; }));
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
+import { smallPhotoUrl } from "../features/site/photoSources";
 
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
 // features/site/cartDrawerStyle.ts); its words are Studio › Text & labels › Cart.
@@ -279,7 +280,7 @@ export function CartDrawer() {
                   <p className="fm-bag-meta mb-4">{getCopy(design, "cartUpsellHeading")}</p>
                   <div className="fm-bag-upsell flex gap-4 p-4 items-center">
                     <div className="fm-bag-thumb" style={{ width: "56px" }}>
-                      {recommendedBook.photos?.[0]?.url && <img loading="lazy" decoding="async" src={recommendedBook.photos[0].url} alt="" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />}
+                      {recommendedBook.photos?.[0]?.url && <img loading="lazy" decoding="async" src={smallPhotoUrl(recommendedBook.photos[0])} alt="" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="fm-bag-name">{recommendedBook.title}</h3>

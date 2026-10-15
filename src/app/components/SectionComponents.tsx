@@ -18,7 +18,7 @@ import { pickBook, sectionBookQuery, selectBooks } from "../features/site/mercha
 import { aspectRatioValue } from "../features/site/imageAspect";
 import { ResponsiveImage } from "./ResponsiveImage";
 import { mediaKey } from "../features/site/mediaRef";
-import { CARD_PHOTO_SIZES, photoSrcSet } from "../features/site/photoSources";
+import { CARD_PHOTO_SIZES, photoSrcSet, FEATURE_PHOTO_SIZES, smallPhotoUrl } from "../features/site/photoSources";
 import { shopInstant } from "../features/site/shopTime";
 
 // ──────────────────────────────
@@ -1182,7 +1182,7 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
               className={`aspect-[3/4] overflow-hidden rounded-2xl bg-white/5 ${hoverEffectClassName(settings.hoverEffect)}`}
               style={hoverEffectGlowStyle(settings.hoverEffect, settings.accentColor)}
             >
-              {photo ? <img src={photo} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
+              {photo ? <img src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
             </div>
             <div className="space-y-5">
               <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow ?? fb("FeaturedProductSection.eyebrow")}</p>
@@ -2700,7 +2700,7 @@ export function BookSpotlightSection({ settings, books, onProductClick, enableAn
         <AnimationContainer enabled={enableAnimations}>
           <div className="fm-card grid md:grid-cols-2 gap-10 items-center">
             <div className={`fm-photo-frame aspect-[3/4] overflow-hidden bg-white/5 ${coverRight ? "md:order-2" : ""}`}>
-              {photo ? <img src={photo} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
+              {photo ? <img src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
             </div>
             <div className="space-y-5">
               {eyebrow && <p className="text-[10px] font-bold tracking-[0.3em] uppercase" style={{ color: settings.accentColor || "var(--accent, #e8402a)" }} data-theme-field="eyebrow">{eyebrow}</p>}
@@ -2885,7 +2885,7 @@ export function StickyAddToBagSection({ settings }: any) {
   const quick = quickAddChoice(book);
   const needsChoice = variants.length > 1 || (Array.isArray(book.addOns) && book.addOns.length > 0) || book.preorder === true || book.comingSoon === true || book.productType === "giftCard";
   const soldOut = !needsChoice && !quick.inStock;
-  const photo = book.photos?.[0]?.url;
+  const photo = smallPhotoUrl(book.photos?.[0], 96);
   const act = () => {
     if (needsChoice) { document.querySelector(".fm-pdp-card")?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
     if (addToCart(book, quick.variant)) { setAdded(true); window.setTimeout(() => setAdded(false), 2500); }
