@@ -30,6 +30,7 @@ export type SearchTarget =
 export type ContextCommandId =
   | "section-duplicate" | "section-delete" | "section-up" | "section-down" | "section-hide" | "section-show"
   | "section-copy" | "section-copy-style" | "section-paste-style" | "section-move-page" | "section-save"
+  | "block-add" | "block-copy" | "block-paste"
   | "element-theme" | "element-close";
 
 export type SearchKind = "action" | "page" | "section" | "style" | "text" | "menu" | "area" | "element" | "book";
@@ -306,6 +307,8 @@ export function contextCommands(ctx: {
   section?: { id: string; label: string; visible: boolean; first: boolean; last: boolean };
   element?: { label: string; hasTheme: boolean };
   canPasteStyle?: boolean;
+  /** Block library 3.0: the selected section takes blocks / a block is selected / the copied block fits here. */
+  blocks?: { takesBlocks: boolean; blockLabel?: string; canPaste: boolean };
 }): SearchEntry[] {
   const out: SearchEntry[] = [];
   const cmd = (id: ContextCommandId, title: string, where: string, keywords: string, keys?: ShortcutAction) =>
@@ -323,6 +326,11 @@ export function contextCommands(ctx: {
     cmd("section-move-page", "Move this section to another page", where, "transfer relocate");
     cmd("section-save", "Save this section for reuse", where, "preset library saved sections");
     cmd("section-delete", "Delete this section", where, "remove trash", "delete");
+    if (ctx.blocks?.takesBlocks) {
+      cmd("block-add", "Add a block to this section", where, "block picker new insert content");
+      if (ctx.blocks.blockLabel) cmd("block-copy", `Copy the selected block (${ctx.blocks.blockLabel})`, where, "clipboard block duplicate another section");
+      if (ctx.blocks.canPaste) cmd("block-paste", "Paste the copied block here", where, "clipboard block insert");
+    }
   }
   if (ctx.element) {
     const where = `Selected part › ${ctx.element.label}`;

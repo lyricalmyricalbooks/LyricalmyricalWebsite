@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { Link } from "react-router";
 import { getCopy } from "./storeCopy";
 import { navActiveColor } from "./headerNav";
+import { elementScheme } from "./colorSchemes";
 
 export type NavDropdownEntry = { key: string; label: string; active?: boolean; to?: string; onSelect?: () => void };
 
@@ -19,8 +20,13 @@ function resolved(el: Element, prop: string): string {
 }
 
 /** What the header gives its links that a body portal would lose: font family/size/weight and `--nav-fit`. */
-export function headerInheritance(el: Element): CSSProperties {
+/** Colour variables a header colour scheme sets on the header (colorSchemes.schemeVars). */
+const SCHEME_VARS = ["--bg-color", "--text-color", "--border-color", "--link-color", "--accent", "--on-accent", "--muted", "--surface", "--fg-rgb", "--border-rgb", "--accent-rgb", "--muted-rgb", "--surface-rgb"];
+
+export function headerInheritance(el: Element, schemeColours = false): CSSProperties {
   const style: Record<string, string> = {};
+  // While the header follows a colour scheme (Theme settings › Colour schemes › Header), the panel takes its colours too.
+  if (schemeColours) for (const name of SCHEME_VARS) { const v = resolved(el, name); if (v) style[name] = v; }
   const fit = resolved(el, "--nav-fit");
   if (fit) style["--nav-fit"] = fit;
   const family = resolved(el, "font-family");
@@ -64,13 +70,14 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
   const closeTimer = useRef<number | undefined>(undefined);
   const hoverOpenedAt = useRef(0);
 
+  const headerScheme = elementScheme(design, "header");
   const items = design?.navDropdownHideAll ? entries : [{ ...all, label: getCopy(copyDesign ?? design, "navDropdownAll") }, ...entries];
   const studioHooks = studioTarget ? { "data-studio-target": "menus:categories|style:navlinks", "data-studio-label": "Category drop-down" } : {};
 
   const place = () => {
     const r = btnRef.current?.getBoundingClientRect();
     if (r) setPos({ top: r.bottom + 10, left: Math.max(8, r.left - 12) });
-    if (btnRef.current) setInherited(headerInheritance(btnRef.current));
+    if (btnRef.current) setInherited(headerInheritance(btnRef.current, Boolean(headerScheme)));
   };
   useLayoutEffect(() => { if (open) place(); }, [open]);
 
@@ -132,7 +139,7 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
     }
   };
 
-  const borderColor = design?.navDropdownBorderColor || design?.borderColor || "rgba(var(--border-rgb, 177, 177, 170), 1)";
+  const borderColor = design?.navDropdownBorderColor || (headerScheme ? "var(--border-color)" : design?.borderColor) || "rgba(var(--border-rgb, 177, 177, 170), 1)";
   const panelStyle: CSSProperties = {
     position: "fixed",
     top: pos?.top ?? 0,
@@ -140,7 +147,7 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
     zIndex: 70,
     minWidth: 180,
     ...inherited,
-    backgroundColor: design?.navDropdownBg || design?.headerBg || design?.backgroundColor || "var(--background)",
+    backgroundColor: design?.navDropdownBg || (headerScheme ? "var(--bg-color)" : design?.headerBg) || design?.backgroundColor || "var(--background)",
     // data-fm-store brings the theme variables, not the page's print-grain backdrop.
     backgroundImage: "none",
     border: `${Math.max(0, Math.min(8, Number(design?.navDropdownBorderWidth ?? 4)))}px solid ${borderColor}`,

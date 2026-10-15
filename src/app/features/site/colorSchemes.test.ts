@@ -13,6 +13,7 @@ import {
 import { storefrontOverridesCss } from "./StorefrontOverrides";
 import { cartDrawerCss } from "./cartDrawerStyle";
 import { productPageCss } from "./productPageStyle";
+import { footerStyleCss } from "./footerStyle";
 
 vi.mock("react-quill", () => ({ default: () => null }));
 vi.mock("react-quill/dist/quill.snow.css", () => ({}));
@@ -117,7 +118,7 @@ describe("colour schemes 2.0", () => {
 
   it("styles book cards, the buy card and the bag only when a scheme is picked for them", () => {
     expect(schemeCss({ colorSchemes: [noir] })).not.toContain(".fm-card");
-    const css = schemeCss({ colorSchemes: [noir], elementSchemes: { cards: noir.id, buyCard: noir.id, cartDrawer: noir.id } });
+    const css = schemeCss({ colorSchemes: [noir], elementSchemes: { cards: noir.id, buyCard: noir.id, cartDrawer: noir.id, header: noir.id, footer: noir.id } });
     for (const t of Object.values(ELEMENT_SCHEME_TARGETS)) expect(css).toContain(`${t.selector}{--bg-color:#000000;`);
     expect(css).toContain(":where(.fm-card){background-color:var(--bg-color);color:var(--text-color);}");
     // A legacy scheme picked for an element uses every role (elements never had schemes before).
@@ -126,6 +127,24 @@ describe("colour schemes 2.0", () => {
     expect(legacy).toContain(".fm-bag[data-fm-store]{background-color:var(--bg-color) !important;}");
     expect(legacy).not.toContain("[data-scheme");
     expect(schemeCss({ colorSchemes: [noir], elementSchemes: { cards: "scheme-gone" } })).not.toContain(".fm-card");
+  });
+
+  it("puts the header and footer on a scheme only when one is picked for them", () => {
+    expect(schemeCss({ colorSchemes: [noir] })).not.toContain("data-fm-header");
+    const css = schemeCss({ colorSchemes: [noir], elementSchemes: { header: noir.id, footer: noir.id } });
+    expect(css).toContain("header[data-fm-header]{--bg-color:#000000;");
+    expect(css).toContain("footer[data-fm-footer]{--bg-color:#000000;");
+    expect(css).toContain(":where(header[data-fm-header]){color:var(--text-color);}");
+    expect(schemeCss({ colorSchemes: [noir], elementSchemes: { header: "scheme-gone" } })).not.toContain("data-fm-header");
+  });
+
+  it("replaces the footer's own colour keys while it follows a scheme", () => {
+    const own = { footerTextColor: "#123456", footerHeadingColor: "#654321", footerDividerColor: "#abcdef" };
+    expect(footerStyleCss(own)).toContain("#123456");
+    const schemed = footerStyleCss({ ...own, colorSchemes: [noir], elementSchemes: { footer: noir.id } });
+    for (const c of ["#123456", "#654321", "#abcdef"]) expect(schemed).not.toContain(c);
+    // A missing scheme leaves the footer's own colours alone.
+    expect(footerStyleCss({ ...own, colorSchemes: [noir], elementSchemes: { footer: "scheme-gone" } })).toContain("#123456");
   });
 
   it("replaces the bag's, buy card's and card text's own colours while they follow a scheme", () => {

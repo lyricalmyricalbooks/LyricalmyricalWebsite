@@ -11,6 +11,7 @@ import { GroupedFooterNavigation } from "../../components/GroupedFooterNavigatio
 import { FooterMenu } from "../../components/StoreMenu";
 import { wordmarkSecondaryStyle } from "../../components/LogoMark";
 import { footerLinksAlign, footerStyleCss } from "./footerStyle";
+import { elementScheme } from "./colorSchemes";
 
 // ──────────────────────────────
 // Payment gateway icons for footer
@@ -97,7 +98,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
     <footer {...regionProps("footerPanel")} data-fm-footer=""
       data-studio-target="style:footer|style:catalogElements|copy:Footer" data-studio-label="Footer"
       className="border-t-2 border-white/30 bg-black/40"
-      style={d?.footerBg ? { backgroundColor: d.footerBg } : undefined}
+      style={elementScheme(d, "footer") ? { backgroundColor: "var(--bg-color)", color: "var(--text-color)" } : d?.footerBg ? { backgroundColor: d.footerBg } : undefined}
     >
       <style>{footerStyleCss(d)}</style>
       {/* One padded column: the top band, legal row and bottom bar share the same left/right edge, and the

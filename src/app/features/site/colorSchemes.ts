@@ -185,6 +185,8 @@ export const ELEMENT_SCHEME_TARGETS = {
   cards: { label: "Book cards", selector: ".fm-card" },
   buyCard: { label: "Product page buy card", selector: ".fm-pdp-card" },
   cartDrawer: { label: "Shopping bag", selector: ".fm-bag[data-fm-store]" },
+  header: { label: "Header", selector: "header[data-fm-header]" },
+  footer: { label: "Footer", selector: "footer[data-fm-footer]" },
 } as const;
 export type ElementSchemeTarget = keyof typeof ELEMENT_SCHEME_TARGETS;
 

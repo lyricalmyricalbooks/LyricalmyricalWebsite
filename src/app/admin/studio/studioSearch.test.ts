@@ -147,3 +147,16 @@ describe("book results use the storefront's collision-safe routes", () => {
     expect(idx.filter(e => e.kind === "book").map(e => (e.target as any).slug)).toEqual(["b1", "b2", "no-slug-yet"]);
   });
 });
+
+describe("block commands (Block library 3.0)", () => {
+  it("offers add, copy and paste only when they apply", async () => {
+    const { contextCommands } = await import("./studioSearch");
+    const section = { id: "s", label: "Flexible composition", visible: true, first: true, last: true };
+    const titles = (blocks: any) => contextCommands({ section, blocks }).map(e => e.title).filter(t => /block/i.test(t));
+    expect(titles({ takesBlocks: false, canPaste: false })).toEqual([]);
+    expect(titles({ takesBlocks: true, canPaste: false })).toEqual(["Add a block to this section"]);
+    expect(titles({ takesBlocks: true, blockLabel: "Text", canPaste: true })).toEqual([
+      "Add a block to this section", "Copy the selected block (Text)", "Paste the copied block here",
+    ]);
+  });
+});

@@ -654,11 +654,26 @@ without a yes.
 - [x] **Play this section's motion** (Style tab card) posts `MOTION_REPLAY` to the preview.
 - Not done: motion per individual block (it is per section, applied to its blocks) and a timeline editor.
 
-### Phase 5 — Block library 3.0 (Shopify Horizon)
-- [ ] Block-level copy and paste across sections.
-- [ ] A block picker with a live preview of each block.
-- [ ] A "new page from a template" gallery in Pages.
-- [ ] Colour schemes for the header and footer (2.5 leftover); the `page` picker for Theme settings link fields (2.3 leftover).
+### Phase 5 — Block library 3.0 (Shopify Horizon) — DONE (15 October 2026)
+- [x] **Copy block / Paste copied block** (inspector Content tab card `block-clipboard`, Find anything block commands;
+  `studio/blockLibrary.ts` `copyBlock` / `canPasteBlock` / `pasteBlock`). A block pastes into a section of the **same
+  type** (not merely the same block type: two section types can share a block type with different fields). Fresh ids;
+  linked shared blocks stay linked; grid/responsive placement comes along. Each paste is one named change.
+- [x] **Block picker** (`studio/StudioBlockPicker.tsx`, a panel like Add section): opened by the outline's **Add <block>**,
+  the inspector's **Add block…** and the canvas toolbar's **+ Block** (`ADD_BLOCK` now opens it). Choices from
+  `blockChoices`: Text / Picture / Button / Group for Flexible composition, "New <block>" elsewhere, copies of blocks
+  already in the section, compatible shared blocks and the clipboard. Pointing at one adds a preview-only
+  `__studio-block-candidate` (`withBlockCandidate`, never saved) and scrolls to it ("Preview · not added yet").
+- [x] **New page from a starter** (`studio/pageStarters.ts`): Studio › Pages › New page shows Blank, About, Shipping &
+  returns, FAQ, Contact, Submissions and Journal. Starters are headings + [bracketed prompts] (no invented facts) and open
+  as **drafts** with a free slug; nothing is saved until Save.
+- [x] **Header and footer colour schemes**: `ELEMENT_SCHEME_TARGETS` `header` (`header[data-fm-header]`) and `footer`
+  (`footer[data-fm-footer]`). While one is picked, StoreHeader/StoreFooter paint from `var(--bg-color)` /
+  `var(--text-color)` / `var(--border-color)` and `footerStyleCss` skips the footer's own colour keys.
+- [x] Theme settings link fields use the link picker (`StyleField` kind `link`; `cartDrawerEmptyLink`); a test refuses a
+  new address-like Style field typed as plain text.
+- Not done: live thumbnails rendered from the real block (the picker's pictures are code-drawn; the live preview is the
+  page itself), and Page-section starters (starters fill the page body, not `page:<slug>` sections).
 
 ### Phase 6 — Brand kit & setup wizard (Squarespace Blueprint)
 - [ ] Logo → palette drawn from its colours → personality (bookish / bold / minimal) → fonts + preset → a starter Home

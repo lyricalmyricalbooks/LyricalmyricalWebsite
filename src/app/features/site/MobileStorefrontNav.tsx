@@ -3,6 +3,7 @@ import { accountsEnabled } from "./customerAccounts";
 import { Link, useLocation } from "react-router";
 import { navActiveColor } from "./headerNav";
 import { NavDropdown } from "./NavDropdown";
+import { elementScheme } from "./colorSchemes";
 import { CurrencySelector } from "../../CurrencyContext";
 import { splitNavigation, buildNavItems } from "./navItems";
 import { getCopy } from "./storeCopy";
@@ -79,7 +80,7 @@ function MobileNavTabs({ design, d, groups, showThemeToggle, pathname, slug }: {
       const on = t.key === activeKey || t.children.some(c => c.key === activeKey);
       return <NavDropdown key={t.key} design={d} copyDesign={design} label={t.label}
         className={`min-h-11 shrink-0 border-b-2 font-semibold ${on ? "" : "border-transparent opacity-80"}`}
-        linkStyle={on ? { color: navActiveColor(d), borderColor: "currentColor" } : { color: d.navLinkColor || d.headerColor || "var(--text)" }}
+        linkStyle={on ? { color: navActiveColor(d), borderColor: "currentColor" } : { color: d.navLinkColor || (elementScheme(d, "header") ? "currentColor" : d.headerColor) || "var(--text)" }}
         all={{ key: `${t.key}:all`, label: t.label, to: t.to, active: t.key === activeKey }}
         entries={t.children.map(c => ({ ...c, active: c.key === activeKey }))} />;
     }

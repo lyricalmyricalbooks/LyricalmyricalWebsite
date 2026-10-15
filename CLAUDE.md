@@ -407,7 +407,12 @@ rotate/size/see-through = `block.responsive[device]` (`compositionLook`).
 **Motion (3.0 phase 4):** section › Style › Motion (`components/sectionMotion.ts`: `revealBlocks`, `staggerStep`, `motionDuration`,
 `motionDelay`, `blockHover`, `parallax`, `sticky`, `stickyTop`, `motionOffOnPhones`). Blocks hide only while `MotionWatcher` has
 armed the section (`data-motion="armed"`); never under reduced motion; Page animations off removes it. Studio's **Play this
-section's motion** posts `MOTION_REPLAY`. The rest of the Studio 3.0 roadmap (tokens, free placement, motion,
+section's motion** posts `MOTION_REPLAY`.
+**Block library (3.0 phase 5):** add blocks through the picker (`studio/StudioBlockPicker.tsx`, choices + clipboard + the
+preview-only `__studio-block-candidate` in `studio/blockLibrary.ts`; outline Add <block>, inspector Add block…, canvas + Block).
+Copy/paste blocks only between sections of the same type. Studio › Pages › New page offers starters (`studio/pageStarters.ts`,
+drafts with [prompts]). Header/footer follow `elementSchemes.header` / `.footer` (`data-fm-header`, `data-fm-footer`); a
+Theme settings address field is `kind: "link"` (picker), never `text`. The rest of the Studio 3.0 roadmap (tokens, free placement, motion,
 block library, brand wizard, site-wide Health; AI/languages/A-B need the owner's go-ahead) is in `docs/THEME_EDITOR.md`.
 
 Studio is a Shopify-style theme editor under `/admin`. **Read

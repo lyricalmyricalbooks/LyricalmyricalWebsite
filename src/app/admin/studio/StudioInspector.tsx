@@ -13,7 +13,7 @@ import { blockLabel } from "./StudioOutline";
 import { autoFitSection, resetPhoneLayout } from "./autoMobile";
 import { layerOrder, setBlockGrid, shiftLayer } from "./gridPlacement";
 
-export function StudioInspector({ section, blockId, colorSchemes, device, sharedBlocks, onSaveShared, onPatchShared, onInsertShared, onPatch, onSelectBlock, onDuplicate, onDelete, onToggle, onClose, onNotice, arranging = false, onArrange, onReplayMotion }: {
+export function StudioInspector({ section, blockId, colorSchemes, device, sharedBlocks, onSaveShared, onPatchShared, onInsertShared, onPatch, onSelectBlock, onDuplicate, onDelete, onToggle, onClose, onNotice, arranging = false, onArrange, onReplayMotion, onAddBlock, onCopyBlock, canPasteBlock = false, onPasteBlock }: {
   section: Section; blockId: string | null; colorSchemes: any[];
   device: "desktop" | "tablet" | "mobile"; sharedBlocks: SharedBlock[];
   onSaveShared: (blockId: string, name: string) => void; onInsertShared: (shared: SharedBlock) => void;
@@ -25,6 +25,8 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   arranging?: boolean; onArrange?: (on: boolean) => void;
   /** Plays this section's motion again in the preview (3.0 phase 4). */
   onReplayMotion?: () => void;
+  /** Block library 3.0: open the block picker, copy a block, and paste the copied block (after a block, or at the end). */
+  onAddBlock?: () => void; onCopyBlock?: (blockId: string) => void; canPasteBlock?: boolean; onPasteBlock?: (afterId: string | null) => void;
 }) {
   const [tab, setTab] = useState<"content" | SectionTab>("content");
   const [askText, promptNode] = usePrompt();
@@ -111,6 +113,15 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
     <div className="studio-inspector-body">
       {(tab === "content" || tab === "style") && <input className="studio-search" aria-label={`Search ${tab} settings`} placeholder="Find a setting…" value={search} onChange={e => setSearch(e.target.value)} />}
       {tab === "content" && <>
+        {(onAddBlock || onCopyBlock || onPasteBlock) && meta?.blockType && !search && <div className="studio-control-card" data-studio-panel="block-clipboard">
+          <strong>{block ? "This block" : meta?.blockLabel ? `${meta.blockLabel}s` : "Blocks"}</strong>
+          <div className="studio-inline-actions">
+            {!block && onAddBlock && <button className="studio-link-button" onClick={onAddBlock}>Add block…</button>}
+            {block && onCopyBlock && <button className="studio-link-button" onClick={() => onCopyBlock(block.id)}>Copy block</button>}
+            {onPasteBlock && <button className="studio-link-button" disabled={!canPasteBlock} title={canPasteBlock ? undefined : "Copy a block from a section of this kind first"}
+              onClick={() => onPasteBlock(block ? block.id : null)}>{block ? "Paste copied block after this one" : "Paste copied block"}</button>}
+          </div>
+        </div>}
         {!block && section.type === "CompositionSection" && <div className="studio-control-card" data-studio-panel="grid-arrange">
           <strong>Arrange on the page · {device}</strong>
           <p className="studio-hint">Drag blocks on the grid in the preview to move them; drag a block's corner to resize it. Arrow keys move the focused block one cell, Shift + arrows resize it. Placement is kept for each screen size.</p>

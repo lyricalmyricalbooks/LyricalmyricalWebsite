@@ -21,6 +21,7 @@ import { getPublishedBooks } from "./selectors";
 import { getCopy } from "./storeCopy";
 import { useStudioOverlay } from "./studioOverlay";
 import { activeAnnouncements } from "./sectionGroups";
+import { elementScheme } from "./colorSchemes";
 import { GroupSections } from "../../components/sectionRender";
 import { PopupSections } from "./PopupSections";
 import type { Book, Page } from "./types";
@@ -341,8 +342,10 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
     () => buildNavItems(categories, pages, storefront.navOrder),
     [categories, pages, storefront.navOrder],
   );
-  const headerColor = storefront.headerColor || storefront.textColor || "var(--text)";
-  const headerBg = storefront.headerBg || storefront.backgroundColor || "var(--background)";
+  // Theme settings › Colour schemes › Header: while the header follows a scheme, its colours replace the header's own.
+  const scheme = elementScheme(storefront, "header");
+  const headerColor = scheme ? "var(--text-color)" : storefront.headerColor || storefront.textColor || "var(--text)";
+  const headerBg = scheme ? "var(--bg-color)" : storefront.headerBg || storefront.backgroundColor || "var(--background)";
   const maxWidth = contentMaxWidth(storefront);
   const showAdmin = !storefront.hideAdminLink && (storefront.headerLinks?.showSys ?? true);
 
@@ -374,13 +377,14 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
         data-section="navigation"
         data-studio-target="style:header|menus:header-order|copy:Header"
         data-studio-label="Header"
+        data-fm-header=""
         className={`${storefront.stickyHeader ?? true ? "sticky top-0" : "relative"} z-50`}
         style={{ backgroundColor: headerBg, color: headerColor }}
       >
         <div ref={rowRef} className="fm-hdr-row mx-auto flex flex-nowrap items-center justify-between gap-4 px-6 py-4" style={{ maxWidth, color: headerColor }}>
           <div className="flex min-w-0 flex-1 items-center gap-8 md:gap-12">
             <Link to="/" data-hdr-fixed className="flex shrink-0 items-center" aria-label={getCopy(design, "logoAlt")}>
-              <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefront} /></span>
+              <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={scheme ? { ...storefront, logoColor: undefined } : storefront} /></span>
             </Link>
             {!navBelow && navBar}
           </div>
@@ -479,9 +483,12 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const showAnnouncement = sf?.showAnnouncement ?? !isReferenceCatalog;
   const announcementShown = showAnnouncement && activeAnnouncements({ ...sf, announcementText: sf?.announcementText ?? shop.announcement }).length > 0;
 
-  const headerTextColor = isHeaderTransparent ? storefrontText : (sf?.headerColor || storefrontText);
-  const headerBgColor = isHeaderTransparent ? "transparent" : (sf?.headerBg || `${storefrontBg}${(sf?.headerStyle || "minimal") === "full" ? "f5" : "b3"}`);
-  const headerBorderColor = isHeaderTransparent ? "transparent" : (sf?.headerColor ? `${sf.headerColor}1a` : `${storefrontText}1a`);
+  // Theme settings › Colour schemes › Header: while the header follows a scheme, its colours replace the header's own
+  // (a transparent header stays see-through until the page scrolls).
+  const headerScheme = elementScheme(sf, "header");
+  const headerTextColor = headerScheme ? "var(--text-color)" : isHeaderTransparent ? storefrontText : (sf?.headerColor || storefrontText);
+  const headerBgColor = isHeaderTransparent ? "transparent" : headerScheme ? "var(--bg-color)" : (sf?.headerBg || `${storefrontBg}${(sf?.headerStyle || "minimal") === "full" ? "f5" : "b3"}`);
+  const headerBorderColor = isHeaderTransparent ? "transparent" : headerScheme ? "var(--border-color)" : (sf?.headerColor ? `${sf.headerColor}1a` : `${storefrontText}1a`);
   const activeName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
 
   const navBar = (
@@ -500,7 +507,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   );
   const logo = (
     <button onClick={onHome} style={{ color: headerTextColor }} data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center">
-      <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={shop.logoDesign} /></span>
+      <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={headerScheme ? { ...shop.logoDesign, logoColor: undefined } : shop.logoDesign} /></span>
     </button>
   );
   const cartAmount = cartTotal > 0 ? formatPrice(cartTotal) : formatPrice(Number(sf?.catalogCartTotalPlaceholder ?? 0));
@@ -512,6 +519,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
       <header
         data-section="navigation"
         data-studio-target="style:header|menus:header-order|copy:Header" data-studio-label="Header"
+        data-fm-header=""
         className={`${sf?.stickyHeader ?? true ? "sticky" : "relative"} ${announcementShown ? "top-10" : "top-0"} z-50 transition-all duration-500 ${isHeaderTransparent ? "border-transparent" : isReferenceCatalog ? "" : "backdrop-blur-xl border-b"}`}
         style={{ backgroundColor: headerBgColor, borderColor: headerBorderColor }}
       >
@@ -523,7 +531,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
               <button
                 onClick={onHome}
                 className={`fm-ref-masthead font-black tracking-tight leading-none hover:opacity-80 transition-opacity ${shop.logoPosition === "right" ? "text-right" : shop.logoPosition === "center" ? "text-center" : "text-left"}`}
-                style={{ color: sf?.logoColor || headerTextColor, textTransform: sf?.brandTransform || "none", fontSize: mastheadDesktop < mastheadMobile ? undefined : `clamp(${mastheadMobile}px, 5vw, ${mastheadDesktop}px)` }}
+                style={{ color: (!headerScheme && sf?.logoColor) || headerTextColor, textTransform: sf?.brandTransform || "none", fontSize: mastheadDesktop < mastheadMobile ? undefined : `clamp(${mastheadMobile}px, 5vw, ${mastheadDesktop}px)` }}
               >
                 <span data-studio-target="style:catalogLayout|style:logo" data-studio-label="Masthead" data-studio-style-text="catalogMastheadText">{mastheadText}</span>
               </button>
@@ -541,7 +549,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                 </button>
               )}
             </div>
-            <div className="mt-6" style={{ borderTop: `${headerRuleWidth}px solid ${sf?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
+            <div className="mt-6" style={{ borderTop: `${headerRuleWidth}px solid ${(!headerScheme && sf?.borderColor) || headerBorderColor || "#B1B1AA"}` }} />
             <div data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className="py-5 flex flex-wrap items-center text-base font-black" style={{ columnGap: navGapDesktop, rowGap: navGapMobile }}>
               {referenceNavCategories(categories, sf).map((cat: any, index: number) => {
                 const catName = typeof cat === "string" ? cat : cat.name;
@@ -585,7 +593,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                 </button>
               )}
             </div>
-            <div style={{ borderTop: `${headerRuleWidth}px solid ${sf?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
+            <div style={{ borderTop: `${headerRuleWidth}px solid ${(!headerScheme && sf?.borderColor) || headerBorderColor || "#B1B1AA"}` }} />
           </div>
         ) : (
           <div ref={headerRowRef} className="fm-hdr-row mx-auto px-6 py-4 flex flex-nowrap items-center justify-between gap-4" style={{ maxWidth }}>
