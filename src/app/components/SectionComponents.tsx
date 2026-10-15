@@ -1,3 +1,4 @@
+import { backgroundImageValue } from "../features/site/backgroundSources";
 import { m, useMotionValue, useSpring } from "motion/react";
 import { quickAddChoice } from "../features/site/buyable";
 import { displayPrice, showsSale } from "../features/site/displayPrice";
@@ -165,7 +166,8 @@ function bgStyle(s: any): Record<string, any> {
   if (s.bgGradientFrom || s.bgGradientTo) return { backgroundColor: s.bgGradientFrom || s.bgGradientTo };
   if (s.bgImageUrl) {
     return {
-      backgroundImage: `url(${s.bgImageUrl})`,
+      // Library pictures read a screen-sized copy from --fm-bg-img (features/site/backgroundSources.ts).
+      backgroundImage: backgroundImageValue(s),
       backgroundSize: s.bgImageSize || "cover",
       backgroundPosition: s.bgImagePosition || "center",
       backgroundRepeat: "no-repeat",

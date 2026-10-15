@@ -1,7 +1,7 @@
 // Theme actions › Studio Health (3.3): checks the page shown in the preview (healthAudit.ts) plus the whole draft's
 // data checks (studioChecks.ts). Each finding can be shown on the page and its part opened for editing. Read-only:
 // nothing is changed until the owner edits the part.
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Dialog, SecondaryButton, StatusBadge } from "../riso/components";
 import { CATEGORY_LABELS, summarise, type HealthFinding } from "./healthAudit";
 
@@ -18,6 +18,8 @@ type BodyProps = {
   runKey?: unknown;
   /** Told how many things need fixing after each check (null = the preview wasn't ready). */
   onResult?: (issues: number | null) => void;
+  /** "Check every page" (StudioSiteHealth), shown under this page's results. */
+  site?: ReactNode;
 };
 type Props = BodyProps & { open: boolean; onClose: () => void };
 
@@ -62,13 +64,14 @@ export function HealthFindings(p: BodyProps) {
         </p>}
         {issues.length > 0 && <section><h3>Fix before publishing</h3><ul className="studio-health-list">{issues.map(row)}</ul></section>}
         {tips.length > 0 && <section><h3>Worth a look</h3><ul className="studio-health-list">{tips.map(row)}</ul></section>}
+        {p.site}
         <section>
-          <h3>Every page of this draft</h3>
+          <h3>Settings checks across the whole draft</h3>
           <ul className="studio-health-list">
             {p.designResults.map((r, i) => <li key={i} className="studio-health-item"><div><span className="studio-health-cat">{r.tone === "warn" ? "⚠ Check" : "✓ OK"}</span><span>{r.text}</span></div></li>)}
           </ul>
         </section>
-        <p className="studio-hint">Health checks the page shown in the preview. Switch the page or the phone size in the top bar and choose Check again to cover the rest.</p>
+        <p className="studio-hint">Check again covers the page shown in the preview; Check every page covers the rest of the shop at the same size. Switch the size in the top bar to check phones.</p>
       </div>
   );
 }

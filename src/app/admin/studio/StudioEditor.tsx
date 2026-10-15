@@ -71,6 +71,8 @@ import { StudioRail } from "./StudioRail";
 import { MediaPickerDialog, StudioMediaPanel, useMediaLibrary } from "./StudioMedia";
 import { StudioHistory, versionName, type ThemeVersion } from "./StudioHistory";
 import { HealthFindings, StudioHealth } from "./StudioHealth";
+import { SiteHealthPanel, useSiteHealth } from "./StudioSiteHealth";
+import { healthRoutes, loadSiteHistory, saveSiteHistory, siteHistoryKey, type HealthRoute, type SiteFinding } from "./siteHealth";
 import { StudioWorkbench, type ChangeRow, type WorkbenchTab } from "./StudioWorkbench";
 import { setupChecklist, type SetupItem } from "./setupChecklist";
 import { StudioBreadcrumb } from "./StudioBreadcrumb";
@@ -970,10 +972,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     postPreview({ type: "SELECT_NODE", key: el.key, scroll });
   };
   // ── Studio Health (3.3): audit the page the preview rendered ─────────────────────────────────
-  const runHealth = (): HealthFinding[] | null => {
-    const doc = iframeRef.current?.contentDocument;
-    if (!doc?.body || !doc.defaultView) return null;
-    const known = {
+  /** Slugs that exist, so Health can spot links to missing books, pages and collections. */
+  const healthKnown = () => ({
       books: new Set(books.flatMap((b: any) => [b.slug, b.id].filter(Boolean).map(String))),
       // Published custom pages, plus the shop policy pages (/page/policy-<key>; the footer only links the written ones).
       pages: new Set([
@@ -982,8 +982,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       ]),
       ...(Array.isArray(design.categories) && design.categories.length
         ? { collections: new Set(["publications", ...categoryOptions(design.categories).map(o => slugify(o.value))]) } : {}),
-    };
-    try { return auditDocument(doc, doc.defaultView, { device, base: import.meta.env.BASE_URL, known }); }
+  });
+  const runHealth = (): HealthFinding[] | null => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc?.body || !doc.defaultView) return null;
+    try { return auditDocument(doc, doc.defaultView, { device, base: import.meta.env.BASE_URL, known: healthKnown() }); }
     catch (err) { console.warn("[Studio] health check failed", err); return null; }
   };
   /** Opens a section wherever it lives (a page or a shared group), as clicking it in the preview does. */
@@ -1007,7 +1010,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setTimeout(() => { el.style.outline = previous; el.style.outlineOffset = offset; }, 2400);
     say("ok", `Showing: ${f.title}`, { label: "Back to Health", run: openHealth });
   };
-  const fixFinding = (f: HealthFinding) => {
+  const fixFinding = (f: HealthFinding | SiteFinding) => {
     if (!f.owner) return;
     setChecksOpen(false);
     if (f.owner.sectionId && openSectionAnywhere(f.owner.sectionId)) return;
@@ -1024,6 +1027,48 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setWorkbench({ open: true, tab });
     if (tab === "health") setHealthRun(n => n + 1);
   };
+  // ── Check every page (3.0 phase 7): each kind of shop page in a hidden preview, using the unsaved draft ──
+  const siteHistoryStore = siteHistoryKey(import.meta.env.BASE_URL, auth.currentUser?.uid || "local-preview");
+  const [siteHistory] = useState(() => loadSiteHistory(siteHistoryStore));
+  const previewHref = (path: string) => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}${path}${path.includes("?") ? "&" : "?"}preview=true`;
+  const site = useSiteHealth({
+    routes: () => healthRoutes({ design: designRef.current, books, pages, policies: settings?.policies, collections: previewCollections }),
+    snapshot: () => { try { return buildPreviewState(settings, designRef.current, withDraftPage(pages, draftPage), books); } catch { return null; } },
+    urlFor: previewHref, device, width: parseInt(DEVICE_W[device], 10),
+    options: () => ({ base: import.meta.env.BASE_URL, known: healthKnown() }),
+    history: siteHistory, onHistory: h => saveSiteHistory(siteHistoryStore, h),
+  });
+  // After "Open this page", check the page again once the canvas has loaded it (and open a part waiting for it).
+  const afterOpenRef = useRef<{ element?: ElementRef } | null>(null);
+  useEffect(() => {
+    if (previewStatus !== "ready" || !afterOpenRef.current) return;
+    const pending = afterOpenRef.current; afterOpenRef.current = null;
+    const t = setTimeout(() => { setHealthRun(n => n + 1); if (pending.element) openElement(pending.element, true); }, 900);
+    return () => clearTimeout(t);
+  }, [previewStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Shows a checked page on the canvas; false (and a new tab) when Studio has no template for it (policy pages). */
+  const openHealthPage = (r: HealthRoute, then?: ElementRef) => {
+    const route = previewRoute(previewHref(r.path), import.meta.env.BASE_URL, { showHero: designRef.current?.showHero !== false });
+    if (!route || !templates.some(t => t.id === route.templateId)) { window.open(previewHref(r.path), "_blank"); return false; }
+    if (samePreviewPage(previewHref(r.path), previewUrlRef.current)) { if (then) openElement(then, true); else setHealthRun(n => n + 1); return true; }
+    afterOpenRef.current = { element: then };
+    setShowGlobal(false); setSelectedId(null); setBlockId(null); setSelectedElement(null);
+    setTemplateId(route.templateId);
+    if (route.product) setProductSlug(route.product);
+    if (route.collection) setCollectionSlug(route.collection);
+    setMobilePanel("preview");
+    return true;
+  };
+  // A part found on another page: a section opens wherever it lives; a built-in part needs its page on the canvas first.
+  const fixSiteFinding = (f: SiteFinding, route?: HealthRoute) => {
+    if (!f.owner) return;
+    if (f.owner.sectionId && findSectionOwner(designRef.current, f.owner.sectionId)) { fixFinding(f); return; }
+    const el: ElementRef = { key: f.owner.key, label: f.owner.label || "This part", target: f.owner.target, region: f.owner.region || undefined };
+    setChecksOpen(false);
+    if (route) openHealthPage(route, el); else openElement(el, true);
+  };
+  const runSiteHealth = () => { openHealth(); void site.start(); };
+  const sitePanel = <SiteHealthPanel site={site} onOpenPage={r => { setChecksOpen(false); return openHealthPage(r); }} onFix={fixSiteFinding} />;
   // After a publish, the live design is what Health should describe: check again if its tab is showing.
   const publishedRef = useRef(published);
   useEffect(() => {
@@ -1681,6 +1726,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "workbench-changes": openWorkbench("changes"); break;
       case "workbench-setup": openWorkbench("setup"); break;
       case "brand-kit": openBrandKit(); break;
+      case "site-health": runSiteHealth(); break;
       case "preview-tab": openPreviewTab(); break;
       case "undo": stepHistory("undo"); break;
       case "redo": stepHistory("redo"); break;
@@ -2160,9 +2206,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const sinceLive = useMemo(() => changesOpen ? summariseDiff(diffDesigns(normalizeForDiff(published), normalizeForDiff(deferredDesign), diffContext)) : null,
     [changesOpen, published, deferredDesign, normalizeForDiff, diffContext]);
   const setupItems = useMemo(() => setupChecklist({
-    design, defaults, policies: settings?.policies, phoneChecked: phoneSeen, healthIssues,
+    design, defaults, policies: settings?.policies, phoneChecked: phoneSeen, healthIssues, siteIssues: site.history.length ? site.history[site.history.length - 1].issues : null,
     published: settings?.design || publishedNow ? published : null,
-  }), [design, defaults, settings, phoneSeen, healthIssues, publishedNow, published]);
+  }), [design, defaults, settings, phoneSeen, healthIssues, site.history, publishedNow, published]);
   const goSetup = (item: SetupItem) => {
     const go = item.go;
     if (!go) return;
@@ -2182,7 +2228,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       healthIssues={healthIssues}
       health={<HealthFindings run={runHealth} runKey={healthRun + 1} onResult={setHealthIssues}
         pageLabel={showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label} deviceLabel={REGION_DEVICE_LABELS[device].toLowerCase()}
-        designResults={workbench.open && workbench.tab === "health" ? [...designChecks(design), designSize(design)] : []} onShow={showFinding} onFix={fixFinding} />}
+        designResults={workbench.open && workbench.tab === "health" ? [...designChecks(design), designSize(design)] : []} onShow={showFinding} onFix={fixFinding} site={sitePanel} />}
       changes={{ rows: changeRows, onJump: jumpHistory, sinceLive, blocked: inlineEditing ? "Finish the text edit in the preview first" : null }}
       setup={{ items: setupItems, onGo: goSetup }} />
   );
@@ -2374,8 +2420,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <p className="text-sm">{confirmAction === "publish" ? "These changes will become visible to shoppers immediately:" : "These draft changes will be permanently replaced by the current live design:"}</p>
           <ul className="list-disc pl-5 text-sm space-y-1">{confirmAction !== null && publishSummary(confirmAction === "publish" ? published : design, confirmAction === "publish" ? design : published).map(x => <li key={x}>{x}</li>)}</ul>
           {confirmAction === "publish" && publishHealth && <p className="studio-health-publish" data-publish-health>
-            <ShieldCheck size={14} aria-hidden /> Studio Health checked {template.label} on {REGION_DEVICE_LABELS[device].toLowerCase()} only (other pages and sizes were not checked): {publishHealth.text}
-            {(publishHealth.issues > 0 || publishHealth.tips > 0) && <button type="button" className="studio-link-button" onClick={() => { setConfirmAction(null); openHealth(); }}>Review</button>}
+            <ShieldCheck size={14} aria-hidden /> {site.report && site.ranAt?.device === device && !site.running
+              ? <>Studio Health checked {template.label} on {REGION_DEVICE_LABELS[device].toLowerCase()}: {publishHealth.text}. Every page ({site.report.totals.checked} checked at {new Date(site.ranAt.at).toLocaleTimeString()}): {site.report.totals.issues ? `${site.report.totals.issues} to fix` : "nothing to fix"}.</>
+              : <>Studio Health checked {template.label} on {REGION_DEVICE_LABELS[device].toLowerCase()} only (other pages and sizes were not checked): {publishHealth.text}</>}
+            {(publishHealth.issues > 0 || publishHealth.tips > 0 || (site.report?.totals.issues ?? 0) > 0) && <button type="button" className="studio-link-button" onClick={() => { setConfirmAction(null); openHealth(); }}>Review</button>}
           </p>}
           <div className="flex justify-end gap-2"><button className={btn} onClick={() => setConfirmAction(null)}>Cancel</button>{confirmAction === "publish" && <button className={btn} onClick={() => { setConfirmAction(null); setSchedule({ themeId: null }); }}>Schedule instead…</button>}<button className={confirmAction === "publish" ? btnPrimary : `${btn} border-red-300 text-red-700`} disabled={busy !== null || Boolean(inlineEditing)} title={busy !== null ? "Still saving — wait a moment" : inlineEditing ? "Finish the preview text edit first" : undefined} onClick={() => { const action = confirmAction; setConfirmAction(null); action === "publish" ? publish() : discard(); }}>{confirmAction === "publish" ? "Publish now" : "Discard draft"}</button></div>
         </div>
@@ -2396,7 +2444,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       </Dialog>
       <StudioHealth open={checksOpen} onClose={() => setChecksOpen(false)} run={runHealth}
         pageLabel={showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label} deviceLabel={REGION_DEVICE_LABELS[device].toLowerCase()}
-        designResults={checksOpen ? [...designChecks(design), designSize(design)] : []} onShow={showFinding} onFix={fixFinding} />
+        designResults={checksOpen ? [...designChecks(design), designSize(design)] : []} onShow={showFinding} onFix={fixFinding} site={sitePanel} />
       <StudioSchedule open={!!schedule} onClose={() => setSchedule(null)} draft={design} savedThemes={savedThemes} initialThemeId={schedule?.themeId}
         api={{ list: () => adminApi.listThemeSchedule() as any, add: async entry => {
           // The live values of the fields edited outside Publish, so the scheduler can keep later live edits (functions/themeSchedule.js).

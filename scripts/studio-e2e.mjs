@@ -990,6 +990,38 @@ await check("Studio Health checks the previewed page, shows a finding and opens 
   if (!/Studio Health checked Home on desktop only/.test(await line.textContent())) throw new Error(`publish line reads "${await line.textContent()}"`);
 });
 
+await check("Check every page: audits each kind of page in a hidden preview, Stop works, Open this page switches the canvas", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("menuitem", { name: "Studio Health" }).click();
+  const wb = page.locator("[data-studio-workbench]");
+  const panel = wb.locator("[data-studio-site-health-panel]");
+  await panel.waitFor({ timeout: 5000 });
+  // Stop ends a run part-way and removes the hidden page.
+  await panel.getByRole("button", { name: "Check every page" }).click();
+  await panel.getByRole("button", { name: "Stop" }).click();
+  await panel.getByRole("button", { name: /^Check every page/ }).waitFor({ timeout: 15000 });
+  await page.waitForFunction(() => !document.querySelector("iframe[data-studio-site-health]"), null, { timeout: 5000 });
+  // A full run lists Home, a book page and a custom page, each with its own count.
+  await panel.getByRole("button", { name: /^Check every page/ }).click();
+  await panel.getByText(/Checking \d+ of \d+/).waitFor({ timeout: 5000 });
+  await panel.locator("[data-site-health-summary]").waitFor({ timeout: 5000 });
+  await panel.getByRole("button", { name: "Stop" }).waitFor({ state: "detached", timeout: 240000 });
+  for (const id of ["home", "book:default", "wishlist", "404"]) await panel.locator(`[data-site-page="${id}"]`).waitFor({ timeout: 2000 });
+  if (!(await panel.locator('[data-site-page^="page:"]').count())) throw new Error("no custom page was checked");
+  const summary = await panel.locator("[data-site-health-summary]").textContent();
+  if (!/pages? checked/.test(summary)) throw new Error(`summary reads "${summary}"`);
+  if (await page.locator("iframe[data-studio-site-health]").count()) throw new Error("a hidden page was left behind");
+  if (!(await page.evaluate(() => Object.keys(localStorage).some(k => k.startsWith("studio-site-health-v1:"))))) throw new Error("the run wasn't remembered");
+  // Nothing was written while checking.
+  if ((await calls(page)).some(c => c.method === "saveDesign")) throw new Error("checking every page wrote the design");
+  // Open this page shows the book page on the canvas.
+  const book = panel.locator('[data-site-page="book:default"]');
+  if (!(await book.locator("details").getAttribute("open"))) await book.locator("summary").click();
+  await book.getByRole("button", { name: "Open this page" }).click();
+  await page.waitForFunction(() => /\/books\//.test(document.querySelector('iframe[title="Live preview"]')?.getAttribute("src") || ""), null, { timeout: 10000 });
+});
+
 await check("Workbench: W opens it, Changes jumps back through edits, Setup's Show me opens Theme settings, G then T switches workspace", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const wb = page.locator("[data-studio-workbench]");

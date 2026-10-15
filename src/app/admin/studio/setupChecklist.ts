@@ -23,6 +23,8 @@ export type SetupInput = {
   /** Session facts: the phone preview was opened, Health ran with this many issues (null = not run). */
   phoneChecked?: boolean;
   healthIssues?: number | null;
+  /** Things to fix found by the last complete "Check every page" run in this browser (null = never run). */
+  siteIssues?: number | null;
 };
 
 const filled = (v: unknown) => typeof v === "string" ? v.trim() !== "" : v != null && v !== false;
@@ -56,8 +58,8 @@ export function setupChecklist(i: SetupInput): SetupItem[] {
       done: writtenPolicies === POLICY_KEYS.length },
     { id: "phone", title: "Look at your shop on a phone", detail: "Most shoppers visit on a phone. Switch the preview to phone size.",
       done: Boolean(i.phoneChecked), go: { kind: "device", device: "mobile" } },
-    { id: "health", title: "Run Studio Health with nothing to fix", detail: "Checks contrast, picture descriptions, links and tap targets.",
-      done: i.healthIssues === 0, go: { kind: "health" } },
+    { id: "health", title: "Run Studio Health with nothing to fix", detail: "Checks contrast, picture descriptions, links and tap targets: on the page in the preview, or every page at once with Check every page.",
+      done: i.healthIssues === 0 || i.siteIssues === 0, go: { kind: "health" } },
     { id: "publish", title: "Publish your design", detail: "Shoppers only see what you publish.",
       done: Boolean(i.published), go: { kind: "publish" } },
   ];
