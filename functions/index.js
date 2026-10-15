@@ -6687,6 +6687,15 @@ exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", timeoutSe
   if (out.error) console.error("inventoryLinkSweep:", out.error);
 });
 
+// The storefront's catalog file stays in use only while nothing it holds has changed (functions/catalogVersion.js).
+const catalogChanged = source => async event => {
+  try { await require("./catalogVersion").bumpCatalogVersion(db, admin.firestore.FieldValue, `${source}/${Object.values(event.params || {})[0] || ""}`); }
+  catch (err) { console.error("catalogVersion: could not record a change:", err.message); throw err; }
+};
+exports.catalogVersionBooks = onDocumentWritten({ document: "books/{bookId}", retry: true }, catalogChanged("books"));
+exports.catalogVersionPages = onDocumentWritten({ document: "pages/{pageId}", retry: true }, catalogChanged("pages"));
+exports.catalogVersionSettings = onDocumentWritten({ document: "settings/website", retry: true }, catalogChanged("settings"));
+
 // Storage bandwidth (October 2026): book photos still served only as their original get resized WebP copies
 // (srcset), and pictures/videos get a year-long Cache-Control header (functions/imageCopies.js). Additive:
 // no file is deleted or overwritten. Once everything is done a run reads the status doc and recent books only.

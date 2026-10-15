@@ -42,12 +42,23 @@ export const publicApi = {
   // unpublished draft or My themes (older documents may still carry them) in shopper state or cache.
   getPublicSettings: async () => {
     const snap = await getDoc(doc(liteDb, "settings", "website"));
-    const merged: any = { ...defaultSettings(), ...(snap.exists() ? snap.data() : {}) };
+    return publicApi.publicSettingsFrom(snap.exists() ? snap.data() : null);
+  },
+
+  /** settings/website's data (null when there is none) as shoppers get it; shared by the catalog file path. */
+  publicSettingsFrom: (data: Record<string, any> | null) => {
+    const merged: any = { ...defaultSettings(), ...(data || {}) };
     delete merged.draftDesign;
     delete merged.savedThemes;
     delete merged.scheduledPublish; // older client-side schedules; the server scheduler publishes now (Studio 3.5)
     if (merged.design) merged.design = withRisoNoirDefault(merged.design);
     return merged;
+  },
+
+  /** When a book, page or settings/website last changed (functions/catalogVersion.js); decides if the catalog file is current. */
+  getCatalogVersion: async () => {
+    const snap = await getDoc(doc(liteDb, "settings", "catalogVersion"));
+    return snap.exists() ? snap.data() : null;
   },
 
   /** A shared preview link (Studio 3.4): readable by its exact token while unexpired (firestore.rules), never listed. */
@@ -71,8 +82,11 @@ export const publicApi = {
   getPublishedPages: async (): Promise<Page[]> => {
     const q = query(collection(liteDb, "pages"), where("status", "==", "published"));
     const snap = await getDocs(q);
-    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
-    return docs.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return publicApi.sortPages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  },
+
+  sortPages: (docs: any[]): Page[] => {
+    return [...docs].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   },
 
   // Storefront (thank-you page, /track): the order record only. Guests may read an
