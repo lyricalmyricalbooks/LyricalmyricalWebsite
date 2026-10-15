@@ -45,6 +45,7 @@ import { designNumber } from "../features/site/designNumber";
 import { resolveMainDesign } from "../features/site/surfaceDesign";
 import { categoryTemplateSurface, previewTemplate } from "../features/site/templateAlternates";
 import { regionProps } from "../features/site/storefrontRegions";
+import { collectionIntro } from "../features/site/collectionIntro";
 import { SoldOutBadge, soldOutPhotoStyle } from "../features/site/SoldOutBadge";
 import { CARD_PHOTO_SIZES, photoSrcSet } from "../features/site/photoSources";
 import { arrivedPrerendered } from "../lib/prerenderedPage";
@@ -731,7 +732,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           {(storefrontDesign?.catalogHeading || storefrontDesign?.showCatalogCount) && (
             <div data-studio-target="style:catalog" data-studio-label="Catalog heading" className="flex items-baseline justify-between flex-wrap gap-4 mb-8">
               {storefrontDesign?.catalogHeading && (
-                <h1 className="text-3xl md:text-5xl tracking-tight m-0">{storefrontDesign.catalogHeading}</h1>
+                // A collection page's one <h1> is its category name (below), so the catalog heading steps down there.
+                onCollectionRoute
+                  ? <h2 className="text-3xl md:text-5xl tracking-tight m-0">{storefrontDesign.catalogHeading}</h2>
+                  : <h1 className="text-3xl md:text-5xl tracking-tight m-0">{storefrontDesign.catalogHeading}</h1>
               )}
               {storefrontDesign?.showCatalogCount && (
                 <span className="text-xs fm-muted">
@@ -777,7 +781,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
           {/* Category Header */}
           <AnimatePresence mode="wait">
-            {activeCategory && (activeCategory.description || activeCategory.imageUrl) && (
+            {activeCategory && activeCategory !== "ALL" && (activeCategory.description || activeCategory.imageUrl || onCollectionRoute) && (
               <m.div
                 key={activeCategory.id || activeCategory.name}
                 initial={{ opacity: 0, y: 10 }}
@@ -793,14 +797,24 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   </div>
                 )}
                 <div className="max-w-3xl">
-                  <h2 {...regionProps("categoryBannerTitle")} className="text-3xl md:text-5xl font-bold tracking-tighter mb-4 uppercase">
-                    {activeCategory.name}
-                  </h2>
-                  {activeCategory.description && (
-                    <p {...regionProps("categoryBannerText")} className="text-sm md:text-base text-white/60 leading-relaxed font-medium">
-                      {activeCategory.description}
-                    </p>
+                  {/* On /collections/<slug> the category name is the page's single <h1> (in the prerendered HTML too). */}
+                  {onCollectionRoute ? (
+                    <h1 {...regionProps("categoryBannerTitle")} className="text-3xl md:text-5xl font-bold tracking-tighter mb-4 uppercase">
+                      {activeCategory.name}
+                    </h1>
+                  ) : (
+                    <h2 {...regionProps("categoryBannerTitle")} className="text-3xl md:text-5xl font-bold tracking-tighter mb-4 uppercase">
+                      {activeCategory.name}
+                    </h2>
                   )}
+                  {(() => {
+                    const intro = onCollectionRoute ? collectionIntro(activeDesign, collectionSlug, activeCategory) : activeCategory.description;
+                    return intro ? (
+                      <p {...regionProps("categoryBannerText")} className="text-sm md:text-base text-white/60 leading-relaxed font-medium">
+                        {intro}
+                      </p>
+                    ) : null;
+                  })()}
                 </div>
               </m.div>
             )}

@@ -38,6 +38,9 @@ it('uses unique catalog routes, escapes XML, excludes private and draft pages, a
   expect(result.xml).not.toContain('/account');
   expect(result.xml).not.toContain('/wishlist');
   expect(result.robots).toContain('Disallow: /shop/admin');
+  // /cart answers noindex; disallowing it would hide that from Google.
+  expect(result.robots).not.toContain('/cart');
+  expect(result.xml).not.toContain('/cart');
   expect(result.robots).toContain('Sitemap: https://example.com/shop/sitemap.xml');
 });
 

@@ -56,6 +56,8 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
     return `  <url>\n    <loc>${escapeXml(url.loc)}</loc>${lastmod}${images}\n  </url>`;
   }).join('\n') + '\n</urlset>\n';
   const path = new URL(base).pathname.replace(/\/$/, '');
-  const robots = 'User-agent: *\nAllow: /\n' + ['admin', 'checkout', 'account', 'wishlist', 'cart', 'track'].map(route => `Disallow: ${path}/${route}\n`).join('') + `\nSitemap: ${base}/sitemap.xml\n`;
+  // /cart is left crawlable on purpose: it answers with noindex (header + meta), which Google can only see
+  // on a URL robots.txt lets it fetch.
+  const robots = 'User-agent: *\nAllow: /\n' + ['admin', 'checkout', 'account', 'wishlist', 'track'].map(route => `Disallow: ${path}/${route}\n`).join('') + `\nSitemap: ${base}/sitemap.xml\n`;
   return { xml, robots, count: unique.length };
 }
