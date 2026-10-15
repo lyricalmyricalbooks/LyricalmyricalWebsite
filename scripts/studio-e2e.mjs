@@ -435,6 +435,24 @@ await check("Media explains a library whose rules aren't deployed", desktop, asy
   await expectText(page, "The media library isn't switched on yet");
 }, "?media=denied");
 
+await check("Motion: blocks set to appear as you scroll get the motion CSS, and Play this section's motion replays it", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: /^Flexible composition/ }).first().click();
+  await page.getByRole("tablist", { name: "Section settings" }).getByRole("tab", { name: "Style" }).click();
+  await page.locator("[data-section-style-key=revealBlocks] select").selectOption("fade-up");
+  const frame = page.frames().find(f => /preview=true/.test(f.url()));
+  if (!frame) throw new Error("no preview frame");
+  await frame.waitForFunction(() => [...document.querySelectorAll("style")].some(s => s.textContent.includes('[data-motion="armed"] [data-fm-block]{opacity:0')), null, { timeout: 10000 });
+  const sectionId = await frame.evaluate(() => document.querySelector("[data-motion-watch]")?.parentElement?.getAttribute("data-fm-section"));
+  if (!sectionId) throw new Error("the section has no motion watcher");
+  // Replay: the section is armed (blocks hidden) and then shown again.
+  await frame.evaluate(id => { window.__motionSeen = []; const el = document.querySelector(`[data-fm-section="${id}"]`); new MutationObserver(() => window.__motionSeen.push(el.getAttribute("data-motion"))).observe(el, { attributes: true, attributeFilter: ["data-motion"] }); }, sectionId);
+  await page.locator("[data-studio-panel='motion-preview']").getByRole("button", { name: "Play this section's motion" }).click();
+  await frame.waitForFunction(() => (window.__motionSeen || []).includes("armed") && window.__motionSeen.at(-1) === "shown", null, { timeout: 5000 });
+  await frame.waitForFunction(id => getComputedStyle(document.querySelector(`[data-fm-section="${id}"] [data-fm-block]`)).opacity === "1", sectionId, { timeout: 5000 });
+});
+
 await check("Arrange on page: a Flexible composition block moves on the grid by keyboard and by dragging, and Undo restores it", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Add section" }).first().click();

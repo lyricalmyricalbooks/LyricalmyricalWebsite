@@ -403,7 +403,11 @@ width, field focus border, pressed buttons. All off until chosen; a section's ow
 **Arrange on page (3.0 phase 3):** Flexible composition › Content › *Arrange on the page* → Studio posts `GRID_ARRANGE`; the
 preview's `studio/gridBridge.ts` overlay (move area, resize corner, arrow keys) answers `GRID_PLACE` in pixels and
 `studio/gridPlacement.ts` (`applyGridMessage`) writes `block.grid[device]` as one undoable change. Layers = `grid[device].z`;
-rotate/size/see-through = `block.responsive[device]` (`compositionLook`). The rest of the Studio 3.0 roadmap (tokens, free placement, motion,
+rotate/size/see-through = `block.responsive[device]` (`compositionLook`).
+**Motion (3.0 phase 4):** section › Style › Motion (`components/sectionMotion.ts`: `revealBlocks`, `staggerStep`, `motionDuration`,
+`motionDelay`, `blockHover`, `parallax`, `sticky`, `stickyTop`, `motionOffOnPhones`). Blocks hide only while `MotionWatcher` has
+armed the section (`data-motion="armed"`); never under reduced motion; Page animations off removes it. Studio's **Play this
+section's motion** posts `MOTION_REPLAY`. The rest of the Studio 3.0 roadmap (tokens, free placement, motion,
 block library, brand wizard, site-wide Health; AI/languages/A-B need the owner's go-ahead) is in `docs/THEME_EDITOR.md`.
 
 Studio is a Shopify-style theme editor under `/admin`. **Read
