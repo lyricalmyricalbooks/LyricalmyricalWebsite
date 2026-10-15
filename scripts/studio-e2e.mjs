@@ -1017,7 +1017,8 @@ await check("Check every page: audits each kind of page in a hidden preview, Sto
   if ((await calls(page)).some(c => c.method === "saveDesign")) throw new Error("checking every page wrote the design");
   // Open this page shows the book page on the canvas.
   const book = panel.locator('[data-site-page="book:default"]');
-  if (!(await book.locator("details").getAttribute("open"))) await book.locator("summary").click();
+  // Open the row directly: an open <details> has open="" (falsy), so toggling on the attribute would close it.
+  await book.locator("details").evaluate(d => { d.open = true; });
   await book.getByRole("button", { name: "Open this page" }).click();
   await page.waitForFunction(() => /\/books\//.test(document.querySelector('iframe[title="Live preview"]')?.getAttribute("src") || ""), null, { timeout: 10000 });
 });
