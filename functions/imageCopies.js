@@ -20,7 +20,7 @@ const crypto = require("crypto");
 const BOOK_PHOTO_WIDTHS = [480, 640, 960, 1600, 2400, 3200];
 /** Card-sized copies (≤ 960 px) are lighter; product-page copies keep the sharp 0.95 of PR #589. */
 const CARD_COPY_MAX = 960;
-const qualityFor = w => (w <= CARD_COPY_MAX ? 82 : 95);
+const qualityFor = w => (w <= CARD_COPY_MAX ? 90 : 95);
 const IMMUTABLE = "public, max-age=31536000, immutable";
 const FAILED_RETRY_MS = 7 * 24 * 3600 * 1000;
 const FULL_SCAN_MS = 24 * 3600 * 1000;

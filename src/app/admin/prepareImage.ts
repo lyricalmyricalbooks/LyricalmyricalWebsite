@@ -48,13 +48,13 @@ export const MEDIA_QUALITY = 0.88;
 // quality: the product page photo is up to 900 px wide, which a 3x phone or retina laptop draws
 // with ~2700 real pixels, and the full-screen photo viewer can use the 3200 px copy. Shop cards and
 // phones download a small copy (`srcset`): the card-sized copies (≤ 960 px, plus a 640 px one for
-// retina phones and laptops) are saved at 0.82, which halves their weight with no visible change at
-// card size — Storage bandwidth is billed per download (October 2026). functions/imageCopies.js makes
+// retina phones and laptops) are saved at 0.90 (0.82 smoothed printed grain on covers), still far lighter than
+// 0.95 — Storage bandwidth is billed per download (October 2026). functions/imageCopies.js makes
 // the same copies for photos uploaded before these existed; keep the two ladders equal.
 export const BOOK_PHOTO_WIDTHS = [480, 640, 960, 1600, 2400, 3200] as const;
 export const BOOK_PHOTO_QUALITY = 0.95;
 export const BOOK_CARD_COPY_MAX = 960;
-export const BOOK_CARD_QUALITY = 0.82;
+export const BOOK_CARD_QUALITY = 0.9;
 /** The quality a book photo copy of this width is saved at. */
 export const bookPhotoQuality = (width: number) => (width <= BOOK_CARD_COPY_MAX ? BOOK_CARD_QUALITY : BOOK_PHOTO_QUALITY);
 /** Largest edge of a book photo uploaded as one file (when the browser can't make the copies). */

@@ -48,7 +48,7 @@ import { categoryTemplateSurface, previewTemplate } from "../features/site/templ
 import { regionProps } from "../features/site/storefrontRegions";
 import { collectionIntro } from "../features/site/collectionIntro";
 import { SoldOutBadge, soldOutPhotoStyle } from "../features/site/SoldOutBadge";
-import { CARD_PHOTO_SIZES, photoSrcSet } from "../features/site/photoSources";
+import { gridPhotoSizes, photoSrcSet } from "../features/site/photoSources";
 import { arrivedPrerendered } from "../lib/prerenderedPage";
 
 const catNameForSEO = (category: any) => typeof category === "string" ? category : category?.name;
@@ -634,6 +634,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const shopSectionSpacing = Math.max(24, Math.min(120, storefrontDesign?.sectionSpacing ?? 64));
   const imageAspect = storefrontDesign?.imageAspectRatio || (isReferenceCatalog ? "1:1" : "3:4");
   const imageAspectStyle = aspectRatioValue(imageAspect);
+  // The grid shows the phone column count until 1024px (lg), then the desktop count: photos ask for that width.
+  const gridSteps = [{ from: 0, cols: storefrontMobileColumns }, { from: 1024, cols: storefrontDesktopColumns }];
   const mobileColsClass = storefrontMobileColumns === 1 ? "grid-cols-1" : storefrontMobileColumns === 3 ? "grid-cols-3" : "grid-cols-2";
   const desktopColsClass =
     storefrontDesktopColumns === 2
@@ -922,7 +924,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     <div className={`relative fm-surface fm-photo-frame mb-4 overflow-hidden ${isReferenceCatalog || cardStyle === "minimal" ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius, aspectRatio: imageAspectStyle }}>
                       <SkeletonImage
                         src={item.photos?.[0]?.url || placeholderImage(activeDesign)}
-                        {...photoSrcSet(item.photos?.[0], CARD_PHOTO_SIZES)}
+                        {...photoSrcSet(item.photos?.[0], gridPhotoSizes(gridSteps, { photo: item.photos?.[0], frame: imageAspect, cover: storefrontImageFit === "object-cover" }))}
                         alt={item.title}
                         priority={index < 2 ? "high" : index < 4 ? "eager" : undefined}
                         className={`w-full h-full ${storefrontImageFit} transition-transform duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}

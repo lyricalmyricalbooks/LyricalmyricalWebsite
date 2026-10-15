@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CARD_PHOTO_SIZES, pdpPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
+import { CARD_PHOTO_SIZES, gridPhotoSizes, pdpPhotoSizes, photoSrcSet, shapeRatio, smallPhotoUrl } from "./photoSources";
 
 describe("photoSrcSet", () => {
   const url = (w: number) => `https://cdn.test/products/1-cover-${w}w.webp`;
@@ -45,5 +45,28 @@ describe("pdpPhotoSizes", () => {
     expect(pdpPhotoSizes({ maxWidth: 560, photoRatio: 1.5, frameRatio: 0.75, cover: false })).toBe("(max-width: 560px) 100vw, 616px");
     expect(pdpPhotoSizes({ maxWidth: 560, photoRatio: 0.5, frameRatio: 0.75, cover: true })).toBe("(max-width: 560px) 100vw, 616px");
     expect(pdpPhotoSizes({ maxWidth: 560, frameRatio: 0.75, cover: true })).toBe("(max-width: 560px) 100vw, 616px");
+  });
+});
+
+describe("gridPhotoSizes", () => {
+  const steps = [{ from: 0, cols: 2 }, { from: 1024, cols: 3 }];
+  it("asks for one column of the grid's real column count", () => {
+    expect(gridPhotoSizes(steps)).toBe("(min-width: 1024px) calc((100vw - 48px) * 0.334), calc((100vw - 48px) * 0.5)");
+    expect(gridPhotoSizes([{ from: 0, cols: 1 }, { from: 1024, cols: 4 }], { gutter: 0 })).toBe("(min-width: 1024px) 25vw, 100vw");
+  });
+  it("caps wide screens at the container width", () => {
+    expect(gridPhotoSizes([{ from: 0, cols: 2 }, { from: 768, cols: 3 }, { from: 1024, cols: 4 }], { maxWidth: 1152, gutter: 0 }))
+      .toBe("(min-width: 1152px) 288px, (min-width: 1024px) 25vw, (min-width: 768px) 33.4vw, 50vw");
+  });
+  it("asks for more when a wide photo is cropped to fill a narrower frame", () => {
+    const wide = { width: 1620, height: 1080 };
+    expect(gridPhotoSizes(steps, { photo: wide, frame: "3:4", gutter: 0 })).toBe("(min-width: 1024px) 66.7vw, 100vw");
+    expect(gridPhotoSizes(steps, { photo: wide, frame: "3:4", cover: false, gutter: 0 })).toBe("(min-width: 1024px) 33.4vw, 50vw");
+    expect(gridPhotoSizes(steps, { photo: { width: 1356, height: 1600 }, frame: "1 / 1", gutter: 0 })).toBe("(min-width: 1024px) 33.4vw, 50vw");
+  });
+  it("falls back to the generic card sizes without columns", () => {
+    expect(gridPhotoSizes([])).toBe(CARD_PHOTO_SIZES);
+    expect(shapeRatio("4 / 5")).toBeCloseTo(0.8);
+    expect(shapeRatio("auto")).toBeUndefined();
   });
 });

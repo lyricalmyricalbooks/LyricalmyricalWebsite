@@ -2122,7 +2122,7 @@ any new book-photo `<img>`; photos without `srcset` render as before. No rule or
 Storage is billed per download, so shoppers must never get an original photo where a copy will do.
 - **Copies for old photos:** the scheduled `storageImageSweep` (every 15 min, 1 GiB, `functions/imageCopies.js`, sharp) gives
   every book photo with no `srcset` (the 10 October import) WebP copies beside the original (`<name>-<w>w.webp`, ladder
-  480/640/960/1600/2400/3200 capped at the original width, q82 up to 960, q95 above; a copy heavier than the original is
+  480/640/960/1600/2400/3200 capped at the original width, q90 up to 960 (q82 until 15 October 2026 smoothed printed grain), q95 above; a copy heavier than the original is
   replaced by the original itself) and adds `srcset`/`width`/`height` in a transaction. It never deletes, overwrites or changes
   `url`. Progress and unreadable pictures: admin-only `systemStatus/imageCopies`. Keep its ladder equal to `BOOK_PHOTO_WIDTHS` /
   `bookPhotoQuality` (`admin/prepareImage.ts`), which new uploads use.
@@ -2132,6 +2132,10 @@ Storage is billed per download, so shoppers must never get an original photo whe
 - **Small pictures:** fixed-size thumbnails (bag/checkout lines, search, bag suggestion, sticky bar, bundle covers) use
   `smallPhotoUrl(photo, minWidth)` (`features/site/photoSources.ts`); responsive ones spread `photoSrcSet` (`FEATURE_PHOTO_SIZES` for
   featured/spotlight sections). Never render `photos[n].url` directly for a shopper.
+- **Book grids ask for their real width:** every book-card grid passes `gridPhotoSizes(steps, { photo, frame, cover, maxWidth })`
+  (`photoSources.ts`) its actual column counts per breakpoint (same numbers as its CSS/Tailwind grid), frame shape and fit; a wide
+  photo cropped by "cover" asks for proportionally more. `CARD_PHOTO_SIZES` (fixed 2/3/4 columns) is only its fallback: it made
+  browsers pick a too-small copy and stretch it (soft covers, 15 October 2026). A new grid must do the same.
 - **Book page gallery:** adaptive frames take each photo's shape from its saved `width`/`height` (`savedRatios` in `BookDetail`;
   a measured shape wins once loaded). Only photos without a saved size load ahead at once; the rest of the gallery loads when the
   shopper reaches for it (`warmGallery`: pointer, touch or focus on the photo column), the strip's neighbours stay eager. The main

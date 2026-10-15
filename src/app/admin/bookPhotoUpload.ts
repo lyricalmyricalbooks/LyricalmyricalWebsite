@@ -1,5 +1,5 @@
 // Book photo uploads (Books › edit › Photos). Each photo is stored as WebP copies 480–3200 px wide
-// (`prepareMediaVariants` with BOOK_PHOTO_WIDTHS; 0.82 up to card size, 0.95 above), so the product page and the
+// (`prepareMediaVariants` with BOOK_PHOTO_WIDTHS; 0.90 up to card size, 0.95 above), so the product page and the
 // full-screen viewer show a crisp copy on retina screens while shop cards and phones download a small
 // one. The book keeps the largest copy as its `url` (shared links, search engines, emails) plus a
 // public `srcset` list the storefront turns into `<img srcset>` (features/site/photoSources.ts).

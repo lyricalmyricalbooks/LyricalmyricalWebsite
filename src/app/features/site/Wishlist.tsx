@@ -17,7 +17,7 @@ import { getCopy } from "./storeCopy";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { StoreChrome, useInStoreChrome } from "./StoreChrome";
-import { CARD_PHOTO_SIZES, photoSrcSet } from "./photoSources";
+import { gridPhotoSizes, photoSrcSet } from "./photoSources";
 
 /** The wishlist, inside the one shop header and footer (Studio 2.0 · 2.1). */
 export default function WishlistPage() {
@@ -104,7 +104,7 @@ function WishlistContent() {
                   <div {...regionProps("wishlistPhoto")} className="relative aspect-[3/4] fm-surface rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
                     <img loading="lazy" decoding="async"
                       src={(book as any).photos?.[0]?.url || placeholderImage(settings?.design)}
-                      {...photoSrcSet((book as any).photos?.[0], CARD_PHOTO_SIZES)}
+                      {...photoSrcSet((book as any).photos?.[0], gridPhotoSizes([{ from: 0, cols: 2 }, { from: 768, cols: 3 }, { from: 1024, cols: 4 }], { photo: (book as any).photos?.[0], frame: "3 / 4", maxWidth: 1152 }))}
                       alt={book.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
