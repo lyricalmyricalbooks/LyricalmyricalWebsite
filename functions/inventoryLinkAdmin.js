@@ -1,7 +1,7 @@
 // Inventory › Inventory app link (admin): what each button asks the server to do. index.js checks the
 // admin's sign-in (requireAdmin) and passes `deps` (see inventoryLinkJobs.js) plus the store's
 // checkConnection/readCatalog/serviceAccountEmail. Returns { status, body } for the HTTP answer.
-const { validateLinks, paidDayOf, linkedEditions } = require("./inventoryLink");
+const { validateLinks, paidDayOf, linkedEditions, openMatches } = require("./inventoryLink");
 const { readState, runSweep, REHEARSAL_MS, STATE_DOC } = require("./inventoryLinkJobs");
 const { shopDate } = require("./paymentGuards");
 
@@ -25,6 +25,15 @@ async function earliestPaidDay(db) {
   const first = snap.docs.map(doc => doc.data()).find(order => order.isTest !== true && order.paymentStatus && order.paymentStatus !== "unpaid");
   return first ? paidDayOf(first) || null : null;
 }
+
+// newMatches with only the suggestions still worth offering under these links (none without links).
+const trimmedMatches = (state, links, ignored = state.ignoredMatches || {}) => {
+  if (!state.newMatches) return null;
+  const before = Array.isArray(state.newMatches.items) ? state.newMatches.items : [];
+  const items = openMatches(before, links, ignored);
+  const count = Object.keys(links || {}).length ? Math.max(0, (state.newMatches.count || 0) - (before.length - items.length)) : 0;
+  return { ...state.newMatches, items, count };
+};
 
 async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
   const { db, store } = deps;
@@ -74,13 +83,42 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
     const { links, errors } = validateLinks(books, body.links, inventoryIds);
     // New matches: orders with unmatched copies are sent again from the start (relinkBatch pages through all).
     const relink = !!state.startDay && !removalsOnly;
-    // Suggestions for editions matched now are done with.
-    const stillOpen = (state.newMatches?.items || []).filter(m => !links[m.bookId]?.[m.variantId || "_"]);
-    const newMatches = state.newMatches ? { ...state.newMatches, items: stillOpen, count: Math.max(0, (state.newMatches.count || 0) - ((state.newMatches.items || []).length - stillOpen.length)) } : null;
+    // Suggestions for editions (or inventory app books) matched now are done with; unmatching all clears them.
+    const newMatches = trimmedMatches(state, links);
     const patch = { links, linksSavedAt: now.toISOString(), linksSavedBy: actor, ...(relink ? { relinkPending: true, relinkCursor: null } : {}), ...(newMatches ? { newMatches } : {}) };
     // set() with merge replaces nested maps key by key; write `links` whole so a removed link is gone.
     await ref.update(patch).catch(async () => { await ref.set(patch, { merge: true }); });
     return ok({ links, errors });
+  }
+
+  // "Match these": adds the chosen stored suggestions to the links as they are now (read fresh), never
+  // replacing a match: an edition already matched, or an inventory app book already in use, is skipped.
+  if (op === "acceptMatches") {
+    const keys = new Set((Array.isArray(body.keys) ? body.keys : []).filter(k => typeof k === "string" && k.length <= 300).slice(0, 50));
+    if (!keys.size) return bad("Choose the matches to save.");
+    const state = await readState(db);
+    const current = state.links || {};
+    const chosen = openMatches(state.newMatches?.items, current).filter(m => keys.has(m.key));
+    if (!chosen.length) return bad("These suggestions are out of date. Reload the page to see the current ones.", 409);
+    let inventoryIds;
+    try {
+      inventoryIds = (await store.readCatalog()).map(book => book.id);
+    } catch {
+      return bad("The website can't read the inventory app yet. Finish the connection step first, then try again.", 409);
+    }
+    const next = Object.fromEntries(Object.entries(current).map(([id, entry]) => [id, { ...entry }]));
+    for (const m of chosen) next[m.bookId] = { ...(next[m.bookId] || {}), [m.variantId || "_"]: m.inventoryBookId };
+    const booksSnap = await db.collection("books").get();
+    const books = booksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const { links, errors } = validateLinks(books, next, inventoryIds);
+    // Never lose a match that was already there.
+    const lost = linkedEditions(current).filter(e => links[e.bookId]?.[e.variantId || "_"] !== e.inventoryBookId);
+    if (lost.length) return bad("These matches would change books already matched, so nothing was saved. Match them in the list below instead.", 409);
+    const newMatches = trimmedMatches(state, links);
+    const patch = { links, linksSavedAt: now.toISOString(), linksSavedBy: actor, ...(state.startDay ? { relinkPending: true, relinkCursor: null } : {}), ...(newMatches ? { newMatches } : {}) };
+    await ref.update(patch).catch(async () => { await ref.set(patch, { merge: true }); });
+    const added = chosen.filter(m => links[m.bookId]?.[m.variantId || "_"] === m.inventoryBookId).length;
+    return ok({ links, errors, added });
   }
 
   // "Not these": the sweep stops suggesting these pairs (a different later suggestion still shows).
@@ -91,9 +129,7 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
     const state = await readState(db);
     const ignoredMatches = { ...(state.ignoredMatches || {}) };
     pairs.forEach(m => { ignoredMatches[m.key] = m.inventoryBookId; });
-    const gone = new Set(pairs.map(m => `${m.key}\n${m.inventoryBookId}`));
-    const items = (state.newMatches?.items || []).filter(m => !gone.has(`${m.key}\n${m.inventoryBookId}`));
-    const newMatches = state.newMatches ? { ...state.newMatches, items, count: Math.max(0, (state.newMatches.count || 0) - ((state.newMatches.items || []).length - items.length)) } : null;
+    const newMatches = trimmedMatches(state, state.links || {}, ignoredMatches);
     await ref.update({ ignoredMatches, ...(newMatches ? { newMatches } : {}) }).catch(async () => { await ref.set({ ignoredMatches, ...(newMatches ? { newMatches } : {}) }, { merge: true }); });
     return ok({ ignoredMatches, newMatches });
   }

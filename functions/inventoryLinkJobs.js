@@ -10,7 +10,7 @@
 const crypto = require("crypto");
 const { FieldPath, FieldValue, AggregateField } = require("firebase-admin/firestore");
 const {
-  pushKind, websiteOrder, linkedEditions, stockPlanFor, stockPatch, liveStock, stable, isDigitalEdition, newMatchList,
+  pushKind, websiteOrder, linkedEditions, stockPlanFor, stockPatch, liveStock, stable, isDigitalEdition, newMatchList, openMatches,
 } = require("./inventoryLink");
 const { externalDispatchProblem } = require("./fulfillmentGuard");
 const { catalogUnitPrice } = require("./catalogPrice");
@@ -485,6 +485,8 @@ async function runSweep(deps, opts = {}) {
         status.newMatches = { at: iso(start), count: items.length, items: items.slice(0, 50) };
         status.matchError = null;
       } catch (err) { status.matchError = errText(err); }
+    } else if (!Object.keys(state.links || {}).length && state.newMatches) {
+      status.newMatches = null;
     }
 
     const backfillDone = (status.backfill || state.backfill)?.done === true;
@@ -529,6 +531,12 @@ async function runSweep(deps, opts = {}) {
     await db.runTransaction(async tx => {
       const snap = await tx.get(ref);
       const lease = snap.exists ? snap.data().lease : null;
+      // Matches or "Not these" saved while this run worked win over the suggestions it worked out.
+      if (status.newMatches) {
+        const fresh = snap.exists ? snap.data() : {};
+        const items = openMatches(status.newMatches.items, fresh.links || {}, fresh.ignoredMatches || {});
+        status.newMatches = { ...status.newMatches, items, count: Math.max(0, status.newMatches.count - (status.newMatches.items.length - items.length)) };
+      }
       tx.set(ref, { ...status, ...(lease?.runId === runId ? { lease: FieldValue.delete() } : {}) }, { merge: true });
     }).catch(err => console.error("inventory link: could not save the run's status", err));
   }

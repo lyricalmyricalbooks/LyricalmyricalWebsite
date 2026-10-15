@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { createRequire } from "node:module";
-import { linkableEditions, suggestLinks } from "./inventoryLink";
+import { linkableEditions, openMatches, suggestLinks } from "./inventoryLink";
 
 const require = createRequire(import.meta.url);
 const server = require("../../../functions/inventoryLink.js");
@@ -36,4 +36,18 @@ test("new matches leave out archived books and pairs the owner said no to", () =
   const list = server.newMatchList(books, appBooks, {}, { "b2|": "altrove" });
   expect(list.map((m: any) => m.key)).toEqual(["b3|p", "b1|v1"]);
   expect(list[0]).toMatchObject({ bookId: "b3", variantId: "p", edition: "Paperback", inventoryBookId: "injured", inventoryTitle: "Injured" });
+});
+
+test("the panel and the server offer the same open suggestions", () => {
+  const items = [
+    { key: "a|v2", bookId: "a", variantId: "v2", inventoryBookId: "hound" },
+    { key: "c|", bookId: "c", variantId: null, inventoryBookId: "cee" },
+    { key: "d|", bookId: "d", variantId: null, inventoryBookId: "dee" },
+    { key: "a|v1", bookId: "a", variantId: "v1", inventoryBookId: "new" },
+  ];
+  const links = { a: { v1: "x" }, b: { _: "hound" } };
+  const ignored = { "d|": "dee" };
+  expect(server.openMatches(items, links, ignored)).toEqual(openMatches(items as any, links, ignored));
+  expect(openMatches(items as any, links, ignored).map((m) => m.key)).toEqual(["c|"]);
+  expect(openMatches(items as any, {}, {})).toEqual([]);
 });

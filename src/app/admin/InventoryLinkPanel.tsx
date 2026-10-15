@@ -9,7 +9,7 @@ import {
 } from "./riso/components";
 import { inventoryLinkApi, type LinkStatus, type StockPreview } from "./inventoryLinkApi";
 import {
-  IAM_URL, NO_COUNT_YET, ago, dayBefore, editionKey, holdWords, linkStep, linkableEditions, linkedTo, linksFromChoices, suggestLinks,
+  IAM_URL, NO_COUNT_YET, ago, dayBefore, editionKey, holdWords, linkStep, linkableEditions, linkedTo, linksFromChoices, openMatches, suggestLinks,
   type InventoryAppBook, type InventoryLinks, type LinkableEdition, type StockRow,
 } from "./inventoryLink";
 import { inventoryApi } from "./inventoryApi";
@@ -102,16 +102,14 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
   });
 
   // The sweep's hourly check: website books it can match by ISBN or title, waiting for one click.
-  const newMatches: Array<{ key: string; bookId: string; variantId: string | null; title: string; edition: string; inventoryBookId: string; inventoryTitle: string }> =
-    (Array.isArray(state.newMatches?.items) ? state.newMatches.items : []).filter((m: any) => m && !linkedTo(links, m.bookId, m.variantId));
+  const newMatches = openMatches(state.newMatches?.items, links, state.ignoredMatches || {});
 
+  // The server adds them to the links as they are now and never replaces a match.
   const matchNew = () => run("links", async () => {
-    const next: InventoryLinks = Object.fromEntries(Object.entries(links).map(([id, entry]) => [id, { ...entry }]));
-    for (const m of newMatches) next[m.bookId] = { ...(next[m.bookId] || {}), [m.variantId || "_"]: m.inventoryBookId };
-    const res = await inventoryLinkApi.saveLinks(next);
+    const res = await inventoryLinkApi.acceptMatches(newMatches.map((m) => m.key));
     setLinkErrors(res.errors);
-    const done = newMatches.length - res.errors.length;
-    toast(res.errors.length ? `${done} matched, but ${res.errors.length} couldn't be used — see below.` : `${newMatches.length === 1 ? "Book" : "Books"} matched. Their website sales now reach the inventory app.`, { tone: res.errors.length ? "warn" : "ok" });
+    const skipped = newMatches.length - res.added;
+    toast(skipped ? `${res.added} matched. ${skipped} couldn't be used — see below.` : `${res.added === 1 ? "Book" : "Books"} matched. Their website sales now reach the inventory app.`, { tone: skipped ? "warn" : "ok" });
     await loadStatus();
   });
 

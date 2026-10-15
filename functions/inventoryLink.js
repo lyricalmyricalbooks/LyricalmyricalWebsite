@@ -357,6 +357,18 @@ function newMatchList(books, appBooks, links, ignored = {}) {
 }
 
 /**
+ * The stored suggestions still worth offering (mirrors openMatches in src/app/admin/inventoryLink.ts): the
+ * edition isn't matched yet, the inventory app book isn't matched to anything yet (accepting it would
+ * break a working link) and the owner hasn't said "Not these" to the pair. With no links at all, none.
+ */
+function openMatches(items, links, ignored = {}) {
+  if (!links || !Object.keys(links).length) return [];
+  const used = new Set(Object.values(links).flatMap(e => Object.values(e || {})));
+  return (Array.isArray(items) ? items : []).filter(m => m && !linkFor(links, m.bookId, m.variantId)
+    && !used.has(m.inventoryBookId) && ignored?.[m.key] !== m.inventoryBookId);
+}
+
+/**
  * Check and clean a links map against the website catalog (and the inventory catalog's ids when known).
  * An empty value removes a link. Returns { links, errors: [{ bookId, variantId, reason }] }.
  */
@@ -470,5 +482,5 @@ function projectInventoryCatalog(doc) {
 module.exports = {
   WEB_VERSION, websiteOrderNumber, paidDayOf, countsForInventory, pushKind, linkFor, lineKey, splitCents,
   orderFootprint, websiteOrder, stable, validateLinks, linkedEditions, liveStock, stockPlanFor, stockPatch,
-  projectInventoryCatalog, isDigitalEdition, linkableEditions, suggestLinks, newMatchList,
+  projectInventoryCatalog, isDigitalEdition, linkableEditions, suggestLinks, newMatchList, openMatches,
 };

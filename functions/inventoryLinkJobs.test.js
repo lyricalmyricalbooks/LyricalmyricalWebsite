@@ -342,3 +342,10 @@ describe("runSweep: new books to match", () => {
     expect(state.newMatches.count).toBe(0);
   });
 });
+
+test("with no matches left, old suggestions are cleared", async () => {
+  const db = fakeDb({ "systemStatus/inventoryLink": { startDay: "2026-10-01", links: {}, connection: { ok: true }, backfill: { done: true },
+    newMatches: { at: "2026-10-11T14:00:00Z", count: 1, items: [{ key: "b2|", bookId: "b2", variantId: null, inventoryBookId: "altrove" }] } } });
+  await jobs.runSweep(deps(db, fakeStore(), { sumNet: async () => 0 }));
+  expect(db.docs["systemStatus/inventoryLink"].data.newMatches).toBeNull();
+});
