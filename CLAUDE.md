@@ -415,6 +415,12 @@ preview-only `__studio-block-candidate` in `studio/blockLibrary.ts`; outline Add
 Copy/paste blocks only between sections of the same type. Studio › Pages › New page offers starters (`studio/pageStarters.ts`,
 drafts with [prompts]). Header/footer follow `elementSchemes.header` / `.footer` (`data-fm-header`, `data-fm-footer`); a
 Theme settings address field is `kind: "link"` (picker), never `text`.
+**Check every page (3.0 phase 7):** Workbench › Health › **Check every page** (`studio/StudioSiteHealth.tsx`, pure
+`studio/siteHealth.ts`) audits each kind of page (`healthRoutes`) in a hidden see-through frame fed the canvas's unsaved
+snapshot, one at a time (scrolled through once so reveal animations finish), with `auditDocument` (read-only); the frame is
+removed after each page. A new page kind belongs in `healthRoutes`; preview pages must never write (Account skips its
+customer record under `inEditorPreview`). Section background pictures from the Media library use `features/site/backgroundSources.ts` (`--fm-bg-img`
+per breakpoint, read by `bgStyle`); plain URLs are unchanged. Run history is localStorage only.
 **Brand kit (3.0 phase 6):** `studio/StudioBrandKit.tsx` + pure `studio/brandKit.ts` (logo colours → palettes with guaranteed
 contrast, `PERSONALITIES`, `brandKitDesign`); previews through `brandChoice` in `sendPreviewState`, applies as one `change`
 ("Apply brand kit"). Anything it writes must be a `STYLE_GROUPS` key (`brandKit.test.ts`). Opened from Setup (`go: { kind: "brand" }`),

@@ -1,5 +1,6 @@
 import { sectionSpacingCss } from "./sectionSpacing";
 import { sectionStepCss } from "../features/site/designTokens";
+import { backgroundImageCss } from "../features/site/backgroundSources";
 import { entranceTiming, sectionMotionCss, wantsReveal } from "./sectionMotion";
 import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import { arrivedPrerendered } from "../lib/prerenderedPage";
@@ -336,7 +337,7 @@ export function SectionList({
             }}
           >
             <SectionFontOverride sectionId={section.id} settings={s} />
-            <style>{sectionSpacingCss(section.id, s) + sectionStepCss(section.id, s.spacingStep) + sectionMotionCss(section.id, s, enableAnimations)}</style>
+            <style>{sectionSpacingCss(section.id, s) + sectionStepCss(section.id, s.spacingStep) + sectionMotionCss(section.id, s, enableAnimations) + backgroundImageCss(section.id, s)}</style>
             {wantsReveal(s, enableAnimations) && <MotionWatcher sectionId={section.id} />}
             {(s.mobilePaddingTop != null || s.mobilePaddingBottom != null || s.mobileFontScale != null || s.mobileColumns != null || s.mobileHeadingSize != null) && <style>{`@media${UP_TO.mobile}{${s.mobileHeadingSize != null ? `#section-${section.id} :is(h1,h2){font-size:${Math.max(12, Math.min(120, Number(s.mobileHeadingSize)))}px!important;}` : ""}#section-${section.id}{${s.mobileFontScale != null ? `font-size:${Number(s.mobileFontScale)}%;` : ""}}${s.mobileColumns != null ? `#section-${section.id} .grid{grid-template-columns:repeat(${Math.max(1, Math.min(4, Number(s.mobileColumns)))},minmax(0,1fr))!important;}` : ""}}`}</style>}
             <SectionScopedCss sectionId={section.id} css={s.customCss} />

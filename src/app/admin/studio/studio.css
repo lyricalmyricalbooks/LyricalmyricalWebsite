@@ -477,6 +477,18 @@
 .studio-health-cat { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--rp-text-muted); }
 .studio-health-where { font-weight: 700; }
 .studio-health-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Check every page (3.0 phase 7). */
+.studio-site-health { display: grid; gap: 10px; padding: 12px 0; border-top: 2px solid var(--rp-border); border-bottom: 2px solid var(--rp-border); }
+.studio-site-health > .studio-health-bar { position: static; }
+.studio-site-health-progress { width: 100%; height: 8px; appearance: none; border: 1px solid var(--rp-border); background: var(--rp-surface-2, var(--rp-surface)); }
+.studio-site-health-progress::-webkit-progress-bar { background: var(--rp-surface-2, var(--rp-surface)); }
+.studio-site-health-progress::-webkit-progress-value { background: var(--rp-primary); }
+.studio-site-health-progress::-moz-progress-bar { background: var(--rp-primary); }
+.studio-site-health-pages { list-style: none; margin: 0; padding: 0; }
+.studio-site-health-pages > li { border-bottom: 1px solid var(--rp-divider); }
+.studio-site-health-pages summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 10px 0; cursor: pointer; font-size: 13px; min-height: 44px; }
+.studio-site-health-pages summary small { color: var(--rp-text-subtle); font-size: 12px; }
+.studio-site-health-pages details > :not(summary) { margin-bottom: 10px; }
 .studio-health-publish { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; margin: 0; }
 .studio-health-publish .studio-link-button { width: auto; min-height: 28px; padding: 0 6px; display: inline-flex; align-items: center; font-size: 13px; text-decoration: underline; }
 

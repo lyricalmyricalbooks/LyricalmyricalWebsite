@@ -45,6 +45,10 @@ describe("setupChecklist (Workbench › Setup)", () => {
     const at = (healthIssues: number | null) => setupChecklist({ design: {}, healthIssues }).find(x => x.id === "health")?.done;
     expect(at(null)).toBe(false); expect(at(2)).toBe(false); expect(at(0)).toBe(true);
   });
+  it("Health also counts as done after a whole-shop check with nothing to fix", () => {
+    const at = (siteIssues: number | null, healthIssues: number | null = 3) => setupChecklist({ design: {}, healthIssues, siteIssues }).find(x => x.id === "health")?.done;
+    expect(at(0)).toBe(true); expect(at(4)).toBe(false); expect(at(null)).toBe(false);
+  });
 });
 
 describe("setup checklist › brand kit", () => {
