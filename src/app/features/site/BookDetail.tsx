@@ -60,7 +60,7 @@ import { displayPrice, salePercentOff } from "./displayPrice";
 import { ga4Once } from "../../lib/ga4";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
-import { CARD_PHOTO_SIZES, THUMB_PHOTO_SIZES, pdpPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
+import { gridPhotoSizes, THUMB_PHOTO_SIZES, pdpPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
 import { framingStyle, motionFraming } from "./photoFraming";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
@@ -1559,7 +1559,7 @@ export default function BookDetail() {
                         <div {...regionProps("relatedPhoto")} className="relative fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl" style={{ aspectRatio: productImageAspect }}>
                           <img
                             src={(rel as any).photos?.[0]?.url || placeholderImage(settings?.design)}
-                            {...photoSrcSet((rel as any).photos?.[0], CARD_PHOTO_SIZES)}
+                            {...photoSrcSet((rel as any).photos?.[0], gridPhotoSizes([{ from: 0, cols: 2 }, { from: 640, cols: 3 }, { from: 768, cols: 4 }], { photo: (rel as any).photos?.[0], frame: productImageAspect, cover: productImageFit === "cover" }))}
                             alt={rel.title}
                             loading="lazy"
                             className="w-full h-full transition-transform duration-700 group-hover:scale-105"

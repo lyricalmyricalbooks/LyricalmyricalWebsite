@@ -70,7 +70,7 @@ describe("imageCopies helpers", () => {
     expect(widthsFor(1080)).toEqual([480, 640, 960, 1080]);
     expect(widthsFor(3200)).toEqual([480, 640, 960, 1600, 2400, 3200]);
     expect(widthsFor(300)).toEqual([300]);
-    expect(qualityFor(960)).toBe(82);
+    expect(qualityFor(960)).toBe(90);
     expect(qualityFor(1600)).toBe(95);
   });
 

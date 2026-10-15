@@ -19,7 +19,7 @@ import { pickBook, sectionBookQuery, selectBooks } from "../features/site/mercha
 import { aspectRatioValue } from "../features/site/imageAspect";
 import { ResponsiveImage } from "./ResponsiveImage";
 import { mediaKey } from "../features/site/mediaRef";
-import { CARD_PHOTO_SIZES, photoSrcSet, FEATURE_PHOTO_SIZES, smallPhotoUrl } from "../features/site/photoSources";
+import { gridPhotoSizes, photoSrcSet, FEATURE_PHOTO_SIZES, smallPhotoUrl } from "../features/site/photoSources";
 import { framingStyle } from "../features/site/photoFraming";
 import { shopInstant } from "../features/site/shopTime";
 
@@ -1317,7 +1317,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
                     {book.photos?.[0]?.url && (
                       <img
                         src={book.photos[0].url}
-                        {...photoSrcSet(book.photos[0], CARD_PHOTO_SIZES)}
+                        {...photoSrcSet(book.photos[0], gridPhotoSizes([{ from: 0, cols: mobileCols }, { from: 1024, cols }], { photo: book.photos[0], frame: aspect, cover: fit === "cover" }))}
                         alt={book.title}
                         loading="lazy"
                         decoding="async"
@@ -1551,7 +1551,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                     {book.photos?.[0]?.url && (
                       <img
                         src={book.photos[0].url}
-                        {...photoSrcSet(book.photos[0], CARD_PHOTO_SIZES)}
+                        {...photoSrcSet(book.photos[0], gridPhotoSizes([{ from: 0, cols: mobileCols }, { from: 1024, cols }], { photo: book.photos[0], frame: aspect }))}
                         alt={book.title}
                         loading="lazy"
                         decoding="async"
@@ -2680,7 +2680,7 @@ export function FeaturedCollectionSection({ settings, books, onProductClick, ena
                 onKeyDown={(e: any) => { if (e.target !== e.currentTarget) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onProductClick?.(book); } }}
               >
                 <div className="fm-photo-frame relative overflow-hidden bg-white/5" style={{ aspectRatio: "3 / 4" }}>
-                  {book.photos?.[0]?.url && <img src={book.photos[0].url} {...photoSrcSet(book.photos[0], CARD_PHOTO_SIZES)} alt={book.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"  style={framingStyle(book.photos[0])} />}
+                  {book.photos?.[0]?.url && <img src={book.photos[0].url} {...photoSrcSet(book.photos[0], gridPhotoSizes([{ from: 0, cols: mobileCols }, { from: 768, cols }], { photo: book.photos[0], frame: "3 / 4" }))} alt={book.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"  style={framingStyle(book.photos[0])} />}
                 </div>
                 <h3 className="fm-card-title mt-3 text-[15px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
                 {settings.showPrices !== false && (

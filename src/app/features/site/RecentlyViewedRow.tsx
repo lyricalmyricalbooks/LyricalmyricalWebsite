@@ -6,7 +6,7 @@ import { designNumber } from "./designNumber";
 import { getCopy } from "./storeCopy";
 import { contentMaxWidth } from "./headerNav";
 import { regionProps } from "./storefrontRegions";
-import { CARD_PHOTO_SIZES, photoSrcSet } from "./photoSources";
+import { gridPhotoSizes, photoSrcSet } from "./photoSources";
 import { framingStyle } from "./photoFraming";
 
 export default function RecentlyViewedRow({ excludeId }: { excludeId?: string }) {
@@ -38,7 +38,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
                 <div {...regionProps("recentPhoto")} className="relative aspect-[3/4] fm-surface rounded-xl overflow-hidden border border-white/[0.05]">
                   <img
                     src={book.photos?.[0]?.url || placeholderImage(settings?.design)}
-                    {...photoSrcSet(book.photos?.[0], CARD_PHOTO_SIZES)}
+                    {...photoSrcSet(book.photos?.[0], gridPhotoSizes([{ from: 0, cols: 3 }, { from: 640, cols: 4 }, { from: 1024, cols: 6 }], { photo: book.photos?.[0], frame: "3 / 4" }))}
                     alt={book.title}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     style={framingStyle(book.photos?.[0])}

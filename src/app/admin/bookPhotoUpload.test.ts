@@ -39,7 +39,7 @@ describe("uploadBookPhoto", () => {
     expect(photo.srcset?.map(s => s.w)).toEqual([480, 640, 960, 1600, 2400, 3200]);
     expect(photo.originalUrl).toBe("https://cdn.test/products/1700000000000-My-Cover-original.jpg");
     expect([photo.width, photo.height]).toEqual([4000, 6000]);
-    expect(qualities).toEqual([0.82, 0.82, 0.82, 0.95, 0.95, 0.95]);
+    expect(qualities).toEqual([0.9, 0.9, 0.9, 0.95, 0.95, 0.95]);
   });
 
   it("never enlarges a small photo: its own width is the top copy", async () => {
