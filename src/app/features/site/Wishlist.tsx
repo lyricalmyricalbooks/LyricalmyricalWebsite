@@ -18,6 +18,7 @@ import { GlobalSections, TemplateSections } from "../../components/sectionRender
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { CARD_PHOTO_SIZES, photoSrcSet } from "./photoSources";
+import { framingStyle } from "./photoFraming";
 
 /** The wishlist, inside the one shop header and footer (Studio 2.0 · 2.1). */
 export default function WishlistPage() {
@@ -107,6 +108,7 @@ function WishlistContent() {
                       {...photoSrcSet((book as any).photos?.[0], CARD_PHOTO_SIZES)}
                       alt={book.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      style={framingStyle((book as any).photos?.[0])}
                     />
                     {/* Coming soon: the badge alone (it isn't sold out); words in Text & labels › Product page */}
                     {choice.comingSoon && (

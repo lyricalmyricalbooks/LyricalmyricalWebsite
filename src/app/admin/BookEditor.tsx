@@ -28,8 +28,7 @@ import {
   Sparkles,
   Undo2,
   Play,
-  Film
-} from "lucide-react";
+  Film, Crop } from "lucide-react";
 import { motion } from "motion/react";
 import toast from "react-hot-toast";
 import { 
@@ -61,6 +60,8 @@ import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, S
 import { uploadBookPhoto } from "./bookPhotoUpload";
 import { BOOK_VIDEO_ACCEPT, MAX_BOOK_VIDEOS, MAX_BOOK_VIDEO_BYTES, formatMegabytes, isVideoFile, uploadBookVideo, videoProblem } from "./bookVideoUpload";
 import { isVideoItem } from "../features/site/bookVideo";
+import { framingStyle, photoFraming } from "../features/site/photoFraming";
+import { PhotoCropDialog } from "./PhotoCropDialog";
 import { studioHash } from "../lib/studioLocation";
 
 import { BookSeoPane } from "./BookSeoPane";
@@ -82,15 +83,17 @@ const MAX_BOOK_PHOTOS = 50;
 
 type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "addons" | "boxset" | "organize" | "more" | "seo";
 
-function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover }: {
+function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover, onCrop }: {
   photo: any; index: number; onRemove: (id: string) => void; onAlt: (id: string, alt: string) => void; onMakeCover: (id: string) => void;
+  onCrop: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: photo.id });
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 2 : 1, opacity: isDragging ? 0.6 : 1 };
   return (
     <div ref={setNodeRef} style={style} className="be-photo">
       <div className="be-photo-img">
-        <img src={photo.url} alt={photo.altText || ""} />
+        <img src={photo.url} alt={photo.altText || ""} style={framingStyle(photo)} />
+        {photoFraming(photo) && <span className="be-photo-framed">Cropped</span>}
         <span className="be-photo-badge">{index === 0 ? "Cover" : isVideoItem(photo) ? `Video · ${index + 1}` : `Image ${index + 1}`}</span>
         {isVideoItem(photo) && (
           <a className="be-photo-play" href={photo.videoUrl} target="_blank" rel="noopener noreferrer" aria-label={`Play video ${index + 1} in a new tab`}>
@@ -102,6 +105,7 @@ function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover }: {
       </div>
       <input className="rp-input" aria-label={`${isVideoItem(photo) ? "Description of video" : "Alt text for image"} ${index + 1}`} placeholder={isVideoItem(photo) ? "What the video shows" : "Alt text"} value={photo.altText || ""} onChange={(e) => onAlt(photo.id, e.target.value)} />
       <div className="be-photo-actions">
+        {!isVideoItem(photo) && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onCrop(photo.id)} aria-label={`Crop and position ${index === 0 ? "the cover" : `image ${index + 1}`}`}><Crop size={13} aria-hidden /> Crop & position</button>}
         {index !== 0 && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onMakeCover(photo.id)}>Make cover</button>}
         <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onRemove(photo.id)}><Trash2 size={13} aria-hidden /> Remove</button>
       </div>
@@ -213,6 +217,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   const [confirmSlug, setConfirmSlug] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  // Books › edit › Images › Crop & position (PhotoCropDialog); the design gives the shop's frame shapes.
+  const [cropId, setCropId] = useState<string | null>(null);
+  const [liveDesign, setLiveDesign] = useState<any>(null);
   const uploadingRef = useRef(false);
   const [metadataError, setMetadataError] = useState(false);
   const [photoInput, setPhotoInput] = useState("");
@@ -458,6 +465,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
       ]);
       setShippingProfiles(sh);
       setAuthors(au);
+      setLiveDesign(settings?.design || null);
       
       // Published categories only: a book can't be filed under a category shoppers can't see yet
       // (publish new Studio categories first).
@@ -1261,6 +1269,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                       {formData.photos.map((photo: any, i: number) => (
                         <SortablePhoto key={photo.id} photo={photo} index={i} onRemove={removePhoto}
                           onAlt={(id, alt) => setFormData((prev: any) => ({ ...prev, photos: prev.photos.map((p: any) => (p.id === id ? { ...p, altText: alt } : p)) }))}
+                          onCrop={setCropId}
                           onMakeCover={(id) => setFormData((prev: any) => { const p = prev.photos.find((x: any) => x.id === id); return { ...prev, photos: [p, ...prev.photos.filter((x: any) => x.id !== id)] }; })} />
                       ))}
                     </SortableContext>
@@ -1273,6 +1282,22 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                   </div>
                 </DndContext>
               </div>
+              {cropId && (() => {
+                const i = (formData.photos || []).findIndex((p: any) => p.id === cropId);
+                const photo = i >= 0 ? formData.photos[i] : null;
+                return photo ? (
+                  <PhotoCropDialog photo={photo} label={i === 0 ? "Cover" : `Image ${i + 1}`} design={liveDesign}
+                    onClose={() => setCropId(null)}
+                    onSave={(framing) => setFormData((prev: any) => ({
+                      ...prev,
+                      photos: prev.photos.map((p: any) => {
+                        if (p.id !== cropId) return p;
+                        const { framing: _old, ...rest } = p;
+                        return framing ? { ...rest, framing } : rest;
+                      }),
+                    }))} />
+                ) : null;
+              })()}
               <input type="file" ref={fileInputRef} multiple onChange={(e) => uploadFiles(e.target.files)} accept="image/*" className="hidden" />
               <input type="file" ref={videoInputRef} multiple onChange={(e) => uploadVideos(Array.from(e.target.files || []))} accept={BOOK_VIDEO_ACCEPT} className="hidden" />
               {videoStatus && <p className="be-note" role="status">{videoStatus}</p>}
