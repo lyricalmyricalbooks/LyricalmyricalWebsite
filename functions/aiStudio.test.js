@@ -57,6 +57,19 @@ describe("Studio AI: rewrite a field", () => {
     expect(() => parseResponse("rewrite", { candidates: [{ content: { parts: [{ text: '{"text":"Hal' }] }, finishReason: "MAX_TOKENS" }] }, { input: { text: "Hi" } })).toThrow(/too long/);
   });
 
+  it("keeps the picture and layout markers Studio puts in place of pictures", () => {
+    const input = { text: "<p>Hi.</p><p>[[keep-1]]</p><p>[[line-1]]Centred <s>old</s></p><h1>Big</h1>", format: "html" };
+    const prompt = buildRequest("rewrite", input).contents[0].parts[0].text;
+    expect(prompt).toMatch(/\[\[keep-1\]\] stand for pictures/);
+    expect(prompt).toMatch(/<s>.*<h1>/);
+    expect(buildRequest("rewrite", { text: "<p>Hi</p>", format: "html" }).contents[0].parts[0].text).not.toMatch(/stand for pictures/);
+    expect(tokensOf(input.text)).toEqual(["[[keep-1]]", "[[line-1]]"]);
+    const ctx = { input };
+    expect(() => parseResponse("rewrite", gemini({ text: "<p>Hello.</p><p>[[line-1]]Centred</p>" }), ctx)).toThrow(/placeholder/);
+    const ok = parseResponse("rewrite", gemini({ text: "<p>Hello.</p><p>[[keep-1]]</p><p>[[line-1]]Centred <s>gone</s></p><h1>Big</h1>" }), ctx);
+    expect(ok.text).toBe("<p>Hello.</p><p>[[keep-1]]</p><p>[[line-1]]Centred <s>gone</s></p><h1>Big</h1>");
+  });
+
   it("says when there's nothing to rewrite", async () => {
     const res = await handleAiWrite({ task: "rewrite", input: { text: "  <p></p> " } }, deps());
     expect(res.status).toBe(400);

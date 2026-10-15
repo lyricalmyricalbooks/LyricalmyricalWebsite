@@ -90,10 +90,11 @@ const REWRITE_HOW = {
   formal: "Make it more polished and formal.",
   fix: "Only fix spelling, grammar and punctuation. Change nothing else.",
 };
-const TOKEN_RE = /\{\{[^{}]{1,60}\}\}|\{[A-Za-z][A-Za-z0-9_.]{0,40}\}/g;
-/** The {placeholders} (and {{book.title}}-style connected details) a text uses: they must survive a rewrite. */
+// [[keep-N]] / [[line-N]] stand for a picture, video or line layout Studio held out of the text (aiStudio.ts protectRichText).
+const TOKEN_RE = /\{\{[^{}]{1,60}\}\}|\{[A-Za-z][A-Za-z0-9_.]{0,40}\}|\[\[(?:keep|line)-\d{1,3}\]\]/g;
+/** The {placeholders}, {{book.title}}-style connected details and picture/layout markers a text uses: they must survive a rewrite. */
 const tokensOf = text => [...new Set(String(text || "").match(TOKEN_RE) || [])];
-const HTML_TAGS = new Set(["p", "br", "strong", "b", "em", "i", "u", "a", "ul", "ol", "li", "h2", "h3", "h4", "blockquote"]);
+const HTML_TAGS = new Set(["p", "br", "strong", "b", "em", "i", "u", "s", "a", "ul", "ol", "li", "h1", "h2", "h3", "h4", "blockquote"]);
 // Same rule as the Studio rich-text editor (src/app/admin/studio/richText.ts safeRichHref).
 const safeHref = h => !/[\u0000-\u0020\u007f"'<>]/.test(h) && (/^(https?:|mailto:|tel:)/i.test(h) || (/^(\/|#|\?|\.\.?\/)/.test(h) && !h.startsWith("//")) || !/[:\\]/.test(h));
 /** Keeps only simple formatting tags (and http(s)/relative links); everything else becomes its text. */
@@ -206,7 +207,7 @@ ${plainText(f.text, 6000) || "(empty)"}`,
       return `Rewrite this text from the online shop${r.where ? ` (${r.where}` : ""}${r.label ? `${r.where ? ", " : " ("}field "${r.label}"` : ""}${r.where || r.label ? ")" : ""}.
 - ${r.how === "custom" ? `The owner asks: ${r.instruction || "improve it"}` : REWRITE_HOW[r.how]}
 - ${STUDIO_HONESTY}
-${tokens.length ? `- Keep these placeholders exactly as written, braces included: ${tokens.join(" ")}\n` : ""}${r.format === "html" ? "- The text is HTML. Answer in HTML using only <p>, <br>, <strong>, <em>, <u>, <a href>, <ul>, <ol>, <li>, <h2>, <h3>, <h4>, <blockquote>. Keep every link and its href exactly." : "- Answer in plain text (keep line breaks if the original has them)."}
+${tokens.length ? `- Keep these placeholders exactly as written, braces included: ${tokens.join(" ")}\n` : ""}${tokens.some(t => t.startsWith("[[")) ? "- Markers like [[keep-1]] stand for pictures, videos and dividers, and [[line-1]] for a line's layout: keep each exactly once, keep the [[keep-…]] markers in the same order, and keep each [[line-…]] at the very start of its paragraph, heading or list item.\n" : ""}${r.format === "html" ? "- The text is HTML. Answer in HTML using only <p>, <br>, <strong>, <em>, <u>, <s>, <a href>, <ul>, <ol>, <li>, <h1>, <h2>, <h3>, <h4>, <blockquote>. Keep every link and its href exactly." : "- Answer in plain text (keep line breaks if the original has them)."}
 - Return the new text in the field "text".
 
 Original:
@@ -415,4 +416,4 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
   }
 }
 
-module.exports = { MODELS, TASKS, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
+module.exports = { MODELS, TASKS, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };

@@ -79,12 +79,52 @@ describe("Rewrite with AI", () => {
     expect(notify).toHaveBeenCalledWith("ok", expect.stringMatching(/nothing to change/));
     expect(notify.mock.calls.some(c => c[2]?.undo)).toBe(false);
   });
-  it("refuses rich text with pictures before asking the AI", async () => {
-    const notify = mount({ kind: "richtext", label: "Content", value: '<p>Hi</p><p><img src="https://x.test/a.png"></p>', onChange: vi.fn() });
+  it("rewrites the words of rich text with pictures and gives the pictures back untouched", async () => {
+    const value = '<p>Hi there.</p><p class="ql-align-center"><img src="https://x.test/a.png" alt="Cover"></p>';
+    askAi.mockImplementation(async (_task: string, input: any) => ({ text: input.text.replace("Hi there.", "Hello, friend.") }));
+    const onChange = vi.fn();
+    mount({ kind: "richtext", label: "Content", value, onChange });
+    click("Rewrite with AI"); click("Improve");
+    await settle();
+    expect(askAi.mock.calls[0][1].text).toBe("<p>Hi there.</p><p>[[keep-1]]</p>");
+    expect(onChange).toHaveBeenCalledWith('<p>Hello, friend.</p><p class="ql-align-center"><img src="https://x.test/a.png" alt="Cover"></p>');
+  });
+  it("changes nothing when the AI drops a picture", async () => {
+    askAi.mockResolvedValue({ text: "<p>Hello.</p>" });
+    const onChange = vi.fn();
+    const notify = mount({ kind: "richtext", label: "Content", value: '<p>Hi.</p><p><img src="a"></p>', onChange });
+    click("Rewrite with AI"); click("Improve");
+    await settle();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledWith("err", expect.stringMatching(/moved or dropped a picture/), expect.anything());
+  });
+  it("still refuses coloured words before asking the AI", async () => {
+    const notify = mount({ kind: "richtext", label: "Content", value: '<p><span style="color: red;">Hi</span></p>', onChange: vi.fn() });
     click("Rewrite with AI"); click("Improve");
     await settle();
     expect(askAi).not.toHaveBeenCalled();
-    expect(notify).toHaveBeenCalledWith("err", expect.stringMatching(/can't keep/));
+    expect(notify).toHaveBeenCalledWith("err", expect.stringMatching(/coloured/));
+  });
+  it("gives a page body its own Undo, which leaves later edits alone", async () => {
+    askAi.mockResolvedValue({ text: "<p>New words.</p>" });
+    const onChange = vi.fn(), notify = vi.fn();
+    const props = { kind: "richtext", label: "Page text", value: "<p>Old words.</p>", onChange, localUndo: true };
+    mount(props, notify);
+    click("Rewrite with AI"); click("Improve");
+    await settle();
+    expect(onChange).toHaveBeenLastCalledWith("<p>New words.</p>");
+    const undo = notify.mock.calls.find(c => c[0] === "ok")![2].undo as () => void;
+    expect(typeof undo).toBe("function");
+    // The editor tidied the markup but the words are the AI's: Undo puts the old body back.
+    act(() => root.render(h(StudioAiContext.Provider, { value: { notify } }, h(StudioAiRewrite, { ...props, value: "<p>New words.</p><p><br></p>" }))));
+    act(() => undo());
+    expect(onChange).toHaveBeenLastCalledWith("<p>Old words.</p>");
+    // Once the owner has typed more, Undo doesn't throw their words away.
+    onChange.mockClear();
+    act(() => root.render(h(StudioAiContext.Provider, { value: { notify } }, h(StudioAiRewrite, { ...props, value: "<p>New words, and mine.</p>" }))));
+    act(() => undo());
+    expect(onChange).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenLastCalledWith("err", expect.stringMatching(/edited after the rewrite/));
   });
   it("hands the answer to the newest onChange, so edits made while waiting aren't undone", async () => {
     let resolve!: (v: any) => void;

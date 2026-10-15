@@ -6,6 +6,7 @@ import { IMAGE_SIZES, pageBodyStats } from "../../features/site/pageBody";
 import { mainUrl } from "./mediaLibrary";
 import { useMediaPicker, type MediaPickerApi } from "./mediaPicker";
 import { uploadErrorMessage, uploadStudioImage } from "./mediaUpload";
+import { StudioAiRewrite } from "./StudioAiRewrite";
 
 // The custom page body editor (Studio › Pages). Quill, plus: pictures uploaded to Storage (toolbar button,
 // paste or drag-and-drop — never stored inline as data: text), the media library, picture size /
@@ -47,8 +48,10 @@ const TOOLBAR = [
   ["clean"],
 ];
 
-export function PageBodyEditor({ value, onChange, onUploading }: {
+export function PageBodyEditor({ value, onChange, onUploading, title }: {
   value: string; onChange: (html: string) => void; onUploading?: (busy: boolean) => void;
+  /** The page's title: tells the AI rewrite where these words are. */
+  title?: string;
 }) {
   const media = useMediaPicker();
   const quillRef = useRef<ReactQuill | null>(null);
@@ -262,6 +265,8 @@ export function PageBodyEditor({ value, onChange, onUploading }: {
         </div>
       )}
 
+      {/* Rewrite the page's words with AI; pictures, videos and dividers are held out and stay exactly as they are. */}
+      <StudioAiRewrite kind="richtext" label="Page text" where={`Pages › ${title?.trim() || "untitled page"}`} value={value} onChange={onChange} localUndo />
       <p className="text-[11px] text-neutral-500 mt-1" aria-live="polite">
         {stats.words} word{stats.words === 1 ? "" : "s"}{stats.minutes ? ` · about ${stats.minutes} min read` : ""}
         {stats.images ? ` · ${stats.images} picture${stats.images === 1 ? "" : "s"}` : ""}

@@ -2081,6 +2081,9 @@ rich text sanitised on both sides); **Draft a section with AI** in Add section (
 `sectionDraft`, kinds in `DRAFT_TYPES` of `studio/aiStudio.ts` = `functions/aiWriter.js`, parity-tested; no quote/review
 sections). Both land as one undoable Studio change; nothing is saved by the AI path. A new AI task needs a `TASKS` entry and
 a `needs` branch in `handleAiWrite`. The fixture fakes the server with `setAiTransport` (`__studioFixture.aiAnswer`).
+Rich text with pictures/videos/dividers/alignment is rewritten words-only: `protectRichText` / `restoreRichText` hold them out as
+`[[keep-N]]` / `[[line-N]]` markers (server `TOKEN_RE` requires them back); coloured words are still refused. Studio › Pages
+bodies have the button too, with a local Undo (`localUndo`). Pictures (incl. pasted `data:` ones) never go to Google.
 
 ## URL redirects (11 October 2026)
 
