@@ -2032,7 +2032,7 @@ Books › edit › Images › **Add video** (or drop a video on the images) adds
 uploaded through `uploadBookPhoto`, `videoUrl` (+ `videoType`, `videoBytes`, `videoDuration`) is the file in `products/videos/`
 (`admin/bookVideoUpload.ts`; a file the admin's browser can't decode is refused). Everything that only knows photos (cards, search,
 emails, JSON-LD) shows the still. `features/site/bookVideo.ts` `isVideoItem` (https only) decides; `BookDetail` plays it in the main
-frame (`preload="metadata"`), thumbnails get a play mark, `PhotoLightbox` takes `videoUrl`. Studio › Style › Product page ›
+frame (`preload="metadata"`), thumbnails get a play mark, `PhotoLightbox` takes `videoUrl`. Every book `<video>` starts muted (`muted` + `ref={muteVideo}`, since React doesn't reflect `muted` reliably); keep `controls` so shoppers can unmute. Studio › Style › Product page ›
 **Show book videos** (`showProductVideos`); words `bookVideoLabel`, `ariaGoToVideo`. Every play is Storage download traffic.
 
 ## Page translation (12 October 2026)

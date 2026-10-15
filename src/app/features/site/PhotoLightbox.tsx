@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { PhotoCarousel } from "./PhotoCarousel";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useFocusTrap } from "../../lib/useFocusTrap";
+import { muteVideo } from "./bookVideo";
 
 /** Starts loading a photo at full-screen size, so it is ready before the shopper moves to it. */
 function warm(photo: LightboxPhoto | undefined) {
@@ -100,6 +101,8 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
                 src={photos[i].videoUrl}
                 poster={photos[i].url}
                 controls
+                muted
+                ref={muteVideo}
                 playsInline
                 preload={i === index ? "metadata" : "none"}
                 aria-label={photos[i].alt}

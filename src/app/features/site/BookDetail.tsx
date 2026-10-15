@@ -33,7 +33,7 @@ import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
 import ReviewsSection from "./ReviewsSection";
 import { PhotoLightbox } from "./PhotoLightbox";
-import { galleryPhotos, isVideoItem } from "./bookVideo";
+import { galleryPhotos, isVideoItem, muteVideo } from "./bookVideo";
 import { PhotoCarousel } from "./PhotoCarousel";
 import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
@@ -1243,12 +1243,13 @@ export default function BookDetail() {
                               src={photo.videoUrl}
                               poster={photo.url}
                               controls
+                              muted
                               playsInline
                               preload={i === carouselIndex ? "metadata" : "none"}
                               aria-label={mediaName(photo, i)}
                               data-fm-video
                               className={`w-full h-full bg-black ${productImageFitClass}`}
-                              ref={(el) => { if (el && i === carouselIndex) setImageLoaded(true); }}
+                              ref={(el) => { muteVideo(el); if (el && i === carouselIndex) setImageLoaded(true); }}
                             />
                           );
                           return (
@@ -1414,7 +1415,7 @@ export default function BookDetail() {
                   {photos.map((photo: any, i: number) => (
                     <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame fm-photo-frame-pdp overflow-hidden`} style={{ aspectRatio: frameFor(photo.url), borderRadius: `${productBorderRadius}px` }}>
                       {isVideoItem(photo)
-                        ? <video src={photo.videoUrl} poster={photo.url} controls playsInline preload="none" aria-label={mediaName(photo, i)} data-fm-video className={`w-full h-full bg-black ${productImageFitClass}`} />
+                        ? <video src={photo.videoUrl} poster={photo.url} controls muted ref={muteVideo} playsInline preload="none" aria-label={mediaName(photo, i)} data-fm-video className={`w-full h-full bg-black ${productImageFitClass}`} />
                         : <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, PDP_PHOTO_SIZES)} alt={mediaName(photo, i)} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />}
                       {i === 0 && isOutOfStock && (
                         <>
