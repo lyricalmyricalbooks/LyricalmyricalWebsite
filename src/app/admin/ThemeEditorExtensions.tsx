@@ -29,6 +29,46 @@ function normalizeHexForColorInput(hex: string): string {
   return "#" + clean;
 }
 
+/** Swatch shown for a colour that isn't set: a white tile with a red diagonal ("none"), never black. */
+const UNSET_SWATCH = "linear-gradient(to top right, #fff calc(50% - 1px), #e8402a calc(50% - 1px), #e8402a calc(50% + 1px), #fff calc(50% + 1px))";
+
+/**
+ * Colour box shared by section, block, Theme settings and colour-scheme fields. An empty value means
+ * "not set" (the section or theme default applies), so it must not look like black: the swatch shows
+ * the "none" tile and the text box says so.
+ */
+function ColorField({ label, value, onChange, tidy = false, size = "w-7 h-7" }: {
+  label: string; value: any; onChange: (value: string) => void; tidy?: boolean; size?: string;
+}) {
+  const text = typeof value === "string" ? value : "";
+  const unset = !text.trim();
+  return (
+    <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5" data-color-unset={unset ? "true" : undefined}>
+      <div className={`${size} flex-shrink-0 rounded-lg border border-neutral-200 relative overflow-hidden`}
+        style={{ background: unset ? UNSET_SWATCH : text }} title={unset ? "Not set" : text}>
+        <input aria-label={label}
+          type="color"
+          value={normalizeHexForColorInput(unset ? "#000000" : text)}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 opacity-0 cursor-pointer scale-150"
+        />
+      </div>
+      <input aria-label={label}
+        value={text}
+        placeholder="Not set (uses the default)"
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={tidy ? (e) => {
+          // Only tidy things that are meant to be hex ("abc", "#AABBCC", "aabbcc"). Blank must stay
+          // blank (= inherit) and non-hex CSS colors (transparent, rgba(), var(--x)) must survive.
+          const typed = e.target.value.trim();
+          if (/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.test(typed)) onChange(normalizeHexForColorInput(typed));
+        } : undefined}
+        className="flex-1 min-w-0 bg-transparent outline-none text-[11px] font-bold uppercase placeholder:normal-case placeholder:font-normal placeholder:text-neutral-400"
+      />
+    </div>
+  );
+}
+
 export { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1342,21 +1382,7 @@ export function BlockFieldEditor({
     return (
       <div>
         {labelEl}
-        <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
-          <div className="w-7 h-7 rounded-lg border border-neutral-200 relative overflow-hidden" style={{ background: value || "#000" }}>
-            <input aria-label={field.label}
-              type="color"
-              value={value || "#000000"}
-              onChange={(e) => onChange(e.target.value)}
-              className="absolute inset-0 opacity-0 cursor-pointer scale-150"
-            />
-          </div>
-          <input aria-label={field.label}
-            value={value || ""}
-            onChange={(e) => onChange(e.target.value)}
-            className="flex-1 bg-transparent outline-none text-[11px] font-bold uppercase"
-          />
-        </div>
+        <ColorField label={field.label} value={value} onChange={onChange} tidy />
       </div>
     );
   }
@@ -2081,30 +2107,7 @@ export function SectionFieldEditor({
       return (
         <div>
           {labelEl}
-          <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
-            <div
-              className="w-7 h-7 rounded-lg border border-neutral-200 relative overflow-hidden"
-              style={{ background: value || "#000" }}
-            >
-              <input aria-label={field.label}
-                type="color"
-                value={normalizeHexForColorInput(value || "#000000")}
-                onChange={(e) => onChange(e.target.value)}
-                className="absolute inset-0 opacity-0 cursor-pointer scale-150"
-              />
-            </div>
-            <input aria-label={field.label}
-              value={value || ""}
-              onChange={(e) => onChange(e.target.value)}
-              onBlur={(e) => {
-                // Only tidy things that are meant to be hex ("abc", "#AABBCC", "aabbcc"). Blank must stay
-                // blank (= inherit) and non-hex CSS colors (transparent, rgba(), var(--x)) must survive.
-                const typed = e.target.value.trim();
-                if (/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.test(typed)) onChange(normalizeHexForColorInput(typed));
-              }}
-              className="flex-1 bg-transparent outline-none text-[11px] font-bold uppercase"
-            />
-          </div>
+          <ColorField label={field.label} value={value} onChange={onChange} tidy />
         </div>
       );
     case "number":
@@ -2123,14 +2126,15 @@ export function SectionFieldEditor({
         </div>
       );
     case "range": {
-      const current = value ?? field.min;
+      // Unset = the theme/section default applies; show that instead of pretending it is the minimum.
+      const unset = value === undefined || value === null || value === "";
+      const current = unset ? field.min : value;
       return (
         <div>
           <div className="flex items-center justify-between mb-1.5">
             {labelEl}
             <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-lg mb-1.5">
-              {current}
-              {field.suffix || ""}
+              {unset ? "Default" : <>{current}{field.suffix || ""}</>}
             </span>
           </div>
           <input aria-label={field.label}
@@ -2140,7 +2144,7 @@ export function SectionFieldEditor({
             step={field.step ?? 1}
             value={current}
             onChange={(e) => onChange(Number(e.target.value))}
-            className="w-full accent-blue-600 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer"
+            className={`w-full accent-blue-600 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer${unset ? " opacity-50" : ""}`}
           />
         </div>
       );
