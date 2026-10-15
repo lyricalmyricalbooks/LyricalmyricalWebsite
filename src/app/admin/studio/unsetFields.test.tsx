@@ -40,4 +40,17 @@ describe("unset Studio fields", () => {
     el = await mount(field, 32);
     expect(el.textContent).toContain("32px");
   });
+
+  it("shows an unset drop-down as Default, so its first choice can still be picked", async () => {
+    const field = { key: "align", label: "Alignment", kind: "select", options: [{ value: "left", label: "Left" }, { value: "center", label: "Center" }] };
+    let el = await mount(field, undefined);
+    let select = el.querySelector("select") as HTMLSelectElement;
+    expect(select.value).toBe("");
+    expect(select.selectedOptions[0].textContent).toMatch(/default/i);
+    await act(async () => root!.unmount());
+    el = await mount(field, "left");
+    select = el.querySelector("select") as HTMLSelectElement;
+    expect(select.value).toBe("left");
+    expect([...select.options].some(o => /default/i.test(o.textContent || ""))).toBe(false);
+  });
 });

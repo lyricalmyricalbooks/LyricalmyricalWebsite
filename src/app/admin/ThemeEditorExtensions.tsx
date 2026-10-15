@@ -29,6 +29,19 @@ function normalizeHexForColorInput(hex: string): string {
   return "#" + clean;
 }
 
+/**
+ * A drop-down whose saved value isn't one of its choices (usually: never set, so the section's own
+ * default applies) must not show its first choice as if it were picked: the owner would read the
+ * wrong setting and couldn't pick that first choice (no change event). It shows "Default" instead.
+ */
+const UNSET_OPTION_LABEL = "Default (not set)";
+function needsDefaultOption(options: { value: string }[], value: any): boolean {
+  return !options.some(o => o.value === String(value ?? ""));
+}
+function selectValue(options: { value: string }[], value: any): string {
+  return needsDefaultOption(options, value) ? "" : String(value ?? "");
+}
+
 /** Swatch shown for a colour that isn't set: a white tile with a red diagonal ("none"), never black. */
 const UNSET_SWATCH = "linear-gradient(to top right, #fff calc(50% - 1px), #e8402a calc(50% - 1px), #e8402a calc(50% + 1px), #fff calc(50% + 1px))";
 
@@ -1409,10 +1422,11 @@ export function BlockFieldEditor({
       <div>
         {labelEl}
         <select aria-label={field.label}
-          value={value || field.options[0]?.value || ""}
+          value={selectValue(field.options, value)}
           onChange={(e) => onChange(e.target.value)}
           className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
         >
+          {needsDefaultOption(field.options, value) && <option value="" disabled>{UNSET_OPTION_LABEL}</option>}
           {field.options.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
@@ -2154,10 +2168,11 @@ export function SectionFieldEditor({
         <div>
           {labelEl}
           <select aria-label={field.label}
-            value={value || ""}
+            value={selectValue(field.options, value)}
             onChange={(e) => onChange(e.target.value)}
             className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
           >
+            {needsDefaultOption(field.options, value) && <option value="" disabled>{UNSET_OPTION_LABEL}</option>}
             {field.options.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
