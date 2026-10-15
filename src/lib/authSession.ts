@@ -1,5 +1,5 @@
 import type { Auth } from "firebase/auth";
-import { authState } from "./firebaseApp";
+import { authState } from "./authState";
 
 /** Loads Firebase Auth on demand (its own chunk), so shoppers who never sign in never download it. */
 export const loadAuth = (): Promise<Auth> => import("./firebase").then(m => m.auth);

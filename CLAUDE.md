@@ -1089,6 +1089,11 @@ saved sign-in. Storefront animations use `m.*` from `motion/react` under the `La
 no layout/drag); don't put CSS `transition-all`/`transition-transform` on an element motion animates.
 The prerender blocks Lite's REST writes (`documents:commit`). Check with `npx vite build`: the `index-*.js`
 entry was ~205 KB gzipped after this change.
+**Firebase loads on first use (15 October 2026):** shopper code gets Firestore Lite through `lib/lite.ts`
+(`const { doc, getDoc, liteDb } = await lite()`), never a static import from `firebase/firestore/lite`,
+`lib/firestoreLite` or `lib/firebaseApp`; `functionFetch` loads App Check the same way and `authState` lives in
+`lib/authState.ts`. That keeps Firebase + App Check (~50 KB gzip) out of the entry (`index-*.js` ~176 KB gzip);
+`lib/shopperBundle.test.ts` fails on a static import in the shopper modules.
 
 ## Prerendered page hand-over (15 October 2026)
 

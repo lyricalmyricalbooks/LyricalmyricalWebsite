@@ -376,6 +376,13 @@ ${design?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(design) : "
 // ──────────────────────────────
 // Main exported component
 // ──────────────────────────────
+/** The category a /collections/<slug> URL opens. An unknown or renamed slug opens every book, never the first category's books under the wrong URL. */
+function collectionCategory(collectionSlug: string, categories: any[]): any {
+  if (collectionSlug === "all") return "ALL";
+  const slugOf = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  return categories.find((c: any) => categoryNames(c).some((n: string) => slugOf(n) === collectionSlug)) ?? "ALL";
+}
+
 export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
   // Landing here as server-rendered HTML: the books are already on screen, so they don't fade in a second time.
   const [skipEntrance] = useState(arrivedPrerendered);
@@ -397,7 +404,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const legacyDesign = activeDesign;
   const heroDesign = resolveMainDesign(legacyDesign, false, false);
   const onCollectionRoute = location.pathname.startsWith("/collections/");
-  const storefrontDesign = resolveMainDesign(legacyDesign, showCatalog || isCatalogPreview, onCollectionRoute);
+  // "Skip straight to the shop" is known on the first render; waiting for the effect below to flip
+  // showCatalog drew one frame with the Home layout and shifted the page (layout shift on load).
+  const catalogOpen = showCatalog || legacyDesign?.showHero === false;
+  const storefrontDesign = resolveMainDesign(legacyDesign, catalogOpen || isCatalogPreview, onCollectionRoute);
   const storefrontLogoDesign = resolveLogoDesign(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
   const storefrontLogoPosition = resolveLogoPosition(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
 
@@ -437,7 +447,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // With no shop categories at all, open on "ALL" (every book) instead of `undefined`, which matched
   // nothing. autoAll remembers that "ALL" was this fallback rather than the shopper's pick, so
   // categories that arrive later (catalog load, Studio edit) still open on the first one as before.
-  const [activeCategory, setActiveCategory] = useState<any>(() => categories[0] ?? "ALL");
+  // /collections/<slug> (header links on other pages, product breadcrumbs) opens this shop on that category.
+  const { slug: collectionSlug } = useParams();
+  // On a collection URL the first render already shows that category: starting on the first category and
+  // switching in an effect drew one frame of the wrong books (a layout shift on load).
+  const [activeCategory, setActiveCategory] = useState<any>(() => (collectionSlug ? collectionCategory(collectionSlug, categories) : categories[0]) ?? "ALL");
   const autoAll = useRef(categories.length === 0);
   // Connected section fields (Studio 2.7) read the open category.
   const categoryContext = useMemo(() => ({ category: activeCategory && activeCategory !== "ALL" ? activeCategory : undefined }), [activeCategory]);
@@ -447,16 +461,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     setShowCatalog(true);
   };
 
-  // /collections/<slug> (header links on other pages, product breadcrumbs) opens this shop on that category.
-  const { slug: collectionSlug } = useParams();
   useEffect(() => {
     if (!collectionSlug) return;
-    if (collectionSlug === "all") { pickCategory("ALL"); return; }
-    const slugOf = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-    const match = categories.find((c: any) => categoryNames(c).some((n: string) => slugOf(n) === collectionSlug));
-    // An unknown or renamed slug opens every book, never the first category's books under the wrong URL.
-    if (match) pickCategory(match);
-    else pickCategory("ALL");
+    pickCategory(collectionCategory(collectionSlug, categories));
   }, [collectionSlug, categories]);
 
   // Sync activeCategory if categories change
@@ -538,7 +545,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       ? publishedBooks.length === 0
       : getFilteredItems(books, routeCategory, new Date().toISOString(), categories).length === 0)),
     url: onCollectionRoute && routeCategory ? new URL(`${import.meta.env.BASE_URL}collections/${collectionSlug === "all" ? "all" : routeCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`, window.location.origin).href : undefined,
-    title: onCollectionRoute ? getCopy(activeDesign, "seoCollectionTitle", { category: routeCategoryName }) : showCatalog ? (getCopy(settings?.design, "seoArchiveTitle") || undefined) : undefined,
+    title: onCollectionRoute ? getCopy(activeDesign, "seoCollectionTitle", { category: routeCategoryName }) : catalogOpen ? (getCopy(settings?.design, "seoArchiveTitle") || undefined) : undefined,
     description: onCollectionRoute ? routeCategory?.description || getCopy(activeDesign, "seoCollectionDescription", { category: routeCategoryName.toLowerCase() }) : settings?.info?.description,
     // Style › Logo & wordmark › Share image, else the first book's cover. Never `assets.profileUrl`: the shop's
     // default settings ship a 100px stock photo there, which became every shared/search preview of the home page.
@@ -656,7 +663,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // One storefront shell (Riso header, footer) for every view. "Home" swaps the catalog
   // grid for the Home template's sections; with no Home sections it shows the catalog.
   const homeSections: any[] = heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections || [];
-  const onHome = !showCatalog && homeSections.length > 0;
+  const onHome = !catalogOpen && homeSections.length > 0;
   {
     return (
       <div
@@ -691,7 +698,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               if (legacyDesign?.showHero === false) { pickCategory(categories[0] ?? "ALL"); window.scrollTo({ top: 0 }); }
               else setShowCatalog(false);
             },
-            showCatalog,
+            showCatalog: catalogOpen,
             announcement: settings?.announcements?.[0]?.message,
             siteName: settings?.info?.name,
           }}
