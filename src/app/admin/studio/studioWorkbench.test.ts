@@ -55,5 +55,7 @@ describe("setup checklist › brand kit", () => {
     const branded = setupChecklist({ design: { logoUrl: "https://x.test/l.png", primaryColor: "#e8402a", headingFont: "Anton" }, defaults: { primaryColor: "#000000" } });
     expect(branded[0].done).toBe(true);
     expect(setupChecklist({ design: { logoUrl: "https://x.test/l.png" } })[0].done).toBe(false);
+    // Bold uses the default fonts, so the brand item is done by the kit's own Brand colour scheme.
+    expect(setupChecklist({ design: { colorSchemes: [{ id: "brand-accent" }] } })[0].done).toBe(true);
   });
 });

@@ -39,7 +39,7 @@ export function setupChecklist(i: SetupInput): SetupItem[] {
   const logoDone = filled(d.logoUrl) || filled(d.wordmarkPrimary);
   return [
     { id: "brand", title: "Set up your brand in one go", detail: "The brand kit: logo, colours from it, a personality for your type and a starter Home page, previewed before you apply.",
-      done: logoDone && changedColours && fontsChosen, go: { kind: "brand" } },
+      done: (logoDone && changedColours && fontsChosen) || (Array.isArray(d.colorSchemes) && d.colorSchemes.some((s: any) => s?.id === "brand-accent")), go: { kind: "brand" } },
     { id: "logo", title: "Add your logo or wordmark", detail: "Shown in the header, the footer and emails.",
       done: logoDone, go: { kind: "target", target: "style:logo" } },
     { id: "colors", title: "Make the colours yours", detail: "Change the page, text or accent colour, or add a colour scheme.",

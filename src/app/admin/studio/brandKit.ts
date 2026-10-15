@@ -82,8 +82,10 @@ const LIGHT_PAGE = "#faf8f4", DARK_PAGE = "#0d0d0d";
 
 /** Palettes built from the logo's colours (light page, dark page, the brand colour as the page), then the built-in
  *  palettes. Text always has at least 4.5:1 contrast with the page, the accent at least 3:1. */
-export function palettesFromColours(colours: string[]): BrandPalette[] {
-  const accent = brandAccent(colours);
+export function palettesFromColours(colours: string[], chosen?: string | null): BrandPalette[] {
+  // A colour the owner picked themselves always wins over the one read from the logo.
+  const picked = chosen && parseColor(chosen) ? hex(parseColor(chosen) as RGB) : null;
+  const accent = picked || brandAccent(colours);
   const out: BrandPalette[] = [];
   if (accent) {
     out.push({ id: "logo-light", label: "Light page, your colour", bg: LIGHT_PAGE, text: "#111111", accent: withContrast(accent, LIGHT_PAGE, 3) });
@@ -132,6 +134,26 @@ export function paletteKeys(p: BrandPalette): Record<string, string> {
   };
 }
 
+/** Fixed-meaning colours (stock, success, warning, error) and their defaults: kept, but made readable on the new page. */
+const STATUS_COLOURS: Record<string, string> = { successColor: "#3ddc97", warningColor: "#ffc93c", dangerColor: "#ff5a4a", lowInventoryColor: "#ffc93c" };
+/** Text colours the owner may have set on single parts: kept when readable on the new page, otherwise nudged until they are. */
+const PART_TEXT_COLOURS = ["footerTextColor", "footerHeadingColor", "navLinkColor", "navLinkActiveColor", "productTitleColor", "productPriceColor"];
+const isHex = (v: unknown): v is string => typeof v === "string" && /^#[0-9a-f]{3,8}$/i.test(v.trim());
+
+/** Status and part text colours adjusted to have 4.5:1 against the new page (only keys that would otherwise be unreadable). */
+export function readableExtras(design: any, p: BrandPalette): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, fallback] of Object.entries(STATUS_COLOURS)) {
+    const own = isHex(design?.[key]) ? design[key] : fallback;
+    out[key] = withContrast(own, p.bg, 4.5);
+  }
+  for (const key of PART_TEXT_COLOURS) {
+    const own = design?.[key];
+    if (isHex(own) && (contrastRatio(own, p.bg) ?? 0) < 4.5) out[key] = withContrast(own, p.bg, 4.5);
+  }
+  return out;
+}
+
 /** The type and shape keys a personality sets. */
 export function personalityKeys(p: Personality): Record<string, any> {
   return {
@@ -175,8 +197,15 @@ export type BrandKitChoice = {
 /** The draft with the brand kit applied: colours, type and shape on every page, the logo, a "Brand colour" scheme and
  *  (when asked) a starter Home page. Everything else in the design is kept. */
 export function brandKitDesign(design: any, choice: BrandKitChoice, meta: (type: string) => any): any {
-  const keys: Record<string, any> = { ...paletteKeys(choice.palette), ...personalityKeys(choice.personality) };
+  const keys: Record<string, any> = { ...paletteKeys(choice.palette), ...readableExtras(design, choice.palette), ...personalityKeys(choice.personality) };
+  // Outline and soft buttons draw their label in the button colour on the page, so it needs text contrast (4.5:1).
+  if (choice.personality.buttonStyle !== "solid") {
+    keys.buttonColor = withContrast(choice.palette.accent, choice.palette.bg, 4.5);
+    keys.buttonTextColor = readableOn(keys.buttonColor);
+  }
   if (choice.logoUrl) keys.logoUrl = choice.logoUrl;
+  // Parts that followed a colour scheme (header, footer, bag, cards, buy card) follow the brand colours instead.
+  if (design?.elementSchemes && Object.keys(design.elementSchemes).length) keys.elementSchemes = undefined;
   let next = applyThemeKeysToSurfaces(design, keys);
   const schemes = editableSchemes(next).filter(s => s.id !== BRAND_SCHEME_ID);
   next = writeSchemes(next, [...schemes, brandScheme(choice.palette)]);
@@ -190,6 +219,7 @@ export function brandKitDesign(design: any, choice: BrandKitChoice, meta: (type:
 /** Plain-English lines for the Review step. */
 export function brandKitSummary(design: any, choice: BrandKitChoice): string[] {
   const home = Array.isArray(design?.heroPage?.sections) ? design.heroPage.sections.length : 0;
+  const followed = Object.keys(design?.elementSchemes || {}).filter(k => design.elementSchemes[k]);
   const layout = HOME_LAYOUT_TEMPLATES.find(t => t.id === choice.personality.homeLayoutId);
   return [
     choice.logoUrl ? "Logo: your new picture in the header" : "Logo: unchanged",
@@ -197,6 +227,7 @@ export function brandKitSummary(design: any, choice: BrandKitChoice): string[] {
     `Type: ${choice.personality.headingFont} headings, ${choice.personality.bodyFont} text`,
     `Buttons: ${choice.personality.buttonStyle}, ${choice.personality.buttonRadius ? "soft" : "square"} corners`,
     "A “Brand colour” scheme you can give any section (Style tab › Colour scheme)",
+    ...(followed.length ? [`Parts that followed a colour scheme (${followed.length}) take the brand colours instead`] : []),
     choice.home === "starter" && layout
       ? `Home page: replaced with the ${layout.name} layout${home ? ` (your ${home} current section${home === 1 ? "" : "s"} go)` : ""}`
       : "Home page: unchanged",

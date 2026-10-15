@@ -107,3 +107,36 @@ describe("applying the brand kit", () => {
     expect(lines.at(-1)).toMatch(/your 1 current section go/);
   });
 });
+
+describe("review fixes", () => {
+  it("keeps status and the owner's part text colours readable on the new page", async () => {
+    const { RISO_NOIR_TOKENS } = await import("../../features/site/risoNoir");
+    const { readableExtras } = await import("./brandKit");
+    for (const p of palettesFromColours(["#e8402a"])) {
+      const next = brandKitDesign({ ...RISO_NOIR_TOKENS, footerTextColor: "#ffffff" }, { palette: p, personality: PERSONALITIES[1], home: "keep" }, meta);
+      for (const k of ["successColor", "warningColor", "dangerColor", "lowInventoryColor", "footerTextColor"]) {
+        expect(contrastRatio(next[k], next.backgroundColor)!, `${p.id} ${k}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+    // A readable part colour the owner chose is left alone.
+    expect(readableExtras({ footerTextColor: "#000000" }, palettesFromColours([])[2])).not.toHaveProperty("footerTextColor");
+  });
+  it("lets the colour the owner picks win over the logo's", () => {
+    const list = palettesFromColours(["#e8402a"], "#1a2a6c");
+    expect(list[2]).toMatchObject({ id: "logo-bold", bg: "#1a2a6c" });
+    expect(palettesFromColours([], "#000000").some(p => p.id === "logo-light")).toBe(true);
+  });
+  it("gives outline buttons a label colour with 4.5:1 on the page", () => {
+    const palette = palettesFromColours(["#e8402a"])[0];
+    for (const personality of PERSONALITIES.filter(p => p.buttonStyle !== "solid")) {
+      const next = brandKitDesign({}, { palette, personality, home: "keep" }, meta);
+      expect(contrastRatio(next.buttonColor, next.backgroundColor)!, personality.id).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+  it("lets parts that followed a colour scheme take the brand colours, and says so", () => {
+    const design = { elementSchemes: { header: "x", cards: "y" } };
+    const choice = { palette: palettesFromColours([])[0], personality: PERSONALITIES[0], home: "keep" as const };
+    expect(brandKitDesign(design, choice, meta).elementSchemes).toBeUndefined();
+    expect(brandKitSummary(design, choice).join(" ")).toMatch(/followed a colour scheme \(2\)/);
+  });
+});

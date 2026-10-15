@@ -29,12 +29,14 @@ export function StudioBrandKit({ design, onPreview, onApply, onClose }: {
   const [logoNote, setLogoNote] = useState("");
   const [colours, setColours] = useState<string[]>([]);
   const [custom, setCustom] = useState("#e8402a");
-  const palettes = useMemo(() => palettesFromColours(colours), [colours]);
+  // A colour the owner picks with "Use this colour" wins over the one read from the logo.
+  const [chosen, setChosen] = useState<string | null>(null);
+  const palettes = useMemo(() => palettesFromColours(colours, chosen), [colours, chosen]);
   const [paletteId, setPaletteId] = useState<string | null>(null);
   const palette: BrandPalette = palettes.find(p => p.id === paletteId) || palettes[0];
   const [personality, setPersonality] = useState<Personality>(PERSONALITIES[0]);
   const homeCount = Array.isArray(design?.heroPage?.sections) ? design.heroPage.sections.length : 0;
-  const [home, setHome] = useState<"keep" | "starter">(homeCount >= 2 ? "keep" : "starter");
+  const [home, setHome] = useState<"keep" | "starter">(homeCount === 0 ? "starter" : "keep");
   const choice: BrandKitChoice = { logoUrl, palette, personality, home };
   const input = useRef<HTMLInputElement>(null);
 
@@ -60,7 +62,7 @@ export function StudioBrandKit({ design, onPreview, onApply, onClose }: {
         catch (err) { setLogoNote(uploadErrorMessage(err)); }
       })(),
     ]);
-    if (found?.length) { setColours(found); setPaletteId(null); }
+    if (found?.length) { setColours(found); setChosen(null); setPaletteId(null); }
     else setLogoNote(n => n || "Couldn't read colours from this picture; pick a colour on the next step.");
     setLogoBusy(false);
   };
@@ -71,7 +73,7 @@ export function StudioBrandKit({ design, onPreview, onApply, onClose }: {
       const url = mainUrl(item);
       setLogoUrl(url); setLogoNote("");
       const found = await logoColours(url);
-      if (found?.length) { setColours(found); setPaletteId(null); }
+      if (found?.length) { setColours(found); setChosen(null); setPaletteId(null); }
       else setLogoNote("Couldn't read colours from this picture; pick a colour on the next step.");
     } catch (err) { setLogoNote(uploadErrorMessage(err)); }
   };
@@ -86,7 +88,7 @@ export function StudioBrandKit({ design, onPreview, onApply, onClose }: {
         <h2 className="studio-library-title">Brand kit</h2>
         <ol className="studio-brand-steps" aria-label="Steps">
           {STEPS.map((s, i) => <li key={s} aria-current={i === step ? "step" : undefined}>
-            <button type="button" onClick={() => setStep(i)}>{i + 1}. {s}</button>
+            <button type="button" disabled={logoBusy} onClick={() => setStep(i)}>{i + 1}. {s}</button>
           </li>)}
         </ol>
         <p className="studio-hint">{step >= 1 ? "The preview shows your choices. Nothing changes in your draft until you apply them." : "Five quick steps for your logo, colours, type and Home page. You can change everything afterwards in Theme settings."}</p>
@@ -112,7 +114,7 @@ export function StudioBrandKit({ design, onPreview, onApply, onClose }: {
           <h3>Colours</h3>
           <label className="studio-brand-custom">Add your brand colour
             <input type="color" value={custom} onChange={e => setCustom(e.target.value)} aria-label="Brand colour" />
-            <SecondaryButton size="sm" onClick={() => { setColours(c => [custom, ...c.filter(x => x !== custom)]); setPaletteId(null); }}>Use this colour</SecondaryButton>
+            <SecondaryButton size="sm" onClick={() => { setChosen(custom); setPaletteId("logo-light"); }}>Use this colour</SecondaryButton>
           </label>
           <div className="studio-library-grid" role="radiogroup" aria-label="Palette">
             {palettes.map(p => {
@@ -158,7 +160,7 @@ export function StudioBrandKit({ design, onPreview, onApply, onClose }: {
           <ul className="studio-health-list" data-brand-summary>
             {brandKitSummary(design, choice).map(line => <li key={line} className="studio-health-item"><div><span>{line}</span></div></li>)}
           </ul>
-          <PrimaryButton onClick={() => onApply(choice)}>Apply brand kit</PrimaryButton>
+          <PrimaryButton disabled={logoBusy} onClick={() => onApply(choice)}>Apply brand kit</PrimaryButton>
           <p className="studio-hint">Applying changes your draft only. Undo (Ctrl/⌘+Z) takes it all back; Publish makes it live.</p>
         </section>}
 
