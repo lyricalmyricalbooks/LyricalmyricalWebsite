@@ -9,7 +9,7 @@ import {
 } from "./riso/components";
 import { inventoryLinkApi, type LinkStatus, type StockPreview } from "./inventoryLinkApi";
 import {
-  IAM_URL, NO_COUNT_YET, ago, dayBefore, editionKey, holdWords, linkStep, linkableEditions, linkedTo, linksFromChoices, suggestLinks,
+  IAM_URL, NO_COUNT_YET, ago, dayBefore, editionKey, holdWords, linkStep, linkableEditions, linkedTo, linksFromChoices, openMatches, suggestLinks,
   type InventoryAppBook, type InventoryLinks, type LinkableEdition, type StockRow,
 } from "./inventoryLink";
 import { inventoryApi } from "./inventoryApi";
@@ -99,6 +99,24 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
     setLinkErrors(res.errors);
     toast(res.errors.length ? `Saved, but ${res.errors.length} match${res.errors.length === 1 ? "" : "es"} couldn't be used — see below.` : "Book matches saved.", { tone: res.errors.length ? "warn" : "ok" });
     await loadStatus({ resetChoices: true });
+  });
+
+  // The sweep's hourly check: website books it can match by ISBN or title, waiting for one click.
+  const newMatches = openMatches(state.newMatches?.items, links, state.ignoredMatches || {});
+
+  // The server adds them to the links as they are now and never replaces a match.
+  const matchNew = () => run("links", async () => {
+    const res = await inventoryLinkApi.acceptMatches(newMatches.map((m) => m.key));
+    setLinkErrors(res.errors);
+    const skipped = newMatches.length - res.added;
+    toast(skipped ? `${res.added} matched. ${skipped} couldn't be used — see below.` : `${res.added === 1 ? "Book" : "Books"} matched. Their website sales now reach the inventory app.`, { tone: skipped ? "warn" : "ok" });
+    await loadStatus();
+  });
+
+  const ignoreNew = () => run("links", async () => {
+    await inventoryLinkApi.ignoreMatches(newMatches.map((m) => ({ key: m.key, inventoryBookId: m.inventoryBookId })));
+    toast("Left out. You can still match these books in the list below.");
+    await loadStatus();
   });
 
   // Always possible, even when the inventory app can't be reached: every matched book's stock becomes
@@ -302,6 +320,21 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
           : catalogError ? <ErrorState description={catalogError} onRetry={loadCatalog} />
           : !appBooks ? <LoadingState label="Reading the inventory app's books…" />
           : <>
+              {newMatches.length > 0 && (
+                <div style={{ padding: 16, display: "grid", gap: 8, borderBottom: "1px solid var(--rp-border)" }} role="status">
+                  <div style={{ fontWeight: 600 }}>New books to match</div>
+                  <p className="rp-hint" style={{ margin: 0 }}>These books have the same ISBN or title in both shops. Until they're matched, their website sales don't reach the inventory app.</p>
+                  <ul className="rp-list" aria-label="Suggested new matches" style={{ margin: 0 }}>
+                    {newMatches.map((m) => (
+                      <li key={m.key} style={{ overflowWrap: "anywhere" }}>{editionName(m)} → <strong>{m.inventoryTitle}</strong></li>
+                    ))}
+                  </ul>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                    <PrimaryButton disabled={!!busy} onClick={matchNew}>{busy === "links" ? "Saving…" : newMatches.length === 1 ? "Match this book" : `Match these ${newMatches.length} books`}</PrimaryButton>
+                    <SecondaryButton disabled={!!busy} onClick={ignoreNew}>Not these</SecondaryButton>
+                  </div>
+                </div>
+              )}
               <DataTable caption="Book matches" columns={linkColumns} rows={shown} rowKey={(e) => e.key}
                 empty={<EmptyState title="No printed books on the website yet" />} />
               <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", padding: 16 }}>
