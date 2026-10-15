@@ -2830,6 +2830,15 @@ async function applyPartialRefund(orderId, { provider, refundId = null, amountMi
 // A refund Stripe accepted (order went to refund_pending, stock back, discount use and revenue
 // reversed) that then failed at the bank: the customer still paid, so undo exactly what
 // applyOrderRefund did, once. Only for a refund_pending order; the "failed" refund is recorded.
+// An order put back to paid without a new payment (a refund the bank rejected, maybe weeks later) may
+// not be on the refund/dispute safety net's record; this asks the next sweep to re-read every paid order
+// (reversalSchedule.js scanPlan) instead of waiting up to 6 hours for the regular re-read.
+const reversalRecheckRef = () => db.collection("systemStatus").doc("stripeReversalRecheck");
+async function requestReversalRecheck(orderId) {
+  await reversalRecheckRef().set({ at: new Date().toISOString(), orderId })
+    .catch(err => console.warn(`Could not ask the refund/dispute check to re-read orders (${orderId}):`, err.message));
+}
+
 async function revertFailedRefund(orderId, { refundId = null, source = "", chargeUnrefunded = false } = {}) {
   const orderRef = db.collection("orders").doc(orderId);
   let revenue = null;
@@ -2895,6 +2904,9 @@ async function revertFailedRefund(orderId, { refundId = null, source = "", charg
     reverted = true;
     revenue = sandboxPaid ? null : { amount: Number(order.total) || 0, paidDay: typeof order.paidAt === "string" ? order.paidAt.split("T")[0] : null };
   });
+  // Ask the refund/dispute sweep to re-read every paid order before anything else can
+  // throw: a retried webhook finds the order already paid again and can't ask a second time.
+  if (reverted) await requestReversalRecheck(orderId);
   if (revenue) {
     const day = revenue.paidDay || new Date().toISOString().split("T")[0];
     await db.collection("analytics").doc(day).set({
@@ -7097,29 +7109,13 @@ exports.unpaidPaymentSweep = onSchedule(
     // (systemStatus/stripeReversalChecks, reversalSchedule.js), so a sweep reads only new payments and the
     // orders that are due, and a check no longer writes to the order (which woke the order triggers).
     try {
-      const { runReversalChecks, SCAN_FIELDS } = require("./reversalSchedule");
+      const { runReversalChecks, paidOrderScanner } = require("./reversalSchedule");
       const recordRef = db.collection("systemStatus").doc("stripeReversalChecks");
-      const paidStatuses = ["paid", "refund_pending", "refunded"];
       const result = await runReversalChecks({
         readState: async () => { const doc = await recordRef.get(); return doc.exists ? doc.data() : null; },
+        readRecheck: async () => { const doc = await reversalRecheckRef().get(); return doc.exists ? doc.data().at || null : null; },
         writeState: record => recordRef.set({ ...record, updatedAt: new Date().toISOString() }),
-        // Newest payments first, 500 per page, only the fields the schedule needs; one extra order tells a
-        // full list from a cut-off one. Pages continue after the last document (ties on paidAt included).
-        queryPaid: async (since, max) => {
-          const orders = [];
-          let last = null;
-          while (orders.length <= max) {
-            const size = Math.min(500, max + 1 - orders.length);
-            let query = db.collection("orders").where("paymentStatus", "in", paidStatuses).where("paidAt", ">=", since)
-              .orderBy("paidAt", "desc").select(...SCAN_FIELDS).limit(size);
-            if (last) query = query.startAfter(last);
-            const page = await query.get();
-            for (const d of page.docs) orders.push({ id: d.id, ...d.data() });
-            if (page.docs.length < size) break;
-            last = page.docs[page.docs.length - 1];
-          }
-          return { orders: orders.slice(0, max), truncated: orders.length > max };
-        },
+        queryPaid: paidOrderScanner(db),
         getOrders: async ids => (ids.length ? await db.getAll(...ids.map(id => db.collection("orders").doc(id))) : [])
           .map(doc => (doc.exists ? { id: doc.id, ...doc.data() } : null)),
         check: async (order, onChecked) => checkStripeReversal(order.id, order, "automatic check", { keys: await stripeKeys(), onChecked })
