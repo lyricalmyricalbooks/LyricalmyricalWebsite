@@ -176,6 +176,8 @@ npm run logs
 - `unpaidPaymentSweep` (every 15 minutes) — records pending reconciliation and emails the shop when Stripe
   shows a successful payment but the order is still unpaid 10 min–7 days later (`functions/paymentSweep.js`);
   stamps `paymentAlertSentAt`. Never marks Stripe orders paid — resend the verified webhook event from Stripe.
+  It reads the Stripe mode/keys once per sweep (`readStripeKeys`, passed as `keys` to `retrieveOrderPayment` /
+  `checkStripeReversal`; sweep clients time out after 20 s; a failed read falls back to per-call reads).
 - `nightlyFirestoreBackup` (03:17 Toronto) and Settings › General › Backups & export › **Back up now**
   (`createStripeCheckoutSession` action `backupNow`, admin) share `runFirestoreBackup`: (1) the managed export to
   `backups/YYYY-MM-DD/export` (needs **Cloud Datastore Import Export Admin** on the Functions service account; refused =
@@ -1304,6 +1306,18 @@ refund → `partiallyRefunded` + `refundedAmountMinor`, stays paid; dispute → 
 `charge.refunded` / `charge.dispute.*` webhooks **and** by direct Stripe reads (`checkStripeReversal`): the status
 action for paid orders (admin order open / **Sync with Stripe**) and `unpaidPaymentSweep`, which re-reads paid Stripe
 orders (≤120 days) at most every 6 h (`ordersDueReversalCheck`, `stripeCheckedAt`).
+**Cheaper sweep bookkeeping (15 October 2026):** the sweep's check times live in one server-only record,
+`systemStatus/stripeReversalChecks` (`{ v, orders: { id: [paidMs, checkedMs, triedMs] }, scannedFrom, reconciledAt }`,
+`functions/reversalSchedule.js`, pure with injected I/O), not on the orders: sweep checks pass `onChecked` and never write
+the order (which woke `onOrderUpdated`/`onOrderInventoryPush`); the admin status check still stamps `stripeCheckedAt`
+(its 60 s throttle), and an order's own stamp counts as a check. Each sweep scans (`SCAN_FIELDS` only) the orders paid
+since the last sweep minus 30 min; every 6 h, or with no/old record, or after a short scan filled its 500 page, it re-reads
+all paid orders of 120 days (newest first, ≤5,000) and drops orders that left. Due orders (≤40 + 10 spare) are read
+whole with `getAll` (never with no ids), `onChecked` runs only after the sync applied, an unanswered order is retried each
+sweep after the simply-due ones, the record is saved by `stopBy` even if Stripe hangs, and a failed save stamps the
+checked orders instead. A record that can't be read skips that sweep's checks; a backlog beyond 40 due is logged. Timing is unchanged (first sweep after
+payment, then every 6 h; 40 per sweep). The record's `orders` map is exempt from indexing (`firestore.indexes.json`);
+`scripts/restore-json-backup.mjs` deletes the record after restoring orders so they are re-checked at once.
 
 ## Payments & shipping panel repair (7 October 2026)
 
