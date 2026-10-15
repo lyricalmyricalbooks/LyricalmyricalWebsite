@@ -2008,8 +2008,10 @@ page is never hijacked. These are browser redirects, not HTTP 301s. No shopper-v
 `admin/prepareImage.ts`: photos within `MAX_IMAGE_EDGE` (2400 px; Studio `MAX_STUDIO_IMAGE_EDGE` 2800) and under
 `KEEP_ORIGINAL_BYTES` (2.5 MB) upload untouched; larger ones are re-saved at `PHOTO_QUALITY` 0.92. Library copies are
 480/960/1600/2400 px at 0.88 (`MEDIA_WIDTHS`; the 2400 copy's weight budget is 450 KB). Book photos upload through
-`admin/bookPhotoUpload.ts` `uploadBookPhoto`: the same copies under `products/`, saved on the photo as `url` (largest) +
-public `srcset`/`width`/`height` (library picks carry theirs too). Storefront book images spread
+`admin/bookPhotoUpload.ts` `uploadBookPhoto`: copies 480/960/1600/2400/3200 px at 0.95 (`BOOK_PHOTO_WIDTHS`,
+`BOOK_PHOTO_QUALITY`, 15 October 2026) under `products/`, saved on the photo as `url` (largest) + public
+`srcset`/`width`/`height` (library picks carry theirs too), plus the untouched upload as `originalUrl` (`…-original.<ext>`,
+never rendered; kept so copies can be remade). Storefront book images spread
 `photoSrcSet(photo, CARD_PHOTO_SIZES | PDP_PHOTO_SIZES | THUMB_PHOTO_SIZES)` (`features/site/photoSources.ts`) — add it to
 any new book-photo `<img>`; photos without `srcset` render as before. No rule or Function change.
 
