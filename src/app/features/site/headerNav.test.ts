@@ -32,3 +32,12 @@ describe("naturalNavWidth (shrink-to-fit category bar)", () => {
     expect(naturalNavWidth(300, 0, 0.5)).toBe(600);
   });
 });
+
+describe("navLinkStyle link case", () => {
+  it("uses uppercase only when unset; Inherit (\"\") leaves the case alone", async () => {
+    const { navLinkStyle } = await import("./headerNav");
+    expect(navLinkStyle({}, false, "#fff").textTransform).toBe("uppercase");
+    expect(navLinkStyle({ navLinkTransform: "" }, false, "#fff").textTransform).toBe("");
+    expect(navLinkStyle({ navLinkTransform: "none" }, false, "#fff").textTransform).toBe("none");
+  });
+});

@@ -9,7 +9,7 @@ import { ThemeToggle } from "../../components/theme/ThemeToggle";
 import { liveWishlistCount, useWishlist } from "../../lib/wishlist";
 import { accountsEnabled } from "./customerAccounts";
 import { layerDesign } from "./designModel";
-import { contentMaxWidth, navLineProps, navLinkStyle, ownNavLinkStyle, useNavBelow, useNavFit } from "./headerNav";
+import { contentMaxWidth, navLineProps, navLinkStyle, ownNavLinkStyle, pillRadius, useNavBelow, useNavFit } from "./headerNav";
 import { PHONE_MAX } from "./breakpoints";
 import { isLiveBook } from "./liveBook";
 import { MobileStorefrontNav } from "./MobileStorefrontNav";
@@ -59,7 +59,7 @@ function stickerPillStyle(design: any, index: number, active = false): CSSProper
     ? STICKER_ACTIVE_COLORS[0]
     : STICKER_ACTIVE_COLORS[index % STICKER_ACTIVE_COLORS.length];
   return {
-    borderRadius: design?.navPillRadius || "14px 4px 14px 4px",
+    borderRadius: pillRadius(design?.navPillRadius),
     transform: `rotate(${rotate}deg)`,
     padding: "0.5rem 1.05rem",
     fontWeight: 700,
@@ -617,7 +617,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                       color: buttonStyle === "solid" ? buttonText : buttonBg,
                       border: buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
                       borderRadius: buttonRadius,
-                      ...(stickers ? { borderRadius: sf?.navPillRadius || "14px 4px 14px 4px", transform: "rotate(2deg)" } : {}),
+                      ...(stickers ? { borderRadius: pillRadius(sf?.navPillRadius), transform: "rotate(2deg)" } : {}),
                     }}
                   >
                     <span className={`text-[10px] tracking-[0.2em] font-semibold ${buttonUppercase ? "uppercase" : ""}`}>{bagLabel}</span>

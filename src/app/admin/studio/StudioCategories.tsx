@@ -89,6 +89,16 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
     finally { setBusy(false); }
   };
   const confirmDelete = async () => {
+    // Removing or moving the books changes the live catalog at once (Discard draft can't undo it), like Save book assignments: ask first.
+    if (deleteMode !== "keep" && confirm && deleting) {
+      const target = cats.find(c => c.id === destination);
+      const ok = await confirm({
+        title: deleteMode === "move" ? "Move the books now?" : "Remove the books now?",
+        message: `Every book in ${deleting.name} will be ${deleteMode === "move" ? `moved to ${target?.name || "the chosen category"}` : `taken out of ${deleting.name}`}. This changes the live shop now; Discard draft won't undo it. The category itself leaves the menu when you Publish.`,
+        confirmLabel: deleteMode === "move" ? "Move books and delete" : "Remove books and delete",
+      });
+      if (!ok) return;
+    }
     setBusy(true); setError("");
     try {
       if (deleteMode !== "keep") {

@@ -28,8 +28,10 @@ type Say = (kind: "ok" | "err", text: string) => void;
 const asIs = (title: string) => title;
 
 /** Custom storefront pages, managed inside the Studio editor (Pages tab). Pages save immediately — they are not part of the theme draft. */
-export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onShow, onReorder, openSlug, active = true, onBusy, loadError = false, onRetryLoad, formatTitle = asIs, fillSeoRequest }: {
+export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onShow, onReorder, onAddressChange, openSlug, active = true, onBusy, loadError = false, onRetryLoad, formatTitle = asIs, fillSeoRequest }: {
   pages: Page[]; setPages: (fn: (p: Page[]) => Page[]) => void; say: Say; onEditSections: (slug: string) => void;
+  /** A saved page moved from /page/<from> to /page/<to>: Studio repoints menu links and forwards the old address. */
+  onAddressChange?: (from: string, to: string, wasPublished: boolean) => Promise<string | void> | string | void;
   /** Receives the page being edited (unsaved) so the preview can show it before Save; null when closed. */
   onDraft?: (page: Partial<Page> | null) => void;
   /** Called with a page's address when it is opened or first saved, so the preview can show that page. */
@@ -116,8 +118,12 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
       let next: Page;
       if (isNew) { next = await adminApi.createPage(captured); setPages((prev) => [...prev, next]); setIsNew(false); setSlugEdited(true); if (next.slug) onShow?.(next.slug); }
       else { next = await adminApi.updatePage(captured.id!, captured); setPages((prev) => prev.map((p) => (p.id === next.id ? next : p))); }
+      const before = isNew ? null : JSON.parse(original || "null");
       setEditing(current => reconcileSavedPage(current, sent, next)); setOriginal(JSON.stringify(next));
-      say("ok", "Page saved. Any newer edits remain unsaved.");
+      const moved = before?.slug && next.slug && before.slug !== next.slug;
+      const followUp = moved ? await Promise.resolve(onAddressChange?.(before.slug, next.slug!, before.status === "published")).catch(() =>
+        `The page's address changed, but its old links couldn't be updated. Check Navigation and Settings › URL redirects.`) : "";
+      say("ok", `Page saved.${followUp ? ` ${followUp}` : ""} Any newer edits remain unsaved.`);
     } catch (e: any) { say("err", e?.message || "Could not save the page."); }
     finally { locked.current = false; setSaving(false); onBusy?.(false); }
   }
@@ -300,7 +306,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
             ))}
           </ul>
         </div>
-        <div className="flex flex-wrap items-center gap-2 border-t border-neutral-200 pt-3 sticky bottom-0 bg-white pb-2">
+        <div className="flex flex-wrap items-center gap-2 border-t border-neutral-200 pt-3 sticky bottom-0 z-10 bg-white pb-2">
           <button className={btnPrimary} onClick={save} disabled={saving || uploading || (!dirty && !isNew)}>{saving ? "Saving…" : uploading ? "Uploading pictures…" : isNew ? "Create page" : "Save page"}</button>
           {!isNew && editing.slug && <button className={btn} disabled={saving} onClick={() => onEditSections(editing.slug!)}><LayoutTemplate size={13} /> Design sections</button>}
           {!isNew && <button className={`${btn} text-red-700`} disabled={saving} onClick={() => remove(editing)}><Trash2 size={13} /> Delete</button>}

@@ -62,8 +62,8 @@ describe("preview bridge page structure", () => {
       .find(n => n.textContent?.includes("Newsletter description"));
     expect(outline()?.style.display).toBe("block");
     extra.remove();
-    await new Promise(r => setTimeout(r, 20));
-    expect(outline()?.style.display).toBe("none");
+    // The bridge redraws on the next animation frame after the DOM change; wait for it, however busy the machine is.
+    await vi.waitFor(() => expect(outline()?.style.display).toBe("none"), { timeout: 2000, interval: 10 });
   });
 
   it("selects a built-in part on click and reports its text, without a pop-up menu", () => {

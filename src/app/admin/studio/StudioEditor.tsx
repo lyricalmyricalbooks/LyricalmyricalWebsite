@@ -25,6 +25,7 @@ import {
   patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo, undoLabel, redoLabel, moveSection,
   resolveSharedBlocks, type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
+import { menuLinksTo, redirectsAfterRename, renamePageInMenus } from "./pageRename";
 import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, schemeFieldOptions, type StyleField, type StyleGroup } from "./styleSchema";
 import { StudioColorSchemes } from "./StudioColorSchemes";
 import { StudioAnnouncements } from "./StudioAnnouncements";
@@ -203,8 +204,9 @@ function MegaMenuControls({ item, onChange }: { item: MenuItem; onChange: (n: Me
   );
 }
 
-function MenuRow({ item, pages, footer = false, depth, onChange, onRemove, onMove }: {
-  item: MenuItem; pages: any[]; footer?: boolean; depth: number; onChange: (n: MenuItem) => void; onRemove: () => void; onMove: (d: number) => void;
+function MenuRow({ item, pages, footer = false, depth, onChange, onRemove, onRemoveChild, onMove }: {
+  item: MenuItem; pages: any[]; footer?: boolean; depth: number; onChange: (n: MenuItem) => void; onRemove: () => void;
+  onRemoveChild?: (children: MenuItem[], gone: MenuItem) => void; onMove: (d: number) => void;
 }) {
   const kids = item.children || [];
   const setKids = (c: MenuItem[]) => onChange({ ...item, children: c });
@@ -234,6 +236,13 @@ function MenuRow({ item, pages, footer = false, depth, onChange, onRemove, onMov
             className="flex-1 min-w-0 border border-neutral-200 rounded-md px-2 h-8 text-xs" />
         ) : null}
       </div>
+      {(() => {
+        // A link with no words or nowhere to go still shows up and quietly opens the home page: say so here.
+        const problem = !item.label?.trim() ? "Give this link some text, or remove it." :
+          item.type === "page" && item.value && !pages.some(p => p.slug === item.value) ? "That page no longer exists (or its address changed). Choose a page." :
+          item.type !== "home" && !String(item.value || "").trim() ? (item.type === "page" ? "Choose a page; until then this link opens the home page." : "Add where this link goes; until then it opens the home page.") : "";
+        return problem ? <p role="status" className="text-[11px] font-bold text-red-700">⚠ {problem}</p> : null;
+      })()}
       {footer && depth === 0 && <div className="flex items-center gap-2">
         <select aria-label="Footer link group" value={footerGroup(item)} onChange={e => onChange({ ...item, footerGroup: e.target.value as any })} className="flex-1 border border-neutral-200 rounded-md h-8 text-xs px-1">
           <option value="explore">Explore</option><option value="connect">Participate & connect</option>
@@ -246,7 +255,7 @@ function MenuRow({ item, pages, footer = false, depth, onChange, onRemove, onMov
           {kids.map((k, i) => (
             <MenuRow key={k.id} item={k} pages={pages} depth={1}
               onChange={(n) => setKids(kids.map((x, j) => (j === i ? n : x)))}
-              onRemove={() => setKids(kids.filter((_, j) => j !== i))}
+              onRemove={() => onRemoveChild ? onRemoveChild(kids.filter((_, j) => j !== i), k) : setKids(kids.filter((_, j) => j !== i))}
               onMove={(d) => {
                 const j = i + d;
                 if (j < 0 || j >= kids.length) return;
@@ -287,13 +296,18 @@ function NavOrderPanel({ design, pages, onChange, onSecondaryChange }: { design:
   );
 }
 
-function MenusPanel({ design, settings, pages, onChange }: { design: any; settings: any; pages: any[]; onChange: (menus: any) => void }) {
+function MenusPanel({ design, settings, pages, onChange, onRemove }: {
+  design: any; settings: any; pages: any[]; onChange: (menus: any) => void;
+  /** Removing a link (and its sub-links) is its own undoable step, offered back in a toast. */
+  onRemove: (menus: any, label: string) => void;
+}) {
   const [which, setWhich] = useState<"header" | "footer">("header");
   const focus = useContext(FocusContext);
   useEffect(() => { if (focus.id === "menus:header" || focus.id === "menus:footer") setWhich(focus.id === "menus:footer" ? "footer" : "header"); }, [focus]);
   const menus = design.menus || {};
   const items: MenuItem[] = menus[which] || [];
   const set = (next: MenuItem[]) => onChange({ ...menus, [which]: next });
+  const remove = (next: MenuItem[], gone: MenuItem) => onRemove({ ...menus, [which]: next }, gone.label?.trim() || "the link");
   return (
     <div className="p-4 space-y-3" data-studio-panel="menus:links">
       <div className="flex gap-1" role="tablist">
@@ -309,7 +323,8 @@ function MenusPanel({ design, settings, pages, onChange }: { design: any; settin
       {items.map((it, i) => (
         <MenuRow key={it.id} item={it} pages={pages} footer={which === "footer"} depth={0}
           onChange={(n) => set(items.map((x, j) => (j === i ? n : x)))}
-          onRemove={() => set(items.filter((_, j) => j !== i))}
+          onRemove={() => remove(items.filter((_, j) => j !== i), it)}
+          onRemoveChild={(next, gone) => remove(items.map((x, j) => (j === i ? { ...x, children: next } : x)), gone)}
           onMove={(d) => {
             const j = i + d;
             if (j < 0 || j >= items.length) return;
@@ -1862,6 +1877,19 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 loadError={pageLoadError} onRetryLoad={loadPages}
                 active={leftTab === "pages"}
                 formatTitle={pageTitleFormat} fillSeoRequest={fillSeoRequest}
+                onAddressChange={async (from, to, wasPublished) => {
+                  const notes: string[] = [];
+                  const links = menuLinksTo(designRef.current.menus, from);
+                  if (links) {
+                    change((d) => applyGlobalStyle(d, "menus", renamePageInMenus(d.menus, from, to), surfaceIds), { label: `Point menu links at /page/${to}` });
+                    notes.push(`${links} menu link${links === 1 ? " now points" : "s now point"} to the new address (Publish to update the shop menu).`);
+                  }
+                  if (wasPublished) {
+                    const next = redirectsAfterRename(await adminApi.getRedirects(), from, to);
+                    if (next) { await adminApi.saveRedirects(next); notes.push(`/page/${from} now forwards to /page/${to}.`); }
+                  }
+                  return notes.join(" ");
+                }}
                 onReorder={(ordered) => {
                   const raw: any[] = Array.isArray(design.categories) ? design.categories : [...CATEGORIES];
                   const cats = raw.map((c, i) => (typeof c === "string" ? { id: `cat-${i}`, name: c, description: "", showInNav: true } : c));
@@ -1899,7 +1927,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   onReorder={(c) => change(d => ({ ...d, categories: c, navOrder: categoryNavOrder(d.categories ?? [...CATEGORIES], c, pages, d.navOrder) }))}
                   onBooksChanged={(all) => setBooks(all.filter(b => b.status === "published" || !b.status))} />
                 <NavOrderPanel design={design} pages={pages} onChange={(o) => setStyle("navOrder", o)} onSecondaryChange={(keys) => setStyle("secondaryNavKeys", keys)} />
-                <MenusPanel design={design} settings={settings} pages={pages} onChange={(m) => setStyle("menus", m)} />
+                <MenusPanel design={design} settings={settings} pages={pages} onChange={(m) => setStyle("menus", m)}
+                  onRemove={(m, label) => {
+                    change((d) => applyGlobalStyle(d, "menus", m, surfaceIds), { label: `Remove menu link “${label}”` });
+                    say("ok", `Removed “${label}” from the menu.`, undoAction());
+                  }} />
               </>
             )}
           </div>
