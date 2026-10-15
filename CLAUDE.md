@@ -2081,8 +2081,10 @@ raw settings). A value JSON can't carry exactly (timestamp, reference, bytes, ge
 `useSiteData`'s `readSiteData` uses it (`features/site/storefrontDataFile.ts` `currentStorefrontData`) only when
 `settings/catalogVersion.changedAt` (server time stamped by the `catalogVersionBooks/Pages/Settings` triggers after every write,
 `functions/catalogVersion.js`) is not after the file's `readTime`; otherwise, or on any error, it reads Firestore exactly as before.
-Settings/pages go through `publicApi.publicSettingsFrom` / `sortPages` on both paths. Any change also changes the published fingerprint,
-so the 15-minute refresh rebuilds the file (also the backstop if a marker write fails). The triggers retry the write in-process
+Settings/pages go through `publicApi.publicSettingsFrom` / `sortPages` on both paths. Book/page triggers bump only when the before or
+after version is published (`touchesCatalogFile`; drafts aren't in the file). The 15-minute refresh rebuilds when the published fingerprint
+changed **or** the marker is newer than the deployed file's `readTime` (`markerNewerThanFile` in `check-published-change.mjs`: a save that
+changed nothing shoppers see still turns the file off), and is the backstop if a marker write fails. The triggers retry the write in-process
 (`RETRY_DELAYS_MS`) and must not use `retry: true`: the deploy workflow never passes `--force`, which the CLI then requires
 (`functions/catalogVersion.test.js` fails on any `retry: true` in `functions/index.js`). `firebase.json` serves root `*.json` `no-cache`. Never add a field to the file that the
 Firestore path doesn't return, and keep both paths' transforms shared.

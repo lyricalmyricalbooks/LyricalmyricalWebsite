@@ -13,6 +13,17 @@
 "use strict";
 
 const MARKER = ["settings", "catalogVersion"];
+
+/**
+ * Whether a write to books/{id} or pages/{id} can change the file, which holds only published books and pages.
+ * A write where neither the old nor the new version is published (a draft or archived item, before and after)
+ * leaves the file exactly as it was, so it must not mark the file out of date: nothing published changed, so the
+ * 15-minute refresh would have no reason to rebuild it.
+ */
+function touchesCatalogFile(before, after) {
+  const published = data => !!data && data.status === "published";
+  return published(before) || published(after);
+}
 const RETRY_DELAYS_MS = [500, 1000, 2000, 4000];
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -32,4 +43,4 @@ async function bumpCatalogVersion(db, FieldValue, source, { delays = RETRY_DELAY
   }
 }
 
-module.exports = { bumpCatalogVersion, MARKER, RETRY_DELAYS_MS };
+module.exports = { bumpCatalogVersion, touchesCatalogFile, MARKER, RETRY_DELAYS_MS };

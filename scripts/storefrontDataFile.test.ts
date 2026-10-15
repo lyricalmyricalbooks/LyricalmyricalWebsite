@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decodeStrict, readStorefrontData } from "./storefrontDataFile.mjs";
+import { decodeStrict, markerNewerThanFile, nanoTime, readStorefrontData } from "./storefrontDataFile.mjs";
+import { nanoTime as browserNanoTime } from "../src/app/features/site/storefrontDataFile";
 
 const base = "https://firestore.test/v1/projects/p/databases/(default)/documents";
 const doc = (path: string, fields: Record<string, unknown>) => ({ name: `projects/p/databases/(default)/documents/${path}`, fields });
@@ -38,5 +39,24 @@ describe("storefront data file (build side)", () => {
   it("stops when a read fails, so no file is written", async () => {
     const fetchImpl = async () => ({ ok: false, status: 403, json: async () => ({}) }) as any;
     await expect(readStorefrontData(base, "p", fetchImpl as any)).rejects.toThrow(/403/);
+  });
+
+  it("rebuilds only when the marker records a change after the deployed file's snapshot", () => {
+    const file = { v: 1, readTime: "2026-10-15T04:10:16.353519Z", books: [], pages: [], settings: null };
+    const marker = (changedAt: string) => ({ fields: { changedAt: { timestampValue: changedAt }, source: { stringValue: "books/a" } } });
+    expect(markerNewerThanFile(marker("2026-10-15T04:10:16.353520Z"), file)).toBe(true); // one microsecond later
+    expect(markerNewerThanFile(marker("2026-10-15T04:10:16.353519Z"), file)).toBe(false); // the snapshot itself
+    expect(markerNewerThanFile(marker("2026-10-15T04:09:00Z"), file)).toBe(false);
+    // No information never forces a rebuild (a build that can't write the file would otherwise rebuild forever).
+    expect(markerNewerThanFile(null, file)).toBe(false);
+    expect(markerNewerThanFile(marker("2026-10-16T00:00:00Z"), null)).toBe(false);
+    expect(markerNewerThanFile(marker("2026-10-16T00:00:00Z"), { ...file, v: 2 })).toBe(false);
+    expect(markerNewerThanFile(marker("2026-10-16T00:00:00Z"), "<html>")).toBe(false);
+  });
+
+  it("reads times the same way as the browser", () => {
+    for (const t of ["2026-10-15T04:10:16.353519Z", "2026-10-15T04:10:16Z", "2026-10-15T04:10:16.1Z", "2026-10-15T04:10:16.123456789Z", "nope", "2026-10-15T04:10:16+01:00"]) {
+      expect(nanoTime(t)).toBe(browserNanoTime(t));
+    }
   });
 });
