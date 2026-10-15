@@ -412,7 +412,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     fields: [
       { key: "logoUrl", label: "Logo image (optional)", kind: "image" },
       { key: "shareImageUrl", label: "Share image (link previews on social / messages)", kind: "image" },
-      { key: "faviconUrl", label: "Browser tab icon (favicon)", kind: "image" },
+      { key: "faviconUrl", label: "Browser tab icon (favicon) (blank = the built-in lyre icon)", kind: "image" },
       { key: "logoTint", label: "Recolor logo image with the color below", kind: "toggle" },
       { key: "logoColor", label: "Logo / wordmark color", kind: "color" },
       { key: "logoHoverColor", label: "Wordmark color when pointed at or clicked (empty = link hover color)", kind: "color" },
