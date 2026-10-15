@@ -799,18 +799,18 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 <div className="max-w-3xl">
                   {/* On /collections/<slug> the category name is the page's single <h1> (in the prerendered HTML too). */}
                   {onCollectionRoute ? (
-                    <h1 {...regionProps("categoryBannerTitle")} className="text-3xl md:text-5xl font-bold tracking-tighter mb-4 uppercase">
+                    <h1 {...regionProps("categoryBannerTitle")} data-studio-target={regionProps("categoryBannerTitle")["data-studio-target"] + "|menus:categories"} className="text-3xl md:text-5xl font-bold tracking-tighter mb-4 uppercase">
                       {activeCategory.name}
                     </h1>
                   ) : (
-                    <h2 {...regionProps("categoryBannerTitle")} className="text-3xl md:text-5xl font-bold tracking-tighter mb-4 uppercase">
+                    <h2 {...regionProps("categoryBannerTitle")} data-studio-target={regionProps("categoryBannerTitle")["data-studio-target"] + "|menus:categories"} className="text-3xl md:text-5xl font-bold tracking-tighter mb-4 uppercase">
                       {activeCategory.name}
                     </h2>
                   )}
                   {(() => {
                     const intro = onCollectionRoute ? collectionIntro(activeDesign, collectionSlug, activeCategory) : activeCategory.description;
                     return intro ? (
-                      <p {...regionProps("categoryBannerText")} className="text-sm md:text-base text-white/60 leading-relaxed font-medium">
+                      <p {...regionProps("categoryBannerText")} data-studio-target={regionProps("categoryBannerText")["data-studio-target"] + "|menus:categories"} className="text-sm md:text-base text-white/60 leading-relaxed font-medium">
                         {intro}
                       </p>
                     ) : null;
