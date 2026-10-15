@@ -101,6 +101,26 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
     await loadStatus({ resetChoices: true });
   });
 
+  // The sweep's hourly check: website books it can match by ISBN or title, waiting for one click.
+  const newMatches: Array<{ key: string; bookId: string; variantId: string | null; title: string; edition: string; inventoryBookId: string; inventoryTitle: string }> =
+    (Array.isArray(state.newMatches?.items) ? state.newMatches.items : []).filter((m: any) => m && !linkedTo(links, m.bookId, m.variantId));
+
+  const matchNew = () => run("links", async () => {
+    const next: InventoryLinks = Object.fromEntries(Object.entries(links).map(([id, entry]) => [id, { ...entry }]));
+    for (const m of newMatches) next[m.bookId] = { ...(next[m.bookId] || {}), [m.variantId || "_"]: m.inventoryBookId };
+    const res = await inventoryLinkApi.saveLinks(next);
+    setLinkErrors(res.errors);
+    const done = newMatches.length - res.errors.length;
+    toast(res.errors.length ? `${done} matched, but ${res.errors.length} couldn't be used — see below.` : `${newMatches.length === 1 ? "Book" : "Books"} matched. Their website sales now reach the inventory app.`, { tone: res.errors.length ? "warn" : "ok" });
+    await loadStatus();
+  });
+
+  const ignoreNew = () => run("links", async () => {
+    await inventoryLinkApi.ignoreMatches(newMatches.map((m) => ({ key: m.key, inventoryBookId: m.inventoryBookId })));
+    toast("Left out. You can still match these books in the list below.");
+    await loadStatus();
+  });
+
   // Always possible, even when the inventory app can't be reached: every matched book's stock becomes
   // editable on the website again.
   const unlinkAll = () => run("links", async () => {
@@ -302,6 +322,21 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
           : catalogError ? <ErrorState description={catalogError} onRetry={loadCatalog} />
           : !appBooks ? <LoadingState label="Reading the inventory app's books…" />
           : <>
+              {newMatches.length > 0 && (
+                <div style={{ padding: 16, display: "grid", gap: 8, borderBottom: "1px solid var(--rp-border)" }} role="status">
+                  <div style={{ fontWeight: 600 }}>New books to match</div>
+                  <p className="rp-hint" style={{ margin: 0 }}>These books have the same ISBN or title in both shops. Until they're matched, their website sales don't reach the inventory app.</p>
+                  <ul className="rp-list" aria-label="Suggested new matches" style={{ margin: 0 }}>
+                    {newMatches.map((m) => (
+                      <li key={m.key} style={{ overflowWrap: "anywhere" }}>{editionName(m)} → <strong>{m.inventoryTitle}</strong></li>
+                    ))}
+                  </ul>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                    <PrimaryButton disabled={!!busy} onClick={matchNew}>{busy === "links" ? "Saving…" : newMatches.length === 1 ? "Match this book" : `Match these ${newMatches.length} books`}</PrimaryButton>
+                    <SecondaryButton disabled={!!busy} onClick={ignoreNew}>Not these</SecondaryButton>
+                  </div>
+                </div>
+              )}
               <DataTable caption="Book matches" columns={linkColumns} rows={shown} rowKey={(e) => e.key}
                 empty={<EmptyState title="No printed books on the website yet" />} />
               <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", padding: 16 }}>

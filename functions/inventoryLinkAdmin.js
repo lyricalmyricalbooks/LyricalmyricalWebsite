@@ -8,7 +8,7 @@ const { shopDate } = require("./paymentGuards");
 const ok = body => ({ status: 200, body });
 const bad = (error, status = 400) => ({ status, body: { error } });
 const PUBLIC_STATE_KEYS = ["links", "startDay", "autoSync", "rehearsalUntil", "firstApplyAt", "backfill", "connection",
-  "lastSync", "lastStockAt", "lastRunAt", "lastPush", "pendingImport", "app", "lastError", "relinkPending", "shipmentError", "pendingError", "shipmentIssues"];
+  "lastSync", "lastStockAt", "lastRunAt", "lastPush", "pendingImport", "app", "lastError", "relinkPending", "shipmentError", "pendingError", "shipmentIssues", "newMatches", "ignoredMatches"];
 
 async function counts(db) {
   const count = async query => { try { return (await query.count().get()).data().count; } catch { return null; } };
@@ -74,10 +74,28 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
     const { links, errors } = validateLinks(books, body.links, inventoryIds);
     // New matches: orders with unmatched copies are sent again from the start (relinkBatch pages through all).
     const relink = !!state.startDay && !removalsOnly;
-    const patch = { links, linksSavedAt: now.toISOString(), linksSavedBy: actor, ...(relink ? { relinkPending: true, relinkCursor: null } : {}) };
+    // Suggestions for editions matched now are done with.
+    const stillOpen = (state.newMatches?.items || []).filter(m => !links[m.bookId]?.[m.variantId || "_"]);
+    const newMatches = state.newMatches ? { ...state.newMatches, items: stillOpen, count: Math.max(0, (state.newMatches.count || 0) - ((state.newMatches.items || []).length - stillOpen.length)) } : null;
+    const patch = { links, linksSavedAt: now.toISOString(), linksSavedBy: actor, ...(relink ? { relinkPending: true, relinkCursor: null } : {}), ...(newMatches ? { newMatches } : {}) };
     // set() with merge replaces nested maps key by key; write `links` whole so a removed link is gone.
     await ref.update(patch).catch(async () => { await ref.set(patch, { merge: true }); });
     return ok({ links, errors });
+  }
+
+  // "Not these": the sweep stops suggesting these pairs (a different later suggestion still shows).
+  if (op === "ignoreMatches") {
+    const list = Array.isArray(body.matches) ? body.matches.slice(0, 50) : [];
+    const pairs = list.filter(m => m && typeof m.key === "string" && m.key.length <= 300 && typeof m.inventoryBookId === "string" && m.inventoryBookId && m.inventoryBookId.length <= 200);
+    if (!pairs.length) return bad("Choose the matches to leave out.");
+    const state = await readState(db);
+    const ignoredMatches = { ...(state.ignoredMatches || {}) };
+    pairs.forEach(m => { ignoredMatches[m.key] = m.inventoryBookId; });
+    const gone = new Set(pairs.map(m => `${m.key}\n${m.inventoryBookId}`));
+    const items = (state.newMatches?.items || []).filter(m => !gone.has(`${m.key}\n${m.inventoryBookId}`));
+    const newMatches = state.newMatches ? { ...state.newMatches, items, count: Math.max(0, (state.newMatches.count || 0) - ((state.newMatches.items || []).length - items.length)) } : null;
+    await ref.update({ ignoredMatches, ...(newMatches ? { newMatches } : {}) }).catch(async () => { await ref.set({ ignoredMatches, ...(newMatches ? { newMatches } : {}) }, { merge: true }); });
+    return ok({ ignoredMatches, newMatches });
   }
 
   if (op === "setOptions") {

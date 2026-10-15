@@ -10,7 +10,7 @@
 const crypto = require("crypto");
 const { FieldPath, FieldValue, AggregateField } = require("firebase-admin/firestore");
 const {
-  pushKind, websiteOrder, linkedEditions, stockPlanFor, stockPatch, liveStock, stable, isDigitalEdition,
+  pushKind, websiteOrder, linkedEditions, stockPlanFor, stockPatch, liveStock, stable, isDigitalEdition, newMatchList,
 } = require("./inventoryLink");
 const { externalDispatchProblem } = require("./fulfillmentGuard");
 const { catalogUnitPrice } = require("./catalogPrice");
@@ -23,6 +23,8 @@ const CATCH_UP_MARGIN_MS = 15 * 60 * 1000;
 const FIRST_CATCH_UP_MS = 2 * 24 * 60 * 60 * 1000;
 const BACKFILL_PAGE = 100;
 const REHEARSAL_MS = 24 * 60 * 60 * 1000;
+// How often the sweep looks for website books it can suggest a match for (new books, mostly).
+const MATCH_EVERY_MS = 60 * 60 * 1000;
 // An automatic run may apply these; the owner's confirmed preview also applies "untracked" and "big-change".
 const CONFIRMED_HOLDS = new Set([null, "untracked", "big-change"]);
 
@@ -472,6 +474,19 @@ async function runSweep(deps, opts = {}) {
       } catch (err) { status.pendingError = errText(err); }
     }
 
+    // Books added to both shops since the matching step: suggest their match (one click in the panel).
+    // Throttled on the last attempt, so a failing read isn't retried every five minutes.
+    const lastMatchCheck = Date.parse(state.matchCheckedAt || state.newMatches?.at || "");
+    if (Object.keys(state.links || {}).length && (!Number.isFinite(lastMatchCheck) || start.getTime() - lastMatchCheck >= MATCH_EVERY_MS - 60 * 1000)) {
+      status.matchCheckedAt = iso(start);
+      try {
+        const [booksSnap, catalog] = await Promise.all([db.collection("books").get(), store.readCatalog()]);
+        const items = newMatchList(booksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })), catalog, state.links, state.ignoredMatches || {});
+        status.newMatches = { at: iso(start), count: items.length, items: items.slice(0, 50) };
+        status.matchError = null;
+      } catch (err) { status.matchError = errText(err); }
+    }
+
     const backfillDone = (status.backfill || state.backfill)?.done === true;
     const stockReady = salesOn(state) && backfillDone;
     const mode = opts.stock || "auto";
@@ -520,6 +535,6 @@ async function runSweep(deps, opts = {}) {
 }
 
 module.exports = {
-  LEASE_MS, REHEARSAL_MS, STATE_DOC, readState, pushOrder, catchUp, relinkBatch, backfillBatch, planStock, applyStock,
+  LEASE_MS, REHEARSAL_MS, MATCH_EVERY_MS, STATE_DOC, readState, pushOrder, catchUp, relinkBatch, backfillBatch, planStock, applyStock,
   applyAppShipment, runSweep, rehearsalOn, salesOn,
 };

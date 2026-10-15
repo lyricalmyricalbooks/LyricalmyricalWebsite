@@ -279,6 +279,83 @@ const isDigitalEdition = (book, variant) => variant
   ? variant.digital === true || (variant.format ? DIGITAL_RE.test(String(variant.format)) : (book.digital === true || DIGITAL_RE.test(String(book.format || ""))))
   : book.digital === true || DIGITAL_RE.test(String(book.format || ""));
 
+// ── Suggested matches (mirrors suggestLinks in src/app/admin/inventoryLink.ts; inventoryLinkSuggest.parity.test.ts) ──
+
+const editionKey = (bookId, variantId) => `${bookId}|${variantId || ""}`;
+
+/** Every printed website book/edition that can be linked (no e-books, box sets or gift cards). */
+function linkableEditions(books) {
+  const out = [];
+  for (const book of books || []) {
+    if (!book?.id || isGiftCardProduct(book) || isBundle(book)) continue;
+    const variants = Array.isArray(book.variants) ? book.variants.filter(v => v && v.id) : [];
+    const base = { bookId: book.id, title: String(book.title || "Untitled"), tracked: book.trackInventory === true, archived: book.status === "archived" };
+    if (variants.length) {
+      for (const v of variants) {
+        if (isDigitalEdition(book, v)) continue;
+        out.push({ ...base, key: editionKey(book.id, v.id), variantId: v.id, edition: String(v.name || v.format || "Edition"),
+          isbn: String(v.isbn || book.isbn || ""), stock: whole(v.stockLevel !== undefined ? v.stockLevel : v.stock) });
+      }
+    } else if (!isDigitalEdition(book, null)) {
+      out.push({ ...base, key: editionKey(book.id, null), variantId: null, edition: "", isbn: String(book.isbn || ""), stock: whole(book.stockLevel) });
+    }
+  }
+  return out.sort((a, b) => a.title.localeCompare(b.title) || a.edition.localeCompare(b.edition));
+}
+
+const isbnDigits = v => String(v || "").replace(/[^0-9Xx]/g, "").toUpperCase();
+const normTitle = v => String(v || "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * Suggested inventory book per unlinked edition: the same ISBN (10+ digits), else exactly the same
+ * title ("Title" for a book without editions, "Title Edition" otherwise). Only a single, unused match
+ * is suggested — never a guess between two.
+ */
+function suggestLinks(editions, appBooks, links) {
+  const used = new Set(Object.values(links || {}).flatMap(e => Object.values(e || {})));
+  const byIsbn = new Map();
+  const byTitle = new Map();
+  for (const b of appBooks || []) {
+    const isbn = isbnDigits(b.isbn);
+    if (isbn.length >= 10) byIsbn.set(isbn, [...(byIsbn.get(isbn) || []), b]);
+    const t = normTitle(b.title);
+    if (t) byTitle.set(t, [...(byTitle.get(t) || []), b]);
+  }
+  const out = {};
+  const taken = new Set();
+  const pick = list => {
+    const free = (list || []).filter(b => !used.has(b.id) && !taken.has(b.id));
+    return list && list.length === 1 && free.length === 1 ? free[0].id : null;
+  };
+  const printedPerBook = new Map();
+  editions.forEach(e => printedPerBook.set(e.bookId, (printedPerBook.get(e.bookId) || 0) + 1));
+  for (const e of editions) {
+    if (linkFor(links, e.bookId, e.variantId)) continue;
+    const isbn = isbnDigits(e.isbn);
+    const onlyPrinted = printedPerBook.get(e.bookId) === 1;
+    const id = (isbn.length >= 10 ? pick(byIsbn.get(isbn)) : null)
+      || (e.edition ? pick(byTitle.get(normTitle(`${e.title} ${e.edition}`))) : null)
+      || (!e.edition || onlyPrinted ? pick(byTitle.get(normTitle(e.title))) : null);
+    if (id) { out[e.key] = id; taken.add(id); }
+  }
+  return out;
+}
+
+/**
+ * Books the owner can match with one click (Inventory › Inventory app link): suggestions for printed
+ * editions not archived and not matched, minus the pairs the owner said "Not these" to (`ignored`,
+ * { editionKey: inventoryBookId }), sorted by title.
+ */
+function newMatchList(books, appBooks, links, ignored = {}) {
+  const editions = linkableEditions(books).filter(e => !e.archived);
+  const suggestions = suggestLinks(editions, appBooks, links);
+  const titleOf = new Map((appBooks || []).map(b => [b.id, String(b.title || b.id).slice(0, 200)]));
+  return editions
+    .filter(e => suggestions[e.key] && ignored?.[e.key] !== suggestions[e.key])
+    .map(e => ({ key: e.key, bookId: e.bookId, variantId: e.variantId, title: e.title.slice(0, 200), edition: e.edition.slice(0, 100),
+      inventoryBookId: suggestions[e.key], inventoryTitle: titleOf.get(suggestions[e.key]) || suggestions[e.key] }));
+}
+
 /**
  * Check and clean a links map against the website catalog (and the inventory catalog's ids when known).
  * An empty value removes a link. Returns { links, errors: [{ bookId, variantId, reason }] }.
@@ -393,5 +470,5 @@ function projectInventoryCatalog(doc) {
 module.exports = {
   WEB_VERSION, websiteOrderNumber, paidDayOf, countsForInventory, pushKind, linkFor, lineKey, splitCents,
   orderFootprint, websiteOrder, stable, validateLinks, linkedEditions, liveStock, stockPlanFor, stockPatch,
-  projectInventoryCatalog, isDigitalEdition,
+  projectInventoryCatalog, isDigitalEdition, linkableEditions, suggestLinks, newMatchList,
 };

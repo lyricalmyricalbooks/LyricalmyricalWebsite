@@ -5,7 +5,7 @@ import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import type { InventoryAppBook, InventoryLinks, StockRow } from "./inventoryLink";
 
-export type LinkOp = "status" | "check" | "catalog" | "saveLinks" | "setOptions" | "startSales" | "preview" | "apply" | "syncNow";
+export type LinkOp = "status" | "check" | "catalog" | "saveLinks" | "ignoreMatches" | "setOptions" | "startSales" | "preview" | "apply" | "syncNow";
 
 export interface LinkStatus {
   state: any; undelivered: number | null; unlinkedOrders: number | null; earliestPaidDay: string | null;
@@ -30,6 +30,7 @@ export const inventoryLinkApi = {
   status: () => call<LinkStatus>("status"),
   check: () => call<{ connection: any }>("check"),
   catalog: () => call<{ books: InventoryAppBook[] }>("catalog"),
+  ignoreMatches: (matches: Array<{ key: string; inventoryBookId: string }>) => call<{ ok?: boolean }>("ignoreMatches", { matches }),
   saveLinks: (links: InventoryLinks) => call<{ links: InventoryLinks; errors: Array<{ bookId: string; variantId: string | null; reason: string }> }>("saveLinks", { links }),
   setOptions: (options: { autoSync?: boolean; rehearsal?: boolean }) => call<{ saved: any }>("setOptions", options),
   startSales: (startDay: string) => call<{ startDay: string; run: any }>("startSales", { startDay }),

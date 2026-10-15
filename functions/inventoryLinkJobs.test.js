@@ -313,3 +313,32 @@ describe("review fixes", () => {
     expect(db.docs["systemStatus/inventoryLink"].data.shipmentIssues.map(i => i.orderId)).toEqual(["new"]);
   });
 });
+
+describe("runSweep: new books to match", () => {
+  test("suggests a match for a book added to both shops, at most once an hour, minus pairs left out", async () => {
+    const db = fakeDb({
+      "systemStatus/inventoryLink": { ...STATE, lastCatchUpAt: "2026-10-11T14:00:00Z" },
+      "books/b1": { title: "The Hound", trackInventory: true, stockLevel: 9 },
+      "books/b2": { title: "Un fantastico altrove", isbn: "978-1-23456-789-7" },
+      "books/b3": { title: "Altrove", status: "archived" },
+    });
+    const store = fakeStore();
+    store.catalog = [{ id: "hound", title: "The Hound" }, { id: "altrove", title: "Altrove (2nd printing)", isbn: "9781234567897" }];
+    const d = deps(db, store, { sumNet: async () => 0 });
+    await jobs.runSweep(d);
+    let state = db.docs["systemStatus/inventoryLink"].data;
+    expect(state.newMatches).toMatchObject({ at: now.toISOString(), count: 1 });
+    expect(state.newMatches.items).toEqual([{ key: "b2|", bookId: "b2", variantId: null, title: "Un fantastico altrove", edition: "", inventoryBookId: "altrove", inventoryTitle: "Altrove (2nd printing)" }]);
+
+    // Within the hour the list stays as it was.
+    db.docs["systemStatus/inventoryLink"].data.ignoredMatches = { "b2|": "altrove" };
+    now = new Date(now.getTime() + 10 * 60 * 1000);
+    await jobs.runSweep(d);
+    expect(db.docs["systemStatus/inventoryLink"].data.newMatches.count).toBe(1);
+
+    now = new Date(now.getTime() + 60 * 60 * 1000);
+    await jobs.runSweep(d);
+    state = db.docs["systemStatus/inventoryLink"].data;
+    expect(state.newMatches.count).toBe(0);
+  });
+});

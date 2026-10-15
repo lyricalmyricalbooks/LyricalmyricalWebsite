@@ -112,3 +112,28 @@ describe("inventory link admin actions", () => {
     expect((await inventoryLinkAdmin(deps(fakeDb({}), fakeStore()), { op: "apply" })).status).toBe(400);
   });
 });
+
+describe("new books to match", () => {
+  const items = [
+    { key: "b1|", bookId: "b1", variantId: null, title: "The Hound", edition: "", inventoryBookId: "hound", inventoryTitle: "The Hound" },
+    { key: "b2|", bookId: "b2", variantId: null, title: "Altrove", edition: "", inventoryBookId: "altrove", inventoryTitle: "Altrove" },
+  ];
+  test("Not these: the pair is left out from now on", async () => {
+    const db = fakeDb({ "systemStatus/inventoryLink": { connection: { ok: true }, newMatches: { at: "x", count: 2, items } } });
+    expect((await inventoryLinkAdmin(deps(db, fakeStore()), { op: "ignoreMatches", matches: [] })).status).toBe(400);
+    await inventoryLinkAdmin(deps(db, fakeStore()), { op: "ignoreMatches", matches: [{ key: "b2|", inventoryBookId: "altrove" }] });
+    expect(state(db).ignoredMatches).toEqual({ "b2|": "altrove" });
+    expect(state(db).newMatches.items.map(m => m.key)).toEqual(["b1|"]);
+    expect(state(db).newMatches.count).toBe(1);
+  });
+  test("saving matches clears their suggestions", async () => {
+    const db = fakeDb({
+      "systemStatus/inventoryLink": { connection: { ok: true }, newMatches: { at: "x", count: 2, items } },
+      "books/b1": { title: "The Hound", format: "Paperback" }, "books/b2": { title: "Altrove", format: "Paperback" },
+    });
+    const store = fakeStore();
+    store.catalog = [{ id: "hound", title: "The Hound" }, { id: "altrove", title: "Altrove" }];
+    await inventoryLinkAdmin(deps(db, store), { op: "saveLinks", links: { b1: { _: "hound" } } });
+    expect(state(db).newMatches.items.map(m => m.key)).toEqual(["b2|"]);
+  });
+});

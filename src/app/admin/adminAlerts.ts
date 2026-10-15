@@ -180,6 +180,14 @@ export function inventoryLinkAlerts(state: any, now = Date.now()): AdminAlert[] 
     out.push(link("inventory-link-waiting", "warning", `${plural(pending.count, "website order has", "website orders have")} waited over a day for the inventory app`,
       "New sales, refunds or shipping updates. Open the inventory app so it adds them to its books (website stock already counts them)."));
   }
+  // Books added to both shops after the matching step (found by the sweep's hourly match check).
+  const open = (Array.isArray(state.newMatches?.items) ? state.newMatches.items : [])
+    .filter((m: any) => m && !state.links?.[m.bookId]?.[m.variantId || "_"]);
+  if (open.length) {
+    const names = open.slice(0, 3).map((m: any) => (m.edition ? `${m.title} (${m.edition})` : m.title)).join(", ");
+    out.push(link("inventory-link-new-books", "info", `${plural(open.length, "book", "books")} can be matched to the inventory app`,
+      `${names}${open.length > 3 ? " and more" : ""}. Until they're matched, their website sales don't reach the inventory app. Open Inventory › Inventory app link to match them in one click.`));
+  }
   if (Number(state.lastPush?.failed) > 0) {
     out.push(link("inventory-link-push", "warning", `${plural(Number(state.lastPush.failed), "website sale", "website sales")} couldn't be sent to the inventory app yet`,
       "The website keeps trying every 5 minutes. If this stays, check the connection on the Inventory page."));
