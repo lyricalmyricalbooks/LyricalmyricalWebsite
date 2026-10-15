@@ -2075,6 +2075,12 @@ All go through `admin/aiWriter.ts` `askAi` → `createStripeCheckoutSession` `ac
 `MODELS` on 404, plain-English errors (`aiErrorMessage`). `bookAiInput` sends public catalog facts only — never cost, stock,
 shelf, files, customers or orders (free-tier prompts may be used by Google). Drafts land in the editor; nothing is saved by
 the AI path. Written fields are replaced only after a Riso confirm. Deploy Functions with the frontend; no rule or index change.
+**Studio (3.0 phase 8):** **Rewrite with AI** under section/block text fields (`ConnectableField`) and Text & labels
+(`StudioCopyField`) — `studio/StudioAiRewrite.tsx`, task `rewrite` (keeps `{placeholders}` and links or changes nothing;
+rich text sanitised on both sides); **Draft a section with AI** in Add section (`studio/StudioAiDraft.tsx`, task
+`sectionDraft`, kinds in `DRAFT_TYPES` of `studio/aiStudio.ts` = `functions/aiWriter.js`, parity-tested; no quote/review
+sections). Both land as one undoable Studio change; nothing is saved by the AI path. A new AI task needs a `TASKS` entry and
+a `needs` branch in `handleAiWrite`. The fixture fakes the server with `setAiTransport` (`__studioFixture.aiAnswer`).
 
 ## URL redirects (11 October 2026)
 

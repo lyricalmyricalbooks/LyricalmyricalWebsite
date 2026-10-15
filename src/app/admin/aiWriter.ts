@@ -7,8 +7,9 @@ import type { Book } from "../features/site/types";
 // is used only by the createStripeCheckoutSession `aiWrite` action (functions/aiWriter.js). Every answer is
 // a suggestion placed in the editor; nothing is saved until the owner saves the book or page.
 
-export type AiTask = "bookSeo" | "bookDescription" | "pageSeo";
-export type AiResult = Record<string, string>;
+export type AiTask = "bookSeo" | "bookDescription" | "pageSeo" | "rewrite" | "sectionDraft";
+/** Studio's section drafts carry lists (`items`) as well as words. */
+export type AiResult = Record<string, any>;
 
 /** Same rule as functions/aiWriter.js aiKeyProblem ("" = fine or empty). */
 export function aiKeyProblem(value: string): string {
@@ -46,8 +47,18 @@ export function bookAiInput(book: Partial<Book> & Record<string, any>) {
   };
 }
 
+type AiTransport = (body: Record<string, unknown>) => Promise<{ status: number; data: any }>;
+let transport: AiTransport | null = null;
+/** The Studio fixture (studio/fixture/main.tsx) answers AI requests itself, so browser checks never reach Google. */
+export function setAiTransport(next: AiTransport | null) { transport = next; }
+
 /** Asks the shop's server to write; throws AiWriteError with a plain-English reason. */
 export async function askAi(task: AiTask, input: Record<string, unknown>, extra: { siteName?: string; titleSuffix?: number } = {}): Promise<AiResult> {
+  if (transport) {
+    const { status, data } = await transport({ action: "aiWrite", task, input, ...extra });
+    if (status !== 200 || !data?.result) throw new AiWriteError(data?.error || `The shop's server answered ${status}.`, data?.needsKey === true);
+    return data.result as AiResult;
+  }
   const idToken = await auth.currentUser?.getIdToken();
   if (!idToken) throw new AiWriteError("Sign in again as the shop administrator.");
   let res: Response;

@@ -7,6 +7,7 @@ import { adminApi } from "../../api";
 import { StudioEditor } from "../StudioEditor";
 import { createStudioFixture, installFakeStudioApi } from "./fakeStudioApi";
 import { parseStudioLocation } from "../../../lib/studioLocation";
+import { setAiTransport } from "../../aiWriter";
 
 // `?live=1` loads a snapshot of the published design (features/site/__fixtures__/liveDesign.json).
 const live = new URLSearchParams(location.search).has("live")
@@ -20,6 +21,13 @@ const fixture = createStudioFixture({
 fixture.versions = [{ id: "v-published", kind: "published", label: "Published 8 Oct 2026", createdAt: "2026-10-08T15:00:00.000Z", design: JSON.parse(JSON.stringify(fixture.settings.design)) }];
 installFakeStudioApi(adminApi as any, fixture);
 (window as any).__studioFixture = fixture;
+// AI writing (3.0 phase 8): browser checks set `__studioFixture.aiAnswer(body) → { status, data }`; without it the
+// shop behaves as if no AI key was saved. Every request is recorded like a save.
+setAiTransport(async body => {
+  fixture.calls.push({ method: "aiWrite", args: [body] } as any);
+  const answer = (fixture as any).aiAnswer?.(body);
+  return answer || { status: 412, data: { error: "Add your free Google AI key first: Settings › General › AI writing assistant.", needsKey: true } };
+});
 
 createRoot(document.getElementById("root")!).render(
   <div className="admin-light admin-reso" data-admin-theme="reso" style={{ background: "transparent" }}>

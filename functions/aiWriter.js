@@ -80,6 +80,65 @@ function factLines(f) {
 
 const HONESTY = "Use only the facts given. Never invent awards, reviews, quotes, prices, page counts, dates, editions or claims about the author. If a fact is missing, leave it out. Write in the same language as the book's title and description. No emoji, no hashtags, no markdown, no quotation marks around the whole answer.";
 
+// ── Studio (3.0 phase 8): rewrite one field, draft one section ────────────────────────────────────────
+const STUDIO_HONESTY = "Use only what the owner wrote or asked for. Never invent prices, dates, awards, reviews, quotes, testimonials, statistics, stock levels or claims about authors. Write in the same language as the original text (or the request). No emoji, no hashtags, no markdown.";
+const REWRITE_HOW = {
+  improve: "Make it clearer and more inviting while keeping its meaning and length.",
+  shorter: "Make it noticeably shorter (about half), keeping the essential meaning.",
+  longer: "Make it a little fuller (up to about half as long again) using only what it already says; add no new facts.",
+  friendlier: "Make it warmer and friendlier.",
+  formal: "Make it more polished and formal.",
+  fix: "Only fix spelling, grammar and punctuation. Change nothing else.",
+};
+const TOKEN_RE = /\{\{[^{}]{1,60}\}\}|\{[A-Za-z][A-Za-z0-9_.]{0,40}\}/g;
+/** The {placeholders} (and {{book.title}}-style connected details) a text uses: they must survive a rewrite. */
+const tokensOf = text => [...new Set(String(text || "").match(TOKEN_RE) || [])];
+const HTML_TAGS = new Set(["p", "br", "strong", "b", "em", "i", "u", "a", "ul", "ol", "li", "h2", "h3", "h4", "blockquote"]);
+const safeHref = h => /^(https?:\/\/|mailto:|\/(?!\/)|#)/i.test(h) && !/[\s"'<>]/.test(h);
+/** Keeps only simple formatting tags (and http(s)/relative links); everything else becomes its text. */
+function sanitizeHtml(html) {
+  return String(html || "")
+    .replace(/<(script|style|iframe|object|embed|template)\b[^>]*>[\s\S]*?<\/\1>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g, (tag, name, attrs) => {
+      const n = name.toLowerCase();
+      if (!HTML_TAGS.has(n)) return "";
+      if (tag.startsWith("</")) return n === "br" ? "" : `</${n}>`;
+      if (n !== "a") return `<${n}>`;
+      const href = (/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs) || [])[1] ?? (/\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs) || [])[2] ?? "";
+      return safeHref(href) ? `<a href="${href.replace(/&(?!amp;)/g, "&amp;")}">` : "<a>";
+    })
+    .trim();
+}
+const hrefsOf = html => [...String(html || "").matchAll(/\bhref\s*=\s*"([^"]*)"/gi)].map(m => m[1].replace(/&amp;/g, "&"));
+function rewriteInput(input) {
+  const i = input && typeof input === "object" ? input : {};
+  const format = i.format === "html" ? "html" : "plain";
+  const how = Object.prototype.hasOwnProperty.call(REWRITE_HOW, i.how) || i.how === "custom" ? i.how : "improve";
+  return {
+    format, how,
+    text: format === "html" ? clip(String(i.text || ""), 8000) : clip(String(i.text || ""), 4000),
+    label: clip(i.label, 80), where: clip(i.where, 80), instruction: how === "custom" ? oneLine(clip(i.instruction, 200)) : "",
+  };
+}
+
+/** Sections the AI may draft, with the words it writes for each (checked against the Studio registry by a test). */
+const DRAFT_TYPES = {
+  HeroSection: { label: "Hero banner", fields: { eyebrow: 60, title: 90, subtitle: 200, ctaText: 30 } },
+  ImageWithTextSection: { label: "Image with text", fields: { eyebrow: 60, title: 90, body: 900, ctaText: 30 } },
+  TextContentSection: { label: "Text block", fields: { eyebrow: 60, title: 90, subtitle: 160, content: 2500 }, html: ["content"] },
+  FAQSection: { label: "Questions & answers", fields: { title: 90, subtitle: 200 }, items: { question: 160, answer: 700 } },
+  NewsletterSection: { label: "Newsletter sign-up", fields: { title: 90, description: 300, buttonLabel: 30 } },
+  FeatureGridSection: { label: "Feature grid", fields: { title: 90, subtitle: 200 }, items: { title: 70, description: 280 } },
+};
+const draftSpec = type => (Object.prototype.hasOwnProperty.call(DRAFT_TYPES, type) ? DRAFT_TYPES[type] : null);
+function draftSchema(spec) {
+  const str = { type: "STRING" };
+  const props = Object.fromEntries(Object.keys(spec.fields).map(k => [k, str]));
+  if (spec.items) props.items = { type: "ARRAY", items: { type: "OBJECT", properties: Object.fromEntries(Object.keys(spec.items).map(k => [k, str])), required: Object.keys(spec.items) } };
+  return { type: "OBJECT", properties: props, required: [...Object.keys(spec.fields), ...(spec.items ? ["items"] : [])] };
+}
+
 const TASKS = {
   // Books › edit › Search (SEO): title used exactly as written, so it carries the shop name when it fits.
   bookSeo: {
@@ -127,13 +186,78 @@ ${plainText(f.text, 6000) || "(empty)"}`,
     clean: (out, ctx) => ({ seoTitle: fitWords(out.seoTitle, Math.max(20, 70 - (ctx.titleSuffix || 0))), metaDescription: fitWords(out.metaDescription, 160) }),
     ok: out => Boolean(out.seoTitle && out.metaDescription),
   },
+  // Studio › any text field or Text & labels entry: one rewrite of the owner's own words.
+  rewrite: {
+    needs: f => Boolean(rewriteInput(f).text.replace(/<[^>]*>/g, "").trim()),
+    prompt: (f) => {
+      const r = rewriteInput(f);
+      const tokens = tokensOf(r.text);
+      return `Rewrite this text from the online shop${r.where ? ` (${r.where}` : ""}${r.label ? `${r.where ? ", " : " ("}field "${r.label}"` : ""}${r.where || r.label ? ")" : ""}.
+- ${r.how === "custom" ? `The owner asks: ${r.instruction || "improve it"}` : REWRITE_HOW[r.how]}
+- ${STUDIO_HONESTY}
+${tokens.length ? `- Keep these placeholders exactly as written, braces included: ${tokens.join(" ")}\n` : ""}${r.format === "html" ? "- The text is HTML. Answer in HTML using only <p>, <br>, <strong>, <em>, <u>, <a href>, <ul>, <ol>, <li>, <h2>, <h3>, <h4>, <blockquote>. Keep every link and its href exactly." : "- Answer in plain text (keep line breaks if the original has them)."}
+- Return the new text in the field "text".
+
+Original:
+${r.text}`;
+    },
+    schema: { type: "OBJECT", properties: { text: { type: "STRING" } }, required: ["text"] },
+    clean: (out, ctx) => {
+      const r = rewriteInput(ctx.input);
+      const raw = String(out.text || "").replace(/\r/g, "");
+      const text = r.format === "html" ? sanitizeHtml(raw).slice(0, 12000) : clip(raw.trim().replace(/^["“]([\s\S]*)["”]$/, "$1").replace(/\*\*|__|`/g, ""), 4000);
+      return { text };
+    },
+    ok: (out, ctx) => {
+      if (!out.text) return false;
+      const r = rewriteInput(ctx.input);
+      if (!tokensOf(r.text).every(t => out.text.includes(t))) throw Object.assign(new Error("The AI dropped a {placeholder} from the text, so nothing was changed. Try again."), { status: 502, friendly: true });
+      if (r.format === "html" && !hrefsOf(r.text).every(h => hrefsOf(out.text).includes(h))) throw Object.assign(new Error("The AI changed a link in the text, so nothing was changed. Try again."), { status: 502, friendly: true });
+      return true;
+    },
+  },
+  // Studio › Add section › Draft with AI: the words for one new section, from the owner's short brief.
+  sectionDraft: {
+    needs: f => Boolean(draftSpec(f?.type) && clip(f?.brief, 500)),
+    prompt: (f, ctx) => {
+      const spec = draftSpec(f.type);
+      const fields = Object.entries(spec.fields).map(([k, max]) => `${k} (at most ${max} characters${(spec.html || []).includes(k) ? ", simple HTML: <p>, <strong>, <em>, <ul>, <li>" : ""})`).join(", ");
+      return `Draft the words for a "${spec.label}" section on ${ctx.siteName || "an independent publisher's online shop"}.
+- Fields: ${fields}.${spec.items ? `\n- items: 3 to 6 entries, each with ${Object.entries(spec.items).map(([k, max]) => `${k} (at most ${max} characters)`).join(" and ")}.` : ""}
+- ${STUDIO_HONESTY} Where the brief lacks a fact, write around it instead of guessing.
+- Short, specific and warm, suited to an independent art and poetry publisher.
+
+What the owner wants this section to say:
+${clip(f.brief, 500)}`;
+    },
+    schemaFor: f => draftSchema(draftSpec(f?.type) || DRAFT_TYPES.HeroSection),
+    schema: draftSchema(DRAFT_TYPES.HeroSection),
+    clean: (out, ctx) => {
+      const spec = draftSpec(ctx.input?.type);
+      if (!spec) return {};
+      const cleaned = {};
+      for (const [k, max] of Object.entries(spec.fields)) {
+        const v = String(out[k] ?? "");
+        cleaned[k] = (spec.html || []).includes(k) ? sanitizeHtml(v).slice(0, max * 2) : fitWords(v.replace(/\*\*|__|`/g, ""), max);
+      }
+      if (spec.items) {
+        cleaned.items = (Array.isArray(out.items) ? out.items : []).slice(0, 6).map(item => Object.fromEntries(Object.entries(spec.items).map(([k, max]) => [k, fitWords(String(item?.[k] ?? ""), max)])))
+          .filter(item => Object.values(item).every(Boolean));
+      }
+      return cleaned;
+    },
+    ok: (out, ctx) => {
+      const spec = draftSpec(ctx.input?.type);
+      return Boolean(spec && out.title && (!spec.items || out.items.length > 0));
+    },
+  },
 };
 
-function systemText(voice) {
+function systemText(voice, task) {
   const v = clip(voice, VOICE_MAX);
   return [
     "You write shop copy for Lyricalmyrical Books, an independent publisher. You return only the JSON asked for.",
-    HONESTY,
+    task === "rewrite" || task === "sectionDraft" ? STUDIO_HONESTY : HONESTY,
     v ? `The shop owner's house style (follow it unless it conflicts with the rules above):\n${v}` : "",
   ].filter(Boolean).join("\n\n");
 }
@@ -145,12 +269,12 @@ function buildRequest(task, input, ctx = {}, model = MODELS[0]) {
     temperature: 0.7,
     maxOutputTokens: 2048,
     responseMimeType: "application/json",
-    responseSchema: spec.schema,
+    responseSchema: spec.schemaFor ? spec.schemaFor(input || {}) : spec.schema,
   };
   // 2.5 models "think" out of the same token budget; these short answers don't need it.
   if (/^gemini-2\.5-flash/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
   return {
-    systemInstruction: { parts: [{ text: systemText(ctx.voice) }] },
+    systemInstruction: { parts: [{ text: systemText(ctx.voice, task) }] },
     contents: [{ role: "user", parts: [{ text: spec.prompt(input || {}, ctx) }] }],
     generationConfig,
   };
@@ -175,7 +299,7 @@ function parseResponse(task, data, ctx = {}) {
   }
   const spec = TASKS[task];
   const cleaned = spec.clean(out && typeof out === "object" ? out : {}, ctx);
-  if (!spec.ok(cleaned)) throw Object.assign(new Error("Gemini's answer was incomplete. Try again."), { status: 502, friendly: true });
+  if (!spec.ok(cleaned, ctx)) throw Object.assign(new Error("Gemini's answer was incomplete. Try again."), { status: 502, friendly: true });
   return cleaned;
 }
 
@@ -258,15 +382,18 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
   const task = body?.task;
   if (!Object.prototype.hasOwnProperty.call(TASKS, task)) return { status: 400, body: { error: "Unknown AI task." } };
   const input = body?.input && typeof body.input === "object" && !Array.isArray(body.input) ? body.input : {};
-  if (!TASKS[task].needs(task === "pageSeo" ? input : bookFacts(input))) {
-    return { status: 400, body: { error: task === "pageSeo" ? "Write the page title or some text first." : "Give the book a title first." } };
+  if (task === "sectionDraft" && !draftSpec(input.type)) return { status: 400, body: { error: "That section can't be drafted with AI." } };
+  const raw = task === "pageSeo" || task === "rewrite" || task === "sectionDraft";
+  if (!TASKS[task].needs(raw ? input : bookFacts(input))) {
+    const why = { pageSeo: "Write the page title or some text first.", rewrite: "There's no text to rewrite yet.", sectionDraft: "Say what the section should be about first." };
+    return { status: 400, body: { error: why[task] || "Give the book a title first." } };
   }
   try {
-    const result = await generate({ apiKey, task, input, ctx, fetchImpl });
+    const result = await generate({ apiKey, task, input, ctx: { ...ctx, input }, fetchImpl });
     return { status: 200, body: { ok: true, result } };
   } catch (err) {
     return { status: err.status === 429 ? 429 : 502, body: { error: err.message } };
   }
 }
 
-module.exports = { MODELS, TASKS, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
+module.exports = { MODELS, TASKS, DRAFT_TYPES, REWRITE_HOW, tokensOf, sanitizeHtml, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };

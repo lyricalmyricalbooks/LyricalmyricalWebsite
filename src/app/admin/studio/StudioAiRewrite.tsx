@@ -1,0 +1,70 @@
+// Studio 3.0 phase 8 · "✦ Rewrite" under a text field: improve, shorten, lengthen, warm up, formalise or fix the
+// owner's own words with the shop's free Gemini key (Settings › General › AI writing assistant). The answer replaces
+// the field through its normal onChange, so it is one undoable Studio change; nothing is saved or published.
+import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
+import { Loader2, Sparkles } from "lucide-react";
+import { AiWriteError, askAi } from "../aiWriter";
+import { SecondaryButton } from "../riso/components";
+import { canRewrite, HOW_CHOICES, keepsTokens, rewriteFormat, type RewriteHow } from "./aiStudio";
+import { sanitizeRichText } from "./richText";
+
+export type StudioAiValue = {
+  /** Called after a rewrite replaced a field (Studio adds the toast with Undo) or when one failed. */
+  notify: (kind: "ok" | "err", text: string, opts?: { undo?: boolean; needsKey?: boolean }) => void;
+  siteName?: string;
+};
+export const StudioAiContext = createContext<StudioAiValue | null>(null);
+
+export function StudioAiRewrite({ kind, label, where, value, onChange }: {
+  kind: string; label: string; where?: string; value: unknown; onChange: (next: string) => void;
+}) {
+  const ai = useContext(StudioAiContext);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [custom, setCustom] = useState("");
+  const latest = useRef(value); latest.current = value;
+  const live = useRef(true);
+  useEffect(() => () => { live.current = false; }, []);
+  const menuId = useId();
+  if (!ai || !canRewrite(kind, value)) return null;
+
+  const run = async (how: RewriteHow) => {
+    if (busy) return;
+    const before = String(value);
+    const format = rewriteFormat(kind);
+    setOpen(false); setBusy(true);
+    try {
+      const result = await askAi("rewrite", { text: before, format, label, where: where || "", how, ...(how === "custom" ? { instruction: custom.trim() } : {}) }, { siteName: ai.siteName });
+      let next = String(result.text || "");
+      if (format === "html") next = sanitizeRichText(next);
+      if (!next.trim()) throw new AiWriteError("The AI sent back an empty answer, so nothing was changed. Try again.");
+      if (!keepsTokens(before, next)) throw new AiWriteError("The AI dropped a {placeholder} from the text, so nothing was changed. Try again.");
+      // The owner kept typing while the AI worked: their words win.
+      if (latest.current !== before) { ai.notify("err", `“${label}” changed while the AI was writing, so its answer was left out.`); return; }
+      onChange(next);
+      ai.notify("ok", `Rewrote “${label}” with AI. Check it reads right; Undo puts the old words back.`, { undo: true });
+      setCustom("");
+    } catch (err) {
+      ai.notify("err", err instanceof Error ? err.message : "The AI couldn't rewrite this. Try again.", { needsKey: err instanceof AiWriteError && err.needsKey });
+    } finally {
+      if (live.current) setBusy(false);
+    }
+  };
+
+  return (
+    <div className="studio-ai-rewrite" data-studio-ai-rewrite onKeyDown={e => { if (e.key === "Escape" && open) { e.stopPropagation(); setOpen(false); } }}>
+      <button type="button" className="studio-link-button" aria-expanded={open} aria-controls={menuId} disabled={busy}
+        aria-label={`Rewrite ${label} with AI`} onClick={() => setOpen(o => !o)}>
+        {busy ? <Loader2 size={13} className="animate-spin" aria-hidden /> : <Sparkles size={13} aria-hidden />} {busy ? "Rewriting…" : "Rewrite with AI"}
+      </button>
+      {open && <div className="studio-ai-menu" id={menuId} role="group" aria-label={`Rewrite ${label}`}>
+        <div className="studio-ai-choices">{HOW_CHOICES.map(c => <SecondaryButton key={c.how} size="sm" onClick={() => void run(c.how)}>{c.label}</SecondaryButton>)}</div>
+        <form className="studio-ai-custom" onSubmit={e => { e.preventDefault(); if (custom.trim()) void run("custom"); }}>
+          <input value={custom} maxLength={200} onChange={e => setCustom(e.target.value)} placeholder="Or tell it what to change…" aria-label="Tell the AI what to change" />
+          <SecondaryButton size="sm" type="submit" disabled={!custom.trim()}>Go</SecondaryButton>
+        </form>
+        <small className="studio-hint">Sends only these words to Google's Gemini. Facts are never added on purpose: check prices, dates and names.</small>
+      </div>}
+    </div>
+  );
+}

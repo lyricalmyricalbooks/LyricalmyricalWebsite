@@ -1046,6 +1046,69 @@ await check("Check every page scrolls through so sections that fade in lower dow
   await page.waitForFunction(([sel, old]) => document.querySelector(sel)?.textContent !== old, ["[data-studio-workbench] .studio-health > .studio-health-bar span", before], { timeout: 5000 });
 });
 
+await check("Rewrite with AI: a section title is rewritten as one undoable change, and a Text & labels {placeholder} is kept", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  // The fixture answers AI requests itself (setAiTransport), so nothing reaches Google.
+  await page.evaluate(() => {
+    window.__studioFixture.aiAnswer = body => body.task === "rewrite"
+      ? { status: 200, data: { result: { text: body.input.text.includes("{year}") ? "Copyright {year}, the press" : "Letters from the press" } } }
+      : undefined;
+  });
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  const rewrite = page.getByRole("button", { name: "Rewrite Title with AI" });
+  await rewrite.click();
+  await page.getByRole("button", { name: "Friendlier" }).click();
+  const frame = page.frameLocator('iframe[title="Live preview"]');
+  await frame.getByText("Letters from the press").first().waitFor({ timeout: 10000 });
+  const asked = (await calls(page)).find(c => c.method === "aiWrite").args[0];
+  if (asked.task !== "rewrite" || asked.input.how !== "friendlier" || !/Newsletter/.test(asked.input.where)) throw new Error(`asked ${JSON.stringify(asked)}`);
+  await page.getByRole("button", { name: "Undo" }).first().click();
+  await frame.getByText("Letters from the press").first().waitFor({ state: "detached", timeout: 10000 });
+  // Text & labels: the {year} placeholder survives, and an answer that drops it changes nothing.
+  await page.getByRole("button", { name: "Text & labels", exact: true }).first().click();
+  await page.getByRole("button", { name: /^Footer/ }).first().click();
+  const field = page.locator('[data-copy-key="footerCopyright"]');
+  await field.getByRole("button", { name: /^Rewrite .* with AI$/ }).click();
+  await field.getByRole("button", { name: "Improve" }).click();
+  await page.waitForFunction(() => document.querySelector('[data-copy-key="footerCopyright"] input, [data-copy-key="footerCopyright"] textarea')?.value === "Copyright {year}, the press", null, { timeout: 10000 });
+  await page.evaluate(() => { window.__studioFixture.aiAnswer = () => ({ status: 200, data: { result: { text: "No placeholder here" } } }); });
+  await field.getByRole("button", { name: /^Rewrite .* with AI$/ }).click();
+  await field.getByRole("button", { name: "Shorter" }).click();
+  await expectText(page, "dropped a {placeholder}");
+  const value = await field.locator("input, textarea").first().inputValue();
+  if (value !== "Copyright {year}, the press") throw new Error(`the field changed to "${value}"`);
+});
+
+await check("Draft a section with AI: the draft shows on the page, Add to page saves one section with its blocks, and a missing key points at the AI settings", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  // No key yet: the fixture answers like the real server does.
+  const draft = page.locator("[data-studio-ai-draft]");
+  await draft.locator("summary").click();
+  await draft.getByRole("combobox", { name: "Kind of section to draft" }).selectOption("FAQSection");
+  await draft.getByRole("textbox", { name: "What should the section say" }).fill("Shipping and pre-orders");
+  await draft.getByRole("button", { name: "Draft it" }).click();
+  await draft.getByRole("link", { name: "Open AI settings" }).waitFor({ timeout: 5000 });
+  await page.evaluate(() => {
+    window.__studioFixture.aiAnswer = body => body.task === "sectionDraft"
+      ? { status: 200, data: { result: { title: "Shipping, simply", subtitle: "", items: [{ question: "Where do you ship?", answer: "Canada and abroad." }, { question: "When do pre-orders ship?", answer: "On release day." }] } } }
+      : undefined;
+  });
+  await draft.getByRole("button", { name: "Draft it" }).click();
+  const frame = page.frameLocator('iframe[title="Live preview"]');
+  await frame.getByText("Shipping, simply").first().waitFor({ timeout: 10000 });
+  if ((await calls(page)).some(c => c.method === "saveDesign")) throw new Error("a draft was saved before Add to page");
+  await draft.getByRole("button", { name: "Add to page" }).click();
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const saved = (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design;
+  const faqs = (saved.heroPage?.sections || []).filter(x => x.type === "FAQSection" && x.settings.title === "Shipping, simply");
+  if (faqs.length !== 1) throw new Error(`expected one drafted FAQ, got ${faqs.length}`);
+  if ((faqs[0].settings.items || []).map(b => b.question).join("|") !== "Where do you ship?|When do pre-orders ship?") throw new Error(`items ${JSON.stringify(faqs[0].settings.items)}`);
+  if ((faqs[0].settings.items || []).some(b => !b.id)) throw new Error("drafted blocks have no ids");
+});
+
 await check("Workbench: W opens it, Changes jumps back through edits, Setup's Show me opens Theme settings, G then T switches workspace", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const wb = page.locator("[data-studio-workbench]");

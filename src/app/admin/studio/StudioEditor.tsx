@@ -93,6 +93,7 @@ import { auth } from "../../../lib/firebase";
 import type { StudioLocation } from "../../lib/studioLocation";
 import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
 import { StudioSectionLibrary } from "./StudioSectionLibrary";
+import { StudioAiContext, type StudioAiValue } from "./StudioAiRewrite";
 import { StudioBlockPicker } from "./StudioBlockPicker";
 import { StudioBrandKit } from "./StudioBrandKit";
 import { brandKitDesign, type BrandKitChoice } from "./brandKit";
@@ -411,7 +412,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [adding, setAdding] = useState<number | null>(null);
   // Add section › pointing at a card: that section type, shown in the preview only (never in the draft or history).
   const [candidate, setCandidate] = useState<string | null>(null);
-  useEffect(() => { if (adding === null) setCandidate(null); }, [adding]);
+  // A section the AI drafted (Add section › Draft with AI), shown on the page until it is added or dropped.
+  const [draftCandidate, setDraftCandidate] = useState<Section | null>(null);
+  const [aiDraftOpen, setAiDraftOpen] = useState(0);
+  useEffect(() => { if (adding === null) { setCandidate(null); setDraftCandidate(null); } }, [adding]);
   const [blockId, setBlockId] = useState<string | null>(null);
   const [mode, setMode] = useState<"edit" | "browse">("edit");
   const [mobilePanel, setMobilePanel] = useState("preview");
@@ -555,6 +559,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setHist(dir === "undo" ? undo : redo);
     setToast(t => t?.action?.expect ? null : t);
   };
+
+  // Studio AI writing (3.0 phase 8): a rewrite lands through the field's own onChange, then this adds the toast.
+  const aiNotifyRef = useRef<StudioAiValue["notify"]>(() => {});
+  aiNotifyRef.current = (kind, text, opts) => {
+    if (kind === "ok" && opts?.undo) { say("ok", text, undoAction()); return; }
+    if (opts?.needsKey) { say("err", text, { label: "Open AI settings", run: () => window.open(`${window.location.pathname}${window.location.search}#settings/general`, "_blank", "noopener") }); return; }
+    say(kind, text);
+  };
+  const aiSiteName = getCopy(design, "siteName");
+  const aiValue = useMemo<StudioAiValue>(() => ({ notify: (...args) => aiNotifyRef.current(...args), siteName: aiSiteName }), [aiSiteName]);
 
   // load pages + books for the preview pickers
   const loadPages = useCallback(async () => {
@@ -846,8 +860,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (inlineEditingRef.current) return;
     const current = designRef.current;
     const candidateOwner = blockCandidate && blockPicker ? findSectionOwner(current, blockPicker) : null;
-    const previewDesign = historyPreview?.design || themePreview?.design || (candidate && adding !== null
-      ? withCandidate(current, showGlobal ? globalGroup : template.id, getSections(current, target), adding, makeSection(candidate, getSectionMeta(candidate)?.defaults || {}))
+    const previewDesign = historyPreview?.design || themePreview?.design || ((candidate || draftCandidate) && adding !== null
+      ? withCandidate(current, showGlobal ? globalGroup : template.id, getSections(current, target), adding, candidate ? makeSection(candidate, getSectionMeta(candidate)?.defaults || {}) : draftCandidate!)
       : candidateOwner ? withBlockCandidate(current, blockPicker!, getBlocksKey(candidateOwner.section.type), blockCandidate)
       : brandChoice ? brandKitDesign(current, brandChoice, getSectionMeta)
       : current);
@@ -858,7 +872,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       deliverPreviewState(iframeRef.current?.contentWindow, state, window.location.origin);
     } catch (err) { console.warn("[Studio] preview delivery failed", err); }
     try { channelRef.current?.postMessage(state); } catch (err) { console.warn("[Studio] preview tab delivery failed", err); }
-  }, [historyPreview, themePreview, settings, pages, books, draftPage, candidate, adding, blockCandidate, blockPicker, brandChoice, showGlobal, globalGroup, template.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [historyPreview, themePreview, settings, pages, books, draftPage, candidate, draftCandidate, adding, blockCandidate, blockPicker, brandChoice, showGlobal, globalGroup, template.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const sendPreviewRef = useRef(sendPreviewState);
   sendPreviewRef.current = sendPreviewState;
   useEffect(() => {
@@ -1428,6 +1442,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setMobilePanel("settings");
     setTimeout(() => highlight(s.id, true), 400);
   };
+  /** Add section › Draft with AI › Add to page: the drafted section, as one undoable change. */
+  const addDraftedSection = (drafted: Section) => {
+    const s = { ...drafted, id: newId() };
+    const at = adding ?? sections.length;
+    setList((l) => insertSection(l, s, at), { label: `Add ${getSectionMeta(s.type)?.label || "section"} drafted with AI` });
+    say("ok", "Added the section the AI drafted. Check its words before publishing.", undoAction());
+    setSelectedId(s.id); setAdding(null); setBlockId(null); setMobilePanel("settings");
+    setTimeout(() => highlight(s.id, true), 400);
+  };
   const dupSection = (id: string) => {
     const r = duplicateSection(sections, id);
     setList(() => r.list, { label: "Duplicate section" });
@@ -1746,6 +1769,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "mode-toggle": setMode(m => m === "edit" ? "browse" : "edit"); break;
       case "autofit-page": setLeftTab("sections"); autoFitPage(false); break;
       case "add-section": setLeftTab("sections"); setAdding(sections.length); break;
+      case "ai-draft": setLeftTab("sections"); setAiDraftOpen(n => n + 1); setAdding(sections.length); break;
       case "fill-page-seo": setLeftTab("pages"); setFillSeoRequest(Date.now()); break;
     }
   };
@@ -1845,6 +1869,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 surfaceLabel={showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label}
                 at={adding} total={sections.length}
                 onPreview={setCandidate} onPick={addSection} onPickBestPlace={addSectionBestPlace} onPickPreset={addPreset}
+                onDraftPreview={setDraftCandidate} onAddDraft={addDraftedSection} draftOpen={aiDraftOpen}
                 onRenamePreset={renamePresetAsk} onDeletePreset={deletePresetNow}
                 onRenameShared={renameSharedAsk} onDeleteShared={deleteSharedNow}
                 onClose={() => setAdding(null)} />
@@ -2107,7 +2132,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                     <section key={g.group} className="studio-subsection">
                       <div className="studio-changed-group"><strong>{g.group}</strong>
                         <button type="button" className="studio-reset" onClick={() => setTextCategory(g.group)}>Open category</button></div>
-                      <div className="studio-subsection-body">{g.fields.filter(f => typeof design.copy?.[f.key] === "string").map(f => <StudioCopyField key={f.key} field={f} design={design} settings={settings}
+                      <div className="studio-subsection-body">{g.fields.filter(f => typeof design.copy?.[f.key] === "string").map(f => <StudioCopyField key={f.key} field={f} design={design} settings={settings} aiWhere={g.group}
                         onChange={value => setCopy(f.key, value)} />)}</div>
                     </section>
                   ))}
@@ -2117,12 +2142,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   if (!q && g.group !== textCategory) return null;
                   const fs = g.fields.filter((f) => !q || `${f.label} ${g.group} ${f.default} ${f.key}`.toLowerCase().includes(q));
                   if (!fs.length) return null;
-                  const fieldsList = fs.map(f => <StudioCopyField key={f.key} field={f} design={design} settings={settings}
+                  const fieldsList = fs.map(f => <StudioCopyField key={f.key} field={f} design={design} settings={settings} aiWhere={g.group}
                     onChange={value => setCopy(f.key, value)} />);
                   if (!q) return <div key={g.group} data-studio-panel={`copy:${g.group}`} className="px-4 pb-4 space-y-4">
                     {textSubsectionsFor(g).map((sub, i, all) => <SettingsSubsection key={sub.title || "all"} title={all.length > 1 ? sub.title : ""} noun="word"
                       count={sub.fields.length} changed={changedCopyCount(sub.fields, design)} defaultOpen={i === 0} keys={sub.fields.map(f => f.key)}>
-                      {sub.fields.map(f => <StudioCopyField key={f.key} field={f} design={design} settings={settings} onChange={value => setCopy(f.key, value)} />)}
+                      {sub.fields.map(f => <StudioCopyField key={f.key} field={f} design={design} settings={settings} aiWhere={g.group} onChange={value => setCopy(f.key, value)} />)}
                     </SettingsSubsection>)}
                   </div>;
                   return (
@@ -2287,6 +2312,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   return (
     <StudioPickerProvider value={pickerData}>
     <DynamicSourcesContext.Provider value={dynamicSourcesValue}>
+    <StudioAiContext.Provider value={aiValue}>
     <div className="rp studio-editor" data-rp-appearance={appearance} data-studio-editor data-mobile-panel={mobilePanel}>
       {/* top bar */}
       <header className="studio-topbar">
@@ -2467,6 +2493,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       {confirmNode}
       {promptNode}
     </div>
+    </StudioAiContext.Provider>
     </DynamicSourcesContext.Provider>
     </StudioPickerProvider>
   );

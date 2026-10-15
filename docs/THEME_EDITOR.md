@@ -714,10 +714,19 @@ without a yes.
   trend; Setup's Health item is done after a whole-shop run with nothing to fix. Health stays in the Workbench (not a
   rail tab).
 
-### Phase 8 — AI assistant *(needs owner go-ahead)*
-- [ ] "Rewrite with AI" next to Text & labels and section text fields.
-- [ ] A text prompt that drafts sections from real section types (G item), through `admin/aiWriter.ts` and the stored
-  Gemini key. The result is a draft that is never published by itself.
+### Phase 8 — AI assistant — DONE (15 October 2026, owner approved)
+- [x] **Rewrite with AI** under every section/block text, text-area and rich-text field (`ConnectableField`) and every
+  Text & labels entry (`StudioCopyField`), via `studio/StudioAiRewrite.tsx`: Improve, Shorter, A little longer, Friendlier,
+  More formal, Fix spelling & grammar, or "tell it what to change". Server task `rewrite` (`functions/aiWriter.js`): keeps
+  every `{placeholder}` / `{{connected detail}}` and every link (else nothing changes), rich text through an allowlist
+  sanitiser (and `sanitizeRichText` again in the browser). The answer goes through the field's own onChange: one Studio
+  change with a toast Undo; if the owner typed meanwhile, the answer is dropped.
+- [x] **Draft a section with AI** (Page layout › Add section, Find anything "Draft a section with AI",
+  `studio/StudioAiDraft.tsx`): six section kinds (`DRAFT_TYPES` in `studio/aiStudio.ts` = the server's; never quotes,
+  testimonials or reviews). The draft shows on the page as the preview-only candidate; **Add to page** is one change.
+- Sends Google only the field's words, its label and the section/group name (or the owner's brief) — never customers,
+  orders, stock or costs. Same key, house style and rate limit (`LIMITS.aiWrite`) as the book/page AI buttons. The Studio
+  fixture answers through `setAiTransport` (`admin/aiWriter.ts`), so browser checks never call Google.
 
 ### Phase 9 — Multi-language EN/FR *(needs owner go-ahead)*
 - [ ] Carry out `docs/superpowers/plans/2026-10-04-local-fulfillment-content-languages.md`: translating words and pages,
