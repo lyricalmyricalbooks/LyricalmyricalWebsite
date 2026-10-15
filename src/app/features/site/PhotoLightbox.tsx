@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useFocusTrap } from "../../lib/useFocusTrap";
 
@@ -10,6 +11,9 @@ type Labels = { close: string; prev: string; next: string; dialog: string; count
  * Full-screen photo viewer for the product page (click the main photo to enlarge).
  * Arrow keys / buttons move between photos, Escape or a click on the shade closes it.
  * All words come from Text & labels › Product page, so nothing is built in.
+ * Rendered into <body> (inside its own `data-fm-store` wrapper, so theme tokens and Studio's viewer
+ * styles still apply): a transformed or animated parent on the product page would otherwise make
+ * `position: fixed` relative to that parent, leaving the header on top and the photo cut off.
  */
 export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCount = true }: {
   photos: LightboxPhoto[]; start: number; labels: Labels; onClose: () => void; onIndex?: (i: number) => void;
@@ -43,7 +47,7 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
   // Colours/shape: Studio › Style › Product page · buy card & details › Enlarged photo viewer (productPageStyle.ts).
   const btn = "fm-lightbox-btn absolute w-11 h-11 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 text-white transition-colors";
 
-  return (
+  const viewer = (
     <div
       ref={ref}
       role="dialog"
@@ -60,7 +64,7 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
         src={photo.url}
         {...(photo.srcSet ? { srcSet: photo.srcSet, sizes: "100vw" } : {})}
         alt={photo.alt}
-        className="max-w-[94vw] max-h-[88vh] object-contain select-none"
+        className="max-w-[94vw] max-h-[88vh] w-auto h-auto object-contain select-none"
         draggable={false}
       />
       <button type="button" data-autofocus onClick={onClose} aria-label={labels.close} className={`${btn} top-4 right-4`}><X size={18} /></button>
@@ -77,4 +81,6 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
       )}
     </div>
   );
+  if (typeof document === "undefined") return viewer;
+  return createPortal(<div data-fm-store style={{ display: "contents" }}>{viewer}</div>, document.body);
 }
