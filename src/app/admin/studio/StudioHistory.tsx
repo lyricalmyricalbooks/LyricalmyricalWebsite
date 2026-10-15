@@ -44,7 +44,8 @@ const KIND: Record<ThemeVersion["kind"], { word: string; tone: "success" | "prim
 };
 const CHANGE_WORD: Record<DiffItem["change"], string> = { changed: "Changed", added: "Added", removed: "Removed", moved: "Moved" };
 type Filter = "all" | "published" | "checkpoint";
-const when = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : d.toLocaleString(); };
+const WHEN = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const when = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : WHEN.format(d); };
 const pinnedLimit = (err: unknown) => String((err as any)?.message || err).includes("THEME_PINNED_LIMIT");
 
 export function StudioHistory(p: Props) {

@@ -53,8 +53,8 @@ export type SchedulerHealth = { state: "ok" | "stale" | "never"; text: string };
 /** Whether the server scheduler (Cloud Functions) is running: it stamps lastRunAt every 15 minutes. */
 export function schedulerHealth(lastRunAt: string | null | undefined, now = Date.now()): SchedulerHealth {
   const t = Date.parse(String(lastRunAt || ""));
-  if (!Number.isFinite(t)) return { state: "never", text: "The scheduler hasn't run yet. Scheduled changes go live only once the updated Cloud Functions are deployed." };
-  if (now - t > 45 * 60_000) return { state: "stale", text: `The scheduler last checked ${formatToronto(lastRunAt)}. It normally checks every 15 minutes — check the Cloud Functions are deployed and running.` };
+  if (!Number.isFinite(t)) return { state: "never", text: "The shop's scheduler hasn't checked in yet, so scheduled changes won't go live on their own until it does. If this stays after a day, ask whoever looks after the website's server side to check it." };
+  if (now - t > 45 * 60_000) return { state: "stale", text: `The scheduler last checked ${formatToronto(lastRunAt)}. It normally checks every 15 minutes, so scheduled changes may be late. If this stays, ask whoever looks after the website's server side to check it.` };
   return { state: "ok", text: `The scheduler checks every 15 minutes (last check ${formatToronto(lastRunAt)}). Changes go live within 15 minutes of their time.` };
 }
 

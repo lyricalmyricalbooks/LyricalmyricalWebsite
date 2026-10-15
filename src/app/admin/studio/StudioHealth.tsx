@@ -52,7 +52,7 @@ export function StudioHealth(p: Props) {
         {findings === null && <p className="studio-empty">The preview isn't ready yet. Wait for it to load, then choose Check again.</p>}
         {summary && <p className="studio-health-summary" role="status">
           {summary.issues ? <StatusBadge tone="warning">{summary.issues} to fix</StatusBadge> : <StatusBadge tone="success">Nothing to fix</StatusBadge>}
-          {summary.tips > 0 && <StatusBadge tone="info">{summary.tips} tip{summary.tips === 1 ? "" : "s"}</StatusBadge>}
+          {summary.tips > 0 && <StatusBadge tone="info">{summary.tips} suggestion{summary.tips === 1 ? "" : "s"}</StatusBadge>}
         </p>}
         {issues.length > 0 && <section><h3>Fix before publishing</h3><ul className="studio-health-list">{issues.map(row)}</ul></section>}
         {tips.length > 0 && <section><h3>Worth a look</h3><ul className="studio-health-list">{tips.map(row)}</ul></section>}

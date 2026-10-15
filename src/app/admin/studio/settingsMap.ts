@@ -109,7 +109,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Sizes & weights", keys: ["baseFontSize", "lineHeight", "headingWeight", "bodyWeight", "letterSpacing"] },
   ],
   logo: [
-    { title: "Logo image", keys: ["logoUrl", "logoTint", "logoColor", "logoHoverColor", "shareImageUrl"] },
+    { title: "Logo image", keys: ["logoUrl", "logoTint", "logoColor", "logoHoverColor", "shareImageUrl", "faviconUrl"] },
     { title: "Text wordmark", keys: ["logoText", "wordmarkStyle", "wordmarkPrimary", "wordmarkSecondary", "wordmarkSecondaryMuted", "wordmarkSecondaryColor", "wordmarkSize", "wordmarkWeight"] },
   ],
   header: [

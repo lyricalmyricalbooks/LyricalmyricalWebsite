@@ -27,7 +27,7 @@ export function sectionStyleFields(colorSchemes: { id: string; name: string }[] 
     style("Colours & fonts", { key: "bodyFontOverride", label: "Body font", kind: "select", options: inherit(SECTION_FONT_OPTIONS.map(f => ({ value: f, label: f }))) }),
 
     style("Background", { key: "bgColor", label: "Solid colour", kind: "color" }),
-    style("Background", { key: "bgGradientFrom", label: "Gradient from", kind: "color" }),
+    style("Background", { key: "bgGradientFrom", label: "Gradient from", kind: "color", hint: "Set both gradient colours for a fade (it replaces the solid colour). With only one set, it fills the section when no solid colour is chosen." }),
     style("Background", { key: "bgGradientTo", label: "Gradient to", kind: "color" }),
     style("Background", { key: "bgGradientDir", label: "Gradient direction", kind: "select", options: [
       { value: "", label: "— Default (to bottom) —" }, { value: "to bottom", label: "↓ Top to bottom" }, { value: "to top", label: "↑ Bottom to top" },
