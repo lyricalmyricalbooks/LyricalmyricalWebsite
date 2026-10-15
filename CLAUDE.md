@@ -512,6 +512,16 @@ Save uploads any left (`features/site/pageBody.ts` `pastedImageSources`/`replace
 `width` (`IMAGE_SIZES`), line `align` and `alt`. `page.seoImage` (Sharing image) feeds `useSEO` in `PageView`, else the body's
 first picture (`firstBodyImage`). `PageContentSection` styles Quill's `ql-align-*`/`ql-indent-*`, `iframe`, `hr` and `s`.
 
+**Full width + shop filter bar (15 October 2026):** Style › Layout & spacing › **Use the full screen width** (`fullWidth`, off by
+default) makes `contentMaxWidth` / `catalogHeaderMaxWidth` (`features/site/headerNav.ts`) return "100%" for the header, shop grid,
+book page, footer, secondary nav and custom pages (`PageView` passes `headerWidth: "full"`); use those helpers for any new storefront
+column, never `containerWidth` directly. Style › Catalog page header & filters › **Shop filter bar** (`showShopFilterBar`,
+`shopFilterBarCounts` off, `shopFilterBarInStock` on, font/outline/chosen colours) renders `.fm-filter-bar` beside the catalog
+heading in `MainSite` (All · `shopFilterBarCategories` = visible categories with no visible children · In stock, sharing the
+catalog's `inStockOnly`); the heading has `catalogHeading{Font,Size,SizeMobile,Case,Color}` (`.fm-catalog-heading`). CSS and fonts
+come from `features/site/shopFilterBar.ts` through `StorefrontOverrides`; words are Text & labels › Catalog (`catalogAllCategories`)
+and Search & filters (`filterInStock`, `filterBarAria`).
+
 **Custom pages share one look:** Studio › Style › **Custom pages** (`page*` design keys, `sitePageStyle`
 in `PageView.tsx`) sets eyebrow, title size/case/colour, text size/colour, alignment and column
 width for every custom page. Each "Page content" section follows it unless its **Style this page on

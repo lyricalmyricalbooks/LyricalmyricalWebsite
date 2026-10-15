@@ -7,6 +7,7 @@ import { schemeCss } from "./colorSchemes";
 import { logoHoverCss } from "../../components/LogoMark";
 import { phoneHeaderCss } from "./phoneHeader";
 import { designTokensCss } from "./designTokens";
+import { shopFilterBarCss, shopFilterBarFontNames } from "./shopFilterBar";
 
 // The Studio › Style controls that are turned into CSS rules (book-card title & price, small print)
 // live in ONE place so every storefront surface obeys them — the shop grid (MainSite), the standalone
@@ -17,10 +18,10 @@ import { designTokensCss } from "./designTokens";
 /** CSS for the merchant overrides. Empty until a control is set, so defaults are untouched — except the
  *  wordmark's pointed-at/clicked colour, which defaults to the link hover colour. */
 // Colour schemes (`[data-scheme]` and element-scheme variables) come first; see colorSchemes.ts.
-export const storefrontOverridesCss = (design: any): string => schemeCss(design) + smallPrintCss(design) + cardTypographyCss(design) + photoOutlineCss(design) + storefrontRegionCss(design) + logoHoverCss(design) + phoneHeaderCss(design) + designTokensCss(design);
+export const storefrontOverridesCss = (design: any): string => schemeCss(design) + smallPrintCss(design) + cardTypographyCss(design) + photoOutlineCss(design) + storefrontRegionCss(design) + logoHoverCss(design) + phoneHeaderCss(design) + designTokensCss(design) + shopFilterBarCss(design);
 
 /** Google Fonts the override controls may ask for. */
-export const storefrontOverridesFontNames = (design: any): string[] => [...cardFontNames(design), ...smallPrintFontNames(design), ...regionFontNames(design)];
+export const storefrontOverridesFontNames = (design: any): string[] => [...cardFontNames(design), ...smallPrintFontNames(design), ...regionFontNames(design), ...shopFilterBarFontNames(design)];
 
 export function StorefrontOverrides({ design }: { design?: any }) {
   const fonts = Array.from(new Set(storefrontOverridesFontNames(design)));

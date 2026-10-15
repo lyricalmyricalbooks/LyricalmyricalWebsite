@@ -47,11 +47,23 @@ export function ownNavLinkStyle(design: any, active: boolean): CSSProperties {
 }
 
 /**
- * Width of the storefront content column — Studio › Style › Layout › "Content width"
- * (`containerWidth`). The header, product page and shop grid all use it so their left
- * edges line up with the logo.
+ * Studio › Style › Layout & spacing › "Use the full screen width" (`fullWidth`, off by default):
+ * every storefront column (header, shop grid, book pages, custom pages, footer) stops capping its
+ * width and runs to the screen edges, keeping only the usual side padding.
  */
-export const contentMaxWidth = (design: any) => Math.max(900, Math.min(1600, Number(design?.containerWidth ?? 1200)));
+export const isFullWidth = (design: any): boolean => design?.fullWidth === true;
+
+/**
+ * Width of the storefront content column — Studio › Style › Layout › "Content width"
+ * (`containerWidth`), or "100%" while "Use the full screen width" is on. The header, product
+ * page and shop grid all use it so their left edges line up with the logo.
+ */
+export const contentMaxWidth = (design: any): number | string =>
+  isFullWidth(design) ? "100%" : Math.max(900, Math.min(1600, Number(design?.containerWidth ?? 1200)));
+
+/** Catalog masthead / shop grid width (Catalog layout › Header width), full width when that switch is on. */
+export const catalogHeaderMaxWidth = (design: any): number | string =>
+  isFullWidth(design) ? "100%" : Math.max(900, Math.min(1800, Number(design?.catalogHeaderWidth ?? contentMaxWidth(design))));
 
 /** Gap between header nav links (px). */
 export const navGap = (design: any) => Math.max(4, Math.min(64, Number(design?.navGap ?? 28)));
