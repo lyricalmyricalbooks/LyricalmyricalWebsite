@@ -1,3 +1,4 @@
+import { goHint } from "./shortcuts";
 import { FileText, Images, LayoutList, Navigation, Palette, SwatchBook, Type } from "lucide-react";
 
 export type RailTab = "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
@@ -16,7 +17,7 @@ export function StudioRail({ active, onSelect }: { active: RailTab; onSelect: (i
   return (
     <nav className="studio-rail" aria-label="Studio workspaces">
       {RAIL_TABS.map(({ id, label, short, Icon, hint }) => (
-        <button key={id} type="button" aria-pressed={active === id} aria-label={label} title={`${label} — ${hint}`} onClick={() => onSelect(id)}>
+        <button key={id} type="button" aria-pressed={active === id} aria-label={label} title={`${label} — ${hint} (${goHint(id)})`} onClick={() => onSelect(id)}>
           <Icon size={18} aria-hidden /><span aria-hidden>{short}</span>
         </button>
       ))}

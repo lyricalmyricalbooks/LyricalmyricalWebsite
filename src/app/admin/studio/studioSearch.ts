@@ -10,7 +10,8 @@ import { SHORTCUTS, type ShortcutAction } from "./shortcuts";
 export type StudioTab = "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
 export type StudioActionId =
   | "save" | "publish" | "discard" | "history" | "schedule" | "check" | "preview-tab" | "undo" | "redo"
-  | "device-desktop" | "device-tablet" | "device-mobile" | "mode-toggle" | "autofit-page" | "add-section" | "fill-page-seo";
+  | "device-desktop" | "device-tablet" | "device-mobile" | "mode-toggle" | "autofit-page" | "add-section" | "fill-page-seo"
+  | "workbench-health" | "workbench-changes" | "workbench-setup";
 
 export type SearchTarget =
   | { type: "style"; groupId: string; key?: string }
@@ -99,6 +100,7 @@ const staticEntry = (id: string, kind: SearchKind, title: string, where: string,
 const keysFor = (action?: ShortcutAction) => action ? SHORTCUTS.find(s => s.action === action)?.keys.split("  ·  ")[0] : undefined;
 const ACTION_KEYS: Partial<Record<StudioActionId, ShortcutAction>> = {
   save: "save", undo: "undo", redo: "redo", "device-desktop": "desktop", "device-tablet": "tablet", "device-mobile": "mobile", "mode-toggle": "toggleMode",
+  "add-section": "addSection", "workbench-changes": "workbench",
 };
 
 const ACTIONS: { id: StudioActionId; title: string; keywords: string }[] = [
@@ -117,6 +119,9 @@ const ACTIONS: { id: StudioActionId; title: string; keywords: string }[] = [
   { id: "mode-toggle", title: "Switch Edit / Browse mode", keywords: "click links navigate storefront" },
   { id: "autofit-page", title: "Auto-fit this page for phones", keywords: "responsive mobile layout generate stack small screen" },
   { id: "add-section", title: "Add a section", keywords: "new block library insert hero banner" },
+  { id: "workbench-changes", title: "Show this session's changes (undo history)", keywords: "workbench history steps go back undo several timeline what did i change edits list" },
+  { id: "workbench-setup", title: "Setup checklist (get the shop ready)", keywords: "workbench launch onboarding getting started to do progress logo fonts colours share image" },
+  { id: "workbench-health", title: "Open Studio Health in the Workbench", keywords: "workbench docked panel accessibility check problems" },
   { id: "fill-page-seo", title: "Fill in missing search listings (pages)", keywords: "seo auto fill autofill meta description search title google listing pages blank" },
 ];
 
@@ -141,7 +146,7 @@ export function buildStudioIndex(input: IndexInput): SearchEntry[] {
   const out: SearchEntry[] = [];
 
   for (const a of ACTIONS) out.push(staticEntry(`action:${a.id}`, "action", a.title, "Studio", a.keywords, { type: "action", id: a.id }, keysFor(ACTION_KEYS[a.id])));
-  for (const t of TABS) out.push(staticEntry(`tab:${t.tab}`, "area", t.title, "Studio", t.keywords, { type: "tab", tab: t.tab }));
+  for (const t of TABS) out.push(staticEntry(`tab:${t.tab}`, "area", t.title, "Studio", t.keywords, { type: "tab", tab: t.tab }, keysFor(`go:${t.tab}` as ShortcutAction)));
   for (const m of MENU_PANELS) out.push(staticEntry(m.panel, "menu", m.title, "Menus", m.keywords, { type: "menus", panel: m.panel }));
 
   for (const t of input.templates) {

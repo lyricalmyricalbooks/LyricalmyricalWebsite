@@ -5,9 +5,7 @@ import { useEffect, useState } from "react";
 import { Dialog, SecondaryButton, StatusBadge } from "../riso/components";
 import { CATEGORY_LABELS, summarise, type HealthFinding } from "./healthAudit";
 
-type Props = {
-  open: boolean;
-  onClose: () => void;
+type BodyProps = {
   /** Runs the page audit; null when the preview isn't ready. */
   run: () => HealthFinding[] | null;
   pageLabel: string;
@@ -16,14 +14,24 @@ type Props = {
   designResults: { tone: "ok" | "warn"; text: string }[];
   onShow: (finding: HealthFinding) => void;
   onFix: (finding: HealthFinding) => void;
+  /** Checks again whenever this changes (each time the dialog or the Workbench tab opens, after a publish…). */
+  runKey?: unknown;
+  /** Told how many things need fixing after each check (null = the preview wasn't ready). */
+  onResult?: (issues: number | null) => void;
 };
+type Props = BodyProps & { open: boolean; onClose: () => void };
 
-export function StudioHealth(p: Props) {
+/** The Health list itself: shown in the Workbench (desktop) and inside the Studio Health dialog (phones). */
+export function HealthFindings(p: BodyProps) {
   const [findings, setFindings] = useState<HealthFinding[] | null>(null);
   const [checkedAt, setCheckedAt] = useState<number | null>(null);
-  const check = () => { setFindings(p.run()); setCheckedAt(Date.now()); };
+  const check = () => {
+    const found = p.run();
+    setFindings(found); setCheckedAt(Date.now());
+    p.onResult?.(found ? found.filter(f => f.severity === "issue").length : null);
+  };
   // Each time it opens, check the page as it is now.
-  useEffect(() => { if (p.open) check(); }, [p.open]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (p.runKey) check(); }, [p.runKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const summary = findings ? summarise(findings) : null;
   const issues = (findings || []).filter(f => f.severity === "issue");
   const tips = (findings || []).filter(f => f.severity === "tip");
@@ -42,8 +50,6 @@ export function StudioHealth(p: Props) {
     </li>
   );
   return (
-    <Dialog open={p.open} onClose={p.onClose} size="lg" title="Studio Health"
-      description="Checks the page in the preview for things shoppers notice: text that's hard to read, pictures without descriptions, small buttons, broken links, heavy pictures and search basics.">
       <div className="studio-health" data-studio-panel="health">
         <div className="studio-health-bar">
           <span>Checking <strong>{p.pageLabel}</strong> at <strong>{p.deviceLabel}</strong> size{checkedAt ? ` · ${new Date(checkedAt).toLocaleTimeString()}` : ""}.</span>
@@ -64,6 +70,14 @@ export function StudioHealth(p: Props) {
         </section>
         <p className="studio-hint">Health checks the page shown in the preview. Switch the page or the phone size in the top bar and choose Check again to cover the rest.</p>
       </div>
+  );
+}
+
+export function StudioHealth({ open, onClose, ...body }: Props) {
+  return (
+    <Dialog open={open} onClose={onClose} size="lg" title="Studio Health"
+      description="Checks the page in the preview for things shoppers notice: text that's hard to read, pictures without descriptions, small buttons, broken links, heavy pictures and search basics.">
+      <HealthFindings {...body} runKey={open ? (body.runKey ?? true) : 0} />
     </Dialog>
   );
 }

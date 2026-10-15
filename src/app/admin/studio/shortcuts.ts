@@ -1,7 +1,30 @@
 // Studio keyboard shortcuts: one table drives the key handler and the "?" cheat sheet.
 
 export type ShortcutAction = "find" | "save" | "undo" | "redo" | "delete" | "duplicate" | "moveUp" | "moveDown"
-  | "deselect" | "help" | "desktop" | "tablet" | "mobile" | "toggleMode";
+  | "deselect" | "help" | "desktop" | "tablet" | "mobile" | "toggleMode"
+  | "workbench" | "addSection" | "prevSection" | "nextSection" | "goPrefix" | GoAction;
+
+/** "G then a letter" jumps to a Studio workspace (a two-key sequence, like Gmail or GitHub). */
+export const GO_KEYS = [
+  { key: "l", tab: "sections", label: "Page layout" },
+  { key: "t", tab: "style", label: "Theme settings" },
+  { key: "x", tab: "text", label: "Text & labels" },
+  { key: "n", tab: "menus", label: "Navigation" },
+  { key: "p", tab: "pages", label: "Pages" },
+  { key: "m", tab: "media", label: "Media" },
+  { key: "h", tab: "themes", label: "Themes" },
+] as const;
+export type GoTab = typeof GO_KEYS[number]["tab"];
+export type GoAction = `go:${GoTab}`;
+/** How long after G the second key still counts. */
+export const GO_SEQUENCE_MS = 1200;
+/** The workspace a key pressed right after G opens, or null. */
+export const resolveGoKey = (key: string): GoAction | null => {
+  const hit = GO_KEYS.find(g => g.key === (key.length === 1 ? key.toLowerCase() : key));
+  return hit ? `go:${hit.tab}` : null;
+};
+/** "G then T" style hint for a workspace button's tooltip. */
+export const goHint = (tab: string) => { const hit = GO_KEYS.find(g => g.tab === tab); return hit ? `G then ${hit.key.toUpperCase()}` : ""; };
 
 export const SHORTCUTS: { action: ShortcutAction; keys: string; label: string; group: string }[] = [
   { action: "find", keys: "Ctrl/⌘ K", label: "Find any setting, word, page or action", group: "Everywhere" },
@@ -9,6 +32,11 @@ export const SHORTCUTS: { action: ShortcutAction; keys: string; label: string; g
   { action: "undo", keys: "Ctrl/⌘ Z", label: "Undo", group: "Everywhere" },
   { action: "redo", keys: "Ctrl/⌘ Shift Z  ·  Ctrl/⌘ Y", label: "Redo", group: "Everywhere" },
   { action: "help", keys: "?", label: "Show these shortcuts", group: "Everywhere" },
+  { action: "workbench", keys: "W", label: "Open or close the Workbench (Health, Changes, Setup)", group: "Everywhere" },
+  ...GO_KEYS.map(g => ({ action: `go:${g.tab}` as ShortcutAction, keys: `G then ${g.key.toUpperCase()}`, label: `Go to ${g.label}`, group: "Go to a workspace" })),
+  { action: "addSection", keys: "A", label: "Add a section to this page", group: "Page layout" },
+  { action: "prevSection", keys: "[", label: "Select the section above", group: "Page layout" },
+  { action: "nextSection", keys: "]", label: "Select the section below", group: "Page layout" },
   { action: "duplicate", keys: "Ctrl/⌘ D", label: "Duplicate the selected section", group: "Selected section" },
   { action: "delete", keys: "Delete", label: "Delete the selected section (Undo brings it back)", group: "Selected section" },
   { action: "moveUp", keys: "Alt ↑", label: "Move the selected section up", group: "Selected section" },
@@ -46,5 +74,10 @@ export function resolveShortcut(e: KeyInput): ShortcutAction | null {
   if (key === "2") return "tablet";
   if (key === "3") return "mobile";
   if (key === "e") return "toggleMode";
+  if (key === "w") return "workbench";
+  if (key === "a") return "addSection";
+  if (key === "[") return "prevSection";
+  if (key === "]") return "nextSection";
+  if (key === "g") return "goPrefix";
   return null;
 }
