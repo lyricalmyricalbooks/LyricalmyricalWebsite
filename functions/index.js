@@ -41,7 +41,7 @@ const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode,
 const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shippingGeo");
 const { emailIdentity, openClaims, limitReached } = require("./discountClaims");
-const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck, failedRefundId } = require("./stripeRecovery");
+const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, failedRefundId } = require("./stripeRecovery");
 const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences, forDigitalOnlyOrder } = require("./emailMoney");
 const { pendingRecord, confirmedRecord, confirmationEmail } = require("./newsletter");
 const { findByEmail: findByEmailData, neverPaid, redactedOrderFields, redactedOperationsFields, giftCardsFor, reviewErasure, GIFT_CARD_PERSONAL } = require("./privacyData");
@@ -256,15 +256,37 @@ async function shopTestMode() {
   return !!(settingsDoc.exists && settingsDoc.data()?.payments?.testMode);
 }
 
+// The shop's Stripe mode and both secret keys, read once for a whole sweep (the sweep asks Stripe about
+// many orders; each call used to read settings/website and adminSecrets/stripe again). Same keys as
+// shopTestMode/stripeSecretFor. Throws when either read fails, so the caller falls back to per-call reads
+// instead of running a whole sweep on a fallback key.
+async function readStripeKeys() {
+  const [settingsDoc, secretDoc] = await Promise.all([
+    db.collection("settings").doc("website").get(),
+    db.collection("adminSecrets").doc("stripe").get(),
+  ]);
+  const stripe = settingsDoc.exists ? settingsDoc.data()?.payments?.stripe || {} : {};
+  const priv = secretDoc.exists ? secretDoc.data() || {} : {};
+  let live = priv.secretKey || stripe.secretKey || "";
+  if (!live) { try { live = STRIPE_SECRET_KEY.value() || ""; } catch { live = ""; } }
+  return {
+    testMode: !!(settingsDoc.exists && settingsDoc.data()?.payments?.testMode),
+    secrets: { test: priv.testSecretKey || stripe.testSecretKey || "", live },
+    // A slow Stripe answer must not run the sweep past its 300 s limit: give up sooner, retry next sweep.
+    clientOptions: { timeout: 20 * 1000, maxNetworkRetries: 1 },
+  };
+}
+
 // Asks Stripe (test and live accounts, the order's own mode first) for one of the
 // order's saved payments. Returns { found, mode } or null when no account knows it.
 // Only a payment whose metadata/client_reference_id names this order counts.
-async function retrieveOrderPayment(orderId, order, { paymentIntentId, sessionId } = {}) {
-  const testMode = await shopTestMode();
+// `keys` (readStripeKeys) skips the settings reads; without it they are read here.
+async function retrieveOrderPayment(orderId, order, { paymentIntentId, sessionId } = {}, keys = null) {
+  const testMode = keys ? keys.testMode : await shopTestMode();
   for (const mode of modesToTry(order, testMode)) {
-    const secret = await stripeSecretFor(mode);
+    const secret = keys ? keys.secrets[mode] : await stripeSecretFor(mode);
     if (!secret) continue;
-    const stripe = new Stripe(secret);
+    const stripe = keys ? new Stripe(secret, keys.clientOptions) : new Stripe(secret);
     try {
       if (paymentIntentId) {
         const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
@@ -2952,14 +2974,17 @@ async function syncStripeReversal(orderId, { charge, dispute = null, source }) {
 }
 
 // Asks Stripe for a paid order's charge (and any dispute) and syncs refunds/disputes.
-async function checkStripeReversal(orderId, order, source) {
+// `keys` (readStripeKeys) skips the settings reads. With `onChecked` the caller records the check
+// itself (the sweep keeps one schedule record, reversalSchedule.js) and the order is not written just to
+// stamp it; onChecked runs after the refund/dispute sync.
+async function checkStripeReversal(orderId, order, source, { keys = null, onChecked = null } = {}) {
   const pi = String(order.stripePaymentIntentId || "");
   if (!pi.startsWith("pi_")) return null;
-  const testMode = await shopTestMode();
+  const testMode = keys ? keys.testMode : await shopTestMode();
   for (const mode of modesToTry(order, testMode)) {
-    const secret = await stripeSecretFor(mode);
+    const secret = keys ? keys.secrets[mode] : await stripeSecretFor(mode);
     if (!secret) continue;
-    const stripe = new Stripe(secret);
+    const stripe = keys ? new Stripe(secret, keys.clientOptions) : new Stripe(secret);
     try {
       const intent = await stripe.paymentIntents.retrieve(pi, { expand: ["latest_charge"] });
       if (intent.metadata?.order_id !== orderId) return null;
@@ -2970,14 +2995,17 @@ async function checkStripeReversal(orderId, order, source) {
         const list = await stripe.disputes.list({ payment_intent: pi, limit: 1 });
         dispute = list.data[0] || null;
       }
-      await db.collection("orders").doc(orderId).update({ stripeCheckedAt: new Date().toISOString() });
+      if (!onChecked) await db.collection("orders").doc(orderId).update({ stripeCheckedAt: new Date().toISOString() });
       // A pending refund that moved no money: ask Stripe whether it failed (missed charge.refund.updated).
       if (["refund_pending", "refunded"].includes(order.paymentStatus) && Number(charge.amount_refunded) === 0) {
         const refunds = await stripe.refunds.list({ payment_intent: pi, limit: 10 });
         const failed = failedRefundId(order, charge, refunds?.data || []);
         if (failed) await revertFailedRefund(orderId, { refundId: failed === "unknown" ? null : failed, source, chargeUnrefunded: true });
       }
-      return await syncStripeReversal(orderId, { charge, dispute, source });
+      const synced = await syncStripeReversal(orderId, { charge, dispute, source });
+      // Counted as checked only once anything Stripe showed has been applied, so a failed apply is retried.
+      if (onChecked) onChecked();
+      return synced;
     } catch (err) {
       if (err?.code === "resource_missing" || err?.statusCode === 404 || err?.type === "StripeAuthenticationError") continue;
       throw err;
@@ -6954,6 +6982,8 @@ exports.markOrderPaid = onBrowserRequest(
 const SWEEP_LOOKUP_BATCH = 5;           // Stripe lookups in flight at once
 const SWEEP_LOOKUP_MS = 100 * 1000;     // stop starting payment lookups after this
 const SWEEP_REVERSAL_MS = 190 * 1000;   // stop starting refund/dispute checks after this (function limit: 300 s)
+const SWEEP_REVERSAL_STOP_MS = 220 * 1000; // save the check record by then even if a check still waits on Stripe
+const SWEEP_RUN_STOP_MS = 240 * 1000;      // …and never later than this after the sweep itself started
 // Follows label refunds asked for from Orders (mode "voidLabel"): Shippo takes up to ~14 business days and
 // may reject one (the carrier scanned the label). Each pending row is re-read at most hourly; the result is
 // saved on order-operations.labelRefunds and a rejection shows in the admin alerts (labelVoid.js).
@@ -6994,6 +7024,7 @@ async function checkLabelRefunds(now = Date.now()) {
 exports.unpaidPaymentSweep = onSchedule(
   { schedule: "every 15 minutes", timeoutSeconds: 300, secrets: [STRIPE_SECRET_KEY, RESEND_API_KEY, SHIPPO_API_TOKEN] },
   async () => {
+    const runStartedAt = Date.now();
     // Studio 3.5: scheduled theme publishes and campaigns ride on this sweep (own try/catch: never blocks payments).
     try { await require("./themeSchedule").runThemeSchedule(db); }
     catch (err) { console.error("unpaidPaymentSweep: theme schedule failed:", err.message); }
@@ -7007,6 +7038,13 @@ exports.unpaidPaymentSweep = onSchedule(
       .catch(err => { console.error("unpaidPaymentSweep: ordered query failed (deploy firestore:indexes), using unordered:", err.message); return db.collection("orders").where("paymentStatus", "==", "unpaid").limit(300).get(); });
     const candidates = suspectOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     const found = [];
+    // The Stripe mode and keys are read once for the whole sweep (only when Stripe is asked at all).
+    // A failed read falls back to the per-call reads every lookup used to do.
+    let keysRead = null;
+    const stripeKeys = () => keysRead || (keysRead = readStripeKeys().catch(err => {
+      console.warn("unpaidPaymentSweep: could not read the Stripe keys once; reading them for each order:", err.message);
+      return null;
+    }));
     // Time budget (the function has 300 s): lookups run a few at a time and stop starting new ones after
     // SWEEP_LOOKUP_MS, so the owner alert, reversal checks and email queue below always get their turn.
     const sweepStartedAt = Date.now();
@@ -7015,7 +7053,7 @@ exports.unpaidPaymentSweep = onSchedule(
         const usesIntent = typeof order.stripePaymentIntentId === "string" && order.stripePaymentIntentId.startsWith("pi_");
         const result = await retrieveOrderPayment(order.id, order, usesIntent
           ? { paymentIntentId: order.stripePaymentIntentId }
-          : { sessionId: order.stripeCheckoutSessionId });
+          : { sessionId: order.stripeCheckoutSessionId }, await stripeKeys());
         if (result?.session && result.session.payment_status === "paid") {
           const session = result.session;
           await recordStripeReconciliation(order.id, session)
@@ -7054,24 +7092,42 @@ exports.unpaidPaymentSweep = onSchedule(
       }
     }
 
-    // Safety net for refunds/disputes made in Stripe whose webhook never arrived.
+    // Safety net for refunds/disputes made in Stripe whose webhook never arrived: each watched paid order
+    // is re-read from Stripe at least every 6 hours. The check times live in one server-only record
+    // (systemStatus/stripeReversalChecks, reversalSchedule.js), so a sweep reads only new payments and the
+    // orders that are due, and a check no longer writes to the order (which woke the order triggers).
     try {
-      const { ordersDueReversalCheck } = require("./stripeRecovery");
-      const paidSince = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
+      const { runReversalChecks, SCAN_FIELDS } = require("./reversalSchedule");
+      const recordRef = db.collection("systemStatus").doc("stripeReversalChecks");
       const paidStatuses = ["paid", "refund_pending", "refunded"];
-      // Recent payments by paidAt, plus recent orders by createdAt (older records may lack paidAt).
-      const parts = await Promise.all([
-        db.collection("orders").where("paymentStatus", "in", paidStatuses).where("paidAt", ">=", paidSince).orderBy("paidAt", "desc").limit(500).get(),
-        db.collection("orders").where("paymentStatus", "in", paidStatuses).where("createdAt", ">=", paidSince).orderBy("createdAt", "desc").limit(500).get(),
-      ]).catch(async err => {
-        console.error("unpaidPaymentSweep: ordered reversal query failed (deploy firestore:indexes); using an unordered slice:", err.message);
-        return [await db.collection("orders").where("paymentStatus", "in", paidStatuses).limit(500).get()];
-      });
-      const paidById = new Map();
-      for (const part of parts) for (const d of part.docs) paidById.set(d.id, { id: d.id, ...d.data() });
-      await runInBatches(ordersDueReversalCheck([...paidById.values()]), SWEEP_LOOKUP_BATCH,
-        order => checkStripeReversal(order.id, order, "automatic check").catch(err => console.warn(`reversal check ${order.id}:`, err.message)),
-        { deadline: sweepStartedAt + SWEEP_REVERSAL_MS });
+      const result = await runReversalChecks({
+        readState: async () => { const doc = await recordRef.get(); return doc.exists ? doc.data() : null; },
+        writeState: record => recordRef.set({ ...record, updatedAt: new Date().toISOString() }),
+        // Newest payments first, 500 per page, only the fields the schedule needs; one extra order tells a
+        // full list from a cut-off one. Pages continue after the last document (ties on paidAt included).
+        queryPaid: async (since, max) => {
+          const orders = [];
+          let last = null;
+          while (orders.length <= max) {
+            const size = Math.min(500, max + 1 - orders.length);
+            let query = db.collection("orders").where("paymentStatus", "in", paidStatuses).where("paidAt", ">=", since)
+              .orderBy("paidAt", "desc").select(...SCAN_FIELDS).limit(size);
+            if (last) query = query.startAfter(last);
+            const page = await query.get();
+            for (const d of page.docs) orders.push({ id: d.id, ...d.data() });
+            if (page.docs.length < size) break;
+            last = page.docs[page.docs.length - 1];
+          }
+          return { orders: orders.slice(0, max), truncated: orders.length > max };
+        },
+        getOrders: async ids => (ids.length ? await db.getAll(...ids.map(id => db.collection("orders").doc(id))) : [])
+          .map(doc => (doc.exists ? { id: doc.id, ...doc.data() } : null)),
+        check: async (order, onChecked) => checkStripeReversal(order.id, order, "automatic check", { keys: await stripeKeys(), onChecked })
+          .catch(err => console.warn(`reversal check ${order.id}:`, err.message)),
+        stampOrders: ids => Promise.all(ids.map(id => db.collection("orders").doc(id).update({ stripeCheckedAt: new Date().toISOString() }))),
+        warn: message => console.warn(`unpaidPaymentSweep: ${message}`),
+      }, { deadline: sweepStartedAt + SWEEP_REVERSAL_MS, stopBy: Math.min(sweepStartedAt + SWEEP_REVERSAL_STOP_MS, runStartedAt + SWEEP_RUN_STOP_MS), batch: SWEEP_LOOKUP_BATCH });
+      if (result.checked || result.reconcile) console.log("unpaidPaymentSweep: reversal checks", result);
     } catch (err) {
       console.warn("unpaidPaymentSweep: reversal checks failed:", err.message);
     }
