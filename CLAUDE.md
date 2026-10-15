@@ -641,7 +641,9 @@ breadcrumb, thumbnail rail + framed photo + "Fig. n" caption, one bordered buy c
 stock line | formats, qty, Add to bag, wishlist, share), then Description / Details / Reviews tabs (or
 accordions) with Details as a label | value record. Every piece is a Studio › Style › **Product page · buy
 card & details** control (`pdp*` keys, turned into CSS by `features/site/productPageStyle.ts`, `fm-pdp-*`
-classes); its words are in Text & labels › Product page (`pdp*` copy keys). The old trust-signal lines
+classes); its words are in Text & labels › Product page (`pdp*` copy keys). The main photo and the enlarged viewer are one swipeable,
+snapping strip (`features/site/PhotoCarousel.tsx`: native scroll-snap for touch, mouse drag via `dragPlan`); the viewer
+renders into `<body>` (`createPortal`, inside a `data-fm-store` wrapper). Dots under the photo: `pdpPhotoDots`. The old trust-signal lines
 (`productTrust*`, `showTrustSignals`) were removed at the owner's request — don't re-add them.
 
 **Every Style control must reach every surface (and the preview iframe):** the card title/price and small-print CSS comes from one place, `features/site/StorefrontOverrides.tsx` (`storefrontOverridesCss`). `StorefrontThemeStyle` renders it, and so do `MainSite`'s `TypographyTokens` and `BookDetail` — any new storefront root that injects its own token `<style>` must render `<StorefrontOverrides>` too. `storefrontOverrides.test.ts` fails on a surface that skips it and on any `STYLE_GROUPS` control that nothing on the storefront reads (wire it or delete it — don't allow-list). Custom code (Style › Custom code) is injected by `features/site/customCode.ts` on public pages only — never in the preview, checkout or admin.
