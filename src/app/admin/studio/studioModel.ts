@@ -159,6 +159,18 @@ export function makeSection(type: string, defaults: Record<string, any> = {}): S
   return { id: newId(), type, visible: true, settings: clone(defaults) };
 }
 
+export const isPageTemplateId = (id: string) => id === "page" || id.startsWith("page:");
+
+/**
+ * A custom page with no "Page content" section draws its title and text after every section, where
+ * nothing can be moved below it. Adding a section there first turns that text into a real Page content
+ * section at the same place (the end), so the page looks the same and the text can then be reordered.
+ */
+export function withPageText(list: Section[], templateId: string, defaults: Record<string, any> = {}): Section[] {
+  if (!isPageTemplateId(templateId) || list.some(s => s.type === "PageContentSection")) return list;
+  return [...list, makeSection("PageContentSection", defaults)];
+}
+
 export function insertSection(list: Section[], section: Section, index = list.length): Section[] {
   const i = Math.max(0, Math.min(list.length, index));
   return [...list.slice(0, i), section, ...list.slice(i)];

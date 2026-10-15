@@ -23,7 +23,7 @@ import { MENU_LINK_TYPES, newMenuItem, slugify, type MenuItem } from "../../feat
 import {
   commit, duplicateSection, findBlock, getSections, initHistory, insertBlockAfter, insertSection, makeSection, mapBlock, moveBlockBefore, newId, normalizeDesign,
   HISTORY_LIMIT, jumpBy, patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo, undoLabel, redoLabel, moveSection,
-  resolveSharedBlocks, type Section, type SectionTarget, type SharedBlock,
+  resolveSharedBlocks, withPageText, type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
 import { menuLinksTo, redirectsAfterRename, renamePageInMenus } from "./pageRename";
 import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, schemeFieldOptions, type StyleField, type StyleGroup } from "./styleSchema";
@@ -596,6 +596,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const change = useCallback((fn: (d: any) => any, meta?: { label?: string; coalesce?: string }) =>
     setHist((h) => { const next = normalizeDesign(fn(h.present), defaults); return sameDesign(next, h.present) ? h : commit(h, next, meta); }), [defaults]);
   const setList = (fn: (l: Section[]) => Section[], meta?: { label?: string; coalesce?: string }) => change((d) => setSections(d, target, fn(getSections(d, target))), meta);
+  // Adding to a custom page makes its fixed title/text a movable Page content section first (see withPageText).
+  const keepPageText = (l: Section[]) => target.kind === "template" ? withPageText(l, target.id, getSectionMeta("PageContentSection")?.defaults || {}) : l;
   const patchSelected = (patch: Record<string, any>) => selectedId && setList((l) => patchSectionSettings(l, selectedId, patch),
     { label: `Edit ${selected ? sectionTitle(selected).label : "section"}`, coalesce: `patch:${selectedId}:${Object.keys(patch).sort().join(",")}` });
   const saveSharedBlock = (id: string, name: string) => {
@@ -1421,7 +1423,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const meta = getSectionMeta(type);
     const s = makeSection(type, meta?.defaults || {});
     const at = adding ?? sections.length;
-    setList((l) => insertSection(l, s, at), { label: `Add ${meta?.label || "section"}` });
+    setList((l) => keepPageText(insertSection(l, s, at)), { label: `Add ${meta?.label || "section"}` });
     setSelectedId(s.id);
     setAdding(null);
     setBlockId(null);
@@ -1498,7 +1500,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const pasteSection = () => {
     if (!copiedSection) return;
     const clone = duplicateSection([copiedSection], copiedSection.id).list[1];
-    setList(l => insertSection(l, clone, l.length), { label: "Paste section" }); setSelectedId(clone.id); say("ok", "Section pasted onto this page.");
+    setList(l => keepPageText(insertSection(l, clone, l.length)), { label: "Paste section" }); setSelectedId(clone.id); say("ok", "Section pasted onto this page.");
   };
   const saveSection = async (section: Section) => {
     const name = await askText({ title: "Save section for reuse", label: "Name", defaultValue: sectionTitle(section).label, confirmLabel: "Save section" });
@@ -1522,7 +1524,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     paste: afterId => {
       if (!copiedSection) return;
       const copy = duplicateSection([copiedSection], copiedSection.id).list[1];
-      setList(l => insertSection(l, copy, l.findIndex(x => x.id === afterId) + 1), { label: "Paste section" });
+      setList(l => keepPageText(insertSection(l, copy, l.findIndex(x => x.id === afterId) + 1)), { label: "Paste section" });
       setSelectedId(copy.id); setBlockId(null);
     },
     copyStyle: id => {
@@ -1626,7 +1628,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const source = preset.section;
     const clone = duplicateSection([source], source.id).list[1];
     const at = adding;
-    setList(l => insertSection(l, clone, at ?? l.length), { label: `Add ${preset.name || "saved section"}` }); setSelectedId(clone.id); setAdding(null); setBlockId(null);
+    setList(l => keepPageText(insertSection(l, clone, at ?? l.length)), { label: `Add ${preset.name || "saved section"}` }); setSelectedId(clone.id); setAdding(null); setBlockId(null);
   };
 
   // ── Find anything (Ctrl/Cmd+K): one search over every control, word, page, section and action ──
@@ -1880,12 +1882,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             )}
             {leftTab === "sections" && adding === null && !blockPicker && (template.id === "page" || template.id.startsWith("page:")) && !sections.some((s) => s.type === "PageContentSection") && (
               <div className="m-3 p-3 rounded-lg border border-neutral-200 bg-white text-xs space-y-2" data-studio-panel="page-content">
-                <p className="font-bold text-sm">Make this page fully editable</p>
-                <p className="text-neutral-500">The page title and text are currently a fixed block. Turn them into a <b>Page content</b> section you can move, restyle and surround with images, galleries or any other section.</p>
+                <p className="font-bold text-sm">The page text is fixed at the bottom</p>
+                <p className="text-neutral-500">This page's title and text (written in Pages) always sit below every section here, so nothing can go under them. Make them a <b>Page content</b> section, then move it up or down like any other section. The page looks the same until you move it.</p>
                 <button className={btn} onClick={() => {
                   const s = makeSection("PageContentSection", getSectionMeta("PageContentSection")?.defaults || {});
-                  setList((l) => insertSection(l, s, 0)); setSelectedId(s.id); setBlockId(null);
-                }}>Design this page</button>
+                  setList((l) => insertSection(l, s, l.length), { label: "Make page text movable" }); setSelectedId(s.id); setBlockId(null);
+                }}>Make page text movable</button>
               </div>
             )}
             {leftTab === "sections" && adding === null && !blockPicker && <div className="studio-section-tools">
