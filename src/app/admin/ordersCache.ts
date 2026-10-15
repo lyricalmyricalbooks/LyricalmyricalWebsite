@@ -15,9 +15,13 @@ let cached: { orders: any[]; at: number } | null = null;
 let inFlight: Promise<any[]> | null = null;
 let generation = 0;
 
-/** Every order, newest first. Reuses a copy younger than ORDERS_CACHE_MS unless `force` is set. */
-export function getOrdersCached({ force = false, now = Date.now() }: { force?: boolean; now?: number } = {}): Promise<any[]> {
-  if (!force && cached && now - cached.at < ORDERS_CACHE_MS) return Promise.resolve(cached.orders);
+/**
+ * Every order, newest first. Reuses a copy younger than `maxAgeMs` (default ORDERS_CACHE_MS) unless `force` is set;
+ * `maxAgeMs: 0` reads again like `force`.
+ */
+export function getOrdersCached({ force = false, maxAgeMs = ORDERS_CACHE_MS, now = Date.now() }: { force?: boolean; maxAgeMs?: number; now?: number } = {}): Promise<any[]> {
+  if (maxAgeMs <= 0) force = true;
+  if (!force && cached && now - cached.at < maxAgeMs) return Promise.resolve(cached.orders);
   if (!force && inFlight) return inFlight;
   const gen = ++generation;
   const p = loader().then((orders) => {
@@ -39,6 +43,12 @@ export function invalidateOrders() {
 /** One order just reloaded on its own page: keep the shared copy in step, so nothing re-reads every order. */
 export function patchCachedOrder(order: any) {
   if (cached && order?.id) cached = { ...cached, orders: mergeOrder(cached.orders, order) || cached.orders };
+}
+
+/** Orders just loaded outside this module (the Orders desk's refresh): they become the shared copy, so the shell and
+ *  the other screens reuse them instead of reading every order again. */
+export function noteLoadedOrders(orders: any[], now = Date.now()) {
+  if (Array.isArray(orders)) cached = { orders, at: now };
 }
 
 /** The copy on hand right now, without loading (null when none). */

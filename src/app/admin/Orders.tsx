@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import { WORK_QUEUES, queueOf, packingKey, daysInTransit, isOverdueInTransit } from "./fulfillment";
 import { printOrders } from "./orderPrint";
 import { mergeNewestPage, mergeOrder } from "./ordersDesk";
-import { patchCachedOrder } from "./ordersCache";
+import { noteLoadedOrders, patchCachedOrder } from "./ordersCache";
 import { buildCatalogSearchIndex, type CatalogSearchIndex } from "./orderSearch";
 import { tabCountsFor, tabOrders } from "./ordersTable";
 import { batchDispatchFields, listDate, orderDate, orderMoney, orderTime, splitDeletable } from "./orderListHelpers";
@@ -63,6 +63,8 @@ export async function refreshOrdersCache({ incremental = false }: { incremental?
     lastFullLoadAt = Date.now();
   }
   listMemory.orders = data;
+  // The Orders desk refreshes through here every minute: the shell's badge check and the other screens reuse it.
+  noteLoadedOrders(data);
   return data;
 }
 

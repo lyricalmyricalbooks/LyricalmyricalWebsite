@@ -47,7 +47,7 @@ import { bookTemplateSurface, previewTemplate } from "./templateAlternates";
 import { blockLabel, cardSections, productBlocks, type ProductBlock } from "./productBlocks";
 import { resolveDynamicSettings } from "./dynamicSources";
 import { aspectRatioValue } from "./imageAspect";
-import { frameAspect, frameMode, photoRatio } from "./photoFrame";
+import { aspectNumber, frameAspect, frameMode, photoRatio } from "./photoFrame";
 import { regionProps, regionVisible } from "./storefrontRegions";
 import { DescriptionText } from "./DescriptionText";
 import { googleFontHref } from "./fonts";
@@ -60,7 +60,7 @@ import { displayPrice, salePercentOff } from "./displayPrice";
 import { ga4Once } from "../../lib/ga4";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
-import { CARD_PHOTO_SIZES, PDP_PHOTO_SIZES, THUMB_PHOTO_SIZES, photoSrcSet, smallPhotoUrl } from "./photoSources";
+import { CARD_PHOTO_SIZES, THUMB_PHOTO_SIZES, pdpPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 // ── small helper ────────────────────────────────────────────────────────────
@@ -99,8 +99,10 @@ export default function BookDetail() {
   const [soonOpen, setSoonOpen]       = useState(false);
   const [addingBoth, setAddingBoth]   = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
-  // Width ÷ height of each product photo, measured once (adaptive frames, photoFrame.ts).
+  // Width ÷ height of each product photo, measured once it loads (adaptive frames, photoFrame.ts).
   const [photoRatios, setPhotoRatios] = useState<Record<string, number>>({});
+  // The gallery whose remaining photos the shopper has reached for (see the loading-ahead effect below).
+  const [warmGalleryKey, setWarmGalleryKey] = useState("");
   const notePhotoSize = (url: string | undefined, el: HTMLImageElement | null) => {
     const r = el ? photoRatio(el.naturalWidth, el.naturalHeight) : undefined;
     if (url && r !== undefined) setPhotoRatios((prev) => (prev[url] === r ? prev : { ...prev, [url]: r }));
@@ -166,8 +168,15 @@ export default function BookDetail() {
   const productImageFit        = storefrontDesign.productImageFit === "contain" ? "contain" : "cover";
   const productImageMaxWidth   = Math.max(320, Math.min(900, Number(storefrontDesign.productImageMaxWidth) || 560));
   const productImageAspect     = aspectRatioValue(storefrontDesign.productImageAspect && storefrontDesign.productImageAspect !== "grid" ? storefrontDesign.productImageAspect : storefrontDesign.imageAspectRatio || "3:4");
+  // A measured shape wins over the saved one (it is what the shopper sees); they agree for every normal photo.
   const frameFor = (url: string | undefined) =>
-    frameAspect(productFrameMode, url ? photoRatios[url] : undefined, productImageAspect, storefrontDesign.productImageAspectLandscape);
+    frameAspect(productFrameMode, url ? (photoRatios[url] ?? savedRatios[url]) : undefined, productImageAspect, storefrontDesign.productImageAspectLandscape);
+  // The main photo's `sizes` uses the saved shape only, so it never changes (and re-downloads) as photos load.
+  const photoSizes = (photo: any) => {
+    const ratio = photo?.url ? savedRatios[photo.url] : undefined;
+    const frame = aspectNumber(frameAspect(productFrameMode, ratio, productImageAspect, storefrontDesign.productImageAspectLandscape));
+    return pdpPhotoSizes({ maxWidth: productImageMaxWidth, photoRatio: ratio, frameRatio: frame, cover: productImageFit === "cover" });
+  };
   const productDetailsLayout   = storefrontDesign.productDetailsLayout   || "tabs";
   const productCtaAnimation    = storefrontDesign.productCtaAnimation    || "none";
   const productCtaWidth        = storefrontDesign.productCtaWidth        || "full";
@@ -496,6 +505,12 @@ export default function BookDetail() {
   const photos        = shownPhotos.length > 0
     ? shownPhotos
     : [{ url: placeholderImage(settings?.design) }];
+  // Each photo's shape from the width/height saved with it (uploads and the photo-copy sweep record them).
+  const savedRatios: Record<string, number> = {};
+  for (const p of photos) {
+    const r = p?.url ? photoRatio(p.width, p.height) : undefined;
+    if (r !== undefined) savedRatios[p.url] = r;
+  }
   const stockLevel    = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any)?.stockLevel ?? 999);
   // Copies of this edition already in the bag count toward its stock and the 99-per-line limit.
   // Lines of this edition with different extras share its stock, so all of them count.
@@ -526,25 +541,30 @@ export default function BookDetail() {
   const isGiftCard    = isGiftCardProduct(book);
   const isBoxSet      = isBundle(book);
   const addOns        = bookAddOns(book);
-  // Adaptive frames: measure every photo up front so switching photos never resizes twice. Loaded at the
-  // size the main photo uses (same srcset/sizes), so the copy the swipeable strip shows is already there.
-  const photoUrlsKey = productFrameMode === "fixed" ? "" : photos.map((p: any) => p?.url || "").join("\n");
+  // Loading photos ahead, at the size the main photo uses (same srcset/sizes, so the browser picks the same copy):
+  //  • a photo saved without its size is loaded now, so adaptive frames know its shape before it is shown;
+  //  • the rest of the gallery loads once the shopper reaches for the photos (pointer over them, a touch or keyboard
+  //    focus), so jumping to any photo still shows it at once. The photos either side of the one shown always load
+  //    straight away (the strip's eager neighbours). A shopper who never touches the gallery downloads only those.
+  const photoUrlsKey = photos.map((p: any) => p?.url || "").join("\n");
+  const warmGallery = () => { if (productFrameMode !== "fixed" && warmGalleryKey !== photoUrlsKey) setWarmGalleryKey(photoUrlsKey); };
   useEffect(() => {
-    if (!photoUrlsKey || typeof Image === "undefined") return;
+    if (productFrameMode === "fixed" || !photoUrlsKey || typeof Image === "undefined") return;
+    const all = warmGalleryKey === photoUrlsKey;
     let live = true;
     for (const photo of photos) {
       const url = photo?.url;
-      if (!url) continue;
+      if (!url || (!all && savedRatios[url] !== undefined)) continue;
       const img = new Image();
       img.onload = () => { if (live) notePhotoSize(url, img); };
       img.decoding = "async";
-      const { srcSet, sizes } = photoSrcSet(photo, PDP_PHOTO_SIZES);
+      const { srcSet, sizes } = photoSrcSet(photo, photoSizes(photo));
       if (srcSet && sizes) { img.sizes = sizes; img.srcset = srcSet; }
       img.src = url;
     }
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photoUrlsKey]);
+  }, [photoUrlsKey, productFrameMode, warmGalleryKey]);
   const editionPhotoShown = !!(selectedVariant && selectedVariant.photoUrl && variantPhotoPinned);
   const activeUrl     = editionPhotoShown ? selectedVariant!.photoUrl : (photos[activePhoto]?.url || placeholderImage(settings?.design));
   // The photo actually on screen: a pinned edition photo is one of the gallery photos (or none of them),
@@ -1185,6 +1205,7 @@ export default function BookDetail() {
             <div
               data-section="products"
               data-studio-target="style:productCard" data-studio-label="Product photos"
+              onPointerEnter={warmGallery} onTouchStart={warmGallery} onFocus={warmGallery}
               className="w-full min-w-0 mx-auto lg:mx-0 lg:justify-self-end"
               style={{ maxWidth: productImageMaxWidth + (showThumbRail && pdpThumbPosition === "side" ? thumbRailWidth : 0) }}
             >
@@ -1255,7 +1276,7 @@ export default function BookDetail() {
                           return (
                             <m.img
                               src={url}
-                              {...photoSrcSet(photo, PDP_PHOTO_SIZES)}
+                              {...photoSrcSet(photo, photoSizes(photo))}
                               alt={mediaName(photo, i)}
                               className={`w-full h-full select-none ${productImageFitClass}`}
                               decoding="async"
@@ -1416,7 +1437,7 @@ export default function BookDetail() {
                     <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame fm-photo-frame-pdp overflow-hidden`} style={{ aspectRatio: frameFor(photo.url), borderRadius: `${productBorderRadius}px` }}>
                       {isVideoItem(photo)
                         ? <video src={photo.videoUrl} poster={photo.url} controls muted ref={muteVideo} playsInline preload="none" aria-label={mediaName(photo, i)} data-fm-video className={`w-full h-full bg-black ${productImageFitClass}`} />
-                        : <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, PDP_PHOTO_SIZES)} alt={mediaName(photo, i)} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />}
+                        : <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, photoSizes(photo))} alt={mediaName(photo, i)} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />}
                       {i === 0 && isOutOfStock && (
                         <>
                           <SoldOutVeil design={settings?.design} />

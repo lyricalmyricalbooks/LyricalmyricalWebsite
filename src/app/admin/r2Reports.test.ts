@@ -157,9 +157,25 @@ describe("#33/#81/#85 source guards", () => {
   it("the Orders desk polls incrementally, and opening or closing an order never forces a full re-read", () => {
     expect(read("OrdersDesk.tsx")).toContain("refreshOrdersCache({ incremental: true })");
     const dash = read("Dashboard.tsx");
-    expect(dash).toContain("getOrdersCached({ force })");
+    expect(dash).toContain("getOrdersCached({ maxAgeMs })");
     expect(dash).not.toContain("force: !first.current");
     expect(read("Orders.tsx")).toContain("FULL_REFRESH_MS");
+  });
+  it("the alert check reads nothing while the admin tab is hidden and reuses the Orders desk's copy", () => {
+    const dash = read("Dashboard.tsx");
+    expect(dash).toContain("!document.hidden && Date.now() - lastCheck >= ALERT_CHECK_MS");
+    expect(dash).toContain('document.addEventListener("visibilitychange", check)');
+    expect(dash).toContain("refresh(ALERT_ORDERS_MAX_AGE_MS)");
+    // The full check (orders, email log, status documents) runs once per sign-in; returning from an order only re-counts.
+    expect(dash).toMatch(/\n  \}, \[user\]\);\n/);
+    expect(dash).toContain("const data = peekOrders();");
+    expect(read("Orders.tsx")).toContain("noteLoadedOrders(data)");
+  });
+  it("Discounts and Reviews read orders through the shared copy", () => {
+    for (const f of ["Discounts.tsx", "ReviewsModeration.tsx"]) {
+      expect(read(f)).toContain("getOrdersCached()");
+      expect(read(f)).not.toContain("adminApi.getAllOrders()");
+    }
   });
   it("an order changed on its own page also updates the shared copy", () => {
     expect(read("Orders.tsx")).toContain("patchCachedOrder(order)");
