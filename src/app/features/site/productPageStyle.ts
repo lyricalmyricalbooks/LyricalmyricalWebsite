@@ -30,11 +30,43 @@ const color = (d: any, key: string, fallback: string) => (has(d[key]) ? clean(d[
 /** Phone breakpoint shared with the card typography controls. */
 const PHONE_MAX = 767;
 
-function sizeRules(selector: string, desktop: number, phone: number, auto: string): string {
-  const p = phone || desktop;
-  let css = `${selector}{font-size:${desktop ? `${desktop}px` : auto};}`;
-  if (p) css += `@media (max-width:${PHONE_MAX}px){${selector}{font-size:${p}px;}}`;
+/**
+ * Desktop size, then the phone size. A phone size of 0 no longer copies the desktop size as is
+ * (a 49px title broke "LYRICALMYRICAL" mid-word on a 360px phone): it scales down with the screen
+ * (`phoneScale`, never above the desktop size). `fit` caps every size so the longest word still
+ * fits the line (see `titleFitSize`). The plain `font-size` before each `min()` is the fallback
+ * for browsers without `min()` or container units.
+ */
+function sizeRules(selector: string, desktop: number, phone: number, auto: string, phoneScale = "", fit = ""): string {
+  const decl = (plain: string, sized: string) =>
+    `${plain ? `font-size:${plain};` : ""}${sized && sized !== plain ? `font-size:${sized};` : ""}`;
+  const capped = (v: string) => (fit ? `min(${v}, ${fit})` : v);
+  const desk = desktop ? `${desktop}px` : "";
+  let css = `${selector}{${decl(desk || auto, capped(desk || auto))}}`;
+  let phoneSize = "";
+  if (phone) phoneSize = `${phone}px`;
+  else if (desktop && phoneScale) phoneSize = `min(${desktop}px, ${phoneScale})`;
+  if (phoneSize) css += `@media (max-width:${PHONE_MAX}px){${selector}{${decl(phone ? phoneSize : desk, capped(phoneSize))}}}`;
   return css;
+}
+
+/** How far a phone title's size may scale with the screen when no phone size is set. */
+const PHONE_TITLE_SCALE = "8.5vw";
+const PHONE_PRICE_SCALE = "9vw";
+/** Widest average letter of a heading font in capitals, in em (Archivo/Arial ≈ .65; Anton is narrower). */
+const WIDE_LETTER_EM = 0.72;
+
+/**
+ * The largest font size at which the title's longest word still fits on one line of the buy card,
+ * as a CSS length for `--pdp-title-fit` (`cqi` = the card section's width, see `container-type`
+ * below). Empty for a short title (nothing to cap). Long words otherwise break mid-word
+ * ("COLLECTION / S") because the title allows breaking anywhere rather than overflowing.
+ */
+export function titleFitSize(title: unknown): string {
+  const longest = String(title ?? "").split(/\s+/).reduce((n, w) => Math.max(n, Array.from(w).length), 0);
+  if (longest < 6) return "";
+  const em = Math.round(longest * WIDE_LETTER_EM * 100) / 100;
+  return `calc(100cqi / ${em})`;
 }
 
 /**
@@ -192,9 +224,11 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-tag[data-style="filled"]{background:var(--badge-bg-primary, var(--accent));color:var(--badge-text-primary, var(--on-accent));}`;
   css += `${S} .fm-pdp-tag[data-style="outline"]{border:2px solid currentColor;color:rgb(var(--fg-rgb));}`;
   css += `${S} .fm-pdp-title{margin:0;font-family:${titleFont};font-weight:${has(d.headingWeight) ? Number(d.headingWeight) || 400 : 400};line-height:.98;overflow-wrap:anywhere;text-wrap:balance;color:${cardTint("pdpTitleColor", "rgb(var(--fg-rgb))")};${titleCase}}`;
-  css += sizeRules(`${S} .fm-pdp-title`, num(d, "pdpTitleSize", 0, 0, 120), num(d, "pdpTitleSizeMobile", 0, 0, 96), "var(--pdp-title-auto, clamp(34px, 4.6vw, 62px))");
+  css += sizeRules(`${S} .fm-pdp-title`, num(d, "pdpTitleSize", 0, 0, 120), num(d, "pdpTitleSizeMobile", 0, 0, 96), "var(--pdp-title-auto, clamp(34px, 4.6vw, 62px))", PHONE_TITLE_SCALE, "var(--pdp-title-fit, 100vw)");
+  // The title's word-fit cap measures the card section it sits in.
+  css += `${S} .fm-pdp-card-section{container-type:inline-size;}`;
   css += `${S} .fm-pdp-price{font-family:${priceFont};font-weight:400;line-height:1;letter-spacing:.01em;font-variant-numeric:tabular-nums;color:${cardTint("pdpPriceColor", "rgb(var(--fg-rgb))")};}`;
-  css += sizeRules(`${S} .fm-pdp-price`, num(d, "pdpPriceSize", 0, 0, 96), num(d, "pdpPriceSizeMobile", 0, 0, 80), "clamp(34px, 5vw, 60px)");
+  css += sizeRules(`${S} .fm-pdp-price`, num(d, "pdpPriceSize", 0, 0, 96), num(d, "pdpPriceSizeMobile", 0, 0, 80), "clamp(34px, 5vw, 60px)", PHONE_PRICE_SCALE);
   css += `${S} .fm-pdp-stock{display:inline-flex;align-items:center;gap:8px;}`;
   css += `${S} .fm-pdp-stock::before{content:"";width:10px;height:10px;flex:none;background:${stockDot};}`;
   css += `${S} .fm-pdp-stock[data-state="out"]::before{background:var(--danger);}`;
