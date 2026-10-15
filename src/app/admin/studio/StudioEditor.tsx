@@ -3,10 +3,10 @@ import { StudioRegionBrowser } from "./StudioRegionBrowser";
 import { REGION_GROUPS, REGION_SUFFIXES, REGION_DEVICE_LABELS, regionFieldDevice, regionKey, regionValue, type RegionDevice } from "../../features/site/storefrontRegions";
 import { canInlineFormat } from "./richText";
 import { applyContextAction, applySpacing, contextCapabilities, GAP_KEYS, PADDING_KEYS, spacingKey } from "./canvasTools";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ChevronDown, Clock, ChevronUp, Clipboard, Copy, Eye, EyeOff, ExternalLink, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
-  Download, Pencil, Tablet, Trash2, Undo2, Upload, X,
+  Download, ListChecks, Pencil, Tablet, Trash2, Undo2, Upload, X,
 } from "lucide-react";
 import { adminApi } from "../api";
 import { uploadStudioImage } from "./mediaUpload";
@@ -22,7 +22,7 @@ import { automaticFooterItems, footerGroup } from "../../features/site/footerNav
 import { MENU_LINK_TYPES, newMenuItem, slugify, type MenuItem } from "../../features/site/storeMenu";
 import {
   commit, duplicateSection, findBlock, getSections, initHistory, insertSection, makeSection, mapBlock, moveBlockBefore, newId, normalizeDesign,
-  patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo, undoLabel, redoLabel, moveSection,
+  HISTORY_LIMIT, jumpBy, patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo, undoLabel, redoLabel, moveSection,
   resolveSharedBlocks, type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
 import { menuLinksTo, redirectsAfterRename, renamePageInMenus } from "./pageRename";
@@ -39,7 +39,7 @@ import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY, PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
-import { StudioOutline } from "./StudioOutline";
+import { StudioOutline, blockLabel } from "./StudioOutline";
 import { StudioStructure } from "./StudioStructure";
 import { StudioElementInspector } from "./StudioElementInspector";
 import { elementTabs, type ElementRef } from "./elementCatalog";
@@ -68,7 +68,10 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { StudioRail } from "./StudioRail";
 import { MediaPickerDialog, StudioMediaPanel, useMediaLibrary } from "./StudioMedia";
 import { StudioHistory, versionName, type ThemeVersion } from "./StudioHistory";
-import { StudioHealth } from "./StudioHealth";
+import { HealthFindings, StudioHealth } from "./StudioHealth";
+import { StudioWorkbench, type ChangeRow, type WorkbenchTab } from "./StudioWorkbench";
+import { setupChecklist, type SetupItem } from "./setupChecklist";
+import { StudioBreadcrumb } from "./StudioBreadcrumb";
 import { StudioThemes } from "./StudioThemes";
 import { StudioSchedule } from "./StudioSchedule";
 import { POLICY_KEYS, policySlug } from "../../features/site/policyPages";
@@ -77,7 +80,7 @@ import { categoryOptions } from "./pickers";
 import { diffDesigns, restoreItem, summariseDiff, type DiffContext, type DiffItem } from "./designDiff";
 import { MediaLibraryButton, MediaPickerContext } from "./mediaPicker";
 import type { UsagePlace } from "./mediaLibrary";
-import { resolveShortcut, SHORTCUTS, type ShortcutAction } from "./shortcuts";
+import { GO_SEQUENCE_MS, resolveGoKey, resolveShortcut, SHORTCUTS, type ShortcutAction } from "./shortcuts";
 import { StudioPreviewFrame } from "./StudioPreviewFrame";
 import { TemplatePicker } from "./TemplatePicker";
 import { currentOption, pickerOptions, type PickerOption } from "./templatePicker";
@@ -162,6 +165,14 @@ function Group({ id, title, hint, children, open: initial = false }: { id?: stri
       )}
     </section>
   );
+}
+
+/** The selected block's name for the breadcrumb (same wording as the outline). */
+function selectedBlockCrumb(section: Section, blockId: string) {
+  const key = getBlocksKey(section.type);
+  const blocks = (section.settings?.[key] || section.settings?.blocks || []) as any[];
+  const block = findBlock(blocks, blockId);
+  return { label: block ? blockLabel(block, blocks.indexOf(block), getSectionMeta(section.type)?.blockLabel) : "Block" };
 }
 
 function sectionTitle(s: Section) {
@@ -422,6 +433,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [schedule, setSchedule] = useState<{ themeId: string | null } | null>(null);
   const [confirmAction, setConfirmAction] = useState<"publish" | "discard" | null>(null);
   const [checksOpen, setChecksOpen] = useState(false);
+  // Workbench (3.0 phase 1): docked under the preview on tablets and computers; remembered per browser.
+  const [workbench, setWorkbench] = useState<{ open: boolean; tab: WorkbenchTab }>(() => ({ open: remembered.workbenchOpen === true, tab: remembered.workbenchTab || "setup" }));
+  const [healthRun, setHealthRun] = useState(0);
+  const [healthIssues, setHealthIssues] = useState<number | null>(null);
+  const [phoneSeen, setPhoneSeen] = useState(remembered.phoneSeen === true);
+  const [publishedNow, setPublishedNow] = useState(false);
   const [copiedSection, setCopiedSection] = useState<Section | null>(null);
   // A section's look (Style / Layout / Visibility settings) copied from the outline, to paste onto others.
   const [copiedStyle, setCopiedStyle] = useState<Record<string, any> | null>(null);
@@ -743,8 +760,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (o.collectionSlug) setCollectionSlug(o.collectionSlug);
   };
   useEffect(() => {
-    saveUiState(uiKey, { leftTab, templateId, showGlobal, globalGroup, device, zoom, productSlug, collectionSlug });
-  }, [uiKey, leftTab, templateId, showGlobal, globalGroup, device, zoom, productSlug, collectionSlug]);
+    saveUiState(uiKey, { leftTab, templateId, showGlobal, globalGroup, device, zoom, productSlug, collectionSlug,
+      workbenchOpen: workbench.open, workbenchTab: workbench.tab, ...(phoneSeen ? { phoneSeen } : {}) });
+  }, [uiKey, leftTab, templateId, showGlobal, globalGroup, device, zoom, productSlug, collectionSlug, workbench, phoneSeen]);
+  useEffect(() => { if (device === "mobile") setPhoneSeen(true); }, [device]);
 
   // ── preview wiring ──
   // "Custom pages" (the shared page sections) previews the custom page last shown, not always the first one,
@@ -928,7 +947,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const previous = el.style.outline, offset = el.style.outlineOffset;
     el.style.outline = "3px solid #e8402a"; el.style.outlineOffset = "2px";
     setTimeout(() => { el.style.outline = previous; el.style.outlineOffset = offset; }, 2400);
-    say("ok", `Showing: ${f.title}`, { label: "Back to Health", run: () => setChecksOpen(true) });
+    say("ok", `Showing: ${f.title}`, { label: "Back to Health", run: openHealth });
   };
   const fixFinding = (f: HealthFinding) => {
     if (!f.owner) return;
@@ -936,6 +955,25 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (f.owner.sectionId && openSectionAnywhere(f.owner.sectionId)) return;
     openElement({ key: f.owner.key, label: f.owner.label || "This part", target: f.owner.target, region: f.owner.region || undefined }, true);
   };
+  // Studio Health lives in the Workbench on larger screens and in its dialog on phones (no room for a dock there).
+  const openHealth = () => {
+    if (narrow) { setChecksOpen(true); return; }
+    setWorkbench({ open: true, tab: "health" });
+    setHealthRun(n => n + 1);
+  };
+  const openWorkbench = (tab: WorkbenchTab) => {
+    if (narrow) { if (tab === "health") setChecksOpen(true); else say("ok", "The Workbench is shown on tablets and computers. Studio Health is in Theme actions."); return; }
+    setWorkbench({ open: true, tab });
+    if (tab === "health") setHealthRun(n => n + 1);
+  };
+  // After a publish, the live design is what Health should describe: check again if its tab is showing.
+  const publishedRef = useRef(published);
+  useEffect(() => {
+    if (publishedRef.current === published) return;
+    publishedRef.current = published;
+    setPublishedNow(true);
+    if (workbench.open && workbench.tab === "health") setHealthRun(n => n + 1);
+  }, [published]); // eslint-disable-line react-hooks/exhaustive-deps
   // The Publish confirmation says how the page in the preview checks out.
   const [publishHealth, setPublishHealth] = useState<ReturnType<typeof summarise> | null>(null);
   useEffect(() => { if (confirmAction === "publish") { const found = runHealth(); setPublishHealth(found ? summarise(found) : null); } }, [confirmAction]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1179,6 +1217,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // One keyboard listener for the whole editor; the latest handlers are read through a ref, so it
   // is registered once. The preview forwards its key presses here too (KEY_COMMAND).
   // `forPanel`: a command that names the panel's section itself (Find › current selection), not a keyboard shortcut.
+  const selectRail = (id: LeftTab) => { setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setSelectedElement(null); setMobilePanel("outline"); };
   const runShortcut = (action: ShortcutAction, forPanel = false) => {
     if (busy === "discard") return;
     if (inlineEditingRef.current && ["save", "undo", "redo", "delete", "duplicate", "moveUp", "moveDown"].includes(action)) {
@@ -1206,6 +1245,18 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "help": setShortcutsOpen(true); break;
       case "desktop": case "tablet": case "mobile": setDevice(action); break;
       case "toggleMode": setMode(m => m === "edit" ? "browse" : "edit"); break;
+      case "workbench":
+        if (narrow) openHealth();
+        else if (workbench.open) setWorkbench(w => ({ ...w, open: false }));
+        else openWorkbench(workbench.tab);
+        break;
+      case "addSection": selectRail("sections"); setAdding(sections.length); break;
+      case "prevSection": case "nextSection": {
+        if (!sections.length) break;
+        const to = index < 0 ? (action === "nextSection" ? 0 : sections.length - 1) : Math.min(sections.length - 1, Math.max(0, index + (action === "nextSection" ? 1 : -1)));
+        if (to !== index) openSectionAnywhere(sections[to].id);
+        break;
+      }
       case "deselect": if (selectedId) { setSelectedId(null); setBlockId(null); } else if (selectedElement) closeElement(); break;
       case "delete": if (selected && !blockId) delSection(selected.id); break;
       case "duplicate": if (selected) dupSection(selected.id); break;
@@ -1215,8 +1266,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         setList(l => moveSection(l, index, to), { label: `Move ${sectionTitle(selected!).label} ${action === "moveUp" ? "up" : "down"}` });
         break;
       }
+      default:
+        if (action.startsWith("go:")) selectRail(action.slice(3) as LeftTab);
     }
   };
+  const goPendingRef = useRef(0);
   const shortcutRef = useRef(runShortcut);
   shortcutRef.current = runShortcut;
   useEffect(() => {
@@ -1225,9 +1279,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       const typing = /input|textarea|select/i.test(el?.tagName || "") || !!el?.isContentEditable;
       const onControl = !!el?.closest?.("button, a[href], [role=button], [role=tab], [role=menuitem]");
       const dialogOpen = !!document.querySelector("[role=dialog][aria-modal=true], .rp-dialog-root [role=dialog]");
+      // "G then a letter" opens a workspace; the second key must follow within GO_SEQUENCE_MS.
+      const pendingGo = goPendingRef.current && Date.now() - goPendingRef.current < GO_SEQUENCE_MS;
+      goPendingRef.current = 0;
+      if (pendingGo && !typing && !dialogOpen && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const go = resolveGoKey(e.key);
+        if (go) { e.preventDefault(); shortcutRef.current(go); return; }
+      }
       const action = resolveShortcut({ key: e.key, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey, alt: e.altKey, typing, dialogOpen, onControl });
       if (!action) return;
       e.preventDefault();
+      if (action === "goPrefix") { goPendingRef.current = Date.now(); return; }
       shortcutRef.current(action);
     };
     window.addEventListener("keydown", key);
@@ -1486,7 +1548,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         break;
       case "history": setHistoryOpen(true); loadVersions(); break;
       case "schedule": setSchedule({ themeId: null }); break;
-      case "check": setChecksOpen(true); break;
+      case "check": openHealth(); break;
+      case "workbench-health": openWorkbench("health"); break;
+      case "workbench-changes": openWorkbench("changes"); break;
+      case "workbench-setup": openWorkbench("setup"); break;
       case "preview-tab": openPreviewTab(); break;
       case "undo": stepHistory("undo"); break;
       case "redo": stepHistory("redo"); break;
@@ -1941,6 +2006,47 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           </div>
         </div>
   );
+  // ── Workbench (3.0 phase 1) ──
+  const changeRows = useMemo((): ChangeRow[] => {
+    const past = hist.pastLabels ?? hist.past.map(() => "Edit");
+    const future = hist.futureLabels ?? hist.future.map(() => "Edit");
+    const start = hist.past.length >= HISTORY_LIMIT ? "Earliest step kept" : "Where you started";
+    return [start, ...past, ...future].map((label, i) => ({ label, state: i < past.length ? "past" : i === past.length ? "current" : "future" }));
+  }, [hist]);
+  const jumpHistory = (steps: number) => {
+    setHist(h => jumpBy(h, steps));
+    setToast(t => t?.action?.expect ? null : t);
+  };
+  const changesOpen = !narrow && workbench.open && workbench.tab === "changes";
+  const deferredDesign = useDeferredValue(design);
+  const sinceLive = useMemo(() => changesOpen ? summariseDiff(diffDesigns(normalizeForDiff(published), normalizeForDiff(deferredDesign), diffContext)) : null,
+    [changesOpen, published, deferredDesign, normalizeForDiff, diffContext]);
+  const setupItems = useMemo(() => setupChecklist({
+    design, defaults, policies: settings?.policies, phoneChecked: phoneSeen, healthIssues,
+    published: settings?.design || publishedNow ? published : null,
+  }), [design, defaults, settings, phoneSeen, healthIssues, publishedNow, published]);
+  const goSetup = (item: SetupItem) => {
+    const go = item.go;
+    if (!go) return;
+    if (go.kind === "target") openTarget(go.target, item.title);
+    else if (go.kind === "tab") selectRail(go.tab);
+    else if (go.kind === "device") { setDevice(go.device); setMobilePanel("preview"); }
+    else if (go.kind === "health") openHealth();
+    else if (go.kind === "publish") {
+      if (!unpublished && !dirtyDraft) say("ok", "Make a change first: there's nothing new to publish.");
+      else setConfirmAction("publish");
+    }
+  };
+  const workbenchPanel = !narrow && (
+    <StudioWorkbench open={workbench.open} tab={workbench.tab}
+      onOpen={openWorkbench} onCollapse={() => setWorkbench(w => ({ ...w, open: false }))}
+      healthIssues={healthIssues}
+      health={<HealthFindings run={runHealth} runKey={healthRun + 1} onResult={setHealthIssues}
+        pageLabel={showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label} deviceLabel={REGION_DEVICE_LABELS[device].toLowerCase()}
+        designResults={workbench.open && workbench.tab === "health" ? [...designChecks(design), designSize(design)] : []} onShow={showFinding} onFix={fixFinding} />}
+      changes={{ rows: changeRows, onJump: jumpHistory, sinceLive, blocked: inlineEditing ? "Finish the text edit in the preview first" : null }}
+      setup={{ items: setupItems, onGo: goSetup }} />
+  );
   const canvasPanel = (
         <main className="studio-canvas">
           <div className="studio-canvas-status"><span>{template.label} · {device} ({DEVICE_W[device]}) · {mode === "edit" ? "Double-click text to type · click other elements for settings" : "Browse your storefront"}</span><span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}
@@ -1950,6 +2056,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <StudioPreviewFrame deviceWidth={parseInt(DEVICE_W[device], 10)} zoom={zoom}>
             <iframe ref={iframeRef} key={previewUrl + previewRevision} src={previewUrl} title="Live preview" onLoad={onIframeLoad} className="w-full h-full border-0" />
           </StudioPreviewFrame>}
+          {workbenchPanel}
         </main>
   );
   const inspectorPanel = (
@@ -2006,7 +2113,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           { label: "Preview in new tab", icon: <ExternalLink size={14} />, onSelect: openPreviewTab },
           { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
           { label: "Schedule publishing…", icon: <Clock size={14} />, onSelect: () => setSchedule({ themeId: null }) },
-          { label: "Studio Health", icon: <ShieldCheck size={14} />, onSelect: () => setChecksOpen(true) },
+          { label: "Studio Health", icon: <ShieldCheck size={14} />, onSelect: openHealth },
+          ...(!narrow ? [{ label: workbench.open ? "Close the Workbench" : "Open the Workbench", icon: <ListChecks size={14} />, onSelect: () => (workbench.open ? setWorkbench(w => ({ ...w, open: false })) : openWorkbench(workbench.tab)) }] : []),
           { label: "Show Studio tips", onSelect: () => setTipsNonce(n => n + 1) },
           ...(unpublished && busy === null && !inlineEditing ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
         ]} /></div>
@@ -2014,6 +2122,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <button className={btnPrimary} disabled={Boolean(inlineEditing) || (!unpublished && !dirtyDraft) || busy !== null} onClick={() => setConfirmAction("publish")}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
       </header>
 
+      <StudioBreadcrumb crumbs={[
+        { label: showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label, onSelect: () => { setSelectedId(null); setBlockId(null); if (selectedElement) closeElement(); } },
+        ...(selected ? [{ label: sectionTitle(selected).label, onSelect: blockId ? () => setBlockId(null) : undefined }] : []),
+        ...(selected && blockId ? [selectedBlockCrumb(selected, blockId)] : []),
+        ...(!selected && selectedElement ? [{ label: selectedElement.label }] : []),
+      ]} />
       <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
       {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
       {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={() => { void askConfirm({ title: "Discard local edits?", message: "The unsaved edits kept on this device will be deleted. This can't be undone.", confirmLabel: "Discard local edits" }).then(ok => { if (ok) dismissRecovery(); }); }}>Discard local recovery</SecondaryButton></div>}
@@ -2048,7 +2162,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       <MediaPickerContext.Provider value={mediaLib.pickerApi}>
       <FocusContext.Provider value={focus}>
       <div className="studio-workspace" {...inertWhen(busy === "discard")}>
-        <StudioRail active={leftTab} onSelect={id => { setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setSelectedElement(null); setMobilePanel("outline"); }} />
+        <StudioRail active={leftTab} onSelect={selectRail} />
         {narrow ? <>
           {sidebarPanel}
           {canvasPanel}
@@ -2115,7 +2229,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <ul className="list-disc pl-5 text-sm space-y-1">{confirmAction !== null && publishSummary(confirmAction === "publish" ? published : design, confirmAction === "publish" ? design : published).map(x => <li key={x}>{x}</li>)}</ul>
           {confirmAction === "publish" && publishHealth && <p className="studio-health-publish" data-publish-health>
             <ShieldCheck size={14} aria-hidden /> Studio Health on {template.label} ({REGION_DEVICE_LABELS[device].toLowerCase()}): {publishHealth.text}
-            {(publishHealth.issues > 0 || publishHealth.tips > 0) && <button type="button" className="studio-link-button" onClick={() => { setConfirmAction(null); setChecksOpen(true); }}>Review</button>}
+            {(publishHealth.issues > 0 || publishHealth.tips > 0) && <button type="button" className="studio-link-button" onClick={() => { setConfirmAction(null); openHealth(); }}>Review</button>}
           </p>}
           <div className="flex justify-end gap-2"><button className={btn} onClick={() => setConfirmAction(null)}>Cancel</button>{confirmAction === "publish" && <button className={btn} onClick={() => { setConfirmAction(null); setSchedule({ themeId: null }); }}>Schedule instead…</button>}<button className={confirmAction === "publish" ? btnPrimary : `${btn} border-red-300 text-red-700`} disabled={busy !== null || Boolean(inlineEditing)} title={busy !== null ? "Still saving — wait a moment" : inlineEditing ? "Finish the preview text edit first" : undefined} onClick={() => { const action = confirmAction; setConfirmAction(null); action === "publish" ? publish() : discard(); }}>{confirmAction === "publish" ? "Publish now" : "Discard draft"}</button></div>
         </div>

@@ -735,7 +735,8 @@ await check("Studio Health checks the previewed page, shows a finding and opens 
   });
   await page.getByRole("button", { name: "Theme actions" }).click();
   await page.getByRole("menuitem", { name: "Studio Health" }).click();
-  const dialog = page.getByRole("dialog", { name: "Studio Health" });
+  // On a computer Health opens in the Workbench docked under the preview (3.0 phase 1), not a dialog.
+  const dialog = page.locator("[data-studio-workbench]");
   await dialog.getByText("Checking Home at desktop size").waitFor({ timeout: 5000 });
   const finding = dialog.locator('[data-health-id^="noname:"]').first();
   await finding.waitFor({ timeout: 5000 });
@@ -754,6 +755,51 @@ await check("Studio Health checks the previewed page, shows a finding and opens 
   const line = page.locator("[data-publish-health]");
   await line.waitFor({ timeout: 5000 });
   if (!/Studio Health on Home \(desktop\)/.test(await line.textContent())) throw new Error(`publish line reads "${await line.textContent()}"`);
+});
+
+await check("Workbench: W opens it, Changes jumps back through edits, Setup's Show me opens Theme settings, G then T switches workspace", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const wb = page.locator("[data-studio-workbench]");
+  await wb.waitFor({ timeout: 5000 });
+  // Three named edits: add three sections.
+  for (let i = 0; i < 3; i++) {
+    await page.getByRole("button", { name: "Add section" }).first().click();
+    await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+    await page.keyboard.press("Escape");
+  }
+  const count = async () => page.evaluate(() => document.querySelectorAll(".studio-tree-section").length);
+  await wb.getByRole("tab", { name: /Changes/ }).click();
+  const steps = wb.locator(".studio-workbench-steps li");
+  if ((await steps.count()) < 4) throw new Error(`expected at least 4 rows in Changes, got ${await steps.count()}`);
+  const current = wb.locator('.studio-workbench-steps li[data-state="current"]');
+  const before = await count();
+  // Jump back two steps in one click.
+  const rows = await steps.count();
+  await steps.nth(rows - 3).getByRole("button").click();
+  await wb.locator('.studio-workbench-steps li[data-state="future"]').nth(1).waitFor({ timeout: 5000 });
+  if ((await current.count()) !== 1) throw new Error("no current step after the jump");
+  const after = await count();
+  if (after !== before - 2) throw new Error(`jumping back two steps left ${after} sections (was ${before})`);
+  await wb.getByText("Different from the live shop").waitFor({ timeout: 5000 });
+  // W closes and reopens the Workbench (plain keys work when no field has focus).
+  await page.evaluate(() => (document.activeElement)?.blur?.());
+  await page.keyboard.press("w");
+  await page.locator('[data-studio-workbench][data-open="false"]').waitFor({ timeout: 5000 });
+  await page.keyboard.press("w");
+  await page.locator('[data-studio-workbench][data-open="true"]').waitFor({ timeout: 5000 });
+  // Setup: Show me on the logo item opens Theme settings at Logo & wordmark.
+  await wb.getByRole("tab", { name: /Setup/ }).click();
+  await wb.getByText(/of \d+ done/).waitFor({ timeout: 5000 });
+  const themeRow = wb.locator(['logo', 'colors', 'fonts', 'share'].map(id => `[data-setup-id="${id}"][data-done="false"]`).join(", ")).first();
+  if (!(await themeRow.count())) throw new Error("expected an open Theme settings item in Setup");
+  await themeRow.getByRole("button", { name: "Show me" }).click();
+  await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Theme" }).waitFor({ timeout: 5000 });
+  // G then L goes to Page layout; G then T back to Theme settings.
+  await page.evaluate(() => (document.activeElement)?.blur?.());
+  await page.keyboard.press("g"); await page.keyboard.press("l");
+  await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Layout" }).waitFor({ timeout: 5000 });
+  await page.keyboard.press("g"); await page.keyboard.press("t");
+  await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Theme" }).waitFor({ timeout: 5000 });
 });
 
 await check("Themes saves the draft as a theme, previews a look without changing the draft, and creates a share link", desktop, async page => {

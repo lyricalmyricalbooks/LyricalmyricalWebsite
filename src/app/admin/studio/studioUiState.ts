@@ -5,6 +5,8 @@ export type Zoom = "fit" | 100 | 75 | 50;
 export type StudioUiState = {
   leftTab?: string; templateId?: string; showGlobal?: boolean; globalGroup?: string;
   device?: "desktop" | "tablet" | "mobile"; zoom?: Zoom; productSlug?: string; collectionSlug?: string;
+  /** The Workbench under the preview: open or collapsed, which tab, and whether the phone preview was ever opened (Setup). */
+  workbenchOpen?: boolean; workbenchTab?: "health" | "changes" | "setup"; phoneSeen?: boolean;
 };
 
 const TABS = new Set(["sections", "style", "text", "menus", "pages", "media", "themes"]);
@@ -24,6 +26,9 @@ export function parseUiState(raw: string | null): StudioUiState {
       zoom: ZOOMS.has(v.zoom) ? v.zoom : undefined,
       productSlug: text(v.productSlug),
       collectionSlug: text(v.collectionSlug),
+      workbenchOpen: typeof v.workbenchOpen === "boolean" ? v.workbenchOpen : undefined,
+      workbenchTab: ["health", "changes", "setup"].includes(v.workbenchTab) ? v.workbenchTab : undefined,
+      phoneSeen: v.phoneSeen === true ? true : undefined,
     };
   } catch { return {}; }
 }

@@ -390,6 +390,14 @@ Ctrl/⌘-click multi-select with a bulk bar; blocks move between sections of the
 preview). Use `moveSectionTo` / `moveBlockTo` / `updateSectionsById` (`studio/studioWorkflow.ts`) for any new move or
 bulk edit — never splice section arrays by hand.
 
+**Workbench & navigation (Studio 3.0 phase 1, 15 October 2026):** `studio/StudioWorkbench.tsx` is docked under the preview
+(tablets/computers; phones keep the Health dialog). Its tabs: **Health** (`HealthFindings` from `StudioHealth.tsx`; open it with
+`openHealth()`, never `setChecksOpen` directly), **Changes** (undo steps; jump with `jumpBy` in `studioModel.ts`; draft vs live
+via `summariseDiff`, only while open) and **Setup** (`studio/setupChecklist.ts`, pure). Its open state and tab live in
+`studioUiState.ts`. Shortcuts: `G` then a letter for workspaces (`GO_KEYS`), `W` Workbench, `A` Add section, `[`/`]` sections;
+`StudioBreadcrumb.tsx` shows Page › Section › Block. The rest of the Studio 3.0 roadmap (tokens, free placement, motion,
+block library, brand wizard, site-wide Health; AI/languages/A-B need the owner's go-ahead) is in `docs/THEME_EDITOR.md`.
+
 Studio is a Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the
 section/block contract, and the Studio 2.0 roadmap.
