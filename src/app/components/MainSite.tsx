@@ -49,6 +49,7 @@ import { regionProps } from "../features/site/storefrontRegions";
 import { collectionIntro } from "../features/site/collectionIntro";
 import { SoldOutBadge, soldOutPhotoStyle } from "../features/site/SoldOutBadge";
 import { gridPhotoSizes, photoSrcSet } from "../features/site/photoSources";
+import { framingStyle } from "../features/site/photoFraming";
 import { arrivedPrerendered } from "../lib/prerenderedPage";
 
 const catNameForSEO = (category: any) => typeof category === "string" ? category : category?.name;
@@ -928,7 +929,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         alt={item.title}
                         priority={index < 2 ? "high" : index < 4 ? "eager" : undefined}
                         className={`w-full h-full ${storefrontImageFit} transition-transform duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}
-                        style={{ objectPosition: `${catalogImageFocalX}% ${catalogImageFocalY}%` }}
+                        style={framingStyle(item.photos?.[0], { x: catalogImageFocalX, y: catalogImageFocalY })}
                         frameStyle={isOutOfStock && showSoldOutBadge ? soldOutPhotoStyle(storefrontDesign) : undefined}
                       />
                       {isOutOfStock && showSoldOutBadge && <SoldOutBadge design={storefrontDesign} label={soldOutLabel} />}

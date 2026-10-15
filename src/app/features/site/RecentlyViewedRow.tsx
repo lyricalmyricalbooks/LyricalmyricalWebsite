@@ -7,6 +7,7 @@ import { getCopy } from "./storeCopy";
 import { contentMaxWidth } from "./headerNav";
 import { regionProps } from "./storefrontRegions";
 import { gridPhotoSizes, photoSrcSet } from "./photoSources";
+import { framingStyle } from "./photoFraming";
 
 export default function RecentlyViewedRow({ excludeId }: { excludeId?: string }) {
   const { ids } = useRecentlyViewed();
@@ -40,6 +41,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
                     {...photoSrcSet(book.photos?.[0], gridPhotoSizes([{ from: 0, cols: 3 }, { from: 640, cols: 4 }, { from: 1024, cols: 6 }], { photo: book.photos?.[0], frame: "3 / 4" }))}
                     alt={book.title}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    style={framingStyle(book.photos?.[0])}
                     loading="lazy"
                   />
                 </div>

@@ -61,6 +61,7 @@ import { ga4Once } from "../../lib/ga4";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
 import { gridPhotoSizes, THUMB_PHOTO_SIZES, pdpPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
+import { framingStyle, motionFraming } from "./photoFraming";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 /** The title's inline variables: Studio's "Title size" preset and the phone cap that keeps its longest word whole. */
@@ -1231,7 +1232,7 @@ export default function BookDetail() {
                           className="fm-pdp-thumb relative"
                           style={{ aspectRatio: productImageAspect }}
                         >
-                          <img src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt={mediaName(photo, i)} loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
+                          <img src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt={mediaName(photo, i)} loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit, ...framingStyle(photo) }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
                           {isVideoItem(photo) && <span className="fm-video-mark absolute inset-0 m-auto w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center pointer-events-none" aria-hidden="true"><Play size={12} fill="currentColor" /></span>}
                         </button>
                       ))}
@@ -1280,6 +1281,7 @@ export default function BookDetail() {
                               ref={(el) => { muteVideo(el); if (el && i === carouselIndex) setImageLoaded(true); }}
                             />
                           );
+                          const framed = motionFraming(photo);
                           return (
                             <m.img
                               src={url}
@@ -1291,7 +1293,10 @@ export default function BookDetail() {
                               // The photo shown and its neighbours load now, so a swipe never reveals an empty frame.
                               loading={Math.abs(i - carouselIndex) <= 1 ? "eager" : "lazy"}
                               {...(i === 0 ? { fetchpriority: "high" } : {})}
-                              whileHover={{ scale: productImageHoverScale }}
+                              // Books › edit › Images › Crop & position: placement as style, the zoom as motion's scale
+                              // (motion owns `transform`), so the hover zoom grows from the cropped size.
+                              style={{ ...framed.style, scale: framed.zoom }}
+                              whileHover={{ scale: productImageHoverScale * framed.zoom }}
                               transition={{ duration: 0.45 }}
                               // A photo already in the browser cache (or loaded before the page woke up) never
                               // fires onLoad, which left the placeholder over it; check `complete` too.
@@ -1444,7 +1449,7 @@ export default function BookDetail() {
                     <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame fm-photo-frame-pdp overflow-hidden`} style={{ aspectRatio: frameFor(photo.url), borderRadius: `${productBorderRadius}px` }}>
                       {isVideoItem(photo)
                         ? <video src={photo.videoUrl} poster={photo.url} controls muted ref={muteVideo} playsInline preload="none" aria-label={mediaName(photo, i)} data-fm-video className={`w-full h-full bg-black ${productImageFitClass}`} />
-                        : <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, photoSizes(photo))} alt={mediaName(photo, i)} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />}
+                        : <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, photoSizes(photo))} alt={mediaName(photo, i)} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} style={framingStyle(photo)} />}
                       {i === 0 && isOutOfStock && (
                         <>
                           <SoldOutVeil design={settings?.design} />
@@ -1558,7 +1563,7 @@ export default function BookDetail() {
                             alt={rel.title}
                             loading="lazy"
                             className="w-full h-full transition-transform duration-700 group-hover:scale-105"
-                            style={{ objectFit: productImageFit }}
+                            style={{ objectFit: productImageFit, ...framingStyle((rel as any).photos?.[0]) }}
                           />
                           {/* Sold out: same mark as the shop grid (Studio › Style › Product cards & grid › Sold-out badge) */}
                           {relChoice.comingSoon && showSoldOutBadge && (
