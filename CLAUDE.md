@@ -2066,7 +2066,9 @@ raw settings). A value JSON can't carry exactly (timestamp, reference, bytes, ge
 `settings/catalogVersion.changedAt` (server time stamped by the `catalogVersionBooks/Pages/Settings` triggers after every write,
 `functions/catalogVersion.js`) is not after the file's `readTime`; otherwise, or on any error, it reads Firestore exactly as before.
 Settings/pages go through `publicApi.publicSettingsFrom` / `sortPages` on both paths. Any change also changes the published fingerprint,
-so the 15-minute refresh rebuilds the file. `firebase.json` serves root `*.json` `no-cache`. Never add a field to the file that the
+so the 15-minute refresh rebuilds the file (also the backstop if a marker write fails). The triggers retry the write in-process
+(`RETRY_DELAYS_MS`) and must not use `retry: true`: the deploy workflow never passes `--force`, which the CLI then requires
+(`functions/catalogVersion.test.js` fails on any `retry: true` in `functions/index.js`). `firebase.json` serves root `*.json` `no-cache`. Never add a field to the file that the
 Firestore path doesn't return, and keep both paths' transforms shared.
 
 ## Book videos (15 October 2026)

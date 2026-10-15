@@ -6692,9 +6692,9 @@ const catalogChanged = source => async event => {
   try { await require("./catalogVersion").bumpCatalogVersion(db, admin.firestore.FieldValue, `${source}/${Object.values(event.params || {})[0] || ""}`); }
   catch (err) { console.error("catalogVersion: could not record a change:", err.message); throw err; }
 };
-exports.catalogVersionBooks = onDocumentWritten({ document: "books/{bookId}", retry: true }, catalogChanged("books"));
-exports.catalogVersionPages = onDocumentWritten({ document: "pages/{pageId}", retry: true }, catalogChanged("pages"));
-exports.catalogVersionSettings = onDocumentWritten({ document: "settings/website", retry: true }, catalogChanged("settings"));
+exports.catalogVersionBooks = onDocumentWritten("books/{bookId}", catalogChanged("books"));
+exports.catalogVersionPages = onDocumentWritten("pages/{pageId}", catalogChanged("pages"));
+exports.catalogVersionSettings = onDocumentWritten("settings/website", catalogChanged("settings"));
 
 // Storage bandwidth (October 2026): book photos still served only as their original get resized WebP copies
 // (srcset), and pictures/videos get a year-long Cache-Control header (functions/imageCopies.js). Additive:
