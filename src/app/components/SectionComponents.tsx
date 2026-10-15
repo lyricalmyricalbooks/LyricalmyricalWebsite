@@ -20,6 +20,7 @@ import { aspectRatioValue } from "../features/site/imageAspect";
 import { ResponsiveImage } from "./ResponsiveImage";
 import { mediaKey } from "../features/site/mediaRef";
 import { CARD_PHOTO_SIZES, photoSrcSet, FEATURE_PHOTO_SIZES, smallPhotoUrl } from "../features/site/photoSources";
+import { framingStyle } from "../features/site/photoFraming";
 import { shopInstant } from "../features/site/shopTime";
 
 // ──────────────────────────────
@@ -1194,7 +1195,7 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
               className={`aspect-[3/4] overflow-hidden rounded-2xl bg-white/5 ${hoverEffectClassName(settings.hoverEffect)}`}
               style={hoverEffectGlowStyle(settings.hoverEffect, settings.accentColor)}
             >
-              {photo ? <img src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
+              {photo ? <img src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} loading="lazy" decoding="async" className="w-full h-full object-cover" style={framingStyle(target.photos?.[0])} alt={target.title} /> : null}
             </div>
             <div className="space-y-5">
               <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow ?? fb("FeaturedProductSection.eyebrow")}</p>
@@ -1321,7 +1322,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
                         loading="lazy"
                         decoding="async"
                         className="w-full h-full transition-transform duration-700 group-hover:scale-105"
-                        style={{ objectFit: fit, objectPosition: focal }}
+                        style={{ objectFit: fit, objectPosition: focal, ...framingStyle(book.photos[0]) }}
                       />
                     )}
                     {settings.showBadges !== false && onSale && (
@@ -1555,6 +1556,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                         loading="lazy"
                         decoding="async"
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        style={framingStyle(book.photos[0])}
                       />
                     )}
                     {overlayColor && overlayOpacity > 0 && (
@@ -2678,7 +2680,7 @@ export function FeaturedCollectionSection({ settings, books, onProductClick, ena
                 onKeyDown={(e: any) => { if (e.target !== e.currentTarget) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onProductClick?.(book); } }}
               >
                 <div className="fm-photo-frame relative overflow-hidden bg-white/5" style={{ aspectRatio: "3 / 4" }}>
-                  {book.photos?.[0]?.url && <img src={book.photos[0].url} {...photoSrcSet(book.photos[0], CARD_PHOTO_SIZES)} alt={book.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />}
+                  {book.photos?.[0]?.url && <img src={book.photos[0].url} {...photoSrcSet(book.photos[0], CARD_PHOTO_SIZES)} alt={book.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"  style={framingStyle(book.photos[0])} />}
                 </div>
                 <h3 className="fm-card-title mt-3 text-[15px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
                 {settings.showPrices !== false && (
@@ -2712,7 +2714,7 @@ export function BookSpotlightSection({ settings, books, onProductClick, enableAn
         <AnimationContainer enabled={enableAnimations}>
           <div className="fm-card grid md:grid-cols-2 gap-10 items-center">
             <div className={`fm-photo-frame aspect-[3/4] overflow-hidden bg-white/5 ${coverRight ? "md:order-2" : ""}`}>
-              {photo ? <img src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
+              {photo ? <img src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} loading="lazy" decoding="async" className="w-full h-full object-cover" style={framingStyle(target.photos?.[0])} alt={target.title} /> : null}
             </div>
             <div className="space-y-5">
               {eyebrow && <p className="text-[10px] font-bold tracking-[0.3em] uppercase" style={{ color: settings.accentColor || "var(--accent, #e8402a)" }} data-theme-field="eyebrow">{eyebrow}</p>}
