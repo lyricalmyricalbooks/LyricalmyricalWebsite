@@ -52,6 +52,20 @@ describe("preview bridge page structure", () => {
     expect(sent.filter(m => m.type === "NODE_HOVER").map(m => m.key)).toEqual(["t:style:logo|Logo"]);
   });
 
+  it("hides the hover outline when the part under it leaves the page", async () => {
+    const extra = document.createElement("div");
+    extra.setAttribute("data-studio-target", "style:newsletter");
+    extra.setAttribute("data-studio-label", "Newsletter description");
+    document.body.appendChild(extra);
+    extra.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    const outline = () => Array.from(document.querySelectorAll<HTMLElement>("[data-studio-overlay]"))
+      .find(n => n.textContent?.includes("Newsletter description"));
+    expect(outline()?.style.display).toBe("block");
+    extra.remove();
+    await new Promise(r => setTimeout(r, 20));
+    expect(outline()?.style.display).toBe("none");
+  });
+
   it("selects a built-in part on click and reports its text, without a pop-up menu", () => {
     document.querySelector("[data-studio-label=Logo]")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     const msg = sent.find(m => m.type === "STUDIO_ELEMENT");

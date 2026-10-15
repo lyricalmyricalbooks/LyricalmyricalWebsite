@@ -16,11 +16,11 @@ export const PREVIEW_BRIDGE_SOURCE = String.raw`(function(){
     if(tools){var bar=document.createElement('span');bar.style.cssText='position:absolute;right:0;top:0;display:flex;pointer-events:auto;background:'+color;
       [['Edit',function(){send({type:'SECTION_SELECT',instanceId:selected,blockId:block});}],['+ Block',function(){send({type:'ADD_BLOCK',sectionId:selected});}]].forEach(function(x){var b=document.createElement('button');b.type='button';b.textContent=x[0];b.style.cssText='border:0;border-left:1px solid rgba(255,255,255,.5);background:transparent;color:white;padding:5px 8px;font:11px sans-serif;cursor:pointer;';b.onclick=function(e){e.preventDefault();e.stopPropagation();x[1]();};bar.appendChild(b);});n.appendChild(bar);}
     document.body.appendChild(n);return n;}
-  var hover=box('#2563eb'),selection=box('#059669',false);
-  function place(b,n,label){if(mode!=='edit'||!n){b.style.display='none';return;}
+  var hover=box('#2563eb'),selection=box('#059669',false),hoverNode=null;
+  function place(b,n,label){if(b===hover)hoverNode=mode==='edit'&&n?n:null;if(mode!=='edit'||!n){b.style.display='none';return;}
     var r=n.getBoundingClientRect();b.style.display='block';b.style.top=r.top+'px';b.style.left=r.left+'px';b.style.width=r.width+'px';b.style.height=r.height+'px';b.firstChild.textContent=label||'Section';}
   function selectedNode(){if(!selected&&selectedKey)return pickedEl&&pickedEl.isConnected&&nodeKey(pickedEl)===selectedKey?pickedEl:findNode(selectedKey);var s=find(SEC,selected,sid);return block&&s?find(BLK,block,bid,s)||s:s;}
-  function draw(){var n=selectedNode();place(selection,n,selected==='__studio-candidate'?'Preview · not added yet':!selected&&selectedKey&&n?nodeLabel(n):block?'Selected block':'Selected section');drawCanvasTools();}
+  function draw(){if(hoverNode)place(hover,hoverNode.isConnected?hoverNode:null,hover.firstChild.textContent);var n=selectedNode();place(selection,n,selected==='__studio-candidate'?'Preview · not added yet':!selected&&selectedKey&&n?nodeLabel(n):block?'Selected block':'Selected section');drawCanvasTools();}
   var scheduled=false;
   function redraw(){if(scheduled)return;scheduled=true;requestAnimationFrame(function(){scheduled=false;draw();});}
   function route(){send({type:'STUDIO_ROUTE',href:location.pathname+location.search});send({type:'PREVIEW_READY'});scheduleScan();}
