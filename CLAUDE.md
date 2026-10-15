@@ -1350,9 +1350,10 @@ limits what one code can take off an order ("20% off, up to $15"). The server en
   contact owner notice + visitor reply, privacy-request notice (also once per address per day; the record is still kept),
   cancel/return request notice, abandoned-cart reminder and back-in-stock alert. Past the budget the message waits in
   Messages / the request stays recorded; nothing is mailed. A new anonymous email path needs a `CONTACT_LIMITS` purpose.
-- **Proof of owner:** abandoned-cart reminders go only to an address with a checkout attempt (an order carrying a
-  server-written payment field, `functions/emailProof.js`) or a verified Auth account. Back-in-stock alerts need no proof
-  (new guests sign up), but each send takes from the shop-wide budget; over it the signup keeps `waiting`.
+- **No proof of owner needed (14 October 2026, owner's choice):** abandoned-cart reminders go to any address typed at checkout
+  (with marketing consent), bounded by one reminder per address ever, the 25/day cap and the shop-wide budget.
+  `functions/emailProof.js` (`hasOwnershipProof`) is no longer called by the sweep. Back-in-stock alerts need no proof
+  either, but each send takes from the shop-wide budget; over it the signup keeps `waiting`.
 - **One recipient:** `sendEmail` refuses any `to` that is not a single plain address (`cleanRecipients`); the
   `contactMessages` rule matches the same shape. Abandoned-cart reminders are skipped, and Ready to sell shows a blocker
   (`mailing-address`), until Settings > General > Location has a postal address. `sendEmail` falls back to the Functions
