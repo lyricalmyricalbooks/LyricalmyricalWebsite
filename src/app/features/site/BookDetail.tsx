@@ -2,7 +2,7 @@ import { catName, categoryNames } from "./navItems";
 import { recommendedBooks } from "./merchandising";
 import { shownDetailRows } from "./detailRows";
 import { m, AnimatePresence } from "motion/react";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useParams, Link, useNavigate, useLocation } from "react-router";
 import {
@@ -59,6 +59,12 @@ import { ga4Once } from "../../lib/ga4";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
 import { CARD_PHOTO_SIZES, PDP_PHOTO_SIZES, THUMB_PHOTO_SIZES, photoSrcSet } from "./photoSources";
+// Main photo change: the new photo slides in while the old one slides out (direction = `custom`).
+const PHOTO_SLIDE = {
+  enter: (dir: number) => ({ x: `${dir * 100}%` }),
+  center: { x: "0%" },
+  exit: (dir: number) => ({ x: `${dir * -100}%` }),
+};
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 // ── small helper ────────────────────────────────────────────────────────────
@@ -92,6 +98,9 @@ export default function BookDetail() {
   // A format with its own photo shows it when chosen; picking a thumbnail afterwards wins.
   const [variantPhotoPinned, setVariantPhotoPinned] = useState(true);
   const pickPhoto = (next: number | ((p: number) => number)) => { setVariantPhotoPinned(false); setActivePhoto(next as any); };
+  // Which way the main photo slides when it changes: forward (next photo) comes in from the right.
+  const slideFrom = useRef({ index: activePhoto, dir: 1 });
+  if (slideFrom.current.index !== activePhoto) slideFrom.current = { index: activePhoto, dir: activePhoto > slideFrom.current.index ? 1 : -1 };
   const [added, setAdded]             = useState(false);
   // Coming soon: the button opens the "email me when it's out" signup.
   const [soonOpen, setSoonOpen]       = useState(false);
@@ -520,19 +529,31 @@ export default function BookDetail() {
   const isGiftCard    = isGiftCardProduct(book);
   const isBoxSet      = isBundle(book);
   const addOns        = bookAddOns(book);
-  // Adaptive frames: measure every photo up front so switching photos never resizes twice.
-  const photoUrlsKey = productFrameMode === "fixed" ? "" : photos.map((p: any) => p?.url || "").join("\n");
+  // Photos are loaded ahead at the size the main photo uses (same srcset/sizes, so the browser picks the
+  // same copy): switching then slides in a photo that is already there instead of an empty frame.
+  // Adaptive frames load every photo (to measure them, so switching never resizes twice); fixed frames
+  // load just the photos either side of the one shown. Waits for the first photo so it loads first.
+  const photoUrlsKey = photos.map((p: any) => p?.url || "").join("\n");
+  const measureAll = productFrameMode !== "fixed";
   useEffect(() => {
     if (!photoUrlsKey || typeof Image === "undefined") return;
+    if (!measureAll && !imageLoaded) return;
     let live = true;
-    for (const url of photoUrlsKey.split("\n").filter(Boolean)) {
+    const n = photos.length;
+    const picks = measureAll ? photos : n > 1 ? [photos[(activePhoto + 1) % n], photos[(activePhoto - 1 + n) % n]] : [];
+    for (const photo of picks) {
+      const url = photo?.url;
+      if (!url) continue;
       const img = new Image();
       img.onload = () => { if (live) notePhotoSize(url, img); };
+      img.decoding = "async";
+      const { srcSet, sizes } = photoSrcSet(photo, PDP_PHOTO_SIZES);
+      if (srcSet && sizes) { img.sizes = sizes; img.srcset = srcSet; }
       img.src = url;
     }
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photoUrlsKey]);
+  }, [photoUrlsKey, measureAll, measureAll ? 0 : activePhoto, imageLoaded]);
   const editionPhotoShown = !!(selectedVariant && selectedVariant.photoUrl && variantPhotoPinned);
   const activeUrl     = editionPhotoShown ? selectedVariant!.photoUrl : (photos[activePhoto]?.url || placeholderImage(settings?.design));
   // The photo actually on screen: a pinned edition photo is one of the gallery photos (or none of them),
@@ -1202,20 +1223,24 @@ export default function BookDetail() {
                         <div className="absolute inset-0 fm-surface-2 pointer-events-none" aria-hidden="true" />
                       )}
 
-                      <AnimatePresence mode="wait">
+                      {/* Photos slide across (old out, new in, at the same time) instead of fading through
+                          the empty frame, which showed as a black flash while the next photo loaded. */}
+                      <AnimatePresence initial={false} custom={slideFrom.current.dir}>
                         <m.img
                           key={activePhoto}
+                          custom={slideFrom.current.dir}
                           src={activeUrl}
                           {...(activeUrl === photos[activePhoto]?.url ? photoSrcSet(photos[activePhoto], PDP_PHOTO_SIZES) : {})}
                           alt={shownPhoto?.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: Math.max(0, shownIndex) + 1 })}
-                          className={`w-full h-full ${productImageFitClass}`}
+                          className={`absolute inset-0 w-full h-full ${productImageFitClass}`}
                           decoding="async"
                           {...(activePhoto === 0 ? { fetchpriority: "high" } : {})}
-                          initial={{ opacity: 0, scale: 1.04 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0 }}
+                          variants={PHOTO_SLIDE}
+                          initial="enter"
+                          animate="center"
+                          exit="exit"
                           whileHover={{ scale: productImageHoverScale }}
-                          transition={{ duration: 0.45 }}
+                          transition={{ x: { type: "tween", ease: [0.32, 0.72, 0, 1], duration: 0.32 }, scale: { duration: 0.45 } }}
                           // A photo already in the browser cache (or loaded before the page woke up) never
                           // fires onLoad, which left the placeholder over it; check `complete` too.
                           ref={(el: HTMLImageElement | null) => { if (el?.complete) { setImageLoaded(true); notePhotoSize(activeUrl, el); } }}
