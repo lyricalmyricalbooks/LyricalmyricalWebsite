@@ -40,7 +40,7 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Edition choices": /^(pdpEditionPicker$|pdpChip)/,
   "Coming soon signup": /^(showComingSoonSignup$|pdpAlert)/,
   "Product title & price": /^(pdpTitle|pdpPrice|productTitleSize|productSubtitleWeight)/,
-  "Product photos": /^(productPhotoOutline|pdpThumb|pdpPhoto|pdpShowCaption|productImage|productBorderRadius|showZoom|showPhotoLightbox|pdpViewer)/,
+  "Product photos": /^(productPhotoOutline|pdpThumb|pdpPhoto|pdpShowCaption|productImage|productBorderRadius|showZoom|showPhotoLightbox|showProductVideos|pdpViewer)/,
   "Enlarged photo viewer": /^(showPhotoLightbox$|pdpViewer)/,
   "Product details tabs": /^(pdpDetailsPlacement|pdpSpecsStyle|pdpTab|pdpPanel|productDetailsLayout|showSpecs)/,
   "Breadcrumb": /^(pdpShowBreadcrumb|pdpShowBackLink|pdpShowBackArrow|pdpMeta)/,
@@ -516,6 +516,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showComingSoonSignup", label: "“Email me when it's out” box (Coming soon books — the Coming soon button opens it)", kind: "toggle", defaultValue: true },
       { key: "showZoom", label: "Image zoom", kind: "toggle" },
       { key: "showPhotoLightbox", label: "Click photo to enlarge (full-screen viewer)", kind: "toggle", defaultValue: true },
+      { key: "showProductVideos", label: "Show book videos (added in Books › edit › Images) among the photos", kind: "toggle", defaultValue: true },
     ],
   },
   {

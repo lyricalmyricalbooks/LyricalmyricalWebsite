@@ -725,6 +725,8 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .book-editor-riso .be-photo-img img { width: 100%; height: 100%; object-fit: cover; }
 .book-editor-riso .be-photo-badge { position: absolute; left: 6px; top: 6px; background: var(--rp-primary); color: var(--rp-on-primary, #100f0d); border: var(--rp-stroke) solid var(--rp-border-strong); font: 700 10px/1 var(--rp-font-mono); letter-spacing: .08em; text-transform: uppercase; padding: 4px 6px; }
 .book-editor-riso .be-photo-grip { position: absolute; right: 6px; top: 6px; width: 32px; height: 32px; display: grid; place-items: center; background: var(--rp-surface); border: var(--rp-stroke) solid var(--rp-border-strong); cursor: grab; touch-action: none; }
+.book-editor-riso .be-photo-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--rp-surface); color: var(--rp-text); border: var(--rp-stroke) solid var(--rp-border-strong); font: 700 11px/1 var(--rp-font-mono); text-decoration: none; }
+.book-editor-riso .be-photo-play:hover { background: var(--rp-primary); color: var(--rp-on-primary, #100f0d); }
 .book-editor-riso .be-photo-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .book-editor-riso .be-photo-add { aspect-ratio: 3/4; min-height: 150px; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; border: 2px dashed var(--rp-border-strong); background: var(--rp-surface-2, var(--rp-surface)); color: var(--rp-text-muted); cursor: pointer; font: 600 var(--rp-text-sm) var(--rp-font-body); }
 .book-editor-riso .be-photo-add:hover { background: var(--rp-primary-tint); }

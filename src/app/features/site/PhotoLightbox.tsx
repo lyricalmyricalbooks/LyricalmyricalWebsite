@@ -13,6 +13,7 @@ const SLIDE = {
 
 /** Starts loading a photo at full-screen size, so it is ready before the shopper moves to it. */
 function warm(photo: LightboxPhoto | undefined) {
+  // A video's still frame is warmed like a photo; the video itself loads only when played.
   if (!photo?.url || typeof Image === "undefined") return;
   const img = new Image();
   img.decoding = "async";
@@ -20,7 +21,8 @@ function warm(photo: LightboxPhoto | undefined) {
   img.src = photo.url;
 }
 
-export type LightboxPhoto = { url: string; alt: string; srcSet?: string };
+/** `videoUrl`: a book video (features/site/bookVideo.ts); `url` is then its still frame. */
+export type LightboxPhoto = { url: string; alt: string; srcSet?: string; videoUrl?: string };
 
 type Labels = { close: string; prev: string; next: string; dialog: string; count: string };
 
@@ -59,6 +61,8 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Arrow keys on a focused video seek inside it instead of changing photos.
+      if ((e.target as HTMLElement | null)?.tagName === "VIDEO") return;
       if (e.key === "ArrowLeft") { e.preventDefault(); go(index - 1); }
       if (e.key === "ArrowRight") { e.preventDefault(); go(index + 1); }
     };
@@ -88,6 +92,25 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
     >
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <AnimatePresence initial={false} custom={dir}>
+          {photo.videoUrl ? (
+            <m.video
+              key={index}
+              custom={dir}
+              variants={SLIDE}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ type: "tween", ease: [0.32, 0.72, 0, 1], duration: 0.32 }}
+              src={photo.videoUrl}
+              poster={photo.url}
+              controls
+              playsInline
+              preload="metadata"
+              aria-label={photo.alt}
+              data-fm-video
+              className="absolute inset-0 m-auto max-w-[94vw] max-h-[88vh] w-auto h-auto object-contain pointer-events-auto bg-black"
+            />
+          ) : (
           <m.img
             key={index}
             custom={dir}
@@ -102,6 +125,7 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
             className="absolute inset-0 m-auto max-w-[94vw] max-h-[88vh] w-auto h-auto object-contain select-none pointer-events-auto"
             draggable={false}
           />
+          )}
         </AnimatePresence>
       </div>
       <button type="button" data-autofocus onClick={onClose} aria-label={labels.close} className={`${btn} top-4 right-4`}><X size={18} /></button>

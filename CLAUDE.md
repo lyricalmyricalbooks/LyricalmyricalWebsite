@@ -2023,6 +2023,16 @@ never rendered; kept so copies can be remade). Storefront book images spread
 `photoSrcSet(photo, CARD_PHOTO_SIZES | PDP_PHOTO_SIZES | THUMB_PHOTO_SIZES)` (`features/site/photoSources.ts`) — add it to
 any new book-photo `<img>`; photos without `srcset` render as before. No rule or Function change.
 
+## Book videos (15 October 2026)
+
+Books › edit › Images › **Add video** (or drop a video on the images) adds MP4/WebM/MOV files (≤ `MAX_BOOK_VIDEO_BYTES` 50 MB,
+`MAX_BOOK_VIDEOS` 5 per book) as entries in the book's `photos` list: `url`/`srcset` are a still frame captured in the browser and
+uploaded through `uploadBookPhoto`, `videoUrl` (+ `videoType`, `videoBytes`, `videoDuration`) is the file in `products/videos/`
+(`admin/bookVideoUpload.ts`; a file the admin's browser can't decode is refused). Everything that only knows photos (cards, search,
+emails, JSON-LD) shows the still. `features/site/bookVideo.ts` `isVideoItem` (https only) decides; `BookDetail` plays it in the main
+frame (`preload="metadata"`), thumbnails get a play mark, `PhotoLightbox` takes `videoUrl`. Studio › Style › Product page ›
+**Show book videos** (`showProductVideos`); words `bookVideoLabel`, `ariaGoToVideo`. Every play is Storage download traffic.
+
 ## Page translation (12 October 2026)
 
 Shoppers may translate the storefront with the browser's Google Translate. `lib/translateSafeDom.ts` (installed first in

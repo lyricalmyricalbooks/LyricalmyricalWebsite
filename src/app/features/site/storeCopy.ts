@@ -211,6 +211,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "addToBagLabel", label: "Add to bag button", default: "ADD TO BAG" },
       { key: "bookLoading", label: "Loading text", default: "Loading" },
       { key: "bookPhotoAlt", label: "Product photo — alt text", default: "{title} — view {n}", hint: "Use {title} for the book title and {n} for the photo number." },
+      { key: "bookVideoLabel", label: "Product video — name read aloud (when the video has no description)", default: "{title} — video {n}", hint: "Use {title} for the book title and {n} for its place among the photos." },
+      { key: "ariaGoToVideo", label: "Video thumbnail / dot (read aloud by screen readers, not shown)", default: "Show video {n}", hint: "Use {n} for its place among the photos." },
       { key: "bookNotFound", label: "Not-found message", default: "Publication not found" },
       { key: "bookReturn", label: "Not-found button", default: "Return to Catalogue" },
       { key: "bookFormatLabel", label: "Format selector label", default: "Format / Edition" },
