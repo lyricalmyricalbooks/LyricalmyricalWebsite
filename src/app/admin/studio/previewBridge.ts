@@ -1,4 +1,5 @@
 import { CANVAS_TOOLS_SOURCE } from "./canvasBridge";
+import { GRID_ARRANGE_SOURCE } from "./gridBridge";
 // Same-origin iframe bridge. Unsaved design stays in iframe memory.
 export const PREVIEW_BRIDGE_SOURCE = String.raw`(function(){
   if(window.__studioBridge){parent.postMessage({type:'PREVIEW_READY'},location.origin);return;}
@@ -96,6 +97,7 @@ export const PREVIEW_BRIDGE_SOURCE = String.raw`(function(){
   document.addEventListener('mouseover',function(e){if(mode!=='edit'||closest(e.target,'[data-studio-overlay]'))return;var n=closest(e.target,NODE),k=n?nodeKey(n):null;if(k!==hoverKey){hoverKey=k;send({type:'NODE_HOVER',key:k});}},true);
   document.documentElement.addEventListener('mouseleave',function(){if(hoverKey){hoverKey=null;send({type:'NODE_HOVER',key:null});}});
 ${CANVAS_TOOLS_SOURCE}
+${GRID_ARRANGE_SOURCE}
   function norm(t){return String(t||'').replace(/\s+/g,' ').trim().toLowerCase();}
   // Resolve only schema-backed fields. Plain text never flattens a formatted field or a composite label.
   function resolveTextTarget(node){

@@ -29,6 +29,7 @@ import { menuLinksTo, redirectsAfterRename, renamePageInMenus } from "./pageRena
 import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, schemeFieldOptions, type StyleField, type StyleGroup } from "./styleSchema";
 import { StudioColorSchemes } from "./StudioColorSchemes";
 import { StudioScalePreview } from "./StudioScalePreview";
+import { applyGridMessage } from "./gridPlacement";
 import { StudioAnnouncements } from "./StudioAnnouncements";
 import { StudioPages } from "./StudioPages";
 import { StudioCategories } from "./StudioCategories";
@@ -434,6 +435,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [schedule, setSchedule] = useState<{ themeId: string | null } | null>(null);
   const [confirmAction, setConfirmAction] = useState<"publish" | "discard" | null>(null);
   const [checksOpen, setChecksOpen] = useState(false);
+  // Flexible composition being arranged on the preview's grid (3.0 phase 3), or null.
+  const [arrangeId, setArrangeId] = useState<string | null>(null);
   // Workbench (3.0 phase 1): docked under the preview on tablets and computers; remembered per browser.
   const [workbench, setWorkbench] = useState<{ open: boolean; tab: WorkbenchTab }>(() => ({ open: remembered.workbenchOpen === true, tab: remembered.workbenchTab || "setup" }));
   const [healthRun, setHealthRun] = useState(0);
@@ -881,6 +884,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   useEffect(() => { if (selectedId) setSelectedElement(null); }, [selectedId]);
   useEffect(() => { const t = setTimeout(() => { const canvas = canvasSelectionRef.current; highlight(canvas?.sectionId || selectedId, false, canvas ? canvas.blockId : blockId); }, 250); return () => clearTimeout(t); }, [design]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); }, [mode]);
+  // Arranging follows the selection: it stops when another section is chosen or Browse mode is on.
+  useEffect(() => { if (arrangeId && (selectedId !== arrangeId || mode !== "edit")) setArrangeId(null); }, [selectedId, mode, arrangeId]);
+  useEffect(() => {
+    postPreview({ type: "GRID_ARRANGE", sectionId: arrangeId, device });
+  }, [arrangeId, device, previewStatus, previewRevision]); // eslint-disable-line react-hooks/exhaustive-deps
   // A new page in the preview: its structure is re-read, and a part selected on the old page closes.
   useEffect(() => { setStructure(null); setHoverKey(null); setSelectedElement(null); }, [previewUrl, previewRevision]);
   useEffect(() => { setPreviewStatus("loading"); const timer = setTimeout(() => setPreviewStatus(s => s === "loading" ? "error" : s), 15000); return () => clearTimeout(timer); }, [previewUrl, previewRevision]);
@@ -1152,6 +1160,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           if(field && (d.value < fieldBounds(field).min || d.value > fieldBounds(field).max)) return current;
           return applySpacing(current,d,allowed);
         });
+      }
+      if (d.type === "GRID_PLACE" && typeof d.sectionId === "string" && typeof d.blockId === "string") {
+        change(current => applyGridMessage(current, d, getBlocksKey, updateSectionsById), { label: d.by ? (d.by.dw || d.by.dh ? "Resize block on grid" : "Nudge block on grid") : "Place block on grid" });
       }
       if (d.type === "TEXT_EDIT_START") { inlineEditingRef.current = true; setInlineEditing(typeof d.label === "string" ? d.label : "Text"); }
       if (d.type === "TEXT_EDIT_END") {
@@ -2070,7 +2081,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <StudioInspector section={selected} blockId={blockId} onSelectBlock={setBlockId} colorSchemes={colorSchemes}
             device={device} sharedBlocks={design.sharedBlocks || []} onSaveShared={saveSharedBlock} onPatchShared={patchSharedBlock} onInsertShared={insertSharedBlock}
             onPatch={patchSelected} onDuplicate={() => dupSection(selected.id)} onDelete={() => delSection(selected.id)}
-            onToggle={() => setList((l) => toggleSection(l, selected.id))} onNotice={(text) => say("ok", text)} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
+            onToggle={() => setList((l) => toggleSection(l, selected.id))} onNotice={(text) => say("ok", text)}
+            arranging={arrangeId === selected?.id} onArrange={on => { setArrangeId(on ? selected.id : null); if (on) setMode("edit"); }} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
   );
 
   const inspectorEmpty = (

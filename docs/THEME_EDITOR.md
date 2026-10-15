@@ -623,9 +623,20 @@ without a yes.
     covers the seasonal case. Revisit if the owner wants modes inside one design.
   - Section fields refer to tokens only through `spacingStep`; a general `{ "$token": … }` reference was not needed yet.
 
-### Phase 3 — Free placement (Squarespace Fluid Engine)
-- [ ] Drag and resize Flexible composition blocks on a grid drawn over the preview, per device, snapping to the existing
-  `grid` coordinates. Includes a layers list, overlap order, and rotate/scale/opacity per block.
+### Phase 3 — Free placement — DONE (15 October 2026)
+- [x] **Arrange on page** (Flexible composition › Content tab › *Arrange on the page* card): Studio sends `GRID_ARRANGE`
+  `{ sectionId, device }` while that section is selected in Edit mode. The preview (`studio/gridBridge.ts`, injected by
+  `previewBridge.ts`) draws the column overlay. Each block gets a move area and a resize corner, dragged with pointer
+  capture; Esc cancels a drag. Arrow keys move the focused block one cell; Shift + arrows resize it.
+- [x] The preview reports pixels (`GRID_PLACE { rect, grid, by? }`). Studio turns them into cells with the pure
+  `studio/gridPlacement.ts` (`cellsFromRect`, `nudgeCell`, `setBlockGrid`, `applyGridMessage`) as one named, undoable
+  change for the previewed size (`block.grid[device]`, the keys the storefront already reads). Placement stays on the
+  placement, never on a shared block's source.
+- [x] **Layers** list (front first) with Bring forward / Send back (`layerOrder`, `shiftLayer` → `grid[device].z`).
+- [x] Per-block **Rotate / Size / See-through** per screen size (`block.responsive[device].rotate|scale|opacity`,
+  `compositionLook` in `SectionComponents.tsx`; desktop is inline, tablet and phone go through `compositionBreakpointCss`).
+- Not done: a block with no placement still auto-flows one column wide (unchanged storefront behaviour). The first drag
+  or nudge gives it real cells.
 
 ### Phase 4 — Motion as a finishing step (Webflow interactions, Squarespace Finish Layer)
 - [ ] Per-block entrance and scroll-reveal effects, staggered children, sticky and parallax per section, hover lifts.
