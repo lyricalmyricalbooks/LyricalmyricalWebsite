@@ -11,6 +11,8 @@ export type StudioFixture = {
   calls: FixtureCall[]; settings: any; pages: any[]; books: any[]; versions: any[]; rev: number;
   /** Studio › Media records. `mediaDenied` acts as if the media Firestore rules weren't deployed yet. */
   media: MediaItem[]; mediaDenied?: boolean;
+  /** Settings › URL redirects (a page whose address changes forwards its old address). */
+  redirects?: { from: string; to: string }[];
   /** Live sync (3.2): Studio's watchers, and a helper that acts like a save from another tab or device. */
   watchers?: ((remote: any) => void)[];
   /** Studio › Themes share links (previewTokens). `previewDenied` acts as if their rules weren't deployed. */
@@ -126,6 +128,8 @@ export function installFakeStudioApi(api: Record<string, any>, fixture: StudioFi
     createPage: async (page: any) => { record("createPage", page); const created = { ...page, id: `p${fixture.pages.length + 1}` }; fixture.pages.push(created); return created; },
     updatePage: async (id: string, page: any) => { record("updatePage", id, page); fixture.pages = fixture.pages.map(p => p.id === id ? { ...p, ...page } : p); return clone(fixture.pages.find(p => p.id === id)); },
     deletePage: async (id: string) => { record("deletePage", id); fixture.pages = fixture.pages.filter(p => p.id !== id); },
+    getRedirects: async () => clone(fixture.redirects || []),
+    saveRedirects: async (items: any[]) => { record("saveRedirects", items); fixture.redirects = clone(items); return clone(items); },
     updateCategoryBooks: async (...args: any[]) => { record("updateCategoryBooks", ...args); return []; },
     uploadFile: async (_file: File, path: string) => { record("uploadFile", path); return `https://example.invalid/${path}`; },
     updateShopCategories: async (categories: any[]) => { record("updateShopCategories", categories); },

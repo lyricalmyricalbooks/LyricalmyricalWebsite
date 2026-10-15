@@ -21,7 +21,8 @@ export function navLinkStyle(design: any, active: boolean, color?: string): CSSP
     fontSize: `calc(${Number(d.navLinkSize ?? 11)}px * var(--nav-fit, 1))`,
     fontWeight: Number(d.navLinkWeight ?? 800),
     letterSpacing: `${d.navLinkSpacing ?? 0.22}em`,
-    textTransform: (d.navLinkTransform || "uppercase") as CSSProperties["textTransform"],
+    // "" = Inherit (the surrounding text's case); only an unset value falls back to uppercase.
+    textTransform: (d.navLinkTransform ?? "uppercase") as CSSProperties["textTransform"],
     opacity: active ? 1 : idle,
     whiteSpace: "nowrap",
   };
@@ -192,4 +193,14 @@ export function useNavBelow(design: any, rowRef: RefObject<HTMLElement | null>, 
     };
   }, [mode, rowRef, navRef]);
   return below;
+}
+
+/**
+ * Style › Navigation links › Sticker pill corner shape. Bare numbers ("12", "14 4") mean pixels, so a
+ * shop owner who types a number gets rounded corners instead of invalid CSS (square corners).
+ */
+export function pillRadius(value: any): string {
+  const text = typeof value === "string" ? value.trim() : typeof value === "number" ? String(value) : "";
+  if (!text) return "14px 4px 14px 4px";
+  return text.split(/\s+/).map(part => /^\d+(\.\d+)?$/.test(part) ? `${part}px` : part).join(" ");
 }
