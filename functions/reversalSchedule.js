@@ -8,8 +8,10 @@
 // triggers. Now the check times live in one server-only record, systemStatus/stripeReversalChecks:
 //   { v: 1, orders: { [orderId]: [paidMs, checkedMs, triedMs] }, scannedFrom: iso, reconciledAt: iso }
 // Each sweep reads only the orders paid since the last sweep, plus the orders that are due; the full list
-// of paid orders is re-read every 6 hours to add anything the short scan can't see (an order put back to
-// paid long after it was paid) and to drop orders that left. The I/O is passed in, so this file is pure.
+// of paid orders is re-read every 6 hours to drop orders that left and add anything the short scan can't
+// see. A refund reverted long after the payment (paid again with its old paidAt) asks for that re-read on
+// the next sweep through systemStatus/stripeReversalRecheck { at }, so it is not left waiting.
+// The I/O is passed in (paidOrderScanner only builds the query), so this file is pure.
 
 const { reversalWatched, ordersDueReversalCheck, REVERSAL_RECHECK_MS, REVERSAL_WINDOW_MS } = require("./stripeRecovery");
 const { runInBatches } = require("./sweepLimits");
@@ -21,6 +23,9 @@ const SCAN_LIMIT = 500;                         // orders per short scan; a full
 const MAX_TRACKED = 5000;                       // orders the record (and a full re-read) holds; ~200 KB
 const CHECKS_PER_RUN = 40;
 const DUE_SPARE = 10;
+const DUE_ROUNDS = 3;      // due orders the admin just synced free their slot for the next due ones…
+const MAX_DUE_READS = 150; // …up to this many due-order reads per sweep
+const PAID_STATUSES = ["paid", "refund_pending", "refunded"]; // every status reversalWatched can accept
 // The only order fields a scan needs (reversalWatched + the order's own last check). Due orders are
 // always read whole, fresh, before they are checked.
 const SCAN_FIELDS = ["paymentStatus", "isTest", "stripePaymentIntentId", "paidAt", "createdAt", "refund", "refundedAt", "stripeCheckedAt"];
@@ -45,9 +50,12 @@ function readState(raw) {
 }
 
 // What this sweep reads: the full window (reconcile) or only the payments since the previous sweep.
-function scanPlan(state, nowMs) {
+// `recheckMs`: when an order was last put back into the watched set without a new payment (a reverted
+// refund); a re-read that started before then may have missed it.
+function scanPlan(state, nowMs, recheckMs = 0) {
   const windowStart = nowMs - REVERSAL_WINDOW_MS;
-  const reconcile = !state || !state.scannedFrom || !(nowMs - msOf(state.reconciledAt) < RECONCILE_EVERY_MS);
+  const reconcile = !state || !state.scannedFrom || !(nowMs - msOf(state.reconciledAt) < RECONCILE_EVERY_MS)
+    || (recheckMs > 0 && recheckMs >= msOf(state.reconciledAt));
   const since = reconcile ? windowStart : Math.max(windowStart, msOf(state.scannedFrom) - SCAN_OVERLAP_MS);
   return { reconcile, since: isoOf(since), limit: reconcile ? MAX_TRACKED : SCAN_LIMIT };
 }
@@ -117,6 +125,28 @@ function dueBacklog(entries, nowMs) {
   return { due, oldestCheckMs };
 }
 
+// The scan behind io.queryPaid: watched-status orders paid since `since`, newest first, only SCAN_FIELDS,
+// 500 per page; one extra order tells a full list from a cut-off one. Pages continue after the last
+// document (ties on paidAt included; the cursor needs paidAt, which is in SCAN_FIELDS). Served by the
+// (paymentStatus, paidAt desc) orders index.
+function paidOrderScanner(db, { pageSize = 500 } = {}) {
+  return async (since, max) => {
+    const orders = [];
+    let last = null;
+    while (orders.length <= max) {
+      const size = Math.min(pageSize, max + 1 - orders.length);
+      let query = db.collection("orders").where("paymentStatus", "in", PAID_STATUSES).where("paidAt", ">=", since)
+        .orderBy("paidAt", "desc").select(...SCAN_FIELDS).limit(size);
+      if (last) query = query.startAfter(last);
+      const page = await query.get();
+      for (const d of page.docs) orders.push({ id: d.id, ...d.data() });
+      if (page.docs.length < size) break;
+      last = page.docs[page.docs.length - 1];
+    }
+    return { orders: orders.slice(0, max), truncated: orders.length > max };
+  };
+}
+
 // Resolves after `ms` (Infinity: never), with a cancel so a finished run doesn't keep a timer alive.
 function timer(ms) {
   let handle = null;
@@ -127,6 +157,7 @@ function timer(ms) {
 /**
  * One sweep's refund/dispute checks.
  * io.readState()                 → the saved record (raw) or null; a throw skips this sweep's checks
+ * io.readRecheck()               → (optional) ISO time a re-read was last asked for, or null; a throw is ignored
  * io.writeState(record)          → saves the whole record
  * io.queryPaid(sinceIso, limit)  → { orders, truncated }: watched-status orders paid since then, newest first,
  *                                  at least the SCAN_FIELDS; `truncated` when more than `limit` exist
@@ -136,7 +167,8 @@ function timer(ms) {
  * io.stampOrders(ids)            → writes stripeCheckedAt on those orders (only when the record can't be saved)
  * io.warn(message)
  * deadline: no new batch of checks starts after it. stopBy: the record is saved by then even if a check
- * is still waiting on Stripe (the function would otherwise be stopped before saving anything).
+ * is still waiting on Stripe (the function would otherwise be stopped before saving anything), and no
+ * check starts after it.
  */
 async function runReversalChecks(io, { now = Date.now, deadline = Infinity, stopBy = Infinity, batch = 5, limit = CHECKS_PER_RUN } = {}) {
   const startedMs = now();
@@ -148,7 +180,12 @@ async function runReversalChecks(io, { now = Date.now, deadline = Infinity, stop
     return { skipped: true };
   }
   const saved = readState(raw);
-  const plan = scanPlan(saved, startedMs);
+  let recheckMs = 0;
+  if (io.readRecheck) {
+    try { recheckMs = msOf(await io.readRecheck()); }
+    catch (err) { io.warn(`reversal schedule: could not read the re-check request (${err.message})`); }
+  }
+  const plan = scanPlan(saved, startedMs, recheckMs);
   let scanned = [], scanOk = false, complete = false;
   try {
     const result = await io.queryPaid(plan.since, plan.limit);
@@ -167,32 +204,41 @@ async function runReversalChecks(io, { now = Date.now, deadline = Infinity, stop
   let dueCount = 0;
   try {
     // Due orders are read whole and fresh; the same rule as before has the last word. A few extra are
-    // read so an order that turns out gone, no longer watched or just synced by the admin doesn't cost a slot.
-    const dueIds = dueOrderIds(entries, startedMs, limit + DUE_SPARE);
+    // read so an order that turns out gone or no longer watched doesn't cost a slot, and when orders the
+    // admin just synced (their own stamp is newer than the record) leave slots empty, the next due ones
+    // are read to fill them, oldest check first.
     const backlog = dueBacklog(entries, startedMs);
     dueCount = backlog.due;
     if (backlog.due > limit && backlog.oldestCheckMs && startedMs - backlog.oldestCheckMs > REVERSAL_RECHECK_MS + 60 * 60 * 1000) {
       io.warn(`reversal schedule: ${backlog.due} orders are due, more than one sweep checks; the oldest was last checked ${Math.round((startedMs - backlog.oldestCheckMs) / 3600000)} h ago`);
     }
-    let fresh = [];
-    if (dueIds.length) {
+    const toCheck = [];
+    const read = new Set();
+    for (let round = 0; round < DUE_ROUNDS && toCheck.length < limit; round++) {
+      const want = Math.min(limit - toCheck.length + DUE_SPARE, MAX_DUE_READS - read.size);
+      const dueIds = want > 0 ? dueOrderIds(entries, startedMs, Infinity).filter((id) => !read.has(id)).slice(0, want) : [];
+      if (!dueIds.length) break;
+      dueIds.forEach((id) => read.add(id));
+      let fresh;
       try { fresh = await io.getOrders(dueIds); }
-      catch (err) { io.warn(`reversal schedule: could not read the due orders: ${err.message}`); fresh = []; }
+      catch (err) { io.warn(`reversal schedule: could not read the due orders: ${err.message}`); break; }
+      const candidates = [];
+      dueIds.forEach((id, i) => {
+        if (i >= fresh.length) return; // not read: stays due
+        const order = fresh[i];
+        if (!order || !reversalWatched(order, startedMs)) { delete entries[id]; return; } // gone, or left
+        const e = entries[id];
+        const checkedMs = Math.max(e[1], msOf(order.stripeCheckedAt));
+        entries[id] = [msOf(order.paidAt || order.createdAt), checkedMs, e[2]];
+        candidates.push({ ...order, id, stripeCheckedAt: checkedMs ? isoOf(checkedMs) : null });
+      });
+      const allowed = new Set(ordersDueReversalCheck(candidates, startedMs, Infinity).map((o) => o.id));
+      toCheck.push(...candidates.filter((o) => allowed.has(o.id)).slice(0, limit - toCheck.length));
     }
-    const candidates = [];
-    dueIds.forEach((id, i) => {
-      if (i >= fresh.length) return; // not read: stays due
-      const order = fresh[i];
-      if (!order || !reversalWatched(order, startedMs)) { delete entries[id]; return; } // gone, or left
-      const e = entries[id];
-      const checkedMs = Math.max(e[1], msOf(order.stripeCheckedAt));
-      entries[id] = [msOf(order.paidAt || order.createdAt), checkedMs, e[2]];
-      candidates.push({ ...order, id, stripeCheckedAt: checkedMs ? isoOf(checkedMs) : null });
-    });
-    const allowed = new Set(ordersDueReversalCheck(candidates, startedMs, Infinity).map((o) => o.id));
-    const toCheck = candidates.filter((o) => allowed.has(o.id)).slice(0, limit);
     const stop = timer(stopBy - now());
+    let stopped = false;
     const checks = runInBatches(toCheck, batch, async (order) => {
+      if (stopped) return; // the record is saved; the next sweep checks it
       let answered = false;
       try {
         await io.check(order, () => {
@@ -204,10 +250,12 @@ async function runReversalChecks(io, { now = Date.now, deadline = Infinity, stop
       } finally {
         if (!answered && entries[order.id]) entries[order.id][2] = now();
       }
-    }, { deadline, now });
-    try { await Promise.race([checks, stop.done]); } finally { stop.cancel(); }
+    }, { deadline: Math.min(deadline, stopBy), now });
+    try { await Promise.race([checks, stop.done]); } finally { stopped = true; stop.cancel(); }
   } finally {
-    const record = { v: STATE_VERSION, orders: entries, ...scanMarks(plan, { scanOk, complete, startedMs, saved }) };
+    // A copy: a check still waiting on Stripe at the stop time must not change what was saved.
+    const orders = Object.fromEntries(Object.entries(entries).map(([id, e]) => [id, e.slice()]));
+    const record = { v: STATE_VERSION, orders, ...scanMarks(plan, { scanOk, complete, startedMs, saved }) };
     try {
       await io.writeState(record);
     } catch (err) {
@@ -221,6 +269,7 @@ async function runReversalChecks(io, { now = Date.now, deadline = Infinity, stop
 }
 
 module.exports = {
-  runReversalChecks, readState, scanPlan, scanMarks, mergeScan, capEntries, dueOrderIds, dueBacklog,
-  STATE_VERSION, RECONCILE_EVERY_MS, SCAN_OVERLAP_MS, SCAN_LIMIT, MAX_TRACKED, CHECKS_PER_RUN, SCAN_FIELDS,
+  runReversalChecks, paidOrderScanner, readState, scanPlan, scanMarks, mergeScan, capEntries, dueOrderIds, dueBacklog,
+  STATE_VERSION, RECONCILE_EVERY_MS, SCAN_OVERLAP_MS, SCAN_LIMIT, MAX_TRACKED, CHECKS_PER_RUN, DUE_SPARE, DUE_ROUNDS,
+  MAX_DUE_READS, SCAN_FIELDS, PAID_STATUSES,
 };
