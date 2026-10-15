@@ -230,13 +230,16 @@
 .studio-panels .studio-canvas { height: 100%; }
 .studio-inspector-empty { height: 100%; display: grid; place-content: center; gap: 8px; padding: 24px; text-align: center; color: var(--rp-text-subtle); font-size: 13px; line-height: 1.6; background: var(--rp-surface); border-left: 1px solid var(--rp-border); }
 .studio-inspector-empty strong { color: var(--rp-text); font-size: 14px; }
-.studio-preview-stage { flex: none; margin-inline: auto; overflow: hidden; }
+.studio-preview-stage { flex: none; margin-inline: auto; overflow: hidden; overflow: clip; }
 .studio-preview-stage .studio-preview-frame { flex: none; }
 .studio-zoom { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; }
 .studio-zoom select { min-height: 30px; }
 .studio-panel-toggles { display: inline-flex; gap: 4px; }
 @media (max-width: 767px) {
-  .studio-rail { flex-direction: row; flex: none; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--rp-border); padding: 4px; }
+  /* Phones show one panel at a time under the rail, so the rail is a full-width row that scrolls inside itself. */
+  .studio-workspace { flex-direction: column; }
+  .studio-workspace > .studio-sidebar, .studio-workspace > .studio-canvas, .studio-workspace > .studio-inspector { flex: 1 1 auto; min-height: 0; }
+  .studio-rail { flex-direction: row; flex: none; width: 100%; min-width: 0; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--rp-border); padding: 4px; }
   .studio-rail button { min-width: 64px; min-height: 52px; }
   .studio-editor:not([data-mobile-panel=outline]) .studio-rail { display: none; }
 }

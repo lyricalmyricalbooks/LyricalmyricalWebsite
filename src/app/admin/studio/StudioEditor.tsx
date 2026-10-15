@@ -1181,7 +1181,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // `forPanel`: a command that names the panel's section itself (Find › current selection), not a keyboard shortcut.
   const runShortcut = (action: ShortcutAction, forPanel = false) => {
     if (busy === "discard") return;
-    if (inlineEditingRef.current && ["save", "undo", "redo", "delete", "duplicate", "moveUp", "moveDown"].includes(action)) return;
+    if (inlineEditingRef.current && ["save", "undo", "redo", "delete", "duplicate", "moveUp", "moveDown"].includes(action)) {
+      if (action === "save") say("err", "Finish the text edit first: press Done (or Escape to cancel), then save.");
+      return;
+    }
     // A plain-text click outlines a section in the preview without opening it in the panel; the section
     // shortcuts act on the panel's section, so refuse them while the outline is on a different one.
     const outlined = canvasSelectionRef.current?.sectionId;
@@ -1220,8 +1223,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const key = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       const typing = /input|textarea|select/i.test(el?.tagName || "") || !!el?.isContentEditable;
+      const onControl = !!el?.closest?.("button, a[href], [role=button], [role=tab], [role=menuitem]");
       const dialogOpen = !!document.querySelector("[role=dialog][aria-modal=true], .rp-dialog-root [role=dialog]");
-      const action = resolveShortcut({ key: e.key, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey, alt: e.altKey, typing, dialogOpen });
+      const action = resolveShortcut({ key: e.key, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey, alt: e.altKey, typing, dialogOpen, onControl });
       if (!action) return;
       e.preventDefault();
       shortcutRef.current(action);
