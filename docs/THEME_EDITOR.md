@@ -675,9 +675,21 @@ without a yes.
 - Not done: live thumbnails rendered from the real block (the picker's pictures are code-drawn; the live preview is the
   page itself), and Page-section starters (starters fill the page body, not `page:<slug>` sections).
 
-### Phase 6 — Brand kit & setup wizard (Squarespace Blueprint)
-- [ ] Logo → palette drawn from its colours → personality (bookish / bold / minimal) → fonts + preset → a starter Home
-  page, all as one undoable draft change. The Setup checklist links to it.
+### Phase 6 — Brand kit & setup wizard (Squarespace Blueprint) — DONE (15 October 2026)
+- [x] **Brand kit** panel (`studio/StudioBrandKit.tsx`, beside the preview like Add section): 1 Logo (upload or library;
+  its colours are read in the browser by `studio/logoColours.ts` → `brandKit.dominantColours`) → 2 Colours
+  (`palettesFromColours`: light page / dark page / your colour as the page, then the built-in palettes; text ≥ 4.5:1 and
+  accent ≥ 3:1 guaranteed by `withContrast`) → 3 Personality (`PERSONALITIES`: bookish, bold, minimal — fonts, button
+  style, corners, uppercase) → 4 Home page (keep, or the personality's starter layout without its fixed colours) →
+  5 Review (`brandKitSummary`) → **Apply brand kit**.
+- [x] Every step previews on the canvas (`brandChoice` → `brandKitDesign` in `sendPreviewState`, never the draft);
+  Apply is one named `change` ("Apply brand kit"). It writes only keys with a Style control (`paletteKeys`,
+  `personalityKeys`, `logoUrl`; tested against `STYLE_GROUPS`) on every page (`applyThemeKeysToSurfaces`) and adds a
+  "Brand colour" scheme (`brand-accent`).
+- [x] Entry points: Workbench › Setup › **Set up your brand in one go** (`go: { kind: "brand" }`), Theme actions ›
+  **Brand kit…**, Find anything "Brand kit". Switching workspace closes it.
+- Not done: a card on the Theme settings home (the three entry points above cover it); reading colours from a library
+  picture whose storage host blocks canvas reads (the panel says so and offers the colour picker).
 
 ### Phase 7 — Site-wide Health & speed
 - [ ] Health checks every route in a hidden preview, not just the page on screen.

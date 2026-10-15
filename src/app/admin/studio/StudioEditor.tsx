@@ -4,7 +4,7 @@ import { REGION_GROUPS, REGION_SUFFIXES, REGION_DEVICE_LABELS, regionFieldDevice
 import { canInlineFormat } from "./richText";
 import { applyContextAction, applySpacing, contextCapabilities, GAP_KEYS, PADDING_KEYS, spacingKey } from "./canvasTools";
 import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import {
+import { Sparkles,
   ArrowLeft, ChevronDown, Clock, ChevronUp, Clipboard, Copy, Eye, EyeOff, ExternalLink, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
   Download, ListChecks, Pencil, Tablet, Trash2, Undo2, Upload, X,
 } from "lucide-react";
@@ -92,6 +92,8 @@ import type { StudioLocation } from "../../lib/studioLocation";
 import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
 import { StudioSectionLibrary } from "./StudioSectionLibrary";
 import { StudioBlockPicker } from "./StudioBlockPicker";
+import { StudioBrandKit } from "./StudioBrandKit";
+import { brandKitDesign, type BrandKitChoice } from "./brandKit";
 import { BLOCK_CANDIDATE_ID, blockChoices, canPasteBlock, copyBlock, fitsAfter, pasteBlock, withBlockCandidate, type BlockChoice, type BlockClip } from "./blockLibrary";
 import { StudioTemplateCard } from "./StudioTemplateCard";
 import { isProductTemplate, StudioProductBlocks } from "./StudioProductBlocks";
@@ -449,6 +451,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // Block library 3.0: the copied block, the section the block picker is adding to, and the block pointed at in it
   // (shown in the preview only, never in the draft or history).
   const [copiedBlock, setCopiedBlock] = useState<BlockClip | null>(null);
+  // Brand kit (3.0 phase 6): the panel is open, and the choice it is showing on the canvas (preview only).
+  const [brandKit, setBrandKit] = useState(false);
+  const [brandChoice, setBrandChoice] = useState<BrandKitChoice | null>(null);
+  useEffect(() => { if (!brandKit) setBrandChoice(null); }, [brandKit]);
+  // Switching workspace closes the brand kit (and its preview); its choices are not saved until Apply.
+  const brandTabRef = useRef<string | null>(null);
   const [blockPicker, setBlockPicker] = useState<string | null>(null);
   const [blockCandidate, setBlockCandidate] = useState<any>(null);
   const pickerWasOpen = useRef(false);
@@ -630,6 +638,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setShowGlobal(false);
     say("ok", "Noir homepage layout installed on the draft.", undoAction());
   };
+  // Brand kit (3.0 phase 6): open the panel beside the preview; Apply writes every choice as one undoable change.
+  const openBrandKit = () => {
+    setAdding(null); setBlockPicker(null); setThemePreview(null); setHistoryPreview(null);
+    setMobilePanel("outline"); setBrandKit(true);
+  };
+  const applyBrandKit = (choice: BrandKitChoice) => {
+    setBrandKit(false);
+    change((d) => brandKitDesign(d, choice, getSectionMeta), { label: "Apply brand kit" });
+    if (choice.home === "starter") { setTemplateId("heroPage"); setShowGlobal(false); }
+    say("ok", "Brand kit applied to the draft — Publish to make it live.", undoAction());
+  };
   const applyLibraryTheme = (theme: any) => {
     const palette = PALETTES.find((p: any) => p.id === theme.palettePreset);
     const base: Record<string, any> = {
@@ -683,6 +702,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setTimeout(() => setConfirmAction("publish"), 0);
   };
   useEffect(() => { if (leftTab !== "themes") setThemePreview(null); }, [leftTab]);
+  useEffect(() => {
+    if (brandTabRef.current !== null && brandTabRef.current !== leftTab) setBrandKit(false);
+    brandTabRef.current = leftTab;
+  }, [leftTab]);
   // A theme/version preview shows a different design in the canvas. Any edit to the draft (inspector,
   // canvas, undo, live sync) ends it, so the canvas never keeps showing the preview over a change.
   const previewedDesignRef = useRef(design);
@@ -824,6 +847,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const previewDesign = historyPreview?.design || themePreview?.design || (candidate && adding !== null
       ? withCandidate(current, showGlobal ? globalGroup : template.id, getSections(current, target), adding, makeSection(candidate, getSectionMeta(candidate)?.defaults || {}))
       : candidateOwner ? withBlockCandidate(current, blockPicker!, getBlocksKey(candidateOwner.section.type), blockCandidate)
+      : brandChoice ? brandKitDesign(current, brandChoice, getSectionMeta)
       : current);
     let state: ReturnType<typeof buildPreviewState>;
     try { state = buildPreviewState(settings, previewDesign, withDraftPage(pages, draftPage), books); }
@@ -832,7 +856,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       deliverPreviewState(iframeRef.current?.contentWindow, state, window.location.origin);
     } catch (err) { console.warn("[Studio] preview delivery failed", err); }
     try { channelRef.current?.postMessage(state); } catch (err) { console.warn("[Studio] preview tab delivery failed", err); }
-  }, [historyPreview, themePreview, settings, pages, books, draftPage, candidate, adding, blockCandidate, blockPicker, showGlobal, globalGroup, template.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [historyPreview, themePreview, settings, pages, books, draftPage, candidate, adding, blockCandidate, blockPicker, brandChoice, showGlobal, globalGroup, template.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const sendPreviewRef = useRef(sendPreviewState);
   sendPreviewRef.current = sendPreviewState;
   useEffect(() => {
@@ -1656,6 +1680,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "workbench-health": openWorkbench("health"); break;
       case "workbench-changes": openWorkbench("changes"); break;
       case "workbench-setup": openWorkbench("setup"); break;
+      case "brand-kit": openBrandKit(); break;
       case "preview-tab": openPreviewTab(); break;
       case "undo": stepHistory("undo"); break;
       case "redo": stepHistory("redo"); break;
@@ -1755,6 +1780,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : leftTab === "themes" ? "Save, compare, share and switch whole designs." : "Create pages and edit their content or layout."}</small>
           </div>
           <div className="flex-1 overflow-auto" ref={sidebarScrollRef}>
+            {brandKit && <StudioBrandKit design={design} onPreview={setBrandChoice} onApply={applyBrandKit} onClose={() => setBrandKit(false)} />}
+            <div hidden={brandKit}>
             <StudioTips forceOpen={tipsNonce} />
             {leftTab === "sections" && adding !== null && (
               <StudioSectionLibrary registry={SECTION_REGISTRY} design={design}
@@ -2113,6 +2140,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   }} />
               </>
             )}
+            </div>
           </div>
         </div>
   );
@@ -2142,6 +2170,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     else if (go.kind === "tab") selectRail(go.tab);
     else if (go.kind === "device") { setDevice(go.device); setMobilePanel("preview"); }
     else if (go.kind === "health") openHealth();
+    else if (go.kind === "brand") openBrandKit();
     else if (go.kind === "publish") {
       if (!unpublished && !dirtyDraft) say("ok", "Make a change first: there's nothing new to publish.");
       else setConfirmAction("publish");
@@ -2226,6 +2255,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
           { label: "Preview in new tab", icon: <ExternalLink size={14} />, onSelect: openPreviewTab },
           { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
+          { label: "Brand kit…", icon: <Sparkles size={14} />, onSelect: openBrandKit },
           { label: "Schedule publishing…", icon: <Clock size={14} />, onSelect: () => setSchedule({ themeId: null }) },
           { label: "Studio Health", icon: <ShieldCheck size={14} />, onSelect: openHealth },
           ...(!narrow ? [{ label: workbench.open ? "Close the Workbench" : "Open the Workbench", icon: <ListChecks size={14} />, onSelect: () => (workbench.open ? setWorkbench(w => ({ ...w, open: false })) : openWorkbench(workbench.tab)) }] : []),

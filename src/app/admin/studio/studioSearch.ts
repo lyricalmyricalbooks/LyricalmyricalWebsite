@@ -11,7 +11,7 @@ export type StudioTab = "sections" | "style" | "text" | "menus" | "pages" | "med
 export type StudioActionId =
   | "save" | "publish" | "discard" | "history" | "schedule" | "check" | "preview-tab" | "undo" | "redo"
   | "device-desktop" | "device-tablet" | "device-mobile" | "mode-toggle" | "autofit-page" | "add-section" | "fill-page-seo"
-  | "workbench-health" | "workbench-changes" | "workbench-setup";
+  | "workbench-health" | "workbench-changes" | "workbench-setup" | "brand-kit";
 
 export type SearchTarget =
   | { type: "style"; groupId: string; key?: string }
@@ -122,6 +122,7 @@ const ACTIONS: { id: StudioActionId; title: string; keywords: string }[] = [
   { id: "add-section", title: "Add a section", keywords: "new block library insert hero banner" },
   { id: "workbench-changes", title: "Show this session's changes (undo history)", keywords: "workbench history steps go back undo several timeline what did i change edits list" },
   { id: "workbench-setup", title: "Setup checklist (get the shop ready)", keywords: "workbench launch onboarding getting started to do progress logo fonts colours share image" },
+  { id: "brand-kit", title: "Brand kit (logo, colours, type and Home page in one go)", keywords: "brand kit wizard setup logo palette colours personality fonts starter home page onboarding" },
   { id: "workbench-health", title: "Open Studio Health in the Workbench", keywords: "workbench docked panel accessibility check problems" },
   { id: "fill-page-seo", title: "Fill in missing search listings (pages)", keywords: "seo auto fill autofill meta description search title google listing pages blank" },
 ];

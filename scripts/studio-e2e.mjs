@@ -500,6 +500,51 @@ await check("Arrange on page: a Flexible composition block moves on the grid by 
   await frame.locator("[data-studio-grid]").waitFor({ state: "detached", timeout: 5000 });
 });
 
+await check("Brand kit: a logo's colour becomes a palette, the canvas previews it, Apply is one undoable change", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const lastDesign = async () => {
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await page.waitForTimeout(400);
+    return (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design;
+  };
+  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("menuitem", { name: "Brand kit…" }).click();
+  const kit = page.locator("[data-studio-brand-kit]");
+  await kit.waitFor({ timeout: 5000 });
+  // A red square on white, drawn in the page and handed to the file input like a real upload.
+  const b64 = await page.evaluate(() => {
+    const c = document.createElement("canvas"); c.width = c.height = 40;
+    const x = c.getContext("2d"); x.fillStyle = "#ffffff"; x.fillRect(0, 0, 40, 40); x.fillStyle = "#e8402a"; x.fillRect(8, 8, 24, 24);
+    return c.toDataURL("image/png").split(",")[1];
+  });
+  await kit.locator('input[aria-label="Upload your logo"]').setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: Buffer.from(b64, "base64") });
+  await kit.getByText("Colours found").waitFor({ timeout: 15000 });
+  await kit.getByRole("button", { name: "Next" }).click();
+  await kit.locator("[data-palette='logo-light']").click();
+  const frame = page.frames().find(f => /preview=true/.test(f.url()));
+  if (!frame) throw new Error("no preview frame");
+  await frame.waitForFunction(() => /250, 248, 244/.test(document.querySelector("header[data-fm-header]")?.getAttribute("style") || ""), null, { timeout: 10000 });
+  await kit.getByRole("button", { name: "Next" }).click();
+  await kit.locator("[data-personality='bold']").click();
+  await kit.getByRole("button", { name: "Next" }).click();
+  await kit.locator("[data-home='keep']").click();
+  await kit.getByRole("button", { name: "Next" }).click();
+  await kit.locator("[data-brand-summary]").getByText(/Anton headings/).waitFor({ timeout: 5000 });
+  const homeBefore = await page.evaluate(() => { const f = window.__studioFixture.settings; return ((f.draftDesign || f.design || {}).heroPage?.sections || []).length; });
+  await kit.getByRole("button", { name: "Apply brand kit" }).click();
+  await page.waitForFunction(() => document.querySelector("button[aria-label^='Undo']")?.getAttribute("title")?.includes("Apply brand kit"), null, { timeout: 5000 });
+  let saved = await lastDesign();
+  if (saved.backgroundColor !== "#faf8f4" || saved.headingFont !== "Anton" || !/^#e8402a$/i.test(saved.primaryColor)) {
+    throw new Error(`brand kit saved ${JSON.stringify({ bg: saved.backgroundColor, font: saved.headingFont, accent: saved.primaryColor })}`);
+  }
+  if (!String(saved.logoUrl || "").includes("example.invalid")) throw new Error("the uploaded logo was not set");
+  if ((saved.heroPage?.sections || []).length !== homeBefore) throw new Error("Keep my Home page changed Home");
+  if (!(saved.colorSchemes || []).some(s => s.id === "brand-accent")) throw new Error("no Brand colour scheme");
+  await page.getByRole("button", { name: /^Undo/ }).click();
+  saved = await lastDesign();
+  if (saved.backgroundColor === "#faf8f4") throw new Error("Undo did not take the brand kit back");
+});
+
 await check("Block picker: pointing at a block tries it on the page, clicking adds it, and Undo removes it", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Add section" }).first().click();

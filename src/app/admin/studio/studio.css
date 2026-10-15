@@ -590,3 +590,15 @@
 .studio-layers li > button:first-child { margin-right: auto; font-weight: 700; }
 .studio-inline-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .studio-inline-actions .studio-link-button { width: auto; }
+.studio-brand-steps { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.studio-brand-steps button { min-height: 32px; padding: 4px 8px; font-size: 11px; font-weight: 700; border: 1px solid var(--rp-border); background: var(--rp-surface); color: inherit; cursor: pointer; }
+.studio-brand-steps [aria-current="step"] button { border-color: var(--rp-border-strong); box-shadow: 2px 2px 0 var(--rp-border-strong); }
+.studio-brand-logo { display: grid; place-items: center; min-height: 96px; padding: 12px; border: 1px dashed var(--rp-border); background: var(--rp-surface-sunken, transparent); }
+.studio-brand-logo img { max-width: 100%; max-height: 120px; object-fit: contain; }
+.studio-brand-swatches { display: inline-flex; gap: 4px; vertical-align: middle; }
+.studio-brand-swatches i { width: 18px; height: 18px; border: 1px solid var(--rp-border-strong); }
+.studio-brand-swatches-lg i { width: 32px; height: 24px; }
+.studio-brand-custom { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; }
+.studio-brand-custom input[type="color"] { width: 40px; height: 32px; padding: 0; border: 1px solid var(--rp-border-strong); background: transparent; }
+.studio-brand-font { font-size: 26px; line-height: 1.1; }
+.studio-library-card[aria-checked="true"] { border-color: var(--rp-border-strong); box-shadow: 3px 3px 0 var(--rp-border-strong); }
