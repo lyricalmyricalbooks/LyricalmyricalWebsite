@@ -1,15 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, m } from "motion/react";
+import { PhotoCarousel } from "./PhotoCarousel";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useFocusTrap } from "../../lib/useFocusTrap";
-
-// Moving between photos slides the new one in from the side it comes from (no fade through black).
-const SLIDE = {
-  enter: (dir: number) => ({ x: `${dir * 100}vw` }),
-  center: { x: "0vw" },
-  exit: (dir: number) => ({ x: `${dir * -100}vw` }),
-};
 
 /** Starts loading a photo at full-screen size, so it is ready before the shopper moves to it. */
 function warm(photo: LightboxPhoto | undefined) {
@@ -40,17 +33,20 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
   showCount?: boolean;
 }) {
   const [index, setIndex] = useState(Math.min(Math.max(0, start), Math.max(0, photos.length - 1)));
-  const [dir, setDir] = useState(1);
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, true, onClose);
 
   const go = (next: number) => {
     if (!photos.length) return;
     const i = (next + photos.length) % photos.length;
-    setDir(next > index ? 1 : -1);
     setIndex(i);
     onIndex?.(i);
   };
+
+  // A video stops when the shopper moves away from it.
+  useEffect(() => {
+    ref.current?.querySelectorAll<HTMLVideoElement>("video[data-fm-video]").forEach((v) => { if (!v.paused) v.pause(); });
+  }, [index]);
 
   // Next and previous photos load while this one is on screen.
   useEffect(() => {
@@ -90,44 +86,40 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
       className="fm-lightbox fixed inset-0 z-[1000] bg-black/95 flex items-center justify-center"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <AnimatePresence initial={false} custom={dir}>
-          {photo.videoUrl ? (
-            <m.video
-              key={index}
-              custom={dir}
-              variants={SLIDE}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ type: "tween", ease: [0.32, 0.72, 0, 1], duration: 0.32 }}
-              src={photo.videoUrl}
-              poster={photo.url}
-              controls
-              playsInline
-              preload="metadata"
-              aria-label={photo.alt}
-              data-fm-video
-              className="absolute inset-0 m-auto max-w-[94vw] max-h-[88vh] w-auto h-auto object-contain pointer-events-auto bg-black"
+      {/* Swipe or drag between photos (Instagram-style); a click on the shade beside the photo closes. */}
+      <PhotoCarousel
+        count={photos.length}
+        index={index}
+        onIndex={(i) => { setIndex(i); onIndex?.(i); }}
+        className="absolute inset-0"
+        label={labels.dialog}
+        renderSlide={(i) => (
+          <div className="w-full h-full flex items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+            {photos[i].videoUrl ? (
+              <video
+                src={photos[i].videoUrl}
+                poster={photos[i].url}
+                controls
+                playsInline
+                preload={i === index ? "metadata" : "none"}
+                aria-label={photos[i].alt}
+                data-fm-video
+                className="max-w-[94vw] max-h-[88vh] w-auto h-auto object-contain bg-black"
+              />
+            ) : (
+            <img
+              src={photos[i].url}
+              {...(photos[i].srcSet ? { srcSet: photos[i].srcSet, sizes: "100vw" } : {})}
+              alt={photos[i].alt}
+              loading={Math.abs(i - index) <= 1 ? "eager" : "lazy"}
+              decoding="async"
+              className="max-w-[94vw] max-h-[88vh] w-auto h-auto object-contain select-none"
+              draggable={false}
             />
-          ) : (
-          <m.img
-            key={index}
-            custom={dir}
-            variants={SLIDE}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ type: "tween", ease: [0.32, 0.72, 0, 1], duration: 0.32 }}
-            src={photo.url}
-            {...(photo.srcSet ? { srcSet: photo.srcSet, sizes: "100vw" } : {})}
-            alt={photo.alt}
-            className="absolute inset-0 m-auto max-w-[94vw] max-h-[88vh] w-auto h-auto object-contain select-none pointer-events-auto"
-            draggable={false}
-          />
-          )}
-        </AnimatePresence>
-      </div>
+            )}
+          </div>
+        )}
+      />
       <button type="button" data-autofocus onClick={onClose} aria-label={labels.close} className={`${btn} top-4 right-4`}><X size={18} /></button>
       {photos.length > 1 && (
         <>

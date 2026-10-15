@@ -1,8 +1,8 @@
 import { catName, categoryNames } from "./navItems";
 import { recommendedBooks } from "./merchandising";
 import { shownDetailRows } from "./detailRows";
-import { m, AnimatePresence } from "motion/react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { m } from "motion/react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useParams, Link, useNavigate, useLocation } from "react-router";
 import {
@@ -34,6 +34,7 @@ import { funnelApi } from "../../lib/commerce";
 import ReviewsSection from "./ReviewsSection";
 import { PhotoLightbox } from "./PhotoLightbox";
 import { galleryPhotos, isVideoItem } from "./bookVideo";
+import { PhotoCarousel } from "./PhotoCarousel";
 import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 import BackInStockForm from "./BackInStockForm";
@@ -60,12 +61,6 @@ import { ga4Once } from "../../lib/ga4";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
 import { CARD_PHOTO_SIZES, PDP_PHOTO_SIZES, THUMB_PHOTO_SIZES, photoSrcSet } from "./photoSources";
-// Main photo change: the new photo slides in while the old one slides out (direction = `custom`).
-const PHOTO_SLIDE = {
-  enter: (dir: number) => ({ x: `${dir * 100}%` }),
-  center: { x: "0%" },
-  exit: (dir: number) => ({ x: `${dir * -100}%` }),
-};
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 // ── small helper ────────────────────────────────────────────────────────────
@@ -99,9 +94,6 @@ export default function BookDetail() {
   // A format with its own photo shows it when chosen; picking a thumbnail afterwards wins.
   const [variantPhotoPinned, setVariantPhotoPinned] = useState(true);
   const pickPhoto = (next: number | ((p: number) => number)) => { setVariantPhotoPinned(false); setActivePhoto(next as any); };
-  // Which way the main photo slides when it changes: forward (next photo) comes in from the right.
-  const slideFrom = useRef({ index: activePhoto, dir: 1 });
-  if (slideFrom.current.index !== activePhoto) slideFrom.current = { index: activePhoto, dir: activePhoto > slideFrom.current.index ? 1 : -1 };
   const [added, setAdded]             = useState(false);
   // Coming soon: the button opens the "email me when it's out" signup.
   const [soonOpen, setSoonOpen]       = useState(false);
@@ -534,19 +526,13 @@ export default function BookDetail() {
   const isGiftCard    = isGiftCardProduct(book);
   const isBoxSet      = isBundle(book);
   const addOns        = bookAddOns(book);
-  // Photos are loaded ahead at the size the main photo uses (same srcset/sizes, so the browser picks the
-  // same copy): switching then slides in a photo that is already there instead of an empty frame.
-  // Adaptive frames load every photo (to measure them, so switching never resizes twice); fixed frames
-  // load just the photos either side of the one shown. Waits for the first photo so it loads first.
-  const photoUrlsKey = photos.map((p: any) => p?.url || "").join("\n");
-  const measureAll = productFrameMode !== "fixed";
+  // Adaptive frames: measure every photo up front so switching photos never resizes twice. Loaded at the
+  // size the main photo uses (same srcset/sizes), so the copy the swipeable strip shows is already there.
+  const photoUrlsKey = productFrameMode === "fixed" ? "" : photos.map((p: any) => p?.url || "").join("\n");
   useEffect(() => {
     if (!photoUrlsKey || typeof Image === "undefined") return;
-    if (!measureAll && !imageLoaded) return;
     let live = true;
-    const n = photos.length;
-    const picks = measureAll ? photos : n > 1 ? [photos[(activePhoto + 1) % n], photos[(activePhoto - 1 + n) % n]] : [];
-    for (const photo of picks) {
+    for (const photo of photos) {
       const url = photo?.url;
       if (!url) continue;
       const img = new Image();
@@ -558,7 +544,7 @@ export default function BookDetail() {
     }
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photoUrlsKey, measureAll, measureAll ? 0 : activePhoto, imageLoaded]);
+  }, [photoUrlsKey]);
   const editionPhotoShown = !!(selectedVariant && selectedVariant.photoUrl && variantPhotoPinned);
   const activeUrl     = editionPhotoShown ? selectedVariant!.photoUrl : (photos[activePhoto]?.url || placeholderImage(settings?.design));
   // The photo actually on screen: a pinned edition photo is one of the gallery photos (or none of them),
@@ -566,10 +552,19 @@ export default function BookDetail() {
   const shownIndex    = editionPhotoShown ? photos.findIndex((p: any) => p?.url === activeUrl) : activePhoto;
   const shownPhoto    = shownIndex >= 0 ? photos[shownIndex] : undefined;
   const mediaName     = (item: any, i: number) => item?.altText?.trim() || getCopy(settings?.design, isVideoItem(item) ? "bookVideoLabel" : "bookPhotoAlt", { title: book?.title, n: i + 1 });
-  const shownVideo    = !editionPhotoShown && isVideoItem(photos[activePhoto]) ? photos[activePhoto] : null;
+  const carouselIndex = shownIndex >= 0 ? shownIndex : Math.min(activePhoto, photos.length - 1);
+  const shownVideo    = !(editionPhotoShown && shownIndex < 0) && isVideoItem(photos[carouselIndex]) ? photos[carouselIndex] : null;
+  // A video stops when the shopper swipes away from it.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.querySelectorAll<HTMLVideoElement>(".fm-pdp-frame video[data-fm-video]").forEach((v) => { if (!v.paused) v.pause(); });
+  }, [carouselIndex]);
 
   const alignCls      = productAlignment === "center" ? "items-center text-center" : "items-start text-left";
   const showThumbRail = photos.length > 1 && pdpThumbPosition !== "hidden";
+  // Dots under the photo: "" = only when the thumbnails are hidden (as before), "always", "never".
+  const photoDotsMode = storefrontDesign.pdpPhotoDots || "";
+  const showPhotoDots = photos.length > 1 && photos.length <= 20 && (photoDotsMode === "always" || (photoDotsMode === "" && !showThumbRail));
   const isLowStock    = stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10);
   const isBackorder   = !!(selectedVariant ? (selectedVariant as any).onBackorder : (book as any)?.onBackorder);
   // Pre-order (Books › Inventory › Pre-order): sold before its publication date.
@@ -1231,53 +1226,65 @@ export default function BookDetail() {
                         <div className="absolute inset-0 fm-surface-2 pointer-events-none" aria-hidden="true" />
                       )}
 
-                      {/* Photos slide across (old out, new in, at the same time) instead of fading through
-                          the empty frame, which showed as a black flash while the next photo loaded. */}
-                      <AnimatePresence initial={false} custom={slideFrom.current.dir}>
-                        {shownVideo ? (
-                          // A video: still frame first, the file downloads only when the shopper presses play.
-                          <m.video
-                            key={activePhoto}
-                            custom={slideFrom.current.dir}
-                            src={shownVideo.videoUrl}
-                            poster={shownVideo.url}
-                            controls
-                            playsInline
-                            preload="metadata"
-                            aria-label={mediaName(shownVideo, activePhoto)}
-                            data-fm-video
-                            className={`absolute inset-0 w-full h-full bg-black ${productImageFitClass}`}
-                            variants={PHOTO_SLIDE}
-                            initial="enter"
-                            animate="center"
-                            exit="exit"
-                            transition={{ x: { type: "tween", ease: [0.32, 0.72, 0, 1], duration: 0.32 } }}
-                            ref={(el: HTMLVideoElement | null) => { if (el) setImageLoaded(true); }}
-                          />
-                        ) : (
-                        <m.img
-                          key={activePhoto}
-                          custom={slideFrom.current.dir}
+                      {/* Instagram-style strip: swipe (phones, trackpads) or drag (mouse) and it snaps to the
+                          next photo; arrows, thumbnails and dots glide it there. */}
+                      <PhotoCarousel
+                        count={photos.length}
+                        index={carouselIndex}
+                        onIndex={(i) => pickPhoto(i)}
+                        className="absolute inset-0"
+                        label={getCopy(settings?.design, "pdpPhotosAria")}
+                        renderSlide={(i) => {
+                          const photo = photos[i];
+                          const url = photo?.url || placeholderImage(settings?.design);
+                          if (isVideoItem(photo)) return (
+                            // A video: still frame first, the file downloads only when the shopper presses play.
+                            <video
+                              src={photo.videoUrl}
+                              poster={photo.url}
+                              controls
+                              playsInline
+                              preload={i === carouselIndex ? "metadata" : "none"}
+                              aria-label={mediaName(photo, i)}
+                              data-fm-video
+                              className={`w-full h-full bg-black ${productImageFitClass}`}
+                              ref={(el) => { if (el && i === carouselIndex) setImageLoaded(true); }}
+                            />
+                          );
+                          return (
+                            <m.img
+                              src={url}
+                              {...photoSrcSet(photo, PDP_PHOTO_SIZES)}
+                              alt={mediaName(photo, i)}
+                              className={`w-full h-full select-none ${productImageFitClass}`}
+                              decoding="async"
+                              draggable={false}
+                              // The photo shown and its neighbours load now, so a swipe never reveals an empty frame.
+                              loading={Math.abs(i - carouselIndex) <= 1 ? "eager" : "lazy"}
+                              {...(i === 0 ? { fetchpriority: "high" } : {})}
+                              whileHover={{ scale: productImageHoverScale }}
+                              transition={{ duration: 0.45 }}
+                              // A photo already in the browser cache (or loaded before the page woke up) never
+                              // fires onLoad, which left the placeholder over it; check `complete` too.
+                              ref={(el: HTMLImageElement | null) => { if (el?.complete && el.naturalWidth) { if (i === carouselIndex) setImageLoaded(true); notePhotoSize(url, el); } }}
+                              onLoad={(e: any) => { if (i === carouselIndex) setImageLoaded(true); notePhotoSize(url, e.currentTarget); }}
+                              onError={() => { if (i === carouselIndex) setImageLoaded(true); }}
+                            />
+                          );
+                        }}
+                      />
+                      {/* An edition's own photo that isn't one of the book's photos sits on top of the strip. */}
+                      {editionPhotoShown && shownIndex < 0 && (
+                        <img
                           src={activeUrl}
-                          {...(activeUrl === photos[activePhoto]?.url ? photoSrcSet(photos[activePhoto], PDP_PHOTO_SIZES) : {})}
-                          alt={shownPhoto?.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: Math.max(0, shownIndex) + 1 })}
+                          alt={getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: 1 })}
                           className={`absolute inset-0 w-full h-full ${productImageFitClass}`}
                           decoding="async"
-                          {...(activePhoto === 0 ? { fetchpriority: "high" } : {})}
-                          variants={PHOTO_SLIDE}
-                          initial="enter"
-                          animate="center"
-                          exit="exit"
-                          whileHover={{ scale: productImageHoverScale }}
-                          transition={{ x: { type: "tween", ease: [0.32, 0.72, 0, 1], duration: 0.32 }, scale: { duration: 0.45 } }}
-                          // A photo already in the browser cache (or loaded before the page woke up) never
-                          // fires onLoad, which left the placeholder over it; check `complete` too.
-                          ref={(el: HTMLImageElement | null) => { if (el?.complete) { setImageLoaded(true); notePhotoSize(activeUrl, el); } }}
-                          onLoad={(e: any) => { setImageLoaded(true); notePhotoSize(activeUrl, e.currentTarget); }}
+                          ref={(el) => { if (el?.complete) { setImageLoaded(true); notePhotoSize(activeUrl, el); } }}
+                          onLoad={(e) => { setImageLoaded(true); notePhotoSize(activeUrl, e.currentTarget); }}
                           onError={() => setImageLoaded(true)}
                         />
-                        )}
-                      </AnimatePresence>
+                      )}
 
                       {/* Enlarge: Studio › Style › Product page · buy card & details › Click photo to enlarge */}
                       {storefrontDesign.showPhotoLightbox !== false && activeUrl && (
@@ -1353,23 +1360,24 @@ export default function BookDetail() {
                         </>
                       )}
 
-                      {/* Dot indicators (only when the thumbnail rail is hidden) */}
-                      {photos.length > 1 && !showThumbRail && !shownVideo && (
-                        <div className="absolute bottom-5 right-5 flex gap-1.5">
-                          {photos.map((item: any, i: number) => (
-                            <button
-                              key={i}
-                              onClick={() => pickPhoto(i)}
-                              aria-label={getCopy(settings?.design, isVideoItem(item) ? "ariaGoToVideo" : "ariaGoToPhoto", { n: i + 1 })}
-                              aria-current={shownIndex === i}
-                              className={`rounded-full transition-all ${
-                                shownIndex === i ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/30"
-                              }`}
-                            />
-                          ))}
-                        </div>
-                      )}
                     </div>
+
+                    {/* Dots under the photo, like a social media carousel. Studio › Style › Product page · buy card
+                        & details › Photo frame & thumbnails › Dots under the photo. */}
+                    {showPhotoDots && (
+                      <div className="fm-pdp-dots flex justify-center items-center gap-1.5 pt-3" role="group" aria-label={getCopy(settings?.design, "pdpPhotosAria")}>
+                        {photos.map((_: any, i: number) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => pickPhoto(i)}
+                            aria-label={getCopy(settings?.design, isVideoItem(photos[i]) ? "ariaGoToVideo" : "ariaGoToPhoto", { n: i + 1 })}
+                            aria-current={shownIndex === i}
+                            className={`rounded-full transition-all duration-300 ${shownIndex === i ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/30"}`}
+                          />
+                        ))}
+                      </div>
+                    )}
 
                     {lightboxOpen && (
                       <PhotoLightbox
