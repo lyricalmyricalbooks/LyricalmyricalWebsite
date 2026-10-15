@@ -412,7 +412,11 @@ section's motion** posts `MOTION_REPLAY`.
 preview-only `__studio-block-candidate` in `studio/blockLibrary.ts`; outline Add <block>, inspector Add block…, canvas + Block).
 Copy/paste blocks only between sections of the same type. Studio › Pages › New page offers starters (`studio/pageStarters.ts`,
 drafts with [prompts]). Header/footer follow `elementSchemes.header` / `.footer` (`data-fm-header`, `data-fm-footer`); a
-Theme settings address field is `kind: "link"` (picker), never `text`. The rest of the Studio 3.0 roadmap (tokens, free placement, motion,
+Theme settings address field is `kind: "link"` (picker), never `text`.
+**Brand kit (3.0 phase 6):** `studio/StudioBrandKit.tsx` + pure `studio/brandKit.ts` (logo colours → palettes with guaranteed
+contrast, `PERSONALITIES`, `brandKitDesign`); previews through `brandChoice` in `sendPreviewState`, applies as one `change`
+("Apply brand kit"). Anything it writes must be a `STYLE_GROUPS` key (`brandKit.test.ts`). Opened from Setup (`go: { kind: "brand" }`),
+Theme actions › Brand kit… and Find anything. The rest of the Studio 3.0 roadmap (tokens, free placement, motion,
 block library, brand wizard, site-wide Health; AI/languages/A-B need the owner's go-ahead) is in `docs/THEME_EDITOR.md`.
 
 Studio is a Shopify-style theme editor under `/admin`. **Read

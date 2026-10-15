@@ -7,6 +7,7 @@ export type SetupGo =
   | { kind: "tab"; tab: "sections" }
   | { kind: "device"; device: "mobile" }
   | { kind: "health" }
+  | { kind: "brand" }
   | { kind: "publish" };
 
 export type SetupItem = { id: string; title: string; detail: string; done: boolean; /** Where "Show me" goes; none when the job is done outside Studio. */ go?: SetupGo };
@@ -35,9 +36,12 @@ export function setupChecklist(i: SetupInput): SetupItem[] {
   const writtenPolicies = POLICY_KEYS.filter(k => filled(i.policies?.[k])).length;
   const changedColours = COLOR_KEYS.some(k => filled(d[k]) && d[k] !== defaults[k]) || (Array.isArray(d.colorSchemes) && d.colorSchemes.length > 0);
   const fontsChosen = (filled(d.headingFont) && d.headingFont !== defaults.headingFont) || (filled(d.bodyFont) && d.bodyFont !== defaults.bodyFont);
+  const logoDone = filled(d.logoUrl) || filled(d.wordmarkPrimary);
   return [
+    { id: "brand", title: "Set up your brand in one go", detail: "The brand kit: logo, colours from it, a personality for your type and a starter Home page, previewed before you apply.",
+      done: logoDone && changedColours && fontsChosen, go: { kind: "brand" } },
     { id: "logo", title: "Add your logo or wordmark", detail: "Shown in the header, the footer and emails.",
-      done: filled(d.logoUrl) || filled(d.wordmarkPrimary), go: { kind: "target", target: "style:logo" } },
+      done: logoDone, go: { kind: "target", target: "style:logo" } },
     { id: "colors", title: "Make the colours yours", detail: "Change the page, text or accent colour, or add a colour scheme.",
       done: changedColours, go: { kind: "target", target: "style:colors" } },
     { id: "fonts", title: "Choose your fonts", detail: "A heading and a body font from Google Fonts.",

@@ -46,3 +46,14 @@ describe("setupChecklist (Workbench › Setup)", () => {
     expect(at(null)).toBe(false); expect(at(2)).toBe(false); expect(at(0)).toBe(true);
   });
 });
+
+describe("setup checklist › brand kit", () => {
+  it("leads with the brand kit, done once logo, colours and fonts are all done", async () => {
+    const { setupChecklist } = await import("./setupChecklist");
+    const first = setupChecklist({ design: {} })[0];
+    expect(first).toMatchObject({ id: "brand", done: false, go: { kind: "brand" } });
+    const branded = setupChecklist({ design: { logoUrl: "https://x.test/l.png", primaryColor: "#e8402a", headingFont: "Anton" }, defaults: { primaryColor: "#000000" } });
+    expect(branded[0].done).toBe(true);
+    expect(setupChecklist({ design: { logoUrl: "https://x.test/l.png" } })[0].done).toBe(false);
+  });
+});
