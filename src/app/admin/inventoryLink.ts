@@ -105,6 +105,20 @@ export function suggestLinks(editions: LinkableEdition[], appBooks: InventoryApp
   return out;
 }
 
+export interface NewMatch { key: string; bookId: string; variantId: string | null; title: string; edition: string; inventoryBookId: string; inventoryTitle: string }
+
+/**
+ * The stored suggestions (systemStatus/inventoryLink.newMatches) still worth offering: edition not matched,
+ * inventory app book not matched to anything (accepting it would break a working link), pair not left out.
+ * Mirrors openMatches in functions/inventoryLink.js.
+ */
+export function openMatches(items: unknown, links: InventoryLinks | null | undefined, ignored: Record<string, string> = {}): NewMatch[] {
+  if (!links || !Object.keys(links).length) return [];
+  const used = new Set(Object.values(links).flatMap((e) => Object.values(e || {})));
+  return (Array.isArray(items) ? items : []).filter((m: any) => m && !linkedTo(links, m.bookId, m.variantId)
+    && !used.has(m.inventoryBookId) && ignored?.[m.key] !== m.inventoryBookId) as NewMatch[];
+}
+
 /** The links map to save from a per-edition choice (blank = not linked). */
 export function linksFromChoices(editions: LinkableEdition[], choices: Record<string, string>): InventoryLinks {
   const out: InventoryLinks = {};

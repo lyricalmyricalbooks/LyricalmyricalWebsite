@@ -30,7 +30,7 @@ describe("Theme actions › Studio Health", () => {
     expect(run).toHaveBeenCalledTimes(1);
     expect(document.body.textContent).toContain("Checking Home at phone size");
     expect(document.body.textContent).toContain("2 to fix");
-    expect(document.body.textContent).toContain("1 tip");
+    expect(document.body.textContent).toContain("1 suggestion");
     const [fix, tip] = [...document.querySelectorAll("[data-health-id]")];
     expect(fix.textContent).toContain("A picture has no description (2 places)");
     expect(fix.textContent).toContain("In: Image with text");

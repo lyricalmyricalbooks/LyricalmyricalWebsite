@@ -19,7 +19,12 @@ export type OutlineActions = {
   moveBlock: (sectionId: string, blockId: string) => void;
 };
 
-const blockWords = (block: any) => displayValue(block.title || block.question || block.heading || block.author || block.alt || block.text);
+// The words the owner typed name the row: a plan's name, a stat's number + label, a testimonial's quote…
+const blockWords = (block: any) => {
+  const stat = block.value && block.label ? `${displayValue(block.value)} ${displayValue(block.label)}` : "";
+  return displayValue(block.title || block.planName || block.question || block.heading || block.name || stat || block.label
+    || block.quote || block.caption || block.author || block.alt || block.text || block.note);
+};
 
 export function blockLabel(block: any, index: number, fallback = "Block") {
   return String(blockWords(block) || `${fallback} ${index + 1}`);
@@ -201,6 +206,7 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
                 </div></details>
               </div>
               {supportsBlocks && open && <div>
+                {!blocks.length && <p className="studio-hint" data-empty-blocks>This section has no {(meta?.blockLabel || "block").toLowerCase()}s yet, so it shows nothing on the shop. Add one below.</p>}
                 <NestedBlocks blocks={blocks} section={section} depth={0} selectedId={selectedId} blockId={blockId} label={meta?.blockLabel || "Block"} onSelect={onSelect} onChange={next => patchBlocks(() => next)} onMoveBlock={actions?.moveBlock} library={sharedBlocks} />
                 <SecondaryButton onClick={() => {
                   const block = { ...JSON.parse(JSON.stringify(meta?.blockDefaults || {})), id: newId() };

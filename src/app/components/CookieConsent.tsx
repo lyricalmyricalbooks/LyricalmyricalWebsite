@@ -48,7 +48,8 @@ export function CookieConsent() {
   useStudioOverlay("cookie", open => { if (inPreview) setDecided(!open); });
 
   useEffect(() => {
-    if (inPreview && (window as any).__studioOpenOverlay === "cookie") return;
+    // In the Studio preview the banner opens only when Studio asks for it, so it never covers the part being edited.
+    if (inPreview) return;
     const existing = readConsent();
     setDecided(!!existing);
     if (existing) {

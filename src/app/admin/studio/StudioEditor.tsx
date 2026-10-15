@@ -1047,10 +1047,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, [structure]); // eslint-disable-line react-hooks/exhaustive-deps
   // Editing the Pop-up group opens the pop-up in the preview (and closes it again on leaving).
   const editingPopup = showGlobal && globalGroup === "overlaySections";
+  // Opening a Theme settings category for a pop-over (Cart drawer, Pop-up window) opens it in the preview too,
+  // so its controls change something the owner can see; leaving the category closes it again.
+  const categoryOverlay = leftTab === "style" && styleCategory ? CATEGORY_PAGES[styleCategory]?.overlay : undefined;
   useEffect(() => {
     if (previewStatus !== "ready") return;
-    postPreview({ type: "OPEN_OVERLAY", overlay: editingPopup ? "popup" : "close" });
-  }, [editingPopup, previewStatus, previewUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (editingPopup) { postPreview({ type: "OPEN_OVERLAY", overlay: "popup" }); return; }
+    if (categoryOverlay) { postPreview({ type: "OPEN_OVERLAY", overlay: categoryOverlay }); return; }
+    postPreview({ type: "OPEN_OVERLAY", overlay: "close" });
+  }, [editingPopup, categoryOverlay, previewStatus, previewUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   // preview → editor messages
   useEffect(() => {
     const h = (e: MessageEvent) => {
@@ -2101,7 +2106,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               onClick={() => setDevice(d)} aria-label={`${d} preview`} aria-pressed={device === d}><Icon size={15} /></button>
           ))}
         </div>
-        <button className={btn} title={mode === "edit" ? "Switch to Browse mode" : "Switch to Edit mode"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}>{mode === "edit" ? "Edit mode" : "Browse mode"}</button>
+        <button className={btn} title={mode === "edit" ? "Edit mode: clicking the preview selects parts to edit. Click to switch to Browse mode, where links and buttons work like on the shop." : "Browse mode: links and buttons work like on the shop. Click to switch to Edit mode and select parts to edit."} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}>{mode === "edit" ? "Edit mode" : "Browse mode"}</button>
 
         <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.past.length} onClick={() => stepHistory("undo")} aria-label="Undo (Ctrl+Z)" title={hist.past.length ? `Undo: ${undoLabel(hist)} (Ctrl+Z)` : "Nothing to undo"}><Undo2 size={15} /></button>
         <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.future.length} onClick={() => stepHistory("redo")} aria-label="Redo (Ctrl+Shift+Z)" title={hist.future.length ? `Redo: ${redoLabel(hist)} (Ctrl+Shift+Z or Ctrl+Y)` : "Nothing to redo"}><Redo2 size={15} /></button>
@@ -2118,8 +2123,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           { label: "Show Studio tips", onSelect: () => setTipsNonce(n => n + 1) },
           ...(unpublished && busy === null && !inlineEditing ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
         ]} /></div>
-        <button className={btn} disabled={Boolean(inlineEditing) || !dirtyDraft || busy !== null} onClick={saveDraft}>{busy === "draft" ? "Saving…" : "Save draft"}</button>
-        <button className={btnPrimary} disabled={Boolean(inlineEditing) || (!unpublished && !dirtyDraft) || busy !== null} onClick={() => setConfirmAction("publish")}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
+        <button className={btn} disabled={Boolean(inlineEditing) || !dirtyDraft || busy !== null} onClick={saveDraft}
+          title={inlineEditing ? "Finish the text edit first" : !dirtyDraft ? "Nothing new to save" : "Save your changes without putting them on the shop"}>{busy === "draft" ? "Saving…" : "Save draft"}</button>
+        <button className={btnPrimary} disabled={Boolean(inlineEditing) || (!unpublished && !dirtyDraft) || busy !== null} onClick={() => setConfirmAction("publish")}
+          title={inlineEditing ? "Finish the text edit first" : !unpublished && !dirtyDraft ? "No changes to publish yet: the shop already shows this design" : "Review and put your changes on the live shop"}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
       </header>
 
       <StudioBreadcrumb crumbs={[
@@ -2228,7 +2235,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <p className="text-sm">{confirmAction === "publish" ? "These changes will become visible to shoppers immediately:" : "These draft changes will be permanently replaced by the current live design:"}</p>
           <ul className="list-disc pl-5 text-sm space-y-1">{confirmAction !== null && publishSummary(confirmAction === "publish" ? published : design, confirmAction === "publish" ? design : published).map(x => <li key={x}>{x}</li>)}</ul>
           {confirmAction === "publish" && publishHealth && <p className="studio-health-publish" data-publish-health>
-            <ShieldCheck size={14} aria-hidden /> Studio Health on {template.label} ({REGION_DEVICE_LABELS[device].toLowerCase()}): {publishHealth.text}
+            <ShieldCheck size={14} aria-hidden /> Studio Health checked {template.label} on {REGION_DEVICE_LABELS[device].toLowerCase()} only (other pages and sizes were not checked): {publishHealth.text}
             {(publishHealth.issues > 0 || publishHealth.tips > 0) && <button type="button" className="studio-link-button" onClick={() => { setConfirmAction(null); openHealth(); }}>Review</button>}
           </p>}
           <div className="flex justify-end gap-2"><button className={btn} onClick={() => setConfirmAction(null)}>Cancel</button>{confirmAction === "publish" && <button className={btn} onClick={() => { setConfirmAction(null); setSchedule({ themeId: null }); }}>Schedule instead…</button>}<button className={confirmAction === "publish" ? btnPrimary : `${btn} border-red-300 text-red-700`} disabled={busy !== null || Boolean(inlineEditing)} title={busy !== null ? "Still saving — wait a moment" : inlineEditing ? "Finish the preview text edit first" : undefined} onClick={() => { const action = confirmAction; setConfirmAction(null); action === "publish" ? publish() : discard(); }}>{confirmAction === "publish" ? "Publish now" : "Discard draft"}</button></div>

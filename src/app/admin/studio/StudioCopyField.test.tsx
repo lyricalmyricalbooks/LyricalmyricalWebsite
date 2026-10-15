@@ -38,7 +38,7 @@ describe("Studio public element controls", () => {
     expect(design.copy.wishlistTitle).toBe("");
     // The stale page copy is cleared, so the wishlist page shows the new (blank) value too.
     expect(getCopy(layerDesign(design, design.wishlistPage), "wishlistTitle")).toBe("");
-    expect(host.textContent).toContain("Intentionally blank");
+    expect(host.textContent).toContain("left blank on purpose");
     act(() => host.querySelector<HTMLButtonElement>("button")!.click());
     expect(design.copy?.wishlistTitle).toBeUndefined();
     expect(input.value).toBe(getCopy({}, "wishlistTitle"));

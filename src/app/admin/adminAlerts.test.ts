@@ -133,6 +133,16 @@ describe("inventory app link alerts", () => {
     expect(inventoryLinkAlerts({ ...base, pendingImport: { count: 1, oldestSince: "2026-10-11T14:00:00Z" } }, now).map((a) => a.id)).toEqual([]);
     expect(inventoryLinkAlerts({ ...base, pendingImport: { count: 0 } }, now).map((a) => a.id)).toEqual(["inventory-link-ahead"]);
   });
+  it("books that can be matched, until they are", () => {
+    const base = { startDay: "2026-10-01", connection: { ok: true }, lastRunAt: "2026-10-11T14:58:00Z" };
+    const items = [{ key: "b2|", bookId: "b2", variantId: null, title: "Altrove", edition: "", inventoryBookId: "altrove" }];
+    const [alert] = inventoryLinkAlerts({ ...base, newMatches: { items }, links: { b1: { _: "hound" } } }, Date.parse("2026-10-11T15:00:00Z"));
+    expect(alert).toMatchObject({ id: "inventory-link-new-books", tone: "info", action: "inventory", title: "1 book can be matched to the inventory app" });
+    expect(inventoryLinkAlerts({ ...base, newMatches: { items }, links: { b2: { _: "altrove" } } }, Date.parse("2026-10-11T15:00:00Z"))).toEqual([]);
+    // No links at all (Unmatch all), or the inventory app book already matched elsewhere: nothing to offer.
+    expect(inventoryLinkAlerts({ ...base, newMatches: { items }, links: {} }, Date.parse("2026-10-11T15:00:00Z"))).toEqual([]);
+    expect(inventoryLinkAlerts({ ...base, newMatches: { items }, links: { b9: { _: "altrove" } } }, Date.parse("2026-10-11T15:00:00Z"))).toEqual([]);
+  });
   it("a healthy link is quiet", () => {
     expect(inventoryLinkAlerts({ startDay: "2026-10-01", connection: { ok: true }, lastRunAt: "2026-10-11T14:58:00Z", pendingImport: { count: 1, oldestSince: "2026-10-11T14:00:00Z" } }, now)).toEqual([]);
   });

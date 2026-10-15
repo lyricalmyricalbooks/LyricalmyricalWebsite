@@ -277,7 +277,8 @@ export function paletteGroups(index: SearchEntry[], query: string, { limit = 24,
   const pool = commandsOnly ? [...context, ...index.filter(isCommand)] : [...context, ...index];
   const recentSet = new Set(recent);
   const ranked = rank(pool, q, e => (e.target.type === "context" ? 3 : 0) + (recentSet.has(e.id) ? 2 : 0));
-  return trim([{ title: commandsOnly ? "Commands" : "Results", entries: ranked }], limit);
+  const title = commandsOnly ? "Commands" : "Results";
+  return trim([{ title: ranked.length > limit ? `${title} · best ${limit} of ${ranked.length}, type more words to narrow` : title, entries: ranked }], limit);
 }
 
 function trim(groups: PaletteGroup[], limit: number): PaletteGroup[] {

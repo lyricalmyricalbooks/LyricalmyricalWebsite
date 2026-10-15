@@ -353,5 +353,5 @@ export function auditDocument(doc: Document, win: Window = doc.defaultView as Wi
 export function summarise(findings: HealthFinding[]) {
   const issues = findings.filter(f => f.severity === "issue").reduce((n, f) => n + f.count, 0);
   const tips = findings.filter(f => f.severity === "tip").reduce((n, f) => n + f.count, 0);
-  return { issues, tips, text: !issues && !tips ? "No problems found on this page." : [issues && `${issues} issue${issues === 1 ? "" : "s"}`, tips && `${tips} tip${tips === 1 ? "" : "s"}`].filter(Boolean).join(" · ") };
+  return { issues, tips, text: !issues && !tips ? "No problems found on this page." : [issues && `${issues} issue${issues === 1 ? "" : "s"}`, tips && `${tips} suggestion${tips === 1 ? "" : "s"}`].filter(Boolean).join(" · ") };
 }

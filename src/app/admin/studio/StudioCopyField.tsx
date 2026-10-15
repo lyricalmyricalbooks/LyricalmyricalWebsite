@@ -25,7 +25,7 @@ export function StudioCopyField({ field, design, settings, onChange }: {
     <Tag id={id} value={customized ? override : shopCopyFallback(settings, field.key) ?? getCopyTemplate(design, field.key)} rows={field.multiline ? 3 : undefined}
       aria-describedby={`${id}-status`} onChange={e => onChange(e.target.value)} />
     <div className="studio-field-status">
-      <small id={`${id}-status`}>{customized ? override === "" ? "Intentionally blank" : "Custom text" : "Using default"}</small>
+      <small id={`${id}-status`}>{customized ? override === "" ? "Changed from default: left blank on purpose" : "Changed from default" : "Using default"}</small>
       {customized && <button type="button" className="studio-reset" onClick={() => onChange(undefined)} aria-label={`Reset to default: ${field.label}`}>Reset to default</button>}
     </div>
     {field.hint && <p className="studio-hint">{field.hint}</p>}

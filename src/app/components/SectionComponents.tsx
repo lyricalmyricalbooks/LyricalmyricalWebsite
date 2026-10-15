@@ -19,6 +19,7 @@ import { aspectRatioValue } from "../features/site/imageAspect";
 import { ResponsiveImage } from "./ResponsiveImage";
 import { mediaKey } from "../features/site/mediaRef";
 import { CARD_PHOTO_SIZES, photoSrcSet } from "../features/site/photoSources";
+import { shopInstant } from "../features/site/shopTime";
 
 // ──────────────────────────────
 // Animation helper
@@ -150,6 +151,8 @@ function bgStyle(s: any): Record<string, any> {
     return { background: `linear-gradient(${s.bgGradientDir || "to bottom"}, ${s.bgGradientFrom}, ${s.bgGradientTo})` };
   }
   if (s.bgColor) return { backgroundColor: s.bgColor };
+  // Only one gradient end set: show it as a solid colour instead of nothing.
+  if (s.bgGradientFrom || s.bgGradientTo) return { backgroundColor: s.bgGradientFrom || s.bgGradientTo };
   if (s.bgImageUrl) {
     return {
       backgroundImage: `url(${s.bgImageUrl})`,
@@ -1880,7 +1883,9 @@ export function BlogPostsSection({ settings, enableAnimations }: any) {
 export function CountdownSection({ settings, enableAnimations }: any) {
   // With no date set, count down a fixed day from when the section first showed (not a fresh day each tick).
   const [defaultTarget] = useState(() => Date.now() + 86400000);
-  const target = settings.targetDate ? new Date(settings.targetDate).getTime() : defaultTarget;
+  // The date box has no time zone: it means the shop's own (Toronto) time, wherever the shopper is.
+  const chosen = settings.targetDate ? shopInstant(settings.targetDate) : NaN;
+  const target = Number.isFinite(chosen) ? chosen : defaultTarget;
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
