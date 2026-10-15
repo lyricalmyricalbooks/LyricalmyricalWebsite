@@ -3,7 +3,7 @@
 Run by hand after replacing the logo: `python3 scripts/favicon/build_favicons.py` (needs Pillow).
 Not part of the build: the PNG/ICO files are committed.
 It keeps only the lyre and swirl (the shapes connected to them; the separate letters of the
-wordmark are left out), squares it up and thickens the lines a little at 16-48px so they survive.
+wordmark are left out), squares it up (no margin on tab icons) and thickens the lines at 16-48px so they survive.
 """
 from pathlib import Path
 import numpy as np
@@ -36,8 +36,8 @@ def icon(sq, size, grow=0):
     out.paste(Image.new("RGBA", (size, size), (255, 255, 255, 255)), (0, 0), m)
     return out
 
-tab = square(0.04)
-small = {16: icon(tab, 16, 13), 32: icon(tab, 32, 7), 48: icon(tab, 48, 5)}
+tab = square(0.0)
+small = {16: icon(tab, 16, 15), 32: icon(tab, 32, 9), 48: icon(tab, 48, 5)}
 small[16].save(public / "favicon-16.png")
 small[32].save(public / "favicon-32.png")
 small[48].save(public / "favicon.ico", sizes=[(16, 16), (32, 32), (48, 48)], append_images=[small[16], small[32]])
