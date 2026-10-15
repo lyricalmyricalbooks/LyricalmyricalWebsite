@@ -1,12 +1,12 @@
-import { useState, lazy, Suspense, useEffect, type ReactNode } from "react";
+import { useState, lazy, Suspense, useEffect, useRef, type ReactNode } from "react";
 import { consentAllows } from "./lib/consent";
 import { REFERRAL_KEY, referralSourceOf } from "./lib/referralSource";
 import { LazyMotion, MotionConfig } from "motion/react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router";
 import { ScrollToTop } from "./lib/ScrollToTop";
 import { ga4PageView } from "./lib/ga4";
 import { ThemePreviewBanner } from "./features/site/ThemePreviewBanner";
-import { CartProvider } from "./CartContext";
+import { CartProvider, useCart } from "./CartContext";
 import { CurrencyProvider } from "./CurrencyContext";
 import { ShopToaster } from "./features/site/ShopToaster";
 import { CartDrawer } from "./components/CartDrawer";
@@ -61,6 +61,20 @@ function PrerenderedHandoff() {
   const [first] = useState(location.key);
   useEffect(() => { if (location.key !== first) endPrerenderedHandoff(); }, [location.key, first]);
   return null;
+}
+
+// /cart (old Big Cartel bag links, typed addresses): the shop with the bag open. Hosting answers it with
+// X-Robots-Tag: noindex and useSEO adds the robots meta, so it's never listed. Closing the bag leaves /cart.
+function CartRoute({ children }: { children: ReactNode }) {
+  const { isCartOpen, setIsCartOpen } = useCart();
+  const navigate = useNavigate();
+  const opened = useRef(false);
+  useEffect(() => { setIsCartOpen(true); }, [setIsCartOpen]);
+  useEffect(() => {
+    if (isCartOpen) opened.current = true;
+    else if (opened.current) navigate("/", { replace: true });
+  }, [isCartOpen, navigate]);
+  return <>{children}</>;
 }
 
 function RouteErrorBoundary({ children }: { children: ReactNode }) {
@@ -141,6 +155,18 @@ export default function App() {
                       nextPage={nextPage}
                       prevPage={prevPage}
                     />
+                  } />
+                  <Route path="/cart" element={
+                    <CartRoute>
+                      <MainSite
+                        setShowCatalog={setShowCatalog}
+                        showCatalog={showCatalog}
+                        setCurrentPage={setCurrentPage}
+                        currentPage={currentPage}
+                        nextPage={nextPage}
+                        prevPage={prevPage}
+                      />
+                    </CartRoute>
                   } />
                   <Route path="/wishlist" element={<WishlistPage />} />
                   <Route path="/account/*" element={<AccountPage />} />

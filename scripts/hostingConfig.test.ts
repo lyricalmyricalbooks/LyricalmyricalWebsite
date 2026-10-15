@@ -44,6 +44,32 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
     }
   });
 
+  it('forwards old Big Cartel addresses in one permanent hop to the own domain, and never to a listing by default', () => {
+    const redirects: { source: string; destination: string; type: number }[] = hosting.redirects;
+    for (const rule of redirects) {
+      expect(rule.type, rule.source).toBe(301);
+      expect(rule.destination, rule.source).toMatch(/^https:\/\/lyricalmyricalbooks\.com\/(?:books|page|collections)\/[^/?#]+$/);
+      // Single hop: a destination is never itself a redirect source.
+      expect(redirects.some(other => new URL(rule.destination).pathname === other.source), rule.source).toBe(false);
+      // No globs: an unknown old book or category must answer 404, not a collection page (Google calls that a soft 404).
+      expect(rule.source, 'no wildcard redirects').not.toMatch(/\*/);
+    }
+    const target = (source: string) => redirects.find(rule => rule.source === source)?.destination;
+    expect(target('/product/collective-photobook')).toBe('https://lyricalmyricalbooks.com/books/lyricalmyrical-collections-1-collective-photobook');
+    for (const gone of ['/product/bodies-ilaria-de-benedetto', '/product/as-if-nobody-is-watching-chiara-pirovano', '/product/untitled-ernesto-cabral-de-luna', '/category/unknown']) {
+      expect(target(gone), gone).toBeUndefined();
+      expect(rewriteFor(gone), gone).toBeUndefined();
+    }
+  });
+
+  it('serves /cart as the shop with the bag open, kept out of search results by header (not robots.txt)', () => {
+    expect(hosting.redirects.some((rule: { source: string }) => rule.source === '/cart')).toBe(false);
+    expect(rewriteFor('/cart')?.destination).toBe('/spa.html');
+    expect(headersFor('/cart').find(h => h.key === 'X-Robots-Tag')?.value).toBe('noindex');
+    expect(headersFor('/cart').find(h => h.key === 'Cache-Control')?.value).toBe('no-cache');
+    expect(read('public/robots.txt')).not.toMatch(/Disallow: \/cart/);
+  });
+
   it('serves prerendered books/<slug>.html at the slash-less address and keeps .well-known files', () => {
     expect(hosting.public).toBe('dist');
     expect(hosting.cleanUrls).toBe(true);
@@ -86,8 +112,8 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
   });
 
   it('keeps the bare app shell out of search results, and lets search engines list the shop', () => {
-    for (const path of ['/spa', '/404']) expect(headersFor(path).find(h => h.key === 'X-Robots-Tag')?.value, path).toBe('noindex');
-    for (const path of samples.filter(p => !/^\/(spa|404)$/.test(p))) {
+    for (const path of ['/spa', '/404', '/cart']) expect(headersFor(path).find(h => h.key === 'X-Robots-Tag')?.value, path).toBe('noindex');
+    for (const path of samples.filter(p => !/^\/(spa|404|cart)$/.test(p))) {
       expect(headersFor(path).find(h => h.key === 'X-Robots-Tag'), path).toBeUndefined();
     }
   });

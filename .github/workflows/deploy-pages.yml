@@ -291,6 +291,15 @@ jobs:
           SITE_URL: ${{ needs.build-hosting.outputs.site-url }}
         run: node scripts/hosting-smoke.mjs --base "$SITE_URL"
 
+      # Search Console: every sitemap URL answers 200 with its own canonical, old Big Cartel addresses take one 301
+      # hop (unknown ones answer 404), /cart says noindex. Reported only: a finding never holds the old-address pages.
+      - name: Check search-engine URLs on the live site
+        if: steps.newest.outputs.deploy == 'true'
+        continue-on-error: true
+        env:
+          SITE_URL: ${{ needs.build-hosting.outputs.site-url }}
+        run: node scripts/seo-url-check.mjs --base "$SITE_URL"
+
   # The old address forwards to the shop. Replaced only after the shop itself deployed and passed its live check,
   # so GitHub Pages never forwards to an address that isn't serving. Schedules don't touch it.
   redirect-old-address:

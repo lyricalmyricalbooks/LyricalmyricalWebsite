@@ -4,7 +4,6 @@ Disallow: /admin
 Disallow: /checkout
 Disallow: /account
 Disallow: /wishlist
-Disallow: /cart
 Disallow: /track
 
-Sitemap: https://lyricalmyrical-web-v2.web.app/sitemap.xml
+Sitemap: https://lyricalmyricalbooks.com/sitemap.xml

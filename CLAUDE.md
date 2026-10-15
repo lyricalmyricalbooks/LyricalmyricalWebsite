@@ -749,6 +749,14 @@ draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
   statuses, redirects, bodies and headers in the Hosting emulator (CI and `build-hosting`) and on the live site after each
   deploy. `ALLOWED_ORIGINS` includes web.app (not firebaseapp.com) and, for tabs opened before the move, github.io (remove in the
   cleanup step); it already lists lyricalmyricalbooks.com/www for the shop's own domain later (`docs/FIREBASE_HOSTING.md`).
+- **Old Big Cartel addresses (15 October 2026):** `firebase.json` `redirects` lists each old `/product/<name>`, `/category/<name>`
+  and page address as an exact 301 to an absolute `https://lyricalmyricalbooks.com/...` page (one hop). No `/product/**` or
+  `/category/**` catch-all: an unknown old address answers 404 (Google reads a redirect to a listing as a soft 404; Hosting can't
+  send 410 without a function). Add a book's old address when one turns up. `/cart` is an app route (shop with the bag open,
+  `CartRoute` in `App.tsx`) with `X-Robots-Tag: noindex`, and robots.txt must not disallow it. `scripts/seo-url-check.mjs` checks
+  sitemap URLs (200 + self canonical), old addresses and /cart on the live site after each deploy (report only).
+  Collection pages' single `<h1>` is the category name, with an intro from the category description or Text & labels ›
+  Collection & wishlist pages › `collectionIntro*` (`features/site/collectionIntro.ts`).
 - **Own domain (`docs/CUSTOM_DOMAIN.md`, ready, not switched):** the switch is Firebase Hosting › Add custom domain
   (apex `lyricalmyricalbooks.com`, www redirecting to it) + repository variable `SITE_URL=https://lyricalmyricalbooks.com`
   + Deploy Firebase, then Deploy storefront. Both workflows lower-case `SITE_URL` first. `moveToCanonicalHost` also moves
