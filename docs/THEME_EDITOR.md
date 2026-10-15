@@ -696,7 +696,9 @@ without a yes.
   lists Home, the shop, one book per book-page template (default + each alternate), published custom pages, written
   policy pages, up to 12 categories and wishlist / account / tracking / 404. `studio/StudioSiteHealth.tsx` loads each into
   a hidden, see-through frame at the previewed device width, feeds it the canvas's unsaved snapshot
-  (`buildPreviewState` + `deliverPreviewState`), waits for it to settle (8 s cap) and runs the read-only `auditDocument`.
+  (`buildPreviewState` + `deliverPreviewState`), waits for it to settle (8 s cap), scrolls through it once so sections that
+  fade in lower down are revealed, and runs the read-only `auditDocument`. The preview's Customer account never creates a
+  customer record for the signed-in owner (`Account.tsx`, `inEditorPreview`).
   Progress, **Stop**, results grouped by page (`mergeSiteFindings`: problems on several pages listed once, worst pages
   first), **Open this page** (canvas switches; Health re-checks it there for Show me) and **Edit this part** (a built-in
   part waits for its page to load). The frame is removed after each page; nothing is written.
@@ -705,7 +707,8 @@ without a yes.
   (`pageWeight`, from the browser's resource list). All labelled as estimates from the preview; no INP figure (it needs
   real shopper input).
 - [x] Section background pictures picked from the Media library load a screen-sized copy:
-  `features/site/backgroundSources.ts` writes `--fm-bg-img` per breakpoint (tablets ≥ 1600 px copy, phones ≥ 960 px) and
+  `features/site/backgroundSources.ts` writes `--fm-bg-img` per breakpoint (tablets ≥ 2400 px copy, phones ≥ 1600 px: a step
+  up because "cover" scales to tall sections) and
   `bgStyle` reads `var(--fm-bg-img, url(full))`; a plain URL renders exactly as before. No AVIF (the library makes WebP).
 - [x] History: the last 10 complete runs per browser (`studio-site-health-v1:` in localStorage) with a "Last checks"
   trend; Setup's Health item is done after a whole-shop run with nothing to fix. Health stays in the Workbench (not a

@@ -1,14 +1,16 @@
 // Section background pictures sized to the screen (Studio 3.0 phase 7). A background picked from the Media library
-// carries its smaller copies in `bgImageUrl__media` (mediaRef.ts). Phones get the smallest copy at least 960 px wide and
-// tablets the smallest at least 1600 px, through a `--fm-bg-img` variable on the section wrapper that the section's
+// carries its smaller copies in `bgImageUrl__media` (mediaRef.ts). Phones get the smallest copy at least 1600 px wide and
+// tablets the smallest at least 2400 px, through a `--fm-bg-img` variable on the section wrapper that the section's
 // `background-image: var(--fm-bg-img, url(full))` reads; computers keep the full picture. A typed or uploaded URL with no
 // library record renders exactly as before. (The library makes WebP copies; there is no AVIF.)
 import { UP_TO } from "./breakpoints";
 import { mediaKey, type MediaRef } from "./mediaRef";
 
 const FIELD = "bgImageUrl";
-export const PHONE_MIN_WIDTH = 960;
-export const TABLET_MIN_WIDTH = 1600;
+// "cover" scales a landscape picture to the section's height on an upright screen, so the copy is a step larger than the
+// screen's width alone would need (a 960 px copy would be stretched about 4x across a tall section on a phone).
+export const PHONE_MIN_WIDTH = 1600;
+export const TABLET_MIN_WIDTH = 2400;
 
 /** An unquoted url() CSS value: characters that would end it (quotes, brackets, spaces, backslashes) are %-encoded,
  *  so it needs no quotes and stays intact in a server-rendered <style>. */

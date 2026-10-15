@@ -18,6 +18,8 @@ type Device = "desktop" | "tablet" | "mobile";
 export const PAGE_TIMEOUT_MS = 8000;
 const QUIET_MS = 700;
 const MIN_WAIT_MS = 1200;
+/** Long enough for entrance and reveal animations (Style › Motion) to finish after scrolling through. */
+const REVEAL_WAIT_MS = 1600;
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -38,21 +40,24 @@ async function checkPage(url: string, width: number, snapshot: Snapshot, opts: H
     ready = true; deliver();
   };
   window.addEventListener("message", onMessage);
-  frame.addEventListener("load", () => { loaded = true; deliver(); });
-  document.body.appendChild(frame);
+  // The address goes on before the frame joins the page, so no empty about:blank document counts as "loaded".
+  frame.addEventListener("load", () => { if (frame.contentDocument?.URL !== "about:blank") { loaded = true; deliver(); } });
   frame.src = url;
+  document.body.appendChild(frame);
   const started = Date.now();
   try {
     // Wait for the page to load, then for its content to stop changing (or the time limit).
     let lastChange = Date.now();
     let observer: MutationObserver | null = null;
+    let observed: Document | null = null;
     while (Date.now() - started < PAGE_TIMEOUT_MS) {
       if (stopped()) return { findings: [], error: "Stopped" };
       const doc = loaded ? frame.contentDocument : null;
-      if (doc?.body && !observer) {
+      if (doc?.body && doc !== observed && doc.URL !== "about:blank") {
+        observer?.disconnect();
         observer = new MutationObserver(() => { lastChange = Date.now(); });
         observer.observe(doc.body, { childList: true, subtree: true, attributes: true, characterData: true });
-        lastChange = Date.now();
+        observed = doc; lastChange = Date.now();
       }
       const waited = Date.now() - started;
       if (observer && (ready || waited > 3000) && waited > MIN_WAIT_MS && Date.now() - lastChange > QUIET_MS) {
@@ -60,6 +65,20 @@ async function checkPage(url: string, width: number, snapshot: Snapshot, opts: H
         if (!pending.length || waited > PAGE_TIMEOUT_MS - 1500) break;
       }
       await sleep(150);
+    }
+    // Sections lower down that fade in as shoppers scroll stay see-through until scrolled to: scroll through the
+    // page once, then back to the top, so the audit sees them as shoppers do.
+    if (!loaded) return { findings: [], error: "The page didn't load in time." };
+    const scroller = frame.contentWindow;
+    const to = (top: number) => scroller!.scrollTo({ top, left: 0, behavior: "instant" as ScrollBehavior });
+    const height = frame.contentDocument?.documentElement?.scrollHeight || 0;
+    if (scroller && height > 900) {
+      for (let y = 0, steps = 0; y < height && steps < 25; y += 700, steps++) {
+        if (stopped()) return { findings: [], error: "Stopped" };
+        to(y); await sleep(120);
+      }
+      to(height); await sleep(200);
+      to(0); await sleep(REVEAL_WAIT_MS);
     }
     observer?.disconnect();
     const doc = frame.contentDocument, win = frame.contentWindow;
@@ -82,6 +101,8 @@ export type SiteHealthState = {
   /** When and at which size the shown report was made. */
   ranAt: { at: number; device: Device } | null;
   skipped: number;
+  /** The shown report covers every page (not stopped part-way). */
+  complete: boolean;
   history: SiteRunSummary[];
 };
 
@@ -96,7 +117,7 @@ export function useSiteHealth(o: {
   history: SiteRunSummary[];
   onHistory: (history: SiteRunSummary[]) => void;
 }) {
-  const [state, setState] = useState<SiteHealthState>({ running: false, progress: null, report: null, ranAt: null, skipped: 0, history: o.history });
+  const [state, setState] = useState<SiteHealthState>({ running: false, progress: null, report: null, ranAt: null, skipped: 0, complete: false, history: o.history });
   const stopRef = useRef(false);
   const runningRef = useRef(false);
   const latest = useRef(o); latest.current = o;
@@ -112,7 +133,7 @@ export function useSiteHealth(o: {
     const { device, width } = latest.current;
     const opts = { ...latest.current.options(), device };
     runningRef.current = true; stopRef.current = false;
-    setState(s => ({ ...s, running: true, skipped, progress: { done: 0, total: routes.length, label: routes[0].label } }));
+    setState(s => ({ ...s, running: true, complete: false, skipped, progress: { done: 0, total: routes.length, label: routes[0].label } }));
     const results: PageResult[] = [];
     for (const [i, route] of routes.entries()) {
       if (stopRef.current) break;
@@ -130,7 +151,7 @@ export function useSiteHealth(o: {
       historyRef.current = addSiteRun(historyRef.current, { at: Date.now(), device, pages: report.totals.pages, issues: report.totals.issues, tips: report.totals.tips, failed: report.totals.failed });
       latest.current.onHistory(historyRef.current);
     }
-    setState(s => ({ ...s, running: false, progress: null, report, history: historyRef.current }));
+    setState(s => ({ ...s, running: false, progress: null, report, complete: finished, history: historyRef.current }));
   }, []);
   const stop = useCallback(() => { stopRef.current = true; }, []);
   return { ...state, device: o.device, start, stop };
@@ -175,13 +196,13 @@ export function SiteHealthPanel({ site, onOpenPage, onFix }: {
           {report.totals.tips > 0 && <StatusBadge tone="info">{report.totals.tips} suggestion{report.totals.tips === 1 ? "" : "s"}</StatusBadge>}
           {report.totals.failed > 0 && <StatusBadge tone="warning">{report.totals.failed} couldn't be checked</StatusBadge>}
         </p>
-        {site.ranAt && !running && <p className="studio-hint">Checked at {DEVICE_WORD[site.ranAt.device]} size, {new Date(site.ranAt.at).toLocaleTimeString()}.{site.skipped ? ` ${site.skipped} more pages or categories weren't checked (the first ones of each kind were).` : ""}</p>}
+        {site.ranAt && !running && <p className="studio-hint">{site.complete ? "" : "Stopped part-way. "}Checked at {DEVICE_WORD[site.ranAt.device]} size, {new Date(site.ranAt.at).toLocaleTimeString()}.{site.skipped ? ` ${site.skipped} more pages or categories weren't checked (the first ones of each kind were).` : ""}</p>}
         {report.shared.length > 0 && <section><h3>On several pages</h3><ul className="studio-health-list">{report.shared.map(f => row(f))}</ul></section>}
         <section>
           <h3>Page by page</h3>
           <ul className="studio-site-health-pages">
             {report.pages.map(p => {
-              const issues = p.findings.filter(f => f.severity === "issue").reduce((n, f) => n + f.count, 0);
+              const issues = p.findings.filter(f => f.severity === "issue").reduce((n, f) => n + f.count, 0) + p.sharedIssues;
               const tips = p.findings.filter(f => f.severity === "tip").reduce((n, f) => n + f.count, 0);
               const weight = p.weight && p.weight.imageBytes + p.weight.fontBytes;
               return (
@@ -190,7 +211,7 @@ export function SiteHealthPanel({ site, onOpenPage, onFix }: {
                     <summary>
                       <strong>{p.route.label}</strong>
                       {p.error ? <StatusBadge tone="warning">Not checked</StatusBadge>
-                        : issues ? <StatusBadge tone="warning">{issues} to fix</StatusBadge>
+                        : issues ? <StatusBadge tone="warning">{issues} to fix{p.sharedIssues ? ` (${p.sharedIssues} on several pages)` : ""}</StatusBadge>
                         : <StatusBadge tone="success">Nothing to fix</StatusBadge>}
                       {tips > 0 && <StatusBadge tone="info">{tips} suggestion{tips === 1 ? "" : "s"}</StatusBadge>}
                       {weight ? <small title="Measured in the preview: pictures from servers that don't share their size aren't counted.">≈ {formatBytes(weight)} of pictures and fonts (estimate)</small> : null}

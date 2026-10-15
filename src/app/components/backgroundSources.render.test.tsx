@@ -24,9 +24,9 @@ describe("section background pictures on the storefront", () => {
     expect(html).not.toContain("--fm-bg-img");
   });
   it("points a library picture at its copies through --fm-bg-img, keeping the full picture for computers", () => {
-    const html = render({ bgImageUrl: full, bgImageUrl__media: { id: "m", src: full, srcset: [{ url: "https://img.test/960.webp", w: 960 }, { url: "https://img.test/1600.webp", w: 1600 }] } });
+    const html = render({ bgImageUrl: full, bgImageUrl__media: { id: "m", src: full, srcset: [{ url: "https://img.test/1600.webp", w: 1600 }, { url: "https://img.test/2400.webp", w: 2400 }] } });
     expect(html).toContain("background-image:var(--fm-bg-img, url(https://img.test/full.jpg))");
+    expect(html).toContain("#section-bg1{--fm-bg-img:url(https://img.test/2400.webp);}");
     expect(html).toContain("#section-bg1{--fm-bg-img:url(https://img.test/1600.webp);}");
-    expect(html).toContain("#section-bg1{--fm-bg-img:url(https://img.test/960.webp);}");
   });
 });

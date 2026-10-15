@@ -54,6 +54,8 @@ describe("adding up a run", () => {
     expect(report.shared.map(f => [f.id, f.pages])).toEqual([["header", ["calm", "busy"]]]);
     expect(report.pages.map(p => p.route.id)).toEqual(["broken", "busy", "calm"]);
     expect(report.pages.find(p => p.route.id === "busy")!.findings.map(f => f.id)).toEqual(["own", "tip"]);
+    // A page whose only problem is shared still says it has one to fix.
+    expect(report.pages.find(p => p.route.id === "calm")!.sharedIssues).toBe(1);
     expect(report.totals).toEqual({ pages: 3, checked: 2, failed: 1, issues: 1 + 3, tips: 1 });
   });
   it("estimates pictures and fonts from the browser's resource list", () => {

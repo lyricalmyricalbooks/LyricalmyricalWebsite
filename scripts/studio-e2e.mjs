@@ -1022,6 +1022,29 @@ await check("Check every page: audits each kind of page in a hidden preview, Sto
   await page.waitForFunction(() => /\/books\//.test(document.querySelector('iframe[title="Live preview"]')?.getAttribute("src") || ""), null, { timeout: 10000 });
 });
 
+await check("Check every page scrolls through so sections that fade in lower down are checked; Open this page on the current page re-checks it", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.evaluate(() => {
+    const f = window.__studioFixture;
+    const draft = JSON.parse(JSON.stringify(f.settings.draftDesign || f.settings.design || {}));
+    const filler = Array.from({ length: 5 }, (_, i) => ({ id: `filler${i}`, type: "RichTextSection", settings: { html: "<p>Filler</p>".repeat(12) } }));
+    f.remoteSave({ ...draft, showHero: true, heroPage: { sections: [...filler, { id: "lowest", type: "RichTextSection", settings: { animation: "fade-up", html: '<p><a href="#">Go nowhere</a></p>' } }] } });
+  });
+  await page.frameLocator('iframe[title="Live preview"]').getByText("Go nowhere").first().waitFor({ state: "attached", timeout: 15000 });
+  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("menuitem", { name: "Studio Health" }).click();
+  const panel = page.locator("[data-studio-site-health-panel]");
+  await panel.getByRole("button", { name: "Check every page" }).click();
+  await panel.getByRole("button", { name: "Stop" }).waitFor({ state: "detached", timeout: 240000 });
+  await panel.locator('[data-site-page="home"] [data-site-finding="nowhere:s:lowest"]').waitFor({ state: "attached", timeout: 2000 });
+  // The canvas already shows Home: Open this page checks it again straight away instead of waiting for a reload.
+  const stamp = page.locator("[data-studio-workbench] .studio-health > .studio-health-bar span").first();
+  const before = await stamp.textContent();
+  await page.waitForTimeout(1100);
+  await panel.locator('[data-site-page="home"]').getByRole("button", { name: "Open this page" }).click();
+  await page.waitForFunction(([sel, old]) => document.querySelector(sel)?.textContent !== old, ["[data-studio-workbench] .studio-health > .studio-health-bar span", before], { timeout: 5000 });
+});
+
 await check("Workbench: W opens it, Changes jumps back through edits, Setup's Show me opens Theme settings, G then T switches workspace", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const wb = page.locator("[data-studio-workbench]");

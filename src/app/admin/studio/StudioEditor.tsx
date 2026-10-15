@@ -99,7 +99,7 @@ import { brandKitDesign, type BrandKitChoice } from "./brandKit";
 import { BLOCK_CANDIDATE_ID, blockChoices, canPasteBlock, copyBlock, fitsAfter, pasteBlock, withBlockCandidate, type BlockChoice, type BlockClip } from "./blockLibrary";
 import { StudioTemplateCard } from "./StudioTemplateCard";
 import { isProductTemplate, StudioProductBlocks } from "./StudioProductBlocks";
-import { ALT_BASE_LABELS, ALT_BASES, alternatesFor, altSurface, bookTemplateSurface, createAlternate, deleteAlternate, isAltSurface, parseAltSurface, renameAlternate, type AltBase } from "../../features/site/templateAlternates";
+import { ALT_BASE_LABELS, ALT_BASES, alternatesFor, altSurface, bookTemplateSurface, categoryTemplateSurface, createAlternate, deleteAlternate, isAltSurface, parseAltSurface, renameAlternate, type AltBase } from "../../features/site/templateAlternates";
 import { DynamicSourcesContext } from "./StudioConnect";
 import type { BookFieldDef } from "../../features/site/bookFields";
 import { hasTokens, isDynamic } from "../../features/site/dynamicSources";
@@ -1048,12 +1048,22 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, [previewStatus]); // eslint-disable-line react-hooks/exhaustive-deps
   /** Shows a checked page on the canvas; false (and a new tab) when Studio has no template for it (policy pages). */
   const openHealthPage = (r: HealthRoute, then?: ElementRef) => {
-    const route = previewRoute(previewHref(r.path), import.meta.env.BASE_URL, { showHero: designRef.current?.showHero !== false });
-    if (!route || !templates.some(t => t.id === route.templateId)) { window.open(previewHref(r.path), "_blank"); return false; }
-    if (samePreviewPage(previewHref(r.path), previewUrlRef.current)) { if (then) openElement(then, true); else setHealthRun(n => n + 1); return true; }
+    const d = designRef.current;
+    const route = previewRoute(previewHref(r.path), import.meta.env.BASE_URL, { showHero: d?.showHero !== false });
+    if (!route) { window.open(previewHref(r.path), "_blank"); return false; }
+    // A category opens in the layout it was checked in (its own alternate, as shoppers see it).
+    let templateId = route.templateId;
+    if (route.collection && templateId === "collectionPage") {
+      const cat = normalizeCategories(Array.isArray(d?.categories) ? d.categories : []).find((c: any) => c?.name && slugify(c.name) === route.collection);
+      if (cat) templateId = categoryTemplateSurface(d, cat);
+    }
+    if (!templates.some(t => t.id === templateId)) { window.open(previewHref(r.path), "_blank"); return false; }
+    // Already on the canvas: nothing will reload, so act now (never leave a pending action for some later page).
+    const here = !showGlobal && template.id === templateId && (!route.product || route.product === productSlug) && (!route.collection || route.collection === collectionSlug);
+    if (here) { afterOpenRef.current = null; if (then) openElement(then, true); else setHealthRun(n => n + 1); setMobilePanel("preview"); return true; }
     afterOpenRef.current = { element: then };
     setShowGlobal(false); setSelectedId(null); setBlockId(null); setSelectedElement(null);
-    setTemplateId(route.templateId);
+    setTemplateId(templateId);
     if (route.product) setProductSlug(route.product);
     if (route.collection) setCollectionSlug(route.collection);
     setMobilePanel("preview");
@@ -2206,7 +2216,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const sinceLive = useMemo(() => changesOpen ? summariseDiff(diffDesigns(normalizeForDiff(published), normalizeForDiff(deferredDesign), diffContext)) : null,
     [changesOpen, published, deferredDesign, normalizeForDiff, diffContext]);
   const setupItems = useMemo(() => setupChecklist({
-    design, defaults, policies: settings?.policies, phoneChecked: phoneSeen, healthIssues, siteIssues: site.history.length ? site.history[site.history.length - 1].issues : null,
+    design, defaults, policies: settings?.policies, phoneChecked: phoneSeen, healthIssues, siteIssues: site.history.length && site.history[site.history.length - 1].failed === 0 ? site.history[site.history.length - 1].issues : null,
     published: settings?.design || publishedNow ? published : null,
   }), [design, defaults, settings, phoneSeen, healthIssues, site.history, publishedNow, published]);
   const goSetup = (item: SetupItem) => {
@@ -2420,8 +2430,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <p className="text-sm">{confirmAction === "publish" ? "These changes will become visible to shoppers immediately:" : "These draft changes will be permanently replaced by the current live design:"}</p>
           <ul className="list-disc pl-5 text-sm space-y-1">{confirmAction !== null && publishSummary(confirmAction === "publish" ? published : design, confirmAction === "publish" ? design : published).map(x => <li key={x}>{x}</li>)}</ul>
           {confirmAction === "publish" && publishHealth && <p className="studio-health-publish" data-publish-health>
-            <ShieldCheck size={14} aria-hidden /> {site.report && site.ranAt?.device === device && !site.running
-              ? <>Studio Health checked {template.label} on {REGION_DEVICE_LABELS[device].toLowerCase()}: {publishHealth.text}. Every page ({site.report.totals.checked} checked at {new Date(site.ranAt.at).toLocaleTimeString()}): {site.report.totals.issues ? `${site.report.totals.issues} to fix` : "nothing to fix"}.</>
+            <ShieldCheck size={14} aria-hidden /> {site.report && site.complete && site.ranAt?.device === device && !site.running
+              ? <>Studio Health checked {template.label} on {REGION_DEVICE_LABELS[device].toLowerCase()}: {publishHealth.text}. Check every page at {new Date(site.ranAt.at).toLocaleTimeString()} ({site.report.totals.checked} pages, before any later edits): {site.report.totals.issues ? `${site.report.totals.issues} to fix` : "nothing to fix"}{site.report.totals.failed ? `, ${site.report.totals.failed} not checked` : ""}.</>
               : <>Studio Health checked {template.label} on {REGION_DEVICE_LABELS[device].toLowerCase()} only (other pages and sizes were not checked): {publishHealth.text}</>}
             {(publishHealth.issues > 0 || publishHealth.tips > 0 || (site.report?.totals.issues ?? 0) > 0) && <button type="button" className="studio-link-button" onClick={() => { setConfirmAction(null); openHealth(); }}>Review</button>}
           </p>}

@@ -79,7 +79,8 @@ export type PageWeight = { imageBytes: number; fontBytes: number };
 export type PageResult = { route: HealthRoute; findings: SiteFinding[]; weight?: PageWeight; /** Why the page couldn't be checked. */ error?: string };
 export type SharedFinding = SiteFinding & { pages: string[] };
 export type SiteReport = {
-  pages: PageResult[];
+  /** Each page's own problems; `sharedIssues` counts the "On several pages" ones that are also on it. */
+  pages: (PageResult & { sharedIssues: number })[];
   /** Problems found on two or more pages (a header colour, a footer link…): fix once, listed once. */
   shared: SharedFinding[];
   totals: { pages: number; checked: number; failed: number; issues: number; tips: number };
@@ -106,9 +107,10 @@ export function mergeSiteFindings(results: PageResult[]): SiteReport {
   const sharedKeys = new Set([...where].filter(([, v]) => v.pages.length > 1).map(([k]) => k));
   const shared: SharedFinding[] = [...where].filter(([k]) => sharedKeys.has(k)).map(([, v]) => ({ ...v.finding, pages: v.pages }))
     .sort((a, b) => (a.severity === b.severity ? b.pages.length - a.pages.length : a.severity === "issue" ? -1 : 1));
-  const pages = results.map(r => ({ ...r, findings: r.findings.filter(f => !sharedKeys.has(`${f.id}|${f.title}`)) }));
+  const isShared = (f: SiteFinding) => sharedKeys.has(`${f.id}|${f.title}`);
+  const pages = results.map(r => ({ ...r, findings: r.findings.filter(f => !isShared(f)), sharedIssues: r.findings.filter(f => isShared(f) && f.severity === "issue").length }));
   const rank = (r: PageResult) => (r.error ? -1 : 0);
-  pages.sort((a, b) => rank(a) - rank(b) || tally(b.findings, "issue") - tally(a.findings, "issue") || tally(b.findings, "tip") - tally(a.findings, "tip"));
+  pages.sort((a, b) => rank(a) - rank(b) || tally(b.findings, "issue") + b.sharedIssues - tally(a.findings, "issue") - a.sharedIssues || tally(b.findings, "tip") - tally(a.findings, "tip"));
   const own = pages.flatMap(p => p.findings);
   return {
     pages, shared,

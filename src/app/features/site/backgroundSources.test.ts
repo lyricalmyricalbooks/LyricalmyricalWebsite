@@ -4,7 +4,7 @@ import { backgroundImageCss, backgroundImageValue, cssUrl, hasResponsiveBackgrou
 const full = "https://img.test/full.jpg";
 const record = {
   id: "m1", src: full,
-  srcset: [480, 960, 1600, 2400].map(w => ({ url: `https://img.test/${w}.webp`, w })),
+  srcset: [480, 960, 1600, 2400, 3200].map(w => ({ url: `https://img.test/${w}.webp`, w })),
 };
 
 describe("section background pictures sized to the screen", () => {
@@ -18,12 +18,12 @@ describe("section background pictures sized to the screen", () => {
     expect(backgroundImageValue(s)).toBe("url(https://img.test/other.jpg)");
     expect(backgroundImageCss("s1", s)).toBe("");
   });
-  it("gives tablets the 1600 copy and phones the 960 copy; computers keep the full picture", () => {
+  it("gives tablets the 2400 copy and phones the 1600 copy (a step up, for tall cover sections); computers keep the full picture", () => {
     const s = { bgImageUrl: full, bgImageUrl__media: record };
     expect(backgroundImageValue(s)).toBe(`var(--fm-bg-img, url(${full}))`);
     const css = backgroundImageCss("s1", s);
-    expect(css).toContain(`@media(max-width:1023px){#section-s1{--fm-bg-img:url(https://img.test/1600.webp);}}`);
-    expect(css).toContain(`@media(max-width:767px){#section-s1{--fm-bg-img:url(https://img.test/960.webp);}}`);
+    expect(css).toContain(`@media(max-width:1023px){#section-s1{--fm-bg-img:url(https://img.test/2400.webp);}}`);
+    expect(css).toContain(`@media(max-width:767px){#section-s1{--fm-bg-img:url(https://img.test/1600.webp);}}`);
     expect(css).not.toContain("min-width");
   });
   it("uses the largest copy when none is big enough, and writes one rule when phones and tablets share it", () => {
