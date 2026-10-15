@@ -464,7 +464,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const headerMaxWidth = Math.max(900, Math.min(1800, sf?.catalogHeaderWidth ?? maxWidth));
   const mastheadDesktop = Math.max(28, Math.min(96, sf?.catalogMastheadDesktop ?? 58));
   const mastheadMobile = Math.max(24, Math.min(72, sf?.catalogMastheadMobile ?? 38));
-  // Catalog layout › "Nav spacing (desktop)" first, then Navigation links › "Space between links" (the inspector's Layout tab).
+  // Catalog layout › "Space between category links, desktop" first, then Navigation links › "Space between links" (the inspector's Layout tab).
   const navGapDesktop = Math.max(4, Math.min(80, sf?.catalogNavGapDesktop ?? sf?.navGap ?? 40));
   const navGapMobile = Math.max(8, Math.min(48, sf?.catalogNavGapMobile ?? 18));
   const cartPlacement = sf?.catalogCartPlacement || "top-right";

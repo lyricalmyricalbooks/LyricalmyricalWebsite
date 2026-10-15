@@ -236,7 +236,7 @@ describe("Studio editor (mounted with an in-memory API)", () => {
   it("opens Theme settings on its design-system and parts headings, and Find anything with Ctrl/Cmd+K", async () => {
     await mount();
     await click(buttons("Theme settings")[0]);
-    for (const heading of ["Site-wide design", "Colors", "Typography", "Parts of your shop", "Header, menu & footer"]) expect(host.textContent).toContain(heading);
+    for (const heading of ["Site-wide design", "Colours", "Typography", "Parts of your shop", "Header, menu & footer"]) expect(host.textContent).toContain(heading);
     expect(buttons("Show Header & announcement bar on the page").length).toBe(1);
     await key("k");
     expect(document.body.querySelector("[role='combobox'], input[aria-label*='Find' i], input[placeholder*='Find' i]")).not.toBeNull();

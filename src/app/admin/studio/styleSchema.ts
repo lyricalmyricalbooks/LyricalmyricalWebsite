@@ -91,7 +91,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     })) })),
   {
     id: "colors",
-    title: "Colors",
+    title: "Colours",
     hint: "Site-wide palette. Applies to every page.",
     fields: [
       { key: "backgroundColor", label: "Page background", kind: "color" },
@@ -178,7 +178,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     fields: [
       { key: "containerWidth", label: "Content width", kind: "range", min: 800, max: 1800, step: 20, suffix: "px" },
       { key: "sectionSpacing", label: "Space between sections", kind: "range", min: 0, max: 160, step: 4, suffix: "px" },
-      { key: "cardRadius", label: "Card corner radius", kind: "range", min: 0, max: 40, step: 1, suffix: "px" },
+      { key: "cardRadius", label: "Card corner radius (boxed card style only)", kind: "range", min: 0, max: 30, step: 1, suffix: "px" },
       { key: "lazySections", label: "Draw sections lower on the page only when shoppers scroll near them (faster first load)", kind: "toggle", defaultValue: true },
     ],
   },
@@ -303,7 +303,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "popup",
-    title: "Pop-up",
+    title: "Pop-up window",
     hint: "The Pop-up section group (Page layout › Shared sections › Pop-up). It never covers the cookie banner: it waits until the shopper has answered it.",
     fields: [
       { key: "popupDelaySeconds", label: "Delay before it opens", kind: "range", min: 0, max: 60, step: 1, suffix: "s", defaultValue: 5 },
@@ -322,7 +322,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "toasts",
-    title: "Pop-up messages",
+    title: "Short notice messages",
     hint: "The short messages that appear for a few seconds: “Removed from your bag · Undo”, “Link copied”, add-to-bag problems and account notices. Their words are in Text & labels.",
     fields: [
       { key: "toastPosition", label: "Where messages appear", kind: "select", defaultValue: "top-center", options: [
@@ -394,6 +394,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     fields: [
       { key: "logoUrl", label: "Logo image (optional)", kind: "image" },
       { key: "shareImageUrl", label: "Share image (link previews on social / messages)", kind: "image" },
+      { key: "faviconUrl", label: "Browser tab icon (favicon)", kind: "image" },
       { key: "logoTint", label: "Recolor logo image with the color below", kind: "toggle" },
       { key: "logoColor", label: "Logo / wordmark color", kind: "color" },
       { key: "logoHoverColor", label: "Wordmark color when pointed at or clicked (empty = link hover color)", kind: "color" },
@@ -435,8 +436,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "catalogMastheadMobile", label: "Masthead size (phone)", kind: "range", defaultValue: 38, min: 24, max: 72, step: 1, suffix: "px" },
       { key: "catalogHeaderWidth", label: "Header width", kind: "range", min: 900, max: 1800, step: 20, suffix: "px" },
       { key: "catalogHeaderRuleWidth", label: "Header rule thickness", kind: "range", min: 0, max: 8, step: 1, suffix: "px" },
-      { key: "catalogNavGapDesktop", label: "Nav spacing (desktop)", kind: "range", defaultValue: 40, min: 12, max: 80, step: 1, suffix: "px" },
-      { key: "catalogNavGapMobile", label: "Nav spacing (phone)", kind: "range", defaultValue: 18, min: 8, max: 40, step: 1, suffix: "px" },
+      { key: "catalogNavGapDesktop", label: "Space between category links, desktop (wins over Navigation links › Space between links)", kind: "range", defaultValue: 40, min: 12, max: 80, step: 1, suffix: "px" },
+      { key: "catalogNavGapMobile", label: "Space between category links, phone", kind: "range", defaultValue: 18, min: 8, max: 40, step: 1, suffix: "px" },
       { key: "catalogTitleTransform", label: "Book title case", kind: "select", options: [{ value: "none", label: "None" }, { value: "uppercase", label: "Uppercase" }, { value: "capitalize", label: "Capitalize" }] },
       { key: "catalogImageFit", label: "Cover image fit", kind: "select", options: [{ value: "cover", label: "Full bleed (fill & crop)" }, { value: "contain", label: "Fit whole image" }] },
       { key: "catalogImageFocalX", label: "Cover focus (left↔right)", kind: "range", defaultValue: 50, min: 0, max: 100, step: 1, suffix: "%" },
@@ -457,7 +458,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "navLinkActiveColor", label: "Current page link color (empty = link hover color)", kind: "color" },
       { key: "navLinkOpacity", label: "Inactive link brightness", kind: "range", defaultValue: 0.6, min: 0.1, max: 1, step: 0.05 },
       { key: "navPlacement", label: "Category bar position", kind: "select", options: [{ value: "auto", label: "Auto (own row when it doesn’t fit)" }, { value: "inline", label: "Always beside logo" }, { value: "below", label: "Always full-width row below" }] },
-      { key: "navGap", label: "Space between links", kind: "range", defaultValue: 28, min: 4, max: 64, step: 1, suffix: "px" },
+      { key: "navGap", label: "Space between links (the category bar uses Catalog layout › Space between category links when that is set)", kind: "range", defaultValue: 28, min: 4, max: 64, step: 1, suffix: "px" },
       { key: "navLineMode", label: "When links don’t fit on one line", kind: "select", options: [{ value: "fit", label: "Shrink to fit on one line" }, { value: "scroll", label: "One line, scroll sideways" }, { value: "wrap", label: "Wrap onto a second line" }] },
       { key: "navFitMin", label: "Shrink no smaller than", kind: "range", defaultValue: 70, min: 50, max: 100, step: 5, suffix: "%" },
       { key: "navLinkTransform", label: "Link case", kind: "select", defaultValue: "uppercase", options: [{ value: "", label: "Inherit" }, { value: "none", label: "None" }, { value: "uppercase", label: "Uppercase" }, { value: "lowercase", label: "Lowercase" }, { value: "capitalize", label: "Capitalize" }] },
@@ -634,11 +635,10 @@ export const STYLE_GROUPS: StyleGroup[] = [
     title: "Motion, spacing & effects",
     fields: [
       { key: "enableAnimations", label: "Page animations", kind: "toggle" },
-      { key: "density", label: "Spacing density", kind: "select", options: [{ value: "compact", label: "Compact" }, { value: "comfortable", label: "Comfortable" }, { value: "spacious", label: "Spacious" }] },
-      { key: "spacingScale", label: "Spacing scale", kind: "select", options: [{ value: "compact", label: "Compact" }, { value: "normal", label: "Normal" }, { value: "relaxed", label: "Relaxed" }, { value: "spacious", label: "Spacious" }] },
+      { key: "density", label: "Space above and below shop sections", kind: "select", options: [{ value: "compact", label: "Compact" }, { value: "comfortable", label: "Comfortable" }, { value: "spacious", label: "Spacious" }] },
+      { key: "spacingScale", label: "Spacing inside cards and grids", kind: "select", options: [{ value: "compact", label: "Compact" }, { value: "normal", label: "Normal" }, { value: "relaxed", label: "Relaxed" }, { value: "spacious", label: "Spacious" }] },
       { key: "shadowScale", label: "Card shadow depth", kind: "select", options: [{ value: "flat", label: "Flat" }, { value: "subtle", label: "Subtle" }, { value: "medium", label: "Medium" }, { value: "raised", label: "Raised" }, { value: "dramatic", label: "Dramatic" }] },
-      { key: "successTextColor", label: "Text on success color", kind: "color" },
-      { key: "faviconUrl", label: "Favicon", kind: "image" },
+      { key: "successTextColor", label: "Text on success colour", kind: "color" },
     ],
   },
   {

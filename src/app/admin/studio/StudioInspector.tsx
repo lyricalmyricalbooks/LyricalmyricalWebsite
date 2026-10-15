@@ -74,7 +74,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
     onPatch(updateBlocks(section, key, list => mapBlock(list, placement.id, () => copy)));
     onNotice?.("This block is independent now: editing it no longer changes the shared block. Undo (Ctrl+Z) links it again.");
   };
-  const title = block ? blockLabel(block, blocks.indexOf(block), meta?.blockLabel) : meta?.label || section.type;
+  const title = block ? blockLabel(block, Math.max(0, blocks.findIndex((b: any) => b.id === blockId)), meta?.blockLabel) : meta?.label || section.type;
   return <aside ref={ref} className="studio-inspector" role={overlay ? "dialog" : undefined} aria-modal={overlay || undefined} aria-label="Content settings" tabIndex={-1}>
     {promptNode}
     <header className="studio-inspector-head">
@@ -106,7 +106,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
     <div className="studio-inspector-body">
       {(tab === "content" || tab === "style") && <input className="studio-search" aria-label={`Search ${tab} settings`} placeholder="Find a setting…" value={search} onChange={e => setSearch(e.target.value)} />}
       {tab === "content" && <>
-        {!fields.length && <p className="studio-hint">{search ? "No matching settings." : "Select a block in the outline, or use the Style and Layout tabs."}</p>}
+        {!fields.length && <p className="studio-hint">{search ? "No matching settings." : blocks.length ? "This section's words live in its blocks: select one in the outline. Colours and spacing are in the Style and Layout tabs." : "This section has no words to edit here. Use the Style and Layout tabs."}</p>}
         {fields.map(f => <div key={f.key} className="studio-field">
           {block ? f.kind === "list" ? <BlockListFieldEditor field={f as any} value={block[f.key]} onChange={v => patchBlock({ [f.key]: v })} /> :
             <ConnectableField fieldKind={f.kind} label={f.label} value={block[f.key]} onChange={v => patchBlock({ [f.key]: v })}>

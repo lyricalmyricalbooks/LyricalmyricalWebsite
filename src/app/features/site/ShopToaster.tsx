@@ -4,7 +4,7 @@ import { useLiveDesign } from "./useSiteData";
 import { toastPosition, toastStyle } from "./toastStyle";
 
 /**
- * The one place pop-up messages are drawn. Shop pages follow Studio's Pop-up messages controls (the
+ * The one place pop-up messages are drawn. Shop pages follow Studio's Short notice messages controls (the
  * unsaved design while previewing); the admin keeps the plain built-in look.
  */
 export function ShopToaster() {

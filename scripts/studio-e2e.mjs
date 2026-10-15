@@ -753,7 +753,7 @@ await check("Studio Health checks the previewed page, shows a finding and opens 
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   const line = page.locator("[data-publish-health]");
   await line.waitFor({ timeout: 5000 });
-  if (!/Studio Health on Home \(desktop\)/.test(await line.textContent())) throw new Error(`publish line reads "${await line.textContent()}"`);
+  if (!/Studio Health checked Home on desktop only/.test(await line.textContent())) throw new Error(`publish line reads "${await line.textContent()}"`);
 });
 
 await check("Themes saves the draft as a theme, previews a look without changing the draft, and creates a share link", desktop, async page => {
