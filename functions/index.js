@@ -6688,12 +6688,15 @@ exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", timeoutSe
 });
 
 // The storefront's catalog file stays in use only while nothing it holds has changed (functions/catalogVersion.js).
-const catalogChanged = source => async event => {
-  try { await require("./catalogVersion").bumpCatalogVersion(db, admin.firestore.FieldValue, `${source}/${Object.values(event.params || {})[0] || ""}`); }
+// Books and pages count only when a published version is involved (the file holds nothing else).
+const catalogChanged = (source, { publishedOnly = false } = {}) => async event => {
+  const catalogVersion = require("./catalogVersion");
+  if (publishedOnly && !catalogVersion.touchesCatalogFile(event.data?.before?.data(), event.data?.after?.data())) return;
+  try { await catalogVersion.bumpCatalogVersion(db, admin.firestore.FieldValue, `${source}/${Object.values(event.params || {})[0] || ""}`); }
   catch (err) { console.error("catalogVersion: could not record a change:", err.message); throw err; }
 };
-exports.catalogVersionBooks = onDocumentWritten("books/{bookId}", catalogChanged("books"));
-exports.catalogVersionPages = onDocumentWritten("pages/{pageId}", catalogChanged("pages"));
+exports.catalogVersionBooks = onDocumentWritten("books/{bookId}", catalogChanged("books", { publishedOnly: true }));
+exports.catalogVersionPages = onDocumentWritten("pages/{pageId}", catalogChanged("pages", { publishedOnly: true }));
 exports.catalogVersionSettings = onDocumentWritten("settings/website", catalogChanged("settings"));
 
 // Storage bandwidth (October 2026): book photos still served only as their original get resized WebP copies

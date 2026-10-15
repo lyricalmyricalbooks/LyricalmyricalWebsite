@@ -90,3 +90,21 @@ export async function readStorefrontData(base, project, fetchImpl = fetch, pageS
 
   return { v: STOREFRONT_DATA_VERSION, readTime, builtAt: new Date().toISOString(), settings, books, pages };
 }
+
+/** RFC 3339 UTC time → sortable "YYYY-MM-DDTHH:MM:SS.nnnnnnnnn" (mirrors nanoTime in features/site/storefrontDataFile.ts). */
+export function nanoTime(value) {
+  const m = typeof value === 'string' && value.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?Z$/);
+  return m ? `${m[1]}.${(m[2] || '').padEnd(9, '0')}` : null;
+}
+
+/**
+ * True when settings/catalogVersion (its Firestore REST document) records a change after the deployed file's
+ * snapshot: shoppers are then reading Firestore, so the scheduled refresh rebuilds the file even if the published
+ * fingerprint didn't move (a save that changed nothing shoppers see). A missing file or marker says nothing, so a
+ * build that can't write the file never rebuilds every 15 minutes.
+ */
+export function markerNewerThanFile(markerDocument, file) {
+  const changed = nanoTime(markerDocument?.fields?.changedAt?.timestampValue);
+  const read = file && typeof file === 'object' && file.v === STOREFRONT_DATA_VERSION ? nanoTime(file.readTime) : null;
+  return !!changed && !!read && changed > read;
+}
