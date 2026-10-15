@@ -1330,6 +1330,50 @@ await check("a custom page takes uploaded and pasted pictures, with size, positi
   if ((body.match(/<img /g) || []).length !== 2) throw new Error(`expected two pictures in ${body}`);
 });
 
+await check("Rewrite with AI on a custom page keeps its picture and centring, with its own Undo", desktop, async page => {
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await page.getByRole("button", { name: "Edit About" }).click();
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP4z8DAwMDAxMDAwAAAGQAD/7+5zQAAAABJRU5ErkJggg==", "base64");
+  await page.locator('input[aria-label="Upload pictures"]').setInputFiles({ name: "spread.png", mimeType: "image/png", buffer: png });
+  const tools = page.getByRole("group", { name: "Selected picture" });
+  await tools.waitFor({ timeout: 10000 });
+  await tools.getByRole("button", { name: "Line up centre" }).click();
+  // The fixture's AI rewrites only the words it is sent; the picture never goes to it.
+  await page.evaluate(() => {
+    window.__studioFixture.aiAnswer = body => body.task === "rewrite"
+      ? { status: 200, data: { result: { text: body.input.text.replace("We publish books.", "We print and publish books.") } } }
+      : undefined;
+  });
+  const editor = page.locator(".studio-page-body .ql-editor");
+  const rewrite = async how => {
+    await page.getByRole("button", { name: "Rewrite Page text with AI" }).click();
+    await page.getByRole("button", { name: how }).click();
+  };
+  await rewrite("Improve");
+  await page.waitForFunction(() => document.querySelector(".studio-page-body .ql-editor")?.textContent.includes("We print and publish books."), null, { timeout: 10000 });
+  const asked = (await calls(page)).filter(c => c.method === "aiWrite").pop().args[0];
+  if (/<img|https?:|data:/.test(asked.input.text) || !asked.input.text.includes("[[keep-1]]") || asked.input.where !== "Pages › About") throw new Error(`sent to the AI: ${JSON.stringify(asked.input)}`);
+  if (await editor.locator("p.ql-align-center img").count() !== 1) throw new Error(`the centred picture was lost: ${await editor.innerHTML()}`);
+  // The toast's Undo puts the old words back (page edits aren't in Studio's history).
+  await page.getByRole("status").filter({ hasText: "Rewrote" }).getByRole("button", { name: "Undo" }).click();
+  await page.waitForFunction(() => !document.querySelector(".studio-page-body .ql-editor")?.textContent.includes("We print"), null, { timeout: 10000 });
+  if (await editor.locator("p.ql-align-center img").count() !== 1) throw new Error("Undo lost the picture");
+  // An answer that drops the picture changes nothing.
+  await page.evaluate(() => { window.__studioFixture.aiAnswer = () => ({ status: 200, data: { result: { text: "<p>Only words now.</p>" } } }); });
+  await rewrite("Shorter");
+  await expectText(page, "moved or dropped a picture");
+  if ((await editor.textContent()).includes("Only words now")) throw new Error("an answer without the picture replaced the page");
+  await page.evaluate(() => {
+    window.__studioFixture.aiAnswer = body => ({ status: 200, data: { result: { text: body.input.text.replace("We publish books.", "We print and publish books.") } } });
+  });
+  await rewrite("Improve");
+  await page.waitForFunction(() => document.querySelector(".studio-page-body .ql-editor")?.textContent.includes("We print and publish books."), null, { timeout: 10000 });
+  await page.getByRole("button", { name: "Save page" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "updatePage"), null, { timeout: 10000 });
+  const body = (await calls(page)).find(c => c.method === "updatePage").args[1].body;
+  if (!body.startsWith("<p>We print and publish books.</p>") || !/<p class="ql-align-center"><img [^>]*src="https:\/\/example\.invalid\//.test(body)) throw new Error(`saved body ${body}`);
+});
+
 await check("a custom page's search listing fills in from the page", desktop, async page => {
   await page.getByRole("button", { name: "Pages", exact: true }).click();
   await page.getByRole("button", { name: "Edit About" }).click();

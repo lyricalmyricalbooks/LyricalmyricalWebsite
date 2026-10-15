@@ -5,18 +5,24 @@ import { createContext, useContext, useEffect, useId, useRef, useState } from "r
 import { Loader2, Sparkles } from "lucide-react";
 import { AiWriteError, askAi } from "../aiWriter";
 import { SecondaryButton } from "../riso/components";
-import { canRewrite, HOW_CHOICES, keepsTokens, rewriteFormat, rewriteProblem, type RewriteHow } from "./aiStudio";
+import { canRewrite, HOW_CHOICES, keepsTokens, normalizeRichText, protectRichText, restoreRichText, rewriteFormat, rewriteProblem, richTextSignature, type RewriteHow } from "./aiStudio";
 import { sanitizeRichText } from "./richText";
 
 export type StudioAiValue = {
-  /** Called after a rewrite replaced a field (Studio adds the toast with Undo) or when one failed. */
-  notify: (kind: "ok" | "err", text: string, opts?: { undo?: boolean; needsKey?: boolean }) => void;
+  /** Called after a rewrite replaced a field (Studio adds the toast with Undo) or when one failed. `undo: true` = the
+   *  Studio history step; a function = the field's own undo (Studio › Pages bodies aren't in Studio's history). */
+  notify: (kind: "ok" | "err", text: string, opts?: { undo?: boolean | (() => void); needsKey?: boolean }) => void;
   siteName?: string;
 };
 export const StudioAiContext = createContext<StudioAiValue | null>(null);
 
-export function StudioAiRewrite({ kind, label, where, value, onChange }: {
+/** Words only, to tell whether a field still holds the AI's version after its editor tidied the markup. */
+const wordsOf = (html: string) => String(html || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+
+export function StudioAiRewrite({ kind, label, where, value, onChange, localUndo }: {
   kind: string; label: string; where?: string; value: unknown; onChange: (next: string) => void;
+  /** The field isn't part of Studio's undo history (a custom page body): Undo puts the old words back itself. */
+  localUndo?: boolean;
 }) {
   const ai = useContext(StudioAiContext);
   const [open, setOpen] = useState(false);
@@ -27,7 +33,7 @@ export function StudioAiRewrite({ kind, label, where, value, onChange }: {
   // answer arriving seconds later must use the one from the latest render (or it would undo edits made meanwhile).
   const latestChange = useRef(onChange); latestChange.current = onChange;
   const live = useRef(true);
-  useEffect(() => () => { live.current = false; }, []);
+  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
   const menuId = useId();
   if (!ai || !canRewrite(kind, value)) return null;
 
@@ -40,16 +46,31 @@ export function StudioAiRewrite({ kind, label, where, value, onChange }: {
     if (problem) { ai.notify("err", problem); return; }
     setBusy(true);
     try {
-      const result = await askAi("rewrite", { text: before, format, label, where: where || "", how, ...(how === "custom" ? { instruction: custom.trim() } : {}) }, { siteName: ai.siteName });
+      // Pictures, videos, dividers and line layout never go to the AI: they're held out and put back afterwards.
+      const guarded = format === "html" ? protectRichText(before) : null;
+      const result = await askAi("rewrite", { text: guarded ? guarded.text : before, format, label, where: where || "", how, ...(how === "custom" ? { instruction: custom.trim() } : {}) }, { siteName: ai.siteName });
       let next = String(result.text || "");
-      if (format === "html") next = sanitizeRichText(next);
-      if (!next.trim()) throw new AiWriteError("The AI sent back an empty answer, so nothing was changed. Try again.");
+      if (guarded) {
+        const restored = restoreRichText(sanitizeRichText(next), guarded.held);
+        if ("error" in restored) throw new AiWriteError(restored.error);
+        next = restored.html;
+      }
+      if (!wordsOf(next)) throw new AiWriteError("The AI sent back an empty answer, so nothing was changed. Try again.");
       if (!keepsTokens(before, next)) throw new AiWriteError("The AI dropped a {placeholder} from the text, so nothing was changed. Try again.");
       // The owner kept typing while the AI worked: their words win.
       if (latest.current !== before) { ai.notify("err", `“${label}” changed while the AI was writing, so its answer was left out.`); return; }
-      if (next === before) { ai.notify("ok", `The AI had nothing to change in “${label}”.`); return; }
+      if (next === before || (guarded && next === normalizeRichText(before))) { ai.notify("ok", `The AI had nothing to change in “${label}”.`); return; }
       latestChange.current(next);
-      ai.notify("ok", `Rewrote “${label}” with AI. Check it reads right; Undo puts the old words back.`, { undo: true });
+      const undo = localUndo
+        ? () => {
+          // Only while this field is still open and still says what the AI wrote: same words, pictures, links and line
+          // layout (its editor may have tidied the markup since). Another page opened, or any later edit, wins.
+          const same = format === "html" ? richTextSignature(String(latest.current ?? "")) === richTextSignature(next) : latest.current === next;
+          if (!live.current || !same) { ai.notify("err", `“${label}” was edited or closed after the rewrite, so Undo left it as it is.`); return; }
+          latestChange.current(before);
+        }
+        : true;
+      ai.notify("ok", `Rewrote “${label}” with AI. Check it reads right; Undo puts the old words back.`, { undo });
       setCustom("");
     } catch (err) {
       ai.notify("err", err instanceof Error ? err.message : "The AI couldn't rewrite this. Try again.", { needsKey: err instanceof AiWriteError && err.needsKey });

@@ -257,7 +257,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
         </label>
         <div>
           <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block mb-1">Body</span>
-          <PageBodyEditor value={editing.body || ""} onChange={(v) => set({ body: v })} onUploading={setUploading} />
+          <PageBodyEditor value={editing.body || ""} onChange={(v) => set({ body: v })} onUploading={setUploading} title={editing.title} />
         </div>
         <div className="space-y-2 border-t border-neutral-200 pt-3">
           <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editing.status === "published"} onChange={(e) => set({ status: e.target.checked ? "published" : "draft" })} /> Published <span className="font-normal text-neutral-500">(drafts are hidden from the shop)</span></label>

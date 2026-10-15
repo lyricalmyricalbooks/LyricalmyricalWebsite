@@ -724,6 +724,12 @@ without a yes.
 - [x] **Draft a section with AI** (Page layout › Add section, Find anything "Draft a section with AI",
   `studio/StudioAiDraft.tsx`): six section kinds (`DRAFT_TYPES` in `studio/aiStudio.ts` = the server's; never quotes,
   testimonials or reviews). The draft shows on the page as the preview-only candidate; **Add to page** is one change.
+- [x] **Pictures stay put (follow-up):** rich text with pictures, videos, dividers, alignment or indents is rewritten word by
+  word. `protectRichText` (`studio/aiStudio.ts`) swaps each picture/video/divider for `[[keep-N]]` and each aligned or
+  indented line's layout for a leading `[[line-N]]`; `restoreRichText` puts them back and refuses (nothing changes) if the AI
+  dropped, repeated or reordered one (line markers must start a line that still has words). The markers count as placeholders on the server too (`TOKEN_RE`). Coloured or
+  highlighted words are still refused. Studio › Pages bodies (`PageBodyEditor`) have the button too; their Undo is local
+  (`localUndo`: page edits aren't Studio history) and refuses once the page was closed or changed since (`richTextSignature`).
 - Sends Google only the field's words, its label and the section/group name (or the owner's brief) — never customers,
   orders, stock or costs. Same key, house style and rate limit (`LIMITS.aiWrite`) as the book/page AI buttons. The Studio
   fixture answers through `setAiTransport` (`admin/aiWriter.ts`), so browser checks never call Google.

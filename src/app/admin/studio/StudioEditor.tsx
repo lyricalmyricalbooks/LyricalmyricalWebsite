@@ -565,6 +565,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // Studio AI writing (3.0 phase 8): a rewrite lands through the field's own onChange, then this adds the toast.
   const aiNotifyRef = useRef<StudioAiValue["notify"]>(() => {});
   aiNotifyRef.current = (kind, text, opts) => {
+    if (kind === "ok" && typeof opts?.undo === "function") { say("ok", text, { label: "Undo", run: opts.undo }); return; }
     if (kind === "ok" && opts?.undo) { say("ok", text, undoAction()); return; }
     if (opts?.needsKey) { say("err", text, { label: "Open AI settings", run: () => window.open(`${window.location.pathname}${window.location.search}#settings/general`, "_blank", "noopener") }); return; }
     say(kind, text);
