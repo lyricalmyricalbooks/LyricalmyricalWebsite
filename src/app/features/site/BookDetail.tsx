@@ -51,7 +51,7 @@ import { aspectNumber, frameAspect, frameMode, photoRatio } from "./photoFrame";
 import { regionProps, regionVisible } from "./storefrontRegions";
 import { DescriptionText } from "./DescriptionText";
 import { googleFontHref } from "./fonts";
-import { productPageCss, productPageFontNames } from "./productPageStyle";
+import { productPageCss, productPageFontNames, titleFitSize } from "./productPageStyle";
 import { schemeButtonColors } from "./colorSchemes";
 
 import { findProduct } from "./productRoutes";
@@ -62,6 +62,13 @@ import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
 import { CARD_PHOTO_SIZES, THUMB_PHOTO_SIZES, pdpPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+/** The title's inline variables: Studio's "Title size" preset and the phone cap that keeps its longest word whole. */
+function titleStyle(autoSize: string | undefined, title: unknown): React.CSSProperties | undefined {
+  const fit = titleFitSize(title);
+  if (!autoSize && !fit) return undefined;
+  return { ...(autoSize ? { "--pdp-title-auto": autoSize } : {}), ...(fit ? { "--pdp-title-fit": fit } : {}) } as React.CSSProperties;
+}
 
 // ── small helper ────────────────────────────────────────────────────────────
 function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
@@ -826,7 +833,7 @@ export default function BookDetail() {
                     <h1
                       className="fm-pdp-title"
                       data-studio-target="style:productCard" data-studio-label="Product title & price"
-                      style={titleAutoSize ? ({ "--pdp-title-auto": titleAutoSize } as React.CSSProperties) : undefined}
+                      style={titleStyle(titleAutoSize, book.title)}
                     >
                       {book.title}
                     </h1>
