@@ -17,6 +17,7 @@ import { applyBackorderPolicy } from "./backorder";
 import { withBundleStock } from "./bundleStock";
 import { resolveProductRoutes } from "./productRoutes";
 import { loadCatalog, newestFirst } from "./loadCatalog";
+import { currentStorefrontData, fetchStorefrontDataFile } from "./storefrontDataFile";
 import { inThemePreview, loadThemePreview } from "./themePreview";
 
 const isPreviewUrl = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
@@ -38,11 +39,7 @@ function loadSiteData() {
   if (!siteDataRequest || Date.now() - siteDataLoadedAt >= SITE_DATA_FRESH_MS) {
     // Infinity marks an in-flight request, which every consumer should join.
     siteDataLoadedAt = Infinity;
-    siteDataRequest = Promise.all([
-      loadCatalog((size, cursor) => publicApi.getStorefrontBooks(size, cursor)).then(newestFirst),
-      publicApi.getPublicSettings(),
-      publicApi.getPublishedPages(),
-    ]).then(result => {
+    siteDataRequest = readSiteData().then(result => {
       siteDataLoadedAt = Date.now();
       return result;
     }, error => {
@@ -52,6 +49,20 @@ function loadSiteData() {
     });
   }
   return siteDataRequest;
+}
+
+/**
+ * The catalog file on Hosting when nothing changed since it was built (one Firestore read), else the Firestore
+ * reads as always. Both give the same books, settings and pages (features/site/storefrontDataFile.ts).
+ */
+async function readSiteData(): Promise<[any[], any, any]> {
+  const file = await currentStorefrontData(fetchStorefrontDataFile, publicApi.getCatalogVersion);
+  if (file) return [newestFirst(file.books as any[]), publicApi.publicSettingsFrom(file.settings), publicApi.sortPages(file.pages)];
+  return Promise.all([
+    loadCatalog((size, cursor) => publicApi.getStorefrontBooks(size, cursor)).then(newestFirst),
+    publicApi.getPublicSettings(),
+    publicApi.getPublishedPages(),
+  ]);
 }
 
 export function useSiteData() {

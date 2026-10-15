@@ -2052,6 +2052,19 @@ Storage is billed per download, so shoppers must never get an original photo whe
   book) through `removeBookFiles` (`admin/bookFileCleanup.ts`), unless another book, edition, sharing image or order line shows
   them; library pictures (assets/) are never deleted. A save keeps server-made copies (`keepPhotoCopies`).
 
+## Catalog file on Hosting (15 October 2026)
+
+`pnpm run build` runs `scripts/build-storefront-data.mjs` (before the prerender), which saves settings/website, published books and
+published pages read at ONE Firestore snapshot (`readTime`, REST `batchGet` then `runQuery` with that `readTime`) as
+`dist/storefront-data.json` (`scripts/storefrontDataFile.mjs`; same shapes as `publicApi`: books `{...data, id}`, pages `{id, ...data}`,
+raw settings). A value JSON can't carry exactly (timestamp, reference, bytes, geo, NaN) or any read failure writes no file.
+`useSiteData`'s `readSiteData` uses it (`features/site/storefrontDataFile.ts` `currentStorefrontData`) only when
+`settings/catalogVersion.changedAt` (server time stamped by the `catalogVersionBooks/Pages/Settings` triggers after every write,
+`functions/catalogVersion.js`) is not after the file's `readTime`; otherwise, or on any error, it reads Firestore exactly as before.
+Settings/pages go through `publicApi.publicSettingsFrom` / `sortPages` on both paths. Any change also changes the published fingerprint,
+so the 15-minute refresh rebuilds the file. `firebase.json` serves root `*.json` `no-cache`. Never add a field to the file that the
+Firestore path doesn't return, and keep both paths' transforms shared.
+
 ## Book videos (15 October 2026)
 
 Books › edit › Images › **Add video** (or drop a video on the images) adds MP4/WebM/MOV files (≤ `MAX_BOOK_VIDEO_BYTES` 50 MB,

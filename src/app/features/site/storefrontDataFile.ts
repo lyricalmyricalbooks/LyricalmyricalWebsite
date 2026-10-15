@@ -1,0 +1,71 @@
+// The catalog file on Firebase Hosting (scripts/storefrontDataFile.mjs writes it at build time). It holds the
+// published books, settings/website and published pages exactly as Firestore had them at one snapshot (`readTime`).
+// The browser uses it only when `settings/catalogVersion` says nothing changed since that snapshot
+// (functions/catalogVersion.js stamps the server time after every write to a book, a page or settings/website), so a
+// shopper sees the same thing a Firestore read would show, for one document read instead of the whole catalog.
+// Anything unexpected (no file, an old file, no marker, a newer change) returns null and the caller reads Firestore.
+
+export const STOREFRONT_DATA_FILE = "storefront-data.json";
+export const STOREFRONT_DATA_VERSION = 1;
+
+export type StorefrontDataFile = {
+  v: number;
+  readTime: string;
+  builtAt?: string;
+  settings: Record<string, unknown> | null;
+  books: Record<string, unknown>[];
+  pages: Record<string, unknown>[];
+};
+
+/**
+ * A Firestore time → sortable "YYYY-MM-DDTHH:MM:SS.nnnnnnnnn" (Firestore times carry nanoseconds). Takes an
+ * RFC 3339 UTC string (the file's readTime) or a Timestamp (the marker, read through the SDK).
+ */
+export function nanoTime(value: unknown): string | null {
+  const ts = value as { seconds?: unknown; nanoseconds?: unknown } | null;
+  if (ts && typeof ts === "object" && Number.isInteger(ts.seconds) && Number.isInteger(ts.nanoseconds)) {
+    const date = new Date((ts.seconds as number) * 1000);
+    if (Number.isNaN(date.getTime())) return null;
+    return `${date.toISOString().slice(0, 19)}.${String(ts.nanoseconds).padStart(9, "0")}`;
+  }
+  if (typeof value !== "string") return null;
+  const m = value.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?Z$/);
+  return m ? `${m[1]}.${(m[2] || "").padEnd(9, "0")}` : null;
+}
+
+export function isStorefrontDataFile(value: unknown): value is StorefrontDataFile {
+  const f = value as StorefrontDataFile | null;
+  return !!f && typeof f === "object" && f.v === STOREFRONT_DATA_VERSION && !!nanoTime(f.readTime)
+    && Array.isArray(f.books) && Array.isArray(f.pages) && (f.settings === null || (typeof f.settings === "object" && !Array.isArray(f.settings)));
+}
+
+/** True when no book, page or settings/website write happened after the file's snapshot. */
+export function fileIsCurrent(file: StorefrontDataFile, marker: unknown): boolean {
+  const changed = nanoTime((marker as { changedAt?: unknown } | null)?.changedAt);
+  const read = nanoTime(file.readTime);
+  return !!changed && !!read && changed <= read;
+}
+
+/**
+ * The file's contents when they are current, else null. `fetchFile` downloads the file (revalidated with Hosting,
+ * which purges it on every deploy) and `readMarker` reads settings/catalogVersion; both run at once.
+ */
+export async function currentStorefrontData(
+  fetchFile: () => Promise<unknown>,
+  readMarker: () => Promise<unknown>,
+): Promise<StorefrontDataFile | null> {
+  try {
+    const [file, marker] = await Promise.all([fetchFile().catch(() => null), readMarker().catch(() => null)]);
+    if (!isStorefrontDataFile(file) || !fileIsCurrent(file, marker)) return null;
+    return file;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchStorefrontDataFile(base: string = (import.meta as any).env?.BASE_URL || "/"): Promise<unknown> {
+  if (typeof fetch !== "function") return null;
+  const response = await fetch(`${base.replace(/\/?$/, "/")}${STOREFRONT_DATA_FILE}`, { cache: "no-cache", credentials: "omit" });
+  if (!response.ok || !/json/.test(response.headers.get("content-type") || "")) return null;
+  return response.json();
+}
