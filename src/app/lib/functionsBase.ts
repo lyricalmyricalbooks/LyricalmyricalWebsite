@@ -1,6 +1,4 @@
 import { orderAccessHeaders } from "./orderAccessClient";
-import { getToken } from "firebase/app-check";
-import { appCheck } from "../../lib/firebaseApp";
 import { AppVerificationError } from "../../lib/appVerification";
 
 // Central resolver for Cloud Function endpoints so the project/region is
@@ -21,6 +19,8 @@ export function functionUrl(name: string): string {
   return `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/${name}`;
 }
 
+const loadAppCheck = () => import("../../lib/firebaseApp").then(m => m.appCheck);
+
 /** Only the named shop Function receives the attestation token; external fetches stay separate. */
 export async function functionFetch(name: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
@@ -34,8 +34,11 @@ export async function functionFetch(name: string, init: RequestInit = {}): Promi
     }
   }
   const enforced = import.meta.env.VITE_APP_CHECK_MODE === "enforce";
-  if (appCheck && import.meta.env.VITE_APP_CHECK_MODE !== "off") {
+  // Firebase and App Check load with the first call that needs them, not with the page.
+  const appCheck = import.meta.env.VITE_APP_CHECK_MODE !== "off" ? await loadAppCheck().catch(() => null) : null;
+  if (appCheck) {
     try {
+      const { getToken } = await import("firebase/app-check");
       const result = await getToken(appCheck, false);
       if (!result.token) throw new AppVerificationError();
       headers.set("X-Firebase-AppCheck", result.token);

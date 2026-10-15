@@ -20,5 +20,4 @@ export const app = initializeApp(firebaseConfig);
 // One Enterprise provider; legacy v3 keys are no longer used. Must run before Firestore/Auth start.
 export const appCheck = initializeBrowserAppCheck(app);
 
-/** Set by ./firebase once Auth is part of the page (admin, checkout, account or an on-demand load). */
-export const authState = { loaded: false };
+export { authState } from "./authState";

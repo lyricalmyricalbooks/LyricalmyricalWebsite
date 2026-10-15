@@ -2,20 +2,7 @@ import { ga4Event, purchaseEvent } from "./ga4";
 import { inEditorPreview, trackingAllowed } from "./trackingGuard";
 import { analyticsKey, cleanSearchTerm, deviceOf } from "./analyticsKeys";
 import { orderDay } from "./shopDay";
-import {
-  collection,
-  doc,
-  setDoc,
-  updateDoc,
-  getDocs,
-  getDoc,
-  query,
-  orderBy,
-  where,
-  limit,
-  increment,
-} from "firebase/firestore/lite";
-import { liteDb } from "../../lib/firestoreLite";
+import { lite } from "../../lib/lite";
 
 export type FulfillmentStatus =
   | "pending_payment"
@@ -56,6 +43,7 @@ export const orderApi = {
     status: FulfillmentStatus,
     note?: string,
   ) => {
+    const { doc, updateDoc, liteDb } = await lite();
     await updateDoc(doc(liteDb, "orders", orderId), {
       fulfillmentStatus: status,
       updatedAt: new Date().toISOString(),
@@ -69,6 +57,7 @@ export const orderApi = {
   },
 
   bulkSetStatus: async (orderIds: string[], status: FulfillmentStatus) => {
+    const { doc, updateDoc, liteDb } = await lite();
     await Promise.all(
       orderIds.map(id =>
         updateDoc(doc(liteDb, "orders", id), {
@@ -177,6 +166,7 @@ export const abandonedCartApi = {
     if (!payload.email) return;
     // Lower-cased (also inside `customer`) so privacy export/erase and opt-outs match whatever was typed.
     payload = { ...payload, email: payload.email.trim().toLowerCase(), ...(payload.customer ? { customer: { ...payload.customer, email: String(payload.customer.email || "").trim().toLowerCase() } } : {}) };
+    const { doc, getDoc, setDoc, liteDb } = await lite();
     const ref = doc(liteDb, "abandoned-carts", cartKey);
     const now = new Date().toISOString();
     // createdAt/recovered are set once: later saves must not reset the cart's
@@ -197,6 +187,7 @@ export const abandonedCartApi = {
 
   markRecovered: async (cartKey: string) => {
     try {
+      const { doc, updateDoc, liteDb } = await lite();
       await updateDoc(doc(liteDb, "abandoned-carts", cartKey), {
         recovered: true,
         recoveredAt: new Date().toISOString(),
@@ -205,6 +196,7 @@ export const abandonedCartApi = {
   },
 
   list: async (max = 100) => {
+    const { collection, getDocs, limit, orderBy, query, liteDb } = await lite();
     const snap = await getDocs(
       query(
         collection(liteDb, "abandoned-carts"),
@@ -219,16 +211,19 @@ export const abandonedCartApi = {
 // ──────────────────────────────────────────────────────────────
 // Funnel + traffic analytics
 // ──────────────────────────────────────────────────────────────
-// Everything lands in today's `analytics/<date>` doc as `increment(1)` merges, which Firestore applies itself, so
+// Everything lands in today's `analytics/<date>` doc as `1` merges, which Firestore applies itself, so
 // shoppers arriving at the same moment never overwrite each other's counts. Each call checks consent, the Studio
 // preview and the admin session (see trackingGuard). Best-effort: tracking must never break browsing or checkout.
 const dayKey = () => new Date().toISOString().split("T")[0];
 const mapKey = analyticsKey;
 
-async function bump(patch: Record<string, Record<string, ReturnType<typeof increment>>>) {
+/** Adds each count to today's analytics doc (`{ funnel: { view: 1 } }` → increment(1) on funnel.view). */
+async function bump(counts: Record<string, Record<string, number>>) {
   if (!(await trackingAllowed())) return;
   const today = dayKey();
   try {
+    const { doc, increment, setDoc, liteDb } = await lite();
+    const patch = Object.fromEntries(Object.entries(counts).map(([field, keys]) => [field, Object.fromEntries(Object.entries(keys).map(([key, n]) => [key, increment(n)]))]));
     await setDoc(doc(liteDb, "analytics", today), { date: today, ...patch }, { merge: true });
   } catch {
     // best-effort
@@ -264,13 +259,13 @@ export function shouldCountPurchase(orderId: string, order: any, storage: Pick<S
 
 export const funnelApi = {
   track: async (event: "view" | "add_to_cart" | "checkout_start" | "purchase") => {
-    await bump({ funnel: { [event]: increment(1) } });
+    await bump({ funnel: { [event]: 1 } });
   },
 
   /** "Started checkout": once per browser session, not once per page load of the checkout. */
   trackCheckoutStart: async () => {
     if (typeof window !== "undefined" && !firstThisSession(`fm_checkout_start_${dayKey()}`)) return;
-    await bump({ funnel: { checkout_start: increment(1) } });
+    await bump({ funnel: { checkout_start: 1 } });
   },
 
   /** "Completed purchase": once per real order (see shouldCountPurchase). */
@@ -281,13 +276,13 @@ export const funnelApi = {
     // Google Analytics revenue is money received: a manual (e-Transfer/cash) order still waiting for payment isn't sent.
     const purchase = order?.paymentStatus === "paid" ? purchaseEvent(orderId, order) : null;
     if (purchase) ga4Event("purchase", purchase);
-    await bump({ funnel: { purchase: increment(1) } });
+    await bump({ funnel: { purchase: 1 } });
   },
 
   trackCategory: async (categoryName: string) => {
     const key = mapKey((categoryName || "").toUpperCase());
     if (!key || inEditorPreview()) return;
-    await bump({ categoryViews: { [key]: increment(1) } });
+    await bump({ categoryViews: { [key]: 1 } });
   },
 
   /** Where this session came from and on what kind of screen — once per session, in its own write. */
@@ -295,13 +290,13 @@ export const funnelApi = {
     if (typeof window === "undefined" || !firstThisSession(`fm_session_${dayKey()}`)) return;
     let source = "direct";
     try { source = mapKey((window.sessionStorage.getItem("referral_source") || "direct").toLowerCase()) || "direct"; } catch { /* direct */ }
-    await bump({ sources: { [source]: increment(1) }, devices: { [deviceOf(window.innerWidth)]: increment(1) } });
+    await bump({ sources: { [source]: 1 }, devices: { [deviceOf(window.innerWidth)]: 1 } });
   },
 
   /** A product page opened — once per book per session. */
   trackProductView: async (bookId: string) => {
     if (!bookId || typeof window === "undefined" || !firstThisSession(`fm_bookview_${bookId}`)) return;
-    await bump({ bookViews: { [mapKey(bookId)]: increment(1) } });
+    await bump({ bookViews: { [mapKey(bookId)]: 1 } });
   },
 
   /** What shoppers type into search, and whether it found anything. Personal-looking terms are never stored. */
@@ -310,6 +305,6 @@ export const funnelApi = {
     if (!term || typeof window === "undefined") return;
     const field = resultCount > 0 ? "searches" : "noResults";
     if (!firstThisSession(`fm_search_${field}_${term}`)) return;
-    await bump({ [field]: { [term]: increment(1) } });
+    await bump({ [field]: { [term]: 1 } });
   },
 };
