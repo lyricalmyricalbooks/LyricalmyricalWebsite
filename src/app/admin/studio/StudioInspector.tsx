@@ -13,7 +13,7 @@ import { blockLabel } from "./StudioOutline";
 import { autoFitSection, resetPhoneLayout } from "./autoMobile";
 import { layerOrder, setBlockGrid, shiftLayer } from "./gridPlacement";
 
-export function StudioInspector({ section, blockId, colorSchemes, device, sharedBlocks, onSaveShared, onPatchShared, onInsertShared, onPatch, onSelectBlock, onDuplicate, onDelete, onToggle, onClose, onNotice, arranging = false, onArrange }: {
+export function StudioInspector({ section, blockId, colorSchemes, device, sharedBlocks, onSaveShared, onPatchShared, onInsertShared, onPatch, onSelectBlock, onDuplicate, onDelete, onToggle, onClose, onNotice, arranging = false, onArrange, onReplayMotion }: {
   section: Section; blockId: string | null; colorSchemes: any[];
   device: "desktop" | "tablet" | "mobile"; sharedBlocks: SharedBlock[];
   onSaveShared: (blockId: string, name: string) => void; onInsertShared: (shared: SharedBlock) => void;
@@ -23,6 +23,8 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   onNotice?: (text: string) => void;
   /** Flexible composition: whether its blocks are being arranged on the preview's grid (3.0 phase 3). */
   arranging?: boolean; onArrange?: (on: boolean) => void;
+  /** Plays this section's motion again in the preview (3.0 phase 4). */
+  onReplayMotion?: () => void;
 }) {
   const [tab, setTab] = useState<"content" | SectionTab>("content");
   const [askText, promptNode] = usePrompt();
@@ -155,6 +157,11 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
         </div>}
       </>}
       {!block && sharedBlocks.some(shared => !shared.sectionType || shared.sectionType === section.type) && <div className="studio-control-card"><strong>Shared blocks</strong><p className="studio-hint">Insert a compatible linked instance. Editing its source updates every placement.</p>{sharedBlocks.filter(shared => !shared.sectionType || shared.sectionType === section.type).map(shared => <button key={shared.id} className="studio-link-button" onClick={() => onInsertShared(shared)}>+ {shared.name}</button>)}</div>}
+      {tab === "style" && onReplayMotion && !search && <div className="studio-control-card" data-studio-panel="motion-preview">
+        <strong>Motion</strong>
+        <p className="studio-hint">Set it in the Motion group below. Shoppers whose device asks for less motion never see it.</p>
+        <button className="studio-link-button" onClick={onReplayMotion}>Play this section's motion</button>
+      </div>}
       {tab === "style" && <StudioSectionStyle fields={styleFields} tab="style" settings={section.settings} search={search} onPatch={onPatch} />}
       {tab === "visibility" && <>
         <div className="studio-control-card">

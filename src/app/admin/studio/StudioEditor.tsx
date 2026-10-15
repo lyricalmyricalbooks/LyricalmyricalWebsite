@@ -2082,6 +2082,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             device={device} sharedBlocks={design.sharedBlocks || []} onSaveShared={saveSharedBlock} onPatchShared={patchSharedBlock} onInsertShared={insertSharedBlock}
             onPatch={patchSelected} onDuplicate={() => dupSection(selected.id)} onDelete={() => delSection(selected.id)}
             onToggle={() => setList((l) => toggleSection(l, selected.id))} onNotice={(text) => say("ok", text)}
+            onReplayMotion={() => { setMode("edit"); postPreview({ type: "HIGHLIGHT_SECTION", instanceId: selected.id, blockId: null, scroll: true }); setTimeout(() => postPreview({ type: "MOTION_REPLAY", sectionId: selected.id }), 450); }}
             arranging={arrangeId === selected?.id} onArrange={on => { setArrangeId(on ? selected.id : null); if (on) setMode("edit"); }} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
   );
 

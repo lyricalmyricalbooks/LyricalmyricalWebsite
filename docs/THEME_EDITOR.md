@@ -638,10 +638,21 @@ without a yes.
 - Not done: a block with no placement still auto-flows one column wide (unchanged storefront behaviour). The first drag
   or nudge gives it real cells.
 
-### Phase 4 — Motion as a finishing step (Webflow interactions, Squarespace Finish Layer)
-- [ ] Per-block entrance and scroll-reveal effects, staggered children, sticky and parallax per section, hover lifts.
-- [ ] Motion follows the shopper's reduced-motion setting, with on/off per device, a "Preview motion" button and the
-  usual `STYLE_GROUPS` and coverage rules.
+### Phase 4 — Motion as a finishing step — DONE (15 October 2026)
+- [x] Section › Style › **Motion** group (`components/sectionMotion.ts`, CSS scoped to `#section-<id>`):
+  - Section entrance (`animation`, moved here from Effects), now with **How long it takes** / **Wait before starting**
+    (`motionDuration`, `motionDelay`; `entranceTiming` feeds `SectionReveal`).
+  - **Blocks appear as you scroll** (`revealBlocks`: fade up / fade / zoom / slide) with **Delay between blocks**
+    (`staggerStep`, nth-child delays for the first 12).
+  - **Blocks and cards when pointed at** (`blockHover`: lift / grow; hover-capable pointers only).
+  - **Parallax** background (`parallax`: subtle / strong; `animation-timeline: view()` inside `@supports`, otherwise still).
+  - **Sticky** (`sticky`, `stickyTop`).
+  - **Turn motion off on phones** (`motionOffOnPhones`).
+- [x] Safety: blocks are hidden only while `MotionWatcher` (sectionRender.tsx) has "armed" a section that started below
+  the screen. It never arms under reduced motion (the prerender runs with reduced motion) or without IntersectionObserver.
+  All movement sits in `prefers-reduced-motion: no-preference`, and Style › Page animations off removes it all.
+- [x] **Play this section's motion** (Style tab card) posts `MOTION_REPLAY` to the preview.
+- Not done: motion per individual block (it is per section, applied to its blocks) and a timeline editor.
 
 ### Phase 5 — Block library 3.0 (Shopify Horizon)
 - [ ] Block-level copy and paste across sections.
