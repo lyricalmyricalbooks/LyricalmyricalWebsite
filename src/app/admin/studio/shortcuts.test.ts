@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveShortcut, SHORTCUTS } from "./shortcuts";
+import { goHint, GO_KEYS, resolveGoKey, resolveShortcut, SHORTCUTS } from "./shortcuts";
 
 describe("Studio shortcuts", () => {
   it("maps the documented keys", () => {
@@ -26,5 +26,26 @@ describe("Studio shortcuts", () => {
   it("every action in the cheat sheet is reachable", () => {
     const actions = new Set(SHORTCUTS.map(s => s.action));
     expect(actions.size).toBe(SHORTCUTS.length);
+  });
+  it("G starts a workspace jump; the second key picks the workspace", () => {
+    expect(resolveShortcut({ key: "g" })).toBe("goPrefix");
+    expect(resolveShortcut({ key: "g", typing: true })).toBeNull();
+    expect(resolveShortcut({ key: "g", dialogOpen: true })).toBeNull();
+    expect(resolveGoKey("T")).toBe("go:style");
+    expect(resolveGoKey("l")).toBe("go:sections");
+    expect(resolveGoKey("q")).toBeNull();
+    expect(new Set(GO_KEYS.map(g => g.key)).size).toBe(GO_KEYS.length);
+    expect(goHint("menus")).toBe("G then N");
+  });
+  it("plain keys for the Workbench, Add section and section stepping", () => {
+    expect(resolveShortcut({ key: "w" })).toBe("workbench");
+    expect(resolveShortcut({ key: "a" })).toBe("addSection");
+    expect(resolveShortcut({ key: "[" })).toBe("prevSection");
+    expect(resolveShortcut({ key: "]" })).toBe("nextSection");
+    expect(resolveShortcut({ key: "a", typing: true })).toBeNull();
+    expect(resolveShortcut({ key: "w", ctrl: true })).toBeNull();
+  });
+  it("every workspace jump is in the cheat sheet", () => {
+    for (const g of GO_KEYS) expect(SHORTCUTS.some(s => s.action === `go:${g.tab}`)).toBe(true);
   });
 });

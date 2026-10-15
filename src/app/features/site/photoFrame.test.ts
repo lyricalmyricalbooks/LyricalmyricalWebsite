@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { frameAspect, frameMode, photoRatio } from "./photoFrame";
+import { aspectNumber, frameAspect, frameMode, photoRatio } from "./photoFrame";
 
 describe("adaptive product photo frames", () => {
   it("keeps today's single shape unless the owner turns adapting on", () => {
@@ -20,5 +20,14 @@ describe("adaptive product photo frames", () => {
     expect(frameAspect("exact", undefined, "4 / 5", "")).toBe("4 / 5");
     expect(photoRatio(0, 10)).toBeUndefined();
     expect(photoRatio(300, 200)).toBe(1.5);
+  });
+});
+
+describe("aspectNumber", () => {
+  it("reads a frame shape as width ÷ height", () => {
+    expect(aspectNumber("3 / 4")).toBe(0.75);
+    expect(aspectNumber("1250 / 1000")).toBe(1.25);
+    expect(aspectNumber("auto")).toBeUndefined();
+    expect(aspectNumber("0 / 4")).toBeUndefined();
   });
 });

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { adminApi } from "./api";
+import { getOrdersCached } from "./ordersCache";
 import toast from "react-hot-toast";
 import { discountCategoryChoices } from "../features/site/discountCategories";
 import { discountState as state, today } from "./discountState";
@@ -355,8 +356,8 @@ export function Discounts() {
   // The published shop categories (Studio › Menus › Shop categories), the names checkout matches.
   useEffect(() => { adminApi.getPublicSettings().then((st: any) => setShopCategories(Array.isArray(st?.design?.categories) ? st.design.categories : [])).catch(() => setShopCategories([])); }, []);
   // Performance is best-effort: a failure here must not block managing codes.
-  // Every order (paged), so older redemptions count too.
-  useEffect(() => { adminApi.getAllOrders().then(setOrders).catch(() => {}); }, []);
+  // Every order (the admin's shared copy, read in pages), so older redemptions count too.
+  useEffect(() => { getOrdersCached().then(setOrders).catch(() => {}); }, []);
   const perf = useMemo(() => discountPerformance(orders), [orders]);
 
   async function load() {

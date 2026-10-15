@@ -16,24 +16,44 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function fakeBrowser(width: number, height: number) {
+function fakeBrowser(width: number, height: number, qualities: number[] = []) {
   vi.stubGlobal("createImageBitmap", async () => ({ width, height, close() {} }));
   vi.stubGlobal("document", {
     createElement: () => {
-      const canvas: any = { getContext: () => ({ drawImage() {} }), toBlob: (done: (b: Blob) => void) => done(new Blob(["x"], { type: "image/webp" })) };
+      const canvas: any = { getContext: () => ({ drawImage() {} }), toBlob: (done: (b: Blob) => void, _type: string, q: number) => { qualities.push(q); done(new Blob(["x"], { type: "image/webp" })); } };
       return canvas;
     },
   });
 }
 
 describe("uploadBookPhoto", () => {
-  it("stores 480–2400 px copies and keeps the largest as the photo's URL", async () => {
-    fakeBrowser(4000, 6000);
+  it("stores 480–3200 px copies (lighter card sizes, sharp product-page sizes), keeps the largest as the URL and keeps the original file", async () => {
+    const qualities: number[] = [];
+    fakeBrowser(4000, 6000, qualities);
     const photo = await uploadBookPhoto(new File(["x"], "My Cover.jpg", { type: "image/jpeg" }), 1700000000000);
-    expect(uploads).toEqual([480, 960, 1600, 2400].map(w => `products/1700000000000-My-Cover-${w}w.webp`));
-    expect(photo.url).toBe("https://cdn.test/products/1700000000000-My-Cover-2400w.webp");
-    expect(photo.srcset?.map(s => s.w)).toEqual([480, 960, 1600, 2400]);
+    expect(uploads).toEqual([
+      ...[480, 640, 960, 1600, 2400, 3200].map(w => `products/1700000000000-My-Cover-${w}w.webp`),
+      "products/1700000000000-My-Cover-original.jpg",
+    ]);
+    expect(photo.url).toBe("https://cdn.test/products/1700000000000-My-Cover-3200w.webp");
+    expect(photo.srcset?.map(s => s.w)).toEqual([480, 640, 960, 1600, 2400, 3200]);
+    expect(photo.originalUrl).toBe("https://cdn.test/products/1700000000000-My-Cover-original.jpg");
     expect([photo.width, photo.height]).toEqual([4000, 6000]);
+    expect(qualities).toEqual([0.82, 0.82, 0.82, 0.95, 0.95, 0.95]);
+  });
+
+  it("never enlarges a small photo: its own width is the top copy", async () => {
+    fakeBrowser(1800, 2700);
+    const photo = await uploadBookPhoto(new File(["x"], "c.png", { type: "image/png" }), 3);
+    expect(photo.srcset?.map(s => s.w)).toEqual([480, 640, 960, 1600, 1800]);
+    expect(photo.originalUrl).toBe("https://cdn.test/products/3-c-original.png");
+  });
+
+  it("removes every copy when storing the original fails", async () => {
+    fakeBrowser(1000, 1500);
+    (adminApi as any).uploadFile = async (_f: File, path: string) => { if (path.includes("original")) throw new Error("offline"); uploads.push(path); return path; };
+    await expect(uploadBookPhoto(new File(["x"], "c.jpg", { type: "image/jpeg" }), 4)).rejects.toThrow("offline");
+    expect(removed).toEqual([["products/4-c-480w.webp", "products/4-c-640w.webp", "products/4-c-960w.webp", "products/4-c-1000w.webp"]]);
   });
 
   it("uploads GIFs as one plain file", async () => {

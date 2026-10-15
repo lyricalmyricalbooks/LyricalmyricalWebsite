@@ -3,10 +3,10 @@ import { StudioRegionBrowser } from "./StudioRegionBrowser";
 import { REGION_GROUPS, REGION_SUFFIXES, REGION_DEVICE_LABELS, regionFieldDevice, regionKey, regionValue, type RegionDevice } from "../../features/site/storefrontRegions";
 import { canInlineFormat } from "./richText";
 import { applyContextAction, applySpacing, contextCapabilities, GAP_KEYS, PADDING_KEYS, spacingKey } from "./canvasTools";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import {
+import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { Sparkles,
   ArrowLeft, ChevronDown, Clock, ChevronUp, Clipboard, Copy, Eye, EyeOff, ExternalLink, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
-  Download, Pencil, Tablet, Trash2, Undo2, Upload, X,
+  Download, ListChecks, Pencil, Tablet, Trash2, Undo2, Upload, X,
 } from "lucide-react";
 import { adminApi } from "../api";
 import { uploadStudioImage } from "./mediaUpload";
@@ -21,13 +21,15 @@ import { COPY_SCHEMA, DEFAULT_COPY, getCopy } from "../../features/site/storeCop
 import { automaticFooterItems, footerGroup } from "../../features/site/footerNavigation";
 import { MENU_LINK_TYPES, newMenuItem, slugify, type MenuItem } from "../../features/site/storeMenu";
 import {
-  commit, duplicateSection, findBlock, getSections, initHistory, insertSection, makeSection, mapBlock, moveBlockBefore, newId, normalizeDesign,
-  patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo, undoLabel, redoLabel, moveSection,
+  commit, duplicateSection, findBlock, getSections, initHistory, insertBlockAfter, insertSection, makeSection, mapBlock, moveBlockBefore, newId, normalizeDesign,
+  HISTORY_LIMIT, jumpBy, patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo, undoLabel, redoLabel, moveSection,
   resolveSharedBlocks, withPageText, type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
 import { menuLinksTo, redirectsAfterRename, renamePageInMenus } from "./pageRename";
 import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, schemeFieldOptions, type StyleField, type StyleGroup } from "./styleSchema";
 import { StudioColorSchemes } from "./StudioColorSchemes";
+import { StudioScalePreview } from "./StudioScalePreview";
+import { applyGridMessage } from "./gridPlacement";
 import { StudioAnnouncements } from "./StudioAnnouncements";
 import { StudioPages } from "./StudioPages";
 import { StudioCategories } from "./StudioCategories";
@@ -39,7 +41,7 @@ import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY, PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
-import { StudioOutline } from "./StudioOutline";
+import { StudioOutline, blockLabel } from "./StudioOutline";
 import { StudioStructure } from "./StudioStructure";
 import { StudioElementInspector } from "./StudioElementInspector";
 import { elementTabs, type ElementRef } from "./elementCatalog";
@@ -68,7 +70,12 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { StudioRail } from "./StudioRail";
 import { MediaPickerDialog, StudioMediaPanel, useMediaLibrary } from "./StudioMedia";
 import { StudioHistory, versionName, type ThemeVersion } from "./StudioHistory";
-import { StudioHealth } from "./StudioHealth";
+import { HealthFindings, StudioHealth } from "./StudioHealth";
+import { SiteHealthPanel, useSiteHealth } from "./StudioSiteHealth";
+import { healthRoutes, loadSiteHistory, saveSiteHistory, siteHistoryKey, type HealthRoute, type SiteFinding } from "./siteHealth";
+import { StudioWorkbench, type ChangeRow, type WorkbenchTab } from "./StudioWorkbench";
+import { setupChecklist, type SetupItem } from "./setupChecklist";
+import { StudioBreadcrumb } from "./StudioBreadcrumb";
 import { StudioThemes } from "./StudioThemes";
 import { StudioSchedule } from "./StudioSchedule";
 import { POLICY_KEYS, policySlug } from "../../features/site/policyPages";
@@ -77,7 +84,7 @@ import { categoryOptions } from "./pickers";
 import { diffDesigns, restoreItem, summariseDiff, type DiffContext, type DiffItem } from "./designDiff";
 import { MediaLibraryButton, MediaPickerContext } from "./mediaPicker";
 import type { UsagePlace } from "./mediaLibrary";
-import { resolveShortcut, SHORTCUTS, type ShortcutAction } from "./shortcuts";
+import { GO_SEQUENCE_MS, resolveGoKey, resolveShortcut, SHORTCUTS, type ShortcutAction } from "./shortcuts";
 import { StudioPreviewFrame } from "./StudioPreviewFrame";
 import { TemplatePicker } from "./TemplatePicker";
 import { currentOption, pickerOptions, type PickerOption } from "./templatePicker";
@@ -86,9 +93,13 @@ import { auth } from "../../../lib/firebase";
 import type { StudioLocation } from "../../lib/studioLocation";
 import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
 import { StudioSectionLibrary } from "./StudioSectionLibrary";
+import { StudioBlockPicker } from "./StudioBlockPicker";
+import { StudioBrandKit } from "./StudioBrandKit";
+import { brandKitDesign, type BrandKitChoice } from "./brandKit";
+import { BLOCK_CANDIDATE_ID, blockChoices, canPasteBlock, copyBlock, fitsAfter, pasteBlock, withBlockCandidate, type BlockChoice, type BlockClip } from "./blockLibrary";
 import { StudioTemplateCard } from "./StudioTemplateCard";
 import { isProductTemplate, StudioProductBlocks } from "./StudioProductBlocks";
-import { ALT_BASE_LABELS, ALT_BASES, alternatesFor, altSurface, bookTemplateSurface, createAlternate, deleteAlternate, isAltSurface, parseAltSurface, renameAlternate, type AltBase } from "../../features/site/templateAlternates";
+import { ALT_BASE_LABELS, ALT_BASES, alternatesFor, altSurface, bookTemplateSurface, categoryTemplateSurface, createAlternate, deleteAlternate, isAltSurface, parseAltSurface, renameAlternate, type AltBase } from "../../features/site/templateAlternates";
 import { DynamicSourcesContext } from "./StudioConnect";
 import type { BookFieldDef } from "../../features/site/bookFields";
 import { hasTokens, isDynamic } from "../../features/site/dynamicSources";
@@ -162,6 +173,14 @@ function Group({ id, title, hint, children, open: initial = false }: { id?: stri
       )}
     </section>
   );
+}
+
+/** The selected block's name for the breadcrumb (same wording as the outline). */
+function selectedBlockCrumb(section: Section, blockId: string) {
+  const key = getBlocksKey(section.type);
+  const blocks = (section.settings?.[key] || section.settings?.blocks || []) as any[];
+  const block = findBlock(blocks, blockId);
+  return { label: block ? blockLabel(block, blocks.indexOf(block), getSectionMeta(section.type)?.blockLabel) : "Block" };
 }
 
 function sectionTitle(s: Section) {
@@ -422,7 +441,36 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [schedule, setSchedule] = useState<{ themeId: string | null } | null>(null);
   const [confirmAction, setConfirmAction] = useState<"publish" | "discard" | null>(null);
   const [checksOpen, setChecksOpen] = useState(false);
+  // Flexible composition being arranged on the preview's grid (3.0 phase 3), or null.
+  const [arrangeId, setArrangeId] = useState<string | null>(null);
+  // Workbench (3.0 phase 1): docked under the preview on tablets and computers; remembered per browser.
+  const [workbench, setWorkbench] = useState<{ open: boolean; tab: WorkbenchTab }>(() => ({ open: remembered.workbenchOpen === true, tab: remembered.workbenchTab || "setup" }));
+  const [healthRun, setHealthRun] = useState(0);
+  const [healthIssues, setHealthIssues] = useState<number | null>(null);
+  const [phoneSeen, setPhoneSeen] = useState(remembered.phoneSeen === true);
+  const [publishedNow, setPublishedNow] = useState(false);
   const [copiedSection, setCopiedSection] = useState<Section | null>(null);
+  // Block library 3.0: the copied block, the section the block picker is adding to, and the block pointed at in it
+  // (shown in the preview only, never in the draft or history).
+  const [copiedBlock, setCopiedBlock] = useState<BlockClip | null>(null);
+  // Brand kit (3.0 phase 6): the panel is open, and the choice it is showing on the canvas (preview only).
+  const [brandKit, setBrandKit] = useState(false);
+  const [brandChoice, setBrandChoice] = useState<BrandKitChoice | null>(null);
+  useEffect(() => { if (!brandKit) setBrandChoice(null); }, [brandKit]);
+  // Switching workspace closes the brand kit (and its preview); its choices are not saved until Apply.
+  const brandTabRef = useRef<string | null>(null);
+  const [blockPicker, setBlockPicker] = useState<string | null>(null);
+  const [blockCandidate, setBlockCandidate] = useState<any>(null);
+  const pickerWasOpen = useRef(false);
+  useEffect(() => {
+    if (blockPicker) { pickerWasOpen.current = true; return; }
+    setBlockCandidate(null);
+    if (!pickerWasOpen.current) return;
+    pickerWasOpen.current = false;
+    // The preview may still have the try-on block selected: point it back at the real selection.
+    if (blockId === BLOCK_CANDIDATE_ID) setBlockId(null);
+    try { iframeRef.current?.contentWindow?.postMessage({ type: "HIGHLIGHT_SECTION", instanceId: selectedId, blockId: blockId === BLOCK_CANDIDATE_ID ? null : blockId, scroll: false }, window.location.origin); } catch { /* ignore */ }
+  }, [blockPicker]); // eslint-disable-line react-hooks/exhaustive-deps
   // A section's look (Style / Layout / Visibility settings) copied from the outline, to paste onto others.
   const [copiedStyle, setCopiedStyle] = useState<Record<string, any> | null>(null);
   // "Move to…" dialog: sections to another page, or a block to another section.
@@ -594,6 +642,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setShowGlobal(false);
     say("ok", "Noir homepage layout installed on the draft.", undoAction());
   };
+  // Brand kit (3.0 phase 6): open the panel beside the preview; Apply writes every choice as one undoable change.
+  const openBrandKit = () => {
+    setAdding(null); setBlockPicker(null); setThemePreview(null); setHistoryPreview(null);
+    setMobilePanel("outline"); setBrandKit(true);
+  };
+  const applyBrandKit = (choice: BrandKitChoice) => {
+    setBrandKit(false);
+    change((d) => brandKitDesign(d, choice, getSectionMeta), { label: "Apply brand kit" });
+    if (choice.home === "starter") { setTemplateId("heroPage"); setShowGlobal(false); }
+    say("ok", "Brand kit applied to the draft — Publish to make it live.", undoAction());
+  };
   const applyLibraryTheme = (theme: any) => {
     const palette = PALETTES.find((p: any) => p.id === theme.palettePreset);
     const base: Record<string, any> = {
@@ -647,6 +706,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setTimeout(() => setConfirmAction("publish"), 0);
   };
   useEffect(() => { if (leftTab !== "themes") setThemePreview(null); }, [leftTab]);
+  useEffect(() => {
+    if (brandTabRef.current !== null && brandTabRef.current !== leftTab) setBrandKit(false);
+    brandTabRef.current = leftTab;
+  }, [leftTab]);
   // A theme/version preview shows a different design in the canvas. Any edit to the draft (inspector,
   // canvas, undo, live sync) ends it, so the canvas never keeps showing the preview over a change.
   const previewedDesignRef = useRef(design);
@@ -745,8 +808,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (o.collectionSlug) setCollectionSlug(o.collectionSlug);
   };
   useEffect(() => {
-    saveUiState(uiKey, { leftTab, templateId, showGlobal, globalGroup, device, zoom, productSlug, collectionSlug });
-  }, [uiKey, leftTab, templateId, showGlobal, globalGroup, device, zoom, productSlug, collectionSlug]);
+    saveUiState(uiKey, { leftTab, templateId, showGlobal, globalGroup, device, zoom, productSlug, collectionSlug,
+      workbenchOpen: workbench.open, workbenchTab: workbench.tab, ...(phoneSeen ? { phoneSeen } : {}) });
+  }, [uiKey, leftTab, templateId, showGlobal, globalGroup, device, zoom, productSlug, collectionSlug, workbench, phoneSeen]);
+  useEffect(() => { if (device === "mobile") setPhoneSeen(true); }, [device]);
 
   // ── preview wiring ──
   // "Custom pages" (the shared page sections) previews the custom page last shown, not always the first one,
@@ -782,8 +847,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const sendPreviewState = useCallback(() => {
     if (inlineEditingRef.current) return;
     const current = designRef.current;
+    const candidateOwner = blockCandidate && blockPicker ? findSectionOwner(current, blockPicker) : null;
     const previewDesign = historyPreview?.design || themePreview?.design || (candidate && adding !== null
       ? withCandidate(current, showGlobal ? globalGroup : template.id, getSections(current, target), adding, makeSection(candidate, getSectionMeta(candidate)?.defaults || {}))
+      : candidateOwner ? withBlockCandidate(current, blockPicker!, getBlocksKey(candidateOwner.section.type), blockCandidate)
+      : brandChoice ? brandKitDesign(current, brandChoice, getSectionMeta)
       : current);
     let state: ReturnType<typeof buildPreviewState>;
     try { state = buildPreviewState(settings, previewDesign, withDraftPage(pages, draftPage), books); }
@@ -792,7 +860,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       deliverPreviewState(iframeRef.current?.contentWindow, state, window.location.origin);
     } catch (err) { console.warn("[Studio] preview delivery failed", err); }
     try { channelRef.current?.postMessage(state); } catch (err) { console.warn("[Studio] preview tab delivery failed", err); }
-  }, [historyPreview, themePreview, settings, pages, books, draftPage, candidate, adding, showGlobal, globalGroup, template.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [historyPreview, themePreview, settings, pages, books, draftPage, candidate, adding, blockCandidate, blockPicker, brandChoice, showGlobal, globalGroup, template.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const sendPreviewRef = useRef(sendPreviewState);
   sendPreviewRef.current = sendPreviewState;
   useEffect(() => {
@@ -858,11 +926,22 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const t = setTimeout(() => highlight(CANDIDATE_ID, true, null), 350);
     return () => clearTimeout(t);
   }, [candidate]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Add block: scroll the preview to the block being tried in its section (marked "Preview · not added yet").
+  useEffect(() => {
+    if (!blockCandidate || !blockPicker) return;
+    const t = setTimeout(() => highlight(blockPicker, true, BLOCK_CANDIDATE_ID), 350);
+    return () => clearTimeout(t);
+  }, [blockCandidate]); // eslint-disable-line react-hooks/exhaustive-deps
   // Re-highlight right away when the selection changes, but only after edits settle when the design changes.
   useEffect(() => { canvasSelectionRef.current = null; highlight(selectedId); }, [selectedId, highlight]);
   useEffect(() => { if (selectedId) setSelectedElement(null); }, [selectedId]);
   useEffect(() => { const t = setTimeout(() => { const canvas = canvasSelectionRef.current; highlight(canvas?.sectionId || selectedId, false, canvas ? canvas.blockId : blockId); }, 250); return () => clearTimeout(t); }, [design]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); }, [mode]);
+  // Arranging follows the selection: it stops when another section is chosen or Browse mode is on.
+  useEffect(() => { if (arrangeId && (selectedId !== arrangeId || mode !== "edit")) setArrangeId(null); }, [selectedId, mode, arrangeId]);
+  useEffect(() => {
+    postPreview({ type: "GRID_ARRANGE", sectionId: arrangeId, device });
+  }, [arrangeId, device, previewStatus, previewRevision]); // eslint-disable-line react-hooks/exhaustive-deps
   // A new page in the preview: its structure is re-read, and a part selected on the old page closes.
   useEffect(() => { setStructure(null); setHoverKey(null); setSelectedElement(null); }, [previewUrl, previewRevision]);
   useEffect(() => { setPreviewStatus("loading"); const timer = setTimeout(() => setPreviewStatus(s => s === "loading" ? "error" : s), 15000); return () => clearTimeout(timer); }, [previewUrl, previewRevision]);
@@ -895,10 +974,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     postPreview({ type: "SELECT_NODE", key: el.key, scroll });
   };
   // ── Studio Health (3.3): audit the page the preview rendered ─────────────────────────────────
-  const runHealth = (): HealthFinding[] | null => {
-    const doc = iframeRef.current?.contentDocument;
-    if (!doc?.body || !doc.defaultView) return null;
-    const known = {
+  /** Slugs that exist, so Health can spot links to missing books, pages and collections. */
+  const healthKnown = () => ({
       books: new Set(books.flatMap((b: any) => [b.slug, b.id].filter(Boolean).map(String))),
       // Published custom pages, plus the shop policy pages (/page/policy-<key>; the footer only links the written ones).
       pages: new Set([
@@ -907,8 +984,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       ]),
       ...(Array.isArray(design.categories) && design.categories.length
         ? { collections: new Set(["publications", ...categoryOptions(design.categories).map(o => slugify(o.value))]) } : {}),
-    };
-    try { return auditDocument(doc, doc.defaultView, { device, base: import.meta.env.BASE_URL, known }); }
+  });
+  const runHealth = (): HealthFinding[] | null => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc?.body || !doc.defaultView) return null;
+    try { return auditDocument(doc, doc.defaultView, { device, base: import.meta.env.BASE_URL, known: healthKnown() }); }
     catch (err) { console.warn("[Studio] health check failed", err); return null; }
   };
   /** Opens a section wherever it lives (a page or a shared group), as clicking it in the preview does. */
@@ -930,14 +1010,85 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const previous = el.style.outline, offset = el.style.outlineOffset;
     el.style.outline = "3px solid #e8402a"; el.style.outlineOffset = "2px";
     setTimeout(() => { el.style.outline = previous; el.style.outlineOffset = offset; }, 2400);
-    say("ok", `Showing: ${f.title}`, { label: "Back to Health", run: () => setChecksOpen(true) });
+    say("ok", `Showing: ${f.title}`, { label: "Back to Health", run: openHealth });
   };
-  const fixFinding = (f: HealthFinding) => {
+  const fixFinding = (f: HealthFinding | SiteFinding) => {
     if (!f.owner) return;
     setChecksOpen(false);
     if (f.owner.sectionId && openSectionAnywhere(f.owner.sectionId)) return;
     openElement({ key: f.owner.key, label: f.owner.label || "This part", target: f.owner.target, region: f.owner.region || undefined }, true);
   };
+  // Studio Health lives in the Workbench on larger screens and in its dialog on phones (no room for a dock there).
+  const openHealth = () => {
+    if (narrow) { setChecksOpen(true); return; }
+    setWorkbench({ open: true, tab: "health" });
+    setHealthRun(n => n + 1);
+  };
+  const openWorkbench = (tab: WorkbenchTab) => {
+    if (narrow) { if (tab === "health") setChecksOpen(true); else say("ok", "The Workbench is shown on tablets and computers. Studio Health is in Theme actions."); return; }
+    setWorkbench({ open: true, tab });
+    if (tab === "health") setHealthRun(n => n + 1);
+  };
+  // ── Check every page (3.0 phase 7): each kind of shop page in a hidden preview, using the unsaved draft ──
+  const siteHistoryStore = siteHistoryKey(import.meta.env.BASE_URL, auth.currentUser?.uid || "local-preview");
+  const [siteHistory] = useState(() => loadSiteHistory(siteHistoryStore));
+  const previewHref = (path: string) => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}${path}${path.includes("?") ? "&" : "?"}preview=true`;
+  const site = useSiteHealth({
+    routes: () => healthRoutes({ design: designRef.current, books, pages, policies: settings?.policies, collections: previewCollections }),
+    snapshot: () => { try { return buildPreviewState(settings, designRef.current, withDraftPage(pages, draftPage), books); } catch { return null; } },
+    urlFor: previewHref, device, width: parseInt(DEVICE_W[device], 10),
+    options: () => ({ base: import.meta.env.BASE_URL, known: healthKnown() }),
+    history: siteHistory, onHistory: h => saveSiteHistory(siteHistoryStore, h),
+  });
+  // After "Open this page", check the page again once the canvas has loaded it (and open a part waiting for it).
+  const afterOpenRef = useRef<{ element?: ElementRef } | null>(null);
+  useEffect(() => {
+    if (previewStatus !== "ready" || !afterOpenRef.current) return;
+    const pending = afterOpenRef.current; afterOpenRef.current = null;
+    const t = setTimeout(() => { setHealthRun(n => n + 1); if (pending.element) openElement(pending.element, true); }, 900);
+    return () => clearTimeout(t);
+  }, [previewStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Shows a checked page on the canvas; false (and a new tab) when Studio has no template for it (policy pages). */
+  const openHealthPage = (r: HealthRoute, then?: ElementRef) => {
+    const d = designRef.current;
+    const route = previewRoute(previewHref(r.path), import.meta.env.BASE_URL, { showHero: d?.showHero !== false });
+    if (!route) { window.open(previewHref(r.path), "_blank"); return false; }
+    // A category opens in the layout it was checked in (its own alternate, as shoppers see it).
+    let templateId = route.templateId;
+    if (route.collection && templateId === "collectionPage") {
+      const cat = normalizeCategories(Array.isArray(d?.categories) ? d.categories : []).find((c: any) => c?.name && slugify(c.name) === route.collection);
+      if (cat) templateId = categoryTemplateSurface(d, cat);
+    }
+    if (!templates.some(t => t.id === templateId)) { window.open(previewHref(r.path), "_blank"); return false; }
+    // Already on the canvas: nothing will reload, so act now (never leave a pending action for some later page).
+    const here = !showGlobal && template.id === templateId && (!route.product || route.product === productSlug) && (!route.collection || route.collection === collectionSlug);
+    if (here) { afterOpenRef.current = null; if (then) openElement(then, true); else setHealthRun(n => n + 1); setMobilePanel("preview"); return true; }
+    afterOpenRef.current = { element: then };
+    setShowGlobal(false); setSelectedId(null); setBlockId(null); setSelectedElement(null);
+    setTemplateId(templateId);
+    if (route.product) setProductSlug(route.product);
+    if (route.collection) setCollectionSlug(route.collection);
+    setMobilePanel("preview");
+    return true;
+  };
+  // A part found on another page: a section opens wherever it lives; a built-in part needs its page on the canvas first.
+  const fixSiteFinding = (f: SiteFinding, route?: HealthRoute) => {
+    if (!f.owner) return;
+    if (f.owner.sectionId && findSectionOwner(designRef.current, f.owner.sectionId)) { fixFinding(f); return; }
+    const el: ElementRef = { key: f.owner.key, label: f.owner.label || "This part", target: f.owner.target, region: f.owner.region || undefined };
+    setChecksOpen(false);
+    if (route) openHealthPage(route, el); else openElement(el, true);
+  };
+  const runSiteHealth = () => { openHealth(); void site.start(); };
+  const sitePanel = <SiteHealthPanel site={site} onOpenPage={r => { setChecksOpen(false); return openHealthPage(r); }} onFix={fixSiteFinding} />;
+  // After a publish, the live design is what Health should describe: check again if its tab is showing.
+  const publishedRef = useRef(published);
+  useEffect(() => {
+    if (publishedRef.current === published) return;
+    publishedRef.current = published;
+    setPublishedNow(true);
+    if (workbench.open && workbench.tab === "health") setHealthRun(n => n + 1);
+  }, [published]); // eslint-disable-line react-hooks/exhaustive-deps
   // The Publish confirmation says how the page in the preview checks out.
   const [publishHealth, setPublishHealth] = useState<ReturnType<typeof summarise> | null>(null);
   useEffect(() => { if (confirmAction === "publish") { const found = runHealth(); setPublishHealth(found ? summarise(found) : null); } }, [confirmAction]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1094,11 +1245,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         return;
       }
       if (d.type === "ADD_BLOCK" && d.sectionId) {
+        // Canvas toolbar › + Block opens the block picker for that section (Block library 3.0).
         const owner = findSectionOwner(designRef.current, d.sectionId);
         const meta = owner && getSectionMeta(owner.section.type); if (!owner || !meta?.blockType) return;
-        const block = { ...JSON.parse(JSON.stringify(meta.blockDefaults || {})), id: newId() };
-        change(current => applyCanvasAction(current, d, getBlocksKey, block));
-        setSelectedId(d.sectionId); setBlockId(block.id); setMobilePanel("settings");
+        openBlockPickerRef.current(d.sectionId);
       }
       if (d.type === "CONTEXT_ACTION" && typeof d.sectionId === "string") {
         change(current => applyContextAction(current, d, getBlocksKey));
@@ -1115,6 +1265,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           if(field && (d.value < fieldBounds(field).min || d.value > fieldBounds(field).max)) return current;
           return applySpacing(current,d,allowed);
         });
+      }
+      if (d.type === "GRID_PLACE" && typeof d.sectionId === "string" && typeof d.blockId === "string") {
+        change(current => applyGridMessage(current, d, getBlocksKey, updateSectionsById), { label: d.by ? (d.by.dw || d.by.dh ? "Resize block on grid" : "Nudge block on grid") : "Place block on grid" });
       }
       if (d.type === "TEXT_EDIT_START") { inlineEditingRef.current = true; setInlineEditing(typeof d.label === "string" ? d.label : "Text"); }
       if (d.type === "TEXT_EDIT_END") {
@@ -1186,6 +1339,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // One keyboard listener for the whole editor; the latest handlers are read through a ref, so it
   // is registered once. The preview forwards its key presses here too (KEY_COMMAND).
   // `forPanel`: a command that names the panel's section itself (Find › current selection), not a keyboard shortcut.
+  const selectRail = (id: LeftTab) => { setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setSelectedElement(null); setMobilePanel("outline"); };
   const runShortcut = (action: ShortcutAction, forPanel = false) => {
     if (busy === "discard") return;
     if (inlineEditingRef.current && ["save", "undo", "redo", "delete", "duplicate", "moveUp", "moveDown"].includes(action)) {
@@ -1213,6 +1367,18 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "help": setShortcutsOpen(true); break;
       case "desktop": case "tablet": case "mobile": setDevice(action); break;
       case "toggleMode": setMode(m => m === "edit" ? "browse" : "edit"); break;
+      case "workbench":
+        if (narrow) openHealth();
+        else if (workbench.open) setWorkbench(w => ({ ...w, open: false }));
+        else openWorkbench(workbench.tab);
+        break;
+      case "addSection": selectRail("sections"); setAdding(sections.length); break;
+      case "prevSection": case "nextSection": {
+        if (!sections.length) break;
+        const to = index < 0 ? (action === "nextSection" ? 0 : sections.length - 1) : Math.min(sections.length - 1, Math.max(0, index + (action === "nextSection" ? 1 : -1)));
+        if (to !== index) openSectionAnywhere(sections[to].id);
+        break;
+      }
       case "deselect": if (selectedId) { setSelectedId(null); setBlockId(null); } else if (selectedElement) closeElement(); break;
       case "delete": if (selected && !blockId) delSection(selected.id); break;
       case "duplicate": if (selected) dupSection(selected.id); break;
@@ -1222,8 +1388,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         setList(l => moveSection(l, index, to), { label: `Move ${sectionTitle(selected!).label} ${action === "moveUp" ? "up" : "down"}` });
         break;
       }
+      default:
+        if (action.startsWith("go:")) selectRail(action.slice(3) as LeftTab);
     }
   };
+  const goPendingRef = useRef(0);
   const shortcutRef = useRef(runShortcut);
   shortcutRef.current = runShortcut;
   useEffect(() => {
@@ -1232,9 +1401,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       const typing = /input|textarea|select/i.test(el?.tagName || "") || !!el?.isContentEditable;
       const onControl = !!el?.closest?.("button, a[href], [role=button], [role=tab], [role=menuitem]");
       const dialogOpen = !!document.querySelector("[role=dialog][aria-modal=true], .rp-dialog-root [role=dialog]");
+      // "G then a letter" opens a workspace; the second key must follow within GO_SEQUENCE_MS.
+      const pendingGo = goPendingRef.current && Date.now() - goPendingRef.current < GO_SEQUENCE_MS;
+      goPendingRef.current = 0;
+      if (pendingGo && !typing && !dialogOpen && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const go = resolveGoKey(e.key);
+        if (go) { e.preventDefault(); shortcutRef.current(go); return; }
+      }
       const action = resolveShortcut({ key: e.key, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey, alt: e.altKey, typing, dialogOpen, onControl });
       if (!action) return;
       e.preventDefault();
+      if (action === "goPrefix") { goPendingRef.current = Date.now(); return; }
       shortcutRef.current(action);
     };
     window.addEventListener("keydown", key);
@@ -1265,6 +1442,61 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (selectedId === id) { setSelectedId(null); setBlockId(null); }
     say("ok", `Deleted ${gone ? sectionTitle(gone).label : "the section"}.`, undoAction());
   };
+  // Block library 3.0: Add block (the picker), Copy block and Paste copied block. Each add is one named, undoable change.
+  const openBlockPicker = (sectionId: string) => {
+    setAdding(null); setLeftTab("sections"); setSelectedId(sectionId); setBlockId(null); setMobilePanel("outline"); setBlockPicker(sectionId);
+  };
+  const openBlockPickerRef = useRef(openBlockPicker); openBlockPickerRef.current = openBlockPicker;
+  const pickerOwner = blockPicker ? findSectionOwner(design, blockPicker) : null;
+  useEffect(() => { if (blockPicker && !pickerOwner) setBlockPicker(null); }, [blockPicker, pickerOwner]);
+  // The picker belongs to one section on Page layout: leaving either closes it (and takes its try-on block off the page).
+  useEffect(() => { if (blockPicker && (leftTab !== "sections" || selectedId !== blockPicker)) setBlockPicker(null); }, [leftTab, selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const insertBlockInto = (sectionId: string, block: any, afterId: string | null, label: string) => {
+    const owner = findSectionOwner(designRef.current, sectionId); if (!owner) return;
+    const key = getBlocksKey(owner.section.type);
+    change(d => updateSectionsById(d, [sectionId], s => {
+      const list = s.settings?.[key] || s.settings?.blocks || [];
+      return { ...s, settings: { ...s.settings, [key]: afterId && findBlock(list, afterId) ? insertBlockAfter(list, afterId, block) : [...list, block] } };
+    }), { label });
+    setSelectedId(sectionId); setBlockId(block.id); setMobilePanel("settings"); highlight(sectionId, true, block.id);
+  };
+  const addBlockFromPicker = (choice: BlockChoice) => {
+    const sectionId = blockPicker; setBlockPicker(null);
+    if (sectionId) insertBlockInto(sectionId, choice.make(), null, choice.id === "clipboard" ? "Paste block" : `Add ${choice.label}`);
+  };
+  const copyBlockNow = (section: Section, id: string) => {
+    const key = getBlocksKey(section.type);
+    const block = findBlock(section.settings[key] || section.settings.blocks || [], id); if (!block) return;
+    setCopiedBlock(copyBlock(section.type, block));
+    say("ok", `Block copied. Paste it into any ${getSectionMeta(section.type)?.label || "section"} section with Paste copied block.`);
+  };
+  const pasteBlockNow = (section: Section, afterId: string | null) => {
+    if (!canPasteBlock(copiedBlock, section.type)) {
+      say("ok", copiedBlock ? `That block came from a ${getSectionMeta(copiedBlock.sectionType)?.label || "different"} section, so it only pastes into one of those.` : "Copy a block first: select it and choose Copy block.");
+      return;
+    }
+    const linkedTo = copiedBlock!.block.sharedBlockId;
+    if (linkedTo && !(designRef.current.sharedBlocks || []).some((x: SharedBlock) => x.id === linkedTo)) {
+      say("ok", "The copied block was linked to a shared block that has since been deleted, so there's nothing to paste. Copy the block again.");
+      return;
+    }
+    const block = pasteBlock([], copiedBlock!).list[0];
+    const key = getBlocksKey(section.type);
+    // Blocks nest 3 levels deep at most; a group pasted beside a deeply nested block goes at the end instead of losing its inner blocks.
+    const fits = fitsAfter(section.settings[key] || section.settings.blocks || [], afterId, block);
+    insertBlockInto(section.id, block, fits ? afterId : null, "Paste block");
+    say("ok", fits ? "Block pasted." : "Block pasted at the end of the section: there it keeps all the blocks inside it (blocks nest 3 levels deep at most).", undoAction());
+  };
+  const pickerChoices = useMemo(() => {
+    if (!pickerOwner) return [];
+    const section = pickerOwner.section, meta = getSectionMeta(section.type);
+    const key = getBlocksKey(section.type);
+    return blockChoices(meta ? { ...meta, type: section.type } : undefined, {
+      existing: section.settings?.[key] || section.settings?.blocks || [], sharedBlocks: design.sharedBlocks || [],
+      clip: copiedBlock?.block.sharedBlockId && !(design.sharedBlocks || []).some((x: SharedBlock) => x.id === copiedBlock.block.sharedBlockId) ? null : copiedBlock,
+      labelOf: (b, i) => blockLabel(b, i, meta?.blockLabel),
+    });
+  }, [pickerOwner, design.sharedBlocks, copiedBlock]);
   const pasteSection = () => {
     if (!copiedSection) return;
     const clone = duplicateSection([copiedSection], copiedSection.id).list[1];
@@ -1430,7 +1662,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     section: selected && selectedIndex >= 0 ? { id: selected.id, label: sectionTitle(selected).label, visible: selected.visible !== false, first: selectedIndex === 0, last: selectedIndex === sections.length - 1 } : undefined,
     element: selectedElement ? { label: selectedElement.label || "Page part", hasTheme: elementTabs(selectedElement, device as RegionDevice, design).styleGroups.length > 0 } : undefined,
     canPasteStyle: Boolean(copiedStyle),
-  }), [selected, selectedIndex, sections.length, selectedElement, copiedStyle, device, design]);
+    blocks: selected ? {
+      takesBlocks: Boolean(getSectionMeta(selected.type)?.blockType),
+      blockLabel: blockId ? selectedBlockCrumb(selected, blockId).label : undefined,
+      canPaste: canPasteBlock(copiedBlock, selected.type),
+    } : undefined,
+  }), [selected, selectedIndex, sections.length, selectedElement, copiedStyle, copiedBlock, blockId, device, design]);
   const runContext = (id: string) => {
     const sid = selected?.id;
     switch (id) {
@@ -1442,6 +1679,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "section-show": if (sid) outlineActions.setVisible([sid], true); break;
       case "section-copy": if (sid) outlineActions.copy(sid); break;
       case "section-copy-style": if (sid) outlineActions.copyStyle(sid); break;
+      case "block-add": if (sid) openBlockPicker(sid); break;
+      case "block-copy": if (selected && blockId) copyBlockNow(selected, blockId); break;
+      case "block-paste": if (selected) pasteBlockNow(selected, blockId); break;
       case "section-paste-style": if (sid) outlineActions.pasteStyle([sid]); break;
       case "section-move-page": if (sid) outlineActions.moveToPage([sid]); break;
       case "section-save": if (sid) outlineActions.saveForReuse(sid); break;
@@ -1493,7 +1733,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         break;
       case "history": setHistoryOpen(true); loadVersions(); break;
       case "schedule": setSchedule({ themeId: null }); break;
-      case "check": setChecksOpen(true); break;
+      case "check": openHealth(); break;
+      case "workbench-health": openWorkbench("health"); break;
+      case "workbench-changes": openWorkbench("changes"); break;
+      case "workbench-setup": openWorkbench("setup"); break;
+      case "brand-kit": openBrandKit(); break;
+      case "site-health": runSiteHealth(); break;
       case "preview-tab": openPreviewTab(); break;
       case "undo": stepHistory("undo"); break;
       case "redo": stepHistory("redo"); break;
@@ -1593,6 +1838,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : leftTab === "themes" ? "Save, compare, share and switch whole designs." : "Create pages and edit their content or layout."}</small>
           </div>
           <div className="flex-1 overflow-auto" ref={sidebarScrollRef}>
+            {brandKit && <StudioBrandKit design={design} onPreview={setBrandChoice} onApply={applyBrandKit} onClose={() => setBrandKit(false)} />}
+            <div hidden={brandKit}>
             <StudioTips forceOpen={tipsNonce} />
             {leftTab === "sections" && adding !== null && (
               <StudioSectionLibrary registry={SECTION_REGISTRY} design={design}
@@ -1604,17 +1851,22 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onRenameShared={renameSharedAsk} onDeleteShared={deleteSharedNow}
                 onClose={() => setAdding(null)} />
             )}
-            {leftTab === "sections" && adding === null && !showGlobal && (
+            {leftTab === "sections" && adding === null && pickerOwner && (
+              <StudioBlockPicker key={blockPicker!} sectionLabel={sectionTitle(pickerOwner.section).label} choices={pickerChoices}
+                onPreview={choice => setBlockCandidate(choice ? choice.make() : null)} onPick={addBlockFromPicker}
+                onClose={() => setBlockPicker(null)} />
+            )}
+            {leftTab === "sections" && adding === null && !blockPicker && !showGlobal && (
               <StudioTemplateCard design={design} templateId={template.id} books={books} previewBookSlug={productSlug}
                 onSwitch={id => { setTemplateId(id); setSelectedId(null); setBlockId(null); }}
                 onPreviewBook={setProductSlug}
                 onCreate={createTemplateAsk} onRename={renameTemplateAsk} onDelete={deleteTemplateNow} />
             )}
-            {leftTab === "sections" && adding === null && !showGlobal && isProductTemplate(template.id) && (
+            {leftTab === "sections" && adding === null && !blockPicker && !showGlobal && isProductTemplate(template.id) && (
               <StudioProductBlocks design={design} templateId={template.id} change={change}
                 onNotice={(text, undoable) => say("ok", text, undoable ? undoAction() : undefined)} />
             )}
-            {leftTab === "sections" && adding === null && template.id === "heroPage" && (
+            {leftTab === "sections" && adding === null && !blockPicker && template.id === "heroPage" && (
               <div className="m-3 p-3 rounded-lg border border-neutral-200 bg-white text-xs space-y-2">
                 <label className="flex items-center justify-between gap-3 font-bold text-sm">
                   Show a Home page
@@ -1628,7 +1880,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 </p>
               </div>
             )}
-            {leftTab === "sections" && adding === null && (template.id === "page" || template.id.startsWith("page:")) && !sections.some((s) => s.type === "PageContentSection") && (
+            {leftTab === "sections" && adding === null && !blockPicker && (template.id === "page" || template.id.startsWith("page:")) && !sections.some((s) => s.type === "PageContentSection") && (
               <div className="m-3 p-3 rounded-lg border border-neutral-200 bg-white text-xs space-y-2" data-studio-panel="page-content">
                 <p className="font-bold text-sm">The page text is fixed at the bottom</p>
                 <p className="text-neutral-500">This page's title and text (written in Pages) always sit below every section here, so nothing can go under them. Make them a <b>Page content</b> section, then move it up or down like any other section. The page looks the same until you move it.</p>
@@ -1638,7 +1890,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 }}>Make page text movable</button>
               </div>
             )}
-            {leftTab === "sections" && adding === null && <div className="studio-section-tools">
+            {leftTab === "sections" && adding === null && !blockPicker && <div className="studio-section-tools">
               <button className={btn} onClick={() => setAdding(sections.length)}><Plus size={13} /> Add section</button>
               <button className={btn} onClick={() => autoFitPage(false)} title="Works out phone spacing, text sizes, columns and stacked blocks for this page's sections and built-in regions. Anything you set yourself is kept."><Smartphone size={13} /> Auto-fit page for phones</button>
               <div className="studio-tools-menu"><span>Section tools</span><ActionMenu label="Section tools" actions={[
@@ -1650,7 +1902,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   onSelect: () => { if (!selected) { say("ok", "Select a section first, then save it. Saved sections appear in Add section."); return; } saveSection(selected); } },
               ]} /></div>
             </div>}
-            {leftTab === "sections" && adding === null && <StudioStructure structure={structure} hoverKey={hoverKey} selectedKey={selectedElement?.key || null} deviceLabel={REGION_DEVICE_LABELS[device]}
+            {leftTab === "sections" && adding === null && !blockPicker && <StudioStructure structure={structure} hoverKey={hoverKey} selectedKey={selectedElement?.key || null} deviceLabel={REGION_DEVICE_LABELS[device]}
               pageLabel={template.label} showGlobal={showGlobal} group={globalGroup}
               groupCounts={Object.fromEntries(SECTION_GROUP_KEYS.map(k => [k, Array.isArray(design[k]) ? design[k].length : 0]))}
               onHover={key => postPreview({ type: "HOVER_NODE", key })}
@@ -1667,7 +1919,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               onRename={renameSection} actions={outlineActions} sharedBlocks={design.sharedBlocks || []} templateId={showGlobal ? "" : template.id}
               onSelect={(id, block) => { setSelectedId(id); setBlockId(block || null); setMobilePanel("settings"); highlight(id, true, block || null); }}
               onReorder={list => setList(() => list)} onPatch={(id, patch) => setList(list => patchSectionSettings(list, id, patch))}
-              onAdd={setAdding} onDuplicate={dupSection} onDelete={delSection}
+              onAdd={setAdding} onAddBlock={openBlockPicker} onDuplicate={dupSection} onDelete={delSection}
               onToggle={id => setList(list => toggleSection(list, id))} />
             </StudioStructure>}
             {leftTab === "style" && <div className="studio-settings-search">
@@ -1744,6 +1996,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                     <StudioAnnouncements design={design} change={change}
                       onNotice={(text, canUndo) => say("ok", text, canUndo ? undoAction() : undefined)} />
                   </div>}
+                  {styleCategory === "tokens" && <div className="px-4 pb-4"><StudioScalePreview design={design} /></div>}
                   {styleCategory === "schemes" && <div className="px-4 pb-4">
                     <StudioColorSchemes design={design} change={change} confirm={askConfirm}
                       onNotice={(text, canUndo) => say("ok", text, canUndo ? undoAction() : undefined)} />
@@ -1945,8 +2198,51 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   }} />
               </>
             )}
+            </div>
           </div>
         </div>
+  );
+  // ── Workbench (3.0 phase 1) ──
+  const changeRows = useMemo((): ChangeRow[] => {
+    const past = hist.pastLabels ?? hist.past.map(() => "Edit");
+    const future = hist.futureLabels ?? hist.future.map(() => "Edit");
+    const start = hist.past.length >= HISTORY_LIMIT ? "Earliest step kept" : "Where you started";
+    return [start, ...past, ...future].map((label, i) => ({ label, state: i < past.length ? "past" : i === past.length ? "current" : "future" }));
+  }, [hist]);
+  const jumpHistory = (steps: number) => {
+    setHist(h => jumpBy(h, steps));
+    setToast(t => t?.action?.expect ? null : t);
+  };
+  const changesOpen = !narrow && workbench.open && workbench.tab === "changes";
+  const deferredDesign = useDeferredValue(design);
+  const sinceLive = useMemo(() => changesOpen ? summariseDiff(diffDesigns(normalizeForDiff(published), normalizeForDiff(deferredDesign), diffContext)) : null,
+    [changesOpen, published, deferredDesign, normalizeForDiff, diffContext]);
+  const setupItems = useMemo(() => setupChecklist({
+    design, defaults, policies: settings?.policies, phoneChecked: phoneSeen, healthIssues, siteIssues: site.history.length && site.history[site.history.length - 1].failed === 0 ? site.history[site.history.length - 1].issues : null,
+    published: settings?.design || publishedNow ? published : null,
+  }), [design, defaults, settings, phoneSeen, healthIssues, site.history, publishedNow, published]);
+  const goSetup = (item: SetupItem) => {
+    const go = item.go;
+    if (!go) return;
+    if (go.kind === "target") openTarget(go.target, item.title);
+    else if (go.kind === "tab") selectRail(go.tab);
+    else if (go.kind === "device") { setDevice(go.device); setMobilePanel("preview"); }
+    else if (go.kind === "health") openHealth();
+    else if (go.kind === "brand") openBrandKit();
+    else if (go.kind === "publish") {
+      if (!unpublished && !dirtyDraft) say("ok", "Make a change first: there's nothing new to publish.");
+      else setConfirmAction("publish");
+    }
+  };
+  const workbenchPanel = !narrow && (
+    <StudioWorkbench open={workbench.open} tab={workbench.tab}
+      onOpen={openWorkbench} onCollapse={() => setWorkbench(w => ({ ...w, open: false }))}
+      healthIssues={healthIssues}
+      health={<HealthFindings run={runHealth} runKey={healthRun + 1} onResult={setHealthIssues}
+        pageLabel={showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label} deviceLabel={REGION_DEVICE_LABELS[device].toLowerCase()}
+        designResults={workbench.open && workbench.tab === "health" ? [...designChecks(design), designSize(design)] : []} onShow={showFinding} onFix={fixFinding} site={sitePanel} />}
+      changes={{ rows: changeRows, onJump: jumpHistory, sinceLive, blocked: inlineEditing ? "Finish the text edit in the preview first" : null }}
+      setup={{ items: setupItems, onGo: goSetup }} />
   );
   const canvasPanel = (
         <main className="studio-canvas">
@@ -1957,13 +2253,18 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <StudioPreviewFrame deviceWidth={parseInt(DEVICE_W[device], 10)} zoom={zoom}>
             <iframe ref={iframeRef} key={previewUrl + previewRevision} src={previewUrl} title="Live preview" onLoad={onIframeLoad} className="w-full h-full border-0" />
           </StudioPreviewFrame>}
+          {workbenchPanel}
         </main>
   );
   const inspectorPanel = (
           <StudioInspector section={selected} blockId={blockId} onSelectBlock={setBlockId} colorSchemes={colorSchemes}
             device={device} sharedBlocks={design.sharedBlocks || []} onSaveShared={saveSharedBlock} onPatchShared={patchSharedBlock} onInsertShared={insertSharedBlock}
+            onAddBlock={() => openBlockPicker(selected.id)} onCopyBlock={id => copyBlockNow(selected, id)}
+            canPasteBlock={canPasteBlock(copiedBlock, selected?.type)} onPasteBlock={afterId => pasteBlockNow(selected, afterId)}
             onPatch={patchSelected} onDuplicate={() => dupSection(selected.id)} onDelete={() => delSection(selected.id)}
-            onToggle={() => setList((l) => toggleSection(l, selected.id))} onNotice={(text) => say("ok", text)} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
+            onToggle={() => setList((l) => toggleSection(l, selected.id))} onNotice={(text) => say("ok", text)}
+            onReplayMotion={() => { setMode("edit"); postPreview({ type: "HIGHLIGHT_SECTION", instanceId: selected.id, blockId: null, scroll: true }); setTimeout(() => postPreview({ type: "MOTION_REPLAY", sectionId: selected.id }), 450); }}
+            arranging={arrangeId === selected?.id} onArrange={on => { setArrangeId(on ? selected.id : null); if (on) setMode("edit"); }} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
   );
 
   const inspectorEmpty = (
@@ -2012,8 +2313,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
           { label: "Preview in new tab", icon: <ExternalLink size={14} />, onSelect: openPreviewTab },
           { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
+          { label: "Brand kit…", icon: <Sparkles size={14} />, onSelect: openBrandKit },
           { label: "Schedule publishing…", icon: <Clock size={14} />, onSelect: () => setSchedule({ themeId: null }) },
-          { label: "Studio Health", icon: <ShieldCheck size={14} />, onSelect: () => setChecksOpen(true) },
+          { label: "Studio Health", icon: <ShieldCheck size={14} />, onSelect: openHealth },
+          ...(!narrow ? [{ label: workbench.open ? "Close the Workbench" : "Open the Workbench", icon: <ListChecks size={14} />, onSelect: () => (workbench.open ? setWorkbench(w => ({ ...w, open: false })) : openWorkbench(workbench.tab)) }] : []),
           { label: "Show Studio tips", onSelect: () => setTipsNonce(n => n + 1) },
           ...(unpublished && busy === null && !inlineEditing ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
         ]} /></div>
@@ -2023,6 +2326,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           title={inlineEditing ? "Finish the text edit first" : !unpublished && !dirtyDraft ? "No changes to publish yet: the shop already shows this design" : "Review and put your changes on the live shop"}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
       </header>
 
+      <StudioBreadcrumb crumbs={[
+        { label: showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label, onSelect: () => { setSelectedId(null); setBlockId(null); if (selectedElement) closeElement(); } },
+        ...(selected ? [{ label: sectionTitle(selected).label, onSelect: blockId ? () => setBlockId(null) : undefined }] : []),
+        ...(selected && blockId ? [selectedBlockCrumb(selected, blockId)] : []),
+        ...(!selected && selectedElement ? [{ label: selectedElement.label }] : []),
+      ]} />
       <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
       {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
       {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={() => { void askConfirm({ title: "Discard local edits?", message: "The unsaved edits kept on this device will be deleted. This can't be undone.", confirmLabel: "Discard local edits" }).then(ok => { if (ok) dismissRecovery(); }); }}>Discard local recovery</SecondaryButton></div>}
@@ -2057,7 +2366,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       <MediaPickerContext.Provider value={mediaLib.pickerApi}>
       <FocusContext.Provider value={focus}>
       <div className="studio-workspace" {...inertWhen(busy === "discard")}>
-        <StudioRail active={leftTab} onSelect={id => { setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setSelectedElement(null); setMobilePanel("outline"); }} />
+        <StudioRail active={leftTab} onSelect={selectRail} />
         {narrow ? <>
           {sidebarPanel}
           {canvasPanel}
@@ -2123,8 +2432,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <p className="text-sm">{confirmAction === "publish" ? "These changes will become visible to shoppers immediately:" : "These draft changes will be permanently replaced by the current live design:"}</p>
           <ul className="list-disc pl-5 text-sm space-y-1">{confirmAction !== null && publishSummary(confirmAction === "publish" ? published : design, confirmAction === "publish" ? design : published).map(x => <li key={x}>{x}</li>)}</ul>
           {confirmAction === "publish" && publishHealth && <p className="studio-health-publish" data-publish-health>
-            <ShieldCheck size={14} aria-hidden /> Studio Health checked {template.label} on {REGION_DEVICE_LABELS[device].toLowerCase()} only (other pages and sizes were not checked): {publishHealth.text}
-            {(publishHealth.issues > 0 || publishHealth.tips > 0) && <button type="button" className="studio-link-button" onClick={() => { setConfirmAction(null); setChecksOpen(true); }}>Review</button>}
+            <ShieldCheck size={14} aria-hidden /> {site.report && site.complete && site.ranAt?.device === device && !site.running
+              ? <>Studio Health checked {template.label} on {REGION_DEVICE_LABELS[device].toLowerCase()}: {publishHealth.text}. Check every page at {new Date(site.ranAt.at).toLocaleTimeString()} ({site.report.totals.checked} pages, before any later edits): {site.report.totals.issues ? `${site.report.totals.issues} to fix` : "nothing to fix"}{site.report.totals.failed ? `, ${site.report.totals.failed} not checked` : ""}.</>
+              : <>Studio Health checked {template.label} on {REGION_DEVICE_LABELS[device].toLowerCase()} only (other pages and sizes were not checked): {publishHealth.text}</>}
+            {(publishHealth.issues > 0 || publishHealth.tips > 0 || (site.report?.totals.issues ?? 0) > 0) && <button type="button" className="studio-link-button" onClick={() => { setConfirmAction(null); openHealth(); }}>Review</button>}
           </p>}
           <div className="flex justify-end gap-2"><button className={btn} onClick={() => setConfirmAction(null)}>Cancel</button>{confirmAction === "publish" && <button className={btn} onClick={() => { setConfirmAction(null); setSchedule({ themeId: null }); }}>Schedule instead…</button>}<button className={confirmAction === "publish" ? btnPrimary : `${btn} border-red-300 text-red-700`} disabled={busy !== null || Boolean(inlineEditing)} title={busy !== null ? "Still saving — wait a moment" : inlineEditing ? "Finish the preview text edit first" : undefined} onClick={() => { const action = confirmAction; setConfirmAction(null); action === "publish" ? publish() : discard(); }}>{confirmAction === "publish" ? "Publish now" : "Discard draft"}</button></div>
         </div>
@@ -2145,7 +2456,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       </Dialog>
       <StudioHealth open={checksOpen} onClose={() => setChecksOpen(false)} run={runHealth}
         pageLabel={showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label} deviceLabel={REGION_DEVICE_LABELS[device].toLowerCase()}
-        designResults={checksOpen ? [...designChecks(design), designSize(design)] : []} onShow={showFinding} onFix={fixFinding} />
+        designResults={checksOpen ? [...designChecks(design), designSize(design)] : []} onShow={showFinding} onFix={fixFinding} site={sitePanel} />
       <StudioSchedule open={!!schedule} onClose={() => setSchedule(null)} draft={design} savedThemes={savedThemes} initialThemeId={schedule?.themeId}
         api={{ list: () => adminApi.listThemeSchedule() as any, add: async entry => {
           // The live values of the fields edited outside Publish, so the scheduler can keep later live edits (functions/themeSchedule.js).

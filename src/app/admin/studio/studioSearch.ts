@@ -10,7 +10,8 @@ import { SHORTCUTS, type ShortcutAction } from "./shortcuts";
 export type StudioTab = "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
 export type StudioActionId =
   | "save" | "publish" | "discard" | "history" | "schedule" | "check" | "preview-tab" | "undo" | "redo"
-  | "device-desktop" | "device-tablet" | "device-mobile" | "mode-toggle" | "autofit-page" | "add-section" | "fill-page-seo";
+  | "device-desktop" | "device-tablet" | "device-mobile" | "mode-toggle" | "autofit-page" | "add-section" | "fill-page-seo"
+  | "workbench-health" | "workbench-changes" | "workbench-setup" | "brand-kit" | "site-health";
 
 export type SearchTarget =
   | { type: "style"; groupId: string; key?: string }
@@ -29,6 +30,7 @@ export type SearchTarget =
 export type ContextCommandId =
   | "section-duplicate" | "section-delete" | "section-up" | "section-down" | "section-hide" | "section-show"
   | "section-copy" | "section-copy-style" | "section-paste-style" | "section-move-page" | "section-save"
+  | "block-add" | "block-copy" | "block-paste"
   | "element-theme" | "element-close";
 
 export type SearchKind = "action" | "page" | "section" | "style" | "text" | "menu" | "area" | "element" | "book";
@@ -99,6 +101,7 @@ const staticEntry = (id: string, kind: SearchKind, title: string, where: string,
 const keysFor = (action?: ShortcutAction) => action ? SHORTCUTS.find(s => s.action === action)?.keys.split("  ·  ")[0] : undefined;
 const ACTION_KEYS: Partial<Record<StudioActionId, ShortcutAction>> = {
   save: "save", undo: "undo", redo: "redo", "device-desktop": "desktop", "device-tablet": "tablet", "device-mobile": "mobile", "mode-toggle": "toggleMode",
+  "add-section": "addSection", "workbench-changes": "workbench",
 };
 
 const ACTIONS: { id: StudioActionId; title: string; keywords: string }[] = [
@@ -117,6 +120,11 @@ const ACTIONS: { id: StudioActionId; title: string; keywords: string }[] = [
   { id: "mode-toggle", title: "Switch Edit / Browse mode", keywords: "click links navigate storefront" },
   { id: "autofit-page", title: "Auto-fit this page for phones", keywords: "responsive mobile layout generate stack small screen" },
   { id: "add-section", title: "Add a section", keywords: "new block library insert hero banner" },
+  { id: "workbench-changes", title: "Show this session's changes (undo history)", keywords: "workbench history steps go back undo several timeline what did i change edits list" },
+  { id: "workbench-setup", title: "Setup checklist (get the shop ready)", keywords: "workbench launch onboarding getting started to do progress logo fonts colours share image" },
+  { id: "brand-kit", title: "Brand kit (logo, colours, type and Home page in one go)", keywords: "brand kit wizard setup logo palette colours personality fonts starter home page onboarding" },
+  { id: "site-health", title: "Check every page (Studio Health for the whole shop)", keywords: "site wide all pages health audit speed scan every route whole shop crawl check everything problems" },
+  { id: "workbench-health", title: "Open Studio Health in the Workbench", keywords: "workbench docked panel accessibility check problems" },
   { id: "fill-page-seo", title: "Fill in missing search listings (pages)", keywords: "seo auto fill autofill meta description search title google listing pages blank" },
 ];
 
@@ -141,7 +149,7 @@ export function buildStudioIndex(input: IndexInput): SearchEntry[] {
   const out: SearchEntry[] = [];
 
   for (const a of ACTIONS) out.push(staticEntry(`action:${a.id}`, "action", a.title, "Studio", a.keywords, { type: "action", id: a.id }, keysFor(ACTION_KEYS[a.id])));
-  for (const t of TABS) out.push(staticEntry(`tab:${t.tab}`, "area", t.title, "Studio", t.keywords, { type: "tab", tab: t.tab }));
+  for (const t of TABS) out.push(staticEntry(`tab:${t.tab}`, "area", t.title, "Studio", t.keywords, { type: "tab", tab: t.tab }, keysFor(`go:${t.tab}` as ShortcutAction)));
   for (const m of MENU_PANELS) out.push(staticEntry(m.panel, "menu", m.title, "Menus", m.keywords, { type: "menus", panel: m.panel }));
 
   for (const t of input.templates) {
@@ -301,6 +309,8 @@ export function contextCommands(ctx: {
   section?: { id: string; label: string; visible: boolean; first: boolean; last: boolean };
   element?: { label: string; hasTheme: boolean };
   canPasteStyle?: boolean;
+  /** Block library 3.0: the selected section takes blocks / a block is selected / the copied block fits here. */
+  blocks?: { takesBlocks: boolean; blockLabel?: string; canPaste: boolean };
 }): SearchEntry[] {
   const out: SearchEntry[] = [];
   const cmd = (id: ContextCommandId, title: string, where: string, keywords: string, keys?: ShortcutAction) =>
@@ -318,6 +328,11 @@ export function contextCommands(ctx: {
     cmd("section-move-page", "Move this section to another page", where, "transfer relocate");
     cmd("section-save", "Save this section for reuse", where, "preset library saved sections");
     cmd("section-delete", "Delete this section", where, "remove trash", "delete");
+    if (ctx.blocks?.takesBlocks) {
+      cmd("block-add", "Add a block to this section", where, "block picker new insert content");
+      if (ctx.blocks.blockLabel) cmd("block-copy", `Copy the selected block (${ctx.blocks.blockLabel})`, where, "clipboard block duplicate another section");
+      if (ctx.blocks.canPaste) cmd("block-paste", "Paste the copied block here", where, "clipboard block insert");
+    }
   }
   if (ctx.element) {
     const where = `Selected part › ${ctx.element.label}`;

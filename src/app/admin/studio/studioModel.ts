@@ -269,6 +269,18 @@ export function redo<T>(h: History<T>): History<T> {
     pastLabels: [...(h.pastLabels ?? h.past.map(() => "Edit")), labels[0] || "Edit"], futureLabels: labels.slice(1),
   };
 }
+/** Moves `steps` through history in one go (negative = back, positive = forward), e.g. from the Workbench's
+ *  Changes list. Same labels as stepping one at a time; stops at either end. */
+export function jumpBy<T>(h: History<T>, steps: number): History<T> {
+  let cur = h;
+  const n = Math.trunc(steps) || 0;
+  for (let i = 0; i < Math.abs(n); i++) {
+    const next = n < 0 ? undo(cur) : redo(cur);
+    if (next === cur) break;
+    cur = next;
+  }
+  return cur;
+}
 /** "Undo: Move Newsletter up" / "Redo: …" labels for the toolbar buttons. */
 export const undoLabel = (h: History<any>) => h.past.length ? (h.pastLabels?.[h.pastLabels.length - 1] || "Edit") : "";
 export const redoLabel = (h: History<any>) => h.future.length ? (h.futureLabels?.[0] || "Edit") : "";

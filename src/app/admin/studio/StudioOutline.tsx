@@ -70,7 +70,7 @@ function NestedBlocks({ blocks, section, depth, selectedId, blockId, label, onSe
   </div>;
 }
 
-export function StudioOutline({ sections, selectedId, blockId, onSelect, onReorder, onPatch, onAdd, onDuplicate, onDelete, onToggle, hoveredId, onHover, onRename, actions, device = "desktop", sharedBlocks = [], templateId = "" }: {
+export function StudioOutline({ sections, selectedId, blockId, onSelect, onReorder, onPatch, onAdd, onAddBlock, onDuplicate, onDelete, onToggle, hoveredId, onHover, onRename, actions, device = "desktop", sharedBlocks = [], templateId = "" }: {
   sections: Section[]; selectedId: string | null; blockId: string | null;
   /** The previewed size, so rows can say when a section is hidden there (or scheduled) and so missing from the preview. */
   device?: string;
@@ -79,6 +79,8 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
   onSelect: (sectionId: string, blockId?: string) => void;
   onReorder: (sections: Section[]) => void; onPatch: (id: string, patch: any) => void;
   onAdd: (index: number) => void; onDuplicate: (id: string) => void;
+  /** Opens the block picker for a section (Block library 3.0); without it, Add block adds the section's default block. */
+  onAddBlock?: (sectionId: string) => void;
   onDelete: (id: string) => void; onToggle: (id: string) => void;
   /** Section the pointer is over in the preview, and hover reporting back to it. */
   hoveredId?: string | null; onHover?: (sectionId: string | null) => void;
@@ -209,6 +211,7 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
                 {!blocks.length && <p className="studio-hint" data-empty-blocks>This section has no {(meta?.blockLabel || "block").toLowerCase()}s yet, so it shows nothing on the shop. Add one below.</p>}
                 <NestedBlocks blocks={blocks} section={section} depth={0} selectedId={selectedId} blockId={blockId} label={meta?.blockLabel || "Block"} onSelect={onSelect} onChange={next => patchBlocks(() => next)} onMoveBlock={actions?.moveBlock} library={sharedBlocks} />
                 <SecondaryButton onClick={() => {
+                  if (onAddBlock) { onAddBlock(section.id); return; }
                   const block = { ...JSON.parse(JSON.stringify(meta?.blockDefaults || {})), id: newId() };
                   patchBlocks(list => [...list, block]); onSelect(section.id, block.id);
                 }}><Plus size={13} /> Add {meta?.blockLabel || "block"}</SecondaryButton>

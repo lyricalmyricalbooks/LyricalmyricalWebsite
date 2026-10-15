@@ -120,12 +120,15 @@ function refundedMayStillFail(o, nowMs) {
   return o.paymentStatus === "refunded" && o.refund?.provider === "stripe" && o.refund?.status !== "failed"
     && nowMs - Date.parse(o.refundedAt || o.refund?.createdAt || "") <= FAILED_REFUND_WINDOW_MS;
 }
+// Whether the safety net watches an order at all, whenever it was last checked.
+function reversalWatched(o, nowMs = Date.now()) {
+  return !!o && (o.paymentStatus === "paid" || o.paymentStatus === "refund_pending" || refundedMayStillFail(o, nowMs)) && o.isTest !== true
+    && typeof o.stripePaymentIntentId === "string" && o.stripePaymentIntentId.startsWith("pi_")
+    && nowMs - Date.parse(o.paidAt || o.createdAt || "") <= REVERSAL_WINDOW_MS;
+}
 function ordersDueReversalCheck(orders, nowMs = Date.now(), limit = 40) {
   return (orders || [])
-    .filter((o) => o && (o.paymentStatus === "paid" || o.paymentStatus === "refund_pending" || refundedMayStillFail(o, nowMs)) && o.isTest !== true
-      && typeof o.stripePaymentIntentId === "string" && o.stripePaymentIntentId.startsWith("pi_")
-      && nowMs - Date.parse(o.paidAt || o.createdAt || "") <= REVERSAL_WINDOW_MS
-      && !(nowMs - Date.parse(o.stripeCheckedAt || "") < REVERSAL_RECHECK_MS))
+    .filter((o) => reversalWatched(o, nowMs) && !(nowMs - Date.parse(o.stripeCheckedAt || "") < REVERSAL_RECHECK_MS))
     .sort((a, b) => (Date.parse(a.stripeCheckedAt || "") || 0) - (Date.parse(b.stripeCheckedAt || "") || 0))
     .slice(0, limit);
 }
@@ -145,4 +148,4 @@ function failedRefundId(order, charge, refunds) {
   return mine && FAILED_REFUND.includes(String(mine.status)) ? mine.id || "unknown" : null;
 }
 
-module.exports = { failedRefundId, reversalState, ordersDueReversalCheck, REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets };
+module.exports = { failedRefundId, reversalState, ordersDueReversalCheck, reversalWatched, REVERSAL_RECHECK_MS, REVERSAL_WINDOW_MS, FAILED_REFUND_WINDOW_MS, REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets };

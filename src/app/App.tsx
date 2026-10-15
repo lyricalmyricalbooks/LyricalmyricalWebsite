@@ -1,12 +1,12 @@
-import { useState, lazy, Suspense, useEffect, type ReactNode } from "react";
+import { useState, lazy, Suspense, useEffect, useRef, type ReactNode } from "react";
 import { consentAllows } from "./lib/consent";
 import { REFERRAL_KEY, referralSourceOf } from "./lib/referralSource";
 import { LazyMotion, MotionConfig } from "motion/react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router";
 import { ScrollToTop } from "./lib/ScrollToTop";
 import { ga4PageView } from "./lib/ga4";
 import { ThemePreviewBanner } from "./features/site/ThemePreviewBanner";
-import { CartProvider } from "./CartContext";
+import { CartProvider, useCart } from "./CartContext";
 import { CurrencyProvider } from "./CurrencyContext";
 import { ShopToaster } from "./features/site/ShopToaster";
 import { CartDrawer } from "./components/CartDrawer";
@@ -15,6 +15,8 @@ import { UnderConstructionWall } from "./components/UnderConstructionWall";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { BootSplash } from "./components/BootSplash";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { endPrerenderedHandoff, prerenderedHtml, whenPrerenderedReady } from "./lib/prerenderedPage";
+import { preloadSiteData } from "./features/site/useSiteData";
 
 // import.meta.env.BASE_URL is the Vite `base` config (e.g. "/LyricalmyricalWebsite/").
 // Strip the trailing slash so React Router treats it as a basename.
@@ -25,11 +27,12 @@ const loadMotionFeatures = () => import("./lib/motionFeatures").then(m => m.defa
 
 // Lazy-loaded components for performance
 const NotFoundPage = lazy(() => import("./features/site/NotFoundPage"));
-const MainSite = lazy(() => import("./components/MainSite"));
+// Pages that can arrive as server-rendered HTML wait for the shop data on that first load (prerenderedPage.ts).
+const MainSite = lazy(whenPrerenderedReady(() => import("./components/MainSite"), preloadSiteData));
 const Dashboard = lazy(() => import("./admin/Dashboard").then(m => ({ default: m.Dashboard })));
 const Checkout = lazy(() => import("./Checkout").then(m => ({ default: m.Checkout })));
-const BookDetail = lazy(() => import("./features/site/BookDetail"));
-const PageView = lazy(() => import("./features/site/PageView").then(m => ({ default: m.PageView })));
+const BookDetail = lazy(whenPrerenderedReady(() => import("./features/site/BookDetail"), preloadSiteData));
+const PageView = lazy(whenPrerenderedReady(() => import("./features/site/PageView").then(m => ({ default: m.PageView })), preloadSiteData));
 const WishlistPage = lazy(() => import("./features/site/Wishlist"));
 const AccountPage = lazy(() => import("./features/site/Account"));
 const OrderTracking = lazy(() => import("./features/site/OrderTracking"));
@@ -42,6 +45,36 @@ function Ga4PageViews() {
     return () => window.clearTimeout(t);
   }, [location.pathname, location.search]);
   return null;
+}
+
+/** While the landing page's code and data load, keep showing its server-rendered HTML instead of the splash. */
+function PageLoading() {
+  const location = useLocation();
+  const html = prerenderedHtml(ROUTER_BASENAME + location.pathname);
+  if (html) return <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: html }} />;
+  return <BootSplash />;
+}
+
+/** The first navigation ends the hand-over from the server-rendered landing page. */
+function PrerenderedHandoff() {
+  const location = useLocation();
+  const [first] = useState(location.key);
+  useEffect(() => { if (location.key !== first) endPrerenderedHandoff(); }, [location.key, first]);
+  return null;
+}
+
+// /cart (old Big Cartel bag links, typed addresses): the shop with the bag open. Hosting answers it with
+// X-Robots-Tag: noindex and useSEO adds the robots meta, so it's never listed. Closing the bag leaves /cart.
+function CartRoute({ children }: { children: ReactNode }) {
+  const { isCartOpen, setIsCartOpen } = useCart();
+  const navigate = useNavigate();
+  const opened = useRef(false);
+  useEffect(() => { setIsCartOpen(true); }, [setIsCartOpen]);
+  useEffect(() => {
+    if (isCartOpen) opened.current = true;
+    else if (opened.current) navigate("/", { replace: true });
+  }, [isCartOpen, navigate]);
+  return <>{children}</>;
 }
 
 function RouteErrorBoundary({ children }: { children: ReactNode }) {
@@ -97,7 +130,8 @@ export default function App() {
           <CookieConsent />
           <UnderConstructionWall />
           <ThemePreviewBanner />
-          <Suspense fallback={<BootSplash />}>
+          <PrerenderedHandoff />
+          <Suspense fallback={<PageLoading />}>
                 <ShopToaster />
                 <Routes>
                   <Route path="/" element={
@@ -121,6 +155,18 @@ export default function App() {
                       nextPage={nextPage}
                       prevPage={prevPage}
                     />
+                  } />
+                  <Route path="/cart" element={
+                    <CartRoute>
+                      <MainSite
+                        setShowCatalog={setShowCatalog}
+                        showCatalog={showCatalog}
+                        setCurrentPage={setCurrentPage}
+                        currentPage={currentPage}
+                        nextPage={nextPage}
+                        prevPage={prevPage}
+                      />
+                    </CartRoute>
                   } />
                   <Route path="/wishlist" element={<WishlistPage />} />
                   <Route path="/account/*" element={<AccountPage />} />

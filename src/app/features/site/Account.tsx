@@ -49,6 +49,7 @@ import { functionUrl } from "../../lib/functionsBase";
 import toast from "react-hot-toast";
 import { useCart } from "../../CartContext";
 import { reorderPlan } from "./reorder";
+import { inEditorPreview } from "../../lib/trackingGuard";
 
 type CustomerProfile = {
   uid: string;
@@ -222,7 +223,9 @@ function AccountContent() {
           email: u.email || "",
           name: u.displayName || "",
         };
-        await setDoc(profRef, fresh);
+        // The Studio preview (and its Check every page) shows the account as it would look but never creates a
+        // customer record for the signed-in owner (that would also send them a welcome email).
+        if (!inEditorPreview()) await setDoc(profRef, fresh);
         if (stale()) return;
         setProfile(fresh);
         setAddressForm({ ...EMPTY_ADDRESS, name: fresh.name });

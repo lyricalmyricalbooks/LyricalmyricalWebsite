@@ -30,7 +30,7 @@ const REGION_IDS = REGION_GROUPS.map((g) => g.id);
  */
 export const THEME_HEADINGS: SettingsHeading[] = [
   { id: "system", band: "Site-wide design", title: "", blurb: "Presets, brand, colours, fonts, buttons and spacing used on every page. One change restyles the whole shop.",
-    groups: ["themeLook", "logo", "colors", "schemes", "type", "smallPrint", "buttons", "layout", "effects", "toasts", "riso"] },
+    groups: ["themeLook", "logo", "colors", "schemes", "type", "tokens", "smallPrint", "buttons", "layout", "effects", "toasts", "riso"] },
   { id: "chrome", band: "Parts of your shop", title: "Header, menu & footer", blurb: "The parts that repeat at the top and bottom of every page. Tip: click one in the preview to edit it there.",
     groups: ["header", "navlinks", "footer", "popup", "paymentIcons"] },
   { id: "shop", title: "Shop & book pages", blurb: "The book grid, book cards and each book's own page.",
@@ -83,6 +83,7 @@ export const GROUP_BLURBS: Record<string, string> = {
   accounts: "Turn customer accounts on or off.",
   customPages: "One look for every custom page: title, text, width and the line under the title.",
   layout: "How wide your content is and the space around it.",
+  tokens: "One type scale, spacing unit, corner set and focus and pressed look for the whole shop.",
   smallPrint: "The tiny labels and captions everywhere, all at once.",
   elements: "Switch whole storefront features on or off.",
   code: "Your own CSS or scripts (public pages only).",
@@ -96,8 +97,14 @@ export const blurbFor = (group: StyleGroup | undefined, id: string): string =>
  * Keys not listed land in a final "More settings" sub-section — nothing can disappear.
  */
 export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }[]> = {
+  tokens: [
+    { title: "Type scale", keys: ["typeScale", "typeScaleBase", "typeScaleFluid"] },
+    { title: "Spacing", keys: ["spaceUnit", "phoneSpaceScale"] },
+    { title: "Corners", keys: ["radiusScale"] },
+    { title: "Focus & pressed states", keys: ["focusRingWidth", "inputFocusColor", "buttonPress"] },
+  ],
   schemes: [
-    { title: "Parts of the shop that follow a scheme", keys: ["elementSchemes.cards", "elementSchemes.buyCard", "elementSchemes.cartDrawer"] },
+    { title: "Parts of the shop that follow a scheme", keys: ["elementSchemes.cards", "elementSchemes.buyCard", "elementSchemes.cartDrawer", "elementSchemes.header", "elementSchemes.footer"] },
   ],
   colors: [
     { title: "Main colours", keys: ["backgroundColor", "textColor", "primaryColor", "secondaryColor", "borderColor", "mutedTextColor"] },
@@ -143,7 +150,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   ],
   productPage: [
     { title: "Page layout", keys: ["productImageLayout", "productContentPosition", "productAlignment", "productDetailsLayout"] },
-    { title: "Photos", keys: ["productImageMaxWidth", "productImageAspect", "productImageFrameMode", "productImageAspectLandscape", "productPhotoOutline", "productImageFit", "productImageShadow", "productImageHoverScale", "showZoom", "showPhotoLightbox", "showAmbientGlow", "glowIntensity", "productImageGlowColor"] },
+    { title: "Photos", keys: ["productImageMaxWidth", "productImageAspect", "productImageFrameMode", "productImageAspectLandscape", "productPhotoOutline", "productImageFit", "productImageShadow", "productImageHoverScale", "showZoom", "showPhotoLightbox", "showProductVideos", "showAmbientGlow", "glowIntensity", "productImageGlowColor"] },
     { title: "Title & add-to-bag button", keys: ["productTitleSize", "productSubtitleWeight", "addToBagLabel", "productCtaWidth", "productCtaSize", "productCtaAnimation"] },
     { title: "Extras on the page", keys: ["showSpecs", "showPdpEditionDetails", "showSocialShare", "showPdpWishlist", "showBackInStock", "showComingSoonSignup", "showBundleWidget", "productBundleLayout", "showRelatedProducts", "recentlyViewedCount", "lowStockProductThreshold"] },
   ],
@@ -154,7 +161,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "“Notify me” signup box", keys: ["pdpAlertBg", "pdpAlertBorderColor", "pdpAlertBorderWidth", "pdpAlertRadius", "pdpAlertPadding", "pdpAlertHeadingColor", "pdpAlertFieldBorderColor", "pdpAlertButtonBg", "pdpAlertButtonText", "pdpAlertButtonBorderColor"] },
     { title: "Extras & gift card fields", keys: ["pdpFieldBg", "pdpFieldText", "pdpFieldBorderColor", "pdpFieldBorderWidth", "pdpFieldRadius", "pdpFieldFocusColor"] },
     { title: "Enlarged photo viewer", keys: ["pdpViewerButtonBg", "pdpViewerButtonIcon", "pdpViewerButtonBorderColor", "pdpViewerButtonShape", "pdpViewerShade", "pdpViewerShowCount", "pdpViewerCountColor"] },
-    { title: "Photo frame & thumbnails", keys: ["pdpThumbPosition", "pdpThumbWrap", "pdpThumbSize", "pdpThumbActiveColor", "pdpPhotoBorderColor", "pdpPhotoBorderWidth", "pdpShowCaption"] },
+    { title: "Photo frame & thumbnails", keys: ["pdpThumbPosition", "pdpThumbWrap", "pdpThumbSize", "pdpThumbActiveColor", "pdpPhotoBorderColor", "pdpPhotoBorderWidth", "pdpShowCaption", "pdpPhotoDots"] },
     { title: "Description / Details tabs", keys: ["pdpDetailsPlacement", "pdpSpecsStyle", "pdpTabActiveBg", "pdpTabActiveText", "pdpPanelBorderColor", "pdpPanelTextWidth"] },
     { title: "Description text", keys: ["pdpDescFont", "pdpDescSize", "pdpDescSizeMobile", "pdpDescLineHeight", "pdpDescColor", "pdpDescAlign", "pdpDescLinkColor", "pdpDescLinkUnderline", "pdpDescHeadingFont", "pdpDescHeadingSize", "pdpDescHeadingColor", "pdpDescQuoteColor", "pdpDescBlockGap"] },
     { title: "Breadcrumb & small labels", keys: ["pdpShowBackLink", "pdpShowBackArrow", "pdpShowBreadcrumb", "pdpMetaFont", "pdpMetaSize", "pdpMetaColor"] },
@@ -306,7 +313,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Error messages", order: -1, match: /^account.*Error$/ },
   ],
   "Product page": [
-    { title: "Photos & breadcrumb", match: /^(pdpCrumb|pdpBreadcrumb|pdpCaption|pdpPhotos|ariaGoToPhoto|ariaPrevPhoto|ariaNextPhoto|ariaEnlargePhoto|ariaClosePhoto|ariaPhotoViewer|bookPhotoAlt|backToCatalog|categoryFallback)/ },
+    { title: "Photos & breadcrumb", match: /^(pdpCrumb|pdpBreadcrumb|pdpCaption|pdpPhotos|ariaGoToPhoto|ariaPrevPhoto|ariaNextPhoto|ariaEnlargePhoto|ariaClosePhoto|ariaPhotoViewer|bookPhotoAlt|bookVideoLabel|ariaGoToVideo|backToCatalog|categoryFallback)/ },
     { title: "Buy box, stock, pre-orders & coming soon", match: /^(pdpInStock|pdpBackorder|pdpPreorder|pdpComingSoon|comingSoon|pdpSaleEnds|saleBadge|preorder|addToBag|pdpBuyNow|quickAdd|onlyLeft|saveAmount|priceOnRequest|ariaQty|bookAdded|bookFormat|wishlist|bookShare|bookLinkCopied)/ },
     { title: "Extras, box sets & gift cards", match: /^(pdpAddOn|pdpBoxSet|pdpGift)/ },
     { title: "Description, details & tabs", match: /^(tab|spec|productDescriptionLabel|noDescription|pdpDetailsAria)/ },

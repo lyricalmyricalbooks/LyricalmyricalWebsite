@@ -435,6 +435,239 @@ await check("Media explains a library whose rules aren't deployed", desktop, asy
   await expectText(page, "The media library isn't switched on yet");
 }, "?media=denied");
 
+await check("Motion: blocks set to appear as you scroll get the motion CSS, and Play this section's motion replays it", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: /^Flexible composition/ }).first().click();
+  await page.getByRole("tablist", { name: "Section settings" }).getByRole("tab", { name: "Style" }).click();
+  await page.locator("[data-section-style-key=revealBlocks] select").selectOption("fade-up");
+  const frame = page.frames().find(f => /preview=true/.test(f.url()));
+  if (!frame) throw new Error("no preview frame");
+  await frame.waitForFunction(() => [...document.querySelectorAll("style")].some(s => s.textContent.includes('[data-motion="armed"] [data-fm-block]{opacity:0')), null, { timeout: 10000 });
+  const sectionId = await frame.evaluate(() => document.querySelector("[data-motion-watch]")?.parentElement?.getAttribute("data-fm-section"));
+  if (!sectionId) throw new Error("the section has no motion watcher");
+  // Replay: the section is armed (blocks hidden) and then shown again.
+  await frame.evaluate(id => { window.__motionSeen = []; const el = document.querySelector(`[data-fm-section="${id}"]`); new MutationObserver(() => window.__motionSeen.push(el.getAttribute("data-motion"))).observe(el, { attributes: true, attributeFilter: ["data-motion"] }); }, sectionId);
+  await page.locator("[data-studio-panel='motion-preview']").getByRole("button", { name: "Play this section's motion" }).click();
+  await frame.waitForFunction(() => (window.__motionSeen || []).includes("armed") && window.__motionSeen.at(-1) === "shown", null, { timeout: 5000 });
+  await frame.waitForFunction(id => getComputedStyle(document.querySelector(`[data-fm-section="${id}"] [data-fm-block]`)).opacity === "1", sectionId, { timeout: 5000 });
+});
+
+await check("Arrange on page: a Flexible composition block moves on the grid by keyboard and by dragging, and Undo restores it", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: /^Flexible composition/ }).first().click();
+  const card = page.locator("[data-studio-panel='grid-arrange']");
+  await card.waitFor({ timeout: 5000 });
+  await card.getByRole("button", { name: "Arrange on page" }).click();
+  const frame = page.frames().find(f => /preview=true/.test(f.url()));
+  if (!frame) throw new Error("no preview frame");
+  const box = frame.locator("[data-studio-grid] [data-grid-block]").first();
+  await box.waitFor({ timeout: 10000 });
+  const lastDesign = async () => {
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await page.waitForTimeout(400);
+    return (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design;
+  };
+  const composition = d => d.heroPage.sections.filter(s => s.type === "CompositionSection").pop();
+  // Keyboard: Shift + Right makes the block one column wider (an unplaced block starts one column wide).
+  await box.focus();
+  await page.keyboard.press("Shift+ArrowRight");
+  await page.waitForFunction(() => document.querySelector("button[aria-label^='Undo']")?.getAttribute("title")?.includes("Resize block on grid"), null, { timeout: 5000 });
+  let saved = await lastDesign();
+  const first = composition(saved).settings.items[0];
+  if (first.grid?.desktop?.span !== 2) throw new Error(`keyboard resize saved ${JSON.stringify(first.grid)}`);
+  // Mouse: drag the resize corner right by about a third of the grid (four more columns).
+  const handle = frame.locator("[data-studio-grid] [data-grid-block] [data-grid-resize]").first();
+  await handle.waitFor({ timeout: 5000 });
+  const hb = await handle.boundingBox();
+  const gb = await frame.locator("[data-studio-grid]").boundingBox();
+  if (!hb || !gb) throw new Error("no handle box");
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + gb.width / 3, hb.y + hb.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForFunction(() => document.querySelector("button[aria-label^='Undo']")?.getAttribute("title")?.includes("Place block on grid"), null, { timeout: 5000 });
+  saved = await lastDesign();
+  const dragged = composition(saved).settings.items[0].grid.desktop.span;
+  if (!(dragged >= 5 && dragged <= 7)) throw new Error(`drag saved span ${dragged}`);
+  // Undo twice brings back the original placement.
+  await page.getByRole("button", { name: /^Undo/ }).click();
+  await page.getByRole("button", { name: /^Undo/ }).click();
+  saved = await lastDesign();
+  if (composition(saved)?.settings.items[0].grid?.desktop?.span) throw new Error("Undo did not restore the placement");
+  await card.getByRole("button", { name: "Stop arranging" }).click();
+  await frame.locator("[data-studio-grid]").waitFor({ state: "detached", timeout: 5000 });
+});
+
+await check("Brand kit: a logo's colour becomes a palette, the canvas previews it, Apply is one undoable change", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const lastDesign = async () => {
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await page.waitForTimeout(400);
+    return (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design;
+  };
+  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("menuitem", { name: "Brand kit…" }).click();
+  const kit = page.locator("[data-studio-brand-kit]");
+  await kit.waitFor({ timeout: 5000 });
+  // A red square on white, drawn in the page and handed to the file input like a real upload.
+  const b64 = await page.evaluate(() => {
+    const c = document.createElement("canvas"); c.width = c.height = 40;
+    const x = c.getContext("2d"); x.fillStyle = "#ffffff"; x.fillRect(0, 0, 40, 40); x.fillStyle = "#e8402a"; x.fillRect(8, 8, 24, 24);
+    return c.toDataURL("image/png").split(",")[1];
+  });
+  await kit.locator('input[aria-label="Upload your logo"]').setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: Buffer.from(b64, "base64") });
+  await kit.getByText("Colours found").waitFor({ timeout: 15000 });
+  await kit.getByRole("button", { name: "Next" }).click();
+  await kit.locator("[data-palette='logo-light']").click();
+  const frame = page.frames().find(f => /preview=true/.test(f.url()));
+  if (!frame) throw new Error("no preview frame");
+  await frame.waitForFunction(() => /250, 248, 244/.test(document.querySelector("header[data-fm-header]")?.getAttribute("style") || ""), null, { timeout: 10000 });
+  await kit.getByRole("button", { name: "Next" }).click();
+  await kit.locator("[data-personality='bold']").click();
+  await kit.getByRole("button", { name: "Next" }).click();
+  await kit.locator("[data-home='keep']").click();
+  await kit.getByRole("button", { name: "Next" }).click();
+  await kit.locator("[data-brand-summary]").getByText(/Anton headings/).waitFor({ timeout: 5000 });
+  const homeBefore = await page.evaluate(() => { const f = window.__studioFixture.settings; return ((f.draftDesign || f.design || {}).heroPage?.sections || []).length; });
+  await kit.getByRole("button", { name: "Apply brand kit" }).click();
+  await page.waitForFunction(() => document.querySelector("button[aria-label^='Undo']")?.getAttribute("title")?.includes("Apply brand kit"), null, { timeout: 5000 });
+  let saved = await lastDesign();
+  if (saved.backgroundColor !== "#faf8f4" || saved.headingFont !== "Anton" || !/^#e8402a$/i.test(saved.primaryColor)) {
+    throw new Error(`brand kit saved ${JSON.stringify({ bg: saved.backgroundColor, font: saved.headingFont, accent: saved.primaryColor })}`);
+  }
+  if (!String(saved.logoUrl || "").includes("example.invalid")) throw new Error("the uploaded logo was not set");
+  if ((saved.heroPage?.sections || []).length !== homeBefore) throw new Error("Keep my Home page changed Home");
+  if (!(saved.colorSchemes || []).some(s => s.id === "brand-accent")) throw new Error("no Brand colour scheme");
+  await page.getByRole("button", { name: /^Undo/ }).click();
+  saved = await lastDesign();
+  if (saved.backgroundColor === "#faf8f4") throw new Error("Undo did not take the brand kit back");
+});
+
+await check("Block picker: pointing at a block tries it on the page, clicking adds it, and Undo removes it", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: /^Flexible composition/ }).first().click();
+  await page.locator("[data-studio-panel='block-clipboard']").getByRole("button", { name: "Add block…" }).click();
+  const picker = page.locator("[data-studio-block-picker]");
+  await picker.getByText(/Adding to/).waitFor({ timeout: 5000 });
+  await picker.locator("[data-block-choice='new:image']").hover();
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("[data-fm-block='__studio-block-candidate']").first().waitFor({ state: "attached", timeout: 10000 });
+  await picker.getByText("Showing Picture on the page").waitFor({ timeout: 5000 });
+  await picker.locator("[data-block-choice='new:image']").click();
+  await page.waitForFunction(() => document.querySelector("button[aria-label^='Undo']")?.getAttribute("title")?.includes("Add Picture"), null, { timeout: 5000 });
+  await frame.locator("[data-fm-block='__studio-block-candidate']").waitFor({ state: "detached", timeout: 10000 });
+  const lastDesign = async () => {
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await page.waitForTimeout(400);
+    return (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design;
+  };
+  const composition = d => d.heroPage.sections.filter(s => s.type === "CompositionSection").pop();
+  let saved = await lastDesign();
+  const items = composition(saved).settings.items;
+  if (items[items.length - 1]?.type !== "image") throw new Error(`no picture block added: ${JSON.stringify(items.map(b => b.type))}`);
+  if (JSON.stringify(saved).includes("__studio-block-candidate")) throw new Error("the try-on block leaked into the saved draft");
+  await page.getByRole("button", { name: /^Undo/ }).click();
+  saved = await lastDesign();
+  if (composition(saved).settings.items.length !== items.length - 1) throw new Error("Undo did not remove the added block");
+  // Closing the picker without adding takes the try-on block and its "not added yet" label off the page.
+  await page.locator("[data-studio-panel='block-clipboard']").getByRole("button", { name: "Add block…" }).click();
+  await picker.locator("[data-block-choice='new:button']").hover();
+  await frame.locator("[data-fm-block='__studio-block-candidate']").first().waitFor({ state: "attached", timeout: 10000 });
+  await frame.getByText("Preview · not added yet").first().waitFor({ timeout: 5000 });
+  await picker.getByRole("button", { name: "Back to sections" }).click();
+  await frame.locator("[data-fm-block='__studio-block-candidate']").waitFor({ state: "detached", timeout: 10000 });
+  await page.waitForTimeout(500);
+  if (await frame.getByText("Preview · not added yet").count()) throw new Error("the preview still labels the closed try-on block");
+});
+
+await check("Copy block in one section and paste it into another section of the same kind", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const addComposition = async () => {
+    await page.getByRole("button", { name: "Add section" }).first().click();
+    await page.getByRole("dialog").getByRole("button", { name: /^Flexible composition/ }).first().click();
+    await page.locator("[data-studio-panel='block-clipboard']").waitFor({ timeout: 5000 });
+  };
+  await addComposition();
+  await page.locator("[data-studio-panel='block-clipboard']").getByRole("button", { name: "Add block…" }).click();
+  await page.locator("[data-studio-block-picker] [data-block-choice='new:text']").click();
+  await page.locator("[data-studio-panel='block-clipboard']").getByRole("button", { name: "Copy block" }).click();
+  await expectText(page, "Block copied");
+  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  await addComposition();
+  await page.locator("[data-studio-panel='block-clipboard']").getByRole("button", { name: "Paste copied block" }).click();
+  await page.waitForFunction(() => document.querySelector("button[aria-label^='Undo']")?.getAttribute("title")?.includes("Paste block"), null, { timeout: 5000 });
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForTimeout(400);
+  const sections = (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design.heroPage.sections.filter(s => s.type === "CompositionSection");
+  if (sections.length !== 2) throw new Error(`expected two compositions, got ${sections.length}`);
+  const copied = sections[0].settings.items.find(b => b.title === "New heading");
+  const pasted = sections[1].settings.items.find(b => b.title === "New heading");
+  if (!copied || !pasted) throw new Error("the copied block was not pasted");
+  if (copied.id === pasted.id) throw new Error("the pasted block kept the original's id");
+});
+
+await check("New page offers starters; FAQ opens as a draft with its headings", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await page.getByRole("button", { name: "New page" }).click();
+  const gallery = page.locator("[data-studio-page-starters]");
+  await gallery.waitFor({ timeout: 5000 });
+  await gallery.locator("[data-page-starter='faq']").click();
+  await expectText(page, "FAQ page started as a draft");
+  await page.locator(".studio-page-body .ql-editor").getByText("Orders").first().waitFor({ timeout: 5000 });
+  if (await page.getByLabel(/Published/).isChecked()) throw new Error("the FAQ starter opened as published");
+});
+
+await check("Header and footer colour schemes reach the preview", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await page.getByRole("button", { name: /^Colour schemes/ }).first().click();
+  for (const part of ["header", "footer"]) {
+    const select = page.locator(`[data-style-key="elementSchemes.${part}"] select`);
+    await select.waitFor({ timeout: 5000 });
+    const value = await select.locator("option").nth(1).getAttribute("value");
+    await select.selectOption(value);
+  }
+  const frame = page.frames().find(f => /preview=true/.test(f.url()));
+  if (!frame) throw new Error("no preview frame");
+  await frame.waitForFunction(() => {
+    const header = document.querySelector("header[data-fm-header]");
+    const footer = document.querySelector("footer[data-fm-footer]");
+    return header && footer && header.getAttribute("style")?.includes("var(--bg-color)") && getComputedStyle(header).getPropertyValue("--bg-color").trim()
+      && footer.getAttribute("style")?.includes("var(--bg-color)");
+  }, null, { timeout: 10000 });
+});
+
+await check("Design scales: a heading scale reaches the preview and a section's spacing step saves", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await page.getByRole("button", { name: /^Design scales/ }).first().click();
+  const preview = page.locator("[data-studio-scale-preview]");
+  await preview.getByText(/Choose a heading size scale/).waitFor({ timeout: 5000 });
+  await page.locator('[data-style-key="typeScale"] select').selectOption("perfect-fourth");
+  await preview.getByText(/Page title \(h1\)/).waitFor({ timeout: 5000 });
+  const frame = page.frames().find(f => /preview=true/.test(f.url()));
+  if (!frame) throw new Error("no preview frame");
+  await frame.waitForFunction(() => {
+    const root = document.querySelector("[data-fm-store]");
+    return root && getComputedStyle(root).getPropertyValue("--fm-step-4").includes("clamp(");
+  }, null, { timeout: 10000 });
+  // A section picks a spacing step on its Layout tab.
+  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: /^Newsletter/ }).first().click();
+  await page.getByRole("tablist", { name: "Section settings" }).getByRole("tab", { name: "Layout" }).click();
+  await page.locator("[data-section-style-key=spacingStep] select").selectOption("l");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveDesign"));
+  const saved = (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design;
+  if (saved.typeScale !== "perfect-fourth") throw new Error("the type scale was not saved");
+  if (saved.heroPage.sections.find(s => s.type === "NewsletterSection")?.settings?.spacingStep !== "l") throw new Error("the spacing step was not saved");
+});
+
 await check("a new colour scheme reaches a section in the preview, and deleting it warns", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
@@ -735,7 +968,8 @@ await check("Studio Health checks the previewed page, shows a finding and opens 
   });
   await page.getByRole("button", { name: "Theme actions" }).click();
   await page.getByRole("menuitem", { name: "Studio Health" }).click();
-  const dialog = page.getByRole("dialog", { name: "Studio Health" });
+  // On a computer Health opens in the Workbench docked under the preview (3.0 phase 1), not a dialog.
+  const dialog = page.locator("[data-studio-workbench]");
   await dialog.getByText("Checking Home at desktop size").waitFor({ timeout: 5000 });
   const finding = dialog.locator('[data-health-id^="noname:"]').first();
   await finding.waitFor({ timeout: 5000 });
@@ -754,6 +988,107 @@ await check("Studio Health checks the previewed page, shows a finding and opens 
   const line = page.locator("[data-publish-health]");
   await line.waitFor({ timeout: 5000 });
   if (!/Studio Health checked Home on desktop only/.test(await line.textContent())) throw new Error(`publish line reads "${await line.textContent()}"`);
+});
+
+await check("Check every page: audits each kind of page in a hidden preview, Stop works, Open this page switches the canvas", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("menuitem", { name: "Studio Health" }).click();
+  const wb = page.locator("[data-studio-workbench]");
+  const panel = wb.locator("[data-studio-site-health-panel]");
+  await panel.waitFor({ timeout: 5000 });
+  // Stop ends a run part-way and removes the hidden page.
+  await panel.getByRole("button", { name: "Check every page" }).click();
+  await panel.getByRole("button", { name: "Stop" }).click();
+  await panel.getByRole("button", { name: /^Check every page/ }).waitFor({ timeout: 15000 });
+  await page.waitForFunction(() => !document.querySelector("iframe[data-studio-site-health]"), null, { timeout: 5000 });
+  // A full run lists Home, a book page and a custom page, each with its own count.
+  await panel.getByRole("button", { name: /^Check every page/ }).click();
+  await panel.getByText(/Checking \d+ of \d+/).waitFor({ timeout: 5000 });
+  await panel.locator("[data-site-health-summary]").waitFor({ timeout: 5000 });
+  await panel.getByRole("button", { name: "Stop" }).waitFor({ state: "detached", timeout: 240000 });
+  for (const id of ["home", "book:default", "wishlist", "404"]) await panel.locator(`[data-site-page="${id}"]`).waitFor({ timeout: 2000 });
+  if (!(await panel.locator('[data-site-page^="page:"]').count())) throw new Error("no custom page was checked");
+  const summary = await panel.locator("[data-site-health-summary]").textContent();
+  if (!/pages? checked/.test(summary)) throw new Error(`summary reads "${summary}"`);
+  if (await page.locator("iframe[data-studio-site-health]").count()) throw new Error("a hidden page was left behind");
+  if (!(await page.evaluate(() => Object.keys(localStorage).some(k => k.startsWith("studio-site-health-v1:"))))) throw new Error("the run wasn't remembered");
+  // Nothing was written while checking.
+  if ((await calls(page)).some(c => c.method === "saveDesign")) throw new Error("checking every page wrote the design");
+  // Open this page shows the book page on the canvas.
+  const book = panel.locator('[data-site-page="book:default"]');
+  // Open the row directly: an open <details> has open="" (falsy), so toggling on the attribute would close it.
+  await book.locator("details").evaluate(d => { d.open = true; });
+  await book.getByRole("button", { name: "Open this page" }).click();
+  await page.waitForFunction(() => /\/books\//.test(document.querySelector('iframe[title="Live preview"]')?.getAttribute("src") || ""), null, { timeout: 10000 });
+});
+
+await check("Check every page scrolls through so sections that fade in lower down are checked; Open this page on the current page re-checks it", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.evaluate(() => {
+    const f = window.__studioFixture;
+    const draft = JSON.parse(JSON.stringify(f.settings.draftDesign || f.settings.design || {}));
+    const filler = Array.from({ length: 5 }, (_, i) => ({ id: `filler${i}`, type: "RichTextSection", settings: { html: "<p>Filler</p>".repeat(12) } }));
+    f.remoteSave({ ...draft, showHero: true, heroPage: { sections: [...filler, { id: "lowest", type: "RichTextSection", settings: { animation: "fade-up", html: '<p><a href="#">Go nowhere</a></p>' } }] } });
+  });
+  await page.frameLocator('iframe[title="Live preview"]').getByText("Go nowhere").first().waitFor({ state: "attached", timeout: 15000 });
+  await page.getByRole("button", { name: "Theme actions" }).click();
+  await page.getByRole("menuitem", { name: "Studio Health" }).click();
+  const panel = page.locator("[data-studio-site-health-panel]");
+  await panel.getByRole("button", { name: "Check every page" }).click();
+  await panel.getByRole("button", { name: "Stop" }).waitFor({ state: "detached", timeout: 240000 });
+  await panel.locator('[data-site-page="home"] [data-site-finding="nowhere:s:lowest"]').waitFor({ state: "attached", timeout: 2000 });
+  // The canvas already shows Home: Open this page checks it again straight away instead of waiting for a reload.
+  const stamp = page.locator("[data-studio-workbench] .studio-health > .studio-health-bar span").first();
+  const before = await stamp.textContent();
+  await page.waitForTimeout(1100);
+  await panel.locator('[data-site-page="home"]').getByRole("button", { name: "Open this page" }).click();
+  await page.waitForFunction(([sel, old]) => document.querySelector(sel)?.textContent !== old, ["[data-studio-workbench] .studio-health > .studio-health-bar span", before], { timeout: 5000 });
+});
+
+await check("Workbench: W opens it, Changes jumps back through edits, Setup's Show me opens Theme settings, G then T switches workspace", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const wb = page.locator("[data-studio-workbench]");
+  await wb.waitFor({ timeout: 5000 });
+  // Three named edits: add three sections.
+  for (let i = 0; i < 3; i++) {
+    await page.getByRole("button", { name: "Add section" }).first().click();
+    await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+    await page.keyboard.press("Escape");
+  }
+  const count = async () => page.evaluate(() => document.querySelectorAll(".studio-tree-section").length);
+  await wb.getByRole("tab", { name: /Changes/ }).click();
+  const steps = wb.locator(".studio-workbench-steps li");
+  if ((await steps.count()) < 4) throw new Error(`expected at least 4 rows in Changes, got ${await steps.count()}`);
+  const current = wb.locator('.studio-workbench-steps li[data-state="current"]');
+  const before = await count();
+  // Jump back two steps in one click.
+  const rows = await steps.count();
+  await steps.nth(rows - 3).getByRole("button").click();
+  await wb.locator('.studio-workbench-steps li[data-state="future"]').nth(1).waitFor({ timeout: 5000 });
+  if ((await current.count()) !== 1) throw new Error("no current step after the jump");
+  const after = await count();
+  if (after !== before - 2) throw new Error(`jumping back two steps left ${after} sections (was ${before})`);
+  await wb.getByText("Different from the live shop").waitFor({ timeout: 5000 });
+  // W closes and reopens the Workbench (plain keys work when no field has focus).
+  await page.evaluate(() => (document.activeElement)?.blur?.());
+  await page.keyboard.press("w");
+  await page.locator('[data-studio-workbench][data-open="false"]').waitFor({ timeout: 5000 });
+  await page.keyboard.press("w");
+  await page.locator('[data-studio-workbench][data-open="true"]').waitFor({ timeout: 5000 });
+  // Setup: Show me on the logo item opens Theme settings at Logo & wordmark.
+  await wb.getByRole("tab", { name: /Setup/ }).click();
+  await wb.getByText(/of \d+ done/).waitFor({ timeout: 5000 });
+  const themeRow = wb.locator(['logo', 'colors', 'fonts', 'share'].map(id => `[data-setup-id="${id}"][data-done="false"]`).join(", ")).first();
+  if (!(await themeRow.count())) throw new Error("expected an open Theme settings item in Setup");
+  await themeRow.getByRole("button", { name: "Show me" }).click();
+  await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Theme" }).waitFor({ timeout: 5000 });
+  // G then L goes to Page layout; G then T back to Theme settings.
+  await page.evaluate(() => (document.activeElement)?.blur?.());
+  await page.keyboard.press("g"); await page.keyboard.press("l");
+  await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Layout" }).waitFor({ timeout: 5000 });
+  await page.keyboard.press("g"); await page.keyboard.press("t");
+  await page.locator('.studio-rail button[aria-pressed="true"]', { hasText: "Theme" }).waitFor({ timeout: 5000 });
 });
 
 await check("Themes saves the draft as a theme, previews a look without changing the draft, and creates a share link", desktop, async page => {

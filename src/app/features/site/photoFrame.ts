@@ -4,7 +4,8 @@
 //  • "orientation" — upright photos use Photo shape, wide ones use "Shape for landscape photos",
 //                    near-square photos (within 8%) use a square frame;
 //  • "exact"       — the frame takes each photo's own proportions, so nothing is cropped.
-// Until a photo has been measured it uses Photo shape, so the page never waits on a download.
+// A photo's shape comes from its saved width/height (set when it is uploaded, or by the photo-copy sweep), else
+// from the photo once it loads; until then it uses Photo shape, so the page never waits on a download.
 import { aspectRatioValue } from "./imageAspect";
 
 export type FrameMode = "fixed" | "orientation" | "exact";
@@ -17,6 +18,12 @@ export function frameMode(value: unknown): FrameMode {
 export function photoRatio(width: unknown, height: unknown): number | undefined {
   const w = Number(width), h = Number(height);
   return w > 0 && h > 0 && Number.isFinite(w / h) ? w / h : undefined;
+}
+
+/** "3 / 4" → 0.75 (a frameAspect value as a number), or undefined. */
+export function aspectNumber(value: string): number | undefined {
+  const m = value.match(/^\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*$/);
+  return m ? photoRatio(m[1], m[2]) : undefined;
 }
 
 export function frameAspect(mode: FrameMode, ratio: number | undefined, portraitAspect: string, landscapeShape: unknown): string {

@@ -11,6 +11,7 @@ import { uploadErrorMessage } from "./mediaUpload";
 import type { Page } from "../../features/site/types";
 import { reconcileSavedPage } from "./studioWorkflow";
 import { askAi } from "../aiWriter";
+import { PAGE_STARTERS, pageFromStarter, type PageStarter } from "./pageStarters";
 import { useConfirm } from "../riso/components";
 
 const btn =
@@ -62,6 +63,8 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
   const locked = useRef(false);
   const [error, setError] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
+  // New page › the starter gallery (Block library 3.0).
+  const [starters, setStarters] = useState(false);
   const dirty = !!editing && JSON.stringify(editing) !== original;
   useEffect(() => { onDraft?.(dirty ? editing : null); }, [dirty, editing, onDraft]);
   useEffect(() => () => onDraft?.(null), [onDraft]);
@@ -70,7 +73,11 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
   // Bumped each time a page opens, so a slow AI draft never lands on a different page.
   const openCount = useRef(0);
   const open = (p: Partial<Page>, fresh: boolean) => { openCount.current += 1; setEditing(p); setOriginal(JSON.stringify(p)); setIsNew(fresh); setSlugEdited(!fresh); setError(""); if (!fresh && p.slug) onShow?.(p.slug); };
-  const openNew = () => open({ title: "", slug: "", body: "", status: "published", showInNav: true, order: pages.length, seoTitle: "", metaDescription: "", seoImage: "" }, true);
+  const openStarter = (starter: PageStarter) => {
+    setStarters(false);
+    open(pageFromStarter(starter, pages), true);
+    if (starter.id !== "blank") say("ok", `${starter.label} page started as a draft. Replace the words in [brackets], then tick Published and Save.`);
+  };
   // Requests already handled, so a page list refresh doesn't reopen the page; an unmatched request waits for the pages to load.
   const handledOpen = useRef<number | null>(null);
   useEffect(() => {
@@ -322,16 +329,33 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
       {loadError && <div role="alert" className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between gap-3"><span>Pages could not be loaded. Your existing list is preserved.</span><button className={btn} onClick={onRetryLoad}>Retry</button></div>}
       <div>
         <p className="text-sm font-bold">Pages</p>
-        <p className="text-xs text-neutral-500">Write About, Shipping or Journal pages. New pages are included in the storefront header by default. Pages save straight away and don't need Publish. Use “Design sections” to lay out a page with banners and galleries.</p>
+        <p className="text-xs text-neutral-500">Write About, Shipping or Journal pages. Blank pages and most starters are added to the storefront header (each page has its own switch). Pages save straight away and don't need Publish. Use “Design sections” to lay out a page with banners and galleries.</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <button className={btnPrimary} onClick={openNew} disabled={filling}><Plus size={14} /> New page</button>
+        <button className={btnPrimary} onClick={() => setStarters(v => !v)} disabled={filling} aria-expanded={starters} aria-controls="studio-page-starters"><Plus size={14} /> New page</button>
         {needsSeo.length > 0 && (
           <button className={btn} onClick={fillAllSeo} disabled={filling}>
             <Sparkles size={13} aria-hidden /> {filling ? "Filling in…" : `Fill in missing search listings (${needsSeo.length})`}
           </button>
         )}
       </div>
+      {starters && (
+        <section id="studio-page-starters" data-studio-page-starters aria-label="Start a page from" className="border border-neutral-200 rounded-lg p-3 bg-white space-y-2"
+          onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setStarters(false); } }}>
+          <p className="text-xs font-bold">Start from</p>
+          <p className="text-[11px] text-neutral-500">Each one opens with headings and [prompts] to replace, as a draft shoppers can't see. Nothing is saved until you press Save.</p>
+          <div className="grid grid-cols-2 gap-2">
+            {PAGE_STARTERS.map((starter, i) => (
+              <button key={starter.id} type="button" autoFocus={i === 0} data-page-starter={starter.id} onClick={() => openStarter(starter)}
+                className="text-left border border-neutral-300 rounded-md p-2 hover:border-neutral-900 focus-visible:border-neutral-900 space-y-1">
+                <span className="block text-xs font-bold">{starter.label}</span>
+                <span className="block text-[11px] text-neutral-500">{starter.summary}</span>
+                {starter.outline.length > 0 && <span className="block text-[10px] font-mono text-neutral-500">{starter.outline.join(" · ")}</span>}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
       {ordered.length === 0 && <p className="text-xs text-neutral-500 border border-dashed border-neutral-300 rounded-lg p-4">No pages yet. Create one and it can appear in your storefront menu.</p>}
       {ordered.map((p, i) => (
         <div key={p.id} className="border border-neutral-200 rounded-lg p-2 bg-white space-y-1">

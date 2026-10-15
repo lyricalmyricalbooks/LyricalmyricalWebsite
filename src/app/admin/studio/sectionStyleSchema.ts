@@ -4,6 +4,8 @@
 // (components/sectionRender.tsx, sectionStyleHelpers.ts) — no data changes.
 import { BACKDROP_BLUR_OPTIONS, BOX_SHADOW_OPTIONS, CORNER_RADIUS_OPTIONS, HOVER_EFFECTS, SECTION_ANIMATIONS, SECTION_FONT_OPTIONS, SHAPE_DIVIDER_STYLES } from "../../components/sectionStyleHelpers";
 import { PADDING_KEYS } from "../../features/site/breakpoints";
+import { SPACE_STEPS } from "../../features/site/designTokens";
+import { BLOCK_HOVERS, BLOCK_REVEALS, PARALLAX } from "../../components/sectionMotion";
 
 export type SectionTab = "style" | "layout" | "visibility";
 type Option = { value: string; label: string };
@@ -67,7 +69,17 @@ export function sectionStyleFields(colorSchemes: { id: string; name: string }[] 
     style("Effects", { key: "cornerRadius", label: "Corner radius", kind: "select", options: CORNER_RADIUS_OPTIONS }),
     style("Effects", { key: "backdropBlur", label: "Backdrop blur", kind: "select", options: BACKDROP_BLUR_OPTIONS }),
     style("Effects", { key: "hoverEffect", label: "Hover effect", kind: "select", options: HOVER_EFFECTS }),
-    style("Effects", { key: "animation", label: "Entrance animation", kind: "select", options: SECTION_ANIMATIONS }),
+    // Motion as a finishing step (3.0 phase 4, components/sectionMotion.ts). Shoppers who ask for less motion get none.
+    style("Motion", { key: "animation", label: "Section entrance", kind: "select", options: SECTION_ANIMATIONS }),
+    style("Motion", { key: "revealBlocks", label: "Blocks appear as you scroll", kind: "select", options: BLOCK_REVEALS, hint: "Each block or card inside this section appears when it scrolls into view." }),
+    style("Motion", { key: "staggerStep", label: "Delay between blocks", kind: "number", min: 0, max: 400, suffix: "ms", hint: "Blank = 90 ms. 0 = all at once." }),
+    style("Motion", { key: "motionDuration", label: "How long it takes", kind: "number", min: 200, max: 2000, suffix: "ms", hint: "Blank = 0.7 s for blocks, 0.9 s for the entrance." }),
+    style("Motion", { key: "motionDelay", label: "Wait before starting", kind: "number", min: 0, max: 1500, suffix: "ms" }),
+    style("Motion", { key: "blockHover", label: "Blocks and cards when pointed at", kind: "select", options: BLOCK_HOVERS }),
+    style("Motion", { key: "parallax", label: "Background picture drifts while scrolling (parallax)", kind: "select", options: PARALLAX, hint: "Works in browsers that support scroll-linked animation; others show the picture still." }),
+    style("Motion", { key: "sticky", label: "Stay on screen while scrolling (sticky)", kind: "toggle" }),
+    style("Motion", { key: "stickyTop", label: "Sticky distance from the top", kind: "number", min: 0, max: 300, suffix: "px" }),
+    style("Motion", { key: "motionOffOnPhones", label: "Turn motion off on phones", kind: "toggle" }),
     style("Effects", { key: "shapeDividerTop", label: "Shape divider · top", kind: "select", options: SHAPE_DIVIDER_STYLES }),
     style("Effects", { key: "shapeDividerTopColor", label: "Top divider colour", kind: "color" }),
     style("Effects", { key: "shapeDividerBottom", label: "Shape divider · bottom", kind: "select", options: SHAPE_DIVIDER_STYLES }),
@@ -79,6 +91,9 @@ export function sectionStyleFields(colorSchemes: { id: string; name: string }[] 
     layout("Width", { key: "containerWidth", label: "Content width", kind: "select", options: inherit([
       { value: "xs", label: "XS · Narrow" }, { value: "sm", label: "SM · Small" }, { value: "md", label: "MD · Medium" },
       { value: "lg", label: "LG · Wide" }, { value: "xl", label: "XL · Extra wide" }, { value: "full", label: "Full · No limit" }]) }),
+    layout("Spacing", { key: "spacingStep", label: "Space above and below (from Design scales)", kind: "select",
+      options: [{ value: "", label: "— Use the padding numbers —" }, ...SPACE_STEPS.map(s => ({ value: s.value, label: `${s.label} (${s.units} units)` }))],
+      hint: "Uses the spacing unit set in Theme settings › Design scales, so every section stays in step. Padding numbers typed in Spacing still win." }),
     layout("Width", { key: "fullWidth", label: "Full width (edge to edge)", kind: "toggle" }),
     layout("Phones", { key: "mobileFontScale", label: "Phone text scale", kind: "number", min: 60, max: 140, suffix: "%", hint: "Blank = 100%." }),
     layout("Phones", { key: "mobileHeadingSize", label: "Phone heading size", kind: "number", min: 12, max: 120, suffix: "px", hint: "Blank = automatic." }),

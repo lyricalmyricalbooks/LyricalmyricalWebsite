@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extraFieldsCss, photoViewerCss, productPageCss, productPageFontNames, signupBoxCss } from "./productPageStyle";
+import { extraFieldsCss, photoViewerCss, productPageCss, productPageFontNames, signupBoxCss, titleFitSize } from "./productPageStyle";
 import { STYLE_GROUPS } from "../../admin/studio/styleSchema";
 
 describe("product page (catalogue card) CSS", () => {
@@ -137,5 +137,40 @@ describe("photoViewerCss (Enlarged photo viewer)", () => {
   it("is part of the product page CSS and strips unsafe characters", () => {
     expect(productPageCss({ pdpViewerShade: "red" })).toContain(".fm-lightbox.fm-lightbox{background:red;}");
     expect(photoViewerCss({ pdpViewerShade: "red;}body{x" })).not.toContain("}body{");
+  });
+});
+
+describe("thumbnails on several rows (pdpThumbWrap)", () => {
+  it("become a grid exactly as wide as the photo, on phones and computers", () => {
+    const css = productPageCss({ pdpThumbWrap: true, pdpThumbSize: 120 });
+    const grid = "display:grid;grid-template-columns:repeat(auto-fill,minmax(min(120px,100%),1fr));overflow:visible;";
+    expect(css).toContain(`.fm-pdp-media[data-thumbs="below"] .fm-pdp-rail{${grid}}`);
+    expect(css).toContain('.fm-pdp-media[data-thumbs="below"] .fm-pdp-thumb{width:100%;}');
+    expect(css).toMatch(/@media \(max-width:\d+px\)\{[^}]*\.fm-pdp-media\[data-thumbs="side"\] \.fm-pdp-rail\{display:grid;/);
+  });
+  it("leave the single scrolling row alone when off", () => {
+    expect(productPageCss({})).not.toContain("auto-fill");
+  });
+});
+
+describe("book title on phones", () => {
+  it("scales a desktop-only title size down on phones and caps it by the longest word", () => {
+    const css = productPageCss({ pdpTitleSize: 49, pdpTitleSizeMobile: 0, pdpPriceSize: 48 });
+    expect(css).toContain(".fm-pdp-title{font-size:49px;font-size:min(49px, var(--pdp-title-fit, 100vw));}");
+    expect(css).toContain(".fm-pdp-title{font-size:49px;font-size:min(min(49px, 8.5vw), var(--pdp-title-fit, 100vw));}");
+    expect(css).toContain(".fm-pdp-price{font-size:48px;font-size:min(48px, 9vw);}");
+    expect(css).toContain(".fm-pdp-card-section{container-type:inline-size;}");
+  });
+  it("keeps an explicit phone size, still capped so words stay whole", () => {
+    const css = productPageCss({ pdpTitleSize: 70, pdpTitleSizeMobile: 40 });
+    expect(css).toContain(".fm-pdp-title{font-size:40px;font-size:min(40px, var(--pdp-title-fit, 100vw));}");
+  });
+  it("caps the automatic size too", () => {
+    expect(productPageCss({})).toContain("font-size:min(var(--pdp-title-auto, clamp(34px, 4.6vw, 62px)), var(--pdp-title-fit, 100vw))");
+  });
+  it("works out the cap from the longest word", () => {
+    expect(titleFitSize("Lyricalmyrical Collections #1 (Collective Photobook)")).toBe("calc(100cqi / 10.08)");
+    expect(titleFitSize("A Book")).toBe("");
+    expect(titleFitSize(undefined)).toBe("");
   });
 });

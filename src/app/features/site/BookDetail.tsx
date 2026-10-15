@@ -1,14 +1,14 @@
 import { catName, categoryNames } from "./navItems";
 import { recommendedBooks } from "./merchandising";
 import { shownDetailRows } from "./detailRows";
-import { m, AnimatePresence } from "motion/react";
+import { m } from "motion/react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useParams, Link, useNavigate, useLocation } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
   Package, Share2, Check, BookOpen, Globe, Ruler,
-  Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus, Bell, Maximize2
+  Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus, Bell, Maximize2, Play
 } from "lucide-react";
 import { useCart, catalogUnitPrice, lineQuantityCap, backorderable } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
@@ -33,6 +33,8 @@ import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
 import ReviewsSection from "./ReviewsSection";
 import { PhotoLightbox } from "./PhotoLightbox";
+import { galleryPhotos, isVideoItem, muteVideo } from "./bookVideo";
+import { PhotoCarousel } from "./PhotoCarousel";
 import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 import BackInStockForm from "./BackInStockForm";
@@ -45,11 +47,11 @@ import { bookTemplateSurface, previewTemplate } from "./templateAlternates";
 import { blockLabel, cardSections, productBlocks, type ProductBlock } from "./productBlocks";
 import { resolveDynamicSettings } from "./dynamicSources";
 import { aspectRatioValue } from "./imageAspect";
-import { frameAspect, frameMode, photoRatio } from "./photoFrame";
+import { aspectNumber, frameAspect, frameMode, photoRatio } from "./photoFrame";
 import { regionProps, regionVisible } from "./storefrontRegions";
 import { DescriptionText } from "./DescriptionText";
 import { googleFontHref } from "./fonts";
-import { productPageCss, productPageFontNames } from "./productPageStyle";
+import { productPageCss, productPageFontNames, titleFitSize } from "./productPageStyle";
 import { schemeButtonColors } from "./colorSchemes";
 
 import { findProduct } from "./productRoutes";
@@ -58,8 +60,15 @@ import { displayPrice, salePercentOff } from "./displayPrice";
 import { ga4Once } from "../../lib/ga4";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
-import { CARD_PHOTO_SIZES, PDP_PHOTO_SIZES, THUMB_PHOTO_SIZES, photoSrcSet } from "./photoSources";
+import { CARD_PHOTO_SIZES, THUMB_PHOTO_SIZES, pdpPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+/** The title's inline variables: Studio's "Title size" preset and the phone cap that keeps its longest word whole. */
+function titleStyle(autoSize: string | undefined, title: unknown): React.CSSProperties | undefined {
+  const fit = titleFitSize(title);
+  if (!autoSize && !fit) return undefined;
+  return { ...(autoSize ? { "--pdp-title-auto": autoSize } : {}), ...(fit ? { "--pdp-title-fit": fit } : {}) } as React.CSSProperties;
+}
 
 // ── small helper ────────────────────────────────────────────────────────────
 function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
@@ -97,8 +106,10 @@ export default function BookDetail() {
   const [soonOpen, setSoonOpen]       = useState(false);
   const [addingBoth, setAddingBoth]   = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
-  // Width ÷ height of each product photo, measured once (adaptive frames, photoFrame.ts).
+  // Width ÷ height of each product photo, measured once it loads (adaptive frames, photoFrame.ts).
   const [photoRatios, setPhotoRatios] = useState<Record<string, number>>({});
+  // The gallery whose remaining photos the shopper has reached for (see the loading-ahead effect below).
+  const [warmGalleryKey, setWarmGalleryKey] = useState("");
   const notePhotoSize = (url: string | undefined, el: HTMLImageElement | null) => {
     const r = el ? photoRatio(el.naturalWidth, el.naturalHeight) : undefined;
     if (url && r !== undefined) setPhotoRatios((prev) => (prev[url] === r ? prev : { ...prev, [url]: r }));
@@ -164,8 +175,15 @@ export default function BookDetail() {
   const productImageFit        = storefrontDesign.productImageFit === "contain" ? "contain" : "cover";
   const productImageMaxWidth   = Math.max(320, Math.min(900, Number(storefrontDesign.productImageMaxWidth) || 560));
   const productImageAspect     = aspectRatioValue(storefrontDesign.productImageAspect && storefrontDesign.productImageAspect !== "grid" ? storefrontDesign.productImageAspect : storefrontDesign.imageAspectRatio || "3:4");
+  // A measured shape wins over the saved one (it is what the shopper sees); they agree for every normal photo.
   const frameFor = (url: string | undefined) =>
-    frameAspect(productFrameMode, url ? photoRatios[url] : undefined, productImageAspect, storefrontDesign.productImageAspectLandscape);
+    frameAspect(productFrameMode, url ? (photoRatios[url] ?? savedRatios[url]) : undefined, productImageAspect, storefrontDesign.productImageAspectLandscape);
+  // The main photo's `sizes` uses the saved shape only, so it never changes (and re-downloads) as photos load.
+  const photoSizes = (photo: any) => {
+    const ratio = photo?.url ? savedRatios[photo.url] : undefined;
+    const frame = aspectNumber(frameAspect(productFrameMode, ratio, productImageAspect, storefrontDesign.productImageAspectLandscape));
+    return pdpPhotoSizes({ maxWidth: productImageMaxWidth, photoRatio: ratio, frameRatio: frame, cover: productImageFit === "cover" });
+  };
   const productDetailsLayout   = storefrontDesign.productDetailsLayout   || "tabs";
   const productCtaAnimation    = storefrontDesign.productCtaAnimation    || "none";
   const productCtaWidth        = storefrontDesign.productCtaWidth        || "full";
@@ -487,9 +505,19 @@ export default function BookDetail() {
   };
 
   const configuredPhotos = (book as any)?.photos;
-  const photos        = Array.isArray(configuredPhotos) && configuredPhotos.length > 0
-    ? configuredPhotos
+  // Videos sit in the photo list (Books › edit › Images › Add video); Studio › Style › Product page ›
+  // Show book videos can leave them out. Their `url` is a still frame, so everything below that only
+  // knows photos (preloading, frame shape, thumbnails) works on them unchanged.
+  const shownPhotos   = Array.isArray(configuredPhotos) ? galleryPhotos(configuredPhotos, storefrontDesign.showProductVideos !== false) : [];
+  const photos        = shownPhotos.length > 0
+    ? shownPhotos
     : [{ url: placeholderImage(settings?.design) }];
+  // Each photo's shape from the width/height saved with it (uploads and the photo-copy sweep record them).
+  const savedRatios: Record<string, number> = {};
+  for (const p of photos) {
+    const r = p?.url ? photoRatio(p.width, p.height) : undefined;
+    if (r !== undefined) savedRatios[p.url] = r;
+  }
   const stockLevel    = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any)?.stockLevel ?? 999);
   // Copies of this edition already in the bag count toward its stock and the 99-per-line limit.
   // Lines of this edition with different extras share its stock, so all of them count.
@@ -520,28 +548,50 @@ export default function BookDetail() {
   const isGiftCard    = isGiftCardProduct(book);
   const isBoxSet      = isBundle(book);
   const addOns        = bookAddOns(book);
-  // Adaptive frames: measure every photo up front so switching photos never resizes twice.
-  const photoUrlsKey = productFrameMode === "fixed" ? "" : photos.map((p: any) => p?.url || "").join("\n");
+  // Loading photos ahead, at the size the main photo uses (same srcset/sizes, so the browser picks the same copy):
+  //  • a photo saved without its size is loaded now, so adaptive frames know its shape before it is shown;
+  //  • the rest of the gallery loads once the shopper reaches for the photos (pointer over them, a touch or keyboard
+  //    focus), so jumping to any photo still shows it at once. The photos either side of the one shown always load
+  //    straight away (the strip's eager neighbours). A shopper who never touches the gallery downloads only those.
+  const photoUrlsKey = photos.map((p: any) => p?.url || "").join("\n");
+  const warmGallery = () => { if (productFrameMode !== "fixed" && warmGalleryKey !== photoUrlsKey) setWarmGalleryKey(photoUrlsKey); };
   useEffect(() => {
-    if (!photoUrlsKey || typeof Image === "undefined") return;
+    if (productFrameMode === "fixed" || !photoUrlsKey || typeof Image === "undefined") return;
+    const all = warmGalleryKey === photoUrlsKey;
     let live = true;
-    for (const url of photoUrlsKey.split("\n").filter(Boolean)) {
+    for (const photo of photos) {
+      const url = photo?.url;
+      if (!url || (!all && savedRatios[url] !== undefined)) continue;
       const img = new Image();
       img.onload = () => { if (live) notePhotoSize(url, img); };
+      img.decoding = "async";
+      const { srcSet, sizes } = photoSrcSet(photo, photoSizes(photo));
+      if (srcSet && sizes) { img.sizes = sizes; img.srcset = srcSet; }
       img.src = url;
     }
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photoUrlsKey]);
+  }, [photoUrlsKey, productFrameMode, warmGalleryKey]);
   const editionPhotoShown = !!(selectedVariant && selectedVariant.photoUrl && variantPhotoPinned);
   const activeUrl     = editionPhotoShown ? selectedVariant!.photoUrl : (photos[activePhoto]?.url || placeholderImage(settings?.design));
   // The photo actually on screen: a pinned edition photo is one of the gallery photos (or none of them),
   // so the current thumbnail, caption number and alt text follow it rather than the last picked photo.
   const shownIndex    = editionPhotoShown ? photos.findIndex((p: any) => p?.url === activeUrl) : activePhoto;
   const shownPhoto    = shownIndex >= 0 ? photos[shownIndex] : undefined;
+  const mediaName     = (item: any, i: number) => item?.altText?.trim() || getCopy(settings?.design, isVideoItem(item) ? "bookVideoLabel" : "bookPhotoAlt", { title: book?.title, n: i + 1 });
+  const carouselIndex = shownIndex >= 0 ? shownIndex : Math.min(activePhoto, photos.length - 1);
+  const shownVideo    = !(editionPhotoShown && shownIndex < 0) && isVideoItem(photos[carouselIndex]) ? photos[carouselIndex] : null;
+  // A video stops when the shopper swipes away from it.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.querySelectorAll<HTMLVideoElement>(".fm-pdp-frame video[data-fm-video]").forEach((v) => { if (!v.paused) v.pause(); });
+  }, [carouselIndex]);
 
   const alignCls      = productAlignment === "center" ? "items-center text-center" : "items-start text-left";
   const showThumbRail = photos.length > 1 && pdpThumbPosition !== "hidden";
+  // Dots under the photo: "" = only when the thumbnails are hidden (as before), "always", "never".
+  const photoDotsMode = storefrontDesign.pdpPhotoDots || "";
+  const showPhotoDots = photos.length > 1 && photos.length <= 20 && (photoDotsMode === "always" || (photoDotsMode === "" && !showThumbRail));
   const isLowStock    = stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10);
   const isBackorder   = !!(selectedVariant ? (selectedVariant as any).onBackorder : (book as any)?.onBackorder);
   // Pre-order (Books › Inventory › Pre-order): sold before its publication date.
@@ -783,7 +833,7 @@ export default function BookDetail() {
                     <h1
                       className="fm-pdp-title"
                       data-studio-target="style:productCard" data-studio-label="Product title & price"
-                      style={titleAutoSize ? ({ "--pdp-title-auto": titleAutoSize } as React.CSSProperties) : undefined}
+                      style={titleStyle(titleAutoSize, book.title)}
                     >
                       {book.title}
                     </h1>
@@ -1162,6 +1212,7 @@ export default function BookDetail() {
             <div
               data-section="products"
               data-studio-target="style:productCard" data-studio-label="Product photos"
+              onPointerEnter={warmGallery} onTouchStart={warmGallery} onFocus={warmGallery}
               className="w-full min-w-0 mx-auto lg:mx-0 lg:justify-self-end"
               style={{ maxWidth: productImageMaxWidth + (showThumbRail && pdpThumbPosition === "side" ? thumbRailWidth : 0) }}
             >
@@ -1176,11 +1227,12 @@ export default function BookDetail() {
                           type="button"
                           onClick={() => pickPhoto(i)}
                           aria-current={shownIndex === i}
-                          aria-label={getCopy(settings?.design, "ariaGoToPhoto", { n: i + 1 })}
-                          className="fm-pdp-thumb"
+                          aria-label={getCopy(settings?.design, isVideoItem(photo) ? "ariaGoToVideo" : "ariaGoToPhoto", { n: i + 1 })}
+                          className="fm-pdp-thumb relative"
                           style={{ aspectRatio: productImageAspect }}
                         >
-                          <img src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt={photo.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
+                          <img src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt={mediaName(photo, i)} loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
+                          {isVideoItem(photo) && <span className="fm-video-mark absolute inset-0 m-auto w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center pointer-events-none" aria-hidden="true"><Play size={12} fill="currentColor" /></span>}
                         </button>
                       ))}
                     </div>
@@ -1202,27 +1254,66 @@ export default function BookDetail() {
                         <div className="absolute inset-0 fm-surface-2 pointer-events-none" aria-hidden="true" />
                       )}
 
-                      <AnimatePresence mode="wait">
-                        <m.img
-                          key={activePhoto}
+                      {/* Instagram-style strip: swipe (phones, trackpads) or drag (mouse) and it snaps to the
+                          next photo; arrows, thumbnails and dots glide it there. */}
+                      <PhotoCarousel
+                        count={photos.length}
+                        index={carouselIndex}
+                        onIndex={(i) => pickPhoto(i)}
+                        className="absolute inset-0"
+                        label={getCopy(settings?.design, "pdpPhotosAria")}
+                        renderSlide={(i) => {
+                          const photo = photos[i];
+                          const url = photo?.url || placeholderImage(settings?.design);
+                          if (isVideoItem(photo)) return (
+                            // A video: still frame first, the file downloads only when the shopper presses play.
+                            <video
+                              src={photo.videoUrl}
+                              poster={photo.url}
+                              controls
+                              muted
+                              playsInline
+                              preload={i === carouselIndex ? "metadata" : "none"}
+                              aria-label={mediaName(photo, i)}
+                              data-fm-video
+                              className={`w-full h-full bg-black ${productImageFitClass}`}
+                              ref={(el) => { muteVideo(el); if (el && i === carouselIndex) setImageLoaded(true); }}
+                            />
+                          );
+                          return (
+                            <m.img
+                              src={url}
+                              {...photoSrcSet(photo, photoSizes(photo))}
+                              alt={mediaName(photo, i)}
+                              className={`w-full h-full select-none ${productImageFitClass}`}
+                              decoding="async"
+                              draggable={false}
+                              // The photo shown and its neighbours load now, so a swipe never reveals an empty frame.
+                              loading={Math.abs(i - carouselIndex) <= 1 ? "eager" : "lazy"}
+                              {...(i === 0 ? { fetchpriority: "high" } : {})}
+                              whileHover={{ scale: productImageHoverScale }}
+                              transition={{ duration: 0.45 }}
+                              // A photo already in the browser cache (or loaded before the page woke up) never
+                              // fires onLoad, which left the placeholder over it; check `complete` too.
+                              ref={(el: HTMLImageElement | null) => { if (el?.complete && el.naturalWidth) { if (i === carouselIndex) setImageLoaded(true); notePhotoSize(url, el); } }}
+                              onLoad={(e: any) => { if (i === carouselIndex) setImageLoaded(true); notePhotoSize(url, e.currentTarget); }}
+                              onError={() => { if (i === carouselIndex) setImageLoaded(true); }}
+                            />
+                          );
+                        }}
+                      />
+                      {/* An edition's own photo that isn't one of the book's photos sits on top of the strip. */}
+                      {editionPhotoShown && shownIndex < 0 && (
+                        <img
                           src={activeUrl}
-                          {...(activeUrl === photos[activePhoto]?.url ? photoSrcSet(photos[activePhoto], PDP_PHOTO_SIZES) : {})}
-                          alt={shownPhoto?.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: Math.max(0, shownIndex) + 1 })}
-                          className={`w-full h-full ${productImageFitClass}`}
+                          alt={getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: 1 })}
+                          className={`absolute inset-0 w-full h-full ${productImageFitClass}`}
                           decoding="async"
-                          {...(activePhoto === 0 ? { fetchpriority: "high" } : {})}
-                          initial={{ opacity: 0, scale: 1.04 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0 }}
-                          whileHover={{ scale: productImageHoverScale }}
-                          transition={{ duration: 0.45 }}
-                          // A photo already in the browser cache (or loaded before the page woke up) never
-                          // fires onLoad, which left the placeholder over it; check `complete` too.
-                          ref={(el: HTMLImageElement | null) => { if (el?.complete) { setImageLoaded(true); notePhotoSize(activeUrl, el); } }}
-                          onLoad={(e: any) => { setImageLoaded(true); notePhotoSize(activeUrl, e.currentTarget); }}
+                          ref={(el) => { if (el?.complete) { setImageLoaded(true); notePhotoSize(activeUrl, el); } }}
+                          onLoad={(e) => { setImageLoaded(true); notePhotoSize(activeUrl, e.currentTarget); }}
                           onError={() => setImageLoaded(true)}
                         />
-                      </AnimatePresence>
+                      )}
 
                       {/* Enlarge: Studio › Style › Product page · buy card & details › Click photo to enlarge */}
                       {storefrontDesign.showPhotoLightbox !== false && activeUrl && (
@@ -1238,8 +1329,8 @@ export default function BookDetail() {
                         </button>
                       )}
 
-                      {/* Sold out: Studio › Style › Product cards & grid › Sold-out badge */}
-                      {isOutOfStock && (
+                      {/* Sold out: Studio › Style › Product cards & grid › Sold-out badge (not over a video's controls) */}
+                      {isOutOfStock && !shownVideo && (
                         <>
                           <SoldOutVeil design={settings?.design} />
                           <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "soldOutLabel")} scale={1.5} />
@@ -1262,7 +1353,7 @@ export default function BookDetail() {
                       )}
 
                       {/* Low stock */}
-                      {stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockCardThreshold", 5) && (
+                      {!shownVideo && stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockCardThreshold", 5) && (
                         <div className="absolute bottom-5 left-5 right-5">
                           <div
                             className="bg-black/70 backdrop-blur-md border rounded-2xl px-4 py-3 flex items-center gap-2"
@@ -1298,30 +1389,32 @@ export default function BookDetail() {
                         </>
                       )}
 
-                      {/* Dot indicators (only when the thumbnail rail is hidden) */}
-                      {photos.length > 1 && !showThumbRail && (
-                        <div className="absolute bottom-5 right-5 flex gap-1.5">
-                          {photos.map((_: any, i: number) => (
-                            <button
-                              key={i}
-                              onClick={() => pickPhoto(i)}
-                              aria-label={getCopy(settings?.design, "ariaGoToPhoto", { n: i + 1 })}
-                              aria-current={shownIndex === i}
-                              className={`rounded-full transition-all ${
-                                shownIndex === i ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/30"
-                              }`}
-                            />
-                          ))}
-                        </div>
-                      )}
                     </div>
+
+                    {/* Dots under the photo, like a social media carousel. Studio › Style › Product page · buy card
+                        & details › Photo frame & thumbnails › Dots under the photo. */}
+                    {showPhotoDots && (
+                      <div className="fm-pdp-dots flex justify-center items-center gap-1.5 pt-3" role="group" aria-label={getCopy(settings?.design, "pdpPhotosAria")}>
+                        {photos.map((_: any, i: number) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => pickPhoto(i)}
+                            aria-label={getCopy(settings?.design, isVideoItem(photos[i]) ? "ariaGoToVideo" : "ariaGoToPhoto", { n: i + 1 })}
+                            aria-current={shownIndex === i}
+                            className={`rounded-full transition-all duration-300 ${shownIndex === i ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/30"}`}
+                          />
+                        ))}
+                      </div>
+                    )}
 
                     {lightboxOpen && (
                       <PhotoLightbox
                         photos={photos.map((ph: any, i: number) => ({
                           url: ph.url,
                           srcSet: photoSrcSet(ph, "100vw").srcSet,
-                          alt: ph.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 }),
+                          alt: mediaName(ph, i),
+                          ...(isVideoItem(ph) ? { videoUrl: ph.videoUrl } : {}),
                         }))}
                         start={Math.max(0, shownIndex)}
                         onIndex={(i) => pickPhoto(i)}
@@ -1349,7 +1442,9 @@ export default function BookDetail() {
                 <div className={productImageLayout === "grid" ? "grid grid-cols-2 gap-4" : "space-y-4"}>
                   {photos.map((photo: any, i: number) => (
                     <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame fm-photo-frame-pdp overflow-hidden`} style={{ aspectRatio: frameFor(photo.url), borderRadius: `${productBorderRadius}px` }}>
-                      <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, PDP_PHOTO_SIZES)} alt={photo.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
+                      {isVideoItem(photo)
+                        ? <video src={photo.videoUrl} poster={photo.url} controls muted ref={muteVideo} playsInline preload="none" aria-label={mediaName(photo, i)} data-fm-video className={`w-full h-full bg-black ${productImageFitClass}`} />
+                        : <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, photoSizes(photo))} alt={mediaName(photo, i)} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />}
                       {i === 0 && isOutOfStock && (
                         <>
                           <SoldOutVeil design={settings?.design} />
@@ -1389,11 +1484,11 @@ export default function BookDetail() {
                     {/* Cover Art Previews */}
                     <div className="flex items-center gap-4">
                       <div className="w-16 fm-surface rounded-xl border border-white/10 shadow-lg shrink-0 overflow-hidden" style={{ aspectRatio: productImageAspect }}>
-                        <img src={photos[0]?.url || placeholderImage(settings?.design)} alt={book.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
+                        <img src={smallPhotoUrl(photos[0]) || placeholderImage(settings?.design)} alt={book.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
                       </div>
                       <span className="text-white/20 font-black text-lg">+</span>
                       <div className="w-16 fm-surface rounded-xl border border-white/10 shadow-lg shrink-0 overflow-hidden" style={{ aspectRatio: productImageAspect }}>
-                        <img loading="lazy" decoding="async" src={bundleBook.photos?.[0]?.url || placeholderImage(settings?.design)} alt={bundleBook.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
+                        <img loading="lazy" decoding="async" src={smallPhotoUrl(bundleBook.photos?.[0]) || placeholderImage(settings?.design)} alt={bundleBook.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
                       </div>
                     </div>
 

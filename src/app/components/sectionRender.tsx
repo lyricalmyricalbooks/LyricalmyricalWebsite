@@ -1,5 +1,9 @@
 import { sectionSpacingCss } from "./sectionSpacing";
-import { Component, useEffect, type ReactNode } from "react";
+import { sectionStepCss } from "../features/site/designTokens";
+import { backgroundImageCss } from "../features/site/backgroundSources";
+import { entranceTiming, sectionMotionCss, wantsReveal } from "./sectionMotion";
+import { Component, useEffect, useRef, useState, type ReactNode } from "react";
+import { arrivedPrerendered } from "../lib/prerenderedPage";
 import { m } from "motion/react";
 import { useNavigate } from "react-router";
 import * as Sections from "./SectionComponents";
@@ -133,10 +137,40 @@ function SectionFontOverride({ sectionId, settings }: { sectionId: string; setti
   );
 }
 
+/**
+ * Scroll reveal for the blocks inside a section (3.0 phase 4). It "arms" its section (data-motion="armed", which the
+ * section's motion CSS hides) only when the section starts below the screen, then shows it once it scrolls into
+ * view. Never arms with reduced motion or without IntersectionObserver, so content can't get stuck hidden. In the
+ * Studio preview, MOTION_REPLAY plays it again.
+ */
+function MotionWatcher({ sectionId }: { sectionId: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const section = ref.current?.parentElement;
+    if (!section || prefersReducedMotion() || typeof IntersectionObserver === "undefined") return;
+    const show = () => section.setAttribute("data-motion", "shown");
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) { show(); observer.disconnect(); }
+    }, { rootMargin: "0px 0px -10% 0px" });
+    const rect = section.getBoundingClientRect();
+    if (rect.top > window.innerHeight * 0.9) { section.setAttribute("data-motion", "armed"); observer.observe(section); }
+    const replay = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin || e.data?.type !== "MOTION_REPLAY" || e.data.sectionId !== sectionId) return;
+      section.setAttribute("data-motion", "armed");
+      requestAnimationFrame(() => requestAnimationFrame(show));
+    };
+    window.addEventListener("message", replay);
+    return () => { observer.disconnect(); window.removeEventListener("message", replay); section.removeAttribute("data-motion"); };
+  }, [sectionId]);
+  return <span ref={ref} hidden data-motion-watch="" />;
+}
+
 /** Entrance animation wrapper driven by section.settings.animation. */
-function SectionReveal({ animation, enableAnimations, children }: any) {
+function SectionReveal({ animation, enableAnimations, timing, children }: any) {
+  // Landing here as server-rendered HTML: the section is already on screen, so it doesn't animate in again.
+  const [arrived] = useState(arrivedPrerendered);
   const mode = animation || (enableAnimations ? "" : "none");
-  if (mode === "none" || mode === "" || prefersReducedMotion()) return children;
+  if (arrived || mode === "none" || mode === "" || prefersReducedMotion()) return children;
   const initials: Record<string, any> = {
     "fade-up": { opacity: 0, y: 36 },
     fade: { opacity: 0 },
@@ -151,7 +185,7 @@ function SectionReveal({ animation, enableAnimations, children }: any) {
       initial={initial}
       whileInView={{ opacity: 1, x: 0, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.9, ease: [0.215, 0.61, 0.355, 1] }}
+      transition={{ duration: timing?.duration ?? 0.9, delay: timing?.delay ?? 0, ease: [0.215, 0.61, 0.355, 1] }}
     >
       {children}
     </m.div>
@@ -303,12 +337,13 @@ export function SectionList({
             }}
           >
             <SectionFontOverride sectionId={section.id} settings={s} />
-            <style>{sectionSpacingCss(section.id, s)}</style>
+            <style>{sectionSpacingCss(section.id, s) + sectionStepCss(section.id, s.spacingStep) + sectionMotionCss(section.id, s, enableAnimations) + backgroundImageCss(section.id, s)}</style>
+            {wantsReveal(s, enableAnimations) && <MotionWatcher sectionId={section.id} />}
             {(s.mobilePaddingTop != null || s.mobilePaddingBottom != null || s.mobileFontScale != null || s.mobileColumns != null || s.mobileHeadingSize != null) && <style>{`@media${UP_TO.mobile}{${s.mobileHeadingSize != null ? `#section-${section.id} :is(h1,h2){font-size:${Math.max(12, Math.min(120, Number(s.mobileHeadingSize)))}px!important;}` : ""}#section-${section.id}{${s.mobileFontScale != null ? `font-size:${Number(s.mobileFontScale)}%;` : ""}}${s.mobileColumns != null ? `#section-${section.id} .grid{grid-template-columns:repeat(${Math.max(1, Math.min(4, Number(s.mobileColumns)))},minmax(0,1fr))!important;}` : ""}}`}</style>}
             <SectionScopedCss sectionId={section.id} css={s.customCss} />
             {hasGlowHover && <style>{HOVER_GLOW_CSS}</style>}
             <ShapeDivider style={s.shapeDividerTop} position="top" color={s.shapeDividerTopColor} />
-            <SectionReveal animation={s.animation} enableAnimations={enableAnimations}>
+            <SectionReveal animation={s.animation} enableAnimations={enableAnimations} timing={entranceTiming(s)}>
               <SectionBoundary sectionId={section.id} type={section.type}>
                 <SectionPriorityContext.Provider value={sectionHasPriority(dataSection, index)}>
                   <SectionComponent

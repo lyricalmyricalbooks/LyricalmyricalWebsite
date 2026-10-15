@@ -6,6 +6,8 @@
   import { captureSharedDiscount } from "./app/features/site/sharedDiscount";
   import { takeMovedState } from "./app/features/site/movedState";
   import { installTranslateSafeDom } from "./app/lib/translateSafeDom";
+  import { arrivedPrerendered, keepPrerenderedPage } from "./app/lib/prerenderedPage";
+  import { preloadSiteData } from "./app/features/site/useSiteData";
 
   // Shoppers may translate the page with Google Translate: keep React from crashing on the translated text.
   installTranslateSafeDom();
@@ -18,6 +20,10 @@
   startPreviewTab();
   // Admin › Discounts › Copy share link: remember ?discount=CODE for checkout and tidy the address.
   captureSharedDiscount();
+
+  // Landing on a server-rendered page: keep showing it while the app loads, and start reading the shop data now.
+  keepPrerenderedPage(document.getElementById("root"));
+  if (arrivedPrerendered()) preloadSiteData()?.catch(() => {});
 
   createRoot(document.getElementById("root")!).render(<App />);
   

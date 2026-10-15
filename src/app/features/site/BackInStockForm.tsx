@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { doc, setDoc } from "firebase/firestore/lite";
-import { liteDb } from "../../../lib/firestoreLite";
+import { lite } from "../../../lib/lite";
 import { getCopy } from "./storeCopy";
 import { inEditorPreview } from "../../lib/trackingGuard";
 
@@ -22,6 +21,7 @@ export function stockAlertId(email: string, bookId: string, variantId = "") {
 export async function saveStockAlert(input: { email: string; bookId: string; bookTitle: string; variantId?: string; variantName?: string }): Promise<void> {
   if (inEditorPreview()) return;
   const clean = input.email.trim().toLowerCase();
+  const { doc, setDoc, liteDb } = await lite();
   await setDoc(doc(liteDb, "stockAlerts", stockAlertId(clean, input.bookId, input.variantId || "")), {
     email: clean,
     bookId: input.bookId,

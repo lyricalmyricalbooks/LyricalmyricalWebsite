@@ -13,6 +13,7 @@ import { designNumber } from "./designNumber";
 import { getCopy } from "./storeCopy";
 import { funnelApi } from "../../lib/commerce";
 import { useFocusTrap } from "../../lib/useFocusTrap";
+import { smallPhotoUrl } from "./photoSources";
 
 type Book = any;
 
@@ -216,7 +217,7 @@ export function SearchOverlay({
                 </p>
               )}
               {results.map((b, idx) => {
-                const photo = b.photos?.[0]?.url || b.coverPhoto?.url || "";
+                const photo = smallPhotoUrl(b.photos?.[0]) || b.coverPhoto?.url || "";
                 const price = displayPrice(b);
                 return (
                   <Link {...regionProps("searchResult")}

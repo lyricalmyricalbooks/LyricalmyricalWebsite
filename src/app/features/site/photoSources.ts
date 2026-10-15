@@ -8,6 +8,21 @@ import { responsiveSource } from "./mediaRef";
 export const CARD_PHOTO_SIZES = "(max-width: 767px) 50vw, (max-width: 1023px) 33vw, 25vw";
 /** The product page's big photo: full width on phones, up to its 900 px maximum beside the buy card. */
 export const PDP_PHOTO_SIZES = "(max-width: 1023px) 100vw, 900px";
+
+/**
+ * `sizes` for one product-page photo. The photo frame is never wider than Style › Product page › Max width
+ * (`maxWidth`, 320–900 px), so any screen wider than that is offered the copy for that width, plus 10% for the hover
+ * zoom, never more than PDP_PHOTO_SIZES' 900px. A photo cropped to fill its frame ("cover") is drawn wider than the
+ * frame when it is wider in shape (`photoRatio` > `frameRatio`), so the width grows by that much. Narrower screens
+ * keep full width, as before. Unknown shapes leave the width at the frame's.
+ */
+export function pdpPhotoSizes({ maxWidth, photoRatio, frameRatio, cover }: { maxWidth: number; photoRatio?: number; frameRatio?: number; cover: boolean }): string {
+  const frame = Math.max(320, Math.min(900, Number(maxWidth) || 560));
+  const stretch = cover && photoRatio && frameRatio && photoRatio > frameRatio ? photoRatio / frameRatio : 1;
+  return `(max-width: ${frame}px) 100vw, ${Math.min(900, Math.ceil(Math.round(frame * stretch * 110) / 100))}px`;
+}
+/** Featured product / book spotlight sections: half the page beside the text, full width on phones. */
+export const FEATURE_PHOTO_SIZES = "(max-width: 767px) 100vw, 600px";
 /** The product page's thumbnail rail. */
 export const THUMB_PHOTO_SIZES = "120px";
 
@@ -16,4 +31,22 @@ export function photoSrcSet(photo: unknown, sizes: string): { srcSet?: string; s
   if (!p || typeof p !== "object") return {};
   const source = responsiveSource(p.url, { src: p.url, srcset: p.srcset });
   return source ? { srcSet: source.srcSet, sizes } : {};
+}
+
+/**
+ * One URL for a small fixed-size picture (bag and checkout lines, search results, sticky bar): the
+ * smallest copy at least `minWidth` px wide, so a 64 px thumbnail never downloads the original photo.
+ * Photos without copies keep their `url`.
+ */
+export function smallPhotoUrl(photo: unknown, minWidth = 160): string {
+  const p = photo as { url?: unknown; srcset?: unknown } | null | undefined;
+  if (!p || typeof p !== "object") return "";
+  const url = typeof p.url === "string" ? p.url : "";
+  const copies = Array.isArray(p.srcset)
+    ? (p.srcset as { url?: unknown; w?: unknown }[])
+        .filter((v): v is { url: string; w: number } => !!v && typeof v.url === "string" && !!v.url && typeof v.w === "number" && v.w > 0)
+        .sort((a, b) => a.w - b.w)
+    : [];
+  if (!copies.length) return url;
+  return (copies.find(v => v.w >= minWidth) || copies[copies.length - 1]).url;
 }

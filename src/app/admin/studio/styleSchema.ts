@@ -7,11 +7,12 @@ import { FONT_SELECT_OPTIONS } from "../../features/site/fonts";
 import { PHOTO_OUTLINE_OPTIONS, PHOTO_RATIO_OPTIONS } from "../../features/site/photoShapes";
 import { REGION_GROUPS, REGION_DEVICES, REGION_DEVICE_LABELS, REGION_SUFFIXES, regionKey, regionFieldDevice, type RegionDevice } from "../../features/site/storefrontRegions";
 import { ELEMENT_SCHEME_TARGETS } from "../../features/site/colorSchemes";
+import { RADIUS_SCALES, TYPE_SCALES } from "../../features/site/designTokens";
 
 // `defaultValue` is what the storefront itself uses when the key is unset, so an untouched slider or
 // toggle shows the real setting instead of its minimum / "off".
 export type StyleField =
-  | { key: string; label: string; defaultValue?: any; kind: "text" | "textarea" | "color" | "toggle" | "image" | "html" }
+  | { key: string; label: string; defaultValue?: any; kind: "text" | "textarea" | "color" | "toggle" | "image" | "html" | "link" }
   | { key: string; label: string; defaultValue?: any; kind: "range" | "number"; min: number; max: number; step?: number; suffix?: string }
   | { key: string; label: string; defaultValue?: any; kind: "select"; options: { value: string; label: string }[] };
 
@@ -40,7 +41,7 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Edition choices": /^(pdpEditionPicker$|pdpChip)/,
   "Coming soon signup": /^(showComingSoonSignup$|pdpAlert)/,
   "Product title & price": /^(pdpTitle|pdpPrice|productTitleSize|productSubtitleWeight)/,
-  "Product photos": /^(productPhotoOutline|pdpThumb|pdpPhoto|pdpShowCaption|productImage|productBorderRadius|showZoom|showPhotoLightbox|pdpViewer)/,
+  "Product photos": /^(productPhotoOutline|pdpThumb|pdpPhoto|pdpShowCaption|pdpPhotoDots|productImage|productBorderRadius|showZoom|showPhotoLightbox|showProductVideos|pdpViewer)/,
   "Enlarged photo viewer": /^(showPhotoLightbox$|pdpViewer)/,
   "Product details tabs": /^(pdpDetailsPlacement|pdpSpecsStyle|pdpTab|pdpPanel|productDetailsLayout|showSpecs)/,
   "Breadcrumb": /^(pdpShowBreadcrumb|pdpShowBackLink|pdpShowBackArrow|pdpMeta)/,
@@ -183,6 +184,23 @@ export const STYLE_GROUPS: StyleGroup[] = [
     ],
   },
   {
+    // Studio 3.0 phase 2: shared values (features/site/designTokens.ts). Every scale is off until chosen.
+    id: "tokens",
+    title: "Design scales",
+    hint: "Shared sizes the whole shop draws from. A section's own settings still win.",
+    fields: [
+      { key: "typeScale", label: "Heading size scale", kind: "select", options: [{ value: "", label: "Off (each section sets its own heading sizes)" }, ...TYPE_SCALES.map(t => ({ value: t.value, label: t.label }))] },
+      { key: "typeScaleBase", label: "Scale starts from (body text size)", kind: "range", min: 12, max: 24, step: 1, suffix: "px", defaultValue: 16 },
+      { key: "typeScaleFluid", label: "Shrink headings smoothly on smaller screens", kind: "toggle", defaultValue: true },
+      { key: "spaceUnit", label: "Spacing unit (sections' Space above and below are multiples of it)", kind: "range", min: 2, max: 16, step: 1, suffix: "px", defaultValue: 8 },
+      { key: "phoneSpaceScale", label: "Spacing on phones", kind: "range", min: 40, max: 100, step: 5, suffix: "%", defaultValue: 75 },
+      { key: "radiusScale", label: "Corner set (cards, buy card, order slip)", kind: "select", options: [{ value: "", label: "Off (each part's own corners)" }, ...Object.entries(RADIUS_SCALES).map(([value, r]) => ({ value, label: r.label }))] },
+      { key: "focusRingWidth", label: "Keyboard focus ring width (its colour: Riso print treatment › Keyboard focus ring)", kind: "range", min: 1, max: 6, step: 1, suffix: "px", defaultValue: 2 },
+      { key: "inputFocusColor", label: "Box border while typing in it", kind: "color" },
+      { key: "buttonPress", label: "Buttons when pressed", kind: "select", options: [{ value: "", label: "No change" }, { value: "shrink", label: "Shrink slightly" }, { value: "sink", label: "Sink into their shadow" }] },
+    ],
+  },
+  {
     id: "customPages",
     title: "Custom pages",
     hint: "One look for every custom page (About, History, Journal…). A page's Page content section can opt out with its own style.",
@@ -202,7 +220,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "pageTopSpacing", label: "Space above the title", kind: "range", min: 0, max: 160, step: 4, suffix: "px" },
       { key: "pageTitleFont", label: "Title font", kind: "select", options: [{ value: "", label: "Same as heading font" }, ...FONT_SELECT_OPTIONS] },
       { key: "pageTitleSizePx", label: "Title size · desktop (0 = use Title size)", kind: "range", min: 0, max: 200, step: 2, suffix: "px" },
-      { key: "pageTitleSizePxMobile", label: "Title size · phone (0 = same as desktop)", kind: "range", min: 0, max: 120, step: 2, suffix: "px" },
+      { key: "pageTitleSizePxMobile", label: "Title size · phone (0 = automatic, smaller than desktop)", kind: "range", min: 0, max: 120, step: 2, suffix: "px" },
       { key: "pageTitleWeight", label: "Title weight", kind: "select", options: [{ value: "", label: "Automatic (extra bold)" }, ...weights] },
       { key: "pageShowRule", label: "Line under the title", kind: "toggle" },
       { key: "pageRuleColor", label: "Line colour", kind: "color" },
@@ -516,6 +534,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showComingSoonSignup", label: "“Email me when it's out” box (Coming soon books — the Coming soon button opens it)", kind: "toggle", defaultValue: true },
       { key: "showZoom", label: "Image zoom", kind: "toggle" },
       { key: "showPhotoLightbox", label: "Click photo to enlarge (full-screen viewer)", kind: "toggle", defaultValue: true },
+      { key: "showProductVideos", label: "Show book videos (added in Books › edit › Images) among the photos", kind: "toggle", defaultValue: true },
     ],
   },
   {
@@ -574,12 +593,12 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "pdpTagStyle", label: "Category tag style", kind: "select", options: [{ value: "filled", label: "Filled (badge colours)" }, { value: "outline", label: "Outline" }] },
       { key: "pdpTitleFont", label: "Title font", kind: "select", options: [{ value: "", label: "Same as heading font" }, ...FONT_SELECT_OPTIONS] },
       { key: "pdpTitleSize", label: "Title size · desktop (0 = automatic)", kind: "range", min: 0, max: 120, step: 1, suffix: "px" },
-      { key: "pdpTitleSizeMobile", label: "Title size · phone (0 = same as desktop)", kind: "range", min: 0, max: 96, step: 1, suffix: "px" },
+      { key: "pdpTitleSizeMobile", label: "Title size · phone (0 = automatic, smaller than desktop)", kind: "range", min: 0, max: 96, step: 1, suffix: "px" },
       { key: "pdpTitleColor", label: "Title colour", kind: "color" },
       { key: "pdpTitleCase", label: "Title letter case", kind: "select", options: [{ value: "", label: "Automatic (follows headings)" }, { value: "uppercase", label: "UPPERCASE" }, { value: "none", label: "As typed" }] },
       { key: "pdpPriceFont", label: "Price font", kind: "select", options: [{ value: "", label: "Same as heading font" }, ...FONT_SELECT_OPTIONS] },
       { key: "pdpPriceSize", label: "Price size · desktop (0 = automatic)", kind: "range", min: 0, max: 96, step: 1, suffix: "px" },
-      { key: "pdpPriceSizeMobile", label: "Price size · phone (0 = same as desktop)", kind: "range", min: 0, max: 80, step: 1, suffix: "px" },
+      { key: "pdpPriceSizeMobile", label: "Price size · phone (0 = automatic, smaller than desktop)", kind: "range", min: 0, max: 80, step: 1, suffix: "px" },
       { key: "pdpPriceColor", label: "Price colour", kind: "color" },
       { key: "pdpShowStock", label: "Show stock line under the price", kind: "toggle" },
       { key: "pdpStockColor", label: "Stock line dot colour", kind: "color" },
@@ -593,6 +612,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "pdpPhotoBorderColor", label: "Photo frame & caption border colour", kind: "color" },
       { key: "pdpPhotoBorderWidth", label: "Photo frame border width (0 = none)", kind: "range", min: 0, max: 6, step: 1, suffix: "px" },
       { key: "pdpShowCaption", label: "Show caption bar under the photo", kind: "toggle" },
+      { key: "pdpPhotoDots", label: "Dots under the photo (one per photo, like a social media carousel)", kind: "select", defaultValue: "", options: [{ value: "", label: "Only when thumbnails are hidden" }, { value: "always", label: "Always" }, { value: "never", label: "Never" }] },
       { key: "pdpDetailsPlacement", label: "Details tabs position", kind: "select", options: [{ value: "below", label: "Full width under photo & card" }, { value: "column", label: "Under the buy card" }] },
       { key: "pdpSpecsStyle", label: "Details (specs) style", kind: "select", options: [{ value: "record", label: "Catalogue record (label | value rows)" }, { value: "tiles", label: "Tiles" }] },
       { key: "pdpTabActiveBg", label: "Selected tab background", kind: "color" },
@@ -738,7 +758,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       // Empty bag
       { key: "cartDrawerShowEmptyIcon", label: "Bag icon when the bag is empty", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowEmptyButton", label: "“Continue shopping” button when the bag is empty", kind: "toggle", defaultValue: true },
-      { key: "cartDrawerEmptyLink", label: "“Continue shopping” goes to (a shop address like /collections/new, or https://…; blank = Home)", kind: "text" },
+      { key: "cartDrawerEmptyLink", label: "“Continue shopping” goes to (blank = Home)", kind: "link" },
     ],
   },
   {

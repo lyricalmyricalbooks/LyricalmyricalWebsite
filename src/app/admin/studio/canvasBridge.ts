@@ -26,7 +26,7 @@ export const CANVAS_TOOLS_SOURCE = String.raw`
     var focusedKey=document.activeElement&&document.activeElement.getAttribute('data-spacing-key');
     if(canvasBar)canvasBar.remove();canvasBar=null;
     if(spacingOverlay&&!spacingSession){spacingOverlay.remove();spacingOverlay=null;}
-    var node=selectedNode(),meta=canvasMeta();if(mode!=='edit'||!selected||selected==='__studio-candidate'||!node||editing||spacingSession)return;
+    var node=selectedNode(),meta=canvasMeta();if(mode!=='edit'||!selected||selected==='__studio-candidate'||block==='__studio-block-candidate'||!node||editing||spacingSession)return;
     canvasBar=overlay('toolbar',block?'Selected block actions':'Selected section actions');
     canvasBar.style.cssText='position:fixed;z-index:100000;display:flex;flex-wrap:wrap;gap:4px;max-width:calc(100vw - 16px);padding:5px;background:#fff;color:#111;border:2px solid #059669;box-shadow:2px 2px 0 #111;';
     // Phone-width previews dock the bar at the bottom: one row that scrolls sideways, so it covers as little of the page as possible.

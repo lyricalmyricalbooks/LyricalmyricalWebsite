@@ -1,4 +1,5 @@
 import { CANVAS_TOOLS_SOURCE } from "./canvasBridge";
+import { GRID_ARRANGE_SOURCE } from "./gridBridge";
 // Same-origin iframe bridge. Unsaved design stays in iframe memory.
 export const PREVIEW_BRIDGE_SOURCE = String.raw`(function(){
   if(window.__studioBridge){parent.postMessage({type:'PREVIEW_READY'},location.origin);return;}
@@ -20,7 +21,7 @@ export const PREVIEW_BRIDGE_SOURCE = String.raw`(function(){
   function place(b,n,label){if(b===hover)hoverNode=mode==='edit'&&n?n:null;if(mode!=='edit'||!n){b.style.display='none';return;}
     var r=n.getBoundingClientRect();b.style.display='block';b.style.top=r.top+'px';b.style.left=r.left+'px';b.style.width=r.width+'px';b.style.height=r.height+'px';b.firstChild.textContent=label||'Section';}
   function selectedNode(){if(!selected&&selectedKey)return pickedEl&&pickedEl.isConnected&&nodeKey(pickedEl)===selectedKey?pickedEl:findNode(selectedKey);var s=find(SEC,selected,sid);return block&&s?find(BLK,block,bid,s)||s:s;}
-  function draw(){if(hoverNode)place(hover,hoverNode.isConnected?hoverNode:null,hover.firstChild.textContent);var n=selectedNode();place(selection,n,selected==='__studio-candidate'?'Preview · not added yet':!selected&&selectedKey&&n?nodeLabel(n):block?'Selected block':'Selected section');drawCanvasTools();}
+  function draw(){if(hoverNode)place(hover,hoverNode.isConnected?hoverNode:null,hover.firstChild.textContent);var n=selectedNode();place(selection,n,selected==='__studio-candidate'||block==='__studio-block-candidate'?'Preview · not added yet':!selected&&selectedKey&&n?nodeLabel(n):block?'Selected block':'Selected section');drawCanvasTools();}
   var scheduled=false;
   function redraw(){if(scheduled)return;scheduled=true;requestAnimationFrame(function(){scheduled=false;draw();});}
   function route(){send({type:'STUDIO_ROUTE',href:location.pathname+location.search});send({type:'PREVIEW_READY'});scheduleScan();}
@@ -96,6 +97,7 @@ export const PREVIEW_BRIDGE_SOURCE = String.raw`(function(){
   document.addEventListener('mouseover',function(e){if(mode!=='edit'||closest(e.target,'[data-studio-overlay]'))return;var n=closest(e.target,NODE),k=n?nodeKey(n):null;if(k!==hoverKey){hoverKey=k;send({type:'NODE_HOVER',key:k});}},true);
   document.documentElement.addEventListener('mouseleave',function(){if(hoverKey){hoverKey=null;send({type:'NODE_HOVER',key:null});}});
 ${CANVAS_TOOLS_SOURCE}
+${GRID_ARRANGE_SOURCE}
   function norm(t){return String(t||'').replace(/\s+/g,' ').trim().toLowerCase();}
   // Resolve only schema-backed fields. Plain text never flattens a formatted field or a composite label.
   function resolveTextTarget(node){

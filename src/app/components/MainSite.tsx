@@ -1,5 +1,5 @@
 import { m, AnimatePresence } from "motion/react";
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Send, Heart, Zap } from "lucide-react";
 import { queryFromSearch } from "../features/site/searchResultsLink";
 import { Link, useNavigate, useLocation, useParams } from "react-router";
@@ -45,8 +45,10 @@ import { designNumber } from "../features/site/designNumber";
 import { resolveMainDesign } from "../features/site/surfaceDesign";
 import { categoryTemplateSurface, previewTemplate } from "../features/site/templateAlternates";
 import { regionProps } from "../features/site/storefrontRegions";
+import { collectionIntro } from "../features/site/collectionIntro";
 import { SoldOutBadge, soldOutPhotoStyle } from "../features/site/SoldOutBadge";
 import { CARD_PHOTO_SIZES, photoSrcSet } from "../features/site/photoSources";
+import { arrivedPrerendered } from "../lib/prerenderedPage";
 
 const catNameForSEO = (category: any) => typeof category === "string" ? category : category?.name;
 
@@ -59,19 +61,30 @@ export function storefrontCategories(value: unknown) {
 // ──────────────────────────────
 // Image with skeleton loader
 // ──────────────────────────────
-function SkeletonImage({ src, srcSet, sizes, alt, className, style, frameStyle }: { src: string; srcSet?: string; sizes?: string; alt: string; className?: string; style?: CSSProperties; frameStyle?: CSSProperties }) {
+function SkeletonImage({ src, srcSet, sizes, alt, className, style, frameStyle, priority }: { src: string; srcSet?: string; sizes?: string; alt: string; className?: string; style?: CSSProperties; frameStyle?: CSSProperties; priority?: "high" | "eager" }) {
   const [loaded, setLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+  // A photo the browser already has (the page's own HTML loaded it, or an earlier visit) shows at once
+  // instead of fading in again from the skeleton.
+  useLayoutEffect(() => {
+    const img = imgRef.current;
+    if (img?.complete && img.naturalWidth > 0) setLoaded(true);
+  }, [src]);
   return (
     <div className="relative w-full h-full" style={frameStyle}>
       {!loaded && (
-        <div className="absolute inset-0 fm-surface-2 animate-pulse" />
+        <div data-fm-skeleton className="absolute inset-0 fm-surface-2 animate-pulse" />
       )}
       <img
+        ref={imgRef}
+        data-fm-fade
         src={src}
         srcSet={srcSet}
         sizes={sizes}
         alt={alt}
-        loading="lazy"
+        // The first row is on screen at once: fetch it straight away (the first photos first).
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority === "high" ? "high" : undefined}
         decoding="async"
         className={`${className} transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
         style={style}
@@ -364,7 +377,16 @@ ${design?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(design) : "
 // ──────────────────────────────
 // Main exported component
 // ──────────────────────────────
+/** The category a /collections/<slug> URL opens. An unknown or renamed slug opens every book, never the first category's books under the wrong URL. */
+function collectionCategory(collectionSlug: string, categories: any[]): any {
+  if (collectionSlug === "all") return "ALL";
+  const slugOf = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  return categories.find((c: any) => categoryNames(c).some((n: string) => slugOf(n) === collectionSlug)) ?? "ALL";
+}
+
 export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
+  // Landing here as server-rendered HTML: the books are already on screen, so they don't fade in a second time.
+  const [skipEntrance] = useState(arrivedPrerendered);
   const navigate = useNavigate();
   const location = useLocation();
   const { formatBookPrice, convertPrice } = useCurrency();
@@ -383,7 +405,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const legacyDesign = activeDesign;
   const heroDesign = resolveMainDesign(legacyDesign, false, false);
   const onCollectionRoute = location.pathname.startsWith("/collections/");
-  const storefrontDesign = resolveMainDesign(legacyDesign, showCatalog || isCatalogPreview, onCollectionRoute);
+  // "Skip straight to the shop" is known on the first render; waiting for the effect below to flip
+  // showCatalog drew one frame with the Home layout and shifted the page (layout shift on load).
+  const catalogOpen = showCatalog || legacyDesign?.showHero === false;
+  const storefrontDesign = resolveMainDesign(legacyDesign, catalogOpen || isCatalogPreview, onCollectionRoute);
   const storefrontLogoDesign = resolveLogoDesign(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
   const storefrontLogoPosition = resolveLogoPosition(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
 
@@ -423,7 +448,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // With no shop categories at all, open on "ALL" (every book) instead of `undefined`, which matched
   // nothing. autoAll remembers that "ALL" was this fallback rather than the shopper's pick, so
   // categories that arrive later (catalog load, Studio edit) still open on the first one as before.
-  const [activeCategory, setActiveCategory] = useState<any>(() => categories[0] ?? "ALL");
+  // /collections/<slug> (header links on other pages, product breadcrumbs) opens this shop on that category.
+  const { slug: collectionSlug } = useParams();
+  // On a collection URL the first render already shows that category: starting on the first category and
+  // switching in an effect drew one frame of the wrong books (a layout shift on load).
+  const [activeCategory, setActiveCategory] = useState<any>(() => (collectionSlug ? collectionCategory(collectionSlug, categories) : categories[0]) ?? "ALL");
   const autoAll = useRef(categories.length === 0);
   // Connected section fields (Studio 2.7) read the open category.
   const categoryContext = useMemo(() => ({ category: activeCategory && activeCategory !== "ALL" ? activeCategory : undefined }), [activeCategory]);
@@ -433,16 +462,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     setShowCatalog(true);
   };
 
-  // /collections/<slug> (header links on other pages, product breadcrumbs) opens this shop on that category.
-  const { slug: collectionSlug } = useParams();
   useEffect(() => {
     if (!collectionSlug) return;
-    if (collectionSlug === "all") { pickCategory("ALL"); return; }
-    const slugOf = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-    const match = categories.find((c: any) => categoryNames(c).some((n: string) => slugOf(n) === collectionSlug));
-    // An unknown or renamed slug opens every book, never the first category's books under the wrong URL.
-    if (match) pickCategory(match);
-    else pickCategory("ALL");
+    pickCategory(collectionCategory(collectionSlug, categories));
   }, [collectionSlug, categories]);
 
   // Sync activeCategory if categories change
@@ -524,7 +546,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       ? publishedBooks.length === 0
       : getFilteredItems(books, routeCategory, new Date().toISOString(), categories).length === 0)),
     url: onCollectionRoute && routeCategory ? new URL(`${import.meta.env.BASE_URL}collections/${collectionSlug === "all" ? "all" : routeCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`, window.location.origin).href : undefined,
-    title: onCollectionRoute ? getCopy(activeDesign, "seoCollectionTitle", { category: routeCategoryName }) : showCatalog ? (getCopy(settings?.design, "seoArchiveTitle") || undefined) : undefined,
+    title: onCollectionRoute ? getCopy(activeDesign, "seoCollectionTitle", { category: routeCategoryName }) : catalogOpen ? (getCopy(settings?.design, "seoArchiveTitle") || undefined) : undefined,
     description: onCollectionRoute ? routeCategory?.description || getCopy(activeDesign, "seoCollectionDescription", { category: routeCategoryName.toLowerCase() }) : settings?.info?.description,
     // Style › Logo & wordmark › Share image, else the first book's cover. Never `assets.profileUrl`: the shop's
     // default settings ship a 100px stock photo there, which became every shared/search preview of the home page.
@@ -642,7 +664,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // One storefront shell (Riso header, footer) for every view. "Home" swaps the catalog
   // grid for the Home template's sections; with no Home sections it shows the catalog.
   const homeSections: any[] = heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections || [];
-  const onHome = !showCatalog && homeSections.length > 0;
+  const onHome = !catalogOpen && homeSections.length > 0;
   {
     return (
       <div
@@ -677,7 +699,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               if (legacyDesign?.showHero === false) { pickCategory(categories[0] ?? "ALL"); window.scrollTo({ top: 0 }); }
               else setShowCatalog(false);
             },
-            showCatalog,
+            showCatalog: catalogOpen,
             announcement: settings?.announcements?.[0]?.message,
             siteName: settings?.info?.name,
           }}
@@ -710,7 +732,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           {(storefrontDesign?.catalogHeading || storefrontDesign?.showCatalogCount) && (
             <div data-studio-target="style:catalog" data-studio-label="Catalog heading" className="flex items-baseline justify-between flex-wrap gap-4 mb-8">
               {storefrontDesign?.catalogHeading && (
-                <h1 className="text-3xl md:text-5xl tracking-tight m-0">{storefrontDesign.catalogHeading}</h1>
+                // A collection page's one <h1> is its category name (below), so the catalog heading steps down there.
+                onCollectionRoute
+                  ? <h2 className="text-3xl md:text-5xl tracking-tight m-0">{storefrontDesign.catalogHeading}</h2>
+                  : <h1 className="text-3xl md:text-5xl tracking-tight m-0">{storefrontDesign.catalogHeading}</h1>
               )}
               {storefrontDesign?.showCatalogCount && (
                 <span className="text-xs fm-muted">
@@ -756,7 +781,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
           {/* Category Header */}
           <AnimatePresence mode="wait">
-            {activeCategory && (activeCategory.description || activeCategory.imageUrl) && (
+            {activeCategory && activeCategory !== "ALL" && (activeCategory.description || activeCategory.imageUrl || onCollectionRoute) && (
               <m.div
                 key={activeCategory.id || activeCategory.name}
                 initial={{ opacity: 0, y: 10 }}
@@ -772,14 +797,24 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   </div>
                 )}
                 <div className="max-w-3xl">
-                  <h2 {...regionProps("categoryBannerTitle")} className="text-3xl md:text-5xl font-bold tracking-tighter mb-4 uppercase">
-                    {activeCategory.name}
-                  </h2>
-                  {activeCategory.description && (
-                    <p {...regionProps("categoryBannerText")} className="text-sm md:text-base text-white/60 leading-relaxed font-medium">
-                      {activeCategory.description}
-                    </p>
+                  {/* On /collections/<slug> the category name is the page's single <h1> (in the prerendered HTML too). */}
+                  {onCollectionRoute ? (
+                    <h1 {...regionProps("categoryBannerTitle")} className="text-3xl md:text-5xl font-bold tracking-tighter mb-4 uppercase">
+                      {activeCategory.name}
+                    </h1>
+                  ) : (
+                    <h2 {...regionProps("categoryBannerTitle")} className="text-3xl md:text-5xl font-bold tracking-tighter mb-4 uppercase">
+                      {activeCategory.name}
+                    </h2>
                   )}
+                  {(() => {
+                    const intro = onCollectionRoute ? collectionIntro(activeDesign, collectionSlug, activeCategory) : activeCategory.description;
+                    return intro ? (
+                      <p {...regionProps("categoryBannerText")} className="text-sm md:text-base text-white/60 leading-relaxed font-medium">
+                        {intro}
+                      </p>
+                    ) : null;
+                  })()}
                 </div>
               </m.div>
             )}
@@ -830,7 +865,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               return (
                 <m.article
                   key={item.id || index}
-                  initial={(storefrontDesign?.enableAnimations ?? true) ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }}
+                  initial={skipEntrance ? false : (storefrontDesign?.enableAnimations ?? true) ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={(storefrontDesign?.enableAnimations ?? true)
                     // Stagger only the first rows: deep in a big catalog, cards must not sit invisible for seconds.
@@ -860,6 +895,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         src={item.photos?.[0]?.url || placeholderImage(activeDesign)}
                         {...photoSrcSet(item.photos?.[0], CARD_PHOTO_SIZES)}
                         alt={item.title}
+                        priority={index < 2 ? "high" : index < 4 ? "eager" : undefined}
                         className={`w-full h-full ${storefrontImageFit} transition-transform duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}
                         style={{ objectPosition: `${catalogImageFocalX}% ${catalogImageFocalY}%` }}
                         frameStyle={isOutOfStock && showSoldOutBadge ? soldOutPhotoStyle(storefrontDesign) : undefined}

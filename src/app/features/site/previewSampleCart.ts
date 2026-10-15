@@ -1,5 +1,6 @@
 import { catalogUnitPrice, type CartItem } from "../../CartContext";
 import { bundleComponents, isGiftCardProduct } from "./promotions";
+import { smallPhotoUrl } from "./photoSources";
 
 /**
  * Studio preview only: checkout with an empty bag shows just "Your bag is empty", so none of the
@@ -20,7 +21,7 @@ export function previewSampleCart(books: any[]): CartItem[] {
       title: String(book.title || ""),
       price,
       quantity: 1,
-      photoUrl: book.photos?.[0]?.url || book.photoUrl || "",
+      photoUrl: smallPhotoUrl(book.photos?.[0]) || book.photoUrl || "",
       shippingProfileId: book.shippingProfileId || "",
     }];
   }

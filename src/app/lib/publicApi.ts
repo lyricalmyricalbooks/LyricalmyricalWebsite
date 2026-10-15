@@ -1,6 +1,4 @@
-import { collection, doc, documentId, getDoc, getDocs, increment, limit, orderBy, query, setDoc, startAfter, where } from "firebase/firestore/lite";
-
-import { liteDb } from "../../lib/firestoreLite";
+import { lite } from "../../lib/lite";
 import { functionFetch } from "./functionsBase";
 import { orderAccessHeaders, savedOrderAccess } from "./orderAccessClient";
 import { defaultSettings } from "../admin/defaultSettings";
@@ -18,6 +16,7 @@ export const publicApi = {
   getStorefrontBooks: async (limitCount = 100, lastVisible: any = null) => {
     // firestore.rules serve the public only books with status "published", so a list query must say so (a
     // book saved before statuses existed is stamped "published" by scripts/migrate-book-private-fields.mjs).
+    const { collection, documentId, getDocs, limit, orderBy, query, startAfter, where, liteDb } = await lite();
     const constraints = [where("status", "==", "published"), orderBy(documentId()), ...(lastVisible ? [startAfter(lastVisible)] : []), limit(limitCount)];
     const snap = await getDocs(query(collection(liteDb, "books"), ...constraints));
     return snap.docs.map(d => ({ ...d.data(), id: d.id, _lastDoc: d }));
@@ -26,6 +25,7 @@ export const publicApi = {
   // A shopper's read of one book: null for a missing book and for one that is not published (the rules refuse
   // the read of a draft or archived book, which is the same answer to a shopper).
   getBook: async (id: string) => {
+    const { doc, getDoc, liteDb } = await lite();
     let snap;
     try { snap = await getDoc(doc(liteDb, "books", id)); }
     catch (err: any) { if (err?.code === "permission-denied") return null; throw err; }
@@ -34,6 +34,7 @@ export const publicApi = {
   },
 
   getShippingProfiles: async () => {
+    const { collection, getDocs, liteDb } = await lite();
     const snap = await getDocs(collection(liteDb, "shipping-profiles"));
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
@@ -41,8 +42,14 @@ export const publicApi = {
   // Shopper read of settings/website: no admin-only lookups, never writes, and never keeps the
   // unpublished draft or My themes (older documents may still carry them) in shopper state or cache.
   getPublicSettings: async () => {
+    const { doc, getDoc, liteDb } = await lite();
     const snap = await getDoc(doc(liteDb, "settings", "website"));
-    const merged: any = { ...defaultSettings(), ...(snap.exists() ? snap.data() : {}) };
+    return publicApi.publicSettingsFrom(snap.exists() ? snap.data() : null);
+  },
+
+  /** settings/website's data (null when there is none) as shoppers get it; shared by the catalog file path. */
+  publicSettingsFrom: (data: Record<string, any> | null) => {
+    const merged: any = { ...defaultSettings(), ...(data || {}) };
     delete merged.draftDesign;
     delete merged.savedThemes;
     delete merged.scheduledPublish; // older client-side schedules; the server scheduler publishes now (Studio 3.5)
@@ -50,29 +57,43 @@ export const publicApi = {
     return merged;
   },
 
+  /** When a book, page or settings/website last changed (functions/catalogVersion.js); decides if the catalog file is current. */
+  getCatalogVersion: async () => {
+    const { doc, getDoc, liteDb } = await lite();
+    const snap = await getDoc(doc(liteDb, "settings", "catalogVersion"));
+    return snap.exists() ? snap.data() : null;
+  },
+
   /** A shared preview link (Studio 3.4): readable by its exact token while unexpired (firestore.rules), never listed. */
   getThemePreview: async (token: string) => {
+    const { doc, getDoc, liteDb } = await lite();
     const snap = await getDoc(doc(liteDb, "previewTokens", token));
     return snap.exists() ? snap.data() : null;
   },
 
   // Today's CAD→USD/EUR rates, saved by the scheduled refreshExchangeRates Function; checkout charges the same numbers.
   getExchangeRates: async () => {
+    const { doc, getDoc, liteDb } = await lite();
     const snap = await getDoc(doc(liteDb, "settings", "exchangeRates"));
     return snap.exists() ? snap.data() : null;
   },
 
   // URL redirects (Settings › General): read only when a shopper lands on a missing page; one small public doc.
   getRedirects: async (): Promise<Redirect[]> => {
+    const { doc, getDoc, liteDb } = await lite();
     const snap = await getDoc(doc(liteDb, "settings", REDIRECTS_DOC));
     return cleanRedirects(snap.exists() ? (snap.data() as any).items : []);
   },
 
   getPublishedPages: async (): Promise<Page[]> => {
+    const { collection, getDocs, query, where, liteDb } = await lite();
     const q = query(collection(liteDb, "pages"), where("status", "==", "published"));
     const snap = await getDocs(q);
-    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
-    return docs.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return publicApi.sortPages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  },
+
+  sortPages: (docs: any[]): Page[] => {
+    return [...docs].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   },
 
   // Storefront (thank-you page, /track): the order record only. Guests may read an
@@ -104,6 +125,7 @@ export const publicApi = {
     if (!(await trackingAllowed())) return;
     const today = new Date().toISOString().split('T')[0];
     try {
+      const { doc, increment, setDoc, liteDb } = await lite();
       await setDoc(doc(liteDb, "analytics", today), { date: today, visits: increment(1) }, { merge: true });
     } catch (e) {
       console.warn("Analytics failed", e);

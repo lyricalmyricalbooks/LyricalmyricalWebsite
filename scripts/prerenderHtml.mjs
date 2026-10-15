@@ -54,6 +54,31 @@ export function captureDocument({ template, publicUrl, localOrigin }) {
       else if (attribute.value.includes(localOrigin)) element.setAttribute(attribute.name, attribute.value.replaceAll(localOrigin, new URL(publicUrl).origin));
     }
   });
+  // Google Fonts stylesheets must not hold up the first paint of the snapshot (each is a round trip to
+  // fonts.googleapis.com before anything shows). They are fetched at once and applied when they arrive;
+  // display=swap already shows the text in the fallback font until then. Duplicates are dropped.
+  const fontLinks = new Map();
+  clone.querySelectorAll('link[href^="https://fonts.googleapis.com/"]').forEach(link => {
+    if (!/stylesheet|preload/.test(link.getAttribute('rel') || '')) return;
+    const href = link.getAttribute('href');
+    const kept = fontLinks.get(href);
+    if (kept) {
+      if (link.id && !kept.id) kept.id = link.id;
+      link.remove();
+      return;
+    }
+    fontLinks.set(href, link);
+    link.setAttribute('rel', 'preload');
+    link.setAttribute('as', 'style');
+    link.setAttribute('onload', "this.onload=null;this.rel='stylesheet'");
+  });
+  // Book photos fade in once loaded (MainSite SkeletonImage). The saved page must show them straight away
+  // rather than as the grey placeholder it had while the snapshot was taken.
+  clone.querySelectorAll('[data-fm-skeleton]').forEach(element => element.remove());
+  clone.querySelectorAll('img[data-fm-fade]').forEach(img => {
+    img.classList.remove('opacity-0');
+    img.classList.add('opacity-100');
+  });
   let canonical = clone.querySelector('link[rel="canonical"]');
   if (!canonical) { canonical = document.createElement('link'); canonical.rel = 'canonical'; clone.querySelector('head').appendChild(canonical); }
   canonical.setAttribute('href', publicUrl);

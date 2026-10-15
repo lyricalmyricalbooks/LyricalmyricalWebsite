@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, MessageSquare, Pin, PinOff, Star, Trash2, X } from "lucide-react";
 import { adminApi } from "./api";
+import { getOrdersCached } from "./ordersCache";
 import { filterReviews, isVerifiedPurchase, moderationOutcome, purchaseIndex, reviewStats } from "./reviewInsights";
 import { resolveProductRoutes } from "../features/site/productRoutes";
 import { db } from "../../lib/firebase";
@@ -91,7 +92,7 @@ function Queue() {
       setSlugs(Object.fromEntries(resolveProductRoutes(bs).map((b: any) => [b.id, b.slug])));
     }).catch(() => {});
     // Paid orders, to mark reviews by people who bought the book. Best-effort.
-    adminApi.getAllOrders().then(setOrders).catch(() => {});
+    getOrdersCached().then(setOrders).catch(() => {});
   }, []);
   const purchases = useMemo(() => purchaseIndex(orders), [orders]);
   const verified = (r: Review) => isVerifiedPurchase(r, purchases);

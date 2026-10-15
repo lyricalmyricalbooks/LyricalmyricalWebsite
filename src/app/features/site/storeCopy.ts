@@ -211,6 +211,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "addToBagLabel", label: "Add to bag button", default: "ADD TO BAG" },
       { key: "bookLoading", label: "Loading text", default: "Loading" },
       { key: "bookPhotoAlt", label: "Product photo — alt text", default: "{title} — view {n}", hint: "Use {title} for the book title and {n} for the photo number." },
+      { key: "bookVideoLabel", label: "Product video — name read aloud (when the video has no description)", default: "{title} — video {n}", hint: "Use {title} for the book title and {n} for its place among the photos." },
+      { key: "ariaGoToVideo", label: "Video thumbnail / dot (read aloud by screen readers, not shown)", default: "Show video {n}", hint: "Use {n} for its place among the photos." },
       { key: "bookNotFound", label: "Not-found message", default: "Publication not found" },
       { key: "bookReturn", label: "Not-found button", default: "Return to Catalogue" },
       { key: "bookFormatLabel", label: "Format selector label", default: "Format / Edition" },
@@ -393,6 +395,9 @@ export const COPY_SCHEMA: CopyGroup[] = [
     fields: [
       { key: "collectionBack", label: "Collection: back link", default: "Catalogue" },
       { key: "collectionEyebrow", label: "Collection: header label", default: "Collection" },
+      { key: "collectionIntroPublications", label: "Collection intro: Publications (/collections/publications)", multiline: true, default: "Every publication from {name} in one place: photobooks, art books and zines by contemporary photographers and artists. {name} is an independent publishing house based in Toronto with roots in Italy, specializing in photography and art books.", hint: "Shown under the heading when the category has no description in Navigation › Shop categories. Blank = no intro. {name} is the site name." },
+      { key: "collectionIntroBooks", label: "Collection intro: Books (/collections/books)", multiline: true, default: "Photobooks and art books published by {name}, an independent publishing house based in Toronto with roots in Italy. The list brings together contemporary photographers and artists in hardcover and paperback editions.", hint: "Shown under the heading when the category has no description in Navigation › Shop categories. Blank = no intro. {name} is the site name." },
+      { key: "collectionIntroZines", label: "Collection intro: Zines (/collections/zines)", multiline: true, default: "Zines and small-format publications from {name}, the independent Toronto press with roots in Italy. They are shorter and more experimental than our books, and some are made together with other independent publishers and magazines.", hint: "Shown under the heading when the category has no description in Navigation › Shop categories. Blank = no intro. {name} is the site name." },
       { key: "breadcrumbAria", label: "Breadcrumb (read aloud by screen readers, not shown)", default: "Breadcrumb" },
       { key: "breadcrumbHome", label: "Breadcrumb: Home", default: "Home" },
       { key: "breadcrumbCollections", label: "Breadcrumb: Collections", default: "Collections" },

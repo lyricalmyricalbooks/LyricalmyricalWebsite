@@ -100,6 +100,47 @@ describe("one header & footer: every Studio hook survives the merge", () => {
   });
 });
 
+describe("header and footer colour schemes (Theme settings › Colour schemes)", () => {
+  const noir = { id: "noir", name: "Noir", v: 2, background: "#000000", surface: "#111111", text: "#ffffff", muted: "#999999", accent: "#ff0000", onAccent: "#000000", border: "#333333", buttonBg: "#ffffff", buttonText: "#000000", link: "#ffffff" };
+  const headerOf = (html: string) => html.slice(html.indexOf("<header"), html.indexOf(">", html.indexOf("<header")) + 1);
+  it("paints the header and footer from the scheme instead of their own colours while one is picked", () => {
+    for (const layout of ["reference", "modern"]) {
+      const own = { ...base, catalogLayoutStyle: layout, headerBg: "#123456", headerColor: "#abcdef", footerBg: "#654321" };
+      site.data = { settings: settingsFor(own), pages, books, loading: false, fresh: true };
+      const plain = render(h(MainSite, { showCatalog: true, setShowCatalog: () => {} }));
+      expect(headerOf(plain), layout).toContain("data-fm-header");
+      expect(headerOf(plain), layout).toContain("#123456");
+      const schemed = { ...own, colorSchemes: [noir], elementSchemes: { header: "noir", footer: "noir" } };
+      site.data = { settings: settingsFor(schemed), pages, books, loading: false, fresh: true };
+      const html = render(h(MainSite, { showCatalog: true, setShowCatalog: () => {} }));
+      expect(headerOf(html), layout).toContain("var(--bg-color)");
+      expect(headerOf(html), layout).not.toContain("#123456");
+      const footer = render(h(StoreFooter, { settings: settingsFor(schemed), pages }));
+      expect(footer).toContain("background-color:var(--bg-color)");
+      expect(footer).not.toContain("#654321");
+    }
+    // Every part inside the header gives way too: logo text, rules and the phone menu's drop-down tab.
+    for (const layout of ["reference", "modern"]) {
+      const own = { ...base, catalogLayoutStyle: layout, logoColor: "#ff00aa", headerColor: "#aa00ff", borderColor: "#00ffaa", colorSchemes: [noir], elementSchemes: { header: "noir" } };
+      site.data = { settings: settingsFor(own), pages, books, loading: false, fresh: true };
+      const html = render(h(MainSite, { showCatalog: true, setShowCatalog: () => {} }));
+      const header = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
+      for (const colour of ["#ff00aa", "#aa00ff", "#00ffaa"]) expect(header, `${layout} ${colour}`).not.toContain(colour);
+      // Without the scheme the same design does paint those colours (so the check above means something).
+      site.data = { settings: settingsFor({ ...own, elementSchemes: {} }), pages, books, loading: false, fresh: true };
+      const plain = render(h(MainSite, { showCatalog: true, setShowCatalog: () => {} }));
+      expect(plain.slice(plain.indexOf("<header"), plain.indexOf("</header>")), layout).toContain("#ff00aa");
+    }
+    const pageDesign = { ...base, headerBg: "#123456", logoColor: "#ff00aa", headerColor: "#aa00ff", colorSchemes: [noir], elementSchemes: { header: "noir" } };
+    site.data = { settings: settingsFor(pageDesign), pages, books, loading: false, fresh: true };
+    const page = render(h(StoreHeader, { design: pageDesign, pages, books } as any), "/page/about");
+    expect(headerOf(page)).toContain("var(--bg-color)");
+    expect(headerOf(page)).not.toContain("#123456");
+    const pageHeader = page.slice(page.indexOf("<header"), page.indexOf("</header>"));
+    for (const colour of ["#ff00aa", "#aa00ff"]) expect(pageHeader, colour).not.toContain(colour);
+  });
+});
+
 describe("wishlist, account, tracking and 404 pages get the shop header and footer", () => {
   const Page = () => h("main", null, "page body");
   const chrome = (design: any, surface: any) => {

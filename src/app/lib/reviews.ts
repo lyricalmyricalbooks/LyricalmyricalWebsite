@@ -1,21 +1,4 @@
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  limit,
-  doc,
-  updateDoc,
-  writeBatch,
-  deleteField,
-  documentId,
-  startAfter,
-  getAggregate,
-  count,
-  average,
-} from "firebase/firestore/lite";
-import { liteDb } from "../../lib/firestoreLite";
+import { lite } from "../../lib/lite";
 import { inEditorPreview } from "./trackingGuard";
 
 /** Reviews shown per page on a book page. */
@@ -71,10 +54,10 @@ export const reviewsApi = {
   summary: (bookId: string): Promise<{ count: number; average: number }> => {
     const hit = summaryCache.get(bookId);
     if (hit && Date.now() - hit.at < 30_000) return hit.promise;
-    const promise = getAggregate(
+    const promise = lite().then(({ average, collection, count, getAggregate, query, where, liteDb }) => getAggregate(
       query(collection(liteDb, "reviews"), where("bookId", "==", bookId), where("status", "==", "approved")),
       { count: count(), average: average("rating") },
-    ).then(snap => {
+    )).then(snap => {
       const data = snap.data();
       return { count: Number(data.count) || 0, average: Number(data.average) || 0 };
     });
@@ -85,6 +68,7 @@ export const reviewsApi = {
 
   /** The next page of approved reviews, older than `before` (the createdAt of the last one shown). */
   listApprovedBefore: async (bookId: string, before: string): Promise<Review[]> => {
+    const { average, collection, count, deleteField, doc, documentId, getAggregate, getDocs, limit, orderBy, query, startAfter, updateDoc, where, writeBatch, liteDb } = await lite();
     const snap = await getDocs(query(
       collection(liteDb, "reviews"),
       where("bookId", "==", bookId), where("status", "==", "approved"),
@@ -94,6 +78,7 @@ export const reviewsApi = {
   },
 
   list: async (bookId: string, includePending = false): Promise<Review[]> => {
+    const { average, collection, count, deleteField, doc, documentId, getAggregate, getDocs, limit, orderBy, query, startAfter, updateDoc, where, writeBatch, liteDb } = await lite();
     const base = collection(liteDb, "reviews");
     const q = includePending
       ? query(base, where("bookId", "==", bookId), orderBy("createdAt", "desc"), limit(REVIEW_PAGE))
@@ -114,6 +99,7 @@ export const reviewsApi = {
     const payload = { ...publicFields, title: publicFields.title || "", status: "pending" as const, createdAt };
     // The Studio preview runs the real storefront: it shows the success state but never saves a review.
     if (inEditorPreview()) return { id: "preview", ...payload };
+    const { average, collection, count, deleteField, doc, documentId, getAggregate, getDocs, limit, orderBy, query, startAfter, updateDoc, where, writeBatch, liteDb } = await lite();
     // The review is public once approved; the reviewer's email goes to admin-only
     // reviewContacts under the same id, written together.
     const ref = doc(collection(liteDb, "reviews"));
@@ -131,6 +117,7 @@ export const reviewsApi = {
    * session also moves every older review's public email there, across the whole collection.
    */
   contactsFor: async (reviews: Review[]): Promise<Record<string, string>> => {
+    const { average, collection, count, deleteField, doc, documentId, getAggregate, getDocs, limit, orderBy, query, startAfter, updateDoc, where, writeBatch, liteDb } = await lite();
     const out: Record<string, string> = {};
     if (!legacyEmailsMoved) {
       // Only reviews that still hold a public email (a string compares above ""), not the whole collection.
@@ -159,16 +146,19 @@ export const reviewsApi = {
 
   /** `extra.verified` (approval only): stamped publicly so the book page can show "Verified purchase". */
   setStatus: async (id: string, status: Review["status"], extra: { verified?: boolean } = {}) => {
+    const { average, collection, count, deleteField, doc, documentId, getAggregate, getDocs, limit, orderBy, query, startAfter, updateDoc, where, writeBatch, liteDb } = await lite();
     await updateDoc(doc(liteDb, "reviews", id), { status, ...(typeof extra.verified === "boolean" ? { verified: extra.verified } : {}) });
     clearApprovedCache();
   },
 
   setFeatured: async (id: string, featured: boolean) => {
+    const { average, collection, count, deleteField, doc, documentId, getAggregate, getDocs, limit, orderBy, query, startAfter, updateDoc, where, writeBatch, liteDb } = await lite();
     await updateDoc(doc(liteDb, "reviews", id), { featured });
     clearApprovedCache();
   },
 
   setReply: async (id: string, body: string) => {
+    const { average, collection, count, deleteField, doc, documentId, getAggregate, getDocs, limit, orderBy, query, startAfter, updateDoc, where, writeBatch, liteDb } = await lite();
     const text = body.trim().slice(0, 1000);
     await updateDoc(doc(liteDb, "reviews", id), { reply: text ? { body: text, at: new Date().toISOString() } : null });
     clearApprovedCache();
@@ -176,6 +166,7 @@ export const reviewsApi = {
 
   /** Deletes the review and its admin-only reviewer email together, so no orphaned address is left. */
   remove: async (id: string) => {
+    const { average, collection, count, deleteField, doc, documentId, getAggregate, getDocs, limit, orderBy, query, startAfter, updateDoc, where, writeBatch, liteDb } = await lite();
     const batch = writeBatch(liteDb);
     batch.delete(doc(liteDb, "reviews", id));
     batch.delete(doc(liteDb, "reviewContacts", id));

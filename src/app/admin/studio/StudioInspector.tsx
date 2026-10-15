@@ -11,8 +11,9 @@ import { findBlock, freshBlockIds, insertBlockAfter, mapBlock, removeBlock, reso
 import { updateBlocks } from "./studioWorkflow";
 import { blockLabel } from "./StudioOutline";
 import { autoFitSection, resetPhoneLayout } from "./autoMobile";
+import { layerOrder, setBlockGrid, shiftLayer } from "./gridPlacement";
 
-export function StudioInspector({ section, blockId, colorSchemes, device, sharedBlocks, onSaveShared, onPatchShared, onInsertShared, onPatch, onSelectBlock, onDuplicate, onDelete, onToggle, onClose, onNotice }: {
+export function StudioInspector({ section, blockId, colorSchemes, device, sharedBlocks, onSaveShared, onPatchShared, onInsertShared, onPatch, onSelectBlock, onDuplicate, onDelete, onToggle, onClose, onNotice, arranging = false, onArrange, onReplayMotion, onAddBlock, onCopyBlock, canPasteBlock = false, onPasteBlock }: {
   section: Section; blockId: string | null; colorSchemes: any[];
   device: "desktop" | "tablet" | "mobile"; sharedBlocks: SharedBlock[];
   onSaveShared: (blockId: string, name: string) => void; onInsertShared: (shared: SharedBlock) => void;
@@ -20,6 +21,12 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   onPatch: (patch: Record<string, any>) => void; onSelectBlock: (id: string | null) => void;
   onDuplicate: () => void; onDelete: () => void; onToggle: () => void; onClose: () => void;
   onNotice?: (text: string) => void;
+  /** Flexible composition: whether its blocks are being arranged on the preview's grid (3.0 phase 3). */
+  arranging?: boolean; onArrange?: (on: boolean) => void;
+  /** Plays this section's motion again in the preview (3.0 phase 4). */
+  onReplayMotion?: () => void;
+  /** Block library 3.0: open the block picker, copy a block, and paste the copied block (after a block, or at the end). */
+  onAddBlock?: () => void; onCopyBlock?: (blockId: string) => void; canPasteBlock?: boolean; onPasteBlock?: (afterId: string | null) => void;
 }) {
   const [tab, setTab] = useState<"content" | SectionTab>("content");
   const [askText, promptNode] = usePrompt();
@@ -106,6 +113,34 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
     <div className="studio-inspector-body">
       {(tab === "content" || tab === "style") && <input className="studio-search" aria-label={`Search ${tab} settings`} placeholder="Find a setting…" value={search} onChange={e => setSearch(e.target.value)} />}
       {tab === "content" && <>
+        {(onAddBlock || onCopyBlock || onPasteBlock) && meta?.blockType && !search && <div className="studio-control-card" data-studio-panel="block-clipboard">
+          <strong>{block ? "This block" : meta?.blockLabel ? `${meta.blockLabel}s` : "Blocks"}</strong>
+          <div className="studio-inline-actions">
+            {!block && onAddBlock && <button className="studio-link-button" onClick={onAddBlock}>Add block…</button>}
+            {block && onCopyBlock && <button className="studio-link-button" onClick={() => onCopyBlock(block.id)}>Copy block</button>}
+            {onPasteBlock && <button className="studio-link-button" disabled={!canPasteBlock} title={canPasteBlock ? undefined : "Copy a block from a section of this kind first"}
+              onClick={() => onPasteBlock(block ? block.id : null)}>{block ? "Paste copied block after this one" : "Paste copied block"}</button>}
+          </div>
+        </div>}
+        {!block && section.type === "CompositionSection" && <div className="studio-control-card" data-studio-panel="grid-arrange">
+          <strong>Arrange on the page · {device}</strong>
+          <p className="studio-hint">Drag blocks on the grid in the preview to move them; drag a block's corner to resize it. Arrow keys move the focused block one cell, Shift + arrows resize it. Placement is kept for each screen size.</p>
+          {onArrange && <button className="studio-link-button" aria-pressed={arranging} onClick={() => onArrange(!arranging)}>{arranging ? "Stop arranging" : "Arrange on page"}</button>}
+          {blocks.length > 1 && <>
+            <strong>Layers (front first)</strong>
+            <ol className="studio-layers" aria-label="Layers, front first">
+              {layerOrder(blocks, device).map((b: any) => {
+                const forward = shiftLayer(blocks, b.id, device, "forward"), back = shiftLayer(blocks, b.id, device, "back");
+                const setZ = (z: number | null) => z != null && onPatch(updateBlocks(section, key, list => setBlockGrid(list, b.id, device, { z })));
+                return <li key={b.id}>
+                  <button className="studio-link-button" onClick={() => onSelectBlock(b.id)}>{blockLabel(b, blocks.indexOf(b), meta?.blockLabel)}</button>
+                  <button className="studio-link-button" disabled={forward == null} onClick={() => setZ(forward)}>Bring forward</button>
+                  <button className="studio-link-button" disabled={back == null} onClick={() => setZ(back)}>Send back</button>
+                </li>;
+              })}
+            </ol>
+          </>}
+        </div>}
         {!fields.length && <p className="studio-hint">{search ? "No matching settings." : blocks.length ? "This section's words live in its blocks: select one in the outline. Colours and spacing are in the Style and Layout tabs." : "This section has no words to edit here. Use the Style and Layout tabs."}</p>}
         {fields.map(f => <div key={f.key} className="studio-field">
           {block ? f.kind === "list" ? <BlockListFieldEditor field={f as any} value={block[f.key]} onChange={v => patchBlock({ [f.key]: v })} /> :
@@ -121,6 +156,9 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
           <p className="studio-hint">These overrides follow the preview size. Blank values inherit desktop.</p>
           <label>Alignment<select value={block.responsive?.[device]?.align || ""} onChange={e => patchResponsive("responsive", "align", e.target.value || undefined)}><option value="">Inherit</option><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
           <label><input type="checkbox" checked={Boolean(block.responsive?.[device]?.hidden)} onChange={e => patchResponsive("responsive", "hidden", e.target.checked || undefined)} /> Hide at this size</label>
+          {section.type === "CompositionSection" && <div className="studio-grid-fields" data-studio-panel="block-look">
+            {[["rotate", "Rotate (°)", -45, 45], ["scale", "Size (%)", 50, 150], ["opacity", "See-through (%)", 10, 100]].map(([field, label, min, max]) => <label key={String(field)}>{label}<input type="number" min={Number(min)} max={Number(max)} value={block.responsive?.[device]?.[String(field)] ?? ""} onChange={e => patchResponsive("responsive", String(field), e.target.value === "" ? undefined : Math.max(Number(min), Math.min(Number(max), Number(e.target.value))))} /></label>)}
+          </div>}
           {section.type === "CompositionSection" && <div className="studio-grid-fields">
             {[["column", "Column", 1, 24], ["span", "Width", 1, 24], ["row", "Row", 1, 30], ["rowSpan", "Height", 1, 12], ["z", "Layer", 0, 20]].map(([field, label, min, max]) => <label key={String(field)}>{label}<input type="number" min={Number(min)} max={Number(max)} value={block.grid?.[device]?.[String(field)] ?? ""} onChange={e => patchResponsive("grid", String(field), e.target.value ? Number(e.target.value) : undefined)} /></label>)}
           </div>}
@@ -130,6 +168,11 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
         </div>}
       </>}
       {!block && sharedBlocks.some(shared => !shared.sectionType || shared.sectionType === section.type) && <div className="studio-control-card"><strong>Shared blocks</strong><p className="studio-hint">Insert a compatible linked instance. Editing its source updates every placement.</p>{sharedBlocks.filter(shared => !shared.sectionType || shared.sectionType === section.type).map(shared => <button key={shared.id} className="studio-link-button" onClick={() => onInsertShared(shared)}>+ {shared.name}</button>)}</div>}
+      {tab === "style" && onReplayMotion && !search && <div className="studio-control-card" data-studio-panel="motion-preview">
+        <strong>Motion</strong>
+        <p className="studio-hint">Set it in the Motion group below. Shoppers whose device asks for less motion never see it.</p>
+        <button className="studio-link-button" onClick={onReplayMotion}>Play this section's motion</button>
+      </div>}
       {tab === "style" && <StudioSectionStyle fields={styleFields} tab="style" settings={section.settings} search={search} onPatch={onPatch} />}
       {tab === "visibility" && <>
         <div className="studio-control-card">

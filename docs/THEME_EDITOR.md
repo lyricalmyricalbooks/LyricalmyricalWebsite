@@ -563,6 +563,170 @@ the image; existing images are not migrated into the library.
 - [x] Studio Health speed tips: pictures that may make the page jump (no size and not in a fixed-shape frame), a lazily
   loaded main picture in the first screenful, total picture weight over 3 MB, and the browser's LCP when exposed.
 
+## Studio 3.0 roadmap (October 2026 — active)
+
+Research on 15 October 2026 compared Studio with Stripe (Dashboard, Workbench, Checkout branding, Elements
+Appearance API), Square Online, Squarespace (Fluid Engine, Site Styles, Blueprint AI, Refresh 2025), Shopify
+Horizon (theme blocks, AI block generation), Webflow (GSAP interactions, variable modes) and Framer (AI Style,
+localization, branching). Studio 2.0 already matches most of their foundations. The gaps are in **navigation and
+what stays in view**, **layered design values**, **free placement**, **motion**, **guided setup** and **AI**.
+Patterns the leaders share and Studio adopts:
+- Customisation in **layers**: a ready-made theme, then shared values, then rules for one part or state.
+- **Palettes per section**; Studio already has colour schemes.
+- A **live preview next to every setting**.
+- Advanced tools **docked** on screen instead of opening as dialogs (Stripe Workbench).
+- A **setup checklist** that guides first use.
+- A **block picker that previews** each block.
+- Motion as an **optional finishing step** that respects reduced-motion settings.
+- **Guided AI** that starts from the brand, not a blank prompt.
+
+Items marked *(needs owner go-ahead)* reverse an earlier owner decision (see the 2.0 scope note). Don't start them
+without a yes.
+
+### Phase 1 — Workbench & navigation — DONE (15 October 2026)
+- [x] **Workbench** (`studio/StudioWorkbench.tsx`): docked under the preview on tablets and computers, collapses to a
+  one-line taskbar, open/closed state and tab remembered (`studioUiState.ts` `workbenchOpen`/`workbenchTab`).
+  Tabs:
+  - **Health** reuses `HealthFindings` (split out of `StudioHealth.tsx`; phones keep the dialog). Theme actions › Studio
+    Health, Find's Studio Health command, the Publish dialog's Review and the toast's Back to Health all open it
+    (`openHealth`). It checks again after a publish.
+  - **Changes** lists every undo step (`pastLabels`/`futureLabels`); clicking one jumps there with `jumpBy`
+    (`studioModel.ts`, plain Undo/Redo). It also lists what the draft changes against the live shop (`summariseDiff`,
+    worked out only while the tab is open, from a deferred design).
+  - **Setup** is the launch checklist (`studio/setupChecklist.ts`, pure): logo, colours, fonts, share image, Google
+    listing, Home page, policies, phone check, clean Health, published. "Show me" uses `openTarget` / the rail / the device.
+- [x] **Shortcuts** (`shortcuts.ts`, so the `?` sheet lists them):
+  - `G` then `L/T/X/N/P/M/H` goes to a workspace (`GO_KEYS`, `resolveGoKey`, 1.2 s window, `goPendingRef` in the key handler).
+  - `W` opens or closes the Workbench, `A` is Add section, `[` and `]` step through sections.
+  - Workspace buttons' tooltips show the `G` keys. Find lists Workbench commands, and the workspace rows carry their keys.
+  - No Publish shortcut on purpose: Ctrl/⌘+Shift+P opens a private window in Firefox.
+- [x] **Breadcrumb** (`StudioBreadcrumb.tsx`) under the top bar: Page › Section › Block (or the selected built-in
+  part); earlier parts step back out.
+
+### Phase 2 — Shared values with layers — DONE (15 October 2026)
+- [x] Theme settings › **Design scales** (`tokens` group; pure CSS in `features/site/designTokens.ts`, emitted last by
+  `storefrontOverridesCss`). Every scale is off until chosen, so an unset design renders as before.
+  - **Type scale:** ratio + base size. `typeSteps` gives `--fm-step-0…5`; with **Shrink headings smoothly** on they are
+    fluid `clamp()` sizes between 390 px and 1200 px wide. Section h1–h4 follow it; a section's own heading size still wins.
+    This closes the old "auto clamp() typography" item.
+  - **Spacing:** `--fm-space-unit` (`spaceUnit`) and a phone multiplier (`phoneSpaceScale`). Sections pick
+    Layout › Spacing › **Space above and below** (`spacingStep`: xs/s/m/l/xl = 2/4/8/12/16 units, `sectionStepCss`).
+    These are plain rules, so typed padding numbers (inline) and per-device spacing overrides (!important) still win.
+  - **Corners:** `radiusScale` sets `--fm-radius-s/m/l` and `--rp-card-radius` (buy card, order slip and the other parts
+    that read it).
+  - **States:** focus ring width (`focusRingWidth`; its colour stays Riso print treatment › Keyboard focus ring), border
+    of a field being typed in (`inputFocusColor`), and pressed buttons (`buttonPress`, only when the shopper allows motion).
+  - `StudioScalePreview.tsx` draws the scales live above the controls.
+- Deviations from the plan:
+  - Shadows already had Effects › Card shadow depth (`shadowScale`), so there is no second shadow set.
+  - Named value **modes** are not built. Scheduling & campaigns (3.5) already switch a whole design on a date, which
+    covers the seasonal case. Revisit if the owner wants modes inside one design.
+  - Section fields refer to tokens only through `spacingStep`; a general `{ "$token": … }` reference was not needed yet.
+
+### Phase 3 — Free placement — DONE (15 October 2026)
+- [x] **Arrange on page** (Flexible composition › Content tab › *Arrange on the page* card): Studio sends `GRID_ARRANGE`
+  `{ sectionId, device }` while that section is selected in Edit mode. The preview (`studio/gridBridge.ts`, injected by
+  `previewBridge.ts`) draws the column overlay. Each block gets a move area and a resize corner, dragged with pointer
+  capture; Esc cancels a drag. Arrow keys move the focused block one cell; Shift + arrows resize it.
+- [x] The preview reports pixels (`GRID_PLACE { rect, grid, by? }`). Studio turns them into cells with the pure
+  `studio/gridPlacement.ts` (`cellsFromRect`, `nudgeCell`, `setBlockGrid`, `applyGridMessage`) as one named, undoable
+  change for the previewed size (`block.grid[device]`, the keys the storefront already reads). Placement stays on the
+  placement, never on a shared block's source.
+- [x] **Layers** list (front first) with Bring forward / Send back (`layerOrder`, `shiftLayer` → `grid[device].z`).
+- [x] Per-block **Rotate / Size / See-through** per screen size (`block.responsive[device].rotate|scale|opacity`,
+  `compositionLook` in `SectionComponents.tsx`; desktop is inline, tablet and phone go through `compositionBreakpointCss`).
+- Not done: a block with no placement still auto-flows one column wide (unchanged storefront behaviour). The first drag
+  or nudge gives it real cells.
+
+### Phase 4 — Motion as a finishing step — DONE (15 October 2026)
+- [x] Section › Style › **Motion** group (`components/sectionMotion.ts`, CSS scoped to `#section-<id>`):
+  - Section entrance (`animation`, moved here from Effects), now with **How long it takes** / **Wait before starting**
+    (`motionDuration`, `motionDelay`; `entranceTiming` feeds `SectionReveal`).
+  - **Blocks appear as you scroll** (`revealBlocks`: fade up / fade / zoom / slide) with **Delay between blocks**
+    (`staggerStep`, nth-child delays for the first 12).
+  - **Blocks and cards when pointed at** (`blockHover`: lift / grow; hover-capable pointers only).
+  - **Parallax** background (`parallax`: subtle / strong; `animation-timeline: view()` inside `@supports`, otherwise still).
+  - **Sticky** (`sticky`, `stickyTop`).
+  - **Turn motion off on phones** (`motionOffOnPhones`).
+- [x] Safety: blocks are hidden only while `MotionWatcher` (sectionRender.tsx) has "armed" a section that started below
+  the screen. It never arms under reduced motion (the prerender runs with reduced motion) or without IntersectionObserver.
+  All movement sits in `prefers-reduced-motion: no-preference`, and Style › Page animations off removes it all.
+- [x] **Play this section's motion** (Style tab card) posts `MOTION_REPLAY` to the preview.
+- Not done: motion per individual block (it is per section, applied to its blocks) and a timeline editor.
+
+### Phase 5 — Block library 3.0 (Shopify Horizon) — DONE (15 October 2026)
+- [x] **Copy block / Paste copied block** (inspector Content tab card `block-clipboard`, Find anything block commands;
+  `studio/blockLibrary.ts` `copyBlock` / `canPasteBlock` / `pasteBlock`). A block pastes into a section of the **same
+  type** (not merely the same block type: two section types can share a block type with different fields). Fresh ids;
+  linked shared blocks stay linked; grid/responsive placement comes along. Each paste is one named change.
+- [x] **Block picker** (`studio/StudioBlockPicker.tsx`, a panel like Add section): opened by the outline's **Add <block>**,
+  the inspector's **Add block…** and the canvas toolbar's **+ Block** (`ADD_BLOCK` now opens it). Choices from
+  `blockChoices`: Text / Picture / Button / Group for Flexible composition, "New <block>" elsewhere, copies of blocks
+  already in the section, compatible shared blocks and the clipboard. Pointing at one adds a preview-only
+  `__studio-block-candidate` (`withBlockCandidate`, never saved) and scrolls to it ("Preview · not added yet").
+- [x] **New page from a starter** (`studio/pageStarters.ts`): Studio › Pages › New page shows Blank, About, Shipping &
+  returns, FAQ, Contact, Submissions and Journal. Starters are headings + [bracketed prompts] (no invented facts) and open
+  as **drafts** with a free slug; nothing is saved until Save.
+- [x] **Header and footer colour schemes**: `ELEMENT_SCHEME_TARGETS` `header` (`header[data-fm-header]`) and `footer`
+  (`footer[data-fm-footer]`). While one is picked, StoreHeader/StoreFooter paint from `var(--bg-color)` /
+  `var(--text-color)` / `var(--border-color)` and `footerStyleCss` skips the footer's own colour keys.
+- [x] Theme settings link fields use the link picker (`StyleField` kind `link`; `cartDrawerEmptyLink`); a test refuses a
+  new address-like Style field typed as plain text.
+- Not done: live thumbnails rendered from the real block (the picker's pictures are code-drawn; the live preview is the
+  page itself), and Page-section starters (starters fill the page body, not `page:<slug>` sections).
+
+### Phase 6 — Brand kit & setup wizard (Squarespace Blueprint) — DONE (15 October 2026)
+- [x] **Brand kit** panel (`studio/StudioBrandKit.tsx`, beside the preview like Add section): 1 Logo (upload or library;
+  its colours are read in the browser by `studio/logoColours.ts` → `brandKit.dominantColours`) → 2 Colours
+  (`palettesFromColours`: light page / dark page / your colour as the page, then the built-in palettes; text ≥ 4.5:1 and
+  accent ≥ 3:1 guaranteed by `withContrast`) → 3 Personality (`PERSONALITIES`: bookish, bold, minimal — fonts, button
+  style, corners, uppercase) → 4 Home page (keep, or the personality's starter layout without its fixed colours) →
+  5 Review (`brandKitSummary`) → **Apply brand kit**.
+- [x] Every step previews on the canvas (`brandChoice` → `brandKitDesign` in `sendPreviewState`, never the draft);
+  Apply is one named `change` ("Apply brand kit"). It writes only keys with a Style control (`paletteKeys`,
+  `personalityKeys`, `logoUrl`; tested against `STYLE_GROUPS`) on every page (`applyThemeKeysToSurfaces`) and adds a
+  "Brand colour" scheme (`brand-accent`).
+- [x] Entry points: Workbench › Setup › **Set up your brand in one go** (`go: { kind: "brand" }`), Theme actions ›
+  **Brand kit…**, Find anything "Brand kit". Switching workspace closes it.
+- Not done: a card on the Theme settings home (the three entry points above cover it); reading colours from a library
+  picture whose storage host blocks canvas reads (the panel says so and offers the colour picker).
+
+### Phase 7 — Site-wide Health & speed — DONE (15 October 2026)
+- [x] **Check every page** (Workbench › Health, Find anything "Check every page"): `studio/siteHealth.ts` `healthRoutes`
+  lists Home, the shop, one book per book-page template (default + each alternate), published custom pages, written
+  policy pages, up to 12 categories and wishlist / account / tracking / 404. `studio/StudioSiteHealth.tsx` loads each into
+  a hidden, see-through frame at the previewed device width, feeds it the canvas's unsaved snapshot
+  (`buildPreviewState` + `deliverPreviewState`), waits for it to settle (8 s cap), scrolls through it once so sections that
+  fade in lower down are revealed, and runs the read-only `auditDocument`. The preview's Customer account never creates a
+  customer record for the signed-in owner (`Account.tsx`, `inEditorPreview`).
+  Progress, **Stop**, results grouped by page (`mergeSiteFindings`: problems on several pages listed once, worst pages
+  first), **Open this page** (canvas switches; Health re-checks it there for Show me) and **Edit this part** (a built-in
+  part waits for its page to load). The frame is removed after each page; nothing is written.
+- [x] Speed: the existing picture checks (main picture loading lazily, pictures without a size that make the page
+  jump, heavy pictures, the preview's own LCP time) plus a per-page **estimate** of picture and font weight
+  (`pageWeight`, from the browser's resource list). All labelled as estimates from the preview; no INP figure (it needs
+  real shopper input).
+- [x] Section background pictures picked from the Media library load a screen-sized copy:
+  `features/site/backgroundSources.ts` writes `--fm-bg-img` per breakpoint (tablets ≥ 2400 px copy, phones ≥ 1600 px: a step
+  up because "cover" scales to tall sections) and
+  `bgStyle` reads `var(--fm-bg-img, url(full))`; a plain URL renders exactly as before. No AVIF (the library makes WebP).
+- [x] History: the last 10 complete runs per browser (`studio-site-health-v1:` in localStorage) with a "Last checks"
+  trend; Setup's Health item is done after a whole-shop run with nothing to fix. Health stays in the Workbench (not a
+  rail tab).
+
+### Phase 8 — AI assistant *(needs owner go-ahead)*
+- [ ] "Rewrite with AI" next to Text & labels and section text fields.
+- [ ] A text prompt that drafts sections from real section types (G item), through `admin/aiWriter.ts` and the stored
+  Gemini key. The result is a draft that is never published by itself.
+
+### Phase 9 — Multi-language EN/FR *(needs owner go-ahead)*
+- [ ] Carry out `docs/superpowers/plans/2026-10-04-local-fulfillment-content-languages.md`: translating words and pages,
+  a check for what is still untranslated, previewing each language, and a language switcher for shoppers.
+
+### Phase 10 — Experiments & catalog pages *(needs owner go-ahead)*
+- [ ] A/B tests: two versions of a section, compared on paid orders.
+- [ ] Author, series and event pages that fill themselves from the catalog.
+
 ## Shopify-parity roadmap (history)
 
 Status legend: `[ ]` todo · `[~]` partial · `[x]` done. Update these as work
@@ -954,15 +1118,18 @@ built end-to-end via the section contract above.
 | Capability | Best-in-class reference | Us today | Gap to close |
 |------------|------------------------|----------|--------------|
 | Declarative page state | Shopify OS 2.0 JSON template tree (`templates/*.json`) | `design.sections` JSON in settings | Per-page-type templates (roadmap A) |
-| Sections + blocks | OS 2.0 sections/blocks; Horizon **8 levels** of nesting | section → 1 level of blocks | Nested/recursive blocks |
-| Reusable blocks across sections | OS 2.0 "theme blocks" / app blocks | section-local blocks only | Shared block library |
-| Click-to-edit in preview | `{{ block.shopify_attributes }}` data hooks | partial (`THEME_UPDATE` postMessage) | Emit stable `data-fm-*` ids on every section/block; bidirectional highlight |
-| Visual drag layout | Squarespace Fluid Engine CSS-Grid coordinates; Wix Studio Grid+Flexbox | vertical section list only | Grid/coordinate positioning w/ z-index overlap |
-| Responsive per-device editing | Wix Studio breakpoints; Squarespace 24-col desktop / 8-col mobile grids | single layout, CSS handles reflow | Per-breakpoint overrides + device preview |
-| AI authoring | Horizon AI block generator; Wix AI layout/`clamp` typography | none | Prompt → registry-valid section JSON |
+| Sections + blocks | OS 2.0 sections/blocks; Horizon **8 levels** of nesting | sections + 3-level composition blocks | Block copy/paste, previewing picker (3.0 Phase 5) |
+| Reusable blocks across sections | OS 2.0 "theme blocks" / app blocks | linked shared blocks + saved sections | — |
+| Click-to-edit in preview | `{{ block.shopify_attributes }}` data hooks | every section, block and built-in part | — |
+| Visual drag layout | Squarespace Fluid Engine CSS-Grid coordinates; Wix Studio Grid+Flexbox | grid coordinates typed in Flexible composition | Drag/resize on the canvas (3.0 Phase 3) |
+| Responsive per-device editing | Wix Studio breakpoints; Squarespace 24-col desktop / 8-col mobile grids | desktop/tablet/phone overrides + auto-fit | — |
+| AI authoring | Horizon AI block generator; Wix AI layout/`clamp` typography | page search listings only | 3.0 Phase 8 (needs owner go-ahead) |
 | Custom code | OS 2.0 `custom.css` inject + editor CSS panel | token/CSS-var layer only | Global + per-section custom CSS, deferred custom JS |
-| Performance budgets | Lean semantic HTML, Core Web Vitals pass-rate, element caching | not measured in-editor | Asset pipeline + CWV/score surfacing |
-| Theme management | Theme library, versions, duplicate | draft/publish + presets + JSON import/export | Multiple themes, version history |
+| Performance budgets | Lean semantic HTML, Core Web Vitals pass-rate, element caching | Health speed tips, lazy sections, image pipeline | Site-wide CWV estimates (3.0 Phase 7) |
+| Theme management | Theme library, versions, duplicate | My themes, version history, scheduling, share links | — |
+| Editor shell & navigation | Stripe Dashboard + Workbench; Linear-style key sequences | rail, Find (Ctrl K), Workbench, G-key jumps, breadcrumb | — (3.0 Phase 1) |
+| Layered styling | Stripe Appearance API (theme → variables → rules); Webflow variable modes | presets + style controls + colour schemes | Tokens, modes, state rules (3.0 Phase 2) |
+| Motion | Webflow GSAP interactions; Squarespace Finish Layer | section entrance animation only | 3.0 Phase 4 |
 
 ### Feature backlog (the "make it legit" list)
 

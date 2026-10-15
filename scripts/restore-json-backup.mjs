@@ -46,6 +46,14 @@ async function writeRows(rows) {
   }
 }
 
+// Restored orders carry their own Stripe check times, but the payment sweep keeps its schedule in
+// systemStatus/stripeReversalChecks (functions/reversalSchedule.js). Forgetting it makes the next sweep
+// re-read every paid order and re-check the restored ones with Stripe straight away.
+async function forgetReversalSchedule() {
+  await db.doc("systemStatus/stripeReversalChecks").delete();
+  console.log("Cleared systemStatus/stripeReversalChecks: the next payment sweep re-checks the restored orders with Stripe.");
+}
+
 // One downloaded file: { format, createdAt, complete, documents: [{ path, data }] }.
 if (folder.endsWith(".json")) {
   const file = JSON.parse(readFileSync(folder, "utf8"));
@@ -54,6 +62,7 @@ if (folder.endsWith(".json")) {
   const rows = file.documents.filter(row => !only || only.includes(row.path.split("/")[0]));
   console.log(`${apply ? "RESTORING into" : "DRY RUN against"} project ${projectId} from a backup made ${file.createdAt}: ${rows.length} document(s)`);
   if (apply) await writeRows(rows);
+  if (apply && rows.some(row => row.path.split("/")[0] === "orders")) await forgetReversalSchedule();
   console.log(apply ? `Restored ${rows.length} document(s).` : "Re-run with --apply to write them.");
   process.exit(0);
 }
@@ -63,7 +72,7 @@ if (manifest.format !== BACKUP_FORMAT) throw new Error(`Unknown backup format: $
 if (!manifest.complete) console.warn("Warning: this backup is marked incomplete. Collections not copied:", manifest.collections.filter(c => !c.complete).map(c => c.id).join(", "));
 console.log(`${apply ? "RESTORING into" : "DRY RUN against"} project ${projectId} from a backup made ${manifest.createdAt}`);
 
-let total = 0;
+let total = 0, restoredOrders = false;
 for (const part of manifest.collections) {
   if (only && !only.includes(part.id)) continue;
   if (!part.documents) continue;
@@ -72,5 +81,8 @@ for (const part of manifest.collections) {
   console.log(`  ${part.id}: ${rows.length} document(s)${part.complete ? "" : " (incomplete copy)"}`);
   total += rows.length;
   if (apply) await writeRows(rows);
+  if (part.id === "orders" && rows.length) restoredOrders = true;
 }
+// After every collection, so a restored copy of the record itself doesn't come back.
+if (apply && restoredOrders) await forgetReversalSchedule();
 console.log(apply ? `Restored ${total} document(s).` : `Would restore ${total} document(s). Re-run with --apply to write them.`);

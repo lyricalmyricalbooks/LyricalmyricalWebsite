@@ -26,7 +26,9 @@ import {
   Eye,
   GripVertical,
   Sparkles,
-  Undo2
+  Undo2,
+  Play,
+  Film
 } from "lucide-react";
 import { motion } from "motion/react";
 import toast from "react-hot-toast";
@@ -57,6 +59,8 @@ import { BookTemplatePicker } from "./BookTemplatePicker";
 import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow } from "../features/site/detailRows";
 import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
 import { uploadBookPhoto } from "./bookPhotoUpload";
+import { BOOK_VIDEO_ACCEPT, MAX_BOOK_VIDEOS, MAX_BOOK_VIDEO_BYTES, formatMegabytes, isVideoFile, uploadBookVideo, videoProblem } from "./bookVideoUpload";
+import { isVideoItem } from "../features/site/bookVideo";
 import { studioHash } from "../lib/studioLocation";
 
 import { BookSeoPane } from "./BookSeoPane";
@@ -87,10 +91,16 @@ function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover }: {
     <div ref={setNodeRef} style={style} className="be-photo">
       <div className="be-photo-img">
         <img src={photo.url} alt={photo.altText || ""} />
-        <span className="be-photo-badge">{index === 0 ? "Cover" : `Image ${index + 1}`}</span>
+        <span className="be-photo-badge">{index === 0 ? "Cover" : isVideoItem(photo) ? `Video · ${index + 1}` : `Image ${index + 1}`}</span>
+        {isVideoItem(photo) && (
+          <a className="be-photo-play" href={photo.videoUrl} target="_blank" rel="noopener noreferrer" aria-label={`Play video ${index + 1} in a new tab`}>
+            <Play size={18} aria-hidden />
+            {photo.videoDuration ? <span>{Math.floor(photo.videoDuration / 60)}:{String(photo.videoDuration % 60).padStart(2, "0")}</span> : null}
+          </a>
+        )}
         <button type="button" ref={setActivatorNodeRef} {...attributes} {...listeners} className="be-photo-grip" aria-label={`Reorder image ${index + 1}`}><GripVertical size={16} aria-hidden /></button>
       </div>
-      <input className="rp-input" aria-label={`Alt text for image ${index + 1}`} placeholder="Alt text" value={photo.altText || ""} onChange={(e) => onAlt(photo.id, e.target.value)} />
+      <input className="rp-input" aria-label={`${isVideoItem(photo) ? "Description of video" : "Alt text for image"} ${index + 1}`} placeholder={isVideoItem(photo) ? "What the video shows" : "Alt text"} value={photo.altText || ""} onChange={(e) => onAlt(photo.id, e.target.value)} />
       <div className="be-photo-actions">
         {index !== 0 && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onMakeCover(photo.id)}>Make cover</button>}
         <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onRemove(photo.id)}><Trash2 size={13} aria-hidden /> Remove</button>
@@ -207,6 +217,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   const [metadataError, setMetadataError] = useState(false);
   const [photoInput, setPhotoInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  // "Uploading video 2 of 3 · 45%" while a video goes up (Images tab).
+  const [videoStatus, setVideoStatus] = useState("");
   const [initialData, setInitialData] = useState<any>(null);
   const [uploadingDigital, setUploadingDigital] = useState(false);
   const digitalFileInputRef = useRef<HTMLInputElement>(null);
@@ -602,7 +615,10 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
 
   const uploadFiles = async (files: FileList | null) => {
     if (uploadingRef.current) { toast("Wait for the current upload to finish."); return; }
-    const list = Array.from(files || []).filter((f) => f.type.startsWith("image/"));
+    const all = Array.from(files || []);
+    const videos = all.filter((f) => isVideoFile(f));
+    if (videos.length) { await uploadVideos(videos); if (videos.length === all.length) return; }
+    const list = all.filter((f) => f.type.startsWith("image/"));
     if (!list.length) return;
     const room = MAX_BOOK_PHOTOS - (formData.photos?.length || 0);
     if (room <= 0) { toast.error(`Maximum ${MAX_BOOK_PHOTOS} photos allowed`); return; }
@@ -624,6 +640,39 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (failedNames.length) toast.error(`Couldn't upload: ${failedNames.join(", ")}. The other images were added — try these again.`);
+  };
+
+  // Videos go into the same list as the photos (so they are ordered with them); each one is stored with a
+  // still frame that cards, search and emails show instead (admin/bookVideoUpload.ts).
+  const uploadVideos = async (files: File[]) => {
+    if (uploadingRef.current) { toast("Wait for the current upload to finish."); return; }
+    const have = (formData.photos || []).filter(isVideoItem).length;
+    const room = Math.min(MAX_BOOK_VIDEOS - have, MAX_BOOK_PHOTOS - (formData.photos?.length || 0));
+    if (room <= 0) { toast.error(`A book can have up to ${MAX_BOOK_VIDEOS} videos and ${MAX_BOOK_PHOTOS} images and videos in all.`); return; }
+    const refused = files.map((f) => videoProblem(f)).filter(Boolean);
+    const ok = files.filter((f) => !videoProblem(f));
+    if (ok.length > room) toast(`Only ${room} more video${room === 1 ? "" : "s"} fit — extra files skipped.`);
+    const todo = ok.slice(0, room);
+    uploadingRef.current = true;
+    setUploading(true);
+    const failed: string[] = [...refused];
+    for (const [i, file] of todo.entries()) {
+      const label = todo.length > 1 ? `Uploading video ${i + 1} of ${todo.length}` : "Uploading video";
+      setVideoStatus(`${label}…`);
+      try {
+        const uploaded = await uploadBookVideo(file, (share) => setVideoStatus(`${label} · ${Math.round(share * 100)}%`));
+        setFormData((prev: any) => ({ ...prev, photos: [...prev.photos, { ...uploaded, id: Math.random().toString(36).substr(2, 9), altText: file.name.replace(/\.[^.]+$/, "") }] }));
+      } catch (err: any) {
+        console.error("Video upload error:", err);
+        failed.push(err?.message && /video|MP4|browser/i.test(err.message) ? err.message : `Couldn't upload ${file.name}. Check the connection and try again.`);
+      }
+    }
+    uploadingRef.current = false;
+    setUploading(false);
+    setVideoStatus("");
+    if (videoInputRef.current) videoInputRef.current.value = "";
+    if (failed.length) toast.error(failed.join(" "));
+    else if (todo.length) toast.success(todo.length === 1 ? "Video added. Save the book to show it in the shop." : `${todo.length} videos added. Save the book to show them in the shop.`);
   };
 
   const fillFromIsbn = async () => {
@@ -1198,7 +1247,10 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
 
           {shownTab === "media" && (
             <SectionCard title="Book images" description="Use genuine cover and interior photographs. Drag the ⠿ handle to reorder; the first image is the cover shown in the shop and search."
-              actions={<button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || formData.photos.length >= MAX_BOOK_PHOTOS}><Upload size={14} aria-hidden /> Upload images</button>}>
+              actions={<>
+                <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || formData.photos.length >= MAX_BOOK_PHOTOS}><Upload size={14} aria-hidden /> Upload images</button>
+                <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => videoInputRef.current?.click()} disabled={uploading || formData.photos.length >= MAX_BOOK_PHOTOS || formData.photos.filter(isVideoItem).length >= MAX_BOOK_VIDEOS}><Film size={14} aria-hidden /> Add video</button>
+              </>}>
               <div className={`be-drop ${dragOver ? "is-over" : ""}`}
                 onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragOver(true); } }}
                 onDragLeave={() => setDragOver(false)}
@@ -1215,14 +1267,17 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                     {formData.photos.length < MAX_BOOK_PHOTOS && (
                       <button type="button" className="be-photo-add" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
                         {uploading ? <Loader2 size={22} className="animate-spin" aria-hidden /> : <Upload size={22} aria-hidden />}
-                        <span>{uploading ? "Uploading…" : "Add or drop images"}</span>
+                        <span>{uploading ? (videoStatus || "Uploading…") : "Add or drop images or videos"}</span>
                       </button>
                     )}
                   </div>
                 </DndContext>
               </div>
               <input type="file" ref={fileInputRef} multiple onChange={(e) => uploadFiles(e.target.files)} accept="image/*" className="hidden" />
-              <p className="be-note">{formData.photos.length}/{MAX_BOOK_PHOTOS} images. Add alt text so the cover is described to screen readers and search engines.</p>
+              <input type="file" ref={videoInputRef} multiple onChange={(e) => uploadVideos(Array.from(e.target.files || []))} accept={BOOK_VIDEO_ACCEPT} className="hidden" />
+              {videoStatus && <p className="be-note" role="status">{videoStatus}</p>}
+              <p className="be-note">{formData.photos.length}/{MAX_BOOK_PHOTOS} images and videos. Add alt text so the cover is described to screen readers and search engines.</p>
+              <p className="be-note">Videos: up to {MAX_BOOK_VIDEOS} per book, {formatMegabytes(MAX_BOOK_VIDEO_BYTES)} each, MP4 works everywhere (WebM and MOV in most browsers). They play on the book page and in the enlarged viewer; shop cards show a still from the video. Each play downloads the file from your Firebase storage, so short clips (under a minute, 720p or 1080p) keep the shop inside its free monthly allowance.</p>
               <div className="be-url-row">
                 <TextField label="Add image from URL" value={photoInput} onChange={(e) => setPhotoInput(e.target.value)} placeholder="https://…/cover.jpg"
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPhoto(); } }} />
@@ -1452,7 +1507,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                       {v.photoUrl && <img src={v.photoUrl} alt="" />}
                       <SelectField label="Edition image" value={v.photoUrl || ""} onChange={(e) => updateVariant(v.id, "photoUrl", e.target.value)}>
                         <option value="">— Use the main image —</option>
-                        {(formData.photos || []).map((p: any, idx: number) => <option key={p.id || idx} value={p.url}>Image {idx + 1}{p.altText ? ` (${p.altText})` : ""}</option>)}
+                        {(formData.photos || []).map((p: any, idx: number) => isVideoItem(p) ? null : <option key={p.id || idx} value={p.url}>Image {idx + 1}{p.altText ? ` (${p.altText})` : ""}</option>)}
                       </SelectField>
                     </div>
                   </fieldset>

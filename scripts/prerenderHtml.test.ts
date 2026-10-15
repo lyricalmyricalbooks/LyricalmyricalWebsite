@@ -47,6 +47,28 @@ describe('public HTML snapshots', () => {
     document.querySelector('[data-fm-store]')!.setAttribute('data-seo-page', 'about');
     expect(captureDocument(args)).toContain('data-seo-page="about"');
   });
+  it('loads Google Fonts without blocking the first paint and drops duplicate font links', () => {
+    const font = 'https://fonts.googleapis.com/css2?family=Archivo:wght@400;500&display=swap';
+    document.documentElement.innerHTML = `<head><link rel="stylesheet" as="style" href="${font}"><link id="google-font-archivo" rel="stylesheet" href="${font}"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono&display=swap"><link rel="stylesheet" href="/shop/assets/index.css"></head><body><div id="root"><h1>Shop</h1></div></body>`;
+    const html = captureDocument({ template: '<html></html>', publicUrl: base + '/', localOrigin: 'http://localhost' });
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const fonts = [...doc.querySelectorAll('link[href^="https://fonts.googleapis.com/"]')];
+    expect(fonts).toHaveLength(2);
+    for (const link of fonts) {
+      expect(link.getAttribute('rel')).toBe('preload');
+      expect(link.getAttribute('as')).toBe('style');
+      expect(link.getAttribute('onload')).toBe("this.onload=null;this.rel='stylesheet'");
+    }
+    expect(fonts[0].id).toBe('google-font-archivo');
+    // The shop's own stylesheet still loads first, as before.
+    expect(doc.querySelector('link[href="/shop/assets/index.css"]')?.getAttribute('rel')).toBe('stylesheet');
+  });
+  it('shows book photos in the saved page instead of their loading placeholder', () => {
+    document.documentElement.innerHTML = '<head></head><body><div id="root"><div><div data-fm-skeleton class="animate-pulse"></div><img data-fm-fade class="w-full opacity-0" src="/a.webp" alt="A"><p>A</p></div></div></body>';
+    const html = captureDocument({ template: '<html></html>', publicUrl: base + '/', localOrigin: 'http://localhost' });
+    expect(html).not.toContain('data-fm-skeleton');
+    expect(html).toContain('class="w-full opacity-100"');
+  });
   it('refuses empty shells and error pages instead of publishing them', () => {
     document.documentElement.innerHTML = '<head></head><body><div id="root"></div></body>';
     expect(() => captureDocument({ template: '<html></html>', publicUrl: base + '/', localOrigin: 'http://localhost' })).toThrow();

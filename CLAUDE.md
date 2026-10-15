@@ -176,6 +176,8 @@ npm run logs
 - `unpaidPaymentSweep` (every 15 minutes) — records pending reconciliation and emails the shop when Stripe
   shows a successful payment but the order is still unpaid 10 min–7 days later (`functions/paymentSweep.js`);
   stamps `paymentAlertSentAt`. Never marks Stripe orders paid — resend the verified webhook event from Stripe.
+  It reads the Stripe mode/keys once per sweep (`readStripeKeys`, passed as `keys` to `retrieveOrderPayment` /
+  `checkStripeReversal`; sweep clients time out after 20 s; a failed read falls back to per-call reads).
 - `nightlyFirestoreBackup` (03:17 Toronto) and Settings › General › Backups & export › **Back up now**
   (`createStripeCheckoutSession` action `backupNow`, admin) share `runFirestoreBackup`: (1) the managed export to
   `backups/YYYY-MM-DD/export` (needs **Cloud Datastore Import Export Admin** on the Functions service account; refused =
@@ -389,6 +391,41 @@ Section rows have a right-click menu (copy/paste section, copy/paste style, move
 Ctrl/⌘-click multi-select with a bulk bar; blocks move between sections of the same kind (row button, or drag in the
 preview). Use `moveSectionTo` / `moveBlockTo` / `updateSectionsById` (`studio/studioWorkflow.ts`) for any new move or
 bulk edit — never splice section arrays by hand.
+
+**Workbench & navigation (Studio 3.0 phase 1, 15 October 2026):** `studio/StudioWorkbench.tsx` is docked under the preview
+(tablets/computers; phones keep the Health dialog). Its tabs: **Health** (`HealthFindings` from `StudioHealth.tsx`; open it with
+`openHealth()`, never `setChecksOpen` directly), **Changes** (undo steps; jump with `jumpBy` in `studioModel.ts`; draft vs live
+via `summariseDiff`, only while open) and **Setup** (`studio/setupChecklist.ts`, pure). Its open state and tab live in
+`studioUiState.ts`. Shortcuts: `G` then a letter for workspaces (`GO_KEYS`), `W` Workbench, `A` Add section, `[`/`]` sections;
+`StudioBreadcrumb.tsx` shows Page › Section › Block.
+**Design scales (3.0 phase 2):** Theme settings › Design scales (`tokens`, `features/site/designTokens.ts`, emitted by
+`storefrontOverridesCss`): type scale → `--fm-step-0…5` (fluid clamp; section h1–h4), spacing unit + phone multiplier
+(sections' Layout › Space above and below = `spacingStep`, `sectionStepCss`), corner set (`--rp-card-radius`), focus ring
+width, field focus border, pressed buttons. All off until chosen; a section's own values still win.
+**Arrange on page (3.0 phase 3):** Flexible composition › Content › *Arrange on the page* → Studio posts `GRID_ARRANGE`; the
+preview's `studio/gridBridge.ts` overlay (move area, resize corner, arrow keys) answers `GRID_PLACE` in pixels and
+`studio/gridPlacement.ts` (`applyGridMessage`) writes `block.grid[device]` as one undoable change. Layers = `grid[device].z`;
+rotate/size/see-through = `block.responsive[device]` (`compositionLook`).
+**Motion (3.0 phase 4):** section › Style › Motion (`components/sectionMotion.ts`: `revealBlocks`, `staggerStep`, `motionDuration`,
+`motionDelay`, `blockHover`, `parallax`, `sticky`, `stickyTop`, `motionOffOnPhones`). Blocks hide only while `MotionWatcher` has
+armed the section (`data-motion="armed"`); never under reduced motion; Page animations off removes it. Studio's **Play this
+section's motion** posts `MOTION_REPLAY`.
+**Block library (3.0 phase 5):** add blocks through the picker (`studio/StudioBlockPicker.tsx`, choices + clipboard + the
+preview-only `__studio-block-candidate` in `studio/blockLibrary.ts`; outline Add <block>, inspector Add block…, canvas + Block).
+Copy/paste blocks only between sections of the same type. Studio › Pages › New page offers starters (`studio/pageStarters.ts`,
+drafts with [prompts]). Header/footer follow `elementSchemes.header` / `.footer` (`data-fm-header`, `data-fm-footer`); a
+Theme settings address field is `kind: "link"` (picker), never `text`.
+**Check every page (3.0 phase 7):** Workbench › Health › **Check every page** (`studio/StudioSiteHealth.tsx`, pure
+`studio/siteHealth.ts`) audits each kind of page (`healthRoutes`) in a hidden see-through frame fed the canvas's unsaved
+snapshot, one at a time (scrolled through once so reveal animations finish), with `auditDocument` (read-only); the frame is
+removed after each page. A new page kind belongs in `healthRoutes`; preview pages must never write (Account skips its
+customer record under `inEditorPreview`). Section background pictures from the Media library use `features/site/backgroundSources.ts` (`--fm-bg-img`
+per breakpoint, read by `bgStyle`); plain URLs are unchanged. Run history is localStorage only.
+**Brand kit (3.0 phase 6):** `studio/StudioBrandKit.tsx` + pure `studio/brandKit.ts` (logo colours → palettes with guaranteed
+contrast, `PERSONALITIES`, `brandKitDesign`); previews through `brandChoice` in `sendPreviewState`, applies as one `change`
+("Apply brand kit"). Anything it writes must be a `STYLE_GROUPS` key (`brandKit.test.ts`). Opened from Setup (`go: { kind: "brand" }`),
+Theme actions › Brand kit… and Find anything. The rest of the Studio 3.0 roadmap (tokens, free placement, motion,
+block library, brand wizard, site-wide Health; AI/languages/A-B need the owner's go-ahead) is in `docs/THEME_EDITOR.md`.
 
 Studio is a Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the
@@ -633,7 +670,9 @@ breadcrumb, thumbnail rail + framed photo + "Fig. n" caption, one bordered buy c
 stock line | formats, qty, Add to bag, wishlist, share), then Description / Details / Reviews tabs (or
 accordions) with Details as a label | value record. Every piece is a Studio › Style › **Product page · buy
 card & details** control (`pdp*` keys, turned into CSS by `features/site/productPageStyle.ts`, `fm-pdp-*`
-classes); its words are in Text & labels › Product page (`pdp*` copy keys). The old trust-signal lines
+classes); its words are in Text & labels › Product page (`pdp*` copy keys). The main photo and the enlarged viewer are one swipeable,
+snapping strip (`features/site/PhotoCarousel.tsx`: native scroll-snap for touch, mouse drag via `dragPlan`); the viewer
+renders into `<body>` (`createPortal`, inside a `data-fm-store` wrapper). Dots under the photo: `pdpPhotoDots`. The old trust-signal lines
 (`productTrust*`, `showTrustSignals`) were removed at the owner's request — don't re-add them.
 
 **Every Style control must reach every surface (and the preview iframe):** the card title/price and small-print CSS comes from one place, `features/site/StorefrontOverrides.tsx` (`storefrontOverridesCss`). `StorefrontThemeStyle` renders it, and so do `MainSite`'s `TypographyTokens` and `BookDetail` — any new storefront root that injects its own token `<style>` must render `<StorefrontOverrides>` too. `storefrontOverrides.test.ts` fails on a surface that skips it and on any `STYLE_GROUPS` control that nothing on the storefront reads (wire it or delete it — don't allow-list). Custom code (Style › Custom code) is injected by `features/site/customCode.ts` on public pages only — never in the preview, checkout or admin.
@@ -716,6 +755,14 @@ draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
   statuses, redirects, bodies and headers in the Hosting emulator (CI and `build-hosting`) and on the live site after each
   deploy. `ALLOWED_ORIGINS` includes web.app (not firebaseapp.com) and, for tabs opened before the move, github.io (remove in the
   cleanup step); it already lists lyricalmyricalbooks.com/www for the shop's own domain later (`docs/FIREBASE_HOSTING.md`).
+- **Old Big Cartel addresses (15 October 2026):** `firebase.json` `redirects` lists each old `/product/<name>`, `/category/<name>`
+  and page address as an exact 301 to an absolute `https://lyricalmyricalbooks.com/...` page (one hop). No `/product/**` or
+  `/category/**` catch-all: an unknown old address answers 404 (Google reads a redirect to a listing as a soft 404; Hosting can't
+  send 410 without a function). Add a book's old address when one turns up. `/cart` is an app route (shop with the bag open,
+  `CartRoute` in `App.tsx`) with `X-Robots-Tag: noindex`, and robots.txt must not disallow it. `scripts/seo-url-check.mjs` checks
+  sitemap URLs (200 + self canonical), old addresses and /cart on the live site after each deploy (report only).
+  Collection pages' single `<h1>` is the category name, with an intro from the category description or Text & labels ›
+  Collection & wishlist pages › `collectionIntro*` (`features/site/collectionIntro.ts`).
 - **Own domain (`docs/CUSTOM_DOMAIN.md`, ready, not switched):** the switch is Firebase Hosting › Add custom domain
   (apex `lyricalmyricalbooks.com`, www redirecting to it) + repository variable `SITE_URL=https://lyricalmyricalbooks.com`
   + Deploy Firebase, then Deploy storefront. Both workflows lower-case `SITE_URL` first. `moveToCanonicalHost` also moves
@@ -1067,6 +1114,22 @@ saved sign-in. Storefront animations use `m.*` from `motion/react` under the `La
 no layout/drag); don't put CSS `transition-all`/`transition-transform` on an element motion animates.
 The prerender blocks Lite's REST writes (`documents:commit`). Check with `npx vite build`: the `index-*.js`
 entry was ~205 KB gzipped after this change.
+**Firebase loads on first use (15 October 2026):** shopper code gets Firestore Lite through `lib/lite.ts`
+(`const { doc, getDoc, liteDb } = await lite()`), never a static import from `firebase/firestore/lite`,
+`lib/firestoreLite` or `lib/firebaseApp`; `functionFetch` loads App Check the same way and `authState` lives in
+`lib/authState.ts`. That keeps Firebase + App Check (~50 KB gzip) out of the entry (`index-*.js` ~176 KB gzip);
+`lib/shopperBundle.test.ts` fails on a static import in the shopper modules.
+
+## Prerendered page hand-over (15 October 2026)
+
+The landing page's server-rendered HTML stays on screen until the app can draw the same page with data
+(`lib/prerenderedPage.ts`): `main.tsx` keeps `#root`'s HTML and starts `preloadSiteData()`; App's Suspense fallback
+(`PageLoading`) re-shows that HTML instead of `BootSplash`; `MainSite`/`BookDetail`/`PageView` are wrapped in
+`whenPrerenderedReady` (their code resolves once the shop data is in, max 5 s) and `useSiteData` starts from that read
+(`preloadedSiteData`). Pages mounted during the hand-over skip their entrance animation (`arrivedPrerendered`: MainSite
+cards, `SectionReveal`); the first navigation ends it. Never in the Studio preview or a share preview. The snapshot
+(`captureDocument`) loads Google Fonts as preload+onload (deduped) and shows SkeletonImage photos (`data-fm-fade`,
+`data-fm-skeleton` removed). The first shop cards load eagerly (`priority`, first two `fetchpriority="high"`).
 
 ## Storefront loading performance (4 October 2026)
 
@@ -1261,6 +1324,22 @@ refund → `partiallyRefunded` + `refundedAmountMinor`, stays paid; dispute → 
 `charge.refunded` / `charge.dispute.*` webhooks **and** by direct Stripe reads (`checkStripeReversal`): the status
 action for paid orders (admin order open / **Sync with Stripe**) and `unpaidPaymentSweep`, which re-reads paid Stripe
 orders (≤120 days) at most every 6 h (`ordersDueReversalCheck`, `stripeCheckedAt`).
+**Cheaper sweep bookkeeping (15 October 2026):** the sweep's check times live in one server-only record,
+`systemStatus/stripeReversalChecks` (`{ v, orders: { id: [paidMs, checkedMs, triedMs] }, scannedFrom, reconciledAt }`,
+`functions/reversalSchedule.js`, pure with injected I/O), not on the orders: sweep checks pass `onChecked` and never write
+the order (which woke `onOrderUpdated`/`onOrderInventoryPush`); the admin status check still stamps `stripeCheckedAt`
+(its 60 s throttle), and an order's own stamp counts as a check. Each sweep scans (`paidOrderScanner`, `SCAN_FIELDS` only,
+`PAID_STATUSES`) the orders paid since the last sweep minus 30 min; every 6 h, or with no/old record, after a short scan
+filled its 500 page, or when `systemStatus/stripeReversalRecheck.at` is not older than the last re-read, it re-reads all paid
+orders of 120 days (newest first, ≤5,000) and drops orders that left. `revertFailedRefund` writes that request
+(`requestReversalRecheck`, straight after its transaction, before the revenue write: a retried webhook can't ask again), because a reverted refund is paid again with its old `paidAt`, which the short scan can't see.
+Due orders (40 + 10 spare) are read whole with `getAll` (never with no ids); orders the admin just synced free their slots for
+the next due ones (up to 3 rounds, `MAX_DUE_READS` 150). `onChecked` runs only after the sync applied, an unanswered order is
+retried each sweep after the simply-due ones, the record (a copy) is saved by `stopBy` even if Stripe hangs, no check starts
+after it, and a failed save stamps the checked orders instead. A record that can't be read skips that sweep's checks; a
+backlog beyond 40 due is logged. Timing is unchanged (first sweep after payment, then every 6 h; 40 per sweep). The record's
+`orders` map is exempt from indexing (`firestore.indexes.json`); `scripts/restore-json-backup.mjs` deletes the record after
+restoring orders so they are re-checked at once.
 
 ## Payments & shipping panel repair (7 October 2026)
 
@@ -1873,6 +1952,10 @@ it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badg
 - **Admin reads:** the Orders desk and nav badge refresh the newest 100 orders incrementally (`getRecentFulfillmentOrders`, `mergeNewestPage`) and fully every
   `FULL_REFRESH_MS` (10 min); an order page patches the shared copy (`patchCachedOrder`). Alert refresh failures show **Couldn't finish checking for problems → Try again**
   (`checkFailedAlert`); a failed/overdue nightly backup shows an alert (`backupAlert`, `systemStatus/backup`).
+  The shell's alert/badge check runs every `ALERT_CHECK_MS` (5 min) only while the tab is visible (catches up on return), reuses an
+  orders copy under `ALERT_ORDERS_MAX_AGE_MS` (`getOrdersCached({ maxAgeMs })`; the desk's refresh feeds it through `noteLoadedOrders`),
+  and returning from an order re-counts from `peekOrders()` plus the last check's webhook/email-log/status reads. Discounts and Reviews
+  read orders through `getOrdersCached()` too.
 - **Storefront load errors:** `useSiteData` returns `loadError` + `retry`; product, custom pages and Home show Text & labels › Header › `catalogLoadError` / `catalogRetry`
   with a button, and a failed read is never `fresh` (so no "not found"/noindex).
 - **Background jobs (`functions/sweepLimits.js`):** `runInBatches` runs work a few at a time and stops at a deadline. `onBookRestocked` (300 s) marks alerts `restockPending`
@@ -2008,10 +2091,63 @@ page is never hijacked. These are browser redirects, not HTTP 301s. No shopper-v
 `admin/prepareImage.ts`: photos within `MAX_IMAGE_EDGE` (2400 px; Studio `MAX_STUDIO_IMAGE_EDGE` 2800) and under
 `KEEP_ORIGINAL_BYTES` (2.5 MB) upload untouched; larger ones are re-saved at `PHOTO_QUALITY` 0.92. Library copies are
 480/960/1600/2400 px at 0.88 (`MEDIA_WIDTHS`; the 2400 copy's weight budget is 450 KB). Book photos upload through
-`admin/bookPhotoUpload.ts` `uploadBookPhoto`: the same copies under `products/`, saved on the photo as `url` (largest) +
-public `srcset`/`width`/`height` (library picks carry theirs too). Storefront book images spread
+`admin/bookPhotoUpload.ts` `uploadBookPhoto`: copies 480/960/1600/2400/3200 px at 0.95 (`BOOK_PHOTO_WIDTHS`,
+`BOOK_PHOTO_QUALITY`, 15 October 2026) under `products/`, saved on the photo as `url` (largest) + public
+`srcset`/`width`/`height` (library picks carry theirs too), plus the untouched upload as `originalUrl` (`…-original.<ext>`,
+never rendered; kept so copies can be remade). Storefront book images spread
 `photoSrcSet(photo, CARD_PHOTO_SIZES | PDP_PHOTO_SIZES | THUMB_PHOTO_SIZES)` (`features/site/photoSources.ts`) — add it to
 any new book-photo `<img>`; photos without `srcset` render as before. No rule or Function change.
+
+## Storage bandwidth (15 October 2026)
+
+Storage is billed per download, so shoppers must never get an original photo where a copy will do.
+- **Copies for old photos:** the scheduled `storageImageSweep` (every 15 min, 1 GiB, `functions/imageCopies.js`, sharp) gives
+  every book photo with no `srcset` (the 10 October import) WebP copies beside the original (`<name>-<w>w.webp`, ladder
+  480/640/960/1600/2400/3200 capped at the original width, q82 up to 960, q95 above; a copy heavier than the original is
+  replaced by the original itself) and adds `srcset`/`width`/`height` in a transaction. It never deletes, overwrites or changes
+  `url`. Progress and unreadable pictures: admin-only `systemStatus/imageCopies`. Keep its ladder equal to `BOOK_PHOTO_WIDTHS` /
+  `bookPhotoQuality` (`admin/prepareImage.ts`), which new uploads use.
+- **Caching:** every shop upload path is unique, so pictures/videos carry `Cache-Control: public, max-age=31536000, immutable`
+  (`PUBLIC_FILE_CACHE` in `adminApi.uploadFile`, the video upload, server copies); the same sweep stamps it on older objects
+  (skips `backups/`, `digital-assets/`). Never upload to a path that is later overwritten.
+- **Small pictures:** fixed-size thumbnails (bag/checkout lines, search, bag suggestion, sticky bar, bundle covers) use
+  `smallPhotoUrl(photo, minWidth)` (`features/site/photoSources.ts`); responsive ones spread `photoSrcSet` (`FEATURE_PHOTO_SIZES` for
+  featured/spotlight sections). Never render `photos[n].url` directly for a shopper.
+- **Book page gallery:** adaptive frames take each photo's shape from its saved `width`/`height` (`savedRatios` in `BookDetail`;
+  a measured shape wins once loaded). Only photos without a saved size load ahead at once; the rest of the gallery loads when the
+  shopper reaches for it (`warmGallery`: pointer, touch or focus on the photo column), the strip's neighbours stay eager. The main
+  photo's `sizes` is `pdpPhotoSizes` (frame Max width + 10%, wider for photos cropped by "cover", never over 900px), computed from
+  saved shapes only so it never changes while photos load; the loading-ahead `Image()` uses the same value.
+- **Removed photos:** `adminApi.updateBook` deletes the `products/` files of photos a save took off (and `deleteBook` those of the
+  book) through `removeBookFiles` (`admin/bookFileCleanup.ts`), unless another book, edition, sharing image or order line shows
+  them; library pictures (assets/) are never deleted. A save keeps server-made copies (`keepPhotoCopies`).
+
+## Catalog file on Hosting (15 October 2026)
+
+`pnpm run build` runs `scripts/build-storefront-data.mjs` (before the prerender), which saves settings/website, published books and
+published pages read at ONE Firestore snapshot (`readTime`, REST `batchGet` then `runQuery` with that `readTime`) as
+`dist/storefront-data.json` (`scripts/storefrontDataFile.mjs`; same shapes as `publicApi`: books `{...data, id}`, pages `{id, ...data}`,
+raw settings). A value JSON can't carry exactly (timestamp, reference, bytes, geo, NaN) or any read failure writes no file.
+`useSiteData`'s `readSiteData` uses it (`features/site/storefrontDataFile.ts` `currentStorefrontData`) only when
+`settings/catalogVersion.changedAt` (server time stamped by the `catalogVersionBooks/Pages/Settings` triggers after every write,
+`functions/catalogVersion.js`) is not after the file's `readTime`; otherwise, or on any error, it reads Firestore exactly as before.
+Settings/pages go through `publicApi.publicSettingsFrom` / `sortPages` on both paths. Book/page triggers bump only when the before or
+after version is published (`touchesCatalogFile`; drafts aren't in the file). The 15-minute refresh rebuilds when the published fingerprint
+changed **or** the marker is newer than the deployed file's `readTime` (`markerNewerThanFile` in `check-published-change.mjs`: a save that
+changed nothing shoppers see still turns the file off), and is the backstop if a marker write fails. The triggers retry the write in-process
+(`RETRY_DELAYS_MS`) and must not use `retry: true`: the deploy workflow never passes `--force`, which the CLI then requires
+(`functions/catalogVersion.test.js` fails on any `retry: true` in `functions/index.js`). `firebase.json` serves root `*.json` `no-cache`. Never add a field to the file that the
+Firestore path doesn't return, and keep both paths' transforms shared.
+
+## Book videos (15 October 2026)
+
+Books › edit › Images › **Add video** (or drop a video on the images) adds MP4/WebM/MOV files (≤ `MAX_BOOK_VIDEO_BYTES` 50 MB,
+`MAX_BOOK_VIDEOS` 5 per book) as entries in the book's `photos` list: `url`/`srcset` are a still frame captured in the browser and
+uploaded through `uploadBookPhoto`, `videoUrl` (+ `videoType`, `videoBytes`, `videoDuration`) is the file in `products/videos/`
+(`admin/bookVideoUpload.ts`; a file the admin's browser can't decode is refused). Everything that only knows photos (cards, search,
+emails, JSON-LD) shows the still. `features/site/bookVideo.ts` `isVideoItem` (https only) decides; `BookDetail` plays it in the main
+frame (`preload="metadata"`), thumbnails get a play mark, `PhotoLightbox` takes `videoUrl`. Every book `<video>` starts muted (`muted` + `ref={muteVideo}`, since React doesn't reflect `muted` reliably); keep `controls` so shoppers can unmute. Studio › Style › Product page ›
+**Show book videos** (`showProductVideos`); words `bookVideoLabel`, `ariaGoToVideo`. Every play is Storage download traffic.
 
 ## Page translation (12 October 2026)
 

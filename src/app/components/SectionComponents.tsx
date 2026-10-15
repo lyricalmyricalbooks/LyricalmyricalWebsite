@@ -1,3 +1,4 @@
+import { backgroundImageValue } from "../features/site/backgroundSources";
 import { m, useMotionValue, useSpring } from "motion/react";
 import { quickAddChoice } from "../features/site/buyable";
 import { displayPrice, showsSale } from "../features/site/displayPrice";
@@ -18,7 +19,7 @@ import { pickBook, sectionBookQuery, selectBooks } from "../features/site/mercha
 import { aspectRatioValue } from "../features/site/imageAspect";
 import { ResponsiveImage } from "./ResponsiveImage";
 import { mediaKey } from "../features/site/mediaRef";
-import { CARD_PHOTO_SIZES, photoSrcSet } from "../features/site/photoSources";
+import { CARD_PHOTO_SIZES, photoSrcSet, FEATURE_PHOTO_SIZES, smallPhotoUrl } from "../features/site/photoSources";
 import { shopInstant } from "../features/site/shopTime";
 
 // ──────────────────────────────
@@ -49,9 +50,18 @@ function blockEditAttrs(block: any, idx: number) {
   return { "data-fm-block": id, "data-block-id": id };
 }
 
+/** Rotate / size / see-through for one block at one screen size (3.0 phase 3), or nothing when unset. */
+export function compositionLook(look: any): { transform?: string; opacity?: number } {
+  const n = (v: any, lo: number, hi: number) => { const x = Number(v); return v === "" || v == null || !Number.isFinite(x) ? null : Math.max(lo, Math.min(hi, x)); };
+  const rotate = n(look?.rotate, -45, 45), scale = n(look?.scale, 50, 150), opacity = n(look?.opacity, 10, 100);
+  const parts = [rotate ? `rotate(${rotate}deg)` : "", scale != null && scale !== 100 ? `scale(${scale / 100})` : ""].filter(Boolean);
+  return { ...(parts.length ? { transform: parts.join(" ") } : {}), ...(opacity != null && opacity !== 100 ? { opacity: opacity / 100 } : {}) };
+}
+
 function compositionResponsiveStyle(block: any): Record<string, any> {
   const desktop = block.grid?.desktop || {};
   return {
+    ...compositionLook(block.responsive?.desktop),
     gridColumn: desktop.column ? `${desktop.column} / span ${desktop.span || 4}` : undefined,
     gridRow: desktop.row ? `${desktop.row} / span ${desktop.rowSpan || 1}` : undefined,
     zIndex: desktop.z || undefined,
@@ -73,6 +83,7 @@ function compositionBreakpointCss(blocks: any[], sectionId: string) {
         grid.z != null ? `z-index:${grid.z}` : "",
         responsive.align ? `text-align:${responsive.align}` : "",
         responsive.hidden ? "display:none" : "",
+        ...Object.entries(compositionLook(responsive)).map(([k, v]) => `${k}:${v}`),
       ].filter(Boolean).map(rule => `${rule}!important`).join(";");
       if (body) rules.push(`@media ${query}{#section-${safe(sectionId)} [data-fm-block="${id}"]{${body}}}`);
     }
@@ -155,7 +166,8 @@ function bgStyle(s: any): Record<string, any> {
   if (s.bgGradientFrom || s.bgGradientTo) return { backgroundColor: s.bgGradientFrom || s.bgGradientTo };
   if (s.bgImageUrl) {
     return {
-      backgroundImage: `url(${s.bgImageUrl})`,
+      // Library pictures read a screen-sized copy from --fm-bg-img (features/site/backgroundSources.ts).
+      backgroundImage: backgroundImageValue(s),
       backgroundSize: s.bgImageSize || "cover",
       backgroundPosition: s.bgImagePosition || "center",
       backgroundRepeat: "no-repeat",
@@ -1182,7 +1194,7 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
               className={`aspect-[3/4] overflow-hidden rounded-2xl bg-white/5 ${hoverEffectClassName(settings.hoverEffect)}`}
               style={hoverEffectGlowStyle(settings.hoverEffect, settings.accentColor)}
             >
-              {photo ? <img src={photo} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
+              {photo ? <img src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
             </div>
             <div className="space-y-5">
               <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow ?? fb("FeaturedProductSection.eyebrow")}</p>
@@ -2700,7 +2712,7 @@ export function BookSpotlightSection({ settings, books, onProductClick, enableAn
         <AnimationContainer enabled={enableAnimations}>
           <div className="fm-card grid md:grid-cols-2 gap-10 items-center">
             <div className={`fm-photo-frame aspect-[3/4] overflow-hidden bg-white/5 ${coverRight ? "md:order-2" : ""}`}>
-              {photo ? <img src={photo} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
+              {photo ? <img src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
             </div>
             <div className="space-y-5">
               {eyebrow && <p className="text-[10px] font-bold tracking-[0.3em] uppercase" style={{ color: settings.accentColor || "var(--accent, #e8402a)" }} data-theme-field="eyebrow">{eyebrow}</p>}
@@ -2885,7 +2897,7 @@ export function StickyAddToBagSection({ settings }: any) {
   const quick = quickAddChoice(book);
   const needsChoice = variants.length > 1 || (Array.isArray(book.addOns) && book.addOns.length > 0) || book.preorder === true || book.comingSoon === true || book.productType === "giftCard";
   const soldOut = !needsChoice && !quick.inStock;
-  const photo = book.photos?.[0]?.url;
+  const photo = smallPhotoUrl(book.photos?.[0], 96);
   const act = () => {
     if (needsChoice) { document.querySelector(".fm-pdp-card")?.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
     if (addToCart(book, quick.variant)) { setAdded(true); window.setTimeout(() => setAdded(false), 2500); }

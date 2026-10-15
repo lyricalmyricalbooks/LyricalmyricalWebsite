@@ -26,6 +26,16 @@ describe("storefront modules stay out of the admin bundle", () => {
   });
 });
 
+describe("Firebase loads after the first screen", () => {
+  // These run on every shopper page. A static import of Firestore Lite, Firebase or App Check puts ~50 KB (gzip)
+  // back into the main script; they load on first use through lib/lite.ts instead.
+  const shopperModules = ["commerce.ts", "publicApi.ts", "reviews.ts", "functionsBase.ts", "../features/site/BackInStockForm.tsx", "../../lib/authSession.ts"];
+  it.each(shopperModules)("%s imports no Firebase SDK statically", file => {
+    const runtime = imports(read(file).replace(/^\s*import type[^;]*;/gm, ""));
+    expect(runtime.filter(i => /^firebase\/|firestoreLite|firebaseApp/.test(i))).toEqual([]);
+  });
+});
+
 describe("catalog reads", () => {
   it("reads a mid-size catalog in one round trip instead of several serial pages", async () => {
     const book = (i: number) => ({ id: String(i), _lastDoc: { id: String(i) } });
