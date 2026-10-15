@@ -582,3 +582,8 @@
 .studio-scale-space span { height: 8px; background: var(--rp-primary); border: 1px solid var(--rp-border-strong); flex: none; }
 .studio-scale-radius { display: flex; gap: 8px; }
 .studio-scale-radius span { width: 56px; height: 40px; display: grid; place-items: center; font-size: 11px; border: 2px solid var(--rp-border-strong); background: var(--rp-surface); }
+
+/* Flexible composition › Arrange on the page (3.0 phase 3). */
+.studio-layers { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
+.studio-layers li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--rp-divider); }
+.studio-layers li > button:first-child { margin-right: auto; font-weight: 700; }

@@ -49,9 +49,18 @@ function blockEditAttrs(block: any, idx: number) {
   return { "data-fm-block": id, "data-block-id": id };
 }
 
+/** Rotate / size / see-through for one block at one screen size (3.0 phase 3), or nothing when unset. */
+export function compositionLook(look: any): { transform?: string; opacity?: number } {
+  const n = (v: any, lo: number, hi: number) => { const x = Number(v); return v === "" || v == null || !Number.isFinite(x) ? null : Math.max(lo, Math.min(hi, x)); };
+  const rotate = n(look?.rotate, -45, 45), scale = n(look?.scale, 50, 150), opacity = n(look?.opacity, 10, 100);
+  const parts = [rotate ? `rotate(${rotate}deg)` : "", scale != null && scale !== 100 ? `scale(${scale / 100})` : ""].filter(Boolean);
+  return { ...(parts.length ? { transform: parts.join(" ") } : {}), ...(opacity != null && opacity !== 100 ? { opacity: opacity / 100 } : {}) };
+}
+
 function compositionResponsiveStyle(block: any): Record<string, any> {
   const desktop = block.grid?.desktop || {};
   return {
+    ...compositionLook(block.responsive?.desktop),
     gridColumn: desktop.column ? `${desktop.column} / span ${desktop.span || 4}` : undefined,
     gridRow: desktop.row ? `${desktop.row} / span ${desktop.rowSpan || 1}` : undefined,
     zIndex: desktop.z || undefined,
@@ -73,6 +82,7 @@ function compositionBreakpointCss(blocks: any[], sectionId: string) {
         grid.z != null ? `z-index:${grid.z}` : "",
         responsive.align ? `text-align:${responsive.align}` : "",
         responsive.hidden ? "display:none" : "",
+        ...Object.entries(compositionLook(responsive)).map(([k, v]) => `${k}:${v}`),
       ].filter(Boolean).map(rule => `${rule}!important`).join(";");
       if (body) rules.push(`@media ${query}{#section-${safe(sectionId)} [data-fm-block="${id}"]{${body}}}`);
     }

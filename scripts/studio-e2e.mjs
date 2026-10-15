@@ -435,6 +435,53 @@ await check("Media explains a library whose rules aren't deployed", desktop, asy
   await expectText(page, "The media library isn't switched on yet");
 }, "?media=denied");
 
+await check("Arrange on page: a Flexible composition block moves on the grid by keyboard and by dragging, and Undo restores it", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: /^Flexible composition/ }).first().click();
+  const card = page.locator("[data-studio-panel='grid-arrange']");
+  await card.waitFor({ timeout: 5000 });
+  await card.getByRole("button", { name: "Arrange on page" }).click();
+  const frame = page.frames().find(f => /preview=true/.test(f.url()));
+  if (!frame) throw new Error("no preview frame");
+  const box = frame.locator("[data-studio-grid] [data-grid-block]").first();
+  await box.waitFor({ timeout: 10000 });
+  const lastDesign = async () => {
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await page.waitForTimeout(400);
+    return (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design;
+  };
+  const composition = d => d.heroPage.sections.filter(s => s.type === "CompositionSection").pop();
+  // Keyboard: Shift + Right makes the block one column wider (an unplaced block starts one column wide).
+  await box.focus();
+  await page.keyboard.press("Shift+ArrowRight");
+  await page.waitForFunction(() => document.querySelector("button[aria-label^='Undo']")?.getAttribute("title")?.includes("Resize block on grid"), null, { timeout: 5000 });
+  let saved = await lastDesign();
+  const first = composition(saved).settings.items[0];
+  if (first.grid?.desktop?.span !== 2) throw new Error(`keyboard resize saved ${JSON.stringify(first.grid)}`);
+  // Mouse: drag the resize corner right by about a third of the grid (four more columns).
+  const handle = frame.locator("[data-studio-grid] [data-grid-block] [data-grid-resize]").first();
+  await handle.waitFor({ timeout: 5000 });
+  const hb = await handle.boundingBox();
+  const gb = await frame.locator("[data-studio-grid]").boundingBox();
+  if (!hb || !gb) throw new Error("no handle box");
+  await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + gb.width / 3, hb.y + hb.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForFunction(() => document.querySelector("button[aria-label^='Undo']")?.getAttribute("title")?.includes("Place block on grid"), null, { timeout: 5000 });
+  saved = await lastDesign();
+  const dragged = composition(saved).settings.items[0].grid.desktop.span;
+  if (!(dragged >= 5 && dragged <= 7)) throw new Error(`drag saved span ${dragged}`);
+  // Undo twice brings back the original placement.
+  await page.getByRole("button", { name: /^Undo/ }).click();
+  await page.getByRole("button", { name: /^Undo/ }).click();
+  saved = await lastDesign();
+  if (composition(saved)?.settings.items[0].grid?.desktop?.span) throw new Error("Undo did not restore the placement");
+  await card.getByRole("button", { name: "Stop arranging" }).click();
+  await frame.locator("[data-studio-grid]").waitFor({ state: "detached", timeout: 5000 });
+});
+
 await check("Design scales: a heading scale reaches the preview and a section's spacing step saves", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
