@@ -144,6 +144,7 @@ export const defaultSettings = (): any => ({
     enableAnimations: true,
     showZoom: true,
     showPhotoLightbox: true,
+    showProductVideos: true,
     showBackToTop: false,
     showPoweredBy: false,
     headerLinks: {

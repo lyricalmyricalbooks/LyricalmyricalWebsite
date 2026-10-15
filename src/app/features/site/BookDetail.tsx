@@ -8,7 +8,7 @@ import { useParams, Link, useNavigate, useLocation } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
   Package, Share2, Check, BookOpen, Globe, Ruler,
-  Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus, Bell, Maximize2
+  Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus, Bell, Maximize2, Play
 } from "lucide-react";
 import { useCart, catalogUnitPrice, lineQuantityCap, backorderable } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
@@ -33,6 +33,7 @@ import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
 import ReviewsSection from "./ReviewsSection";
 import { PhotoLightbox } from "./PhotoLightbox";
+import { galleryPhotos, isVideoItem } from "./bookVideo";
 import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 import BackInStockForm from "./BackInStockForm";
@@ -496,8 +497,12 @@ export default function BookDetail() {
   };
 
   const configuredPhotos = (book as any)?.photos;
-  const photos        = Array.isArray(configuredPhotos) && configuredPhotos.length > 0
-    ? configuredPhotos
+  // Videos sit in the photo list (Books › edit › Images › Add video); Studio › Style › Product page ›
+  // Show book videos can leave them out. Their `url` is a still frame, so everything below that only
+  // knows photos (preloading, frame shape, thumbnails) works on them unchanged.
+  const shownPhotos   = Array.isArray(configuredPhotos) ? galleryPhotos(configuredPhotos, storefrontDesign.showProductVideos !== false) : [];
+  const photos        = shownPhotos.length > 0
+    ? shownPhotos
     : [{ url: placeholderImage(settings?.design) }];
   const stockLevel    = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any)?.stockLevel ?? 999);
   // Copies of this edition already in the bag count toward its stock and the 99-per-line limit.
@@ -560,6 +565,8 @@ export default function BookDetail() {
   // so the current thumbnail, caption number and alt text follow it rather than the last picked photo.
   const shownIndex    = editionPhotoShown ? photos.findIndex((p: any) => p?.url === activeUrl) : activePhoto;
   const shownPhoto    = shownIndex >= 0 ? photos[shownIndex] : undefined;
+  const mediaName     = (item: any, i: number) => item?.altText?.trim() || getCopy(settings?.design, isVideoItem(item) ? "bookVideoLabel" : "bookPhotoAlt", { title: book?.title, n: i + 1 });
+  const shownVideo    = !editionPhotoShown && isVideoItem(photos[activePhoto]) ? photos[activePhoto] : null;
 
   const alignCls      = productAlignment === "center" ? "items-center text-center" : "items-start text-left";
   const showThumbRail = photos.length > 1 && pdpThumbPosition !== "hidden";
@@ -1197,11 +1204,12 @@ export default function BookDetail() {
                           type="button"
                           onClick={() => pickPhoto(i)}
                           aria-current={shownIndex === i}
-                          aria-label={getCopy(settings?.design, "ariaGoToPhoto", { n: i + 1 })}
-                          className="fm-pdp-thumb"
+                          aria-label={getCopy(settings?.design, isVideoItem(photo) ? "ariaGoToVideo" : "ariaGoToPhoto", { n: i + 1 })}
+                          className="fm-pdp-thumb relative"
                           style={{ aspectRatio: productImageAspect }}
                         >
-                          <img src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt={photo.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
+                          <img src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt={mediaName(photo, i)} loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
+                          {isVideoItem(photo) && <span className="fm-video-mark absolute inset-0 m-auto w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center pointer-events-none" aria-hidden="true"><Play size={12} fill="currentColor" /></span>}
                         </button>
                       ))}
                     </div>
@@ -1226,6 +1234,27 @@ export default function BookDetail() {
                       {/* Photos slide across (old out, new in, at the same time) instead of fading through
                           the empty frame, which showed as a black flash while the next photo loaded. */}
                       <AnimatePresence initial={false} custom={slideFrom.current.dir}>
+                        {shownVideo ? (
+                          // A video: still frame first, the file downloads only when the shopper presses play.
+                          <m.video
+                            key={activePhoto}
+                            custom={slideFrom.current.dir}
+                            src={shownVideo.videoUrl}
+                            poster={shownVideo.url}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            aria-label={mediaName(shownVideo, activePhoto)}
+                            data-fm-video
+                            className={`absolute inset-0 w-full h-full bg-black ${productImageFitClass}`}
+                            variants={PHOTO_SLIDE}
+                            initial="enter"
+                            animate="center"
+                            exit="exit"
+                            transition={{ x: { type: "tween", ease: [0.32, 0.72, 0, 1], duration: 0.32 } }}
+                            ref={(el: HTMLVideoElement | null) => { if (el) setImageLoaded(true); }}
+                          />
+                        ) : (
                         <m.img
                           key={activePhoto}
                           custom={slideFrom.current.dir}
@@ -1247,6 +1276,7 @@ export default function BookDetail() {
                           onLoad={(e: any) => { setImageLoaded(true); notePhotoSize(activeUrl, e.currentTarget); }}
                           onError={() => setImageLoaded(true)}
                         />
+                        )}
                       </AnimatePresence>
 
                       {/* Enlarge: Studio › Style › Product page · buy card & details › Click photo to enlarge */}
@@ -1263,8 +1293,8 @@ export default function BookDetail() {
                         </button>
                       )}
 
-                      {/* Sold out: Studio › Style › Product cards & grid › Sold-out badge */}
-                      {isOutOfStock && (
+                      {/* Sold out: Studio › Style › Product cards & grid › Sold-out badge (not over a video's controls) */}
+                      {isOutOfStock && !shownVideo && (
                         <>
                           <SoldOutVeil design={settings?.design} />
                           <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "soldOutLabel")} scale={1.5} />
@@ -1287,7 +1317,7 @@ export default function BookDetail() {
                       )}
 
                       {/* Low stock */}
-                      {stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockCardThreshold", 5) && (
+                      {!shownVideo && stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockCardThreshold", 5) && (
                         <div className="absolute bottom-5 left-5 right-5">
                           <div
                             className="bg-black/70 backdrop-blur-md border rounded-2xl px-4 py-3 flex items-center gap-2"
@@ -1324,13 +1354,13 @@ export default function BookDetail() {
                       )}
 
                       {/* Dot indicators (only when the thumbnail rail is hidden) */}
-                      {photos.length > 1 && !showThumbRail && (
+                      {photos.length > 1 && !showThumbRail && !shownVideo && (
                         <div className="absolute bottom-5 right-5 flex gap-1.5">
-                          {photos.map((_: any, i: number) => (
+                          {photos.map((item: any, i: number) => (
                             <button
                               key={i}
                               onClick={() => pickPhoto(i)}
-                              aria-label={getCopy(settings?.design, "ariaGoToPhoto", { n: i + 1 })}
+                              aria-label={getCopy(settings?.design, isVideoItem(item) ? "ariaGoToVideo" : "ariaGoToPhoto", { n: i + 1 })}
                               aria-current={shownIndex === i}
                               className={`rounded-full transition-all ${
                                 shownIndex === i ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/30"
@@ -1346,7 +1376,8 @@ export default function BookDetail() {
                         photos={photos.map((ph: any, i: number) => ({
                           url: ph.url,
                           srcSet: photoSrcSet(ph, "100vw").srcSet,
-                          alt: ph.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 }),
+                          alt: mediaName(ph, i),
+                          ...(isVideoItem(ph) ? { videoUrl: ph.videoUrl } : {}),
                         }))}
                         start={Math.max(0, shownIndex)}
                         onIndex={(i) => pickPhoto(i)}
@@ -1374,7 +1405,9 @@ export default function BookDetail() {
                 <div className={productImageLayout === "grid" ? "grid grid-cols-2 gap-4" : "space-y-4"}>
                   {photos.map((photo: any, i: number) => (
                     <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame fm-photo-frame-pdp overflow-hidden`} style={{ aspectRatio: frameFor(photo.url), borderRadius: `${productBorderRadius}px` }}>
-                      <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, PDP_PHOTO_SIZES)} alt={photo.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
+                      {isVideoItem(photo)
+                        ? <video src={photo.videoUrl} poster={photo.url} controls playsInline preload="none" aria-label={mediaName(photo, i)} data-fm-video className={`w-full h-full bg-black ${productImageFitClass}`} />
+                        : <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, PDP_PHOTO_SIZES)} alt={mediaName(photo, i)} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />}
                       {i === 0 && isOutOfStock && (
                         <>
                           <SoldOutVeil design={settings?.design} />
