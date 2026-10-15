@@ -406,6 +406,7 @@
 .studio-library-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .studio-library-actions .studio-link-button { width: auto; min-height: 32px; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
 .studio-section-thumb { width: 100%; height: auto; aspect-ratio: 120 / 72; color: var(--rp-text, currentColor); background: var(--rp-surface-sunken, transparent); border: 1px solid var(--rp-divider); }
+.studio-block-thumb { width: 100%; height: auto; aspect-ratio: 96 / 54; color: var(--rp-text, currentColor); background: var(--rp-surface-sunken, transparent); border: 1px solid var(--rp-divider); }
 
 /* Content tab › Connect to a detail (StudioConnect.tsx, Studio 2.7) */
 .studio-connect { margin-top: 6px; }
@@ -587,3 +588,5 @@
 .studio-layers { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
 .studio-layers li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--rp-divider); }
 .studio-layers li > button:first-child { margin-right: auto; font-weight: 700; }
+.studio-inline-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.studio-inline-actions .studio-link-button { width: auto; }

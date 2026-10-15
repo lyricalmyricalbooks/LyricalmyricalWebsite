@@ -104,7 +104,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Focus & pressed states", keys: ["focusRingWidth", "inputFocusColor", "buttonPress"] },
   ],
   schemes: [
-    { title: "Parts of the shop that follow a scheme", keys: ["elementSchemes.cards", "elementSchemes.buyCard", "elementSchemes.cartDrawer"] },
+    { title: "Parts of the shop that follow a scheme", keys: ["elementSchemes.cards", "elementSchemes.buyCard", "elementSchemes.cartDrawer", "elementSchemes.header", "elementSchemes.footer"] },
   ],
   colors: [
     { title: "Main colours", keys: ["backgroundColor", "textColor", "primaryColor", "secondaryColor", "borderColor", "mutedTextColor"] },

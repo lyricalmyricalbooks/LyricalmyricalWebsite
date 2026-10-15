@@ -500,6 +500,93 @@ await check("Arrange on page: a Flexible composition block moves on the grid by 
   await frame.locator("[data-studio-grid]").waitFor({ state: "detached", timeout: 5000 });
 });
 
+await check("Block picker: pointing at a block tries it on the page, clicking adds it, and Undo removes it", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: /^Flexible composition/ }).first().click();
+  await page.locator("[data-studio-panel='block-clipboard']").getByRole("button", { name: "Add block…" }).click();
+  const picker = page.locator("[data-studio-block-picker]");
+  await picker.getByText(/Adding to/).waitFor({ timeout: 5000 });
+  await picker.locator("[data-block-choice='new:image']").hover();
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("[data-fm-block='__studio-block-candidate']").first().waitFor({ state: "attached", timeout: 10000 });
+  await picker.getByText("Showing Picture on the page").waitFor({ timeout: 5000 });
+  await picker.locator("[data-block-choice='new:image']").click();
+  await page.waitForFunction(() => document.querySelector("button[aria-label^='Undo']")?.getAttribute("title")?.includes("Add Picture"), null, { timeout: 5000 });
+  await frame.locator("[data-fm-block='__studio-block-candidate']").waitFor({ state: "detached", timeout: 10000 });
+  const lastDesign = async () => {
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await page.waitForTimeout(400);
+    return (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design;
+  };
+  const composition = d => d.heroPage.sections.filter(s => s.type === "CompositionSection").pop();
+  let saved = await lastDesign();
+  const items = composition(saved).settings.items;
+  if (items[items.length - 1]?.type !== "image") throw new Error(`no picture block added: ${JSON.stringify(items.map(b => b.type))}`);
+  if (JSON.stringify(saved).includes("__studio-block-candidate")) throw new Error("the try-on block leaked into the saved draft");
+  await page.getByRole("button", { name: /^Undo/ }).click();
+  saved = await lastDesign();
+  if (composition(saved).settings.items.length !== items.length - 1) throw new Error("Undo did not remove the added block");
+});
+
+await check("Copy block in one section and paste it into another section of the same kind", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const addComposition = async () => {
+    await page.getByRole("button", { name: "Add section" }).first().click();
+    await page.getByRole("dialog").getByRole("button", { name: /^Flexible composition/ }).first().click();
+    await page.locator("[data-studio-panel='block-clipboard']").waitFor({ timeout: 5000 });
+  };
+  await addComposition();
+  await page.locator("[data-studio-panel='block-clipboard']").getByRole("button", { name: "Add block…" }).click();
+  await page.locator("[data-studio-block-picker] [data-block-choice='new:text']").click();
+  await page.locator("[data-studio-panel='block-clipboard']").getByRole("button", { name: "Copy block" }).click();
+  await expectText(page, "Block copied");
+  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  await addComposition();
+  await page.locator("[data-studio-panel='block-clipboard']").getByRole("button", { name: "Paste copied block" }).click();
+  await page.waitForFunction(() => document.querySelector("button[aria-label^='Undo']")?.getAttribute("title")?.includes("Paste block"), null, { timeout: 5000 });
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForTimeout(400);
+  const sections = (await calls(page)).filter(c => c.method === "saveDesign").pop().args[0].design.heroPage.sections.filter(s => s.type === "CompositionSection");
+  if (sections.length !== 2) throw new Error(`expected two compositions, got ${sections.length}`);
+  const copied = sections[0].settings.items.find(b => b.title === "New heading");
+  const pasted = sections[1].settings.items.find(b => b.title === "New heading");
+  if (!copied || !pasted) throw new Error("the copied block was not pasted");
+  if (copied.id === pasted.id) throw new Error("the pasted block kept the original's id");
+});
+
+await check("New page offers starters; FAQ opens as a draft with its headings", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await page.getByRole("button", { name: "New page" }).click();
+  const gallery = page.locator("[data-studio-page-starters]");
+  await gallery.waitFor({ timeout: 5000 });
+  await gallery.locator("[data-page-starter='faq']").click();
+  await expectText(page, "FAQ page started as a draft");
+  await page.locator(".studio-page-body .ql-editor").getByText("Orders").first().waitFor({ timeout: 5000 });
+  if (await page.getByLabel(/Published/).isChecked()) throw new Error("the FAQ starter opened as published");
+});
+
+await check("Header and footer colour schemes reach the preview", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await page.getByRole("button", { name: /^Colour schemes/ }).first().click();
+  for (const part of ["header", "footer"]) {
+    const select = page.locator(`[data-style-key="elementSchemes.${part}"] select`);
+    await select.waitFor({ timeout: 5000 });
+    const value = await select.locator("option").nth(1).getAttribute("value");
+    await select.selectOption(value);
+  }
+  const frame = page.frames().find(f => /preview=true/.test(f.url()));
+  if (!frame) throw new Error("no preview frame");
+  await frame.waitForFunction(() => {
+    const header = document.querySelector("header[data-fm-header]");
+    const footer = document.querySelector("footer[data-fm-footer]");
+    return header && footer && header.getAttribute("style")?.includes("var(--bg-color)") && getComputedStyle(header).getPropertyValue("--bg-color").trim()
+      && footer.getAttribute("style")?.includes("var(--bg-color)");
+  }, null, { timeout: 10000 });
+});
+
 await check("Design scales: a heading scale reaches the preview and a section's spacing step saves", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();

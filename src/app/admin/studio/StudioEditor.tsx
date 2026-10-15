@@ -21,7 +21,7 @@ import { COPY_SCHEMA, DEFAULT_COPY, getCopy } from "../../features/site/storeCop
 import { automaticFooterItems, footerGroup } from "../../features/site/footerNavigation";
 import { MENU_LINK_TYPES, newMenuItem, slugify, type MenuItem } from "../../features/site/storeMenu";
 import {
-  commit, duplicateSection, findBlock, getSections, initHistory, insertSection, makeSection, mapBlock, moveBlockBefore, newId, normalizeDesign,
+  commit, duplicateSection, findBlock, getSections, initHistory, insertBlockAfter, insertSection, makeSection, mapBlock, moveBlockBefore, newId, normalizeDesign,
   HISTORY_LIMIT, jumpBy, patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo, undoLabel, redoLabel, moveSection,
   resolveSharedBlocks, type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
@@ -91,6 +91,8 @@ import { auth } from "../../../lib/firebase";
 import type { StudioLocation } from "../../lib/studioLocation";
 import { LinkPicker, StudioPickerProvider } from "./StudioPickers";
 import { StudioSectionLibrary } from "./StudioSectionLibrary";
+import { StudioBlockPicker } from "./StudioBlockPicker";
+import { BLOCK_CANDIDATE_ID, blockChoices, canPasteBlock, copyBlock, pasteBlock, withBlockCandidate, type BlockChoice, type BlockClip } from "./blockLibrary";
 import { StudioTemplateCard } from "./StudioTemplateCard";
 import { isProductTemplate, StudioProductBlocks } from "./StudioProductBlocks";
 import { ALT_BASE_LABELS, ALT_BASES, alternatesFor, altSurface, bookTemplateSurface, createAlternate, deleteAlternate, isAltSurface, parseAltSurface, renameAlternate, type AltBase } from "../../features/site/templateAlternates";
@@ -444,6 +446,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [phoneSeen, setPhoneSeen] = useState(remembered.phoneSeen === true);
   const [publishedNow, setPublishedNow] = useState(false);
   const [copiedSection, setCopiedSection] = useState<Section | null>(null);
+  // Block library 3.0: the copied block, the section the block picker is adding to, and the block pointed at in it
+  // (shown in the preview only, never in the draft or history).
+  const [copiedBlock, setCopiedBlock] = useState<BlockClip | null>(null);
+  const [blockPicker, setBlockPicker] = useState<string | null>(null);
+  const [blockCandidate, setBlockCandidate] = useState<any>(null);
+  useEffect(() => { if (!blockPicker) setBlockCandidate(null); }, [blockPicker]);
   // A section's look (Style / Layout / Visibility settings) copied from the outline, to paste onto others.
   const [copiedStyle, setCopiedStyle] = useState<Record<string, any> | null>(null);
   // "Move to…" dialog: sections to another page, or a block to another section.
@@ -803,8 +811,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const sendPreviewState = useCallback(() => {
     if (inlineEditingRef.current) return;
     const current = designRef.current;
+    const candidateOwner = blockCandidate && blockPicker ? findSectionOwner(current, blockPicker) : null;
     const previewDesign = historyPreview?.design || themePreview?.design || (candidate && adding !== null
       ? withCandidate(current, showGlobal ? globalGroup : template.id, getSections(current, target), adding, makeSection(candidate, getSectionMeta(candidate)?.defaults || {}))
+      : candidateOwner ? withBlockCandidate(current, blockPicker!, getBlocksKey(candidateOwner.section.type), blockCandidate)
       : current);
     let state: ReturnType<typeof buildPreviewState>;
     try { state = buildPreviewState(settings, previewDesign, withDraftPage(pages, draftPage), books); }
@@ -813,7 +823,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       deliverPreviewState(iframeRef.current?.contentWindow, state, window.location.origin);
     } catch (err) { console.warn("[Studio] preview delivery failed", err); }
     try { channelRef.current?.postMessage(state); } catch (err) { console.warn("[Studio] preview tab delivery failed", err); }
-  }, [historyPreview, themePreview, settings, pages, books, draftPage, candidate, adding, showGlobal, globalGroup, template.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [historyPreview, themePreview, settings, pages, books, draftPage, candidate, adding, blockCandidate, blockPicker, showGlobal, globalGroup, template.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const sendPreviewRef = useRef(sendPreviewState);
   sendPreviewRef.current = sendPreviewState;
   useEffect(() => {
@@ -879,6 +889,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const t = setTimeout(() => highlight(CANDIDATE_ID, true, null), 350);
     return () => clearTimeout(t);
   }, [candidate]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Add block: scroll the preview to the block being tried in its section (marked "Preview · not added yet").
+  useEffect(() => {
+    if (!blockCandidate || !blockPicker) return;
+    const t = setTimeout(() => highlight(blockPicker, true, BLOCK_CANDIDATE_ID), 350);
+    return () => clearTimeout(t);
+  }, [blockCandidate]); // eslint-disable-line react-hooks/exhaustive-deps
   // Re-highlight right away when the selection changes, but only after edits settle when the design changes.
   useEffect(() => { canvasSelectionRef.current = null; highlight(selectedId); }, [selectedId, highlight]);
   useEffect(() => { if (selectedId) setSelectedElement(null); }, [selectedId]);
@@ -1139,11 +1155,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         return;
       }
       if (d.type === "ADD_BLOCK" && d.sectionId) {
+        // Canvas toolbar › + Block opens the block picker for that section (Block library 3.0).
         const owner = findSectionOwner(designRef.current, d.sectionId);
         const meta = owner && getSectionMeta(owner.section.type); if (!owner || !meta?.blockType) return;
-        const block = { ...JSON.parse(JSON.stringify(meta.blockDefaults || {})), id: newId() };
-        change(current => applyCanvasAction(current, d, getBlocksKey, block));
-        setSelectedId(d.sectionId); setBlockId(block.id); setMobilePanel("settings");
+        openBlockPickerRef.current(d.sectionId);
       }
       if (d.type === "CONTEXT_ACTION" && typeof d.sectionId === "string") {
         change(current => applyContextAction(current, d, getBlocksKey));
@@ -1337,6 +1352,51 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (selectedId === id) { setSelectedId(null); setBlockId(null); }
     say("ok", `Deleted ${gone ? sectionTitle(gone).label : "the section"}.`, undoAction());
   };
+  // Block library 3.0: Add block (the picker), Copy block and Paste copied block. Each add is one named, undoable change.
+  const openBlockPicker = (sectionId: string) => {
+    setAdding(null); setLeftTab("sections"); setSelectedId(sectionId); setBlockId(null); setMobilePanel("outline"); setBlockPicker(sectionId);
+  };
+  const openBlockPickerRef = useRef(openBlockPicker); openBlockPickerRef.current = openBlockPicker;
+  const pickerOwner = blockPicker ? findSectionOwner(design, blockPicker) : null;
+  useEffect(() => { if (blockPicker && !pickerOwner) setBlockPicker(null); }, [blockPicker, pickerOwner]);
+  // The picker belongs to one section on Page layout: leaving either closes it (and takes its try-on block off the page).
+  useEffect(() => { if (blockPicker && (leftTab !== "sections" || selectedId !== blockPicker)) setBlockPicker(null); }, [leftTab, selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const insertBlockInto = (sectionId: string, block: any, afterId: string | null, label: string) => {
+    const owner = findSectionOwner(designRef.current, sectionId); if (!owner) return;
+    const key = getBlocksKey(owner.section.type);
+    change(d => updateSectionsById(d, [sectionId], s => {
+      const list = s.settings?.[key] || s.settings?.blocks || [];
+      return { ...s, settings: { ...s.settings, [key]: afterId && findBlock(list, afterId) ? insertBlockAfter(list, afterId, block) : [...list, block] } };
+    }), { label });
+    setSelectedId(sectionId); setBlockId(block.id); setMobilePanel("settings"); highlight(sectionId, true, block.id);
+  };
+  const addBlockFromPicker = (choice: BlockChoice) => {
+    const sectionId = blockPicker; setBlockPicker(null);
+    if (sectionId) insertBlockInto(sectionId, choice.make(), null, choice.id === "clipboard" ? "Paste block" : `Add ${choice.label}`);
+  };
+  const copyBlockNow = (section: Section, id: string) => {
+    const key = getBlocksKey(section.type);
+    const block = findBlock(section.settings[key] || section.settings.blocks || [], id); if (!block) return;
+    setCopiedBlock(copyBlock(section.type, block));
+    say("ok", `Block copied. Paste it into any ${getSectionMeta(section.type)?.label || "section"} section with Paste copied block.`);
+  };
+  const pasteBlockNow = (section: Section, afterId: string | null) => {
+    if (!canPasteBlock(copiedBlock, section.type)) {
+      say("ok", copiedBlock ? `That block came from a ${getSectionMeta(copiedBlock.sectionType)?.label || "different"} section, so it only pastes into one of those.` : "Copy a block first: select it and choose Copy block.");
+      return;
+    }
+    insertBlockInto(section.id, pasteBlock([], copiedBlock!).list[0], afterId, "Paste block");
+    say("ok", "Block pasted.", undoAction());
+  };
+  const pickerChoices = useMemo(() => {
+    if (!pickerOwner) return [];
+    const section = pickerOwner.section, meta = getSectionMeta(section.type);
+    const key = getBlocksKey(section.type);
+    return blockChoices(meta ? { ...meta, type: section.type } : undefined, {
+      existing: section.settings?.[key] || section.settings?.blocks || [], sharedBlocks: design.sharedBlocks || [], clip: copiedBlock,
+      labelOf: (b, i) => blockLabel(b, i, meta?.blockLabel),
+    });
+  }, [pickerOwner, design.sharedBlocks, copiedBlock]);
   const pasteSection = () => {
     if (!copiedSection) return;
     const clone = duplicateSection([copiedSection], copiedSection.id).list[1];
@@ -1502,7 +1562,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     section: selected && selectedIndex >= 0 ? { id: selected.id, label: sectionTitle(selected).label, visible: selected.visible !== false, first: selectedIndex === 0, last: selectedIndex === sections.length - 1 } : undefined,
     element: selectedElement ? { label: selectedElement.label || "Page part", hasTheme: elementTabs(selectedElement, device as RegionDevice, design).styleGroups.length > 0 } : undefined,
     canPasteStyle: Boolean(copiedStyle),
-  }), [selected, selectedIndex, sections.length, selectedElement, copiedStyle, device, design]);
+    blocks: selected ? {
+      takesBlocks: Boolean(getSectionMeta(selected.type)?.blockType),
+      blockLabel: blockId ? selectedBlockCrumb(selected, blockId).label : undefined,
+      canPaste: canPasteBlock(copiedBlock, selected.type),
+    } : undefined,
+  }), [selected, selectedIndex, sections.length, selectedElement, copiedStyle, copiedBlock, blockId, device, design]);
   const runContext = (id: string) => {
     const sid = selected?.id;
     switch (id) {
@@ -1514,6 +1579,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "section-show": if (sid) outlineActions.setVisible([sid], true); break;
       case "section-copy": if (sid) outlineActions.copy(sid); break;
       case "section-copy-style": if (sid) outlineActions.copyStyle(sid); break;
+      case "block-add": if (sid) openBlockPicker(sid); break;
+      case "block-copy": if (selected && blockId) copyBlockNow(selected, blockId); break;
+      case "block-paste": if (selected) pasteBlockNow(selected, blockId); break;
       case "section-paste-style": if (sid) outlineActions.pasteStyle([sid]); break;
       case "section-move-page": if (sid) outlineActions.moveToPage([sid]); break;
       case "section-save": if (sid) outlineActions.saveForReuse(sid); break;
@@ -1679,17 +1747,22 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onRenameShared={renameSharedAsk} onDeleteShared={deleteSharedNow}
                 onClose={() => setAdding(null)} />
             )}
-            {leftTab === "sections" && adding === null && !showGlobal && (
+            {leftTab === "sections" && adding === null && pickerOwner && (
+              <StudioBlockPicker key={blockPicker!} sectionLabel={sectionTitle(pickerOwner.section).label} choices={pickerChoices}
+                onPreview={choice => setBlockCandidate(choice ? choice.make() : null)} onPick={addBlockFromPicker}
+                onClose={() => setBlockPicker(null)} />
+            )}
+            {leftTab === "sections" && adding === null && !blockPicker && !showGlobal && (
               <StudioTemplateCard design={design} templateId={template.id} books={books} previewBookSlug={productSlug}
                 onSwitch={id => { setTemplateId(id); setSelectedId(null); setBlockId(null); }}
                 onPreviewBook={setProductSlug}
                 onCreate={createTemplateAsk} onRename={renameTemplateAsk} onDelete={deleteTemplateNow} />
             )}
-            {leftTab === "sections" && adding === null && !showGlobal && isProductTemplate(template.id) && (
+            {leftTab === "sections" && adding === null && !blockPicker && !showGlobal && isProductTemplate(template.id) && (
               <StudioProductBlocks design={design} templateId={template.id} change={change}
                 onNotice={(text, undoable) => say("ok", text, undoable ? undoAction() : undefined)} />
             )}
-            {leftTab === "sections" && adding === null && template.id === "heroPage" && (
+            {leftTab === "sections" && adding === null && !blockPicker && template.id === "heroPage" && (
               <div className="m-3 p-3 rounded-lg border border-neutral-200 bg-white text-xs space-y-2">
                 <label className="flex items-center justify-between gap-3 font-bold text-sm">
                   Show a Home page
@@ -1703,7 +1776,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 </p>
               </div>
             )}
-            {leftTab === "sections" && adding === null && (template.id === "page" || template.id.startsWith("page:")) && !sections.some((s) => s.type === "PageContentSection") && (
+            {leftTab === "sections" && adding === null && !blockPicker && (template.id === "page" || template.id.startsWith("page:")) && !sections.some((s) => s.type === "PageContentSection") && (
               <div className="m-3 p-3 rounded-lg border border-neutral-200 bg-white text-xs space-y-2" data-studio-panel="page-content">
                 <p className="font-bold text-sm">Make this page fully editable</p>
                 <p className="text-neutral-500">The page title and text are currently a fixed block. Turn them into a <b>Page content</b> section you can move, restyle and surround with images, galleries or any other section.</p>
@@ -1713,7 +1786,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 }}>Design this page</button>
               </div>
             )}
-            {leftTab === "sections" && adding === null && <div className="studio-section-tools">
+            {leftTab === "sections" && adding === null && !blockPicker && <div className="studio-section-tools">
               <button className={btn} onClick={() => setAdding(sections.length)}><Plus size={13} /> Add section</button>
               <button className={btn} onClick={() => autoFitPage(false)} title="Works out phone spacing, text sizes, columns and stacked blocks for this page's sections and built-in regions. Anything you set yourself is kept."><Smartphone size={13} /> Auto-fit page for phones</button>
               <div className="studio-tools-menu"><span>Section tools</span><ActionMenu label="Section tools" actions={[
@@ -1725,7 +1798,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   onSelect: () => { if (!selected) { say("ok", "Select a section first, then save it. Saved sections appear in Add section."); return; } saveSection(selected); } },
               ]} /></div>
             </div>}
-            {leftTab === "sections" && adding === null && <StudioStructure structure={structure} hoverKey={hoverKey} selectedKey={selectedElement?.key || null} deviceLabel={REGION_DEVICE_LABELS[device]}
+            {leftTab === "sections" && adding === null && !blockPicker && <StudioStructure structure={structure} hoverKey={hoverKey} selectedKey={selectedElement?.key || null} deviceLabel={REGION_DEVICE_LABELS[device]}
               pageLabel={template.label} showGlobal={showGlobal} group={globalGroup}
               groupCounts={Object.fromEntries(SECTION_GROUP_KEYS.map(k => [k, Array.isArray(design[k]) ? design[k].length : 0]))}
               onHover={key => postPreview({ type: "HOVER_NODE", key })}
@@ -1742,7 +1815,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               onRename={renameSection} actions={outlineActions} sharedBlocks={design.sharedBlocks || []} templateId={showGlobal ? "" : template.id}
               onSelect={(id, block) => { setSelectedId(id); setBlockId(block || null); setMobilePanel("settings"); highlight(id, true, block || null); }}
               onReorder={list => setList(() => list)} onPatch={(id, patch) => setList(list => patchSectionSettings(list, id, patch))}
-              onAdd={setAdding} onDuplicate={dupSection} onDelete={delSection}
+              onAdd={setAdding} onAddBlock={openBlockPicker} onDuplicate={dupSection} onDelete={delSection}
               onToggle={id => setList(list => toggleSection(list, id))} />
             </StudioStructure>}
             {leftTab === "style" && <div className="studio-settings-search">
@@ -2080,6 +2153,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const inspectorPanel = (
           <StudioInspector section={selected} blockId={blockId} onSelectBlock={setBlockId} colorSchemes={colorSchemes}
             device={device} sharedBlocks={design.sharedBlocks || []} onSaveShared={saveSharedBlock} onPatchShared={patchSharedBlock} onInsertShared={insertSharedBlock}
+            onAddBlock={() => openBlockPicker(selected.id)} onCopyBlock={id => copyBlockNow(selected, id)}
+            canPasteBlock={canPasteBlock(copiedBlock, selected?.type)} onPasteBlock={afterId => pasteBlockNow(selected, afterId)}
             onPatch={patchSelected} onDuplicate={() => dupSection(selected.id)} onDelete={() => delSection(selected.id)}
             onToggle={() => setList((l) => toggleSection(l, selected.id))} onNotice={(text) => say("ok", text)}
             onReplayMotion={() => { setMode("edit"); postPreview({ type: "HIGHLIGHT_SECTION", instanceId: selected.id, blockId: null, scroll: true }); setTimeout(() => postPreview({ type: "MOTION_REPLAY", sectionId: selected.id }), 450); }}

@@ -1,14 +1,16 @@
 import { DEVICE_MEDIA } from "./breakpoints";
+import { elementScheme } from "./colorSchemes";
 
 // Studio › Style › Footer & social links → CSS for the one storefront footer (StoreFooter.tsx).
 // Spacing always has a value (the defaults are the footer's own look); colours are emitted only
-// when set, so an untouched footer keeps the theme's token colours.
+// when set, so an untouched footer keeps the theme's token colours. While the footer follows a colour
+// scheme (Theme settings › Colour schemes › Footer), the scheme's colours replace the footer's own colour keys.
 
 const num = (value: unknown, fallback: number, min: number, max: number) => {
   const n = Number(value);
   return value !== "" && value != null && Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
 };
-const colour = (value: unknown) => typeof value === "string" && value.trim() && !/[;{}<>]/.test(value) ? value.trim() : "";
+const ownColour = (value: unknown) => typeof value === "string" && value.trim() && !/[;{}<>]/.test(value) ? value.trim() : "";
 
 export const FOOTER_SCOPE = "[data-fm-footer]";
 
@@ -35,6 +37,8 @@ export function footerStyleCss(d: any = {}): string {
   const linkGap = num(d.footerLinkGap, 8, 4, 32);
   const barPad = num(d.footerBarPaddingY, 12, 4, 40);
   const size = num(d.footerTextSize, 12, 10, 18);
+  const schemed = Boolean(elementScheme(d, "footer"));
+  const colour = (value: unknown) => schemed ? "" : ownColour(value);
   let css = `${s} .fm-footer-main{padding-top:${padY}px;padding-bottom:${padY}px;}`
     + `@media${DEVICE_MEDIA.mobile}{${s} .fm-footer-main{padding-top:${padYPhone}px;padding-bottom:${padYPhone}px;}}`
     + `${s} .fm-footer-groups{column-gap:${colGap}px;}`

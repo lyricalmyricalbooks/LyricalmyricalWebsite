@@ -12,7 +12,7 @@ import { RADIUS_SCALES, TYPE_SCALES } from "../../features/site/designTokens";
 // `defaultValue` is what the storefront itself uses when the key is unset, so an untouched slider or
 // toggle shows the real setting instead of its minimum / "off".
 export type StyleField =
-  | { key: string; label: string; defaultValue?: any; kind: "text" | "textarea" | "color" | "toggle" | "image" | "html" }
+  | { key: string; label: string; defaultValue?: any; kind: "text" | "textarea" | "color" | "toggle" | "image" | "html" | "link" }
   | { key: string; label: string; defaultValue?: any; kind: "range" | "number"; min: number; max: number; step?: number; suffix?: string }
   | { key: string; label: string; defaultValue?: any; kind: "select"; options: { value: string; label: string }[] };
 
@@ -758,7 +758,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       // Empty bag
       { key: "cartDrawerShowEmptyIcon", label: "Bag icon when the bag is empty", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowEmptyButton", label: "“Continue shopping” button when the bag is empty", kind: "toggle", defaultValue: true },
-      { key: "cartDrawerEmptyLink", label: "“Continue shopping” goes to (a shop address like /collections/new, or https://…; blank = Home)", kind: "text" },
+      { key: "cartDrawerEmptyLink", label: "“Continue shopping” goes to (blank = Home)", kind: "link" },
     ],
   },
   {
