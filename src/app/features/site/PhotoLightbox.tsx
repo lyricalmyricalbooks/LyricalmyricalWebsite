@@ -1,7 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { AnimatePresence, m } from "motion/react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useFocusTrap } from "../../lib/useFocusTrap";
+
+// Moving between photos slides the new one in from the side it comes from (no fade through black).
+const SLIDE = {
+  enter: (dir: number) => ({ x: `${dir * 100}vw` }),
+  center: { x: "0vw" },
+  exit: (dir: number) => ({ x: `${dir * -100}vw` }),
+};
+
+/** Starts loading a photo at full-screen size, so it is ready before the shopper moves to it. */
+function warm(photo: LightboxPhoto | undefined) {
+  if (!photo?.url || typeof Image === "undefined") return;
+  const img = new Image();
+  img.decoding = "async";
+  if (photo.srcSet) { img.sizes = "100vw"; img.srcset = photo.srcSet; }
+  img.src = photo.url;
+}
 
 export type LightboxPhoto = { url: string; alt: string; srcSet?: string };
 
@@ -21,15 +38,24 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
   showCount?: boolean;
 }) {
   const [index, setIndex] = useState(Math.min(Math.max(0, start), Math.max(0, photos.length - 1)));
+  const [dir, setDir] = useState(1);
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, true, onClose);
 
   const go = (next: number) => {
     if (!photos.length) return;
     const i = (next + photos.length) % photos.length;
+    setDir(next > index ? 1 : -1);
     setIndex(i);
     onIndex?.(i);
   };
+
+  // Next and previous photos load while this one is on screen.
+  useEffect(() => {
+    if (photos.length < 2) return;
+    warm(photos[(index + 1) % photos.length]);
+    warm(photos[(index - 1 + photos.length) % photos.length]);
+  }, [index, photos]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -60,13 +86,24 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
       className="fm-lightbox fixed inset-0 z-[1000] bg-black/95 flex items-center justify-center"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <img
-        src={photo.url}
-        {...(photo.srcSet ? { srcSet: photo.srcSet, sizes: "100vw" } : {})}
-        alt={photo.alt}
-        className="max-w-[94vw] max-h-[88vh] w-auto h-auto object-contain select-none"
-        draggable={false}
-      />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <AnimatePresence initial={false} custom={dir}>
+          <m.img
+            key={index}
+            custom={dir}
+            variants={SLIDE}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ type: "tween", ease: [0.32, 0.72, 0, 1], duration: 0.32 }}
+            src={photo.url}
+            {...(photo.srcSet ? { srcSet: photo.srcSet, sizes: "100vw" } : {})}
+            alt={photo.alt}
+            className="absolute inset-0 m-auto max-w-[94vw] max-h-[88vh] w-auto h-auto object-contain select-none pointer-events-auto"
+            draggable={false}
+          />
+        </AnimatePresence>
+      </div>
       <button type="button" data-autofocus onClick={onClose} aria-label={labels.close} className={`${btn} top-4 right-4`}><X size={18} /></button>
       {photos.length > 1 && (
         <>
