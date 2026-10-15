@@ -114,11 +114,12 @@ function sanitizeHtml(html) {
 }
 const REWRITE_MAX = { plain: 4000, html: 8000 };
 const SIMPLE_TAGS = HTML_TAGS;
-/** Rich text a rewrite would lose parts of (pictures, video, alignment, colours…): refused instead of quietly dropped. */
+/** Rich text a rewrite would lose parts of (colours, unusual tags; Studio holds pictures and line layout out as
+ *  [[keep-N]]/[[line-N]] markers before sending): refused instead of quietly dropped. */
 function richTextProblem(html) {
   for (const m of String(html || "").matchAll(/<([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g)) {
     const tag = m[1].toLowerCase(), attrs = m[2].replace(/\s+(href|target|rel)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "").trim().replace(/\/$/, "").trim();
-    if (!SIMPLE_TAGS.has(tag) || attrs) return "This text has pictures, videos, alignment, colours or other formatting the AI can't keep, so it isn't rewritten here. Rewrite a plain part, or edit it by hand.";
+    if (!SIMPLE_TAGS.has(tag) || attrs) return "This text has coloured words or other formatting the AI can't keep, so it isn't rewritten here. Edit it by hand.";
   }
   return "";
 }

@@ -5,7 +5,7 @@ vi.mock("react-quill", () => ({ default: () => null }));
 vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 import { describe, expect, it } from "vitest";
 import { getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, SECTION_REGISTRY } from "../ThemeEditorExtensions";
-import { canRewrite, DRAFT_TYPES, keepsTokens, MOVED_MARK, normalizeRichText, protectRichText, REWRITE_MAX, restoreRichText, rewriteFormat, rewriteProblem, sectionFromDraft, SIMPLE_TAGS, tokensOf } from "./aiStudio";
+import { canRewrite, DRAFT_TYPES, keepsTokens, MOVED_MARK, normalizeRichText, protectRichText, REWRITE_MAX, restoreRichText, rewriteFormat, rewriteProblem, richTextSignature, sectionFromDraft, SIMPLE_TAGS, tokensOf } from "./aiStudio";
 import { sanitizeRichText } from "./richText";
 
 const server = createRequire(import.meta.url)("../../../../functions/aiWriter.js");
@@ -126,6 +126,37 @@ describe("rewriting rich text with pictures (words only)", () => {
       text.replace("[[line-1]]Centred line with", "Centred [[line-1]]line with"),
       text + "<p>[[keep-9]]</p>",
     ]) expect(restoreRichText(answerOf(bad), held), bad).toEqual({ error: MOVED_MARK });
+  });
+  it("refuses a line layout or picture marker that lands somewhere it can't come back from", () => {
+    const one = protectRichText('<p class="ql-align-center">Title</p><p>Body</p>');
+    // Swapped lines, a line marker left on a line of its own, and a marker inside a link address.
+    const twoLines = protectRichText('<p class="ql-align-center">A</p><p class="ql-align-right">B</p>');
+    expect(restoreRichText("<p>[[line-2]]A</p><p>[[line-1]]B</p>", twoLines.held)).toEqual({ error: MOVED_MARK });
+    expect(restoreRichText("<p>[[line-1]]</p><p>Title Body</p>", one.held)).toEqual({ error: MOVED_MARK });
+    const pic = protectRichText('<p>Hello</p><p><img src="a"></p>');
+    expect(restoreRichText(answerOf('<p>Hello <a href="[[keep-1]]">pic</a></p>'), pic.held)).toEqual({ error: MOVED_MARK });
+    // A picture marker the AI put in a list item of its own leaves no empty bullet behind.
+    expect((restoreRichText("<ul><li>One</li><li>[[keep-1]]</li></ul>", pic.held) as any).html).toBe('<ul><li>One</li></ul><p><img src="a"></p>');
+    // An indented list item holding only a picture keeps both.
+    const li = protectRichText('<p>Intro</p><ol><li class="ql-indent-1"><img src="b"></li></ol>');
+    expect((restoreRichText(answerOf(li.text), li.held) as any).html).toBe('<p>Intro</p><ol><li class="ql-indent-1"><img src="b"></li></ol>');
+  });
+  it("sends only what the server accepts, and gives links back their new-tab settings", () => {
+    const html = '<p>See <a href="https://x.test" target="_blank" rel="noopener noreferrer">us</a> and <span>plain</span> words.</p><p class="" style="">Empty attributes</p><p class="ql-align-center"><img src="a"></p>';
+    const { text, held, problem } = protectRichText(html);
+    expect(problem).toBe("");
+    expect(server.richTextProblem(text)).toBe("");
+    expect(text).toBe('<p>See <a href="https://x.test">us</a> and plain words.</p><p>Empty attributes</p><p>[[keep-1]]</p>');
+    const back = restoreRichText(answerOf(server.sanitizeHtml(text)), held) as { html: string };
+    expect(back.html).toContain('<a href="https://x.test" target="_blank" rel="noopener noreferrer">us</a>');
+    expect(rewriteProblem("richtext", '<p><a href="/x" title="Tip">x</a></p>')).toMatch(/title on <a>/);
+    expect(rewriteProblem("richtext", "<p>Use [[keep-1]] here</p>")).toMatch(/looks like/);
+  });
+  it("tells an editor's tidying apart from a real edit", () => {
+    const html = '<p class="ql-align-center">Hi <a href="/x">us</a></p><p><img src="a" alt="A"></p>';
+    expect(richTextSignature(html)).toBe(richTextSignature(html.replace("</p><p>", "</p>\n<p>").replace('href="/x"', 'href="/x" rel="noopener"')));
+    for (const edit of [html.replace('<p><img src="a" alt="A"></p>', ""), html.replace("/x", "/y"), html.replace(' class="ql-align-center"', ""), html.replace("Hi", "Hey")])
+      expect(richTextSignature(edit)).not.toBe(richTextSignature(html));
   });
   it("shows no rewrite for a body that is only pictures", () => {
     expect(canRewrite("richtext", '<p><img src="a"></p><hr>')).toBe(false);

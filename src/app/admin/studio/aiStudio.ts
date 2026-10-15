@@ -41,27 +41,33 @@ const KEPT_TAGS = new Set(["img", "iframe", "video", "audio", "picture", "figure
 /** Lines whose alignment / indent (Quill's ql-align-* / ql-indent-* or text-align) is held out and put back. */
 const LINE_TAGS = new Set(["p", "h1", "h2", "h3", "h4", "li", "blockquote"]);
 const LINE_CLASS = /^ql-(align-(left|center|right|justify)|indent-[1-8])$/;
-const LINK_ATTRS = new Set(["href", "target", "rel", "title"]);
 const COLOUR_PROBLEM = "This text has coloured, highlighted or specially styled words the AI can't keep, so it isn't rewritten here. Remove that styling first, or edit it by hand.";
 const FORMAT_PROBLEM = (what: string) => `This text has formatting the AI can't keep (${what}), so it isn't rewritten here. Edit it by hand.`;
+const MARKER = /\[\[(keep|line)-(\d{1,3})\]\]/;
 const MARKER_G = /\[\[(?:keep|line)-\d{1,3}\]\]/g;
+const KEPT_SELECTOR = [...KEPT_TAGS].join(",");
 export const MOVED_MARK = "The AI moved or dropped a picture, video or line layout, so nothing was changed. Try again.";
 
-/** What protectRichText held out of the text: kept[n - 1] belongs to marker [[keep-n]] / [[line-n]]. */
-export type HeldOut = { keep: { html: string; block: boolean }[]; line: { cls: string; style: string }[] };
+/** What protectRichText held out of the text: keep[n - 1] / line[n - 1] belong to [[keep-n]] / [[line-n]]; `links`
+ *  keeps each link's target/rel (by address), which the AI's answer can't carry. */
+export type HeldOut = { keep: { html: string; block: boolean }[]; line: { cls: string; style: string }[]; links: Record<string, { target: string; rel: string }> };
 const parse = (html: string) => { const t = document.createElement("template"); t.innerHTML = html; return t; };
-const hasKept = (el: Element) => KEPT_TAGS.has(el.tagName.toLowerCase()) || [...KEPT_TAGS].some(t => el.querySelector(t));
+const hasKept = (el: Element) => KEPT_TAGS.has(el.tagName.toLowerCase()) || !!el.querySelector(KEPT_SELECTOR);
+const isBlank = (el: Node) => !(el.textContent || "").replace(MARKER_G, "").trim() && !(el instanceof Element && el.querySelector(KEPT_SELECTOR));
 
 /**
  * Rich text as the AI may see it: every picture, video and divider becomes a [[keep-N]] marker (a line of its own
  * when it stood alone) and every aligned or indented line starts with a [[line-N]] marker instead of its layout.
  * restoreRichText puts them back. `problem` names anything else it can't carry over (coloured words, odd tags).
+ * The text holds only tags and attributes the server accepts (functions/aiWriter.js richTextProblem).
  */
 export function protectRichText(html: string): { text: string; held: HeldOut; problem: string } {
-  const held: HeldOut = { keep: [], line: [] };
+  const held: HeldOut = { keep: [], line: [], links: {} };
   if (typeof document === "undefined") return { text: html, held, problem: FORMAT_PROBLEM("not in a browser") };
   const root = parse(html);
   let problem = "";
+  // An owner's own "[[keep-1]]" would be mistaken for a marker.
+  if (MARKER.test(root.content.textContent || "")) problem = FORMAT_PROBLEM("text that looks like [[keep-1]]");
   const keepNode = (el: Element, block: boolean) => {
     held.keep.push({ html: el.outerHTML, block });
     const marker = `[[keep-${held.keep.length}]]`;
@@ -80,13 +86,22 @@ export function protectRichText(html: string): { text: string; held: HeldOut; pr
       let lineCls = "", lineStyle = "";
       for (const attr of Array.from(el.attributes)) {
         const name = attr.name.toLowerCase();
-        if (tag === "a" && LINK_ATTRS.has(name)) continue;
+        if (!attr.value.trim() && (name === "class" || name === "style")) { el.removeAttribute(attr.name); continue; }
+        if (tag === "a" && name === "href") continue;
+        if (tag === "a" && (name === "target" || name === "rel")) {
+          const href = el.getAttribute("href") || "";
+          held.links[href] = { ...(held.links[href] || { target: "", rel: "" }), [name]: attr.value };
+          el.removeAttribute(attr.name);
+          continue;
+        }
         if (LINE_TAGS.has(tag) && name === "class" && attr.value.trim().split(/\s+/).every(c => LINE_CLASS.test(c))) { lineCls = attr.value.trim(); continue; }
         if (LINE_TAGS.has(tag) && name === "style" && Array.from(el.style).every(k => k === "text-align")) { lineStyle = el.getAttribute("style") || ""; continue; }
         problem ||= name === "style" || name === "class" ? COLOUR_PROBLEM : FORMAT_PROBLEM(`${name} on <${tag}>`);
       }
-      if (tag === "span" && el.attributes.length) problem ||= COLOUR_PROBLEM;
       walk(el, false);
+      // A plain <span> (left behind by the canvas editor) is only a wrapper: its words stay, the tag goes.
+      if (tag === "span" && !el.attributes.length) { el.replaceWith(...Array.from(el.childNodes)); continue; }
+      if (tag === "span") problem ||= COLOUR_PROBLEM;
       if (lineCls || lineStyle) {
         el.removeAttribute("class"); el.removeAttribute("style");
         held.line.push({ cls: lineCls, style: lineStyle });
@@ -101,39 +116,45 @@ export function protectRichText(html: string): { text: string; held: HeldOut; pr
 /** The rewritten rich text with every held-out picture, video and line layout back in place, or why it can't be. */
 export function restoreRichText(answer: string, held: HeldOut): { html: string } | { error: string } {
   if (typeof document === "undefined") return { error: MOVED_MARK };
-  const found = [...String(answer).matchAll(/\[\[(keep|line)-(\d{1,3})\]\]/g)].map(m => ({ kind: m[1] as "keep" | "line", n: Number(m[2]) }));
-  const count = (kind: string, n: number) => found.filter(f => f.kind === kind && f.n === n).length;
-  const keepOrder = found.filter(f => f.kind === "keep").map(f => f.n);
-  if (found.length !== held.keep.length + held.line.length
-    || held.keep.some((_, i) => count("keep", i + 1) !== 1) || held.line.some((_, i) => count("line", i + 1) !== 1)
-    || keepOrder.some((n, i) => n !== i + 1)) return { error: MOVED_MARK };
+  const moved = { error: MOVED_MARK };
   const root = parse(answer);
-  // Each marker as its own text node, so it can be swapped for what it stands for.
+  // A marker anywhere but in the words (a link address, say) stands for nothing the restore can put back.
+  if (Array.from(root.content.querySelectorAll("*")).some(el => Array.from(el.attributes).some(a => MARKER.test(a.value)))) return moved;
+  // Each marker as its own text node, in document order, so it can be checked and swapped for what it stands for.
   const markers: Text[] = [];
   const texts: Text[] = [];
   const walker = document.createTreeWalker(root.content, NodeFilter.SHOW_TEXT);
   for (let n = walker.nextNode(); n; n = walker.nextNode()) texts.push(n as Text);
   for (let text of texts) {
     let m: RegExpExecArray | null;
-    while ((m = /\[\[(?:keep|line)-\d{1,3}\]\]/.exec(text.data))) {
+    while ((m = MARKER.exec(text.data))) {
       const marker = m.index ? text.splitText(m.index) : text;
       const rest = marker.splitText(m[0].length);
       markers.push(marker);
       text = rest;
     }
   }
+  // Every marker exactly once, and in the original order (pictures and laid-out lines don't swap places).
+  const seen = { keep: [] as number[], line: [] as number[] };
+  for (const marker of markers) { const [, kind, n] = MARKER.exec(marker.data)!; seen[kind as "keep" | "line"].push(Number(n)); }
+  const inOrder = (list: number[], total: number) => list.length === total && list.every((n, i) => n === i + 1);
+  if (!inOrder(seen.keep, held.keep.length) || !inOrder(seen.line, held.line.length)) return moved;
+
   const nodes = (html: string) => Array.from(parse(html).content.childNodes);
+  const blockOf = (node: Node) => { let n = node.parentNode; while (n && !(n instanceof Element && LINE_TAGS.has(n.tagName.toLowerCase()))) n = n.parentNode; return n as Element | null; };
+  const topOf = (node: Node) => { let n: Node = node; while (n.parentNode && n.parentNode !== root.content) n = n.parentNode; return n; };
   const emptied = new Set<Node>();
   const after = new Map<Node, ChildNode>();
-  const topOf = (node: Node) => { let n: Node = node; while (n.parentNode && n.parentNode !== root.content) n = n.parentNode; return n; };
   for (const marker of markers) {
-    const [, kind, num] = /\[\[(keep|line)-(\d+)\]\]/.exec(marker.data)!;
+    const [, kind, num] = MARKER.exec(marker.data)!;
     const i = Number(num) - 1;
     if (kind === "line") {
-      let block = marker.parentNode as Element | null;
-      while (block && !(block instanceof Element && LINE_TAGS.has(block.tagName.toLowerCase()))) block = block.parentNode as Element | null;
-      const before = block ? (block.textContent || "").slice(0, (block.textContent || "").indexOf(marker.data)) : "x";
-      if (!block || before.replace(MARKER_G, "").trim()) return { error: MOVED_MARK };
+      // Its layout goes back on the line it starts, and only on a line that still has words of its own.
+      const block = blockOf(marker);
+      if (!block) return moved;
+      const text = block.textContent || "";
+      const rest = text.replace(/\[\[line-\d{1,3}\]\]/g, "").trim();
+      if (text.slice(0, text.indexOf(marker.data)).replace(MARKER_G, "").trim() || (!rest && !block.querySelector(KEPT_SELECTOR))) return moved;
       const { cls, style } = held.line[i];
       if (cls) block.setAttribute("class", cls);
       if (style) block.setAttribute("style", style);
@@ -145,18 +166,42 @@ export function restoreRichText(answer: string, held: HeldOut): { html: string }
     const top = topOf(marker);
     if (top === marker) { marker.replaceWith(...nodes(kept.html)); continue; }
     // A picture's own line goes back as its own line: before the line the AI put its marker in when the marker
-    // starts that line, otherwise after it (in order); a line left holding only markers is removed below.
+    // starts that line, otherwise after it (in order); a line or list item left empty is removed below.
     const lead = (top.textContent || "").slice(0, (top.textContent || "").indexOf(marker.data)).replace(MARKER_G, "").trim();
+    emptied.add(blockOf(marker) || top);
     // Take the marker out without leaving a double space (or a leading one) where it stood.
     const prev = marker.previousSibling, next = marker.nextSibling;
     if (next?.nodeType === 3 && (!prev || (prev.nodeType === 3 && /\s$/.test((prev as Text).data)) || (prev.nodeType === 3 && !(prev as Text).data))) (next as Text).data = (next as Text).data.replace(/^\s+/, "");
     marker.remove();
-    emptied.add(top);
     if (!lead) (top as ChildNode).before(...nodes(kept.html));
     else { const parts = nodes(kept.html); (after.get(top) || (top as ChildNode)).after(...parts); after.set(top, parts[parts.length - 1] as ChildNode); }
   }
-  for (const top of emptied) if (!(top.textContent || "").trim() && !(top instanceof Element && top.querySelector("img,iframe,video,audio,picture,figure,hr,svg"))) (top as ChildNode).remove();
+  for (const block of emptied) {
+    if (!block.parentNode || !isBlank(block)) continue;
+    const list = block.parentNode;
+    (block as ChildNode).remove();
+    if (list instanceof Element && /^(UL|OL)$/.test(list.tagName) && !list.children.length) list.remove();
+  }
+  // Links keep the "open in a new tab" settings they had (the AI's answer can't carry them).
+  for (const a of Array.from(root.content.querySelectorAll("a[href]"))) {
+    const was = held.links[a.getAttribute("href") || ""];
+    if (was?.target && !a.hasAttribute("target")) a.setAttribute("target", was.target);
+    if (was?.rel && !a.hasAttribute("rel")) a.setAttribute("rel", was.rel);
+  }
   return { html: root.innerHTML };
+}
+
+/** Pictures, link addresses, line layout and words of a text: equal when only an editor's tidying differs. */
+export function richTextSignature(html: string): string {
+  if (typeof document === "undefined") return String(html);
+  const root = parse(html).content;
+  const all = Array.from(root.querySelectorAll("*"));
+  return JSON.stringify({
+    words: (root.textContent || "").replace(/\s+/g, " ").trim(),
+    media: all.filter(el => KEPT_TAGS.has(el.tagName.toLowerCase())).map(el => `${el.tagName}:${el.getAttribute("src") || ""}:${el.getAttribute("alt") || ""}:${el.getAttribute("width") || ""}`),
+    links: all.filter(el => el.tagName === "A").map(el => el.getAttribute("href") || ""),
+    layout: all.filter(el => LINE_TAGS.has(el.tagName.toLowerCase()) && (el.getAttribute("class") || el.getAttribute("style"))).map(el => `${el.getAttribute("class") || ""}|${el.getAttribute("style") || ""}`),
+  });
 }
 
 /** The same rich text as the browser writes it (so "nothing changed" isn't fooled by spelling of tags). */

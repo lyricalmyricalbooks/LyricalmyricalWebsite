@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useId, useRef, useState } from "r
 import { Loader2, Sparkles } from "lucide-react";
 import { AiWriteError, askAi } from "../aiWriter";
 import { SecondaryButton } from "../riso/components";
-import { canRewrite, HOW_CHOICES, keepsTokens, normalizeRichText, protectRichText, restoreRichText, rewriteFormat, rewriteProblem, type RewriteHow } from "./aiStudio";
+import { canRewrite, HOW_CHOICES, keepsTokens, normalizeRichText, protectRichText, restoreRichText, rewriteFormat, rewriteProblem, richTextSignature, type RewriteHow } from "./aiStudio";
 import { sanitizeRichText } from "./richText";
 
 export type StudioAiValue = {
@@ -33,7 +33,7 @@ export function StudioAiRewrite({ kind, label, where, value, onChange, localUndo
   // answer arriving seconds later must use the one from the latest render (or it would undo edits made meanwhile).
   const latestChange = useRef(onChange); latestChange.current = onChange;
   const live = useRef(true);
-  useEffect(() => () => { live.current = false; }, []);
+  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
   const menuId = useId();
   if (!ai || !canRewrite(kind, value)) return null;
 
@@ -63,8 +63,10 @@ export function StudioAiRewrite({ kind, label, where, value, onChange, localUndo
       latestChange.current(next);
       const undo = localUndo
         ? () => {
-          // Only while the field still says what the AI wrote (its editor may have tidied the markup since).
-          if (wordsOf(String(latest.current ?? "")) !== wordsOf(next)) { ai.notify("err", `“${label}” was edited after the rewrite, so Undo left it as it is.`); return; }
+          // Only while this field is still open and still says what the AI wrote: same words, pictures, links and line
+          // layout (its editor may have tidied the markup since). Another page opened, or any later edit, wins.
+          const same = format === "html" ? richTextSignature(String(latest.current ?? "")) === richTextSignature(next) : latest.current === next;
+          if (!live.current || !same) { ai.notify("err", `“${label}” was edited or closed after the rewrite, so Undo left it as it is.`); return; }
           latestChange.current(before);
         }
         : true;

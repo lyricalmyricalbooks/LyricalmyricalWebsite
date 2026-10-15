@@ -124,7 +124,38 @@ describe("Rewrite with AI", () => {
     act(() => root.render(h(StudioAiContext.Provider, { value: { notify } }, h(StudioAiRewrite, { ...props, value: "<p>New words, and mine.</p>" }))));
     act(() => undo());
     expect(onChange).not.toHaveBeenCalled();
-    expect(notify).toHaveBeenLastCalledWith("err", expect.stringMatching(/edited after the rewrite/));
+    expect(notify).toHaveBeenLastCalledWith("err", expect.stringMatching(/edited or closed/));
+  });
+  it("won't undo onto another page, or over a picture added after the rewrite", async () => {
+    askAi.mockResolvedValue({ text: "<p>New words.</p>" });
+    const onChange = vi.fn(), notify = vi.fn();
+    const props = { kind: "richtext", label: "Page text", value: "<p>Old words.</p>", onChange, localUndo: true };
+    mount(props, notify);
+    click("Rewrite with AI"); click("Improve");
+    await settle();
+    const undo = notify.mock.calls.find(c => c[0] === "ok")![2].undo as () => void;
+    onChange.mockClear();
+    // Same words, but a picture was added since: Undo leaves it.
+    act(() => root.render(h(StudioAiContext.Provider, { value: { notify } }, h(StudioAiRewrite, { ...props, value: '<p>New words.</p><p><img src="a"></p>' }))));
+    act(() => undo());
+    expect(onChange).not.toHaveBeenCalled();
+    // The page was closed (another opened): its editor is gone, so Undo does nothing.
+    act(() => root.render(h(StudioAiContext.Provider, { value: { notify } }, h(StudioAiRewrite, { ...props, value: "<p>New words.</p>" }))));
+    act(() => root.unmount());
+    act(() => undo());
+    expect(onChange).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenLastCalledWith("err", expect.stringMatching(/edited or closed/));
+    root = createRoot(host);
+  });
+  it("reports nothing to change when only a link's new-tab settings differed", async () => {
+    const value = '<p>See <a href="https://x.test" target="_blank" rel="noopener noreferrer">us</a>.</p>';
+    askAi.mockImplementation(async (_t: string, input: any) => ({ text: input.text }));
+    const onChange = vi.fn();
+    const notify = mount({ kind: "richtext", label: "Page text", value, onChange, localUndo: true });
+    click("Rewrite with AI"); click("Fix spelling");
+    await settle();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledWith("ok", expect.stringMatching(/nothing to change/));
   });
   it("hands the answer to the newest onChange, so edits made while waiting aren't undone", async () => {
     let resolve!: (v: any) => void;
