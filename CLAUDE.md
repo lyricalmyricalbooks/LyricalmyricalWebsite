@@ -1911,6 +1911,10 @@ it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badg
 - **Admin reads:** the Orders desk and nav badge refresh the newest 100 orders incrementally (`getRecentFulfillmentOrders`, `mergeNewestPage`) and fully every
   `FULL_REFRESH_MS` (10 min); an order page patches the shared copy (`patchCachedOrder`). Alert refresh failures show **Couldn't finish checking for problems → Try again**
   (`checkFailedAlert`); a failed/overdue nightly backup shows an alert (`backupAlert`, `systemStatus/backup`).
+  The shell's alert/badge check runs every `ALERT_CHECK_MS` (5 min) only while the tab is visible (catches up on return), reuses an
+  orders copy under `ALERT_ORDERS_MAX_AGE_MS` (`getOrdersCached({ maxAgeMs })`; the desk's refresh feeds it through `noteLoadedOrders`),
+  and returning from an order re-counts from `peekOrders()` plus the last check's webhook/email-log/status reads. Discounts and Reviews
+  read orders through `getOrdersCached()` too.
 - **Storefront load errors:** `useSiteData` returns `loadError` + `retry`; product, custom pages and Home show Text & labels › Header › `catalogLoadError` / `catalogRetry`
   with a button, and a failed read is never `fresh` (so no "not found"/noindex).
 - **Background jobs (`functions/sweepLimits.js`):** `runInBatches` runs work a few at a time and stops at a deadline. `onBookRestocked` (300 s) marks alerts `restockPending`
@@ -2068,6 +2072,11 @@ Storage is billed per download, so shoppers must never get an original photo whe
 - **Small pictures:** fixed-size thumbnails (bag/checkout lines, search, bag suggestion, sticky bar, bundle covers) use
   `smallPhotoUrl(photo, minWidth)` (`features/site/photoSources.ts`); responsive ones spread `photoSrcSet` (`FEATURE_PHOTO_SIZES` for
   featured/spotlight sections). Never render `photos[n].url` directly for a shopper.
+- **Book page gallery:** adaptive frames take each photo's shape from its saved `width`/`height` (`savedRatios` in `BookDetail`;
+  a measured shape wins once loaded). Only photos without a saved size load ahead at once; the rest of the gallery loads when the
+  shopper reaches for it (`warmGallery`: pointer, touch or focus on the photo column), the strip's neighbours stay eager. The main
+  photo's `sizes` is `pdpPhotoSizes` (frame Max width + 10%, wider for photos cropped by "cover", never over 900px), computed from
+  saved shapes only so it never changes while photos load; the loading-ahead `Image()` uses the same value.
 - **Removed photos:** `adminApi.updateBook` deletes the `products/` files of photos a save took off (and `deleteBook` those of the
   book) through `removeBookFiles` (`admin/bookFileCleanup.ts`), unless another book, edition, sharing image or order line shows
   them; library pictures (assets/) are never deleted. A save keeps server-made copies (`keepPhotoCopies`).

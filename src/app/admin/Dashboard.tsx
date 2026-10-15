@@ -11,7 +11,7 @@ import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
 import { AdminAlerts } from "./AdminAlerts.tsx";
 import { backupAlert, buildAdminAlerts, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert } from "./adminAlerts";
 import { inventoryLinkApi } from "./inventoryLinkApi";
-import { getOrdersCached, setOrdersLoader } from "./ordersCache";
+import { getOrdersCached, peekOrders, setOrdersLoader } from "./ordersCache";
 import { anyDirty, useBeforeUnloadWhenDirty } from "./settingsDirty";
 import { adminApi } from "./api";
 import { scrubSavedSecrets } from "./privateKeys";
@@ -42,6 +42,10 @@ const Messages = lazy(() => import("./Messages"));
 
 // Every shared orders load also refreshes the Orders list memory (its instant return and "Ship orders").
 setOrdersLoader(() => refreshOrdersCache({ incremental: true }));
+// Alerts and badges: checked every 5 minutes while the admin is on screen; an orders copy under 4.5 minutes old
+// (the Orders desk refreshes it every minute) is reused, an older one is read again.
+const ALERT_CHECK_MS = 5 * 60 * 1000;
+const ALERT_ORDERS_MAX_AGE_MS = 4.5 * 60 * 1000;
 
 const openSite = () => {
   const adminIdx = window.location.pathname.toLowerCase().indexOf("/admin");
@@ -137,15 +141,28 @@ export function Dashboard() {
   // Pending reviews, unread messages and open privacy requests (cheap server counts).
   const [otherBadges, setOtherBadges] = useState<{ pendingReviews: number | null; unreadMessages: number | null; openPrivacyRequests: number | null }>({ pendingReviews: null, unreadMessages: null, openPrivacyRequests: null });
   const [searchCustomerQuery, setSearchCustomerQuery] = useState<string | undefined>(undefined);
+  // What the last check read besides the orders (Stripe webhook, email log, backup, inventory link), so opening or
+  // closing an order re-counts the badge and alerts from memory without reading any of it again.
+  const alertInputs = useRef<{ webhook: any; emailLog: any[]; backup: any; linkState: any; failedParts: string[] } | null>(null);
+  const showAlerts = (data: any[]) => {
+    const inputs = alertInputs.current;
+    if (!inputs) return;
+    setOrdersBadge(ordersNeedingWork(data));
+    const backupNote = backupAlert(inputs.backup);
+    const note = checkFailedAlert(inputs.failedParts);
+    setAlerts([...buildAdminAlerts(data, inputs.webhook, Date.now(), inputs.emailLog), ...inventoryLinkAlerts(inputs.linkState), ...(backupNote ? [backupNote] : []), ...(note ? [note] : [])]);
+  };
   useEffect(() => {
     if (!user) return;
     let alive = true;
-    // Opening or closing an order re-counts from the shared copy (an order page patches it), so it never re-reads
-    // every order; only the 5-minute timer and "Try again" force a read (an incremental one after the first).
+    let lastCheck = 0;
     bootOrdersRead.current = true;
-    const refresh = (force = false) => {
+    // `maxAgeMs`: how old a shared orders copy may be and still count (0 = read again). The Orders desk keeps that
+    // copy fresh while it is open, so the 5-minute check usually needs no order reads of its own.
+    const refresh = (maxAgeMs?: number) => {
+      lastCheck = Date.now();
       adminApi.getAdminBadgeCounts().then((c) => { if (alive) setOtherBadges(c); }).catch(() => {});
-      return getOrdersCached({ force })
+      return getOrdersCached({ maxAgeMs })
         .then(async (data) => {
           const failedParts: string[] = [];
           const [webhook, emailLog, backup, linkState] = await Promise.all([
@@ -155,22 +172,32 @@ export function Dashboard() {
             inventoryLinkApi.state().catch(() => { failedParts.push("the inventory app link"); return null; }),
           ]);
           if (!alive) return;
-          setOrdersBadge(ordersNeedingWork(data));
-          const backupNote = backupAlert(backup);
-          const note = checkFailedAlert(failedParts);
-          setAlerts([...buildAdminAlerts(data, webhook, Date.now(), emailLog), ...inventoryLinkAlerts(linkState), ...(backupNote ? [backupNote] : []), ...(note ? [note] : [])]);
+          alertInputs.current = { webhook, emailLog, backup, linkState, failedParts };
+          showAlerts(data);
         })
         // The orders themselves could not be read: say so instead of leaving a stale or empty list.
         .catch(() => { if (alive) setAlerts((prev) => [...prev.filter((a) => a.id !== "alerts-check-failed"), checkFailedAlert(["your orders"])!]); });
     };
-    refreshAlertsRef.current = () => { void refresh(true); };
+    refreshAlertsRef.current = () => { void refresh(0); };
     refresh();
-    const timer = window.setInterval(() => { void refresh(true); }, 5 * 60 * 1000);
+    // Every 5 minutes while the admin is on screen. A hidden tab reads nothing and checks on return once 5 minutes
+    // have passed (the Orders desk does the same), so a tab left open in the background costs no reads.
+    const check = () => { if (!document.hidden && Date.now() - lastCheck >= ALERT_CHECK_MS) void refresh(ALERT_ORDERS_MAX_AGE_MS); };
+    const timer = window.setInterval(check, 60 * 1000);
+    document.addEventListener("visibilitychange", check);
     return () => {
       alive = false;
       window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", check);
     };
-    // Re-count when returning from an order, so finished work drops off the badge.
+  }, [user]);
+  // Returning from an order re-counts from the shared copy (the order page patches it), so finished work drops
+  // off the badge without re-reading orders, the email log or the status documents.
+  useEffect(() => {
+    if (!user || selectedOrder !== null) return;
+    const data = peekOrders();
+    if (data) showAlerts(data);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, selectedOrder === null]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settings, setSettings] = useState<any>(null);
