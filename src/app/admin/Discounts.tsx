@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Link2, Plus, Trash2 } from "lucide-react";
 import { adminApi } from "./api";
 import { getOrdersCached } from "./ordersCache";
 import toast from "react-hot-toast";
@@ -337,6 +337,35 @@ const shopDay = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date)
   ? new Date(`${date}T12:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
   : new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
+const shareLinkFor = (code: string) => discountShareLink(code, window.location.origin, import.meta.env.BASE_URL);
+
+// The link a shopper opens to get the code filled in at checkout (sharedDiscount.ts). Checkout checks
+// it with the server like a typed code, so a paused, expired or used-up code is simply refused there.
+function ShareDiscountDialog({ code, discount, onClose }: { code: string; discount?: any; onClose: () => void }) {
+  const link = shareLinkFor(code);
+  const s = discount ? state(discount) : null;
+  return (
+    <Dialog open onClose={onClose} title={`Share ${code}`}
+      description="Send this link by email, in a newsletter or on social media. Anyone who opens it gets the code filled in at checkout."
+      footer={<>
+        <SecondaryButton onClick={() => { void copyText(code); }}>Copy code</SecondaryButton>
+        <PrimaryButton icon={<Link2 size={16} aria-hidden />} onClick={() => { void copyText(link, "Share link"); }}>Copy link</PrimaryButton>
+      </>}>
+      <div className="rp-stack">
+        <TextField label="Share link" value={link} readOnly onFocus={e => e.currentTarget.select()} />
+        {s && s.key !== "active" && (
+          <p className="rp-hint" role="status" style={{ margin: 0 }}>
+            <StatusBadge tone={s.tone}>{s.label}</StatusBadge>{" "}
+            {s.key === "scheduled" ? "The link works from the code's start date. Before then checkout says the code isn't valid yet."
+              : "Checkout won't accept this code right now, so the link won't take anything off until you activate or edit the code."}
+          </p>
+        )}
+        <p className="rp-hint" style={{ margin: 0 }}>The link opens the shop's home page. The code is applied when the shopper reaches checkout, and checkout still checks every rule you set (dates, minimum spend, usage limits).</p>
+      </div>
+    </Dialog>
+  );
+}
+
 export function Discounts() {
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -349,6 +378,8 @@ export function Discounts() {
   const [orders, setOrders] = useState<any[]>([]);
   const [books, setBooks] = useState<any[] | null>(null);
   const [shopCategories, setShopCategories] = useState<any[] | null>(null);
+  // The code just created: its share link opens straight away so it can be sent by email etc.
+  const [sharing, setSharing] = useState<string | null>(null);
 
   useEffect(() => { load(); }, []);
   // The whole catalog (drafts too) for the book pickers and free-gift names. Best-effort.
@@ -368,7 +399,11 @@ export function Discounts() {
   const handleSave = async (data: any) => {
     try {
       if (data.id) { await adminApi.updateDiscount(data.id, data); toast.success("Discount updated"); }
-      else { await adminApi.saveDiscount(data); toast.success(isAutomatic(data) ? "Automatic offer created" : "Discount code created"); }
+      else {
+        await adminApi.saveDiscount(data);
+        toast.success(isAutomatic(data) ? "Automatic offer created" : "Discount code created");
+        if (!isAutomatic(data) && data.code) setSharing(String(data.code).toUpperCase());
+      }
       setDialogOpen(false); setEditing(null); load();
     } catch (err: any) {
       toast.error(err.message || "Save failed");
@@ -425,7 +460,10 @@ export function Discounts() {
       <div style={{ minWidth: 160 }}>
         {isAutomatic(d)
           ? <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><strong>{d.title || "Automatic offer"}</strong><StatusBadge tone="info">Automatic</StatusBadge></span>
-          : <span className="rp-mono" style={{ fontSize: "var(--rp-text-base)", fontWeight: 600 }}>{d.code}</span>}
+          : <span style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <span className="rp-mono" style={{ fontSize: "var(--rp-text-base)", fontWeight: 600 }}>{d.code}</span>
+              <SecondaryButton size="sm" icon={<Link2 size={14} aria-hidden />} aria-label={`Share link for ${d.code}`} onClick={() => setSharing(d.code)}>Share link</SecondaryButton>
+            </span>}
         <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{describeDiscount(d, books || [])}</div>
         {d.description && <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{d.description}</div>}
       </div>
@@ -455,7 +493,7 @@ export function Discounts() {
         { label: "Duplicate", onSelect: () => { setEditing(duplicateDiscount(d, discounts.filter(x => !isAutomatic(x)).map(x => x.code))); setDialogOpen(true); } },
         ...(isAutomatic(d) ? [] : [
           { label: "Copy code", onSelect: () => { void copyText(d.code); } },
-          { label: "Copy share link", onSelect: () => { void copyText(discountShareLink(d.code, window.location.origin, import.meta.env.BASE_URL), "Share link"); } },
+          { label: "Copy share link", onSelect: () => { void copyText(shareLinkFor(d.code), "Share link"); } },
         ]),
         { label: "Delete", tone: "danger", onSelect: () => setDeleting(d) },
       ]} />
@@ -503,6 +541,8 @@ export function Discounts() {
       )}
 
       {dialogOpen && <DiscountDialog initial={editing} books={books} shopCategories={shopCategories} otherCodes={discounts.filter(d => d.id !== editing?.id && !isAutomatic(d)).map(d => d.code)} onClose={() => { setDialogOpen(false); setEditing(null); }} onSave={handleSave} onSaveBatch={handleSaveBatch} />}
+
+      {sharing && <ShareDiscountDialog code={sharing} discount={discounts.find(d => !isAutomatic(d) && String(d.code || "").toUpperCase() === sharing)} onClose={() => setSharing(null)} />}
 
       <ConfirmDialog open={!!deleting} title={isAutomatic(deleting) ? "Delete this automatic offer?" : "Delete this discount code?"} confirmLabel={isAutomatic(deleting) ? "Delete offer" : "Delete code"}
         message={deleting ? `“${discountName(deleting)}” will stop working immediately. Pause it instead if you may reuse it.` : ""}
