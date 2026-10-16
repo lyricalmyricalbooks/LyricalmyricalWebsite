@@ -1,4 +1,4 @@
-// Frame shapes the Crop & position dialog previews: the same shapes the live shop draws the photo in.
+// Frame shapes the Crop & edit dialog previews: the same shapes the live shop draws the photo in.
 import { aspectRatioValue } from "../features/site/imageAspect";
 import { resolveMainDesign, resolveProductDesign } from "../features/site/surfaceDesign";
 

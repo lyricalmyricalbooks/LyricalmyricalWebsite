@@ -2116,11 +2116,14 @@ page is never hijacked. These are browser redirects, not HTTP 301s. No shopper-v
 never rendered; kept so copies can be remade). Storefront book images spread
 `photoSrcSet(photo, CARD_PHOTO_SIZES | PDP_PHOTO_SIZES | THUMB_PHOTO_SIZES)` (`features/site/photoSources.ts`) — add it to
 any new book-photo `<img>`; photos without `srcset` render as before. No rule or Function change.
-**Crop & position (15 October 2026):** Books › edit › Images › **Crop & position** (`admin/PhotoCropDialog.tsx`, frame shapes from
+**Crop & position (15 October 2026):** Books › edit › Images › **Crop & edit** (`admin/PhotoCropDialog.tsx`, frame shapes from
 `admin/photoCrop.ts` `shopFrameShapes`) saves `framing: { x, y, zoom }` on the photo (the file is never changed; default = no key).
 `features/site/photoFraming.ts` draws it: `framingStyle(photo, fallback?)` (object-position + `transform: scale` about that point; a
-Tailwind `scale-*` hover still stacks) on every book-photo frame, `motionFraming` for `m.img` (zoom multiplies motion's scale). The
+Tailwind `scale-*` hover still stacks) on every book-photo frame, `motionFraming(photo, hoverScale)` for `m.img` (`style` + `hover`). The
 enlarged viewer shows the whole photo. Spread `framingStyle(...)` on any new book-photo `<img>` that fills a frame.
+**Quick edits (16 October 2026):** the same dialog saves `adjust: { brightness, contrast, saturation, flipX, flipY }` (50–150 / 0–200,
+100 = unchanged, no key when nothing changed). `framingStyle` adds the CSS `filter` and a flip about the frame's centre (object-position
+mirrored, so the chosen point stays in view); the viewer uses `adjustStyle`. No rotation: a quarter turn can't fill frames of unknown shape in CSS.
 
 ## Storage bandwidth (15 October 2026)
 
