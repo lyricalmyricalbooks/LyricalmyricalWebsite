@@ -6,7 +6,7 @@ import { applyContextAction, applySpacing, contextCapabilities, GAP_KEYS, PADDIN
 import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles,
   ArrowLeft, ChevronDown, Clock, ChevronUp, Clipboard, Copy, Eye, EyeOff, ExternalLink, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
-  Download, ListChecks, Pencil, Tablet, Trash2, Undo2, Upload, X,
+  Download, Globe, ListChecks, Pencil, Tablet, Trash2, Undo2, Upload, X,
 } from "lucide-react";
 import { adminApi } from "../api";
 import { uploadStudioImage } from "./mediaUpload";
@@ -422,6 +422,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [blockId, setBlockId] = useState<string | null>(null);
   const [mode, setMode] = useState<"edit" | "browse">("edit");
   const [mobilePanel, setMobilePanel] = useState("preview");
+  // First link click swallowed in Edit mode: tell the owner once per browser how to follow links (Browse mode).
+  const [linkHint, setLinkHint] = useState(false);
+  const linkHintShown = useRef(false);
+  useEffect(() => { if (mode !== "edit") setLinkHint(false); }, [mode]);
+  useEffect(() => { if (!linkHint) return; const t = setTimeout(() => setLinkHint(false), 12000); return () => clearTimeout(t); }, [linkHint]);
   const [styleCategory, setStyleCategory] = useState<string | null>(null);
   const [textCategory, setTextCategory] = useState<string | null>(null);
   // Field Find anything is jumping to, so its collapsed sub-section opens first.
@@ -429,7 +434,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [tipsNonce, setTipsNonce] = useState(0);
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
   // Opening (or leaving) a category starts at its top; Find anything then scrolls to its field.
-  useEffect(() => { sidebarScrollRef.current?.scrollTo?.({ top: 0 }); }, [styleCategory, textCategory, leftTab]);
+  // Each rail tab remembers how far it was scrolled; coming back through the rail puts the owner back there.
+  const tabScroll = useRef<Record<string, number>>({});
+  const restoreScrollFor = useRef<string | null>(null);
+  useEffect(() => {
+    const back = restoreScrollFor.current === leftTab ? tabScroll.current[leftTab] || 0 : 0;
+    restoreScrollFor.current = null;
+    sidebarScrollRef.current?.scrollTo?.({ top: back });
+  }, [styleCategory, textCategory, leftTab]);
   const [styleSearch, setStyleSearch] = useState("");
   // Region clicked in the preview → a pinned "Editing: <label>" card with only that region's controls.
   const [styleFocus, setStyleFocus] = useState<{ id: string; label: string } | null>(null);
@@ -832,6 +844,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // Choosing a page keeps the current workspace (Theme settings stays open on the new page).
   const pickPage = (o: PickerOption) => {
     setSelectedId(null); setBlockId(null);
+    // "This page only" belongs to the page it was chosen on: a different page starts on All pages again, and says so.
+    if (styleScope === "page" && (o.global || o.templateId !== template.id)) {
+      setStyleScope("all"); say("ok", "Back to All pages: changes now apply to every page.");
+    }
     if (o.global) { setShowGlobal(true); return; }
     setShowGlobal(false); setTemplateId(o.templateId);
     if (o.productSlug) setProductSlug(o.productSlug);
@@ -1130,7 +1146,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, [confirmAction, previewStatus]); // eslint-disable-line react-hooks/exhaustive-deps
   const openStructureItem = (item: StructureItem) =>
     openElement({ key: item.key, label: item.label, target: item.target, region: item.region || undefined }, true);
-  const closeElement = () => { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); setMobilePanel("outline"); };
+  const closeElement = () => { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); setMobilePanel("preview"); };
   // "Open in Theme settings" from the element inspector: the region's own controls, else its style category.
   const openElementInTheme = (el: ElementRef) => {
     const region = el.region && REGION_GROUPS.flatMap(g => g.regions).find(r => r.id === el.region);
@@ -1242,6 +1258,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         return;
       }
       if (d.type === "STRUCTURE") { const nodes = readStructure(d.nodes); if (nodes) setStructure(buildPageStructure(nodes)); return; }
+      if (d.type === "LINK_BLOCKED") {
+        if (linkHintShown.current) return;
+        linkHintShown.current = true;
+        try { if (localStorage.getItem("lm:studio-mode-hint")) return; localStorage.setItem("lm:studio-mode-hint", "1"); } catch { /* private window: hint shows once per visit */ }
+        setLinkHint(true);
+        return;
+      }
       if (d.type === "NODE_HOVER") { setHoverKey(typeof d.key === "string" ? d.key : null); return; }
       if (d.type === "CANVAS_SELECT" && d.sectionId) canvasSelectionRef.current = {sectionId:d.sectionId,blockId:d.blockId || null};
       if (d.type === "SECTION_SELECT" && d.instanceId) {
@@ -1327,7 +1350,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           if (owner) { setShowGlobal(isGroupSurface(owner.surface)); if (isGroupSurface(owner.surface)) setGlobalGroup(owner.surface); else setTemplateId(owner.surface); }
           setLeftTab("sections"); setSelectedId(d.sectionId); setBlockId(d.blockId || null); setMobilePanel("settings");
         } else if (d.kind === "copy") {
-          const openWords = () => { setCopyFilter(d.key || ""); setLeftTab("text"); setMobilePanel("outline"); };
+          const openWords = () => { setCopyFilter(d.key || ""); if (d.key) setFieldFocus({ key: String(d.key), nonce: Date.now() }); setLeftTab("text"); setMobilePanel("outline"); };
           openWords();
           say("warn", "This text is built from a template; open Text & labels to change it.", { label: "Open Text & labels", run: openWords });
           return;
@@ -1392,7 +1415,20 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // One keyboard listener for the whole editor; the latest handlers are read through a ref, so it
   // is registered once. The preview forwards its key presses here too (KEY_COMMAND).
   // `forPanel`: a command that names the panel's section itself (Find › current selection), not a keyboard shortcut.
-  const selectRail = (id: LeftTab) => { setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setSelectedElement(null); setMobilePanel("outline"); };
+  // Clicking the tab you are already on keeps what you selected; changing tabs clears it and remembers each tab's scroll.
+  const selectRail = (id: LeftTab) => {
+    setMobilePanel("outline");
+    if (id === leftTab) return;
+    restoreScrollFor.current = id;
+    setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setSelectedElement(null);
+  };
+  /** Moves the selected section one place on its page (shortcut and the inspector's Move up / Move down). */
+  const moveSelectedSection = (direction: -1 | 1) => {
+    if (!selected) return;
+    const index = sections.findIndex(x => x.id === selected.id), to = index + direction;
+    if (index < 0 || to < 0 || to >= sections.length) return;
+    setList(l => moveSection(l, index, to), { label: `Move ${sectionTitle(selected).label} ${direction < 0 ? "up" : "down"}` });
+  };
   const runShortcut = (action: ShortcutAction, forPanel = false) => {
     if (busy === "discard") return;
     if (inlineEditingRef.current && ["save", "undo", "redo", "delete", "duplicate", "moveUp", "moveDown"].includes(action)) {
@@ -1435,12 +1471,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "deselect": if (selectedId) { setSelectedId(null); setBlockId(null); } else if (selectedElement) closeElement(); break;
       case "delete": if (selected && !blockId) delSection(selected.id); break;
       case "duplicate": if (selected) dupSection(selected.id); break;
-      case "moveUp": case "moveDown": {
-        const to = index + (action === "moveUp" ? -1 : 1);
-        if (index < 0 || to < 0 || to >= sections.length) break;
-        setList(l => moveSection(l, index, to), { label: `Move ${sectionTitle(selected!).label} ${action === "moveUp" ? "up" : "down"}` });
-        break;
-      }
+      case "moveUp": case "moveDown": moveSelectedSection(action === "moveUp" ? -1 : 1); break;
       default:
         if (action.startsWith("go:")) selectRail(action.slice(3) as LeftTab);
     }
@@ -1858,6 +1889,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (t.type === "copy") {
       setTextCategory(t.group); setLeftTab("text"); setSelectedId(null); setBlockId(null);
       setCopyFilter(t.key || "");
+      if (t.key) setFieldFocus({ key: t.key, nonce: Date.now() });
       setFocus(f => ({ id: `copy:${t.group}`, nonce: f.nonce + 1 }));
       flashPanel(t.key ? `[data-copy-key="${CSS.escape(t.key)}"]` : `[data-studio-panel="${CSS.escape(`copy:${t.group}`)}"]`, Boolean(t.key));
       return;
@@ -1906,7 +1938,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             <span>{leftTab === "sections" ? (showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label) + ` · ${sections.length} ${sections.length === 1 ? "section" : "sections"}` : `Previewing: ${showGlobal ? groupLabel(globalGroup) : template.label}`}</span>
             <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : leftTab === "themes" ? "Save, compare, share and switch whole designs." : "Create pages and edit their content or layout."}</small>
           </div>
-          <div className="flex-1 overflow-auto" ref={sidebarScrollRef}>
+          <div className="flex-1 overflow-auto" ref={sidebarScrollRef} onScroll={e => { tabScroll.current[leftTab] = e.currentTarget.scrollTop; }}>
             {brandKit && <StudioBrandKit design={design} onPreview={setBrandChoice} onApply={applyBrandKit} onClose={() => setBrandKit(false)} />}
             <div hidden={brandKit}>
             <StudioTips forceOpen={tipsNonce} />
@@ -2134,7 +2166,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                       <p className="text-sm font-bold">{styleFocus.label}</p>
                       <p className="text-xs text-neutral-500 mt-0.5">{picked.length} settings for this element{styleScope === "page" ? "" : " · all pages"}</p>
                     </div>
-                    <button type="button" className={btn} onClick={() => { setStyleFocus(null); setStyleCategory(null); }}>Back to theme settings</button>
+                    <button type="button" className={btn} onClick={() => setStyleFocus(null)}>{(() => {
+                      // Back to the category the owner came from (its element list), else the Theme settings home.
+                      const from = styleCategory && (EXTRA_STYLE_CATEGORIES[styleCategory]?.title || STYLE_GROUPS.find(g => g.id === styleCategory)?.title);
+                      return from ? `Back to ${from}` : "Back to theme settings";
+                    })()}</button>
                   </div>
                   <div className="px-4 pb-4 space-y-4">
                     {region && <div className="studio-region-context">
@@ -2196,7 +2232,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                     onChange={value => setCopy(f.key, value)} />);
                   if (!q) return <div key={g.group} data-studio-panel={`copy:${g.group}`} className="px-4 pb-4 space-y-4">
                     {textSubsectionsFor(g).map((sub, i, all) => <SettingsSubsection key={sub.title || "all"} title={all.length > 1 ? sub.title : ""} noun="word"
-                      count={sub.fields.length} changed={changedCopyCount(sub.fields, design)} defaultOpen={i === 0} keys={sub.fields.map(f => f.key)}>
+                      /* Opens the short list holding the word being focused or searched for; otherwise the first one. */
+                      count={sub.fields.length} changed={changedCopyCount(sub.fields, design)} keys={sub.fields.map(f => f.key)} focusKey={fieldFocus}
+                      defaultOpen={(() => { const at = fieldFocus ? all.findIndex(x => x.fields.some(f => f.key === fieldFocus.key)) : -1; return at >= 0 ? i === at : i === 0; })()}>
                       {sub.fields.map(f => <StudioCopyField key={f.key} field={f} design={design} settings={settings} aiWhere={g.group} onChange={value => setCopy(f.key, value)} />)}
                     </SettingsSubsection>)}
                   </div>;
@@ -2319,7 +2357,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   );
   const canvasPanel = (
         <main className="studio-canvas">
-          <div className="studio-canvas-status"><span>{template.label} · {device} ({DEVICE_W[device]}) · {mode === "edit" ? "Double-click text to type · click other elements for settings" : "Browse your storefront"}</span><span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}
+          <div className="studio-canvas-status"><span>{template.label} · {device} ({DEVICE_W[device]}) · {mode === "edit" ? "Double-click text to type · click other elements for settings" : "Browse your storefront"}</span>{linkHint && mode === "edit" && <span role="status" data-studio-link-hint>Links don't open while you're editing. Use Switch to Browse mode to follow them.</span>}<span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}
             <label className="studio-zoom">Zoom<select aria-label="Preview zoom" value={String(zoom)} onChange={e => setZoom(e.target.value === "fit" ? "fit" : Number(e.target.value) as Zoom)}>
               <option value="fit">Fit to screen</option><option value="100">100%</option><option value="75">75%</option><option value="50">50%</option></select></label></div>
           {template.id === "productPage" && !books.some(b => b.slug === productSlug) ? <p className="studio-empty">Choose a book in “Page to edit” to preview this template.</p> :
@@ -2336,8 +2374,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             canPasteBlock={canPasteBlock(copiedBlock, selected?.type)} onPasteBlock={afterId => pasteBlockNow(selected, afterId)}
             onPatch={patchSelected} onDuplicate={() => dupSection(selected.id)} onDelete={() => delSection(selected.id)}
             onToggle={() => setList((l) => toggleSection(l, selected.id))} onNotice={(text) => say("ok", text)}
+            onMoveSection={moveSelectedSection} sectionRoom={(() => { const i = sections.findIndex(x => x.id === selected?.id); return { up: i > 0, down: i >= 0 && i < sections.length - 1 }; })()}
             onReplayMotion={() => { setMode("edit"); postPreview({ type: "HIGHLIGHT_SECTION", instanceId: selected.id, blockId: null, scroll: true }); setTimeout(() => postPreview({ type: "MOTION_REPLAY", sectionId: selected.id }), 450); }}
-            arranging={arrangeId === selected?.id} onArrange={on => { setArrangeId(on ? selected.id : null); if (on) setMode("edit"); }} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
+            arranging={arrangeId === selected?.id} onArrange={on => { setArrangeId(on ? selected.id : null); if (on) setMode("edit"); }} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("preview"); }} />
   );
 
   const inspectorEmpty = (
@@ -2356,6 +2395,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             onOpenTheme={() => openElementInTheme(selectedElement)}
             onOpenText={group => { setCopyFilter(""); setTextCategory(group); setLeftTab("text"); setMobilePanel("outline"); }}
             onOpenTarget={target => openTarget(target, selectedElement.label)}
+            onBack={() => { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); setLeftTab("sections"); setStyleFocus(null); setMobilePanel("outline"); }}
             onClose={closeElement} />
   );
 
@@ -2371,12 +2411,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <button className={btn} onClick={() => setFindOpen(true)} aria-label="Find anything (Ctrl+K)" title="Find any setting, word, page, section or action"><Search size={14} /> Find <kbd aria-hidden="true">Ctrl K</kbd></button>
         <TemplatePicker options={pickerList} current={pickerCurrent} onPick={pickPage} />
         <div className="flex items-center gap-0.5" role="group" aria-label="Preview size">
-          {([["desktop", Monitor], ["tablet", Tablet], ["mobile", Smartphone]] as const).map(([d, Icon]) => (
+          {([["desktop", Monitor, "Computer"], ["tablet", Tablet, "Tablet"], ["mobile", Smartphone, "Phone"]] as const).map(([d, Icon, name]) => (
             <button key={d} className={`${iconBtn} ${device === d ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""}`}
-              onClick={() => setDevice(d)} aria-label={`${d} preview`} aria-pressed={device === d}><Icon size={15} /></button>
+              onClick={() => setDevice(d)} aria-label={`${name} preview`} title={`${name} preview`} aria-pressed={device === d}><Icon size={15} /></button>
           ))}
         </div>
-        <button className={btn} title={mode === "edit" ? "Edit mode: clicking the preview selects parts to edit. Click to switch to Browse mode, where links and buttons work like on the shop." : "Browse mode: links and buttons work like on the shop. Click to switch to Edit mode and select parts to edit."} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}>{mode === "edit" ? "Edit mode" : "Browse mode"}</button>
+        <button className={btn} aria-pressed={mode === "browse"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}
+          title={mode === "edit" ? "You are in Edit mode: clicking the preview selects parts to edit. Click to switch to Browse mode, where links and buttons work like on the shop." : "You are in Browse mode: links and buttons work like on the shop. Click to switch to Edit mode and select parts to edit."}>
+          {mode === "edit" ? <Globe size={14} aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />} {mode === "edit" ? "Switch to Browse mode" : "Switch to Edit mode"}</button>
 
         <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.past.length} onClick={() => stepHistory("undo")} aria-label="Undo (Ctrl+Z)" title={hist.past.length ? `Undo: ${undoLabel(hist)} (Ctrl+Z)` : "Nothing to undo"}><Undo2 size={15} /></button>
         <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.future.length} onClick={() => stepHistory("redo")} aria-label="Redo (Ctrl+Shift+Z)" title={hist.future.length ? `Redo: ${redoLabel(hist)} (Ctrl+Shift+Z or Ctrl+Y)` : "Nothing to redo"}><Redo2 size={15} /></button>

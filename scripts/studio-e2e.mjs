@@ -81,13 +81,13 @@ await check("add section, undo, redo, save draft", desktop, async page => {
 });
 
 await check("device switch keeps the real viewport width", desktop, async page => {
-  await page.getByRole("button", { name: "tablet preview" }).click();
+  await page.getByRole("button", { name: "Tablet preview" }).click();
   // The frame keeps the device's real CSS width (the preview is scaled to fit, never squeezed),
   // so the storefront inside switches to the matching breakpoint.
   const frameWidth = () => page.evaluate(() => document.querySelector(".studio-preview-frame")?.style.width);
   await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "820px", null, { timeout: 5000 })
     .catch(async () => { throw new Error(`tablet frame is ${await frameWidth()}`); });
-  await page.getByRole("button", { name: "mobile preview" }).click();
+  await page.getByRole("button", { name: "Phone preview" }).click();
   await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "390px", null, { timeout: 5000 })
     .catch(async () => { throw new Error(`phone frame is ${await frameWidth()}`); });
 });
@@ -120,7 +120,7 @@ await check("find anything opens a setting", desktop, async page => {
 });
 
 await check("find anything opens an element setting at the size being previewed", desktop, async page => {
-  await page.getByRole("button", { name: "mobile preview" }).click();
+  await page.getByRole("button", { name: "Phone preview" }).click();
   await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "390px", null, { timeout: 5000 });
   await page.keyboard.press(`${mod}+k`);
   await page.getByRole("dialog").getByRole("combobox").fill("newsletter button padding top");
@@ -130,7 +130,7 @@ await check("find anything opens an element setting at the size being previewed"
   const width = await page.evaluate(() => document.querySelector(".studio-preview-frame")?.style.width);
   if (width !== "390px") throw new Error(`the preview left phone size (${width})`);
   // From desktop, a search that names "phone" opens the phone setting and the phone preview.
-  await page.getByRole("button", { name: "desktop preview" }).click();
+  await page.getByRole("button", { name: "Computer preview" }).click();
   await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "1200px", null, { timeout: 5000 });
   await page.keyboard.press(`${mod}+k`);
   await page.getByRole("dialog").getByRole("combobox").fill("newsletter button phone padding top");
@@ -867,7 +867,7 @@ await check("the buy box follows Buy box blocks, and Add to bag still adds to th
   const saved = design.productPage?.productInfoBlocks || [];
   if (!saved.some(b => b.type === "collapsible") || !saved.find(b => b.type === "tag")?.hidden) throw new Error(`blocks not saved: ${JSON.stringify(saved)}`);
   // Commerce safety: the moved buy box still buys.
-  await page.getByRole("button", { name: "Edit mode" }).click();
+  await page.getByRole("button", { name: "Switch to Browse mode" }).click();
   await frame.evaluate(() => localStorage.removeItem("fm_cart"));
   await frame.locator(".fm-pdp-card [data-section=buttons]").click();
   await frame.waitForFunction(() => (JSON.parse(localStorage.getItem("fm_cart") || "[]")).length === 1, undefined, { timeout: 10000 });
@@ -1547,6 +1547,33 @@ await check("adding a section to a custom page makes its text a movable Page con
   await rows.getByText("2. Page content").waitFor({ timeout: 5000 });
   await rows.getByText("1. Newsletter").waitFor({ timeout: 5000 });
   if (await page.locator("[data-studio-panel=page-content]").count()) throw new Error("the fixed-text card is still shown");
+});
+
+await check("mode button names what it does, and the inspector keeps its tab and can move a section", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const toBrowse = page.getByRole("button", { name: "Switch to Browse mode" });
+  await toBrowse.click();
+  const toEdit = page.getByRole("button", { name: "Switch to Edit mode" });
+  if ((await toEdit.getAttribute("aria-pressed")) !== "true") throw new Error("the mode button is not marked pressed in Browse mode");
+  await toEdit.click();
+  await page.getByRole("button", { name: "Switch to Browse mode" }).waitFor({ timeout: 5000 });
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole("button", { name: "Add section" }).first().click();
+    await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  }
+  const labels = page.locator(".studio-outline .studio-tree-label");
+  await labels.first().click();
+  await page.locator(".studio-inspector").getByRole("tab", { name: "Style" }).click();
+  await labels.nth(1).click();
+  const selected = await page.locator(".studio-inspector").getByRole("tab", { name: "Style" }).getAttribute("aria-selected");
+  if (selected !== "true") throw new Error("the inspector went back to Content when another section of the same kind was selected");
+  const actions = page.locator(".studio-inspector-actions");
+  if (!(await actions.getByRole("button", { name: "Move down" }).isDisabled())) throw new Error("Move down is enabled on the last section");
+  await actions.getByRole("button", { name: "Move up" }).click();
+  await page.locator('.studio-outline .studio-tree-label[aria-current="true"]').getByText(/^1\./).waitFor({ timeout: 5000 });
+  // Clicking the rail tab you are on keeps the selection.
+  await page.getByRole("button", { name: "Page layout" }).first().click();
+  if (!(await page.locator(".studio-inspector-actions").count())) throw new Error("clicking the active rail tab closed the inspector");
 });
 
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {

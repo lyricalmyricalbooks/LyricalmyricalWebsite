@@ -612,6 +612,8 @@
 .studio-layers li > button:first-child { margin-right: auto; font-weight: 700; }
 .studio-inline-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .studio-inline-actions .studio-link-button { width: auto; }
+.studio-hide-devices { display: grid; gap: 6px; margin: 6px 0; }
+.studio-element-inspector > .studio-structure-switch { margin: 8px 12px 0; }
 .studio-brand-steps { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .studio-brand-steps button { min-height: 32px; padding: 4px 8px; font-size: 11px; font-weight: 700; border: 1px solid var(--rp-border); background: var(--rp-surface); color: inherit; cursor: pointer; }
 .studio-brand-steps [aria-current="step"] button { border-color: var(--rp-border-strong); box-shadow: 2px 2px 0 var(--rp-border-strong); }

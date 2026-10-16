@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Lock, X } from "lucide-react";
+import { ArrowLeft, Lock, X } from "lucide-react";
 import { IconButton, useFocusTrap } from "../riso/components";
 import { StudioCopyField } from "./StudioCopyField";
 import { ELEMENT_TABS, visibleTabs, type ElementRef, type ElementTabId, type ElementTabs, type PickedField } from "./elementCatalog";
@@ -23,6 +23,8 @@ type Props = {
   onOpenText: (group: string) => void;
   onOpenTarget: (target: string) => void;
   onClose: () => void;
+  /** Returns to the Page layout outline (the list of parts and sections), closing this part. */
+  onBack?: () => void;
 };
 
 /**
@@ -54,6 +56,7 @@ export function StudioElementInspector(p: Props) {
 
   return <aside ref={ref as any} className="studio-inspector studio-element-inspector" role={overlay ? "dialog" : undefined} aria-modal={overlay || undefined}
     aria-label={`${p.element.label} settings`} tabIndex={-1} data-studio-element-inspector>
+    {p.onBack && <button type="button" className="studio-structure-switch" onClick={p.onBack}><ArrowLeft size={14} aria-hidden="true" /> Back to Page layout</button>}
     <header className="studio-inspector-head">
       <div><small>{p.path.length ? p.path.join(" › ") : "PAGE PART"}</small><h2>{p.element.label || "Page part"}</h2></div>
       <IconButton label="Close settings" onClick={p.onClose}><X size={17} /></IconButton>
