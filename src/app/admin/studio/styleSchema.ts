@@ -177,7 +177,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     id: "layout",
     title: "Layout & spacing",
     fields: [
-      { key: "fullWidth", label: "Use the full screen width (header, shop, book pages, custom pages and footer run to the screen edges; Content width and Catalog layout › Header width are then ignored)", kind: "toggle", defaultValue: false },
+      { key: "fullWidth", label: "Use the full screen width (header, shop, book pages, custom pages and footer run to the screen edges; Content width and Shop page masthead & covers › Header width are then ignored)", kind: "toggle", defaultValue: false },
       { key: "containerWidth", label: "Content width", kind: "range", min: 800, max: 1800, step: 20, suffix: "px" },
       { key: "sectionSpacing", label: "Space between sections", kind: "range", min: 0, max: 160, step: 4, suffix: "px" },
       { key: "cardRadius", label: "Card corner radius (boxed card style only)", kind: "range", min: 0, max: 30, step: 1, suffix: "px" },
@@ -196,7 +196,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "spaceUnit", label: "Spacing unit (sections' Space above and below are multiples of it)", kind: "range", min: 2, max: 16, step: 1, suffix: "px", defaultValue: 8 },
       { key: "phoneSpaceScale", label: "Spacing on phones", kind: "range", min: 40, max: 100, step: 5, suffix: "%", defaultValue: 75 },
       { key: "radiusScale", label: "Corner set (cards, buy card, order slip)", kind: "select", options: [{ value: "", label: "Off (each part's own corners)" }, ...Object.entries(RADIUS_SCALES).map(([value, r]) => ({ value, label: r.label }))] },
-      { key: "focusRingWidth", label: "Keyboard focus ring width (its colour: Riso print treatment › Keyboard focus ring)", kind: "range", min: 1, max: 6, step: 1, suffix: "px", defaultValue: 2 },
+      { key: "focusRingWidth", label: "Keyboard focus ring width (its colour: Printed-paper look (Riso) › Keyboard focus ring)", kind: "range", min: 1, max: 6, step: 1, suffix: "px", defaultValue: 2 },
       { key: "inputFocusColor", label: "Box border while typing in it", kind: "color" },
       { key: "buttonPress", label: "Buttons when pressed", kind: "select", options: [{ value: "", label: "No change" }, { value: "shrink", label: "Shrink slightly" }, { value: "sink", label: "Sink into their shadow" }] },
     ],
@@ -233,7 +233,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "products",
-    title: "Product cards & grid",
+    title: "Book cards in the shop grid",
     fields: [
       { key: "productCardStyle", label: "Card style", kind: "select", options: opts("card", "minimal", "editorial") },
       { key: "placeholderImageUrl", label: "Image shown for books with no photo", kind: "image" },
@@ -429,7 +429,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "catalog",
-    title: "Catalog page header & filters",
+    title: "Shop page heading & filters",
     hint: "The heading, category chips, search bar and result count above the book grid.",
     fields: [
       { key: "catalogHeading", label: "Heading (leave empty to hide)", kind: "text" },
@@ -456,7 +456,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "catalogLayout",
-    title: "Catalog layout (advanced)",
+    title: "Shop page masthead & covers",
     hint: "Masthead, grid and image details of the shop page.",
     fields: [
       { key: "catalogLayoutStyle", label: "Layout", kind: "select", defaultValue: "reference", options: [{ value: "modern", label: "Modern" }, { value: "reference", label: "Reference" }] },
@@ -488,7 +488,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "navLinkActiveColor", label: "Current page link color (empty = link hover color)", kind: "color" },
       { key: "navLinkOpacity", label: "Inactive link brightness", kind: "range", defaultValue: 0.6, min: 0.1, max: 1, step: 0.05 },
       { key: "navPlacement", label: "Category bar position", kind: "select", options: [{ value: "auto", label: "Auto (own row when it doesn’t fit)" }, { value: "inline", label: "Always beside logo" }, { value: "below", label: "Always full-width row below" }] },
-      { key: "navGap", label: "Space between links (the category bar uses Catalog layout › Space between category links when that is set)", kind: "range", defaultValue: 28, min: 4, max: 64, step: 1, suffix: "px" },
+      { key: "navGap", label: "Space between links (the category bar uses Shop page masthead & covers › Space between category links when that is set)", kind: "range", defaultValue: 28, min: 4, max: 64, step: 1, suffix: "px" },
       { key: "navLineMode", label: "When links don’t fit on one line", kind: "select", options: [{ value: "fit", label: "Shrink to fit on one line" }, { value: "scroll", label: "One line, scroll sideways" }, { value: "wrap", label: "Wrap onto a second line" }] },
       { key: "navFitMin", label: "Shrink no smaller than", kind: "range", defaultValue: 70, min: 50, max: 100, step: 5, suffix: "%" },
       { key: "navLinkTransform", label: "Link case", kind: "select", defaultValue: "uppercase", options: [{ value: "", label: "Inherit" }, { value: "none", label: "None" }, { value: "uppercase", label: "Uppercase" }, { value: "lowercase", label: "Lowercase" }, { value: "capitalize", label: "Capitalize" }] },
@@ -510,7 +510,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "productPage",
-    title: "Product page layout",
+    title: "Book page · photos & layout",
     fields: [
       { key: "showPdpEditionDetails", label: "Show edition details", kind: "toggle", defaultValue: true },
       { key: "lowStockProductThreshold", label: "Show “only N left” on the product page at or below", kind: "number", min: 1, max: 100, step: 1 },
@@ -551,7 +551,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "productCard",
-    title: "Product page · buy card & details",
+    title: "Book page · buy box & details",
     hint: "The bordered buy card, photo rail and caption, breadcrumb and the Description / Details / Reviews tabs. Leave a colour empty to follow the theme.",
     fields: [
       { key: "pdpShowBackLink", label: "Show “Back” link above the breadcrumb", kind: "toggle" },
@@ -664,7 +664,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "effects",
-    title: "Motion, spacing & effects",
+    title: "Animations & hover effects",
     fields: [
       { key: "enableAnimations", label: "Page animations", kind: "toggle" },
       { key: "density", label: "Space above and below shop sections", kind: "select", options: [{ value: "compact", label: "Compact" }, { value: "comfortable", label: "Comfortable" }, { value: "spacious", label: "Spacious" }] },
@@ -675,7 +675,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "checkout",
-    title: "Checkout & cart drawer",
+    title: "Checkout page",
     hint: "Leave blank to inherit the main colors.",
     fields: [
       { key: "checkoutAccentColor", label: "Checkout accent", kind: "color" },
@@ -775,7 +775,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "riso",
-    title: "Riso print treatment",
+    title: "Printed-paper look (Riso)",
     hint: "Outlines, offset shadows, focus ring and texture of the Riso Press look.",
     fields: [
       { key: "themeStyle", label: "Print style", kind: "select", options: [{ value: "riso", label: "Riso Press (outlined, flat shadows)" }, { value: "default", label: "Standard" }] },
@@ -791,7 +791,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "elements",
-    title: "Storefront elements",
+    title: "Show or hide whole features",
     hint: "Show or hide whole parts of the public site.",
     fields: [
       { key: "showRecentlyViewed", label: "“Recently viewed” row (product page)", kind: "toggle" },

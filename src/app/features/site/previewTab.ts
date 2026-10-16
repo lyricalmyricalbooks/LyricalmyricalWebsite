@@ -1,4 +1,4 @@
-// Studio › "Preview in new tab": a full-screen, top-level storefront window showing the UNSAVED draft.
+// Studio › "View website" (also Find anything › View website): a full-screen, top-level storefront window showing the UNSAVED draft.
 // Studio posts the same STUDIO_PREVIEW_STATE snapshot it sends its iframe onto a BroadcastChannel;
 // this module re-dispatches it into the window as a same-origin message, so every existing preview
 // receiver (useSiteData, MainSite, Checkout, useLiveDesign) works unchanged. At top level
@@ -8,7 +8,16 @@
 
 export const PREVIEW_CHANNEL = "studio_preview";
 
-type Win = Window & typeof globalThis & { __studioPreviewTab?: boolean; __studioPreviewDesign?: any };
+type Win = Window & typeof globalThis & { __studioPreviewTab?: boolean; __studioPreviewDesign?: any; __studioPreviewStatus?: StudioDraftStatus };
+
+/** What the draft in Studio is compared with the live shop, sent with each snapshot for the tab's banner. */
+export type StudioDraftStatus = "unsaved" | "draft" | "live";
+const DRAFT_STATUSES: StudioDraftStatus[] = ["unsaved", "draft", "live"];
+
+/** The status Studio last sent this tab (undefined until Studio has answered). */
+export function studioDraftStatus(win: Window = window): StudioDraftStatus | undefined {
+  return (win as Win).__studioPreviewStatus;
+}
 
 export function isPreviewTab(win: Window = window): boolean {
   try {
@@ -77,6 +86,7 @@ export function startPreviewTab(win: Win = window as Win): () => void {
     const data = event.data;
     if (!data || (data.type !== "STUDIO_PREVIEW_STATE" && data.type !== "THEME_UPDATE")) return;
     if (data.design && typeof data.design === "object") win.__studioPreviewDesign = data.design;
+    if (DRAFT_STATUSES.includes(data.studioStatus)) win.__studioPreviewStatus = data.studioStatus;
     const Event = win.MessageEvent || MessageEvent;
     win.dispatchEvent(new Event("message", { data, origin, source: win }));
   };

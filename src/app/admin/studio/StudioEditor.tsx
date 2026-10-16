@@ -5,7 +5,7 @@ import { canInlineFormat } from "./richText";
 import { applyContextAction, applySpacing, contextCapabilities, GAP_KEYS, PADDING_KEYS, spacingKey } from "./canvasTools";
 import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles,
-  ArrowLeft, ChevronDown, Clock, ChevronUp, Clipboard, Copy, Eye, EyeOff, ExternalLink, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
+  ArrowLeft, ChevronDown, Clock, ChevronUp, Clipboard, Copy, Eye, EyeOff, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
   Download, Globe, ListChecks, Pencil, Tablet, Trash2, Undo2, Upload, X,
 } from "lucide-react";
 import { adminApi } from "../api";
@@ -62,8 +62,8 @@ import { ActionMenu, Dialog, PrimaryButton, SecondaryButton, useConfirm, useProm
 import { applyInlineText, INLINE_STYLE_KEYS } from "./inlineText";
 import { filterSettingGroups } from "./studioNavigation";
 import { designChecks as buildDesignChecks, designSize } from "./studioChecks";
-import { CATEGORY_PAGES, EXTRA_STYLE_CATEGORIES, textSubsectionsFor, TEXT_BLURBS, TEXT_HEADINGS, THEME_HEADINGS, blurbFor, changedCopyCount, changedCounts, changedFields, defaultFor, isChanged, subsectionsFor } from "./settingsMap";
-import { CategoryHeader, SettingsHome, SettingsSubsection, StudioTips, type HomeHeading } from "./StudioSettingsHome";
+import { CATEGORY_PAGES, EXTRA_STYLE_CATEGORIES, SHOP_MAP, textSubsectionsFor, TEXT_BLURBS, TEXT_HEADINGS, THEME_HEADINGS, blurbFor, changedCopyCount, changedCounts, changedFields, defaultFor, isChanged, subsectionsFor } from "./settingsMap";
+import { CategoryHeader, PreviewClickHint, SettingsHome, SettingsSubsection, StudioTips, type HomeHeading } from "./StudioSettingsHome";
 
 import { saveSavedThemes, type Workspace } from "../themeStore";
 import { writeDesignValue } from "../../features/site/designModel";
@@ -78,6 +78,7 @@ import { healthRoutes, loadSiteHistory, saveSiteHistory, siteHistoryKey, type He
 import { StudioWorkbench, type ChangeRow, type WorkbenchTab } from "./StudioWorkbench";
 import { setupChecklist, type SetupItem } from "./setupChecklist";
 import { StudioBreadcrumb } from "./StudioBreadcrumb";
+import { describePlace, EMPTY_PLACES, goBack, normalizePlace, peekBack, placeCrumbs, placeKey, settlePlace, visitPlace, type Place, type PlaceHistory, type PlaceLabels } from "./placeHistory";
 import { StudioThemes } from "./StudioThemes";
 import { StudioSchedule } from "./StudioSchedule";
 import { POLICY_KEYS, policySlug } from "../../features/site/policyPages";
@@ -532,11 +533,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // "This page only" belongs to the page it was chosen on. However the canvas moves to another page (page picker,
   // a followed link, Pages › Show, a section on another page, the every-page group), Studio goes back to All pages and says so.
   const scopePageRef = useRef(`${template.id}|${showGlobal}`);
+  const scopeNoteBySelfRef = useRef(false);
   useEffect(() => {
     const now = `${template.id}|${showGlobal}`;
     if (scopePageRef.current === now) return;
     scopePageRef.current = now;
-    if (styleScope === "page") { setStyleScope("all"); say("ok", "Back to All pages: changes now apply to every page."); }
+    if (styleScope !== "page") return;
+    setStyleScope("all");
+    // Back says it in its own message (one toast slot): don't replace "Back to …" with this one.
+    if (scopeNoteBySelfRef.current) { scopeNoteBySelfRef.current = false; return; }
+    say("ok", "Back to All pages: changes now apply to every page.");
   }, [template.id, showGlobal]);
   const target: SectionTarget = showGlobal ? { kind: "global", group: globalGroup } : { kind: "template", id: template.id };
   const sections = getSections(design, target);
@@ -902,6 +908,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
   // Full-screen "Preview in new tab" windows listen on this channel (features/site/previewTab.ts).
   const channelRef = useRef<BroadcastChannel | null>(null);
+  const tabSeenRef = useRef(false);
+  const draftStatusRef = useRef<"unsaved" | "draft" | "live">("live");
+  draftStatusRef.current = dirtyDraft ? "unsaved" : unpublished ? "draft" : "live";
   const sendPreviewState = useCallback(() => {
     if (inlineEditingRef.current) return;
     const current = designRef.current;
@@ -917,7 +926,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     try {
       deliverPreviewState(iframeRef.current?.contentWindow, state, window.location.origin);
     } catch (err) { console.warn("[Studio] preview delivery failed", err); }
-    try { channelRef.current?.postMessage(state); } catch (err) { console.warn("[Studio] preview tab delivery failed", err); }
+    // The View website tab shows the draft itself (never an Add-section try-out, a theme being previewed or a brand-kit
+    // trial) plus whether it is saved, so its banner can say so. Built only once a tab has said hello.
+    if (channelRef.current && tabSeenRef.current) {
+      try {
+        const tabState = previewDesign === current ? state : buildPreviewState(settings, current, withDraftPage(pages, draftPage), books);
+        channelRef.current.postMessage({ ...tabState, studioStatus: draftStatusRef.current });
+      } catch (err) { console.warn("[Studio] preview tab delivery failed", err); }
+    }
   }, [historyPreview, themePreview, settings, pages, books, draftPage, candidate, draftCandidate, adding, blockCandidate, blockPicker, brandChoice, showGlobal, globalGroup, template.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const sendPreviewRef = useRef(sendPreviewState);
   sendPreviewRef.current = sendPreviewState;
@@ -925,10 +941,26 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (typeof BroadcastChannel === "undefined") return;
     const bc = new BroadcastChannel(PREVIEW_CHANNEL);
     channelRef.current = bc;
-    bc.onmessage = (e) => { if (e.data?.type === "PREVIEW_READY") sendPreviewRef.current(); };
+    bc.onmessage = (e) => { if (e.data?.type === "PREVIEW_READY") { tabSeenRef.current = true; sendPreviewRef.current(); } };
     return () => { bc.close(); channelRef.current = null; };
   }, []);
-  const openPreviewTab = () => { window.open(previewUrl, "_blank"); };
+  // View website shows the page as shoppers get it: no forced layout (?template=…), and Studio-only test pages
+  // (the missing-page route, checkout with a sample bag, a book page with no book chosen) open the home page instead.
+  const viewWebsiteUrl = useMemo(() => {
+    const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "");
+    const alt = parseAltSurface(template.id)?.base;
+    const id = alt || template.id;
+    const path = id === "productPage" && productSlug ? `/books/${productSlug}`
+      : id === "collectionPage" && collectionSlug ? `/collections/${collectionSlug}`
+      : id === "storefront" ? "/?catalog=true"
+      : ["wishlistPage", "accountPage", "trackingPage"].includes(id) ? ({ wishlistPage: "/wishlist", accountPage: "/account", trackingPage: "/track" } as Record<string, string>)[id]
+      : id === "page" || template.pageSlug ? (new URL(previewUrl).pathname.replace(import.meta.env.BASE_URL.replace(/\/$/, ""), "") || "/")
+      : "/";
+    return `${base}${path}${path.includes("?") ? "&" : "?"}preview=true`;
+  }, [template.id, template.pageSlug, productSlug, collectionSlug, previewUrl]);
+  const openPreviewTab = () => { window.open(viewWebsiteUrl, "_blank"); };
+  // Saving or publishing changes what the View website tab's banner says, even when the design itself didn't change.
+  useEffect(() => { if (tabSeenRef.current) sendPreviewRef.current(); }, [dirtyDraft, unpublished]);
   useEffect(() => { const t = setTimeout(sendPreviewState, 100); return () => clearTimeout(t); }, [design, sendPreviewState]);
   // Tell the preview which strings are editable copy, so double-clicking one jumps to its field.
   const sendCopyMap = useCallback(() => {
@@ -1005,12 +1037,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   useEffect(() => { setPreviewStatus("loading"); const timer = setTimeout(() => setPreviewStatus(s => s === "loading" ? "error" : s), 15000); return () => clearTimeout(timer); }, [previewUrl, previewRevision]);
 
   // Open the settings behind a click-to-edit target (from the preview or the page structure).
-  const openTarget = (target: string, label = "") => {
+  /** `keepElement`: called from the open part's own inspector ("Open in Theme settings"), so that part stays open. */
+  const openTarget = (target: string, label = "", keepElement = false) => {
     const [kind, rest = ""] = target.split(":");
     const tab: LeftTab | null = kind === "style" ? "style" : kind === "copy" ? "text" : kind === "menus" ? "menus" : kind === "pages" ? "pages" : null;
     if (!tab) return;
     setMobilePanel("outline");
     setSelectedId(null); setBlockId(null);
+    // A part opened earlier (in the inspector) is not what the owner asked for now: close it so the path and Back stay true.
+    if (selectedElement && !keepElement) { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); }
     if (tab === "style") { setStyleSearch(""); setStyleCategory(EXTRA_STYLE_CATEGORIES[rest] ? rest : null); }
     setStyleFocus(tab === "style" && STYLE_GROUPS.some(g => g.id === rest) ? { id: rest, label: label || (STYLE_GROUPS.find(g => g.id === rest)?.title || rest) } : null);
     if (tab === "text") { setCopyFilter(""); setTextCategory(rest); }
@@ -1164,7 +1199,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const region = el.region && REGION_GROUPS.flatMap(g => g.regions).find(r => r.id === el.region);
     if (region) { openRegion(region.id, region.label); return; }
     const target = primaryTarget(el.target);
-    if (target) openTarget(target, el.label);
+    if (target) openTarget(target, el.label, true);
   };
   const regionToggleState = (id: string) => {
     const region = REGION_GROUPS.flatMap(g => g.regions).find(r => r.id === id);
@@ -1467,6 +1502,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "undo": stepHistory("undo"); break;
       case "redo": stepHistory("redo"); break;
       case "help": setShortcutsOpen(true); break;
+      case "back": goBackPlace(); break;
       case "desktop": case "tablet": case "mobile": setDevice(action); break;
       case "toggleMode": setMode(m => m === "edit" ? "browse" : "edit"); break;
       case "workbench":
@@ -1864,6 +1900,91 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "fill-page-seo": setLeftTab("pages"); setFillSeoRequest(Date.now()); break;
     }
   };
+  // ── Where am I, and the way back (placeHistory.ts) ──────────────────────────────────────────
+  // The place is watched from state, so every way of moving (Find, a click in the preview, Show on page, the rail,
+  // the page picker, a followed link) is remembered without each call site recording it. Back restores the last one.
+  const place = useMemo((): Place => normalizePlace({
+    leftTab, styleCategory, textCategory, styleFocus, templateId: template.id, showGlobal, globalGroup,
+    selectedId: selected?.id || null, blockId: selected ? blockId : null, element: selectedElement,
+  }), [leftTab, styleCategory, textCategory, styleFocus, template.id, showGlobal, globalGroup, selected?.id, blockId, selectedElement]);
+  const [placeHist, setPlaceHist] = useState<PlaceHistory>(EMPTY_PLACES);
+  const restoredAt = useRef(0);
+  const placeSig = placeKey(place);
+  useEffect(() => {
+    const now = Date.now(), restoring = now - restoredAt.current < 400;
+    setPlaceHist(h => restoring ? settlePlace(h, place, now) : visitPlace(h, place, now));
+  }, [placeSig]); // eslint-disable-line react-hooks/exhaustive-deps
+  const placeLabels: PlaceLabels = {
+    workspace: tab => sidebarTabs.find(([id]) => id === tab)?.[1] || tab,
+    styleCategory: id => id === CHANGED_CATEGORY ? "What I've changed" : categoryTitle(id),
+    textCategory: id => id === CHANGED_CATEGORY ? "Text I've changed" : id,
+    page: p => p.showGlobal ? `Every page · ${groupLabel(p.globalGroup as SectionGroupKey)}` : templates.find(t => t.id === p.templateId)?.label || p.templateId,
+    section: p => { const owner = p.selectedId ? findSectionOwner(design, p.selectedId) : null; return owner ? sectionTitle(owner.section).label : null; },
+    block: p => { const owner = p.selectedId && p.blockId ? findSectionOwner(design, p.selectedId) : null; return owner && p.blockId ? selectedBlockCrumb(owner.section, p.blockId).label : null; },
+  };
+  /** An earlier place as it can be shown now: a section or block deleted since is taken out, a page that is gone returns null. */
+  const resolvePlace = (p: Place): Place | null => {
+    if (!sidebarTabs.some(([id]) => id === p.leftTab)) return null;
+    if (!p.showGlobal && !templates.some(t => t.id === p.templateId)) return null;
+    let next = p;
+    if (p.selectedId) {
+      const owner = findSectionOwner(designRef.current, p.selectedId);
+      if (!owner || owner.surface !== (p.showGlobal ? p.globalGroup : p.templateId)) next = { ...next, selectedId: null, blockId: null };
+      else if (p.blockId) {
+        const blocks = owner.section.settings?.[getBlocksKey(owner.section.type)] || owner.section.settings?.blocks || [];
+        if (!findBlock(blocks, p.blockId)) next = { ...next, blockId: null };
+      }
+    }
+    // A page part belongs to the page it was found on; its key means nothing on another page.
+    if (next.element && (next.showGlobal !== showGlobal || next.templateId !== templateIdRef.current)) next = { ...next, element: null };
+    return next;
+  };
+  const applyPlace = (p: Place) => {
+    restoredAt.current = Date.now();
+    if (p.leftTab !== leftTab) restoreScrollFor.current = p.leftTab;
+    setAdding(null); setBlockPicker(null);
+    setLeftTab(p.leftTab as LeftTab);
+    setStyleSearch(""); setCopyFilter("");
+    setStyleCategory(p.styleCategory); setTextCategory(p.textCategory); setStyleFocus(p.styleFocus);
+    setShowGlobal(p.showGlobal);
+    if (p.showGlobal) setGlobalGroup(p.globalGroup as SectionGroupKey); else setTemplateId(p.templateId);
+    setSelectedId(p.selectedId); setBlockId(p.blockId);
+    setSelectedElement(p.element);
+    postPreview({ type: "SELECT_NODE", key: p.element ? p.element.key : null });
+    setMobilePanel(p.selectedId || p.element ? "settings" : "outline");
+    if (p.selectedId) setTimeout(() => highlight(p.selectedId, true, p.blockId), 350);
+  };
+  const goBackPlace = () => {
+    if (inlineEditingRef.current) { say("err", "Finish or cancel the preview text edit first, then go back."); return; }
+    const result = goBack(placeHist, resolvePlace, Date.now());
+    if (!result) {
+      say("ok", placeHist.back.length ? "The places you were in before are gone, so there is nowhere to go back to." : "Nothing to go back to yet. Back returns you to where you were before your last jump.");
+      if (placeHist.back.length) setPlaceHist(h => ({ ...h, back: [] }));
+      return;
+    }
+    const leavesPage = styleScope === "page" && (result.place.templateId !== template.id || Boolean(result.place.showGlobal) !== showGlobal);
+    scopeNoteBySelfRef.current = leavesPage;
+    applyPlace(result.place);
+    setPlaceHist(result.history);
+    say("ok", `Back to ${describePlace(result.place, placeLabels)}${leavesPage ? ". Editing scope is All pages again." : ""}`);
+  };
+  const backTarget = peekBack(placeHist);
+  /** A crumb steps back out to its level (the last crumb is where you are). */
+  const crumbAction = (level: ReturnType<typeof placeCrumbs>[number]["level"]): (() => void) | undefined => {
+    switch (level) {
+      case "workspace": return () => {
+        setStyleSearch(""); setCopyFilter("");
+        if (leftTab === "style") { setStyleCategory(null); setStyleFocus(null); }
+        if (leftTab === "text") setTextCategory(null);
+        setSelectedId(null); setBlockId(null); if (selectedElement) closeElement();
+      };
+      case "category": return () => { setStyleFocus(null); setSelectedId(null); setBlockId(null); if (selectedElement) closeElement(); };
+      case "focus": return () => { if (selectedElement) closeElement(); };
+      case "page": return () => { setSelectedId(null); setBlockId(null); if (selectedElement) closeElement(); };
+      case "section": return () => setBlockId(null);
+      default: return undefined;
+    }
+  };
   const goToResult = (entry: SearchEntry, query = "") => {
     const t = entry.target;
     setMobilePanel("outline");
@@ -1876,7 +1997,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       return;
     }
     if (t.type === "book") { setSelectedId(null); setBlockId(null); setShowGlobal(false); setProductSlug(t.slug); setTemplateId("productPage"); setLeftTab("sections"); return; }
-    if (t.type === "tab") { setLeftTab(t.tab); setStyleFocus(null); setSelectedId(null); setBlockId(null); return; }
+    if (t.type === "tab") {
+      // "Browse Theme settings / Text & labels" means the browse home, not the last category used.
+      setLeftTab(t.tab); setStyleFocus(null); setSelectedId(null); setBlockId(null);
+      setStyleCategory(null); setStyleSearch(""); setTextCategory(""); setCopyFilter("");
+      return;
+    }
     if (t.type === "style") {
       setSelectedId(null); setBlockId(null); setStyleSearch(""); setStyleCategory(t.groupId); setStyleFocus(null); setLeftTab("style");
       // Search lists an element setting once (its desktop field); open it at the size being previewed.
@@ -1955,6 +2081,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             {brandKit && <StudioBrandKit design={design} onPreview={setBrandChoice} onApply={applyBrandKit} onClose={() => setBrandKit(false)} />}
             <div hidden={brandKit}>
             <StudioTips forceOpen={tipsNonce} />
+            {leftTab === "sections" && <PreviewClickHint />}
             {leftTab === "sections" && adding !== null && (
               <StudioSectionLibrary registry={SECTION_REGISTRY} design={design}
                 surface={showGlobal ? globalGroup : template.id}
@@ -2051,7 +2178,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onMakeAll={(key, value) => change(d => writeDesignValue(d, key, value, "all"))} />
             )}
             {leftTab === "style" && !styleSearch.trim() && !styleCategory && !styleFocus && (
-              <SettingsHome headings={themeHome} onOpen={(id) => setStyleCategory(id)} onShowOnPage={showOnPage}
+              <SettingsHome headings={themeHome} map={SHOP_MAP} onOpen={(id) => setStyleCategory(id)} onShowOnPage={showOnPage}
                 changedTotal={changed.total} onOpenChanged={() => setStyleCategory(CHANGED_CATEGORY)} />
             )}
             {leftTab === "style" && !styleSearch.trim() && styleCategory && !styleFocus && (() => {
@@ -2407,7 +2534,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             onCopy={(key, value) => setCopy(key, value)}
             onOpenTheme={() => openElementInTheme(selectedElement)}
             onOpenText={group => { setCopyFilter(""); setTextCategory(group); setLeftTab("text"); setMobilePanel("outline"); }}
-            onOpenTarget={target => openTarget(target, selectedElement.label)}
+            onOpenTarget={target => openTarget(target, selectedElement.label, true)}
             onBack={() => { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); setLeftTab("sections"); setStyleFocus(null); setMobilePanel("outline"); }}
             onClose={closeElement} />
   );
@@ -2442,7 +2569,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <strong>{dirtyDraft ? "Not saved yet" : unpublished ? "Saved as draft" : "Live"}</strong><span className="studio-status-sep"> · </span><span>{dirtyDraft || unpublished ? "shop unchanged" : "the shop shows this"}</span>
         </span>
         <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
-          { label: "Preview in new tab", icon: <ExternalLink size={14} />, onSelect: openPreviewTab },
           { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
           { label: "Brand kit…", icon: <Sparkles size={14} />, onSelect: openBrandKit },
           { label: "Schedule publishing…", icon: <Clock size={14} />, onSelect: () => setSchedule({ themeId: null }) },
@@ -2451,18 +2577,19 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           { label: "Show Studio tips", onSelect: () => setTipsNonce(n => n + 1) },
           ...(unpublished && busy === null && !inlineEditing ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
         ]} /></div>
+        <button className={btn} onClick={openPreviewTab} data-studio-view-website
+          title={dirtyDraft ? "Open your shop in a new tab with all your changes, including ones not saved yet. Shoppers still see the live shop until you Publish." : unpublished ? "Open your shop in a new tab with your saved draft. Shoppers still see the live shop until you Publish." : "Open your shop in a new tab. It matches the live shop: nothing is waiting to be published."}>
+          <Eye size={14} aria-hidden="true" /> View website</button>
         <button className={btn} disabled={Boolean(inlineEditing) || !dirtyDraft || busy !== null} onClick={saveDraft}
           title={inlineEditing ? "Finish the text edit first" : !dirtyDraft ? "Nothing new to save" : "Save your changes without putting them on the shop"}>{busy === "draft" ? "Saving…" : "Save draft"}</button>
         <button className={btnPrimary} disabled={Boolean(inlineEditing) || (!unpublished && !dirtyDraft) || busy !== null} onClick={() => setConfirmAction("publish")}
           title={inlineEditing ? "Finish the text edit first" : !unpublished && !dirtyDraft ? "No changes to publish yet: the shop already shows this design" : "Review and put your changes on the live shop"}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
       </header>
 
-      <StudioBreadcrumb crumbs={[
-        { label: showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label, onSelect: () => { setSelectedId(null); setBlockId(null); if (selectedElement) closeElement(); } },
-        ...(selected ? [{ label: sectionTitle(selected).label, onSelect: blockId ? () => setBlockId(null) : undefined }] : []),
-        ...(selected && blockId ? [selectedBlockCrumb(selected, blockId)] : []),
-        ...(!selected && selectedElement ? [{ label: selectedElement.label }] : []),
-      ]} />
+      <StudioBreadcrumb
+        crumbs={placeCrumbs(place, placeLabels).map(c => ({ label: c.label, onSelect: crumbAction(c.level) }))}
+        onBack={goBackPlace} canBack={placeHist.back.length > 0}
+        backTitle={backTarget ? `Back to ${describePlace(backTarget, placeLabels)} (Alt+←)` : "Nothing to go back to yet. Back returns you to where you were before your last jump (Alt+←)"} />
       <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{[["outline", "Sections"], ["preview", "Preview"], ["settings", "Edit"]].map(([panel, name]) => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{name}</button>)}</div>
       {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
       {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={() => { void askConfirm({ title: "Discard local edits?", message: "The unsaved edits kept on this device will be deleted. This can't be undone.", confirmLabel: "Discard local edits" }).then(ok => { if (ok) dismissRecovery(); }); }}>Discard local recovery</SecondaryButton></div>}

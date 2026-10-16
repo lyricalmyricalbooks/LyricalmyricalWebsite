@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PREVIEW_CHANNEL, isPreviewTab, rememberPreviewSnapshot, startPreviewTab } from "./previewTab";
+import { PREVIEW_CHANNEL, isPreviewTab, rememberPreviewSnapshot, startPreviewTab, studioDraftStatus } from "./previewTab";
 
 // Studio › "Preview in new tab" — the storefront side of the BroadcastChannel hand-off.
 
@@ -60,6 +60,18 @@ describe("preview tab", () => {
     expect(event.source).toBe(win);
     stop();
     expect(channel.closed).toBe(true);
+  });
+
+  it("remembers whether Studio's draft is unsaved, saved or live for the View website banner", () => {
+    FakeChannel.all = [];
+    const { win } = fakeWindow("?preview=true");
+    startPreviewTab(win);
+    const channel = FakeChannel.all[0];
+    expect(studioDraftStatus(win)).toBeUndefined();
+    channel.onmessage!({ data: { type: "STUDIO_PREVIEW_STATE", design: {}, studioStatus: "draft" } } as MessageEvent);
+    expect(studioDraftStatus(win)).toBe("draft");
+    channel.onmessage!({ data: { type: "STUDIO_PREVIEW_STATE", design: {}, studioStatus: "nonsense" } } as MessageEvent);
+    expect(studioDraftStatus(win)).toBe("draft");
   });
 
   it("forwards the page's own PREVIEW_READY to Studio", () => {

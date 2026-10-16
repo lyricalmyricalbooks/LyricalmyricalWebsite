@@ -6,7 +6,7 @@
 .studio-status > span:last-child { font-weight: 600; color: var(--rp-text-subtle); }
 .studio-status-sep { display: none; }
 /* Medium-wide screens: the Exit button already says where you are; dropping the title keeps Publish on the first row. */
-@media (max-width: 1599px) { .studio-title { display: none; } }
+@media (max-width: 1599px) { .studio-title, .studio-topbar .studio-tools-menu > span { display: none; } }
 .studio-editor select { max-width: 220px; min-height: 36px; border: 1px solid var(--rp-border); border-radius: 6px; background: var(--rp-input-bg); color: var(--rp-text); padding: 4px 8px; font-size: 12px; }
 .studio-workspace { flex: 1; display: flex; min-height: 0; position: relative; }
 .studio-sidebar { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--rp-border); background: var(--rp-surface); }
@@ -120,6 +120,12 @@
 .studio-find-kind[data-kind=action] { background: var(--rp-primary-tint); color: var(--rp-primary-text); border-color: transparent; }
 .studio-find-group { padding: 8px 12px 4px; font: 700 10px/1.2 var(--rp-font-mono, "DM Mono", monospace); letter-spacing: .08em; text-transform: uppercase; color: var(--rp-text-subtle); border-bottom: 1px solid var(--rp-divider); background: var(--rp-surface, transparent); }
 .studio-find-main { flex: 1 1 auto; }
+.studio-find-empty { display: grid; gap: 10px; padding: 14px 4px 4px; }
+.studio-find-empty p { margin: 0; }
+.studio-find-suggest { display: flex; flex-wrap: wrap; gap: 8px; }
+.studio-find-chip { min-height: 36px; padding: 4px 12px; border: 1px solid var(--rp-border); border-radius: 999px; background: var(--rp-surface, transparent); color: var(--rp-text); font-size: 12px; font-weight: 700; cursor: pointer; }
+.studio-find-chip:hover { background: var(--rp-primary-tint); }
+.studio-find-chip:focus-visible { outline: 2px solid var(--rp-gold, #e8402a); outline-offset: 2px; }
 .studio-find-keys { flex: 0 0 auto; margin-left: auto; font: 500 11px/1 var(--rp-font-mono, "DM Mono", monospace); padding: 3px 6px; border: 1px solid var(--rp-border); border-radius: 3px; color: var(--rp-text-subtle); white-space: nowrap; }
 .studio-topbar kbd { font: 600 10px/1 var(--rp-font-mono, monospace); padding: 2px 5px; border: 1px solid var(--rp-border); border-radius: 3px; color: var(--rp-text-subtle); }
 /* Studio organization: readable navigation, category browsing and clear editing context. */
@@ -594,11 +600,27 @@
 .studio-workbench-meter span { display: block; height: 100%; background: var(--rp-primary); }
 .studio-health-item[data-done=true] strong { text-decoration: line-through; color: var(--rp-text-subtle); }
 @media (pointer: coarse) { .studio-workbench-bar button, .studio-workbench-steps button { min-height: 44px; } }
-/* Breadcrumb for the current selection, under the top bar. */
-.studio-breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px 16px; font-size: 12px; border-bottom: 1px solid var(--rp-divider); background: var(--rp-surface); color: var(--rp-text-subtle); }
-.studio-breadcrumb button { background: transparent; border: 0; padding: 2px 4px; color: var(--rp-text); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+/* Where you are (workspace › category or page › section › block) with ← Back, under the top bar. */
+.studio-breadcrumb { display: flex; align-items: center; gap: 8px; padding: 4px 16px; font-size: 12px; border-bottom: 1px solid var(--rp-divider); background: var(--rp-surface); color: var(--rp-text-subtle); min-width: 0; }
+.studio-breadcrumb button { background: transparent; border: 0; padding: 2px 4px; font: inherit; color: var(--rp-text); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .studio-breadcrumb [aria-current] { color: var(--rp-text); font-weight: 700; }
 .studio-breadcrumb button:focus-visible { outline: 2px solid var(--rp-focus); }
+.studio-breadcrumb .studio-back { flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 2px 10px; border: 1px solid var(--rp-border); border-radius: 4px; background: var(--rp-surface); text-decoration: none; font-weight: 600; white-space: nowrap; }
+.studio-breadcrumb .studio-back:hover:not(:disabled) { background: var(--rp-canvas); }
+.studio-breadcrumb .studio-back:disabled { opacity: .45; cursor: default; }
+.studio-crumbs { display: flex; flex-wrap: wrap; align-items: center; margin: 0; padding: 0; list-style: none; min-width: 0; flex: 1; }
+.studio-crumb { display: inline-flex; align-items: center; min-width: 0; }
+.studio-crumb > span:not(.studio-crumb-sep), .studio-crumb > button { max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-crumb-sep { white-space: pre; }
+@media (pointer: coarse) { .studio-breadcrumb .studio-back, .studio-crumb > button { min-height: 44px; } }
+/* On a phone only the last two steps of the path show (the full path is the Back button's and each crumb's tooltip). */
+@media (max-width: 767px) {
+  .studio-breadcrumb { padding: 4px 8px; gap: 6px; }
+  .studio-crumbs { flex-wrap: nowrap; overflow: hidden; }
+  .studio-crumb:not(:nth-last-child(-n+2)) { display: none; }
+  .studio-crumb:nth-last-child(2) .studio-crumb-sep { display: none; }
+  .studio-crumb > span:not(.studio-crumb-sep), .studio-crumb > button { max-width: 14ch; }
+}
 
 /* Theme settings › Design scales preview (3.0 phase 2). */
 .studio-scale-preview { display: grid; gap: 14px; padding: 12px; border: 1px solid var(--rp-border); background: var(--rp-canvas); }
@@ -646,3 +668,28 @@
 .studio-ai-draft > summary { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 700; min-height: 32px; }
 .studio-ai-draft .studio-field { display: grid; gap: 4px; font-size: 13px; }
 .studio-ai-draft select, .studio-ai-draft textarea { width: 100%; padding: 6px 8px; border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); }
+
+/* Finding things without knowing their names: shop map (Theme settings), Style / Words on Page layout rows, click hint */
+.studio-shop-map { margin: 12px 12px 6px; padding: 10px; display: grid; gap: 6px; border: 2px solid var(--rp-border-strong, var(--rp-border)); background: var(--rp-surface); }
+.studio-shop-map > strong { font-size: 13px; }
+.studio-shop-map > small { font-size: 11px; line-height: 1.4; color: var(--rp-text-subtle); }
+.studio-shop-map-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; margin-top: 2px; }
+.studio-shop-map-block { display: grid; align-content: center; gap: 2px; min-height: 44px; padding: 6px 7px; text-align: left; border: 1px solid var(--rp-border); background: var(--rp-surface); color: inherit; min-width: 0; }
+.studio-shop-map-block b { font-size: 11px; line-height: 1.25; overflow-wrap: anywhere; }
+.studio-shop-map-block span { font-size: 10px; line-height: 1.3; color: var(--rp-text-subtle); overflow-wrap: anywhere; }
+.studio-shop-map-block:hover, .studio-shop-map-block:focus-visible { background: var(--rp-primary-tint); }
+.studio-shop-map-block[data-shape=bar], .studio-shop-map-block[data-shape=foot] { grid-column: span 6; background: var(--rp-primary-tint); }
+.studio-shop-map-block[data-shape=body] { grid-column: span 2; min-height: 72px; align-content: start; }
+.studio-shop-map-block[data-shape=float] { grid-column: span 3; border-style: dashed; }
+.studio-shop-map-block[data-shape=look] { grid-column: span 3; border-style: dotted; border-width: 2px; }
+.studio-click-hint { display: flex; align-items: flex-start; gap: 6px; margin: 8px 12px 4px; padding: 7px 8px; font-size: 11px; line-height: 1.45; border: 1px dashed var(--rp-border); background: var(--rp-primary-tint); }
+.studio-click-hint > span { flex: 1; min-width: 0; }
+.studio-click-hint-close { flex-shrink: 0; display: inline-grid; place-items: center; width: 24px; height: 24px; margin: -3px -3px 0 0; }
+.studio-structure-row { position: relative; }
+.studio-structure-actions { display: inline-flex; gap: 8px; flex-shrink: 0; position: absolute; right: 34px; bottom: 5px; padding-left: 6px; background: var(--rp-surface); font-size: 10px; }
+.studio-structure-row[data-selected=true] > .studio-structure-actions { background: var(--rp-primary-tint); }
+.studio-structure-row[data-has-actions] .studio-tree-label small { padding-right: 84px; }
+.studio-structure-actions[data-inline] { position: static; padding-left: 0; background: transparent; }
+.studio-structure-actions button { font-size: 11px; line-height: 1.2; padding: 2px 0; min-height: 20px; color: var(--rp-primary-text); text-decoration: underline; text-underline-offset: 2px; }
+.studio-structure-actions button:hover, .studio-structure-actions button:focus-visible { text-decoration-thickness: 2px; }
+@media (pointer: coarse) { .studio-structure-actions button { min-height: 32px; padding: 0 2px; } }

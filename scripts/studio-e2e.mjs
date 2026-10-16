@@ -202,6 +202,99 @@ await check("page structure lists the header, follows the pointer and opens the 
   if (pressed !== "true") throw new Error("Shopping bag did not open its settings");
 });
 
+await check("Back returns to where you were after a Find jump, and the path shows the workspace", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const crumbs = () => page.locator("[data-studio-breadcrumb] .studio-crumbs").innerText().then(t => t.replace(/\s+/g, " ").trim());
+  const pressed = name => page.locator(`nav[aria-label="Studio workspaces"] button[aria-label="${name}"]`).getAttribute("aria-pressed");
+  const back = page.locator("[data-studio-back]");
+  if (!(await back.isDisabled())) throw new Error("Back is enabled before the owner has gone anywhere");
+  if (!(await crumbs()).startsWith("Page layout")) throw new Error(`the path does not start with the workspace: ${await crumbs()}`);
+  await page.waitForTimeout(1000);
+  await page.keyboard.press(`${mod}+k`);
+  await page.getByRole("dialog").getByRole("combobox").fill("announcement");
+  await page.getByRole("option").first().waitFor({ state: "attached", timeout: 5000 });
+  await page.keyboard.press("Enter");
+  await page.getByRole("dialog").waitFor({ state: "detached", timeout: 5000 });
+  // Find opens the Header & announcement bar settings: the path names them, and Back returns to the page.
+  await page.waitForFunction(() => /^Theme settings › Header & announcement bar/.test((document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").replace(/\s+/g, " ").trim()), null, { timeout: 5000 })
+    .catch(async () => { throw new Error(`the path does not name the part Find opened: ${await crumbs()}`); });
+  if (await back.isDisabled()) throw new Error("Back stayed disabled after a Find jump");
+  await page.waitForTimeout(900);
+  await back.click();
+  await page.waitForFunction(() => /^Page layout › Home$/.test((document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").replace(/\s+/g, " ").trim()), null, { timeout: 5000 })
+    .catch(async () => { throw new Error(`Back did not return to Page layout › Home: ${await crumbs()}`); });
+  if ((await pressed("Page layout")) !== "true") throw new Error("Back did not keep Page layout on the rail");
+  if (!await back.isDisabled()) throw new Error("Back is still enabled with nowhere left to go");
+  // A rail change is a jump too; Alt+Left (from the keyboard) returns from it, and the path names the workspace.
+  await page.waitForTimeout(900);
+  await page.locator('nav[aria-label="Studio workspaces"] button[aria-label="Theme settings"]').click();
+  await page.waitForFunction(() => (document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").trim() === "Theme settings", null, { timeout: 5000 })
+    .catch(async () => { throw new Error(`the path does not name Theme settings: ${await crumbs()}`); });
+  await page.waitForTimeout(900);
+  await page.keyboard.press("Alt+ArrowLeft");
+  await page.waitForFunction(() => /^Page layout › Home$/.test((document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").replace(/\s+/g, " ").trim()), null, { timeout: 5000 })
+    .catch(async () => { throw new Error(`Alt+Left did not go back: ${await crumbs()}`); });
+  if ((await pressed("Page layout")) !== "true") throw new Error("Alt+Left did not reopen Page layout on the rail");
+});
+
+await check("Back closes a page part opened by clicking the preview", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  const crumbs = () => page.locator("[data-studio-breadcrumb] .studio-crumbs").innerText().then(t => t.replace(/\s+/g, " ").trim());
+  await page.waitForTimeout(1000);
+  await frame.locator("header [data-studio-copy='navSearch']").first().click({ timeout: 15000 });
+  await page.locator("[data-studio-element-inspector]").waitFor({ timeout: 8000 });
+  if (!/^Page layout › Home › \S/.test(await crumbs())) throw new Error(`the path does not name the clicked part: ${await crumbs()}`);
+  await page.waitForTimeout(900);
+  await page.locator("[data-studio-back]").click();
+  await page.getByText("Nothing selected").waitFor({ timeout: 5000 });
+  if ((await crumbs()) !== "Page layout › Home") throw new Error(`Back left the path at: ${await crumbs()}`);
+});
+
+await check("Theme settings lists the shop top to bottom, and the Where-is-it map jumps to a part", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
+  await page.getByText("Where is it on the shop?").first().waitFor({ timeout: 5000 });
+  const titles = await page.locator(".studio-settings-heading h3").allTextContents();
+  const want = ["Top of every page", "Shop & book pages", "Bag, checkout & accounts", "Custom pages & features", "Bottom of every page", "Pop-ups & notices"];
+  if (JSON.stringify(titles.slice(0, want.length)) !== JSON.stringify(want)) throw new Error(`headings are ${titles.join(" | ")}`);
+  const footerCards = await page.locator("section[aria-labelledby=studio-heading-bottom] .studio-category-card strong").allTextContents();
+  if (!footerCards.includes("Footer & social links")) throw new Error(`Bottom of every page holds ${footerCards.join(", ")}`);
+  const topCards = await page.locator("section[aria-labelledby=studio-heading-top] .studio-category-card strong").allTextContents();
+  if (!topCards.includes("Logo & wordmark")) throw new Error(`Top of every page holds ${topCards.join(", ")}`);
+  await page.getByRole("button", { name: "Jump to Bottom of every page" }).click();
+  await page.waitForFunction(() => {
+    const heading = document.getElementById("studio-heading-bottom");
+    const scroller = document.querySelector(".studio-sidebar .flex-1");
+    if (!heading || !scroller) return false;
+    const h = heading.getBoundingClientRect(), s = scroller.getBoundingClientRect();
+    return h.top >= s.top - 2 && h.top < s.top + s.height / 2;
+  }, null, { timeout: 5000 });
+});
+
+await check("Page layout: the click tip hides for good, and Style / Words on a part open its settings", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const tip = page.getByRole("note").filter({ hasText: "click anything in the preview to edit it" });
+  await tip.waitFor({ timeout: 5000 });
+  const panel = page.locator(".studio-structure");
+  await panel.locator("summary", { hasText: "Header" }).click();
+  await panel.getByRole("button", { name: /^Header/ }).first().waitFor({ timeout: 15000 });
+  await panel.getByRole("button", { name: "Words for Header", exact: true }).click();
+  await page.getByRole("button", { name: "All text categories" }).waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  const headerGroup = panel.locator("summary", { hasText: "Header" });
+  if (!(await panel.getByRole("button", { name: "Style settings for Header", exact: true }).isVisible().catch(() => false))) await headerGroup.click();
+  await panel.getByRole("button", { name: "Style settings for Header", exact: true }).click();
+  await page.locator("[data-studio-panel=style-focus]").waitFor({ timeout: 5000 });
+  await page.getByRole("button", { name: "Page layout", exact: true }).first().click();
+  await tip.getByRole("button", { name: "Hide this tip" }).click();
+  await tip.waitFor({ state: "detached", timeout: 3000 });
+  await page.reload();
+  await page.waitForSelector("[data-studio-editor]", { timeout: 30000 });
+  await page.locator(".studio-structure").waitFor({ timeout: 10000 });
+  if (await page.getByRole("note").filter({ hasText: "click anything in the preview to edit it" }).count()) throw new Error("the tip came back after it was hidden");
+});
+
 await check("a page part opens in the inspector with its words, and an edit shows in the preview", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const panel = page.locator(".studio-structure");
@@ -306,7 +399,7 @@ await check("pick several sections and hide them together", desktop, async page 
 await check("Theme settings › Show on page selects that part, opening the bag when needed", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
-  await page.getByText("Site-wide design").first().waitFor({ timeout: 5000 });
+  await page.getByText("Where is it on the shop?").first().waitFor({ timeout: 5000 });
   await page.getByRole("button", { name: "Show Header & announcement bar on the page" }).click();
   await page.locator("[data-studio-element-inspector]").waitFor({ timeout: 10000 });
   await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
@@ -322,7 +415,7 @@ await check("every Show on page button selects its part or opens its settings, n
     await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
     const back = page.getByRole("button", { name: /All theme settings|Back to theme settings/ }).first();
     if (await back.isVisible().catch(() => false)) await back.click();
-    await page.getByText("Site-wide design").first().waitFor({ timeout: 5000 });
+    await page.getByText("Where is it on the shop?").first().waitFor({ timeout: 5000 });
   };
   await openHome();
   const names = await page.getByRole("button", { name: /^Show .+ on the page$/ }).evaluateAll(els => els.map(e => e.getAttribute("aria-label")));
@@ -1403,7 +1496,7 @@ const openStyleCategory = async (page, title) => {
   await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();
   const back = page.getByRole("button", { name: "All theme settings" });
   if (await back.count()) await back.first().click();
-  await page.getByText("Site-wide design").first().waitFor({ timeout: 5000 });
+  await page.getByText("Where is it on the shop?").first().waitFor({ timeout: 5000 });
   await page.getByRole("button", { name: new RegExp("^" + title.replace(/[.*+?^${}()|[\]\\&]/g, "\\$&")) }).first().click();
 };
 const styleControl = (page, key, tag) => page.locator(`[data-style-key="${key}"] ${tag}`).first();
@@ -1456,7 +1549,7 @@ await check("the default shop header follows the Header menu, link colour, stick
   // Shop categories says how many the Reference header shows.
   await page.locator("[data-reference-limit='1']").waitFor({ timeout: 5000 });
   const before = await bar.locator(":scope > button").count();
-  await openStyleCategory(page, "Catalog layout (advanced)");
+  await openStyleCategory(page, "Shop page masthead & covers");
   if (await styleControl(page, "catalogLayoutStyle", "select").inputValue() !== "reference") throw new Error("Layout control does not show the Reference layout the shop uses");
   await openStyleField(page, "referenceCategoryLimit");
   await styleControl(page, "referenceCategoryLimit", "input[type=range]").fill("4");
@@ -1574,6 +1667,24 @@ await check("mode button names what it does, and the inspector keeps its tab and
   // Clicking the rail tab you are on keeps the selection.
   await page.getByRole("button", { name: "Page layout" }).first().click();
   if (!(await page.locator(".studio-inspector-actions").count())) throw new Error("clicking the active rail tab closed the inspector");
+});
+
+await check("View website opens the shop in a new tab with the draft and says whether it is saved", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await expectText(page, "Home · 1 section");
+  const [tab] = await Promise.all([page.context().waitForEvent("page"), page.getByRole("button", { name: "View website" }).click()]);
+  if (!/[?&]preview=true/.test(tab.url())) throw new Error(`View website opened ${tab.url()}`);
+  await tab.locator('[data-draft-preview-banner="unsaved"]').waitFor({ timeout: 30000 });
+  // The newsletter section exists only in the unsaved draft, so seeing it proves the tab shows the draft.
+  const added = await page.evaluate(() => document.querySelector("iframe")?.contentDocument?.querySelector("[data-fm-section]")?.getAttribute("data-fm-section"));
+  if (!added) throw new Error("the canvas has no section to look for");
+  await tab.locator(`[data-fm-section="${added}"]`).waitFor({ timeout: 15000 });
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await tab.locator('[data-draft-preview-banner="draft"]').waitFor({ timeout: 15000 });
+  if (shots) await tab.screenshot({ path: join(shots, "View-website-tab.png") }).catch(() => {});
+  await tab.close();
 });
 
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {

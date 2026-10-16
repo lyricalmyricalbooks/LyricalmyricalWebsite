@@ -358,7 +358,7 @@ how a saved scheme without `v: 2` renders — `colorSchemes.test.ts` guards that
 ## Product page
 
 The book page is the Riso "catalogue card" layout; every part of it is a `pdp*` control in Studio ›
-Style › Product page · buy card & details (see CLAUDE.md). Trust-signal lines were removed on purpose.
+Style › Book page · buy box & details (see CLAUDE.md). Trust-signal lines were removed on purpose.
 
 ## Working rules
 
@@ -754,7 +754,7 @@ Grouped footer navigation defaults to Explore and Participate & connect, with po
   "In stock" counts editions and backorders (`bookInStock`); search also matches ISBN. Each piece is a Studio region
   (`catalogFormat`, `catalogPrice`, `catalogClear` — show/hide + layout in Theme settings › Fine-tune single elements › Catalog & shared content · layout);
   words are Text & labels › Search & filters (`filterFormat*`, `filterPrice*`, `filterClear`). The bar itself still
-  follows Style › Catalog page header & filters › **Show search, sort & in-stock bar**.
+  follows Style › Shop page heading & filters › **Show search, sort & in-stock bar**.
 - **Display price:** `features/site/displayPrice.ts` — a book sold only in editions shows its cheapest edition
   (CurrencyContext `getBookPrice`, shop cards, search, showcase grid, filters/sort) instead of CA$ 0.00.
 - **Server prices:** `functions/catalogPrice.js` `catalogUnitPrice` mirrors `CartContext.catalogUnitPrice` everywhere
