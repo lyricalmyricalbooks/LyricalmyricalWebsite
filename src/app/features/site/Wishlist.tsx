@@ -19,6 +19,7 @@ import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { gridPhotoSizes, photoSrcSet } from "./photoSources";
 import { framingStyle } from "./photoFraming";
+import { PhotoToneDefs } from "./PhotoToneDefs";
 
 /** The wishlist, inside the one shop header and footer (Studio 2.0 · 2.1). */
 export default function WishlistPage() {
@@ -110,6 +111,7 @@ function WishlistContent() {
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       style={framingStyle((book as any).photos?.[0])}
                     />
+                    <PhotoToneDefs photo={(book as any).photos?.[0]} />
                     {/* Coming soon: the badge alone (it isn't sold out); words in Text & labels › Product page */}
                     {choice.comingSoon && (
                       <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "comingSoonBadge")} />

@@ -50,6 +50,7 @@ import { collectionIntro } from "../features/site/collectionIntro";
 import { SoldOutBadge, soldOutPhotoStyle } from "../features/site/SoldOutBadge";
 import { gridPhotoSizes, photoSrcSet } from "../features/site/photoSources";
 import { framingStyle } from "../features/site/photoFraming";
+import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
 import { arrivedPrerendered } from "../lib/prerenderedPage";
 
 const catNameForSEO = (category: any) => typeof category === "string" ? category : category?.name;
@@ -932,6 +933,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         style={framingStyle(item.photos?.[0], { x: catalogImageFocalX, y: catalogImageFocalY })}
                         frameStyle={isOutOfStock && showSoldOutBadge ? soldOutPhotoStyle(storefrontDesign) : undefined}
                       />
+                      <PhotoToneDefs photo={item.photos?.[0]} />
                       {isOutOfStock && showSoldOutBadge && <SoldOutBadge design={storefrontDesign} label={soldOutLabel} />}
                       {/* Status ribbons */}
                       <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5">

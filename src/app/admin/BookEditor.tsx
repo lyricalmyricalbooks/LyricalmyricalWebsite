@@ -61,6 +61,7 @@ import { uploadBookPhoto } from "./bookPhotoUpload";
 import { BOOK_VIDEO_ACCEPT, MAX_BOOK_VIDEOS, MAX_BOOK_VIDEO_BYTES, formatMegabytes, isVideoFile, uploadBookVideo, videoProblem } from "./bookVideoUpload";
 import { isVideoItem } from "../features/site/bookVideo";
 import { framingStyle, photoAdjust, photoFraming } from "../features/site/photoFraming";
+import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
 import { PhotoCropDialog } from "./PhotoCropDialog";
 import { studioHash } from "../lib/studioLocation";
 
@@ -93,6 +94,7 @@ function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover, onCrop }: {
     <div ref={setNodeRef} style={style} className="be-photo">
       <div className="be-photo-img">
         <img src={photo.url} alt={photo.altText || ""} style={framingStyle(photo)} />
+        <PhotoToneDefs photo={photo} />
         {(photoFraming(photo) || photoAdjust(photo)) && <span className="be-photo-framed">{photoFraming(photo) && photoAdjust(photo) ? "Cropped · edited" : photoFraming(photo) ? "Cropped" : "Edited"}</span>}
         <span className="be-photo-badge">{index === 0 ? "Cover" : isVideoItem(photo) ? `Video · ${index + 1}` : `Image ${index + 1}`}</span>
         {isVideoItem(photo) && (
