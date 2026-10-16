@@ -6,7 +6,7 @@
 .studio-status > span:last-child { font-weight: 600; color: var(--rp-text-subtle); }
 .studio-status-sep { display: none; }
 /* Medium-wide screens: the Exit button already says where you are; dropping the title keeps Publish on the first row. */
-@media (max-width: 1599px) { .studio-title { display: none; } }
+@media (max-width: 1599px) { .studio-title, .studio-topbar .studio-tools-menu > span { display: none; } }
 .studio-editor select { max-width: 220px; min-height: 36px; border: 1px solid var(--rp-border); border-radius: 6px; background: var(--rp-input-bg); color: var(--rp-text); padding: 4px 8px; font-size: 12px; }
 .studio-workspace { flex: 1; display: flex; min-height: 0; position: relative; }
 .studio-sidebar { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--rp-border); background: var(--rp-surface); }
