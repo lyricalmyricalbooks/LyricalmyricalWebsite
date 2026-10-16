@@ -197,7 +197,7 @@ const ACTIONS: { id: StudioActionId; title: string; keywords: string }[] = [
   { id: "history", title: "Version history", keywords: "restore previous older versions checkpoint save compare differences pin undo published go back" },
   { id: "schedule", title: "Schedule publishing or a campaign", keywords: "schedule later timer date time campaign sale seasonal switch back automatically launch black friday christmas" },
   { id: "check", title: "Studio Health (check before publishing)", keywords: "review accessibility problems warnings contrast alt text tap targets broken links speed seo pre-publish check errors mistakes" },
-  { id: "preview-tab", title: "Preview in new tab", keywords: "full screen window open see my shop" },
+  { id: "preview-tab", title: "View website (your draft, in a new tab)", keywords: "preview in new tab full screen window open see my shop before publish draft" },
   { id: "undo", title: "Undo", keywords: "step back ctrl z mistake oops" },
   { id: "redo", title: "Redo", keywords: "step forward" },
   { id: "device-desktop", title: "Desktop preview", keywords: "computer wide screen size laptop" },
