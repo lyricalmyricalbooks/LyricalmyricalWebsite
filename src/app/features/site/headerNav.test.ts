@@ -41,3 +41,18 @@ describe("navLinkStyle link case", () => {
     expect(navLinkStyle({ navLinkTransform: "none" }, false, "#fff").textTransform).toBe("none");
   });
 });
+
+describe("content width bounds", () => {
+  it("follows the Studio slider's whole range (800–1800px)", async () => {
+    const { contentMaxWidth, catalogHeaderMaxWidth } = await import("./headerNav");
+    expect(contentMaxWidth({ containerWidth: 800 })).toBe(800);
+    expect(contentMaxWidth({ containerWidth: 1800 })).toBe(1800);
+    expect(contentMaxWidth({ containerWidth: 5000 })).toBe(1800);
+    expect(contentMaxWidth({})).toBe(1200);
+    expect(contentMaxWidth({ containerWidth: "x" })).toBe(1200);
+    expect(contentMaxWidth({ fullWidth: true, containerWidth: 900 })).toBe("100%");
+    // Shop masthead follows content width unless its own Header width is set.
+    expect(catalogHeaderMaxWidth({ containerWidth: 800 })).toBe(800);
+    expect(catalogHeaderMaxWidth({ containerWidth: 800, catalogHeaderWidth: 1500 })).toBe(1500);
+  });
+});

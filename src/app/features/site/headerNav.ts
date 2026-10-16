@@ -56,14 +56,23 @@ export const isFullWidth = (design: any): boolean => design?.fullWidth === true;
 /**
  * Width of the storefront content column — Studio › Style › Layout › "Content width"
  * (`containerWidth`), or "100%" while "Use the full screen width" is on. The header, product
- * page and shop grid all use it so their left edges line up with the logo.
+ * page and shop grid all use it so their left edges line up with the logo. Bounds = the Studio slider's
+ * (800–1800px): the old 900–1600 clamp made the slider's ends do nothing.
  */
+export const CONTENT_WIDTH_MIN = 800;
+export const CONTENT_WIDTH_MAX = 1800;
+export const contentWidthPx = (design: any): number => {
+  const n = Number(design?.containerWidth ?? 1200);
+  return Number.isFinite(n) ? Math.max(CONTENT_WIDTH_MIN, Math.min(CONTENT_WIDTH_MAX, n)) : 1200;
+};
 export const contentMaxWidth = (design: any): number | string =>
-  isFullWidth(design) ? "100%" : Math.max(900, Math.min(1600, Number(design?.containerWidth ?? 1200)));
+  isFullWidth(design) ? "100%" : contentWidthPx(design);
 
 /** Catalog masthead / shop grid width (Catalog layout › Header width), full width when that switch is on. */
 export const catalogHeaderMaxWidth = (design: any): number | string =>
-  isFullWidth(design) ? "100%" : Math.max(900, Math.min(1800, Number(design?.catalogHeaderWidth ?? contentMaxWidth(design))));
+  isFullWidth(design) ? "100%"
+    : design?.catalogHeaderWidth != null && Number.isFinite(Number(design.catalogHeaderWidth)) ? Math.max(900, Math.min(1800, Number(design.catalogHeaderWidth)))
+    : contentWidthPx(design);
 
 /** Gap between header nav links (px). */
 export const navGap = (design: any) => Math.max(4, Math.min(64, Number(design?.navGap ?? 28)));
