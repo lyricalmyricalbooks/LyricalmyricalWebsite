@@ -1,4 +1,4 @@
-import { StudioCopyField } from "./StudioCopyField";
+import { StudioCopyField, CopyTargetContext } from "./StudioCopyField";
 import { StudioRegionBrowser } from "./StudioRegionBrowser";
 import { REGION_GROUPS, REGION_SUFFIXES, REGION_DEVICE_LABELS, regionFieldDevice, regionKey, regionValue, type RegionDevice } from "../../features/site/storefrontRegions";
 import { canInlineFormat } from "./richText";
@@ -56,6 +56,8 @@ import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewSta
 import { sectionStyleFields, SPACING_CARD_KEYS } from "./sectionStyleSchema";
 import type { OutlineActions } from "./StudioOutline";
 import { useStudioPersistence } from "./useStudioPersistence";
+import { friendlyError } from "./friendlyError";
+import { toastDuration } from "./toastTiming";
 import { ActionMenu, Dialog, PrimaryButton, SecondaryButton, useConfirm, usePrompt } from "../riso/components";
 import { applyInlineText, INLINE_STYLE_KEYS } from "./inlineText";
 import { filterSettingGroups } from "./studioNavigation";
@@ -112,7 +114,8 @@ import "./studio.css";
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
 /** `expect`: the design the toast's Undo belongs to (filled in once the change lands); see `undoAction`. */
 type ToastAction = { label: string; run: () => void; expect?: { present?: any; past?: any[] } };
-type Toast = { kind: "ok" | "err"; text: string; action?: ToastAction } | null;
+/** "ok" fades by itself (and waits while hovered or focused); "warn" and "err" stay until dismissed. */
+type Toast = { kind: "ok" | "warn" | "err"; text: string; action?: ToastAction; id: number } | null;
 
 function designChecks(design: any) {
   return buildDesignChecks(design, { sectionFields: getSectionFields, blockFields: getBlockFields, blocksKey: getBlocksKey });
@@ -148,7 +151,7 @@ const btn =
 const btnPrimary =
   "inline-flex items-center gap-1.5 px-4 h-9 text-xs font-bold rounded-lg bg-neutral-900 text-white hover:bg-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed";
 const iconBtn =
-  "inline-flex items-center justify-center w-8 h-8 rounded-md text-neutral-600 hover:bg-neutral-200 disabled:opacity-30";
+  "inline-flex items-center justify-center w-9 h-9 min-w-[36px] min-h-[36px] rounded-md text-neutral-600 hover:bg-neutral-200 disabled:opacity-30";
 
 // Clicking a region in the preview (data-studio-target) focuses the matching panel here.
 type StudioFocus = { id: string | null; nonce: number };
@@ -530,9 +533,18 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const dirtyDraft = useMemo(() => !sameDesign(design, savedDraft), [design, savedDraft]);
   const unpublished = useMemo(() => !sameDesign(design, published), [design, published]);
 
-  const say = (kind: "ok" | "err", text: string, action?: ToastAction) => {
-    setToast({ kind, text, action });
-    if (kind === "ok") setTimeout(() => setToast((t) => (t?.text === text ? null : t)), action ? 8000 : 3500);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const toastSeq = useRef(0);
+  const armToast = (id: number, ms: number) => {
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(t => (t?.id === id ? null : t)), ms);
+  };
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
+  const say = (kind: "ok" | "warn" | "err", text: string, action?: ToastAction) => {
+    const id = ++toastSeq.current;
+    setToast({ kind, text, action, id });
+    clearTimeout(toastTimer.current);
+    if (kind === "ok") armToast(id, toastDuration(text, Boolean(action)));
   };
   const histRef = useRef(hist); histRef.current = hist;
   /** A toast's "Undo" undoes exactly the change the toast names: call it right after that `change(…)`. It records the
@@ -600,9 +612,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     templates, sectionName: (type: string) => getSectionMeta(type)?.label, sectionFields: (type: string) => getSectionFields(type),
   }), [templates]);
   const normalizeForDiff = useCallback((d: any) => normalizeDesign(d, defaults), [defaults]);
+  /** The Publish / Discard lists: how many changes there are, and one line each (the first few). */
   const publishSummary = (from: any, to: any) => {
-    const lines = summariseDiff(diffDesigns(normalizeForDiff(from), normalizeForDiff(to), diffContext));
-    return lines.length ? lines : ["No saved design differences"];
+    const items = diffDesigns(normalizeForDiff(from), normalizeForDiff(to), diffContext);
+    return { count: items.length, lines: summariseDiff(items) };
   };
   const loadVersions = useCallback(async () => {
     try { setVersions(await adminApi.listThemeVersions() as ThemeVersion[]); }
@@ -686,7 +699,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (themesBusyRef.current) { say("err", "Still saving My themes — try again in a moment."); return; }
     themesBusyRef.current = true;
     try { await saveSavedThemes(workspace, savedThemes, next); setSavedThemes(next); say("ok", okText); }
-    catch (err: any) { say("err", `Could not save themes: ${err?.message || err}`); }
+    catch (err: any) { say("err", friendlyError(err, "save your themes")); }
     finally { themesBusyRef.current = false; }
   };
   /** Saving or renaming onto another theme's name replaces that theme: ask first. */
@@ -1107,8 +1120,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (workbench.open && workbench.tab === "health") setHealthRun(n => n + 1);
   }, [published]); // eslint-disable-line react-hooks/exhaustive-deps
   // The Publish confirmation says how the page in the preview checks out.
-  const [publishHealth, setPublishHealth] = useState<ReturnType<typeof summarise> | null>(null);
-  useEffect(() => { if (confirmAction === "publish") { const found = runHealth(); setPublishHealth(found ? summarise(found) : null); } }, [confirmAction]); // eslint-disable-line react-hooks/exhaustive-deps
+  // null = not checked yet ("Checking the page…"); "failed" = the preview couldn't be checked.
+  const [publishHealthState, setPublishHealthState] = useState<ReturnType<typeof summarise> | "failed" | null>(null);
+  const publishHealth = publishHealthState === "failed" ? null : publishHealthState;
+  useEffect(() => {
+    if (confirmAction !== "publish") { setPublishHealthState(null); return; }
+    const found = runHealth();
+    setPublishHealthState(found ? summarise(found) : previewStatus === "loading" ? null : "failed");
+  }, [confirmAction, previewStatus]); // eslint-disable-line react-hooks/exhaustive-deps
   const openStructureItem = (item: StructureItem) =>
     openElement({ key: item.key, label: item.label, target: item.target, region: item.region || undefined }, true);
   const closeElement = () => { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); setMobilePanel("outline"); };
@@ -1156,7 +1175,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       if (pendingShow.current !== request) return;
       pendingShow.current = null;
       setLeftTab("style"); setStyleCategory(groupId); setMobilePanel("outline");
-      say("ok", `${categoryTitle(groupId)} isn't showing on this page right now — it may be switched off or need content first. Its settings are open instead.`);
+      say("warn", `${categoryTitle(groupId)} isn't showing on this page right now — it may be switched off or need content first. Its settings are open instead.`);
     }, 8000);
     pendingShow.current = request;
     setStyleCategory(null); setStyleFocus(null); setSelectedId(null); setBlockId(null); setShowGlobal(false);
@@ -1270,7 +1289,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       if (d.type === "CONTEXT_ACTION" && typeof d.sectionId === "string") {
         change(current => applyContextAction(current, d, getBlocksKey));
         if (d.action === "delete" || d.action === "hide") { canvasSelectionRef.current = null; highlight(null,false,null); setSelectedId(null); setBlockId(null); }
-        if (d.action === "delete") say("ok", d.blockId ? "Block deleted." : "Section deleted.", undoAction());
+        if (d.action === "delete") say("warn", d.blockId ? "Block deleted." : "Section deleted.", undoAction());
       }
       if ((d.type === "SPACING_COMMIT" || d.type === "SPACING_RESET") && typeof d.sectionId === "string") {
         change(current => {
@@ -1307,7 +1326,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           const owner = findSectionOwner(designRef.current, d.sectionId);
           if (owner) { setShowGlobal(isGroupSurface(owner.surface)); if (isGroupSurface(owner.surface)) setGlobalGroup(owner.surface); else setTemplateId(owner.surface); }
           setLeftTab("sections"); setSelectedId(d.sectionId); setBlockId(d.blockId || null); setMobilePanel("settings");
-        } else if (d.kind === "copy") { setCopyFilter(d.key || ""); setLeftTab("text"); setMobilePanel("outline"); }
+        } else if (d.kind === "copy") {
+          const openWords = () => { setCopyFilter(d.key || ""); setLeftTab("text"); setMobilePanel("outline"); };
+          openWords();
+          say("warn", "This text is built from a template; open Text & labels to change it.", { label: "Open Text & labels", run: openWords });
+          return;
+        }
         say("ok", "Formatted or templated text opens in the inspector so its structure is preserved.");
       }
 
@@ -1316,24 +1340,36 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     return () => window.removeEventListener("message", h);
   }, [templates, selectedId, sendPreviewState, sendCopyMap, highlight, change, mode]);
 
-  const { busy, saveDraft, publish, discard, recovery, recover, dismissRecovery, conflict, resolveConflict, incoming, resolveIncoming } = useStudioPersistence({
+  const { busy, lastSaved, liveSyncPaused, saveDraft, publish, discard, recovery, recover, dismissRecovery, conflict, resolveConflict, incoming, resolveIncoming } = useStudioPersistence({
     design, savedDraft, published, setSavedDraft, setPublished, onPersisted, workspace,
     reset: (next) => { setHist(initHistory(next)); setSelectedId(null); setBlockId(null); },
     restore: next => change(() => normalizeDesign(next, defaults)), say,
     normalize: next => normalizeDesign(next, defaults),
     readPublished,
   });
+  // The status pill's hover text: what it means for the shop, and when this tab last saved.
+  const statusTitle = [
+    dirtyDraft ? "Your edits are only in this browser tab until you press Save draft. The shop is unchanged."
+      : unpublished ? "Your draft is saved, but shoppers still see the older design until you press Publish."
+      : "Shoppers see exactly this design.",
+    lastSaved ? `${lastSaved.kind === "publish" ? "Published" : "Draft saved"} at ${new Date(lastSaved.at).toLocaleTimeString()}.` : "",
+  ].filter(Boolean).join(" ");
+  // Set when reading the live design fails: the Publish list is then compared with an older copy.
+  const [liveCheckFailed, setLiveCheckFailed] = useState(false);
+  const refreshPublished = (alive: () => boolean) => readPublished().then(
+    fresh => { if (alive()) { setLiveCheckFailed(false); setPublished((prev: any) => (designEqual(prev, fresh) ? prev : fresh)); } },
+    () => { if (alive()) setLiveCheckFailed(true); });
   // Studio opened from a long-lived admin session: what is live may have changed (a scheduled go-live) since the page loaded.
   useEffect(() => {
     let alive = true;
-    readPublished().then(fresh => { if (alive) setPublished((prev: any) => (designEqual(prev, fresh) ? prev : fresh)); }, () => {});
+    void refreshPublished(() => alive);
     return () => { alive = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // The Publish / Discard questions compare against what is live right now, not what was live when Studio opened.
   useEffect(() => {
     if (!confirmAction) return;
     let alive = true;
-    readPublished().then(fresh => { if (alive) setPublished((prev: any) => (designEqual(prev, fresh) ? prev : fresh)); }, () => {});
+    void refreshPublished(() => alive);
     return () => { alive = false; };
   }, [confirmAction]); // eslint-disable-line react-hooks/exhaustive-deps
   const exit = () => {
@@ -1466,7 +1502,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const gone = sections.find(x => x.id === id);
     setList((l) => removeSection(l, id), { label: `Delete ${gone ? sectionTitle(gone).label : "section"}` });
     if (selectedId === id) { setSelectedId(null); setBlockId(null); }
-    say("ok", `Deleted ${gone ? sectionTitle(gone).label : "the section"}.`, undoAction());
+    say("warn", `Deleted ${gone ? sectionTitle(gone).label : "the section"}.`, undoAction());
   };
   // Block library 3.0: Add block (the picker), Copy block and Paste copied block. Each add is one named, undoable change.
   const openBlockPicker = (sectionId: string) => {
@@ -1498,12 +1534,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   const pasteBlockNow = (section: Section, afterId: string | null) => {
     if (!canPasteBlock(copiedBlock, section.type)) {
-      say("ok", copiedBlock ? `That block came from a ${getSectionMeta(copiedBlock.sectionType)?.label || "different"} section, so it only pastes into one of those.` : "Copy a block first: select it and choose Copy block.");
+      say("warn", copiedBlock ? `That block came from a ${getSectionMeta(copiedBlock.sectionType)?.label || "different"} section, so it only pastes into one of those.` : "Copy a block first: select it and choose Copy block.");
       return;
     }
     const linkedTo = copiedBlock!.block.sharedBlockId;
     if (linkedTo && !(designRef.current.sharedBlocks || []).some((x: SharedBlock) => x.id === linkedTo)) {
-      say("ok", "The copied block was linked to a shared block that has since been deleted, so there's nothing to paste. Copy the block again.");
+      say("warn", "The copied block was linked to a shared block that has since been deleted, so there's nothing to paste. Copy the block again.");
       return;
     }
     const block = pasteBlock([], copiedBlock!).list[0];
@@ -1573,9 +1609,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setVisible: (ids, visible) => change(d => updateSectionsById(d, ids, sec => ({ ...sec, visible })),
       { label: `${visible ? "Show" : "Hide"} ${ids.length} section${ids.length === 1 ? "" : "s"}` }),
     remove: ids => {
-      change(d => updateSectionsById(d, ids, () => null), { label: `Delete ${ids.length} section${ids.length === 1 ? "" : "s"}` });
-      if (selectedId && ids.includes(selectedId)) { setSelectedId(null); setBlockId(null); }
-      say("ok", `Deleted ${ids.length} section${ids.length === 1 ? "" : "s"}.`, undoAction());
+      const run = () => {
+        change(d => updateSectionsById(d, ids, () => null), { label: `Delete ${ids.length} section${ids.length === 1 ? "" : "s"}` });
+        if (selectedId && ids.includes(selectedId)) { setSelectedId(null); setBlockId(null); }
+        say("warn", `Deleted ${ids.length} section${ids.length === 1 ? "" : "s"}.`, undoAction());
+      };
+      // One or two sections are undone from the toast; three or more ask first.
+      if (ids.length < 3) { run(); return; }
+      void askConfirm({ title: `Delete ${ids.length} sections?`, message: "They will be removed from this page. You can undo this right after with the Undo button or Ctrl+Z.", confirmLabel: `Delete ${ids.length} sections` })
+        .then(ok => { if (ok) run(); });
     },
     moveBlock: (sectionId, blockId) => { setMoveDest(""); setMoveDialog({ kind: "block", sectionId, blockId }); },
   };
@@ -1612,7 +1654,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const deleteTemplateNow = (base: AltBase, id: string, name: string) => {
     change(d => deleteAlternate(d, base, id), { label: `Delete template “${name}”` });
     setTemplateId(base); setSelectedId(null); setBlockId(null);
-    say("ok", `Template “${name}” deleted. Anything that used it shows the default layout.`, undoAction());
+    say("warn", `Template “${name}” deleted. Anything that used it shows the default layout.`, undoAction());
   };
   /** Add section › "Add it there instead": add a section to the group or page it is made for, and go there. */
   const addSectionBestPlace = (type: string) => {
@@ -1639,7 +1681,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   const deletePresetNow = (preset: any) => {
     change(d => deletePreset(d, preset.id), { label: "Delete saved section" });
-    say("ok", `“${preset.name}” deleted from your saved sections.`, undoAction());
+    say("warn", `“${preset.name}” deleted from your saved sections.`, undoAction());
   };
   const renameSharedAsk = async (shared: SharedBlock) => {
     const name = await askText({ title: "Rename shared block", label: "Name", defaultValue: shared.name || "", confirmLabel: "Rename" });
@@ -1648,7 +1690,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   const deleteSharedNow = (shared: SharedBlock) => {
     change(d => deleteSharedBlock(d, shared.id), { label: "Delete shared block" });
-    say("ok", `“${shared.name}” deleted. Where it was placed, a copy stays.`, undoAction());
+    say("warn", `“${shared.name}” deleted. Where it was placed, a copy stays.`, undoAction());
   };
   const addPreset = (preset: any) => {
     const source = preset.section;
@@ -1888,7 +1930,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               <StudioTemplateCard design={design} templateId={template.id} books={books} previewBookSlug={productSlug}
                 onSwitch={id => { setTemplateId(id); setSelectedId(null); setBlockId(null); }}
                 onPreviewBook={setProductSlug}
-                onCreate={createTemplateAsk} onRename={renameTemplateAsk} onDelete={deleteTemplateNow} />
+                onCreate={createTemplateAsk} onRename={renameTemplateAsk} onDelete={(base, id, name) => {
+                  void askConfirm({ title: "Delete this template?", message: `“${name}” will be removed. Books and categories that use it show the default layout instead. You can undo this right after.`, confirmLabel: "Delete template" })
+                    .then(ok => { if (ok) deleteTemplateNow(base, id, name); });
+                }} />
             )}
             {leftTab === "sections" && adding === null && !blockPicker && !showGlobal && isProductTemplate(template.id) && (
               <StudioProductBlocks design={design} templateId={template.id} change={change}
@@ -1925,7 +1970,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 { label: selected ? "Copy selected section" : "Copy a section (select one first)", icon: <Copy size={14} />,
                   onSelect: () => { if (!selected) { say("ok", "Select a section in the list or the preview first, then copy it."); return; } setCopiedSection(JSON.parse(JSON.stringify(selected))); say("ok", "Section copied. Open any page, then Section tools › Paste copied section."); } },
                 { label: copiedSection ? "Paste copied section" : "Paste (nothing copied yet)", icon: <Clipboard size={14} />,
-                  onSelect: () => { if (!copiedSection) { say("ok", "Copy a section first with Section tools › Copy selected section."); return; } pasteSection(); } },
+                  onSelect: () => { if (!copiedSection) { say("warn", "Copy a section first with Section tools › Copy selected section."); return; } pasteSection(); } },
                 { label: selected ? "Save selected section for reuse" : "Save a section for reuse (select one first)", icon: <Download size={14} />,
                   onSelect: () => { if (!selected) { say("ok", "Select a section first, then save it. Saved sections appear in Add section."); return; } saveSection(selected); } },
               ]} /></div>
@@ -2222,7 +2267,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 <MenusPanel design={design} settings={settings} pages={pages} onChange={(m) => setStyle("menus", m)}
                   onRemove={(m, label) => {
                     change((d) => applyGlobalStyle(d, "menus", m, surfaceIds), { label: `Remove menu link “${label}”` });
-                    say("ok", `Removed “${label}” from the menu.`, undoAction());
+                    say("warn", `Removed “${label}” from the menu.`, undoAction());
                   }} />
               </>
             )}
@@ -2278,7 +2323,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             <label className="studio-zoom">Zoom<select aria-label="Preview zoom" value={String(zoom)} onChange={e => setZoom(e.target.value === "fit" ? "fit" : Number(e.target.value) as Zoom)}>
               <option value="fit">Fit to screen</option><option value="100">100%</option><option value="75">75%</option><option value="50">50%</option></select></label></div>
           {template.id === "productPage" && !books.some(b => b.slug === productSlug) ? <p className="studio-empty">Choose a book in “Page to edit” to preview this template.</p> :
-          <StudioPreviewFrame deviceWidth={parseInt(DEVICE_W[device], 10)} zoom={zoom}>
+          <StudioPreviewFrame deviceWidth={parseInt(DEVICE_W[device], 10)} zoom={zoom} loading={previewStatus === "loading"} loadingText="Loading your shop preview…">
             <iframe ref={iframeRef} key={previewUrl + previewRevision} src={previewUrl} title="Live preview" onLoad={onIframeLoad} className="w-full h-full border-0" />
           </StudioPreviewFrame>}
           {workbenchPanel}
@@ -2336,8 +2381,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.past.length} onClick={() => stepHistory("undo")} aria-label="Undo (Ctrl+Z)" title={hist.past.length ? `Undo: ${undoLabel(hist)} (Ctrl+Z)` : "Nothing to undo"}><Undo2 size={15} /></button>
         <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.future.length} onClick={() => stepHistory("redo")} aria-label="Redo (Ctrl+Shift+Z)" title={hist.future.length ? `Redo: ${redoLabel(hist)} (Ctrl+Shift+Z or Ctrl+Y)` : "Nothing to redo"}><Redo2 size={15} /></button>
         <div className="flex-1" />
-        <span className="text-xs font-bold px-2 py-1 rounded-full bg-neutral-100" role="status">
-          {dirtyDraft ? "Unsaved changes" : unpublished ? "Draft saved · not live" : "Live"}
+        <span className="text-xs font-bold px-2 py-1 rounded-full bg-neutral-100" role="status" data-studio-status={dirtyDraft ? "unsaved" : unpublished ? "draft" : "live"}
+          title={statusTitle}>
+          {dirtyDraft ? "Not saved yet · shop unchanged" : unpublished ? "Saved as draft · shop unchanged" : "Live · the shop shows this"}
         </span>
         <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
           { label: "Preview in new tab", icon: <ExternalLink size={14} />, onSelect: openPreviewTab },
@@ -2364,6 +2410,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
       {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
       {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={() => { void askConfirm({ title: "Discard local edits?", message: "The unsaved edits kept on this device will be deleted. This can't be undone.", confirmLabel: "Discard local edits" }).then(ok => { if (ok) dismissRecovery(); }); }}>Discard local recovery</SecondaryButton></div>}
+      {liveSyncPaused && <div className="studio-recovery" role="status" data-studio-live-sync-paused><span>Live updates from other tabs are paused. Reload Studio before publishing to be safe.</span></div>}
       {themePreview && <div className="studio-recovery studio-incoming" role="status" data-studio-theme-preview>
         <span>Previewing “{themePreview.label}” in the canvas. Your draft hasn't changed.</span>
         <SecondaryButton size="sm" onClick={() => setThemePreview(null)}>Stop preview</SecondaryButton>
@@ -2384,14 +2431,19 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       </div>}
       {draftPage && leftTab !== "pages" && <div className="studio-recovery" role="status"><span>{pageBusy ? "Saving" : "Unsaved edits to"} page “{draftPage.title || draftPage.slug || "Untitled"}”. {pageBusy ? "Wait for the save to finish." : "Return to Pages to review and save it."}</span>{!pageBusy && <SecondaryButton onClick={() => setLeftTab("pages")}>Return to Pages</SecondaryButton>}</div>}
       {toast && (
-        <div role={toast.kind === "err" ? "alert" : "status"}
-          className={`absolute top-16 left-1/2 -translate-x-1/2 z-[350] px-4 py-2 rounded-lg text-sm font-bold shadow-lg ${toast.kind === "err" ? "bg-red-600 text-white" : "bg-neutral-900 text-white"}`}>
+        <div role={toast.kind === "err" ? "alert" : "status"} data-studio-toast={toast.kind}
+          // A message that is being read stays up: it waits while the pointer or keyboard focus is on it.
+          onMouseEnter={() => clearTimeout(toastTimer.current)} onFocus={() => clearTimeout(toastTimer.current)}
+          onMouseLeave={() => { if (toast.kind === "ok") armToast(toast.id, 2000); }}
+          onBlur={() => { if (toast.kind === "ok") armToast(toast.id, 2000); }}
+          className={`studio-toast absolute top-16 left-1/2 -translate-x-1/2 z-[350] px-4 py-2 rounded-lg text-sm font-bold shadow-lg ${toast.kind === "err" ? "bg-red-600 text-white" : toast.kind === "warn" ? "studio-toast-warn" : "bg-neutral-900 text-white"}`}>
           {toast.text}
           {toast.action && <button className="ml-3 underline" onClick={() => { const action = toast.action!; setToast(null); action.run(); }}>{toast.action.label}</button>}
-          {toast.kind === "err" && <button className="ml-3 underline" onClick={() => setToast(null)}>Dismiss</button>}
+          {toast.kind !== "ok" && <button className="ml-3 underline" onClick={() => setToast(null)}>Dismiss</button>}
         </div>
       )}
 
+      <CopyTargetContext.Provider value={openTarget}>
       <MediaPickerContext.Provider value={mediaLib.pickerApi}>
       <FocusContext.Provider value={focus}>
       <div className="studio-workspace" {...inertWhen(busy === "discard")}>
@@ -2414,6 +2466,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       </div>
       </FocusContext.Provider>
       </MediaPickerContext.Provider>
+      </CopyTargetContext.Provider>
       <MediaPickerDialog lib={mediaLib} />
 
       <Dialog open={!!moveDialog} onClose={() => setMoveDialog(null)}
@@ -2458,8 +2511,18 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         askText={askText} askConfirm={askConfirm} say={(kind, text) => say(kind, text)} />
       <Dialog open={confirmAction !== null} onClose={() => setConfirmAction(null)} title={confirmAction === "publish" ? "Publish this design?" : "Discard this draft?"}>
         <div className="space-y-4">
-          <p className="text-sm">{confirmAction === "publish" ? "These changes will become visible to shoppers immediately:" : "These draft changes will be permanently replaced by the current live design:"}</p>
-          <ul className="list-disc pl-5 text-sm space-y-1">{confirmAction !== null && publishSummary(confirmAction === "publish" ? published : design, confirmAction === "publish" ? design : published).map(x => <li key={x}>{x}</li>)}</ul>
+          {confirmAction !== null && (() => {
+            const summary = publishSummary(confirmAction === "publish" ? published : design, confirmAction === "publish" ? design : published);
+            if (!summary.count) return <p className="text-sm font-bold" data-publish-empty>{confirmAction === "publish" ? "Nothing differs from the live shop — publishing changes nothing." : "Nothing differs from the live shop — discarding changes nothing."}</p>;
+            return <>
+              <p className="text-sm font-bold" data-publish-count>{summary.count} change{summary.count === 1 ? "" : "s"}</p>
+              <p className="text-sm">{confirmAction === "publish" ? "These changes will become visible to shoppers immediately:" : "These draft changes will be permanently replaced by the current live design:"}</p>
+              <ul className="list-disc pl-5 text-sm space-y-1">{summary.lines.map(x => <li key={x}>{x}</li>)}</ul>
+            </>;
+          })()}
+          {liveCheckFailed && <p className="text-sm font-bold studio-dialog-warn" role="status" data-publish-live-check-failed>Couldn't check the live shop just now. The list above compares with the last version Studio saw, so it may miss changes made elsewhere.</p>}
+          {confirmAction === "publish" && !publishHealth && <p className="studio-health-publish" data-publish-health-pending>
+            <ShieldCheck size={14} aria-hidden /> {publishHealthState === "failed" ? "Studio Health couldn't check this page just now. Open Theme actions › Studio Health to try again." : "Checking the page…"}</p>}
           {confirmAction === "publish" && publishHealth && <p className="studio-health-publish" data-publish-health>
             <ShieldCheck size={14} aria-hidden /> {site.report && site.complete && site.ranAt?.device === device && !site.running
               ? <>Studio Health checked {template.label} on {REGION_DEVICE_LABELS[device].toLowerCase()}: {publishHealth.text}. Check every page at {new Date(site.ranAt.at).toLocaleTimeString()} ({site.report.totals.checked} pages, before any later edits): {site.report.totals.issues ? `${site.report.totals.issues} to fix` : "nothing to fix"}{site.report.totals.failed ? `, ${site.report.totals.failed} not checked` : ""}.</>

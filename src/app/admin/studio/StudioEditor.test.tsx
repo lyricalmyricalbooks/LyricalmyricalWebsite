@@ -93,13 +93,57 @@ describe("Studio editor (mounted with an in-memory API)", () => {
     expect(homeSections(fixture.settings.design)).toEqual([]);
   });
 
+  it("the status pill says what each state means for the shop, and the Publish list counts its changes", async () => {
+    await mount();
+    const pill = () => document.body.querySelector("[data-studio-status]")?.textContent;
+    expect(pill()).toBe("Live · the shop shows this");
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Newsletter/)[0]);
+    expect(pill()).toBe("Not saved yet · shop unchanged");
+    await click(buttons("Save draft")[0]);
+    expect(pill()).toBe("Saved as draft · shop unchanged");
+    expect(document.body.querySelector("[data-studio-status]")?.getAttribute("title")).toMatch(/Draft saved at /);
+    await click(buttons("Publish")[0]);
+    expect(document.body.querySelector("[data-publish-count]")?.textContent).toMatch(/^\d+ changes?$/);
+    await click(buttons("Publish now")[0]);
+    expect(pill()).toBe("Live · the shop shows this");
+  });
+
+  it("a failed save says so in plain words, keeps the draft in the editor and offers Try again", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await mount();
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Newsletter/)[0]);
+    fixture.saveError = Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" });
+    await click(buttons("Save draft")[0]);
+    const toast = document.body.querySelector("[data-studio-toast=err]");
+    expect(toast?.textContent).toMatch(/^Couldn't save the draft\. The shop didn't allow that.*Your changes are still here\./);
+    expect(toast?.textContent).not.toMatch(/Missing or insufficient/);
+    expect(spy).toHaveBeenCalled();
+    expect(document.body.querySelector("[data-studio-status]")?.textContent).toBe("Not saved yet · shop unchanged");
+    await click(buttons("Try again")[0]);
+    expect(document.body.querySelector("[data-studio-status]")?.textContent).toBe("Saved as draft · shop unchanged");
+    spy.mockRestore();
+  });
+
+  it("deleting a section keeps its Undo toast until dismissed", async () => {
+    await mount();
+    await click(buttons("Add section")[0]);
+    await click(buttons(/^Newsletter/)[0]);
+    await click(buttons("Delete section")[0]);
+    const toast = document.body.querySelector("[data-studio-toast=warn]");
+    expect(toast?.textContent).toMatch(/^Deleted/);
+    expect(toast?.textContent).toMatch(/Undo/);
+    expect(toast?.textContent).toMatch(/Dismiss/);
+  });
+
   it("live sync: a save in another tab comes straight in when nothing is unsaved here", async () => {
     await mount();
     await act(async () => { fixture.remoteSave!({ ...JSON.parse(JSON.stringify(fixture.settings.draftDesign)), heroPage: { sections: [{ id: "remote1", type: "NewsletterSection", settings: {} }] } }); await new Promise(r => setTimeout(r, 0)); });
     expect(host.textContent).toMatch(/Home · 1 section/);
     expect(document.body.querySelector("[data-studio-incoming]")).toBeNull();
     // Their saved draft is now this tab's saved draft (compared after normalising), so nothing reads as unsaved.
-    expect(host.textContent).not.toMatch(/Unsaved changes/);
+    expect(host.textContent).not.toMatch(/Not saved yet/);
     // The next save builds on their revision instead of meeting a conflict.
     await click(buttons("Add section")[0]);
     await click(buttons(/^Newsletter/)[0]);

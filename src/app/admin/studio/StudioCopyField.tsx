@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { createContext, useContext, useId } from "react";
 import { getCopyTemplate, shopCopyFallback, type CopyField } from "../../features/site/storeCopy";
 import { StudioAiRewrite } from "./StudioAiRewrite";
 
@@ -11,6 +11,14 @@ export function copyPlaceholders(field: CopyField): string[] {
   return found.filter(token => !(field.hint || "").includes(token));
 }
 
+/** Lets a note under a word open the Studio control that overrides it (set by StudioEditor; absent = note text only). */
+export const CopyTargetContext = createContext<((target: string, label?: string) => void) | null>(null);
+
+/** Studio › Style › Product page layout › Add-to-bag text (`addToBagLabel`) wins over the Text & labels word on the product page. */
+export function addToBagOverride(design: any): boolean {
+  return [design, design?.storefront, design?.productPage].some(d => typeof d?.addToBagLabel === "string" && d.addToBagLabel.trim() !== "");
+}
+
 /** Missing copy inherits its default; a deliberately empty string remains empty. */
 export function StudioCopyField({ field, design, settings, onChange, aiWhere }: {
   field: CopyField; design: any; onChange: (value: string | undefined) => void;
@@ -20,6 +28,7 @@ export function StudioCopyField({ field, design, settings, onChange, aiWhere }: 
   settings?: any;
 }) {
   const id = useId();
+  const openTarget = useContext(CopyTargetContext);
   const override = design.copy?.[field.key];
   const customized = typeof override === "string";
   const Tag = field.multiline ? "textarea" : "input";
@@ -34,6 +43,10 @@ export function StudioCopyField({ field, design, settings, onChange, aiWhere }: 
       <StudioAiRewrite kind={field.multiline ? "textarea" : "text"} label={field.label} where={aiWhere ? `Text & labels › ${aiWhere}` : "Text & labels"} value={shown} onChange={onChange} />
     </div>
     {field.hint && <p className="studio-hint">{field.hint}</p>}
+    {field.key === "addToBagLabel" && addToBagOverride(design) && <p className="studio-hint" data-copy-override-note>
+      Theme settings › Product page › Add-to-bag text is set and wins. Clear it there to use these words.
+      {openTarget && <> <button type="button" className="studio-reset" onClick={() => openTarget("style:productPage", "Product page layout")}>Open Add-to-bag text</button></>}
+    </p>}
     {copyPlaceholders(field).length > 0 && <p className="studio-hint" data-copy-tokens>
       Words in {"{ }"} are filled in by the shop; keep them as they are: {copyPlaceholders(field).join(", ")}
     </p>}

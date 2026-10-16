@@ -13,12 +13,13 @@ import { reconcileSavedPage } from "./studioWorkflow";
 import { askAi } from "../aiWriter";
 import { PAGE_STARTERS, pageFromStarter, type PageStarter } from "./pageStarters";
 import { useConfirm } from "../riso/components";
+import { friendlyError } from "./friendlyError";
 
 const btn =
   "inline-flex items-center gap-1.5 px-3 h-9 text-xs font-bold border border-neutral-300 rounded-lg bg-white hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed";
 const btnPrimary =
   "inline-flex items-center gap-1.5 px-4 h-9 text-xs font-bold rounded-lg bg-neutral-900 text-white hover:bg-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed";
-const iconBtn = "inline-flex items-center justify-center w-8 h-8 rounded-md text-neutral-600 hover:bg-neutral-200 disabled:opacity-30";
+const iconBtn = "inline-flex items-center justify-center w-9 h-9 min-w-[36px] min-h-[36px] rounded-md text-neutral-600 hover:bg-neutral-200 disabled:opacity-30";
 const input = "w-full border border-neutral-200 rounded-lg px-3 h-9 text-xs";
 
 const toSlug = (t: string) => t.toLowerCase().replace(/[^a-z0-9 -]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();
@@ -131,7 +132,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
       const followUp = moved ? await Promise.resolve(onAddressChange?.(before.slug, next.slug!, before.status === "published")).catch(() =>
         `The page's address changed, but its old links couldn't be updated. Check Navigation and Settings › URL redirects.`) : "";
       say("ok", `Page saved.${followUp ? ` ${followUp}` : ""} Any newer edits remain unsaved.`);
-    } catch (e: any) { say("err", e?.message || "Could not save the page."); }
+    } catch (e: any) { say("err", friendlyError(e, "save the page", { keepsChanges: true })); }
     finally { locked.current = false; setSaving(false); onBusy?.(false); }
   }
 
@@ -229,7 +230,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
         setEditing((p) => (p && opened === openCount.current ? { ...p, ...patch } : p));
         say("ok", "Search listing drafted with AI. Check it, then Save page.");
       } catch (err: any) {
-        say("err", err?.message || "The AI assistant couldn't answer.");
+        say("err", friendlyError(err, "write the search listing with AI"));
       } finally {
         setAiBusy(false);
       }

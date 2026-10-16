@@ -15,7 +15,7 @@ import {
 type Change = (fn: (d: any) => any, meta?: { label?: string; coalesce?: string }) => void;
 
 const btn = "inline-flex items-center gap-1.5 px-3 h-9 text-xs font-bold border border-neutral-300 rounded-lg bg-white hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed";
-const iconBtn = "inline-flex items-center justify-center w-8 h-8 rounded-md text-neutral-600 hover:bg-neutral-200 disabled:opacity-30";
+const iconBtn = "inline-flex items-center justify-center w-9 h-9 min-w-[36px] min-h-[36px] rounded-md text-neutral-600 hover:bg-neutral-200 disabled:opacity-30";
 
 /** A small picture of the scheme: background, panel, text, muted text, a tag, a button and a link. */
 export function SchemeSwatch({ scheme }: { scheme: ColorScheme }) {
