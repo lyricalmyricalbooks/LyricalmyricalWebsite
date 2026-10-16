@@ -132,6 +132,21 @@ await check("find anything opens an element setting at the size being previewed"
   // From desktop, a search that names "phone" opens the phone setting and the phone preview.
   await page.getByRole("button", { name: "Computer preview" }).click();
   await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "1200px", null, { timeout: 5000 });
+  // Content width: a column wider than the 1200px preview screen widens the screen so the change shows.
+  await page.keyboard.press(`${mod}+k`);
+  await page.getByRole("dialog").getByRole("combobox").fill("content width");
+  await page.getByRole("option").first().waitFor({ state: "attached", timeout: 5000 });
+  await page.keyboard.press("Enter");
+  const widthSlider = page.locator('[data-style-key="containerWidth"] input[type="range"]').first();
+  await widthSlider.waitFor({ state: "attached", timeout: 8000 });
+  await widthSlider.evaluate((el) => {
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+    set.call(el, "1400"); el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "1920px" || document.querySelector(".studio-preview-frame")?.style.width === "1440px", null, { timeout: 5000 });
+  await page.getByLabel("Desktop preview screen width").selectOption("1200");
+  await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "1200px", null, { timeout: 5000 });
+  if (!(await page.locator("[data-width-note]").first().textContent())?.includes("fills the 1200px")) throw new Error("Content width did not explain that the column fills the preview screen");
   await page.keyboard.press(`${mod}+k`);
   await page.getByRole("dialog").getByRole("combobox").fill("newsletter button phone padding top");
   await page.getByRole("option").first().waitFor({ state: "attached", timeout: 5000 });

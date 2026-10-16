@@ -1,3 +1,4 @@
+import { DESKTOP_WIDTHS, DESKTOP_WIDTH_LABELS, WIDTH_KEYS, fillsScreen, isDesktopWidth, screenForWidth, type DesktopWidth } from "./previewWidth";
 import { StudioCopyField, CopyTargetContext } from "./StudioCopyField";
 import { StudioRegionBrowser } from "./StudioRegionBrowser";
 import { REGION_GROUPS, REGION_SUFFIXES, REGION_DEVICE_LABELS, regionFieldDevice, regionKey, regionValue, type RegionDevice } from "../../features/site/storefrontRegions";
@@ -404,6 +405,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [globalGroup, setGlobalGroup] = useState<SectionGroupKey>(isGroupSurface(remembered.globalGroup || "") ? remembered.globalGroup as SectionGroupKey : "globalSections");
   const [device, setDevice] = useState<keyof typeof DEVICE_W>(remembered.device || "desktop");
   const [zoom, setZoom] = useState<Zoom>(remembered.zoom ?? "fit");
+  // Desktop preview screen (Laptop 1200 / Large laptop 1440 / Big monitor 1920). Widens by itself when
+  // Content width or the shop header width wouldn't fit, so a wider column actually shows (previewWidth.ts).
+  const [desktopWidth, setDesktopWidth] = useState<DesktopWidth>(isDesktopWidth(remembered.desktopWidth) ? remembered.desktopWidth : 1200);
+  const canvasWidth = device === "desktop" ? desktopWidth : parseInt(DEVICE_W[device], 10);
   const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 767px)").matches);
   useEffect(() => {
     const media = window.matchMedia?.("(max-width: 767px)");
@@ -807,6 +812,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const riso = design.themeStyle === "riso";
 
   const setScopedStyle = (group: string, path: string, value: any) => {
+    if (WIDTH_KEYS.has(path) && device === "desktop" && value != null) setDesktopWidth(w => screenForWidth(w, Number(value)));
     if (styleScope === "page" && PAGE_STYLE_GROUPS.has(group)) change(d => applyPageStyle(d, template.id, path, value));
     else setStyle(path, value);
   };
@@ -831,6 +837,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           {own !== undefined && <button type="button" className="studio-reset" aria-label={`${local ? "Use the all-pages value" : "Use the larger screen's value"}: ${f.label}`}
             onClick={() => setScopedStyle(g.id, f.key, undefined)}>{local ? "Use the all-pages value" : "Use the larger screen's value"}</button>}
         </div>}
+        {WIDTH_KEYS.has(f.key) && !design.fullWidth && <small className="studio-field-note" data-width-note>
+          {device !== "desktop" ? `Phones and tablets always use their whole screen; switch the preview to Desktop to see this width.`
+            : fillsScreen(desktopWidth, Number(effective ?? f.defaultValue)) ? `This width fills the ${desktopWidth}px preview screen. Pick a wider Screen width above the preview to see it.`
+            : `Preview screen: ${desktopWidth}px wide. Smaller screens show the column at their own width.`}
+        </small>}
         {differs && <div className="studio-field-status">
           <small>Changed from default</small>
           <button type="button" className="studio-reset" aria-label={`Reset to default: ${f.label}`}
@@ -872,9 +883,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (o.collectionSlug) setCollectionSlug(o.collectionSlug);
   };
   useEffect(() => {
-    saveUiState(uiKey, { leftTab, templateId, showGlobal, globalGroup, device, zoom, productSlug, collectionSlug,
+    saveUiState(uiKey, { leftTab, templateId, showGlobal, globalGroup, device, zoom, desktopWidth, productSlug, collectionSlug,
       workbenchOpen: workbench.open, workbenchTab: workbench.tab, ...(phoneSeen ? { phoneSeen } : {}) });
-  }, [uiKey, leftTab, templateId, showGlobal, globalGroup, device, zoom, productSlug, collectionSlug, workbench, phoneSeen]);
+  }, [uiKey, leftTab, templateId, showGlobal, globalGroup, device, zoom, desktopWidth, productSlug, collectionSlug, workbench, phoneSeen]);
   useEffect(() => { if (device === "mobile") setPhoneSeen(true); }, [device]);
 
   // ── preview wiring ──
@@ -1129,7 +1140,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const site = useSiteHealth({
     routes: () => healthRoutes({ design: designRef.current, books, pages, policies: settings?.policies, collections: previewCollections }),
     snapshot: () => { try { return buildPreviewState(settings, designRef.current, withDraftPage(pages, draftPage), books); } catch { return null; } },
-    urlFor: previewHref, device, width: parseInt(DEVICE_W[device], 10),
+    urlFor: previewHref, device, width: canvasWidth,
     options: () => ({ base: import.meta.env.BASE_URL, known: healthKnown() }),
     history: siteHistory, onHistory: h => saveSiteHistory(siteHistoryStore, h),
   });
@@ -2497,11 +2508,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   );
   const canvasPanel = (
         <main className="studio-canvas">
-          <div className="studio-canvas-status"><span>{template.label} · {device} ({DEVICE_W[device]}) · {mode === "edit" ? "Double-click text to type · click other elements for settings" : "Browse your storefront"}</span>{linkHint && mode === "edit" && <span role="status" data-studio-link-hint>Links don't open while you're editing. Use Switch to Browse mode to follow them.</span>}<span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}
+          <div className="studio-canvas-status"><span>{template.label} · {device} ({canvasWidth}px) · {mode === "edit" ? "Double-click text to type · click other elements for settings" : "Browse your storefront"}</span>{linkHint && mode === "edit" && <span role="status" data-studio-link-hint>Links don't open while you're editing. Use Switch to Browse mode to follow them.</span>}<span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}
+            {device === "desktop" && <label className="studio-zoom">Screen width<select aria-label="Desktop preview screen width" value={String(desktopWidth)} onChange={e => setDesktopWidth(Number(e.target.value) as DesktopWidth)}>
+              {DESKTOP_WIDTHS.map(w => <option key={w} value={w}>{DESKTOP_WIDTH_LABELS[w]}</option>)}</select></label>}
             <label className="studio-zoom">Zoom<select aria-label="Preview zoom" value={String(zoom)} onChange={e => setZoom(e.target.value === "fit" ? "fit" : Number(e.target.value) as Zoom)}>
               <option value="fit">Fit to screen</option><option value="100">100%</option><option value="75">75%</option><option value="50">50%</option></select></label></div>
           {template.id === "productPage" && !books.some(b => b.slug === productSlug) ? <p className="studio-empty">Choose a book in “Page to edit” to preview this template.</p> :
-          <StudioPreviewFrame deviceWidth={parseInt(DEVICE_W[device], 10)} zoom={zoom} loading={previewStatus === "loading"} loadingText="Loading your shop preview…">
+          <StudioPreviewFrame deviceWidth={canvasWidth} zoom={zoom} loading={previewStatus === "loading"} loadingText="Loading your shop preview…">
             <iframe ref={iframeRef} key={previewUrl + previewRevision} src={previewUrl} title="Live preview" onLoad={onIframeLoad} className="w-full h-full border-0" />
           </StudioPreviewFrame>}
           {workbenchPanel}

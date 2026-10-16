@@ -347,7 +347,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
       )}
       <div className="absolute inset-0" style={{ backgroundColor: "rgb(var(--overlay-rgb))", opacity: settings.overlayOpacity ?? 0.5 }} />
       <div
-        className={`relative z-10 px-6 max-w-3xl ${
+        className={`relative z-10 px-6 ${mw(settings, "max-w-3xl")} ${
           settings.align === "left" ? "text-left" : settings.align === "right" ? "text-right" : "text-center"
         }`}
       >
@@ -508,7 +508,7 @@ export function ImageBannerSection({ settings, onCtaClick, enableAnimations }: a
       <div className="absolute inset-0" style={{ backgroundColor: "rgb(var(--overlay-rgb, 0, 0, 0))", opacity: settings.overlayOpacity ?? 0.4 }} />
       <div className={`relative z-10 flex w-full p-6 md:p-12 ${position}`}>
         <AnimationContainer enabled={enableAnimations}>
-          <div className={`max-w-2xl ${textAlignClass} text-white`}>
+          <div className={`${mw(settings, "max-w-2xl")} ${textAlignClass} text-white`}>
             {settings.eyebrow && (
               <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: settings.accentColor || "currentColor" }} data-theme-field="eyebrow">
                 {settings.eyebrow}
@@ -586,7 +586,7 @@ export function NewsletterSection({ settings, enableAnimations }: any) {
     <section className="border-t border-white/5 bg-white/[0.02]" style={bgStyle(settings)}>
       <div className="py-24 px-6 mx-auto" data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
-          <div className={`max-w-xl mx-auto space-y-8 ${textAlign}`}>
+          <div className={`${mw(settings, "max-w-xl")} mx-auto space-y-8 ${textAlign}`}>
             <div className="space-y-3">
               <h2 className="text-2xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">
                 {settings.title ?? fb("NewsletterSection.title")}
@@ -953,7 +953,7 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
       <AnimationContainer enabled={enableAnimations}>
         <div
           {...blockEditAttrs(slide, active)}
-          className="relative z-10 h-full flex flex-col items-center justify-center text-center px-6 max-w-3xl mx-auto"
+          className={`relative z-10 h-full flex flex-col items-center justify-center text-center px-6 ${mw(settings, "max-w-3xl")} mx-auto`}
         >
           {slide.eyebrow && (
             <p className="text-[10px] tracking-[0.3em] font-bold uppercase text-white/70 mb-4" data-theme-field="eyebrow">{slide.eyebrow}</p>
@@ -1805,7 +1805,7 @@ export function EphemeraRowSection({ settings, enableAnimations }: any) {
 
 export function CustomHTMLSection({ settings }: any) {
   return (
-    <section className={settings.fullBleed ? "" : "py-12 px-6 max-w-7xl mx-auto"} style={bgStyle(settings)}>
+    <section className={settings.fullBleed ? "" : `py-12 px-6 ${mw(settings)} mx-auto`} style={bgStyle(settings)}>
       <div data-theme-field="html" dangerouslySetInnerHTML={{ __html: settings.html || "<!-- Add custom HTML in the editor -->" }} />
     </section>
   );
@@ -1920,7 +1920,7 @@ export function CountdownSection({ settings, enableAnimations }: any) {
 
   return (
     <section style={{ background: settings.backgroundColor || "transparent", ...bgStyle(settings) }}>
-      <div className={`py-20 px-6 ${textAlign}`} data-studio-spacing="" style={spacingStyle(settings)}>
+      <div className={`py-20 px-6 ${textAlign}${MW_MAP[settings.containerWidth] ? ` ${MW_MAP[settings.containerWidth]} mx-auto` : ""}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {settings.eyebrow && (
             <p className={`text-[10px] font-bold tracking-[0.3em] uppercase text-white/60 mb-4 flex items-center gap-2 ${flexAlign}`} style={bStyle(settings)}>

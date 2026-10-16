@@ -693,3 +693,4 @@
 .studio-structure-actions button { font-size: 11px; line-height: 1.2; padding: 2px 0; min-height: 20px; color: var(--rp-primary-text); text-decoration: underline; text-underline-offset: 2px; }
 .studio-structure-actions button:hover, .studio-structure-actions button:focus-visible { text-decoration-thickness: 2px; }
 @media (pointer: coarse) { .studio-structure-actions button { min-height: 32px; padding: 0 2px; } }
+.studio-field-note { display: block; margin-top: 4px; font-size: 11px; line-height: 1.4; color: var(--rp-muted, #6b6b6b); }

@@ -4,7 +4,9 @@
 export type Zoom = "fit" | 100 | 75 | 50;
 export type StudioUiState = {
   leftTab?: string; templateId?: string; showGlobal?: boolean; globalGroup?: string;
-  device?: "desktop" | "tablet" | "mobile"; zoom?: Zoom; productSlug?: string; collectionSlug?: string;
+  device?: "desktop" | "tablet" | "mobile"; zoom?: Zoom;
+  /** Desktop preview screen width (px): 1200, 1440 or 1920. */
+  desktopWidth?: number; productSlug?: string; collectionSlug?: string;
   /** The Workbench under the preview: open or collapsed, which tab, and whether the phone preview was ever opened (Setup). */
   workbenchOpen?: boolean; workbenchTab?: "health" | "changes" | "setup"; phoneSeen?: boolean;
 };
@@ -24,6 +26,7 @@ export function parseUiState(raw: string | null): StudioUiState {
       globalGroup: ["headerSections", "globalSections", "overlaySections"].includes(v.globalGroup) ? v.globalGroup : undefined,
       device: DEVICES.has(v.device) ? v.device : undefined,
       zoom: ZOOMS.has(v.zoom) ? v.zoom : undefined,
+      desktopWidth: [1200, 1440, 1920].includes(v.desktopWidth) ? v.desktopWidth : undefined,
       productSlug: text(v.productSlug),
       collectionSlug: text(v.collectionSlug),
       workbenchOpen: typeof v.workbenchOpen === "boolean" ? v.workbenchOpen : undefined,

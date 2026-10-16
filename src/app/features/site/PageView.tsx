@@ -16,7 +16,7 @@ import { googleFontHref } from "./fonts";
 import { useSEO } from "../../lib/seo";
 import { breadcrumbData } from "../../lib/bookSeo";
 import { firstBodyImage } from "./pageBody";
-import { isFullWidth } from "./headerNav";
+import { contentWidthPx, isFullWidth } from "./headerNav";
 
 
 /**
@@ -50,7 +50,7 @@ export function sitePageStyle(design: any, eyebrow: string): Record<string, any>
     topSpacing: d.pageTopSpacing ?? undefined,
     // Same width as the storefront header row (StoreHeader), so the title lines up with the logo.
     // "full" while Style › Layout & spacing › Use the full screen width is on (isFullWidth).
-    headerWidth: isFullWidth(d) ? "full" : Math.max(900, Math.min(1600, d.containerWidth ?? 1200)),
+    headerWidth: isFullWidth(d) ? "full" : contentWidthPx(d),
   };
 }
 
