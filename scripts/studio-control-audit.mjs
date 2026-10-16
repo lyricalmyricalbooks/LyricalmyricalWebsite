@@ -97,10 +97,18 @@ async function go(route, overlay, device) {
   }
   if (route !== current.route || device !== current.device || overlay !== current.overlay) {
     await frame().goto(`${base}${route}${route.includes("?") ? "&" : "?"}preview=true`);
-    await page.waitForTimeout(2500);
+    // Wait for the shop to draw with the Studio snapshot (slower CI machines need more than a fixed pause).
+    await frame().waitForFunction(() => window.__studioPreviewState && document.querySelector("[data-fm-store]"), null, { timeout: 30000 }).catch(() => {});
+    await page.waitForTimeout(1500);
     if (overlay) {
-      await frame().evaluate(o => { window.__studioOpenOverlay = o; window.dispatchEvent(new CustomEvent("fm:studio-open-overlay", { detail: { overlay: o } })); }, overlay);
-      await page.waitForTimeout(800);
+      // Ask until the pop-over is on screen: the request is lost if it arrives before the page listens.
+      const open = { cart: ".fm-bag", search: '[role="dialog"]', popup: '[role="dialog"]', cookie: '[role="dialog"]' }[overlay] || '[role="dialog"]';
+      for (let i = 0; i < 10; i++) {
+        await frame().evaluate(o => { window.__studioOpenOverlay = o; window.dispatchEvent(new CustomEvent("fm:studio-open-overlay", { detail: { overlay: o } })); }, overlay);
+        await page.waitForTimeout(800);
+        if (await frame().evaluate(sel => Boolean(document.querySelector(sel)), open)) break;
+      }
+      await page.waitForTimeout(600);
     }
     current = { route, overlay, device };
     await frame().evaluate(() => window.scrollTo(0, 0));
