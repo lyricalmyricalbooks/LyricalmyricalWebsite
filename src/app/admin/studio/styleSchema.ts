@@ -178,7 +178,9 @@ export const STYLE_GROUPS: StyleGroup[] = [
     title: "Layout & spacing",
     fields: [
       { key: "fullWidth", label: "Use the full screen width (header, shop, book pages, custom pages and footer run to the screen edges; Content width and Shop page masthead & covers › Header width are then ignored)", kind: "toggle", defaultValue: false },
-      { key: "containerWidth", label: "Content width", kind: "range", min: 800, max: 2560, step: 20, suffix: "px" },
+      { key: "contentWidthMode", label: "How the content width is set (Side margins keeps the same look on every screen size)", kind: "select", defaultValue: "fixed", options: [{ value: "fixed", label: "Fixed width (Content width below)" }, { value: "margins", label: "Side margins (a share of the screen)" }] },
+      { key: "containerWidth", label: "Content width (when set to Fixed width)", kind: "range", min: 800, max: 2560, step: 20, suffix: "px" },
+      { key: "contentSideMargin", label: "Side margins (when set to Side margins; space each side as % of the screen width)", kind: "range", min: 0, max: 20, step: 1, suffix: "%", defaultValue: 5 },
       { key: "sectionSpacing", label: "Space between sections", kind: "range", min: 0, max: 160, step: 4, suffix: "px" },
       { key: "cardRadius", label: "Card corner radius (boxed card style only)", kind: "range", min: 0, max: 30, step: 1, suffix: "px" },
       { key: "lazySections", label: "Draw sections lower on the page only when shoppers scroll near them (faster first load)", kind: "toggle", defaultValue: true },
