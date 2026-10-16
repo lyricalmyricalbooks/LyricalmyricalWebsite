@@ -78,6 +78,7 @@ import { healthRoutes, loadSiteHistory, saveSiteHistory, siteHistoryKey, type He
 import { StudioWorkbench, type ChangeRow, type WorkbenchTab } from "./StudioWorkbench";
 import { setupChecklist, type SetupItem } from "./setupChecklist";
 import { StudioBreadcrumb } from "./StudioBreadcrumb";
+import { describePlace, EMPTY_PLACES, goBack, normalizePlace, peekBack, placeCrumbs, placeKey, settlePlace, visitPlace, type Place, type PlaceHistory, type PlaceLabels } from "./placeHistory";
 import { StudioThemes } from "./StudioThemes";
 import { StudioSchedule } from "./StudioSchedule";
 import { POLICY_KEYS, policySlug } from "../../features/site/policyPages";
@@ -1479,6 +1480,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "undo": stepHistory("undo"); break;
       case "redo": stepHistory("redo"); break;
       case "help": setShortcutsOpen(true); break;
+      case "back": goBackPlace(); break;
       case "desktop": case "tablet": case "mobile": setDevice(action); break;
       case "toggleMode": setMode(m => m === "edit" ? "browse" : "edit"); break;
       case "workbench":
@@ -1874,6 +1876,89 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "add-section": setLeftTab("sections"); setAdding(sections.length); break;
       case "ai-draft": setLeftTab("sections"); setAiDraftOpen(n => n + 1); setAdding(sections.length); break;
       case "fill-page-seo": setLeftTab("pages"); setFillSeoRequest(Date.now()); break;
+    }
+  };
+  // ── Where am I, and the way back (placeHistory.ts) ──────────────────────────────────────────
+  // The place is watched from state, so every way of moving (Find, a click in the preview, Show on page, the rail,
+  // the page picker, a followed link) is remembered without each call site recording it. Back restores the last one.
+  const place = useMemo((): Place => normalizePlace({
+    leftTab, styleCategory, textCategory, styleFocus, templateId: template.id, showGlobal, globalGroup,
+    selectedId: selected?.id || null, blockId: selected ? blockId : null, element: selectedElement,
+  }), [leftTab, styleCategory, textCategory, styleFocus, template.id, showGlobal, globalGroup, selected?.id, blockId, selectedElement]);
+  const [placeHist, setPlaceHist] = useState<PlaceHistory>(EMPTY_PLACES);
+  const restoredAt = useRef(0);
+  const placeSig = placeKey(place);
+  useEffect(() => {
+    const now = Date.now(), restoring = now - restoredAt.current < 400;
+    setPlaceHist(h => restoring ? settlePlace(h, place, now) : visitPlace(h, place, now));
+  }, [placeSig]); // eslint-disable-line react-hooks/exhaustive-deps
+  const placeLabels: PlaceLabels = {
+    workspace: tab => sidebarTabs.find(([id]) => id === tab)?.[1] || tab,
+    styleCategory: id => id === CHANGED_CATEGORY ? "What I've changed" : categoryTitle(id),
+    textCategory: id => id === CHANGED_CATEGORY ? "Text I've changed" : id,
+    page: p => p.showGlobal ? `Every page · ${groupLabel(p.globalGroup as SectionGroupKey)}` : templates.find(t => t.id === p.templateId)?.label || p.templateId,
+    section: p => { const owner = p.selectedId ? findSectionOwner(design, p.selectedId) : null; return owner ? sectionTitle(owner.section).label : null; },
+    block: p => { const owner = p.selectedId && p.blockId ? findSectionOwner(design, p.selectedId) : null; return owner && p.blockId ? selectedBlockCrumb(owner.section, p.blockId).label : null; },
+  };
+  /** An earlier place as it can be shown now: a section or block deleted since is taken out, a page that is gone returns null. */
+  const resolvePlace = (p: Place): Place | null => {
+    if (!sidebarTabs.some(([id]) => id === p.leftTab)) return null;
+    if (!p.showGlobal && !templates.some(t => t.id === p.templateId)) return null;
+    let next = p;
+    if (p.selectedId) {
+      const owner = findSectionOwner(designRef.current, p.selectedId);
+      if (!owner || owner.surface !== (p.showGlobal ? p.globalGroup : p.templateId)) next = { ...next, selectedId: null, blockId: null };
+      else if (p.blockId) {
+        const blocks = owner.section.settings?.[getBlocksKey(owner.section.type)] || owner.section.settings?.blocks || [];
+        if (!findBlock(blocks, p.blockId)) next = { ...next, blockId: null };
+      }
+    }
+    // A page part belongs to the page it was found on; its key means nothing on another page.
+    if (next.element && (next.showGlobal !== showGlobal || next.templateId !== templateIdRef.current)) next = { ...next, element: null };
+    return next;
+  };
+  const applyPlace = (p: Place) => {
+    restoredAt.current = Date.now();
+    if (p.leftTab !== leftTab) restoreScrollFor.current = p.leftTab;
+    setAdding(null); setBlockPicker(null);
+    setLeftTab(p.leftTab as LeftTab);
+    setStyleSearch(""); setCopyFilter("");
+    setStyleCategory(p.styleCategory); setTextCategory(p.textCategory); setStyleFocus(p.styleFocus);
+    setShowGlobal(p.showGlobal);
+    if (p.showGlobal) setGlobalGroup(p.globalGroup as SectionGroupKey); else setTemplateId(p.templateId);
+    setSelectedId(p.selectedId); setBlockId(p.blockId);
+    setSelectedElement(p.element);
+    postPreview({ type: "SELECT_NODE", key: p.element ? p.element.key : null });
+    setMobilePanel(p.selectedId || p.element ? "settings" : "outline");
+    if (p.selectedId) setTimeout(() => highlight(p.selectedId, true, p.blockId), 350);
+  };
+  const goBackPlace = () => {
+    if (inlineEditingRef.current) { say("err", "Finish or cancel the preview text edit first, then go back."); return; }
+    const result = goBack(placeHist, resolvePlace, Date.now());
+    if (!result) {
+      say("ok", placeHist.back.length ? "The places you were in before are gone, so there is nowhere to go back to." : "Nothing to go back to yet. Back returns you to where you were before your last jump.");
+      if (placeHist.back.length) setPlaceHist(h => ({ ...h, back: [] }));
+      return;
+    }
+    applyPlace(result.place);
+    setPlaceHist(result.history);
+    say("ok", `Back to ${describePlace(result.place, placeLabels)}`);
+  };
+  const backTarget = peekBack(placeHist);
+  /** A crumb steps back out to its level (the last crumb is where you are). */
+  const crumbAction = (level: ReturnType<typeof placeCrumbs>[number]["level"]): (() => void) | undefined => {
+    switch (level) {
+      case "workspace": return () => {
+        setStyleSearch(""); setCopyFilter("");
+        if (leftTab === "style") { setStyleCategory(null); setStyleFocus(null); }
+        if (leftTab === "text") setTextCategory(null);
+        setSelectedId(null); setBlockId(null); if (selectedElement) closeElement();
+      };
+      case "category": return () => { setStyleFocus(null); setSelectedId(null); setBlockId(null); if (selectedElement) closeElement(); };
+      case "focus": return () => { if (selectedElement) closeElement(); };
+      case "page": return () => { setSelectedId(null); setBlockId(null); if (selectedElement) closeElement(); };
+      case "section": return () => setBlockId(null);
+      default: return undefined;
     }
   };
   const goToResult = (entry: SearchEntry, query = "") => {
@@ -2471,12 +2556,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           title={inlineEditing ? "Finish the text edit first" : !unpublished && !dirtyDraft ? "No changes to publish yet: the shop already shows this design" : "Review and put your changes on the live shop"}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
       </header>
 
-      <StudioBreadcrumb crumbs={[
-        { label: showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label, onSelect: () => { setSelectedId(null); setBlockId(null); if (selectedElement) closeElement(); } },
-        ...(selected ? [{ label: sectionTitle(selected).label, onSelect: blockId ? () => setBlockId(null) : undefined }] : []),
-        ...(selected && blockId ? [selectedBlockCrumb(selected, blockId)] : []),
-        ...(!selected && selectedElement ? [{ label: selectedElement.label }] : []),
-      ]} />
+      <StudioBreadcrumb
+        crumbs={placeCrumbs(place, placeLabels).map(c => ({ label: c.label, onSelect: crumbAction(c.level) }))}
+        onBack={goBackPlace} canBack={placeHist.back.length > 0}
+        backTitle={backTarget ? `Back to ${describePlace(backTarget, placeLabels)} (Alt+←)` : "Nothing to go back to yet. Back returns you to where you were before your last jump (Alt+←)"} />
       <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{[["outline", "Sections"], ["preview", "Preview"], ["settings", "Edit"]].map(([panel, name]) => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{name}</button>)}</div>
       {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
       {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={() => { void askConfirm({ title: "Discard local edits?", message: "The unsaved edits kept on this device will be deleted. This can't be undone.", confirmLabel: "Discard local edits" }).then(ok => { if (ok) dismissRecovery(); }); }}>Discard local recovery</SecondaryButton></div>}

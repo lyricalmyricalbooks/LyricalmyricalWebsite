@@ -11,6 +11,13 @@ describe("Studio shortcuts", () => {
     expect(resolveShortcut({ key: "?" , shift: true })).toBe("help");
     expect(resolveShortcut({ key: "2" })).toBe("tablet");
   });
+  it("Alt+Left goes back, but never while typing or in a dialog", () => {
+    expect(resolveShortcut({ key: "ArrowLeft", alt: true })).toBe("back");
+    expect(resolveShortcut({ key: "ArrowLeft", alt: true, typing: true })).toBeNull();
+    expect(resolveShortcut({ key: "ArrowLeft", alt: true, dialogOpen: true })).toBeNull();
+    expect(resolveShortcut({ key: "ArrowLeft" })).toBeNull();
+    expect(SHORTCUTS.some(s => s.action === "back" && s.keys === "Alt ←")).toBe(true);
+  });
   it("never steals keys while typing or in a dialog", () => {
     expect(resolveShortcut({ key: "Backspace", typing: true })).toBeNull();
     expect(resolveShortcut({ key: "z", ctrl: true, typing: true })).toBeNull();
