@@ -23,14 +23,30 @@ let shippingProfilesLoad: Promise<any[] | null> | null = null;
 const loadShippingProfiles = () => (shippingProfilesLoad ||= publicApi.getShippingProfiles().catch(() => { shippingProfilesLoad = null; return null; }));
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
 import { smallPhotoUrl } from "../features/site/photoSources";
+import { previewSampleCart } from "../features/site/previewSampleCart";
+import { inEditorPreview } from "../lib/trackingGuard";
 
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
 // features/site/cartDrawerStyle.ts); its words are Studio › Text & labels › Cart.
 export function CartDrawer() {
-  const { cart, setCart, addToCart, removeFromCart, updateQuantity, cartTotal, isCartOpen, setIsCartOpen } = useCart();
+  const shopper = useCart();
+  const { isCartOpen, setIsCartOpen } = shopper;
   const [shippingEstimate, setShippingEstimate] = useState<number | null>(null);
   const navigate = useNavigate();
   const { books, settings, fresh } = useSiteData();
+  // Studio preview only: an empty bag borrows one display-only line (like checkout), so the bag's
+  // line, total and suggestion controls can be seen while editing them. Removing it shows the empty
+  // bag. Nothing is ever written to the shopper's bag: every change below is a no-op for the sample.
+  const [sampleRemoved, setSampleRemoved] = useState(false);
+  const sample = useMemo(() => (inEditorPreview() && shopper.cart.length === 0 && !sampleRemoved
+    ? previewSampleCart(books?.length ? books : (window as any).__studioPreviewState?.books || []) : []), [shopper.cart.length, books, sampleRemoved]);
+  const isSample = sample.length > 0;
+  const cart = isSample ? sample : shopper.cart;
+  const cartTotal = isSample ? sample.reduce((n, i) => n + i.price * i.quantity, 0) : shopper.cartTotal;
+  const setCart: typeof shopper.setCart = (next) => { if (!isSample) shopper.setCart(next); };
+  const updateQuantity: typeof shopper.updateQuantity = (...args) => { if (!isSample) shopper.updateQuantity(...args); };
+  const removeFromCart: typeof shopper.removeFromCart = (...args) => { if (isSample) setSampleRemoved(true); else shopper.removeFromCart(...args); };
+  const addToCart: typeof shopper.addToCart = ((...args: Parameters<typeof shopper.addToCart>) => (isSample ? false : shopper.addToCart(...args))) as typeof shopper.addToCart;
   // A bag saved earlier shows today's prices and stock caps once the live catalog has loaded,
   // so its subtotal matches checkout. Lines that can no longer be bought are left for checkout,
   // which removes them and tells the shopper why. Never in a Studio preview (draft catalog).
@@ -46,6 +62,7 @@ export function CartDrawer() {
   cartRef.current = cart;
   const removeWithUndo = (key: string, item: (typeof cart)[number], index: number) => {
     removeFromCart(key);
+    if (isSample) return;
     const lineKeyOf = (line: (typeof cart)[number]) => line.lineKey || `${line.id}::${line.variantId || ""}`;
     toast((t) => (
       <span className="flex items-center gap-3">

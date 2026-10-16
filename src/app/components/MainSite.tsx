@@ -272,8 +272,10 @@ function GoogleFontLoader({ font }: { font: string }) {
 // editing every component. (rem-based Tailwind sizes are left intact.)
 // ──────────────────────────────
 export function resolveTypography(design: any) {
-  const body = design?.bodyFont || design?.font || "Inter";
-  const heading = design?.headingFont || design?.font || "Inter";
+  // Typography › "Theme font" overrides Body font (its label says so, and every other page already
+  // reads it first through StorefrontThemeStyle); the home/catalog view read Body font first.
+  const body = design?.font || design?.bodyFont || "Inter";
+  const heading = design?.headingFont || design?.font || design?.bodyFont || "Inter";
   const base = design?.baseFontSize ?? (design?.fontSize === "sm" ? 15 : design?.fontSize === "lg" ? 18 : 16);
   const tracking =
     design?.letterSpacing === "ultra" ? "0.08em" : design?.letterSpacing === "wide" ? "0.03em" : "normal";
@@ -607,7 +609,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontButtonShadow = storefrontDesign?.buttonShadow ?? true;
 
   const storefrontCtaText = storefrontDesign?.productCTA || "VIEW";
-  const soldOutLabel = storefrontDesign?.soldOutLabel || "SOLD OUT";
+  // Same source as the book page (Text & labels override, then the Style label), so both pages agree.
+  const soldOutLabel = getCopy(storefrontDesign, "soldOutLabel");
   const showCollectionMeta = storefrontDesign?.showCollectionMeta ?? true;
   const cardRuleWidth = Math.max(0, Math.min(8, storefrontDesign?.catalogCardRuleWidth ?? 2));
   // Studio › Style › Product cards & grid › Card style: editorial (default) · card (framed panel) · minimal (no frame, plain price).

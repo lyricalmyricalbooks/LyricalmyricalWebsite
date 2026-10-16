@@ -25,6 +25,7 @@
  * silently dropped every text-white/N, bg-white/N and border-white/N remap.
  */
 import { STOREFRONT_COLOR_CLASSES } from "./storefrontColorClasses";
+import { trackingEm } from "./shopTypography";
 
 export function hexToRgbTriplet(input?: string, fallback = "255, 255, 255"): string {
   if (!input) return fallback;
@@ -167,6 +168,9 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
     `--rp-focus: ${design?.focusRingColor || accent};`,
     `--rp-card-radius: ${Number.isFinite(Number(design?.risoCardRadius)) && design?.risoCardRadius != null && design?.risoCardRadius !== "" ? Number(design.risoCardRadius) : 4}px;`,
     `--rp-heading-transform: ${design?.risoUppercaseHeadings === false ? "none" : "uppercase"};`,
+    // Typography › Heading weight and Letter spacing must win over the Riso heading treatment.
+    `--rp-heading-weight: ${["300", "400", "500", "600", "700", "800", "900"].includes(String(design?.headingWeight)) ? design.headingWeight : 400};`,
+    `--rp-heading-tracking: ${(0.01 + trackingEm(design?.letterSpacing)).toFixed(2)}em;`,
     `--on-accent: ${design?.buttonTextColor || "#100f0d"};`,
     `--card-shadow: ${cardShadow};`,
     `--card-shadow-hover: ${cardShadowHover};`,
@@ -363,7 +367,7 @@ const RISO_TEXT_FLOOR = ([["20", 0.55], ["25", 0.55], ["30", 0.55], ["40", 0.65]
 
 export const RISO_STOREFRONT_CSS = `
 ${RISO_TEXT_FLOOR}
-[data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3{text-wrap:balance;text-transform:var(--rp-heading-transform,uppercase);letter-spacing:.01em;font-weight:400;}
+[data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3{text-wrap:balance;text-transform:var(--rp-heading-transform,uppercase);letter-spacing:var(--rp-heading-tracking,.01em);font-weight:var(--rp-heading-weight,400);}
 [data-fm-store] button,[data-fm-store] a{transition-timing-function:cubic-bezier(.2,.7,.2,1);}
 [data-fm-store] .glass-card{
   backdrop-filter:none;
@@ -380,8 +384,8 @@ ${RISO_TEXT_FLOOR}
 [data-fm-store] input,[data-fm-store] select,[data-fm-store] textarea{border-radius:0 !important;box-shadow:none;}
 [data-fm-store] :is(input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),select,textarea):not(.bg-transparent){border:1px solid rgba(var(--border-rgb),.75) !important;}
 [data-fm-store] :is(input,select,textarea):focus-visible{border-color:var(--rp-focus) !important;}
-[data-fm-store] [class*="rounded-"]:not([class*="rounded-full"]){border-radius:0 !important;}
-[data-fm-store] :is(button,a,input,select,label).rounded-full{border-radius:0 !important;}
+[data-fm-store] [class*="rounded-"]:not([class*="rounded-full"]):not([style*="border-radius"]){border-radius:0 !important;}
+[data-fm-store] :is(button,a,input,select,label).rounded-full:not([style*="border-radius"]){border-radius:0 !important;}
 [data-fm-store] .glass-card,[data-fm-store] [class*="rounded-[2"],[data-fm-store] [class*="rounded-[3"]{border-radius:var(--rp-card-radius) !important;}
 [data-fm-store] [class*="shadow-"]:not([class*="shadow-none"]):not(.custom-btn){box-shadow:var(--rp-shadow-x) var(--rp-shadow-x) 0 var(--rp-shadow-color) !important;}
 [data-fm-store] :where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--rp-focus);outline-offset:2px;}

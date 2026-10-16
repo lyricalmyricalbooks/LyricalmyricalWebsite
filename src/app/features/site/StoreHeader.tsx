@@ -188,6 +188,16 @@ function useRotation(count: number, seconds: number) {
  * Announcement messages (several, each with an optional link and show-from / show-until days) or, when
  * that list is empty, the single Announcement text — `fallback` is Settings › announcements.
  */
+// Style › Header & announcement bar › text size / weight / letter spacing, on every bar (the static
+// bars used to hard-code 10px / bold / 0.3em, so only the scrolling ticker followed the controls).
+function announceText(design: any) {
+  return {
+    fontSize: design?.announcementFontSize ?? 10,
+    fontWeight: design?.announcementWeight ?? 700,
+    letterSpacing: `${design?.announcementTracking ?? 0.3}em`,
+  };
+}
+
 function AnnouncementBar({ design, show, fallback, shop }: { design: any; show: boolean; fallback?: string; shop: boolean }) {
   const messages = show ? activeAnnouncements({ ...design, announcementText: design?.announcementText ?? fallback }) : [];
   const single = !Array.isArray(design?.announcements) || !design.announcements.length;
@@ -199,8 +209,8 @@ function AnnouncementBar({ design, show, fallback, shop }: { design: any; show: 
       <div
         data-studio-target="style:header"
         data-studio-label="Announcement bar"
-        className="fm-announce px-6 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.3em]"
-        style={{ backgroundColor: design.announcementBg || "var(--accent)", color: design.announcementColor || "var(--on-accent)" }}
+        className="fm-announce px-6 py-2.5 text-center uppercase"
+        style={{ backgroundColor: design.announcementBg || "var(--accent)", color: design.announcementColor || "var(--on-accent)", ...announceText(design) }}
         {...pause}
       >
         <AnnouncementMessage key={index} text={current.text} link={current.link} editable={single} />
@@ -215,9 +225,7 @@ function AnnouncementBar({ design, show, fallback, shop }: { design: any; show: 
           className="flex w-max animate-marquee font-bold uppercase"
           style={{
             ["--marquee-duration" as any]: `${Math.max(5, Math.min(120, design?.announcementSpeed ?? 24))}s`,
-            fontSize: design?.announcementFontSize ?? 10,
-            fontWeight: design?.announcementWeight ?? 700,
-            letterSpacing: `${design?.announcementTracking ?? 0.3}em`,
+            ...announceText(design),
           }}
         >
           {[0, 1].map((copy) => single ? (
@@ -237,7 +245,7 @@ function AnnouncementBar({ design, show, fallback, shop }: { design: any; show: 
     );
   }
   return (
-    <div data-section="announcements" data-studio-target="style:header" data-studio-label="Announcement bar" className="fm-announce text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]" style={colors} {...pause}>
+    <div data-section="announcements" data-studio-target="style:header" data-studio-label="Announcement bar" className="fm-announce text-center py-2.5 px-6 uppercase sticky top-0 z-[60]" style={{ ...colors, ...announceText(design) }} {...pause}>
       <AnnouncementMessage key={index} text={current.text} link={current.link} editable={single} />
     </div>
   );
@@ -510,7 +518,10 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
       <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={headerScheme ? { ...shop.logoDesign, logoColor: undefined } : shop.logoDesign} /></span>
     </button>
   );
-  const cartAmount = cartTotal > 0 ? formatPrice(cartTotal) : formatPrice(Number(sf?.catalogCartTotalPlaceholder ?? 0));
+  // An empty bag shows Style › Header › "Empty-bag amount": a number is shown as a price, anything else as typed.
+  const placeholder = sf?.catalogCartTotalPlaceholder;
+  const cartAmount = cartTotal > 0 ? formatPrice(cartTotal)
+    : placeholder != null && String(placeholder).trim() !== "" && !Number.isFinite(Number(placeholder)) ? String(placeholder) : formatPrice(Number(placeholder ?? 0));
 
   return (
     <>
@@ -525,13 +536,14 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
       >
         {isReferenceCatalog ? (
           <div className="mx-auto px-6 py-6" style={{ maxWidth: headerMaxWidth, color: headerTextColor }}>
-            {mastheadDesktop < mastheadMobile && <style>{`.fm-ref-masthead{font-size:${mastheadMobile}px}@media(min-width:${PHONE_MAX + 1}px){.fm-ref-masthead{font-size:${mastheadDesktop}px}}`}</style>}
+            {/* Phone size up to PHONE_MAX, the desktop size above it (a 5vw clamp used to cap the desktop size at ~60px on a 1200px screen). */}
+            <style>{`.fm-ref-masthead{font-size:${mastheadMobile}px}@media(min-width:${PHONE_MAX + 1}px){.fm-ref-masthead{font-size:${mastheadDesktop}px}}.fm-ref-catbar{column-gap:${navGapMobile}px}@media(min-width:${PHONE_MAX + 1}px){.fm-ref-catbar{column-gap:${navGapDesktop}px}}`}</style>
             {/* Wraps so a long masthead never pushes the bag off a phone screen; the bag then sits on its own line. */}
             <div className={`flex flex-wrap items-start gap-x-6 gap-y-3 ${shop.logoPosition === "right" ? "flex-row-reverse justify-between" : shop.logoPosition === "center" ? "justify-center relative" : "justify-between"}`}>
               <button
                 onClick={onHome}
                 className={`fm-ref-masthead font-black tracking-tight leading-none hover:opacity-80 transition-opacity ${shop.logoPosition === "right" ? "text-right" : shop.logoPosition === "center" ? "text-center" : "text-left"}`}
-                style={{ color: (!headerScheme && sf?.logoColor) || headerTextColor, textTransform: sf?.brandTransform || "none", fontSize: mastheadDesktop < mastheadMobile ? undefined : `clamp(${mastheadMobile}px, 5vw, ${mastheadDesktop}px)` }}
+                style={{ color: (!headerScheme && sf?.logoColor) || headerTextColor, textTransform: sf?.brandTransform || "none" }}
               >
                 <span data-studio-target="style:catalogLayout|style:logo" data-studio-label="Masthead" data-studio-style-text="catalogMastheadText">{mastheadText}</span>
               </button>
@@ -550,7 +562,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
               )}
             </div>
             <div className="mt-6" style={{ borderTop: `${headerRuleWidth}px solid ${(!headerScheme && sf?.borderColor) || headerBorderColor || "#B1B1AA"}` }} />
-            <div data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className="py-5 flex flex-wrap items-center text-base font-black" style={{ columnGap: navGapDesktop, rowGap: navGapMobile }}>
+            <div data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className="fm-ref-catbar py-5 flex flex-wrap items-center text-base font-black" style={{ rowGap: 12 }}>
               {referenceNavCategories(categories, sf).map((cat: any, index: number) => {
                 const catName = typeof cat === "string" ? cat : cat.name;
                 const isActive = activeName === catName;

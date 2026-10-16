@@ -1026,7 +1026,10 @@ export default function BookDetail() {
                           ? { scale: 1.04, y: -2 }
                           : {}
                       }
-                      className={`${productCtaWidth === "full" ? "flex-1 min-w-[170px]" : "px-8"} min-h-[52px] flex items-center justify-center gap-3 ${
+                      className={`${productCtaWidth === "full" ? "flex-1 min-w-[170px]" : "px-8"} ${
+                        // Large (default) keeps the 52px button; Medium is visibly shorter (both used to draw at 52px).
+                        productCtaSize === "medium" ? "min-h-[44px]" : "min-h-[52px]"
+                      } flex items-center justify-center gap-3 ${
                         productCtaSize === "medium" ? "py-3" : "py-4"
                       } text-[10px] font-black tracking-[0.3em] transition-colors duration-300 ${
                         isOutOfStock

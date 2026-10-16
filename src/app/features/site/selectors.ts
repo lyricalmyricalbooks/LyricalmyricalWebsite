@@ -6,7 +6,7 @@ import { bookInCategory } from "./navItems";
 const LOGO_DESIGN_FIELDS = [
   "logoUrl", "logoText", "logoColor", "logoHoverColor", "logoTint", "logoHeight",
   // Two-part wordmark support (LogoMark renders these when wordmarkStyle is "two-part")
-  "wordmarkStyle", "wordmarkPrimary", "wordmarkSecondary", "wordmarkSize", "wordmarkWeight", "wordmarkSecondaryMuted", "wordmarkSecondaryColor", "headingFont",
+  "wordmarkStyle", "wordmarkPrimary", "wordmarkSecondary", "wordmarkSize", "wordmarkWeight", "wordmarkSecondaryMuted", "wordmarkSecondaryColor", "headingFont", "wordmarkFont",
 ] as const;
 
 function firstConfiguredValue(field: (typeof LOGO_DESIGN_FIELDS)[number], designs: any[]) {
