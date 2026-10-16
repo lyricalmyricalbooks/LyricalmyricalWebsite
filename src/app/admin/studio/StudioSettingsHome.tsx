@@ -111,7 +111,7 @@ export function SettingsSubsection({ title, count, changed, defaultOpen = false,
 const TIPS_KEY = "studio-tips-dismissed";
 const readDismissed = () => { try { return window.localStorage.getItem(TIPS_KEY) === "1"; } catch { return false; } };
 
-/** Three-line orientation card. Dismissal is remembered in this browser only. */
+/** Four-line orientation card. Dismissal is remembered in this browser only. */
 export function StudioTips({ forceOpen = 0 }: { forceOpen?: number }) {
   const [hidden, setHidden] = useState(readDismissed);
   useEffect(() => { if (forceOpen) setHidden(false); }, [forceOpen]);
@@ -124,6 +124,7 @@ export function StudioTips({ forceOpen = 0 }: { forceOpen?: number }) {
         <li><b>Click anything in the preview</b> to open its settings. Double-click text to type over it.</li>
         <li><b>Theme settings</b> change the look of every page; <b>Page layout</b> adds and arranges sections.</li>
         <li><b>Save draft</b> keeps your work private. <b>Publish</b> puts it live. Press <kbd>Ctrl</kbd> <kbd>K</kbd> to find any setting.</li>
+        <li>Not sure where to start? Open <b>Theme actions › Open the Workbench › Setup</b> for a checklist.</li>
       </ol>
       <button type="button" className="studio-reset" onClick={dismiss}>Got it, hide these tips</button>
     </aside>

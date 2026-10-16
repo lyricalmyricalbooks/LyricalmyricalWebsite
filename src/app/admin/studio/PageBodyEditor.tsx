@@ -257,7 +257,7 @@ export function PageBodyEditor({ value, onChange, onUploading, title }: {
             </div>
           </div>
           <label className="block">
-            <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block mb-1">Description (alt text)</span>
+            <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block mb-1">Picture description (read aloud to blind visitors and used by Google)</span>
             <input className="w-full border border-neutral-200 rounded-lg px-3 h-9 text-xs" value={picked.alt}
               placeholder="What the picture shows, for screen readers and search engines"
               onChange={(e) => setAlt(e.target.value)} />
