@@ -5,7 +5,7 @@ import { canInlineFormat } from "./richText";
 import { applyContextAction, applySpacing, contextCapabilities, GAP_KEYS, PADDING_KEYS, spacingKey } from "./canvasTools";
 import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles,
-  ArrowLeft, ChevronDown, Clock, ChevronUp, Clipboard, Copy, Eye, EyeOff, ExternalLink, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
+  ArrowLeft, ChevronDown, Clock, ChevronUp, Clipboard, Copy, Eye, EyeOff, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
   Download, Globe, ListChecks, Pencil, Tablet, Trash2, Undo2, Upload, X,
 } from "lucide-react";
 import { adminApi } from "../api";
@@ -902,6 +902,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
   // Full-screen "Preview in new tab" windows listen on this channel (features/site/previewTab.ts).
   const channelRef = useRef<BroadcastChannel | null>(null);
+  const tabSeenRef = useRef(false);
+  const draftStatusRef = useRef<"unsaved" | "draft" | "live">("live");
+  draftStatusRef.current = dirtyDraft ? "unsaved" : unpublished ? "draft" : "live";
   const sendPreviewState = useCallback(() => {
     if (inlineEditingRef.current) return;
     const current = designRef.current;
@@ -917,7 +920,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     try {
       deliverPreviewState(iframeRef.current?.contentWindow, state, window.location.origin);
     } catch (err) { console.warn("[Studio] preview delivery failed", err); }
-    try { channelRef.current?.postMessage(state); } catch (err) { console.warn("[Studio] preview tab delivery failed", err); }
+    // The View website tab shows the draft itself (never an Add-section try-out, a theme being previewed or a brand-kit
+    // trial) plus whether it is saved, so its banner can say so. Built only once a tab has said hello.
+    if (channelRef.current && tabSeenRef.current) {
+      try {
+        const tabState = previewDesign === current ? state : buildPreviewState(settings, current, withDraftPage(pages, draftPage), books);
+        channelRef.current.postMessage({ ...tabState, studioStatus: draftStatusRef.current });
+      } catch (err) { console.warn("[Studio] preview tab delivery failed", err); }
+    }
   }, [historyPreview, themePreview, settings, pages, books, draftPage, candidate, draftCandidate, adding, blockCandidate, blockPicker, brandChoice, showGlobal, globalGroup, template.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const sendPreviewRef = useRef(sendPreviewState);
   sendPreviewRef.current = sendPreviewState;
@@ -925,10 +935,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (typeof BroadcastChannel === "undefined") return;
     const bc = new BroadcastChannel(PREVIEW_CHANNEL);
     channelRef.current = bc;
-    bc.onmessage = (e) => { if (e.data?.type === "PREVIEW_READY") sendPreviewRef.current(); };
+    bc.onmessage = (e) => { if (e.data?.type === "PREVIEW_READY") { tabSeenRef.current = true; sendPreviewRef.current(); } };
     return () => { bc.close(); channelRef.current = null; };
   }, []);
   const openPreviewTab = () => { window.open(previewUrl, "_blank"); };
+  // Saving or publishing changes what the View website tab's banner says, even when the design itself didn't change.
+  useEffect(() => { if (tabSeenRef.current) sendPreviewRef.current(); }, [dirtyDraft, unpublished]);
   useEffect(() => { const t = setTimeout(sendPreviewState, 100); return () => clearTimeout(t); }, [design, sendPreviewState]);
   // Tell the preview which strings are editable copy, so double-clicking one jumps to its field.
   const sendCopyMap = useCallback(() => {
@@ -2442,7 +2454,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <strong>{dirtyDraft ? "Not saved yet" : unpublished ? "Saved as draft" : "Live"}</strong><span className="studio-status-sep"> · </span><span>{dirtyDraft || unpublished ? "shop unchanged" : "the shop shows this"}</span>
         </span>
         <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
-          { label: "Preview in new tab", icon: <ExternalLink size={14} />, onSelect: openPreviewTab },
           { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
           { label: "Brand kit…", icon: <Sparkles size={14} />, onSelect: openBrandKit },
           { label: "Schedule publishing…", icon: <Clock size={14} />, onSelect: () => setSchedule({ themeId: null }) },
@@ -2451,6 +2462,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           { label: "Show Studio tips", onSelect: () => setTipsNonce(n => n + 1) },
           ...(unpublished && busy === null && !inlineEditing ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
         ]} /></div>
+        <button className={btn} onClick={openPreviewTab} data-studio-view-website
+          title={dirtyDraft ? "Open your shop in a new tab with all your changes, including ones not saved yet. Shoppers still see the live shop until you Publish." : unpublished ? "Open your shop in a new tab with your saved draft. Shoppers still see the live shop until you Publish." : "Open your shop in a new tab. It matches the live shop: nothing is waiting to be published."}>
+          <Eye size={14} aria-hidden="true" /> View website</button>
         <button className={btn} disabled={Boolean(inlineEditing) || !dirtyDraft || busy !== null} onClick={saveDraft}
           title={inlineEditing ? "Finish the text edit first" : !dirtyDraft ? "Nothing new to save" : "Save your changes without putting them on the shop"}>{busy === "draft" ? "Saving…" : "Save draft"}</button>
         <button className={btnPrimary} disabled={Boolean(inlineEditing) || (!unpublished && !dirtyDraft) || busy !== null} onClick={() => setConfirmAction("publish")}

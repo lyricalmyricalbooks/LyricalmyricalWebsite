@@ -1576,6 +1576,24 @@ await check("mode button names what it does, and the inspector keeps its tab and
   if (!(await page.locator(".studio-inspector-actions").count())) throw new Error("clicking the active rail tab closed the inspector");
 });
 
+await check("View website opens the shop in a new tab with the draft and says whether it is saved", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await expectText(page, "Home · 1 section");
+  const [tab] = await Promise.all([page.context().waitForEvent("page"), page.getByRole("button", { name: "View website" }).click()]);
+  if (!/[?&]preview=true/.test(tab.url())) throw new Error(`View website opened ${tab.url()}`);
+  await tab.locator('[data-draft-preview-banner="unsaved"]').waitFor({ timeout: 30000 });
+  // The newsletter section exists only in the unsaved draft, so seeing it proves the tab shows the draft.
+  const added = await page.evaluate(() => document.querySelector("iframe")?.contentDocument?.querySelector("[data-fm-section]")?.getAttribute("data-fm-section"));
+  if (!added) throw new Error("the canvas has no section to look for");
+  await tab.locator(`[data-fm-section="${added}"]`).waitFor({ timeout: 15000 });
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await tab.locator('[data-draft-preview-banner="draft"]').waitFor({ timeout: 15000 });
+  if (shots) await tab.screenshot({ path: join(shots, "View-website-tab.png") }).catch(() => {});
+  await tab.close();
+});
+
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-ro
 import { ScrollToTop } from "./lib/ScrollToTop";
 import { ga4PageView } from "./lib/ga4";
 import { ThemePreviewBanner } from "./features/site/ThemePreviewBanner";
+import { DraftPreviewBanner } from "./features/site/DraftPreviewBanner";
 import { CartProvider, useCart } from "./CartContext";
 import { CurrencyProvider } from "./CurrencyContext";
 import { ShopToaster } from "./features/site/ShopToaster";
@@ -130,6 +131,7 @@ export default function App() {
           <CookieConsent />
           <UnderConstructionWall />
           <ThemePreviewBanner />
+          <DraftPreviewBanner />
           <PrerenderedHandoff />
           <Suspense fallback={<PageLoading />}>
                 <ShopToaster />
