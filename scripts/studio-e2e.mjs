@@ -215,8 +215,8 @@ await check("Back returns to where you were after a Find jump, and the path show
   await page.getByRole("option").first().waitFor({ state: "attached", timeout: 5000 });
   await page.keyboard.press("Enter");
   await page.getByRole("dialog").waitFor({ state: "detached", timeout: 5000 });
-  // Find opens the Announcement bar part of the page: the path names it, and Back closes it again.
-  await page.waitForFunction(() => /^Page layout › Home › Announcement bar$/.test((document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").replace(/\s+/g, " ").trim()), null, { timeout: 5000 })
+  // Find opens the Header & announcement bar settings: the path names them, and Back returns to the page.
+  await page.waitForFunction(() => /^Theme settings › Header & announcement bar/.test((document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").replace(/\s+/g, " ").trim()), null, { timeout: 5000 })
     .catch(async () => { throw new Error(`the path does not name the part Find opened: ${await crumbs()}`); });
   if (await back.isDisabled()) throw new Error("Back stayed disabled after a Find jump");
   await page.waitForTimeout(900);

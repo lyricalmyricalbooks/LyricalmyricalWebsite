@@ -308,6 +308,14 @@ describe("when not every word matches", () => {
   });
 });
 
+describe("spelling correction stays sensible", () => {
+  it("never turns a real 4-letter word into a shorter one", () => {
+    const plan = planQuery(index, "pink");
+    expect(plan.corrected).not.toBe("pin");
+    expect(planQuery(index, "fnot").corrected).toBe("font");
+  });
+});
+
 describe("click paths", () => {
   it("show where a control lives in the words used on screen", () => {
     expect(index.find((e) => e.id === "style:header:logoHeight")?.trail).toBe("Theme settings › Top of every page › Header & announcement bar › Header layout");

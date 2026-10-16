@@ -533,11 +533,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // "This page only" belongs to the page it was chosen on. However the canvas moves to another page (page picker,
   // a followed link, Pages › Show, a section on another page, the every-page group), Studio goes back to All pages and says so.
   const scopePageRef = useRef(`${template.id}|${showGlobal}`);
+  const scopeNoteBySelfRef = useRef(false);
   useEffect(() => {
     const now = `${template.id}|${showGlobal}`;
     if (scopePageRef.current === now) return;
     scopePageRef.current = now;
-    if (styleScope === "page") { setStyleScope("all"); say("ok", "Back to All pages: changes now apply to every page."); }
+    if (styleScope !== "page") return;
+    setStyleScope("all");
+    // Back says it in its own message (one toast slot): don't replace "Back to …" with this one.
+    if (scopeNoteBySelfRef.current) { scopeNoteBySelfRef.current = false; return; }
+    say("ok", "Back to All pages: changes now apply to every page.");
   }, [template.id, showGlobal]);
   const target: SectionTarget = showGlobal ? { kind: "global", group: globalGroup } : { kind: "template", id: template.id };
   const sections = getSections(design, target);
@@ -939,7 +944,21 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     bc.onmessage = (e) => { if (e.data?.type === "PREVIEW_READY") { tabSeenRef.current = true; sendPreviewRef.current(); } };
     return () => { bc.close(); channelRef.current = null; };
   }, []);
-  const openPreviewTab = () => { window.open(previewUrl, "_blank"); };
+  // View website shows the page as shoppers get it: no forced layout (?template=…), and Studio-only test pages
+  // (the missing-page route, checkout with a sample bag, a book page with no book chosen) open the home page instead.
+  const viewWebsiteUrl = useMemo(() => {
+    const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "");
+    const alt = parseAltSurface(template.id)?.base;
+    const id = alt || template.id;
+    const path = id === "productPage" && productSlug ? `/books/${productSlug}`
+      : id === "collectionPage" && collectionSlug ? `/collections/${collectionSlug}`
+      : id === "storefront" ? "/?catalog=true"
+      : ["wishlistPage", "accountPage", "trackingPage"].includes(id) ? ({ wishlistPage: "/wishlist", accountPage: "/account", trackingPage: "/track" } as Record<string, string>)[id]
+      : id === "page" || template.pageSlug ? (new URL(previewUrl).pathname.replace(import.meta.env.BASE_URL.replace(/\/$/, ""), "") || "/")
+      : "/";
+    return `${base}${path}${path.includes("?") ? "&" : "?"}preview=true`;
+  }, [template.id, template.pageSlug, productSlug, collectionSlug, previewUrl]);
+  const openPreviewTab = () => { window.open(viewWebsiteUrl, "_blank"); };
   // Saving or publishing changes what the View website tab's banner says, even when the design itself didn't change.
   useEffect(() => { if (tabSeenRef.current) sendPreviewRef.current(); }, [dirtyDraft, unpublished]);
   useEffect(() => { const t = setTimeout(sendPreviewState, 100); return () => clearTimeout(t); }, [design, sendPreviewState]);
@@ -1018,12 +1037,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   useEffect(() => { setPreviewStatus("loading"); const timer = setTimeout(() => setPreviewStatus(s => s === "loading" ? "error" : s), 15000); return () => clearTimeout(timer); }, [previewUrl, previewRevision]);
 
   // Open the settings behind a click-to-edit target (from the preview or the page structure).
-  const openTarget = (target: string, label = "") => {
+  /** `keepElement`: called from the open part's own inspector ("Open in Theme settings"), so that part stays open. */
+  const openTarget = (target: string, label = "", keepElement = false) => {
     const [kind, rest = ""] = target.split(":");
     const tab: LeftTab | null = kind === "style" ? "style" : kind === "copy" ? "text" : kind === "menus" ? "menus" : kind === "pages" ? "pages" : null;
     if (!tab) return;
     setMobilePanel("outline");
     setSelectedId(null); setBlockId(null);
+    // A part opened earlier (in the inspector) is not what the owner asked for now: close it so the path and Back stay true.
+    if (selectedElement && !keepElement) { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); }
     if (tab === "style") { setStyleSearch(""); setStyleCategory(EXTRA_STYLE_CATEGORIES[rest] ? rest : null); }
     setStyleFocus(tab === "style" && STYLE_GROUPS.some(g => g.id === rest) ? { id: rest, label: label || (STYLE_GROUPS.find(g => g.id === rest)?.title || rest) } : null);
     if (tab === "text") { setCopyFilter(""); setTextCategory(rest); }
@@ -1177,7 +1199,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const region = el.region && REGION_GROUPS.flatMap(g => g.regions).find(r => r.id === el.region);
     if (region) { openRegion(region.id, region.label); return; }
     const target = primaryTarget(el.target);
-    if (target) openTarget(target, el.label);
+    if (target) openTarget(target, el.label, true);
   };
   const regionToggleState = (id: string) => {
     const region = REGION_GROUPS.flatMap(g => g.regions).find(r => r.id === id);
@@ -1940,9 +1962,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       if (placeHist.back.length) setPlaceHist(h => ({ ...h, back: [] }));
       return;
     }
+    const leavesPage = styleScope === "page" && (result.place.templateId !== template.id || Boolean(result.place.showGlobal) !== showGlobal);
+    scopeNoteBySelfRef.current = leavesPage;
     applyPlace(result.place);
     setPlaceHist(result.history);
-    say("ok", `Back to ${describePlace(result.place, placeLabels)}`);
+    say("ok", `Back to ${describePlace(result.place, placeLabels)}${leavesPage ? ". Editing scope is All pages again." : ""}`);
   };
   const backTarget = peekBack(placeHist);
   /** A crumb steps back out to its level (the last crumb is where you are). */
@@ -1973,7 +1997,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       return;
     }
     if (t.type === "book") { setSelectedId(null); setBlockId(null); setShowGlobal(false); setProductSlug(t.slug); setTemplateId("productPage"); setLeftTab("sections"); return; }
-    if (t.type === "tab") { setLeftTab(t.tab); setStyleFocus(null); setSelectedId(null); setBlockId(null); return; }
+    if (t.type === "tab") {
+      // "Browse Theme settings / Text & labels" means the browse home, not the last category used.
+      setLeftTab(t.tab); setStyleFocus(null); setSelectedId(null); setBlockId(null);
+      setStyleCategory(null); setStyleSearch(""); setTextCategory(""); setCopyFilter("");
+      return;
+    }
     if (t.type === "style") {
       setSelectedId(null); setBlockId(null); setStyleSearch(""); setStyleCategory(t.groupId); setStyleFocus(null); setLeftTab("style");
       // Search lists an element setting once (its desktop field); open it at the size being previewed.
@@ -2505,7 +2534,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             onCopy={(key, value) => setCopy(key, value)}
             onOpenTheme={() => openElementInTheme(selectedElement)}
             onOpenText={group => { setCopyFilter(""); setTextCategory(group); setLeftTab("text"); setMobilePanel("outline"); }}
-            onOpenTarget={target => openTarget(target, selectedElement.label)}
+            onOpenTarget={target => openTarget(target, selectedElement.label, true)}
             onBack={() => { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); setLeftTab("sections"); setStyleFocus(null); setMobilePanel("outline"); }}
             onClose={closeElement} />
   );

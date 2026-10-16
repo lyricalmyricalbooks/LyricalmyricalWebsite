@@ -467,7 +467,8 @@ function correctWord(token: string, vocab: Map<string, number>): string | null {
   const max = token.length >= 8 ? 2 : 1;
   let best: string | null = null, bestD = max + 1, bestFreq = 0;
   for (const [w, freq] of vocab) {
-    if (token.length === 4 && w[0] !== token[0]) continue;
+    // Never "correct" into a tiny word ("pink" → "pin"); a 4-letter word may only swap a letter ("fnot" → "font").
+    if (w.length < 4 || (token.length === 4 && (w[0] !== token[0] || w.length !== 4))) continue;
     const d = editDistance(token, w, max);
     if (d < bestD || (d === bestD && d <= max && freq > bestFreq)) { best = w; bestD = d; bestFreq = freq; }
   }

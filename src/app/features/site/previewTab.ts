@@ -1,4 +1,4 @@
-// Studio › "View website" (also Theme actions › Preview in new tab): a full-screen, top-level storefront window showing the UNSAVED draft.
+// Studio › "View website" (also Find anything › View website): a full-screen, top-level storefront window showing the UNSAVED draft.
 // Studio posts the same STUDIO_PREVIEW_STATE snapshot it sends its iframe onto a BroadcastChannel;
 // this module re-dispatches it into the window as a same-origin message, so every existing preview
 // receiver (useSiteData, MainSite, Checkout, useLiveDesign) works unchanged. At top level

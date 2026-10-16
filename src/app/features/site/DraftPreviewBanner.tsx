@@ -36,7 +36,9 @@ export function DraftPreviewBanner() {
     const timer = window.setTimeout(() => setWaited(true), STUDIO_ANSWER_MS);
     return () => { window.removeEventListener("message", onMessage); window.clearTimeout(timer); };
   }, [tab]);
-  const key = tab ? draftBannerKey(status, waited) : null;
+  // Only a tab Studio opened (it has an opener) says "Studio isn't open": a visitor who typed ?preview=true sees nothing.
+  const fromStudio = tab && (() => { try { return Boolean(window.opener); } catch { return false; } })();
+  const key = tab ? draftBannerKey(status, waited && fromStudio) : null;
   if (!key || hidden) return null;
   return (
     <div role="status" data-draft-preview-banner={status || "no-studio"} data-studio-target="copy:Site & sharing" data-studio-label="Draft preview banner"
