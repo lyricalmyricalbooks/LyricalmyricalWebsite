@@ -51,7 +51,7 @@ function NestedBlocks({ blocks, section, depth, selectedId, blockId, label, onSe
       {blocks.map((block: StudioBlock, i: number) => <SortableRow key={block.id} id={block.id}>
         {({ handleProps }) => <>
           <div className="studio-tree-row" data-selected={selectedId === section.id && blockId === block.id} data-hidden={block.hidden}>
-            <button {...handleProps} className="studio-grip" aria-label={`Reorder ${nameOf(block, i, "Block")}`}><GripVertical size={13} /></button>
+            <button {...handleProps} className="studio-grip" title="Drag to reorder this block" aria-label={`Reorder ${nameOf(block, i, "Block")}`}><GripVertical size={13} /></button>
             <button className="studio-tree-label" aria-current={selectedId === section.id && blockId === block.id} onClick={() => onSelect(section.id, block.id)}>
               {nameOf(block, i)}<small>{block.sharedBlockId ? "Linked shared block" : block.type || "content"}{block.children?.length ? ` · ${block.children.length} children` : ""}</small>
             </button>
@@ -166,9 +166,9 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
                 data-picked={picked.includes(section.id) || undefined}
                 data-hovered={hoveredId === section.id} onMouseEnter={() => onHover?.(section.id)} onMouseLeave={() => onHover?.(null)}
                 onContextMenu={e => openMenu(section.id, e)}>
-                <button {...(searching ? {} : handleProps)} disabled={searching} className="studio-grip" aria-label={`Reorder ${meta?.label || section.type}`}><GripVertical size={15} /></button>
+                <button {...(searching ? {} : handleProps)} disabled={searching} className="studio-grip" title={searching ? "Clear the search to reorder sections" : "Drag to reorder this section"} aria-label={`Reorder ${meta?.label || section.type}`}><GripVertical size={15} /></button>
                 {supportsBlocks && <button className="studio-expand" aria-label={`Expand ${meta?.label}`} aria-expanded={open} disabled={searching}
-                  title={searching ? "Matching sections stay open while you search" : undefined} onClick={() => setExpanded(prev => {
+                  title={searching ? "Matching sections stay open while you search" : open ? "Hide this section's blocks" : "Show this section's blocks"} onClick={() => setExpanded(prev => {
                   const next = new Set(prev); next.has(section.id) ? next.delete(section.id) : next.add(section.id); return next;
                 })}><ChevronDown size={14} style={{ transform: open ? undefined : "rotate(-90deg)" }} /></button>}
                 <button className="studio-tree-label" aria-current={selectedId === section.id && !blockId} aria-pressed={actions ? picked.includes(section.id) : undefined}
@@ -184,7 +184,7 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
                     menu.open = false; menu.querySelector<HTMLElement>("summary")?.focus();
                   }}
                   onClick={e => { if ((e.target as HTMLElement).closest("div button")) (e.currentTarget as HTMLDetailsElement).open = false; }}>
-                  <summary aria-label={`Actions for ${(section as any).label || meta?.label}`}>···</summary><div>
+                  <summary title="More actions: move, rename, duplicate, copy, remove" aria-label={`Actions for ${(section as any).label || meta?.label}`}>···</summary><div>
                   {!searching && <>
                     <button disabled={index === 0} onClick={() => {
                       const next = [...sections]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; onReorder(next);

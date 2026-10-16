@@ -1,6 +1,6 @@
 import { StudioSpacingControls } from "./StudioSpacingControls";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Copy, Eye, EyeOff, Trash2, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Copy, Eye, EyeOff, Trash2, X } from "lucide-react";
 import { uploadStudioImage } from "./mediaUpload";
 import { ConnectableField } from "./StudioConnect";
 import { BlockFieldEditor, BlockListFieldEditor, getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, SectionFieldEditor } from "../ThemeEditorExtensions";
@@ -12,8 +12,9 @@ import { updateBlocks } from "./studioWorkflow";
 import { blockLabel } from "./StudioOutline";
 import { autoFitSection, resetPhoneLayout } from "./autoMobile";
 import { layerOrder, setBlockGrid, shiftLayer } from "./gridPlacement";
+import { blockMoveRoom, HIDE_DEVICES, moveBlockBy, tabAfterSelection, withDeviceHidden, type InspectorTab } from "./inspectorState";
 
-export function StudioInspector({ section, blockId, colorSchemes, device, sharedBlocks, onSaveShared, onPatchShared, onInsertShared, onPatch, onSelectBlock, onDuplicate, onDelete, onToggle, onClose, onNotice, arranging = false, onArrange, onReplayMotion, onAddBlock, onCopyBlock, canPasteBlock = false, onPasteBlock }: {
+export function StudioInspector({ section, blockId, colorSchemes, device, sharedBlocks, onSaveShared, onPatchShared, onInsertShared, onPatch, onSelectBlock, onDuplicate, onDelete, onToggle, onClose, onNotice, onMoveSection, sectionRoom, arranging = false, onArrange, onReplayMotion, onAddBlock, onCopyBlock, canPasteBlock = false, onPasteBlock }: {
   section: Section; blockId: string | null; colorSchemes: any[];
   device: "desktop" | "tablet" | "mobile"; sharedBlocks: SharedBlock[];
   onSaveShared: (blockId: string, name: string) => void; onInsertShared: (shared: SharedBlock) => void;
@@ -21,6 +22,8 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   onPatch: (patch: Record<string, any>) => void; onSelectBlock: (id: string | null) => void;
   onDuplicate: () => void; onDelete: () => void; onToggle: () => void; onClose: () => void;
   onNotice?: (text: string) => void;
+  /** Move the section one place up/down on its page, and whether there is room to (Move up / Move down buttons). */
+  onMoveSection?: (direction: -1 | 1) => void; sectionRoom?: { up: boolean; down: boolean };
   /** Flexible composition: whether its blocks are being arranged on the preview's grid (3.0 phase 3). */
   arranging?: boolean; onArrange?: (on: boolean) => void;
   /** Plays this section's motion again in the preview (3.0 phase 4). */
@@ -28,7 +31,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   /** Block library 3.0: open the block picker, copy a block, and paste the copied block (after a block, or at the end). */
   onAddBlock?: () => void; onCopyBlock?: (blockId: string) => void; canPasteBlock?: boolean; onPasteBlock?: (afterId: string | null) => void;
 }) {
-  const [tab, setTab] = useState<"content" | SectionTab>("content");
+  const [sectionTab, setTab] = useState<"content" | SectionTab>("content");
   const [askText, promptNode] = usePrompt();
   const [search, setSearch] = useState("");
   // Docked in its own resizable panel on tablets and desktops; a full-screen sheet on phones.
@@ -41,13 +44,21 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
     return () => media.removeEventListener("change", update);
   }, []);
   useFocusTrap(ref, overlay, onClose);
-  useEffect(() => { setTab("content"); setSearch(""); }, [section.id, blockId]);
+  // The chosen tab sticks when another section of the same kind is selected; a different kind (or an unknown tab) starts on Content.
+  const lastType = useRef(section.type);
+  useEffect(() => {
+    setTab(cur => tabAfterSelection(cur, lastType.current, section.type) as "content" | SectionTab);
+    lastType.current = section.type;
+  }, [section.id, section.type]);
+  useEffect(() => { setSearch(""); }, [section.id, blockId]);
   const styleFields = useMemo(() => sectionStyleFields(colorSchemes), [colorSchemes]);
   const meta = getSectionMeta(section.type);
   const key = getBlocksKey(section.type);
   const blocks = section.settings[key] || section.settings.blocks || [];
   const placement = blockId ? findBlock(blocks, blockId) : undefined;
   const block = placement ? resolveSharedBlocks([placement], sharedBlocks)[0] : undefined;
+  // A selected block always shows its Content; the section's tab is remembered for when the owner goes back.
+  const tab: InspectorTab = block ? "content" : sectionTab;
   const fields = (block ? getBlockFields(section.type) : getSectionFields(section.type)).filter(f => `${f.label} ${f.key}`.toLowerCase().includes(search.toLowerCase()));
   const patchBlock = (patch: any) => {
     if (placement?.sharedBlockId && !Object.keys(patch).some(k => k === "grid" || k === "responsive" || k === "hidden")) onPatchShared(placement.sharedBlockId, patch);
@@ -95,6 +106,14 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
     <div className="studio-inspector-actions">
       {block && <IconButton label="Back to section" onClick={() => onSelectBlock(null)}><ArrowLeft size={15} /></IconButton>}
       <IconButton label={block ? (block.hidden ? "Show block" : "Hide block") : section.visible === false ? "Show section" : "Hide section"} onClick={block ? () => patchBlock({ hidden: !block.hidden }) : onToggle}>{(block ? block.hidden : section.visible === false) ? <EyeOff size={15} /> : <Eye size={15} />}</IconButton>
+      {(block ? true : !!onMoveSection) && (() => {
+        const room = block ? blockMoveRoom(blocks, block.id) : sectionRoom || { up: false, down: false };
+        const move = (d: -1 | 1) => block ? onPatch(updateBlocks(section, key, list => moveBlockBy(list, block.id, d))) : onMoveSection?.(d);
+        return <>
+          <IconButton label="Move up" disabled={!room.up} onClick={() => move(-1)}><ChevronUp size={15} /></IconButton>
+          <IconButton label="Move down" disabled={!room.down} onClick={() => move(1)}><ChevronDown size={15} /></IconButton>
+        </>;
+      })()}
       <IconButton label={block ? "Duplicate block" : "Duplicate section"} onClick={block && placement ? () => {
         // Copy the stored placement (a linked block stays linked) and put it right after the original, in the same group.
         const copy = freshBlockIds(placement);
@@ -153,9 +172,12 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
         </div>)}
         {block && <div className="studio-control-card">
           <strong>Responsive layout · {device}</strong>
-          <p className="studio-hint">These overrides follow the preview size. Blank values inherit desktop.</p>
+          <p className="studio-hint">Alignment{section.type === "CompositionSection" ? " and the numbers below" : ""} follow the preview size. Blank values inherit desktop. The Hide switches work on their own screen size, whichever size you are previewing.</p>
           <label>Alignment<select value={block.responsive?.[device]?.align || ""} onChange={e => patchResponsive("responsive", "align", e.target.value || undefined)}><option value="">Inherit</option><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
-          <label><input type="checkbox" checked={Boolean(block.responsive?.[device]?.hidden)} onChange={e => patchResponsive("responsive", "hidden", e.target.checked || undefined)} /> Hide at this size</label>
+          <div className="studio-hide-devices" role="group" aria-label="Hide this block on some screens">
+            {HIDE_DEVICES.map(h => <label key={h.device}><input type="checkbox" checked={Boolean(block.responsive?.[h.device]?.hidden)}
+              onChange={e => patchBlock({ responsive: withDeviceHidden(block.responsive, h.device, e.target.checked) })} /> {h.label}</label>)}
+          </div>
           {section.type === "CompositionSection" && <div className="studio-grid-fields" data-studio-panel="block-look">
             {[["rotate", "Rotate (°)", -45, 45], ["scale", "Size (%)", 50, 150], ["opacity", "See-through (%)", 10, 100]].map(([field, label, min, max]) => <label key={String(field)}>{label}<input type="number" min={Number(min)} max={Number(max)} value={block.responsive?.[device]?.[String(field)] ?? ""} onChange={e => patchResponsive("responsive", String(field), e.target.value === "" ? undefined : Math.max(Number(min), Math.min(Number(max), Number(e.target.value))))} /></label>)}
           </div>}
