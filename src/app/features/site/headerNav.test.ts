@@ -56,3 +56,18 @@ describe("content width bounds", () => {
     expect(catalogHeaderMaxWidth({ containerWidth: 800, catalogHeaderWidth: 1500 })).toBe(1500);
   });
 });
+
+describe("side-margin content width", () => {
+  it("fixed mode is unchanged", async () => {
+    const { contentMaxWidth } = await import("./headerNav");
+    expect(contentMaxWidth({ containerWidth: 1400 })).toBe(1400);
+  });
+  it("margins mode scales with the screen and clamps", async () => {
+    const { contentMaxWidth, catalogHeaderMaxWidth } = await import("./headerNav");
+    expect(contentMaxWidth({ contentWidthMode: "margins", contentSideMargin: 6 })).toBe("min(100%, max(320px, calc(100% - 12vw)))");
+    expect(contentMaxWidth({ contentWidthMode: "margins", contentSideMargin: 99 })).toBe("min(100%, max(320px, calc(100% - 40vw)))");
+    expect(contentMaxWidth({ contentWidthMode: "margins", contentSideMargin: 0 })).toBe("100%");
+    expect(catalogHeaderMaxWidth({ contentWidthMode: "margins", catalogHeaderWidth: 1000 })).toBe("min(100%, max(320px, calc(100% - 10vw)))");
+    expect(contentMaxWidth({ fullWidth: true, contentWidthMode: "margins" })).toBe("100%");
+  });
+});

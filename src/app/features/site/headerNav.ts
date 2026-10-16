@@ -65,12 +65,29 @@ export const contentWidthPx = (design: any): number => {
   const n = Number(design?.containerWidth ?? 1200);
   return Number.isFinite(n) ? Math.max(CONTENT_WIDTH_MIN, Math.min(CONTENT_WIDTH_MAX, n)) : 1200;
 };
+/**
+ * Style › Layout & spacing › "How the content width is set" (`contentWidthMode`):
+ * "fixed" (default) = Content width in px; "margins" = a side margin as a share of the screen
+ * (`contentSideMargin`, 0–20%), so the column keeps the same proportions on a laptop and a big monitor.
+ * The margin never squeezes the column below 320px, and phones keep their own padding.
+ */
+export const contentWidthMode = (design: any): "fixed" | "margins" =>
+  design?.contentWidthMode === "margins" ? "margins" : "fixed";
+export const contentSideMargin = (design: any): number => {
+  const n = Number(design?.contentSideMargin ?? 5);
+  return Number.isFinite(n) ? Math.max(0, Math.min(20, n)) : 5;
+};
+export const marginWidthCss = (design: any): string => {
+  const m = contentSideMargin(design);
+  return m === 0 ? "100%" : `min(100%, max(320px, calc(100% - ${2 * m}vw)))`;
+};
 export const contentMaxWidth = (design: any): number | string =>
-  isFullWidth(design) ? "100%" : contentWidthPx(design);
+  isFullWidth(design) ? "100%" : contentWidthMode(design) === "margins" ? marginWidthCss(design) : contentWidthPx(design);
 
 /** Catalog masthead / shop grid width (Catalog layout › Header width), full width when that switch is on. */
 export const catalogHeaderMaxWidth = (design: any): number | string =>
   isFullWidth(design) ? "100%"
+    : contentWidthMode(design) === "margins" ? marginWidthCss(design)
     : design?.catalogHeaderWidth != null && Number.isFinite(Number(design.catalogHeaderWidth)) ? Math.max(900, Math.min(2560, Number(design.catalogHeaderWidth)))
     : contentWidthPx(design);
 
