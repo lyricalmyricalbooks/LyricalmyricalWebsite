@@ -2137,6 +2137,7 @@ enlarged viewer shows the whole photo. Spread `framingStyle(...)` on any new boo
 **Quick edits (16 October 2026):** the same dialog saves `adjust: { brightness, contrast, saturation, flipX, flipY }` (50–150 / 0–200,
 100 = unchanged, no key when nothing changed). `framingStyle` adds the CSS `filter` and a flip about the frame's centre (object-position
 mirrored, so the chosen point stays in view); the viewer uses `adjustStyle`. No rotation: a quarter turn can't fill frames of unknown shape in CSS.
+**Lightroom-style edits (16 October 2026):** `adjust` also takes `highlights`, `shadows`, `warmth`, `tint` (−100…100, 0 = unchanged) and `sharpen` (0…100). CSS can't draw them, so `photoTone` builds an SVG filter (warmth/tint colour matrix, tone curve, sharpen kernel) that `adjustFilter` references as `url(#fm-tone-…)`; every element styled by `framingStyle`/`motionFraming` must render `<PhotoToneDefs photo={…} />` beside it (`photoFraming.test.ts` scans for it), and lightbox photos pass `source`. The dialog groups controls (Crop · Light · Colour · Detail & mirror), double-click resets a slider and **Hold to see the original** compares. No vignette or straighten (can't be drawn on frames of unknown shape).
 
 ## Storage bandwidth (15 October 2026)
 

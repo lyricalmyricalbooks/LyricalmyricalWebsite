@@ -62,6 +62,7 @@ import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
 import { gridPhotoSizes, THUMB_PHOTO_SIZES, pdpPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
 import { adjustStyle, framingStyle, motionFraming } from "./photoFraming";
+import { PhotoToneDefs } from "./PhotoToneDefs";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 /** The title's inline variables: Studio's "Title size" preset and the phone cap that keeps its longest word whole. */
@@ -1233,6 +1234,7 @@ export default function BookDetail() {
                           style={{ aspectRatio: productImageAspect }}
                         >
                           <img src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt={mediaName(photo, i)} loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit, ...framingStyle(photo) }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
+                          <PhotoToneDefs photo={photo} />
                           {isVideoItem(photo) && <span className="fm-video-mark absolute inset-0 m-auto w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center pointer-events-none" aria-hidden="true"><Play size={12} fill="currentColor" /></span>}
                         </button>
                       ))}
@@ -1283,6 +1285,8 @@ export default function BookDetail() {
                           );
                           const framed = motionFraming(photo, productImageHoverScale);
                           return (
+                            <>
+                            <PhotoToneDefs photo={photo} />
                             <m.img
                               src={url}
                               {...photoSrcSet(photo, photoSizes(photo))}
@@ -1304,6 +1308,7 @@ export default function BookDetail() {
                               onLoad={(e: any) => { if (i === carouselIndex) setImageLoaded(true); notePhotoSize(url, e.currentTarget); }}
                               onError={() => { if (i === carouselIndex) setImageLoaded(true); }}
                             />
+                            </>
                           );
                         }}
                       />
@@ -1420,6 +1425,7 @@ export default function BookDetail() {
                           srcSet: photoSrcSet(ph, "100vw").srcSet,
                           alt: mediaName(ph, i),
                           style: adjustStyle(ph),
+                          source: ph,
                           ...(isVideoItem(ph) ? { videoUrl: ph.videoUrl } : {}),
                         }))}
                         start={Math.max(0, shownIndex)}
@@ -1451,6 +1457,7 @@ export default function BookDetail() {
                       {isVideoItem(photo)
                         ? <video src={photo.videoUrl} poster={photo.url} controls muted ref={muteVideo} playsInline preload="none" aria-label={mediaName(photo, i)} data-fm-video className={`w-full h-full bg-black ${productImageFitClass}`} />
                         : <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, photoSizes(photo))} alt={mediaName(photo, i)} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} style={framingStyle(photo)} />}
+                      <PhotoToneDefs photo={photo} />
                       {i === 0 && isOutOfStock && (
                         <>
                           <SoldOutVeil design={settings?.design} />
@@ -1566,6 +1573,7 @@ export default function BookDetail() {
                             className="w-full h-full transition-transform duration-700 group-hover:scale-105"
                             style={{ objectFit: productImageFit, ...framingStyle((rel as any).photos?.[0]) }}
                           />
+                          <PhotoToneDefs photo={(rel as any).photos?.[0]} />
                           {/* Sold out: same mark as the shop grid (Studio › Style › Product cards & grid › Sold-out badge) */}
                           {relChoice.comingSoon && showSoldOutBadge && (
                             <SoldOutBadge design={settings?.design} label={getCopy(settings?.design, "comingSoonBadge")} />

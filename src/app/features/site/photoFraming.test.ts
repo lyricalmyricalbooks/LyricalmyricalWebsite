@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adjustStyle, adjustToSave, dragFraming, framingStyle, framingToSave, motionFraming, photoAdjust, photoFraming } from "./photoFraming";
+import { DEFAULT_ADJUST, photoTone, adjustStyle, adjustToSave, dragFraming, framingStyle, framingToSave, motionFraming, photoAdjust, photoFraming } from "./photoFraming";
 import { shopFrameShapes } from "../../admin/photoCrop";
 
 describe("photo crop & placement", () => {
@@ -40,9 +40,9 @@ describe("photo crop & placement", () => {
 
 describe("quick photo edits", () => {
   it("saves nothing when nothing changed and cleans up bad values", () => {
-    expect(adjustToSave({ brightness: 100, contrast: 100, saturation: 100, flipX: false, flipY: false })).toBeUndefined();
+    expect(adjustToSave({ ...DEFAULT_ADJUST })).toBeUndefined();
     expect(photoAdjust({ adjust: { brightness: 400, contrast: "20", saturation: -5, flipX: "yes" } }))
-      .toEqual({ brightness: 150, contrast: 50, saturation: 0, flipX: false, flipY: false });
+      .toEqual({ brightness: 150, contrast: 50, saturation: 0, highlights: 0, shadows: 0, warmth: 0, tint: 0, sharpen: 0, flipX: false, flipY: false });
   });
 
   it("draws light and colour as a CSS filter, on top of the crop", () => {
@@ -68,6 +68,54 @@ describe("quick photo edits", () => {
       style: { objectPosition: "70% 50%", transformOrigin: "30% 50%", scale: 2, x: "80%", scaleX: -1 },
       hover: { scale: 3, x: "120%" },
     });
+  });
+});
+
+describe("Lightroom-style tone edits", () => {
+  it("draws highlights, shadows, warmth, tint and sharpen as one SVG filter the CSS filter points at", () => {
+    const photo = { adjust: { warmth: 50, shadows: 40, sharpen: 50, contrast: 110 } };
+    const tone = photoTone(photoAdjust(photo))!;
+    expect(tone.id).toBe("fm-tone-0-40-50-0-50");
+    expect(framingStyle(photo).filter).toBe("url(#fm-tone-0-40-50-0-50) contrast(1.1)");
+    expect(adjustStyle(photo).filter).toBe("url(#fm-tone-0-40-50-0-50) contrast(1.1)");
+    expect(tone.matrix).toBe("1.075 0 0 0 0 0 1 0 0 0 0 0 0.925 0 0 0 0 0 1 0");
+    expect(tone.kernel).toBe("0 -0.3 0 -0.3 2.2 -0.3 0 -0.3 0");
+    expect(photoTone(photoAdjust({ adjust: { brightness: 120 } }))).toBeNull();
+    expect(photoTone(photoAdjust({ adjust: { highlights: -30 } }))!.id).toBe("fm-tone-m30-0-0-0-0");
+  });
+
+  it("keeps black and white fixed and never turns the tone curve back", () => {
+    for (const [highlights, shadows] of [[100, 100], [-100, -100], [100, -100], [-100, 100]]) {
+      const table = photoTone(photoAdjust({ adjust: { highlights, shadows } }))!.table!.split(" ").map(Number);
+      expect(table[0]).toBe(0);
+      expect(table[table.length - 1]).toBe(1);
+      for (let i = 1; i < table.length; i++) expect(table[i]).toBeGreaterThanOrEqual(table[i - 1]);
+    }
+    const lifted = photoTone(photoAdjust({ adjust: { shadows: 100 } }))!.table!.split(" ").map(Number);
+    expect(lifted[4]).toBeGreaterThan(0.25); // a dark quarter-tone comes up
+  });
+});
+
+describe("every edited photo has its tone filter beside it", () => {
+  it("renders PhotoToneDefs in each file that styles a photo with the edits", async () => {
+    const { readFileSync, readdirSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const files: string[] = [];
+    const walk = (dir: string) => readdirSync(dir).forEach((name) => {
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) walk(path);
+      else if (/\.tsx$/.test(name) && !/\.test\./.test(name)) files.push(path);
+    });
+    walk("src/app");
+    const users = files.filter((f) => /(?:framingStyle|motionFraming)\(/.test(readFileSync(f, "utf8")) || f.endsWith("PhotoLightbox.tsx"));
+    expect(users.length).toBeGreaterThan(5);
+    for (const f of users) {
+      const src = readFileSync(f, "utf8");
+      // One beside each framed photo; the enlarged viewer's photos (adjustStyle) get theirs inside PhotoLightbox.
+      const framed = (src.match(/(?:framingStyle|motionFraming)\(/g) || []).length;
+      const defs = (src.match(/<PhotoToneDefs /g) || []).length;
+      expect({ file: f, defs: defs >= Math.max(1, framed) }).toEqual({ file: f, defs: true });
+    }
   });
 });
 

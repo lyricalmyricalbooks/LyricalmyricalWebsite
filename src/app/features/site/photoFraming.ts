@@ -40,35 +40,46 @@ export function framingToSave(f: PhotoFraming): PhotoFraming | undefined {
 }
 
 /**
- * Quick edits (same dialog): light, contrast, colour and mirroring, saved on the photo as `adjust`. Like the crop
- * they are drawn by the browser (CSS `filter` and a flip), so the uploaded file and its sharp copies never change.
- * Brightness and contrast are 50–150 (%), saturation 0–200 (0 = black & white); 100 = unchanged.
+ * Quick edits (same dialog): light, colour, detail and mirroring, saved on the photo as `adjust`. Like the crop
+ * they are drawn by the browser, so the uploaded file and its sharp copies never change.
+ * - Brightness and contrast are 50–150 (%), saturation 0–200 (0 = black & white); 100 = unchanged. These are CSS
+ *   filters.
+ * - Highlights, shadows, warmth and tint are −100…100 and sharpen 0…100; 0 = unchanged. CSS has no filter for
+ *   them, so they are an SVG filter (`photoTone`) that `PhotoToneDefs` draws next to the photo; the style points
+ *   at it with `url(#id)`. Every element given a style from here must have `<PhotoToneDefs>` beside it.
  */
-export type PhotoAdjust = { brightness: number; contrast: number; saturation: number; flipX: boolean; flipY: boolean };
+export type PhotoAdjust = {
+  brightness: number; contrast: number; saturation: number;
+  highlights: number; shadows: number; warmth: number; tint: number; sharpen: number;
+  flipX: boolean; flipY: boolean;
+};
 
-export const DEFAULT_ADJUST: PhotoAdjust = { brightness: 100, contrast: 100, saturation: 100, flipX: false, flipY: false };
-export const ADJUST_RANGES = { brightness: [50, 150], contrast: [50, 150], saturation: [0, 200] } as const;
+export const DEFAULT_ADJUST: PhotoAdjust = {
+  brightness: 100, contrast: 100, saturation: 100,
+  highlights: 0, shadows: 0, warmth: 0, tint: 0, sharpen: 0,
+  flipX: false, flipY: false,
+};
+export const ADJUST_RANGES = {
+  brightness: [50, 150], contrast: [50, 150], saturation: [0, 200],
+  highlights: [-100, 100], shadows: [-100, 100], warmth: [-100, 100], tint: [-100, 100], sharpen: [0, 100],
+} as const;
+export type AdjustLevel = keyof typeof ADJUST_RANGES;
+const LEVELS = Object.keys(ADJUST_RANGES) as AdjustLevel[];
 
 /** The photo's saved quick edits, cleaned up; `null` when it has none or they change nothing. */
 export function photoAdjust(photo: unknown): PhotoAdjust | null {
   const a = (photo as { adjust?: unknown } | null | undefined)?.adjust as Record<string, unknown> | undefined;
   if (!a || typeof a !== "object") return null;
-  const level = (key: keyof typeof ADJUST_RANGES) => {
+  const adjust = { ...DEFAULT_ADJUST, flipX: a.flipX === true, flipY: a.flipY === true };
+  for (const key of LEVELS) {
     const [lo, hi] = ADJUST_RANGES[key];
-    return Math.round(clamp(num(a[key]) ?? 100, lo, hi));
-  };
-  const adjust: PhotoAdjust = {
-    brightness: level("brightness"),
-    contrast: level("contrast"),
-    saturation: level("saturation"),
-    flipX: a.flipX === true,
-    flipY: a.flipY === true,
-  };
+    adjust[key] = Math.round(clamp(num(a[key]) ?? DEFAULT_ADJUST[key], lo, hi));
+  }
   return isDefaultAdjust(adjust) ? null : adjust;
 }
 
 export function isDefaultAdjust(a: PhotoAdjust): boolean {
-  return a.brightness === 100 && a.contrast === 100 && a.saturation === 100 && !a.flipX && !a.flipY;
+  return LEVELS.every((key) => a[key] === DEFAULT_ADJUST[key]) && !a.flipX && !a.flipY;
 }
 
 /** What to save on the photo: the cleaned edits, or `undefined` to drop the key when nothing is changed. */
@@ -76,10 +87,45 @@ export function adjustToSave(a: PhotoAdjust): PhotoAdjust | undefined {
   return photoAdjust({ adjust: a }) || undefined;
 }
 
-/** CSS `filter` for the edits, or `undefined` when light and colour are unchanged. */
+const fixed = (n: number) => String(Math.round(n * 1000) / 1000);
+
+/** The SVG filter for highlights, shadows, warmth, tint and sharpen, or `null` when none is set. */
+export type PhotoTone = { id: string; matrix?: string; table?: string; kernel?: string };
+export function photoTone(a: PhotoAdjust | null): PhotoTone | null {
+  if (!a || (!a.highlights && !a.shadows && !a.warmth && !a.tint && !a.sharpen)) return null;
+  const tone: PhotoTone = {
+    id: `fm-tone-${[a.highlights, a.shadows, a.warmth, a.tint, a.sharpen].map((n) => (n < 0 ? `m${-n}` : n)).join("-")}`,
+  };
+  if (a.warmth || a.tint) {
+    // White balance as channel gains: warmer = more red, less blue; tint + = magenta (less green), − = green.
+    const w = a.warmth / 100, t = a.tint / 100;
+    const r = 1 + 0.15 * w + 0.05 * t, g = 1 - 0.1 * t, b = 1 - 0.15 * w + 0.05 * t;
+    tone.matrix = `${fixed(r)} 0 0 0 0 0 ${fixed(g)} 0 0 0 0 0 ${fixed(b)} 0 0 0 0 0 1 0`;
+  }
+  if (a.highlights || a.shadows) {
+    // A tone curve: shadows move the darker tones (most near a third), highlights the lighter ones (most near
+    // two thirds); pure black and pure white stay where they are, and the curve never turns back on itself.
+    const h = a.highlights / 100, sh = a.shadows / 100;
+    const points: string[] = [];
+    for (let i = 0; i <= 16; i++) {
+      const x = i / 16;
+      points.push(fixed(clamp(x + sh * x * (1 - x) ** 2 + h * x * x * (1 - x), 0, 1)));
+    }
+    tone.table = points.join(" ");
+  }
+  if (a.sharpen) {
+    const k = (a.sharpen / 100) * 0.6;
+    tone.kernel = `0 ${fixed(-k)} 0 ${fixed(-k)} ${fixed(1 + 4 * k)} ${fixed(-k)} 0 ${fixed(-k)} 0`;
+  }
+  return tone;
+}
+
+/** CSS `filter` for the edits (the SVG tone first, then light and colour), or `undefined` when unchanged. */
 export function adjustFilter(a: PhotoAdjust | null): string | undefined {
   if (!a) return undefined;
+  const tone = photoTone(a);
   const parts = [
+    tone && `url(#${tone.id})`,
     a.brightness !== 100 && `brightness(${a.brightness / 100})`,
     a.contrast !== 100 && `contrast(${a.contrast / 100})`,
     a.saturation !== 100 && `saturate(${a.saturation / 100})`,

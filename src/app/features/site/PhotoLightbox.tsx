@@ -5,6 +5,7 @@ import { PhotoCarousel } from "./PhotoCarousel";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useFocusTrap } from "../../lib/useFocusTrap";
 import { muteVideo } from "./bookVideo";
+import { PhotoToneDefs } from "./PhotoToneDefs";
 
 /** Starts loading a photo at full-screen size, so it is ready before the shopper moves to it. */
 function warm(photo: LightboxPhoto | undefined) {
@@ -18,7 +19,8 @@ function warm(photo: LightboxPhoto | undefined) {
 
 /** `videoUrl`: a book video (features/site/bookVideo.ts); `url` is then its still frame. */
 // `style`: the photo's quick edits (colour, mirroring) — the viewer always shows the whole photo, never the crop.
-export type LightboxPhoto = { url: string; alt: string; srcSet?: string; videoUrl?: string; style?: CSSProperties };
+// `source`: the photo record, for the SVG part of those edits (PhotoToneDefs).
+export type LightboxPhoto = { url: string; alt: string; srcSet?: string; videoUrl?: string; style?: CSSProperties; source?: unknown };
 
 type Labels = { close: string; prev: string; next: string; dialog: string; count: string };
 
@@ -112,6 +114,8 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
                 className="max-w-[94vw] max-h-[88vh] w-auto h-auto object-contain bg-black"
               />
             ) : (
+            <>
+            <PhotoToneDefs photo={photos[i].source} />
             <img
               src={photos[i].url}
               {...(photos[i].srcSet ? { srcSet: photos[i].srcSet, sizes: "100vw" } : {})}
@@ -122,6 +126,7 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
               draggable={false}
               style={photos[i].style}
             />
+            </>
             )}
           </div>
         )}

@@ -744,6 +744,10 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .be-crop-field input[type="range"] { width: 100%; accent-color: var(--rp-primary); }
 .be-crop-heading { margin: 4px 0 0; font: 400 var(--rp-text-sm) var(--rp-font-mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--rp-text-muted); }
 .be-crop-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.be-crop-group { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--rp-border); padding-top: 8px; }
+.be-crop-group > summary { cursor: pointer; list-style-position: inside; }
+.be-crop-group:not([open]) { gap: 0; }
+.be-crop-original { position: absolute; top: 8px; left: 8px; padding: 2px 8px; background: var(--rp-text); color: var(--rp-surface); font: 400 var(--rp-text-xs) var(--rp-font-mono); text-transform: uppercase; letter-spacing: 0.06em; pointer-events: none; }
 .be-crop-previews { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .be-crop-previews figure { margin: 0; display: flex; flex-direction: column; gap: 4px; width: 88px; }
 .be-crop-previews figcaption { font: 700 10px/1.2 var(--rp-font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--rp-text-muted); }
