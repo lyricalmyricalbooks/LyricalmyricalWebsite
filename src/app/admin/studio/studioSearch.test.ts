@@ -310,9 +310,9 @@ describe("when not every word matches", () => {
 
 describe("click paths", () => {
   it("show where a control lives in the words used on screen", () => {
-    expect(index.find((e) => e.id === "style:header:logoHeight")?.trail).toBe("Theme settings › Header, menu & footer › Header & announcement bar › Header layout");
-    expect(index.find((e) => e.id === "style-group:logo")?.trail).toBe("Theme settings");
-    expect(index.find((e) => e.id === "style-group:footer")?.trail).toBe("Theme settings › Header, menu & footer");
+    expect(index.find((e) => e.id === "style:header:logoHeight")?.trail).toBe("Theme settings › Top of every page › Header & announcement bar › Header layout");
+    expect(index.find((e) => e.id === "style-group:logo")?.trail).toBe("Theme settings › Top of every page");
+    expect(index.find((e) => e.id === "style-group:footer")?.trail).toBe("Theme settings › Bottom of every page");
     expect(index.find((e) => e.id === "copy-group:Newsletter")?.trail).toBe("Text & labels › Across the whole shop");
   });
 });
