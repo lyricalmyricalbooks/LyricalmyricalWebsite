@@ -1,6 +1,12 @@
 .studio-editor { position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column; background: var(--rp-canvas); color: var(--rp-text); font-family: var(--rp-font-body, sans-serif); }
 .studio-topbar { min-height: 64px; display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--rp-border); background: var(--rp-surface); flex-wrap: wrap; }
 .studio-title { font-size: 14px; margin-right: 8px; }
+/* Save state: what happened on top, what it means for the shop below (keeps Publish on the first row). */
+.studio-status { display: inline-grid; line-height: 1.2; text-align: left; border-radius: 10px; }
+.studio-status > span:last-child { font-weight: 600; color: var(--rp-text-subtle); }
+.studio-status-sep { display: none; }
+/* Medium-wide screens: the Exit button already says where you are; dropping the title keeps Publish on the first row. */
+@media (max-width: 1599px) { .studio-title { display: none; } }
 .studio-editor select { max-width: 220px; min-height: 36px; border: 1px solid var(--rp-border); border-radius: 6px; background: var(--rp-input-bg); color: var(--rp-text); padding: 4px 8px; font-size: 12px; }
 .studio-workspace { flex: 1; display: flex; min-height: 0; position: relative; }
 .studio-sidebar { width: 280px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--rp-border); background: var(--rp-surface); }
@@ -15,8 +21,8 @@
 .studio-inspector-head { padding: 16px; display: flex; gap: 8px; justify-content: space-between; border-bottom: 1px solid var(--rp-divider); }
 .studio-inspector-head h2 { font-size: 15px; line-height: 1.4; font-weight: 700; margin-top: 4px; overflow-wrap: anywhere; }
 .studio-inspector-head small { font-size: 10px; letter-spacing: .08em; color: var(--rp-text-subtle); }
-.studio-inspector-actions { padding: 8px 12px; display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--rp-divider); }
-.studio-inspector-actions small { font-size: 10px; margin-left: auto; color: var(--rp-text-subtle); }
+.studio-inspector-actions { padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; border-bottom: 1px solid var(--rp-divider); }
+.studio-inspector-actions small { font-size: 11px; margin-left: auto; color: var(--rp-text-subtle); white-space: nowrap; }
 .studio-inspector-body { overflow: auto; padding: 16px; }
 .studio-tabs { display: flex; border-bottom: 1px solid var(--rp-divider); }
 .studio-tabs button { flex: 1; font-size: 12px; padding: 12px; }

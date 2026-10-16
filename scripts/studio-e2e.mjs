@@ -1189,7 +1189,7 @@ await check("Themes saves the draft as a theme, previews a look without changing
   const preset = panel.locator("[data-theme-card^='preset:']").first();
   await preset.getByRole("button", { name: "Preview" }).click();
   await page.locator("[data-studio-theme-preview]").waitFor({ timeout: 5000 });
-  if (await page.getByText("Not saved yet · shop unchanged", { exact: true }).isVisible()) throw new Error("previewing a look changed the draft");
+  if (await page.locator("[data-studio-status=\"unsaved\"]").isVisible()) throw new Error("previewing a look changed the draft");
   await page.locator("[data-studio-theme-preview]").getByRole("button", { name: "Stop preview" }).click();
   await page.locator("[data-studio-theme-preview]").waitFor({ state: "detached", timeout: 5000 });
   if (JSON.stringify((await page.evaluate(() => window.__studioFixture.calls)).filter(c => c.method === "saveDesign")) !== before) throw new Error("preview saved something");
