@@ -120,6 +120,24 @@ function ShapeDivider({ style, position, color }: { style?: string; position: "t
   );
 }
 
+/**
+ * Section › Style › Text (heading colour, size, weight, case, letter spacing) for headings the owner
+ * typed inside rich text (Rich text, Custom HTML…). Renderers style their own headings inline; these
+ * headings come from HTML, so without this rule the controls changed nothing there.
+ */
+export function sectionHtmlHeadingCss(sectionId: string, s: any): string {
+  const decl: string[] = [];
+  const safe = (v: unknown) => (typeof v === "string" && !/[;{}<>]/.test(v) ? v : "");
+  if (safe(s?.headingColor)) decl.push(`color:${safe(s.headingColor)}`);
+  if (Number(s?.headingSize) > 0) decl.push(`font-size:${Math.min(160, Number(s.headingSize))}px`);
+  if (/^[1-9]00$/.test(String(s?.headingWeight ?? ""))) decl.push(`font-weight:${s.headingWeight}`);
+  if (["none", "uppercase", "lowercase", "capitalize"].includes(s?.textTransform)) decl.push(`text-transform:${s.textTransform}`);
+  if (s?.letterSpacingOverride != null && s.letterSpacingOverride !== "" && Number.isFinite(Number(s.letterSpacingOverride)) && Number(s.letterSpacingOverride) !== 0) decl.push(`letter-spacing:${Number(s.letterSpacingOverride)}em`);
+  if (!decl.length) return "";
+  const id = String(sectionId).replace(/["\\]/g, "");
+  return `[data-section-id="${id}"] :where([data-theme-field="html"],[data-theme-field="body"],.prose) :is(h1,h2,h3,h4,h5,h6){${decl.join(";")}}`;
+}
+
 function SectionFontOverride({ sectionId, settings }: { sectionId: string; settings: any }) {
   const heading = settings?.headingFontOverride;
   const body = settings?.bodyFontOverride;
@@ -337,7 +355,7 @@ export function SectionList({
             }}
           >
             <SectionFontOverride sectionId={section.id} settings={s} />
-            <style>{sectionSpacingCss(section.id, s) + sectionStepCss(section.id, s.spacingStep) + sectionMotionCss(section.id, s, enableAnimations) + backgroundImageCss(section.id, s)}</style>
+            <style>{sectionSpacingCss(section.id, s) + sectionStepCss(section.id, s.spacingStep) + sectionMotionCss(section.id, s, enableAnimations) + backgroundImageCss(section.id, s) + sectionHtmlHeadingCss(section.id, s)}</style>
             {wantsReveal(s, enableAnimations) && <MotionWatcher sectionId={section.id} />}
             {(s.mobilePaddingTop != null || s.mobilePaddingBottom != null || s.mobileFontScale != null || s.mobileColumns != null || s.mobileHeadingSize != null) && <style>{`@media${UP_TO.mobile}{${s.mobileHeadingSize != null ? `#section-${section.id} :is(h1,h2){font-size:${Math.max(12, Math.min(120, Number(s.mobileHeadingSize)))}px!important;}` : ""}#section-${section.id}{${s.mobileFontScale != null ? `font-size:${Number(s.mobileFontScale)}%;` : ""}}${s.mobileColumns != null ? `#section-${section.id} .grid{grid-template-columns:repeat(${Math.max(1, Math.min(4, Number(s.mobileColumns)))},minmax(0,1fr))!important;}` : ""}}`}</style>}
             <SectionScopedCss sectionId={section.id} css={s.customCss} />

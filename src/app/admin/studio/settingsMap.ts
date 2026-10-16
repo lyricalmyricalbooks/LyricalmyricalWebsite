@@ -171,11 +171,11 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   ],
   products: [
     { title: "Grid & columns", keys: ["productCardStyle", "productColumnsDesktop", "productColumnsMobile", "catalogGridGap", "productHoverEffect"] },
-    { title: "Book photos", keys: ["imageAspectRatio", "photoOutline", "productBorderRadius", "placeholderImageUrl"] },
+    { title: "Book photos", keys: ["imageAspectRatio", "photoOutline", "placeholderImageUrl"] },
     { title: "Title & price", keys: ["productTitleColor", "cardTitleSize", "cardTitleSizeMobile", "cardTitlePhoneMin", "cardTitleWeight", "cardTitleFont", "cardTitleTracking", "productPriceColor", "cardPriceSize", "cardPriceSizeMobile", "cardPriceStackPhone", "cardPriceWeight", "cardPriceFont", "cardPriceTagBg", "cardPriceOldColor", "catalogPriceStyle", "catalogCardRuleWidth", "showPriceOnHover", "showQuickAdd", "showCardWishlist"] },
     { title: "Sold-out badge", keys: ["showSoldOutBadge", "soldOutBadgeStyle", "soldOutBadgeBg", "soldOutBadgeText", "soldOutBadgeSize", "soldOutBadgePosition", "soldOutPhotoFade"] },
     { title: "Badges & stock", keys: ["badgeBgPrimary", "badgeTextPrimary", "badgeBgSecondary", "badgeTextSecondary", "lowInventoryColor", "lowStockCardThreshold", "showCollectionMeta"] },
-    { title: "Card button & product-page extras", keys: ["productCTA", "showQtyStepper", "productDescriptionStyle"] },
+    { title: "Card button & product-page extras", keys: ["productCTA", "showQtyStepper", "productDescriptionStyle", "productBorderRadius"] },
   ],
   productPage: [
     { title: "Page layout", keys: ["productImageLayout", "productContentPosition", "productAlignment", "productDetailsLayout"] },

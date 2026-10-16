@@ -72,7 +72,8 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
     ${d.checkoutFieldFont ? `[data-fm-checkout] input, [data-fm-checkout] select, [data-fm-checkout] textarea, [data-fm-checkout] .fm-address-suggest { font-family:${fontStack(d.checkoutFieldFont)} !important; }` : ''}
     ${d.checkoutFieldBg ? `[data-fm-checkout] input, [data-fm-checkout] select, [data-fm-checkout] textarea { background-color:${d.checkoutFieldBg} !important; }` : ''}
     ${d.checkoutFieldText ? `[data-fm-checkout] input, [data-fm-checkout] select, [data-fm-checkout] textarea { color:${d.checkoutFieldText} !important; }` : ''}
-    ${d.checkoutFieldBorder ? `[data-fm-checkout] input, [data-fm-checkout] select, [data-fm-checkout] textarea { border-color:${d.checkoutFieldBorder} !important; }` : ''}
+    ${/* :not(#fm-studio) lifts specificity above the Riso field outline (themeTokens), so the Studio colour wins; focus keeps its ring. */ ""}
+    ${d.checkoutFieldBorder ? `[data-fm-checkout] :is(input,select,textarea):not(#fm-studio):not(:focus-visible) { border-color:${d.checkoutFieldBorder} !important; }` : ''}
     [data-fm-checkout] input:-webkit-autofill, [data-fm-checkout] input:-webkit-autofill:hover, [data-fm-checkout] input:-webkit-autofill:focus {
       -webkit-box-shadow: 0 0 0 1000px ${fieldBg} inset !important;
       -webkit-text-fill-color: ${fieldText === "inherit" ? "currentColor" : fieldText} !important;
@@ -88,7 +89,7 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
       ${d.checkoutAccentColor ? `--accent:${d.checkoutAccentColor};--accent-rgb:${hexToRgbTriplet(d.checkoutAccentColor)};` : ''}
     }
     ${d.checkoutBgColor ? `${bagHasOwnBackground ? '[data-fm-checkout]:not(.fm-bag)' : '[data-fm-checkout]'}{background-color:${d.checkoutBgColor} !important;}` : ''}
-    ${d.checkoutInputRadius != null ? `[data-fm-checkout] input, [data-fm-checkout] select { border-radius: ${d.checkoutInputRadius}px !important; }` : ''}
+    ${d.checkoutInputRadius != null ? `[data-fm-checkout] :is(input,select):not(#fm-studio) { border-radius: ${d.checkoutInputRadius}px !important; }` : ''}
   `
     : '';
 

@@ -2525,6 +2525,8 @@ export function PageContentSection({ settings: own, enableAnimations }: any) {
     sizeD ? `@media (min-width:768px){[data-page-title="${titleId}"]{font-size:${sizeD}px !important;}}` : "",
   ].join("");
   const titleStyle: Record<string, any> = {
+    // "Uppercase title" off must also beat the Riso heading treatment (h1 is uppercased by the theme CSS).
+    ...(settings.titleUppercase === false ? { textTransform: "none" } : {}),
     ...hStyle(settings),
     ...(settings.titleFont ? { fontFamily: `'${String(settings.titleFont).replace(/['"\\;{}<>]/g, "")}', var(--heading-font, sans-serif)` } : {}),
     ...(settings.titleWeight ? { fontWeight: Number(settings.titleWeight) || undefined } : {}),
