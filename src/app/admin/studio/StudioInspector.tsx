@@ -19,7 +19,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   device: "desktop" | "tablet" | "mobile"; sharedBlocks: SharedBlock[];
   onSaveShared: (blockId: string, name: string) => void; onInsertShared: (shared: SharedBlock) => void;
   onPatchShared: (sharedId: string, patch: Record<string, any>) => void;
-  onPatch: (patch: Record<string, any>) => void; onSelectBlock: (id: string | null) => void;
+  onPatch: (patch: Record<string, any>, meta?: { label: string }) => void; onSelectBlock: (id: string | null) => void;
   onDuplicate: () => void; onDelete: () => void; onToggle: () => void; onClose: () => void;
   onNotice?: (text: string) => void;
   /** Move the section one place up/down on its page, and whether there is room to (Move up / Move down buttons). */
@@ -108,7 +108,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
       <IconButton label={block ? (block.hidden ? "Show block" : "Hide block") : section.visible === false ? "Show section" : "Hide section"} onClick={block ? () => patchBlock({ hidden: !block.hidden }) : onToggle}>{(block ? block.hidden : section.visible === false) ? <EyeOff size={15} /> : <Eye size={15} />}</IconButton>
       {(block ? true : !!onMoveSection) && (() => {
         const room = block ? blockMoveRoom(blocks, block.id) : sectionRoom || { up: false, down: false };
-        const move = (d: -1 | 1) => block ? onPatch(updateBlocks(section, key, list => moveBlockBy(list, block.id, d))) : onMoveSection?.(d);
+        const move = (d: -1 | 1) => block ? onPatch(updateBlocks(section, key, list => moveBlockBy(list, block.id, d)), { label: `Move ${meta?.blockLabel || "block"} ${d < 0 ? "up" : "down"}` }) : onMoveSection?.(d);
         return <>
           <IconButton label="Move up" disabled={!room.up} onClick={() => move(-1)}><ChevronUp size={15} /></IconButton>
           <IconButton label="Move down" disabled={!room.down} onClick={() => move(1)}><ChevronDown size={15} /></IconButton>
@@ -170,13 +170,17 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
               <SectionFieldEditor field={f as any} value={section.settings[f.key]} settings={section.settings} onChange={v => onPatch({ [f.key]: v })} onPatch={onPatch} uploadFile={uploadStudioImage} />
             </ConnectableField>}
         </div>)}
-        {block && <div className="studio-control-card">
+        {block && section.type === "CompositionSection" && <div className="studio-control-card">
           <strong>Responsive layout · {device}</strong>
-          <p className="studio-hint">Changes here only apply at this screen size. Blank = same as the computer version. The Hide switches work on their own screen size, whichever size you are previewing.</p>
+          <p className="studio-hint">Changes here only apply at this screen size. Blank = same as the computer version. The Hide boxes work whichever size you are previewing.</p>
           <label>Alignment<select value={block.responsive?.[device]?.align || ""} onChange={e => patchResponsive("responsive", "align", e.target.value || undefined)}><option value="">Same as the larger screen</option><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
           <div className="studio-hide-devices" role="group" aria-label="Hide this block on some screens">
-            {HIDE_DEVICES.map(h => <label key={h.device}><input type="checkbox" checked={Boolean(block.responsive?.[h.device]?.hidden)}
-              onChange={e => patchBlock({ responsive: withDeviceHidden(block.responsive, h.device, e.target.checked) })} /> {h.label}</label>)}
+            {HIDE_DEVICES.map(h => {
+              // Hidden on tablets covers phones too (the storefront rule is "up to tablet width").
+              const coveredByTablet = h.device === "mobile" && Boolean(block.responsive?.tablet?.hidden);
+              return <label key={h.device} title={coveredByTablet ? "Already hidden on phones because it is hidden on tablets and phones" : undefined}><input type="checkbox" disabled={coveredByTablet} checked={coveredByTablet || Boolean(block.responsive?.[h.device]?.hidden)}
+              onChange={e => patchBlock({ responsive: withDeviceHidden(block.responsive, h.device, e.target.checked) })} /> {h.label}</label>;
+            })}
           </div>
           {section.type === "CompositionSection" && <div className="studio-grid-fields" data-studio-panel="block-look">
             {[["rotate", "Rotate (°)", -45, 45], ["scale", "Size (%)", 50, 150], ["opacity", "See-through (%)", 10, 100]].map(([field, label, min, max]) => <label key={String(field)}>{label}<input type="number" min={Number(min)} max={Number(max)} value={block.responsive?.[device]?.[String(field)] ?? ""} onChange={e => patchResponsive("responsive", String(field), e.target.value === "" ? undefined : Math.max(Number(min), Math.min(Number(max), Number(e.target.value))))} /></label>)}

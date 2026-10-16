@@ -741,8 +741,8 @@ Three audits (first-time owner, click paths, feedback) led to one round of fixes
   "Same as the larger screen" / "Use the all-pages value". Linked shared blocks show as "Reusable block". Pop-overs are "Pop-ups".
   `settingLabel`/`conflictLabel` use `STYLE_GROUPS`/`COPY_SCHEMA` labels.
 - **Place kept:** clicking the active rail tab keeps the selection, and each tab's scroll is restored. The inspector keeps its tab across sections of the same type
-  (`studio/inspectorState.ts`). There are Move up/down buttons in the inspector and block **Hide on phones / Hide on tablets** (`responsive[device].hidden`, preview-size independent).
-  `pickPage` resets "This page only" to All pages. The element inspector has **Back to Page layout**, and the element card goes back to its category. Text & labels opens
+  (`studio/inspectorState.ts`). There are Move up/down buttons in the inspector and Flexible-composition block **Hide on phones / Hide on tablets and phones** (`responsive[device].hidden`, preview-size independent; the storefront tablet rule is up-to-tablet, so it covers phones). The Responsive layout card shows only for Flexible composition, the only renderer that reads it. Block Move up/down are their own named undo steps.
+  any page change (template or every-page group) resets "This page only" to All pages. The element inspector has **Back to Page layout**, and the element card goes back to its category. Text & labels opens
   the sub-section holding the focused key. The mode button says the action, and the preview bridge sends `LINK_BLOCKED` once for a one-time hint (`lm:studio-mode-hint`).
 - **Feedback:** the status pill reads Not saved yet · shop unchanged / Saved as draft · shop unchanged / Live · the shop shows this.
   - `say("warn", …)` stays until dismissed. Use it for warnings and every delete toast with Undo.

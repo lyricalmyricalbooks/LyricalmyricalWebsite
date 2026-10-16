@@ -529,6 +529,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const template = templates.find((t) => t.id === templateId) || templates[0];
   // Collection alternates bring sections only (their page styles follow the default collection page).
   useEffect(() => { if (parseAltSurface(template.id)?.base === "collectionPage") setStyleScope("all"); }, [template.id]);
+  // "This page only" belongs to the page it was chosen on. However the canvas moves to another page (page picker,
+  // a followed link, Pages › Show, a section on another page, the every-page group), Studio goes back to All pages and says so.
+  const scopePageRef = useRef(`${template.id}|${showGlobal}`);
+  useEffect(() => {
+    const now = `${template.id}|${showGlobal}`;
+    if (scopePageRef.current === now) return;
+    scopePageRef.current = now;
+    if (styleScope === "page") { setStyleScope("all"); say("ok", "Back to All pages: changes now apply to every page."); }
+  }, [template.id, showGlobal]);
   const target: SectionTarget = showGlobal ? { kind: "global", group: globalGroup } : { kind: "template", id: template.id };
   const sections = getSections(design, target);
   const selected = sections.find((s) => s.id === selectedId) || null;
@@ -547,11 +556,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const toastSeq = useRef(0);
+  // While the pointer or keyboard focus is on the message it is being read: no timer runs (a new message arriving
+  // under the pointer waits too); the timer starts when both have left.
+  const toastHeld = useRef({ hover: false, focus: false });
   const armToast = (id: number, ms: number) => {
     clearTimeout(toastTimer.current);
+    if (toastHeld.current.hover || toastHeld.current.focus) return;
     toastTimer.current = setTimeout(() => setToast(t => (t?.id === id ? null : t)), ms);
   };
   useEffect(() => () => clearTimeout(toastTimer.current), []);
+  // A closed message can't send mouseleave/blur: forget the hold so the next message times out normally.
+  useEffect(() => { if (!toast) toastHeld.current = { hover: false, focus: false }; }, [toast]);
   const say = (kind: "ok" | "warn" | "err", text: string, action?: ToastAction) => {
     const id = ++toastSeq.current;
     setToast({ kind, text, action, id });
@@ -640,8 +655,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const setList = (fn: (l: Section[]) => Section[], meta?: { label?: string; coalesce?: string }) => change((d) => setSections(d, target, fn(getSections(d, target))), meta);
   // Adding to a custom page makes its fixed title/text a movable Page content section first (see withPageText).
   const keepPageText = (l: Section[]) => target.kind === "template" ? withPageText(l, target.id, getSectionMeta("PageContentSection")?.defaults || {}) : l;
-  const patchSelected = (patch: Record<string, any>) => selectedId && setList((l) => patchSectionSettings(l, selectedId, patch),
-    { label: `Edit ${selected ? sectionTitle(selected).label : "section"}`, coalesce: `patch:${selectedId}:${Object.keys(patch).sort().join(",")}` });
+  // A named one-off action (a block move) gets its own undo step; typing merges into one.
+  const patchSelected = (patch: Record<string, any>, meta?: { label: string }) => selectedId && setList((l) => patchSectionSettings(l, selectedId, patch),
+    meta ? { label: meta.label } : { label: `Edit ${selected ? sectionTitle(selected).label : "section"}`, coalesce: `patch:${selectedId}:${Object.keys(patch).sort().join(",")}` });
   const saveSharedBlock = (id: string, name: string) => {
     if (!selected) return;
     const key = getBlocksKey(selected.type), blocks = selected.settings[key] || selected.settings.blocks || [];
@@ -844,10 +860,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // Choosing a page keeps the current workspace (Theme settings stays open on the new page).
   const pickPage = (o: PickerOption) => {
     setSelectedId(null); setBlockId(null);
-    // "This page only" belongs to the page it was chosen on: a different page starts on All pages again, and says so.
-    if (styleScope === "page" && (o.global || o.templateId !== template.id)) {
-      setStyleScope("all"); say("ok", "Back to All pages: changes now apply to every page.");
-    }
     if (o.global) { setShowGlobal(true); return; }
     setShowGlobal(false); setTemplateId(o.templateId);
     if (o.productSlug) setProductSlug(o.productSlug);
@@ -1418,7 +1430,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // Clicking the tab you are already on keeps what you selected; changing tabs clears it and remembers each tab's scroll.
   const selectRail = (id: LeftTab) => {
     setMobilePanel("outline");
-    if (id === leftTab) return;
+    // Clicking the tab already open keeps the selection; on Theme settings it still leaves an element's focus card.
+    if (id === leftTab) { setStyleFocus(null); return; }
     restoreScrollFor.current = id;
     setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setSelectedElement(null);
   };
@@ -2475,9 +2488,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       {toast && (
         <div role={toast.kind === "err" ? "alert" : "status"} data-studio-toast={toast.kind}
           // A message that is being read stays up: it waits while the pointer or keyboard focus is on it.
-          onMouseEnter={() => clearTimeout(toastTimer.current)} onFocus={() => clearTimeout(toastTimer.current)}
-          onMouseLeave={() => { if (toast.kind === "ok") armToast(toast.id, 2000); }}
-          onBlur={() => { if (toast.kind === "ok") armToast(toast.id, 2000); }}
+          onMouseEnter={() => { toastHeld.current.hover = true; clearTimeout(toastTimer.current); }}
+          onFocus={() => { toastHeld.current.focus = true; clearTimeout(toastTimer.current); }}
+          onMouseLeave={() => { toastHeld.current.hover = false; if (toast.kind === "ok") armToast(toast.id, 2000); }}
+          onBlur={e => { if (e.currentTarget.contains(e.relatedTarget as Node | null)) return; toastHeld.current.focus = false; if (toast.kind === "ok") armToast(toast.id, 2000); }}
           className={`studio-toast absolute top-16 left-1/2 -translate-x-1/2 z-[350] px-4 py-2 rounded-lg text-sm font-bold shadow-lg ${toast.kind === "err" ? "bg-red-600 text-white" : toast.kind === "warn" ? "studio-toast-warn" : "bg-neutral-900 text-white"}`}>
           {toast.text}
           {toast.action && <button className="ml-3 underline" onClick={() => { const action = toast.action!; setToast(null); action.run(); }}>{toast.action.label}</button>}

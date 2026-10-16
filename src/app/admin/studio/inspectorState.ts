@@ -41,10 +41,11 @@ export function moveBlockBy(blocks: StudioBlock[], id: string, direction: -1 | 1
   return i >= 0 && i < list.length - 1 ? moveBlockBefore(blocks, list[i + 1].id, id) : blocks;
 }
 
-/** The devices a block can be hidden on, in the order shown. Same keys the "responsive" overrides always used. */
+/** The devices a block can be hidden on, in the order shown. Same keys the "responsive" overrides always used.
+ *  The storefront's tablet rule is "up to tablet width" (`UP_TO.tablet`), so hiding on tablets hides on phones too. */
 export const HIDE_DEVICES: { device: "mobile" | "tablet"; label: string }[] = [
   { device: "mobile", label: "Hide on phones" },
-  { device: "tablet", label: "Hide on tablets" },
+  { device: "tablet", label: "Hide on tablets and phones" },
 ];
 
 /**
