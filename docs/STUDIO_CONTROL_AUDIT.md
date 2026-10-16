@@ -38,16 +38,17 @@ Each "nothing changed" control was then read in the code. Most need something th
 | Header › **Header layout** | Only sets how see-through the header is when no background colour is set | Relabelled "Header see-through amount" |
 | Reference-only controls (category gaps), missing-page "return" link | Labels didn't say where they apply | Labels say so |
 
-## Broken, not changed here (each changes how the live shop looks, so it needs your call)
+## Broken, fixed later the same day (they work now, but start at Off)
 
-| Control | What happens | Suggested fix |
-|---|---|---|
-| Layout › **Space between sections** | Only feeds the shop grid's row gap, capped by the grid gap; nothing spaces sections | Add it as space between sections. This adds 64px between your sections today |
-| **Shadow scale** / **Spacing scale** | Their CSS variables are used by classes no storefront element has | Wire them to cards and sections, or remove them |
-| **Show breadcrumbs** | Nothing on the storefront reads it since collections moved into the shop page | Remove, or add a breadcrumb to collection views |
-| **Corner radius scale** | Reaches the buy card, bag and tracking slip but not shop-grid cards, although its label says cards | Let cards follow it when Card corners is empty |
-| Book page › **description colour / alignment / font** | Your Fine-tune one element settings for "Product description" (colour, alignment, font) override them | Reset that element in Fine-tune, or we show an "overridden" note |
-| Studio shows **See-through header**, **logo picture / text / tint** and **favicon** as empty | They are saved on the Home/shop page only, and Studio reads the all-pages value | Show the page value in Studio |
+| Control | Now |
+|---|---|
+| Layout › **Space between sections** | New `sectionGap` (0 = none) spaces every section after the first in a stack (`designTokensCss`). The old `sectionSpacing` keeps feeding the shop grid's row gap and is labelled that way |
+| **Shadow scale** | Replaced by Animations & hover effects › **Book card shadow** (`cardShadowDepth`, Off by default) on every `.fm-card`, one step deeper on hover. The never-drawn saved `shadowScale` is ignored |
+| **Spacing scale** | Removed: the shop grid gap and section spacing already have their own controls |
+| **Show breadcrumbs** | Replaced by Show or hide whole features › **Breadcrumbs above a shop category** (`showCollectionBreadcrumbs`, off by default): Home / Parent / Category above the category heading; words in Text & labels › Collection & wishlist pages (`breadcrumbHome`, `breadcrumbSeparator`) |
+| **Corner radius scale** | Shop-grid cards follow the chosen corner set (its middle value) |
+| Book page › **description colour / alignment / font** | Each control says when Fine-tune › Book description sets its own value and offers **Use this control instead** (`studio/fineTuneConflicts.ts`) |
+| Studio shows page-only values as empty | On All pages, a field says when the previewed page uses its own value and offers **Use the all-pages value** (`fieldPageOverride`) |
 
 ## Did nothing in the test, but work (they need a state)
 

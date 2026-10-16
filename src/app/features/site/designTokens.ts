@@ -85,6 +85,15 @@ export function sectionStepCss(sectionId: string, step: unknown): string {
   return `${root}:not(:has([data-studio-spacing])),${root} [data-studio-spacing]{padding-top:${value};padding-bottom:${value};}`;
 }
 
+/** Style › Animations & hover effects › Book card shadow: off unless chosen; hover lifts one step. */
+export const CARD_SHADOWS: Record<string, string> = {
+  subtle: "0 1px 2px 0 rgba(var(--overlay-rgb, 0, 0, 0), 0.08)",
+  medium: "0 4px 6px -1px rgba(var(--overlay-rgb, 0, 0, 0), 0.12), 0 2px 4px -2px rgba(var(--overlay-rgb, 0, 0, 0), 0.12)",
+  raised: "0 10px 15px -3px rgba(var(--overlay-rgb, 0, 0, 0), 0.14), 0 4px 6px -4px rgba(var(--overlay-rgb, 0, 0, 0), 0.14)",
+  dramatic: "0 25px 50px -12px rgba(var(--overlay-rgb, 0, 0, 0), 0.3)",
+};
+const SHADOW_STEPS = ["subtle", "medium", "raised", "dramatic"];
+
 export function designTokensCss(design: any): string {
   const d = design || {};
   const { unit, phoneScale } = spaceUnits(d);
@@ -96,6 +105,14 @@ export function designTokensCss(design: any): string {
 
   let css = `${S}{${vars.join(";")};}`;
   if (phoneScale !== 1) css += `@media${UP_TO.mobile}{${S}{--fm-space-scale:${phoneScale};}}`;
+  // Layout & spacing › Space between sections: every section after the first in a stack.
+  const gap = num(d.sectionGap, 0, 0, 160);
+  if (gap > 0) css += `${S} [data-fm-section]+[data-fm-section]{margin-top:calc(${gap}px * var(--fm-space-scale, 1));}`;
+  const shadow = CARD_SHADOWS[d.cardShadowDepth];
+  if (shadow) {
+    const lift = CARD_SHADOWS[SHADOW_STEPS[Math.min(SHADOW_STEPS.indexOf(d.cardShadowDepth) + 1, SHADOW_STEPS.length - 1)]];
+    css += `${S} .fm-card{box-shadow:${shadow} !important;transition:box-shadow .2s ease;}${S} .fm-card:hover{box-shadow:${lift} !important;}`;
+  }
   // Section headings follow the scale; a section's own heading size (#section-… rules) still wins.
   if (steps.length) {
     css += `${S} [data-fm-section] h1{font-size:var(--fm-step-5);}`

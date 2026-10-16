@@ -412,6 +412,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "breadcrumbAria", label: "Breadcrumb (read aloud by screen readers, not shown)", default: "Breadcrumb" },
       { key: "breadcrumbHome", label: "Breadcrumb: Home", default: "Home" },
       { key: "breadcrumbCollections", label: "Breadcrumb: Collections", default: "Collections" },
+      { key: "breadcrumbSeparator", label: "Breadcrumb: mark between links", default: "/", hint: "Shown when Style › Show or hide whole features › Breadcrumbs above a shop category is on. Leave it empty for no mark." },
       { key: "wishlistTitle", label: "Wishlist title", default: "Wishlist" },
       { key: "wishlistCount", label: "Wishlist item count", default: "{count} items", hint: "Use {count} for the number of items." },
       { key: "wishlistEmpty", label: "Wishlist empty message", default: "Your wishlist is empty" },

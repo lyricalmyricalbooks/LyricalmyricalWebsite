@@ -20,7 +20,8 @@ import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT
 import { getCopy } from "../features/site/storeCopy";
 import { preorderActive } from "../features/site/preorder";
 import { comingSoonActive } from "../features/site/comingSoon";
-import { buildNavItems, categoryNames } from "../features/site/navItems";
+import { buildNavItems, categoryNames, parentOf } from "../features/site/navItems";
+import { RADIUS_SCALES } from "../features/site/designTokens";
 import { catalogHeaderMaxWidth, contentMaxWidth } from "../features/site/headerNav";
 import { shopFilterBarCategories, shopFilterBarCounts, shopFilterBarInStock, showShopFilterBar } from "../features/site/shopFilterBar";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
@@ -596,7 +597,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const isReferenceCatalog = storefrontDesign?.catalogLayoutStyle !== "modern";
   const storefrontMobileColumns = Math.max(1, Math.min(3, storefrontDesign?.productColumnsMobile ?? 1));
   const storefrontDesktopColumns = Math.max(2, Math.min(6, storefrontDesign?.productColumnsDesktop ?? (isReferenceCatalog ? 3 : 4)));
-  const storefrontCardRadius = Math.max(0, Math.min(30, storefrontDesign?.cardRadius ?? 8));
+  // Theme settings › Design scales › Corner set, when chosen, gives shop cards its middle corner too.
+  const storefrontCardRadius = Math.max(0, Math.min(30, RADIUS_SCALES[storefrontDesign?.radiusScale]?.m ?? storefrontDesign?.cardRadius ?? 8));
   const storefrontGridGap = Math.max(8, Math.min(72, storefrontDesign?.catalogGridGap ?? 20));
   const storefrontHeaderMaxWidth = catalogHeaderMaxWidth(storefrontDesign);
   const storefrontImageFit = storefrontDesign?.catalogImageFit === "contain" ? "object-contain" : "object-cover";
@@ -833,6 +835,22 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   </div>
                 )}
                 <div className="max-w-3xl">
+                  {storefrontDesign?.showCollectionBreadcrumbs === true && (() => {
+                    // Style › Show or hide whole features › Breadcrumbs above a shop category: Home / Parent / Category.
+                    const parentId = parentOf(activeCategory, categories);
+                    const parent = parentId ? categories.find((c: any) => c?.id === parentId) : null;
+                    const sep = getCopy(activeDesign, "breadcrumbSeparator");
+                    const slug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+                    return (
+                      <nav aria-label={getCopy(activeDesign, "breadcrumbAria")} data-studio-target="style:elements|copy:Collection & wishlist pages" data-studio-label="Category breadcrumb"
+                        className="fm-collection-crumb flex flex-wrap items-center gap-2 mb-3 text-[11px] uppercase tracking-[0.16em] fm-muted">
+                        <Link to="/" className="hover:underline">{getCopy(activeDesign, "breadcrumbHome")}</Link>
+                        {parent?.name && <>{sep && <span aria-hidden="true">{sep}</span>}<Link to={`/collections/${slug(parent.name)}`} className="hover:underline">{parent.name}</Link></>}
+                        {sep && <span aria-hidden="true">{sep}</span>}
+                        <span aria-current="page">{activeCategory.name}</span>
+                      </nav>
+                    );
+                  })()}
                   {/* On /collections/<slug> the category name is the page's single <h1> (in the prerendered HTML too). */}
                   {onCollectionRoute ? (
                     <h1 {...regionProps("categoryBannerTitle")} data-studio-target={regionProps("categoryBannerTitle")["data-studio-target"] + "|menus:categories"} className="text-3xl md:text-5xl font-bold tracking-tighter mb-4 uppercase">
