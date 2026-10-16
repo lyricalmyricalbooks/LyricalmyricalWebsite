@@ -753,6 +753,13 @@ Three audits (first-time owner, click paths, feedback) led to one round of fixes
   - Deleting 3+ sections or a template asks first.
   - `StudioCopyField` notes when Theme settings' `addToBagLabel` overrides the Add-to-bag words (`CopyTargetContext`).
 
+### Finding your way (16 October 2026)
+Three agents looked at search, wayfinding and browsing. One PR delivered the result:
+- **Find anything** understands plain words, UK and US spellings, phrases and typos. Categories rank above single controls, and each result shows its click path. A miss offers suggestions and Browse buttons. 60 owner-style queries are pinned in `studioSearch.test.ts`. The old search failed 37 of them.
+- **Back and path:** the breadcrumb is the full path, and every level except the last is clickable. **← Back** and Alt+← use `placeHistory.ts`.
+- **Shop-order Theme settings:** the "Where is it on the shop?" map comes first, then the parts of the shop top to bottom, then the whole-site look. The category titles are plainer. Page layout parts have **Style** and **Words** shortcuts, and the page has a dismissible "click anything in the preview" tip.
+- **View website:** a top-bar button opens the draft in a full storefront tab. `DraftPreviewBanner` tells the owner whether the tab shows unsaved changes, the saved draft or the live shop.
+
 ### Phase 9 — Multi-language EN/FR *(needs owner go-ahead)*
 - [ ] Carry out `docs/superpowers/plans/2026-10-04-local-fulfillment-content-languages.md`: translating words and pages,
   a check for what is still untranslated, previewing each language, and a language switcher for shoppers.

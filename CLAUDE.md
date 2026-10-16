@@ -127,7 +127,7 @@ npm run logs
 - `stripeWebhook` — the **only** path that marks Stripe orders paid; it also
   decrements stock, counts discount redemptions, and records revenue. Orders are
   created `unpaid` first.
-- Checkout **order note / gift message** (`orderNote` on the order, max 500 chars, enforced in `firestore.rules`): Studio › Style › Checkout & cart drawer › **Order note / gift message box at checkout** (`showOrderNote`, off by default); words in Text & labels › Checkout; shown to admins in Order detail › Customer.
+- Checkout **order note / gift message** (`orderNote` on the order, max 500 chars, enforced in `firestore.rules`): Studio › Style › Checkout page › **Order note / gift message box at checkout** (`showOrderNote`, off by default); words in Text & labels › Checkout; shown to admins in Order detail › Customer.
 - `downloadDigitalAsset` — gated digital ebook downloads.
 - `onOrderPaid` / `onOrderShipped` — Firestore triggers that send customer/admin
   emails (Resend).
@@ -170,7 +170,7 @@ npm run logs
   separately, so a rejected customer address never suppresses the admin notification.
 - `onBookRestocked` — emails shoppers in `stockAlerts` (created from the sold-out product page's
   "Notify me when back in stock" box, `features/site/BackInStockForm.tsx`) when a book/variant goes
-  0 → available. Studio › Style › Product page layout › **Notify me when back in stock** toggles the box;
+  0 → available. Studio › Style › Book page · photos & layout › **Notify me when back in stock** toggles the box;
   its words are in Text & labels › Product page.
 
 - `unpaidPaymentSweep` (every 15 minutes) — records pending reconciliation and emails the shop when Stripe
@@ -393,6 +393,16 @@ Ctrl/⌘-click multi-select with a bulk bar; blocks move between sections of the
 preview). Use `moveSectionTo` / `moveBlockTo` / `updateSectionsById` (`studio/studioWorkflow.ts`) for any new move or
 bulk edit — never splice section arrays by hand.
 
+**Finding your way (16 October 2026):** the breadcrumb under the top bar is the full path (workspace › page or category ›
+section › block, every level but the last clickable, `role="link"`), and **← Back** / Alt+← returns to the previous place:
+`studio/placeHistory.ts` (pure) records places from StudioEditor's own state (Find, preview clicks, Show on page, rail, page
+picker), folds changes within 700 ms, caps 20 and never restores a deleted section/page. Find anything (`studioSearch.ts`)
+reads plain words: synonyms/UK-US spellings, phrase rewrites, typo correction ("Showing results for…"), categories rank above
+single controls, every result carries its click path (`trail`), and a miss offers suggestions + Browse buttons; pin new
+owner queries in `studioSearch.test.ts`. Page layout's structure rows have **Style** / **Words** shortcuts (`onOpenTarget`).
+**View website** (top bar) opens the shop in a `?preview=true` tab fed the plain draft (never Add-section try-outs, theme or
+brand-kit previews) plus `studioStatus` (unsaved/draft/live); `DraftPreviewBanner` (only in that top-level tab; words
+Text & labels › Site & sharing › `draftPreview*`) says which, or that Studio is closed and it shows the live shop.
 **Workbench & navigation (Studio 3.0 phase 1, 15 October 2026):** `studio/StudioWorkbench.tsx` is docked under the preview
 (tablets/computers; phones keep the Health dialog). Its tabs: **Health** (`HealthFindings` from `StudioHealth.tsx`; open it with
 `openHealth()`, never `setChecksOpen` directly), **Changes** (undo steps; jump with `jumpBy` in `studioModel.ts`; draft vs live
@@ -516,7 +526,7 @@ first picture (`firstBodyImage`). `PageContentSection` styles Quill's `ql-align-
 **Full width + shop filter bar (15 October 2026):** Style › Layout & spacing › **Use the full screen width** (`fullWidth`, off by
 default) makes `contentMaxWidth` / `catalogHeaderMaxWidth` (`features/site/headerNav.ts`) return "100%" for the header, shop grid,
 book page, footer, secondary nav and custom pages (`PageView` passes `headerWidth: "full"`); use those helpers for any new storefront
-column, never `containerWidth` directly. Style › Catalog page header & filters › **Shop filter bar** (`showShopFilterBar`,
+column, never `containerWidth` directly. Style › Shop page heading & filters › **Shop filter bar** (`showShopFilterBar`,
 `shopFilterBarCounts` off, `shopFilterBarInStock` on, font/outline/chosen colours) renders `.fm-filter-bar` beside the catalog
 heading in `MainSite` (All · `shopFilterBarCategories` = visible categories with no visible children · In stock, sharing the
 catalog's `inStockOnly`); the heading has `catalogHeading{Font,Size,SizeMobile,Case,Color}` (`.fm-catalog-heading`). CSS and fonts
@@ -572,7 +582,7 @@ features there only — `storeChrome.parity.test.tsx` checks every Studio hook a
 and fails if another file renders the navigation `<header>` or `footerPanel`; refresh the fixture
 (`UPDATE_STORE_CHROME_HOOKS=1`) only for an intended hook change.
 
-**Shop card title & price:** Studio › Style › **Product cards & grid** has colour, size (desktop + phone), weight, font and letter-spacing controls for the card title and price (`productTitleColor`, `cardTitle*`, `productPriceColor`, `cardPrice*`), plus the boxed-tag and old-price colours. `features/site/cardTypography.ts` turns them into CSS (emitted by `StorefrontThemeStyle`); cards opt in with the `fm-card-title` / `fm-card-price-wrap` / `fm-card-price` / `fm-card-price-tag` / `fm-card-price-old` classes — the shop grid, collection, wishlist, search, related-books and recently-viewed cards and the **Product grid** / **Product showcase grid** sections do. When a Style card colour is set it wins over a section's own colour; empty = the section's colour. Add those classes to any new book card — `features/site/cardClasses.test.tsx` renders every section with sample books and fails on a book title without `fm-card-title`.
+**Shop card title & price:** Studio › Style › **Book cards in the shop grid** has colour, size (desktop + phone), weight, font and letter-spacing controls for the card title and price (`productTitleColor`, `cardTitle*`, `productPriceColor`, `cardPrice*`), plus the boxed-tag and old-price colours. `features/site/cardTypography.ts` turns them into CSS (emitted by `StorefrontThemeStyle`); cards opt in with the `fm-card-title` / `fm-card-price-wrap` / `fm-card-price` / `fm-card-price-tag` / `fm-card-price-old` classes — the shop grid, collection, wishlist, search, related-books and recently-viewed cards and the **Product grid** / **Product showcase grid** sections do. When a Style card colour is set it wins over a section's own colour; empty = the section's colour. Add those classes to any new book card — `features/site/cardClasses.test.tsx` renders every section with sample books and fails on a book title without `fm-card-title`.
 
 **Section groups (2.2):** three every-page section lists, all root-only: `headerSections` (under the header),
 `globalSections` (above the footer) and `overlaySections` (pop-up) — rules in `features/site/sectionGroups.ts`, rendered by
@@ -679,8 +689,8 @@ until a colour is edited (render-equivalence guard in `colorSchemes.test.ts`). H
 **Product page (catalogue card):** `features/site/BookDetail.tsx` renders the Riso "catalogue card" layout —
 breadcrumb, thumbnail rail + framed photo + "Fig. n" caption, one bordered buy card (tag, title, price,
 stock line | formats, qty, Add to bag, wishlist, share), then Description / Details / Reviews tabs (or
-accordions) with Details as a label | value record. Every piece is a Studio › Style › **Product page · buy
-card & details** control (`pdp*` keys, turned into CSS by `features/site/productPageStyle.ts`, `fm-pdp-*`
+accordions) with Details as a label | value record. Every piece is a Studio › Style › **Book page · buy
+box & details** control (`pdp*` keys, turned into CSS by `features/site/productPageStyle.ts`, `fm-pdp-*`
 classes); its words are in Text & labels › Product page (`pdp*` copy keys). The main photo and the enlarged viewer are one swipeable,
 snapping strip (`features/site/PhotoCarousel.tsx`: native scroll-snap for touch, mouse drag via `dragPlan`); the viewer
 renders into `<body>` (`createPortal`, inside a `data-fm-store` wrapper). Dots under the photo: `pdpPhotoDots`. The old trust-signal lines
@@ -688,7 +698,7 @@ renders into `<body>` (`createPortal`, inside a `data-fm-store` wrapper). Dots u
 
 **Every Style control must reach every surface (and the preview iframe):** the card title/price and small-print CSS comes from one place, `features/site/StorefrontOverrides.tsx` (`storefrontOverridesCss`). `StorefrontThemeStyle` renders it, and so do `MainSite`'s `TypographyTokens` and `BookDetail` — any new storefront root that injects its own token `<style>` must render `<StorefrontOverrides>` too. `storefrontOverrides.test.ts` fails on a surface that skips it and on any `STYLE_GROUPS` control that nothing on the storefront reads (wire it or delete it — don't allow-list). Custom code (Style › Custom code) is injected by `features/site/customCode.ts` on public pages only — never in the preview, checkout or admin.
 
-**Photo shapes:** Studio › Style › **Product cards & grid** has **Image shape (proportions)** (12 ratios, 3:4 … 21:9 … 9:16 — `PHOTO_RATIOS` in `features/site/photoShapes.ts`, also used by the Product grid / Product showcase grid / cover carousel sections) and **Image outline** (`photoOutline`: arch, window, pill, circle/oval, leaf, hexagon, octagon, diamond, cut corners, slanted). The product page has its own **Photo shape** / **Photo outline** (`productImageAspect`, `productPhotoOutline`; "Same as shop grid" by default). Outlines are CSS from `photoOutlineCss` (via `StorefrontOverrides`); new photo frames opt in with `fm-photo-frame` (shop cards) or `fm-photo-frame-pdp` (product photos).
+**Photo shapes:** Studio › Style › **Book cards in the shop grid** has **Image shape (proportions)** (12 ratios, 3:4 … 21:9 … 9:16 — `PHOTO_RATIOS` in `features/site/photoShapes.ts`, also used by the Product grid / Product showcase grid / cover carousel sections) and **Image outline** (`photoOutline`: arch, window, pill, circle/oval, leaf, hexagon, octagon, diamond, cut corners, slanted). The product page has its own **Photo shape** / **Photo outline** (`productImageAspect`, `productPhotoOutline`; "Same as shop grid" by default). Outlines are CSS from `photoOutlineCss` (via `StorefrontOverrides`); new photo frames opt in with `fm-photo-frame` (shop cards) or `fm-photo-frame-pdp` (product photos).
 
 **Shopping bag (cart drawer):** `components/CartDrawer.tsx` is a Riso "order slip" — ruled header, free-shipping
 meter, numbered line items (photo, title, per-copy price, line total, qty stepper, Remove), "Complete your collection"
@@ -709,8 +719,8 @@ preset `lyricalmyrical-riso-noir`). `RISO_STOREFRONT_CSS` in `themeTokens.ts` mu
 (no literal hex — `themeTokens.test.ts` enforces it). Colour triplet variables (`--fg-rgb`, `--accent-rgb`,
 …) are **comma-separated** (`255, 255, 255`) so `rgba(var(--x-rgb), a)` is valid. Every shopper-facing
 string goes through `getCopy(design, key)` with a `COPY_SCHEMA` entry (`storeCopy.coverage.test.ts`
-guards this); print-treatment knobs live in Colors › **Riso print treatment**, element toggles in
-Additional › **Storefront elements**.
+guards this); print-treatment knobs live in Colors › **Printed-paper look (Riso)**, element toggles in
+Additional › **Show or hide whole features**.
 
 **Section contract:** the storefront looks up renderers by the registry `type`
 string. A registry type with **no identically named renderer renders nothing**
@@ -1022,10 +1032,12 @@ holds preview, history, checks and guarded discard. Inspector device context dis
 content from responsive layout overrides. Existing draft/publish persistence is unchanged.
 
 **Friendlier settings homes (October 2026).** `studio/settingsMap.ts` (pure, tested) decides *where* controls
-appear; it never adds or removes one. Theme settings opens in three bands (`THEME_HEADINGS` `band`):
-**Site-wide design** (presets, logo, colours, typography, small print, buttons, layout, motion, Riso — the design
-system), **Parts of your shop** (Header, menu & footer · Shop & book pages · Bag, checkout & accounts · Pages &
-features) and **Advanced** (folded **Fine-tune single elements** + Custom code). Part cards have **Show on page**
+appear; it never adds or removes one. Theme settings opens with a **Where is it on the shop?** map (`SHOP_MAP`, jumps to a heading),
+then three bands (`THEME_HEADINGS` `band`): **Parts of your shop, top to bottom** (Top of every page · Shop & book pages ·
+Bag, checkout & accounts · Custom pages & features · Bottom of every page · Pop-ups & notices — the order a shopper meets
+them), **Whole-site look** (presets, colours, typography, buttons, layout, motion, Riso, design scales, small print) and
+**Advanced** (folded **Fine-tune one element at a time** + Custom code). Category titles are plain shop words (Book cards in
+the shop grid, Book page · buy box & details…); `settingsMap.test.ts` rejects jargon in them. Part cards have **Show on page**
 (`CATEGORY_PAGES` names the preview page or pop-over; Studio opens it and selects the part from the structure scan). Each category card has a one-line description (`GROUP_BLURBS`)
 and a **● N changed** badge. **Theme presets & saved themes** and **Payment icons** are categories now
 (`EXTRA_STYLE_CATEGORIES`; click-to-edit `style:paymentIcons` opens it). Big categories split into short collapsible
@@ -1624,7 +1636,7 @@ Grouped footer navigation defaults to Explore and Participate & connect, with po
   "In stock" counts editions and backorders (`bookInStock`); search also matches ISBN. Each piece is a Studio region
   (`catalogFormat`, `catalogPrice`, `catalogClear` — show/hide + layout in Theme settings › Fine-tune single elements › Catalog & shared content · layout);
   words are Text & labels › Search & filters (`filterFormat*`, `filterPrice*`, `filterClear`). The bar itself still
-  follows Style › Catalog page header & filters › **Show search, sort & in-stock bar**.
+  follows Style › Shop page heading & filters › **Show search, sort & in-stock bar**.
 - **Display price:** `features/site/displayPrice.ts` — a book sold only in editions shows its cheapest edition
   (CurrencyContext `getBookPrice`, shop cards, search, showcase grid, filters/sort) instead of CA$ 0.00.
 - **Server prices:** `functions/catalogPrice.js` `catalogUnitPrice` mirrors `CartContext.catalogUnitPrice` everywhere
