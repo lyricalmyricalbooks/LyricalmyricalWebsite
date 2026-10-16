@@ -98,7 +98,7 @@ export function StudioStructure(p: Props) {
     </details>
 
     <details className="studio-structure-group">
-      <summary><MessageSquare size={14} /> Pop-overs</summary>
+      <summary><MessageSquare size={14} /> Pop-ups</summary>
       <p className="studio-hint">Open one in the preview to see and style it.</p>
       {groupButton("overlaySections", "Pop-up sections")}
       {STUDIO_OVERLAYS.map(o => <div key={o.id} className="studio-tree-row studio-structure-row">
@@ -106,7 +106,7 @@ export function StudioStructure(p: Props) {
         <button className="studio-structure-open" onClick={() => p.onOverlay(o.id)}>Open in preview</button>
       </div>)}
       {s && s.overlay.length > 0 && <><p className="studio-structure-sub">Open in the preview now</p>{s.overlay.map(i => row(i))}</>}
-      <button className="studio-structure-switch" onClick={() => p.onOverlay("close")}>Close pop-overs</button>
+      <button className="studio-structure-switch" onClick={() => p.onOverlay("close")}>Close pop-ups</button>
     </details>
   </div>;
 }

@@ -19,6 +19,9 @@ export type OutlineActions = {
   moveBlock: (sectionId: string, blockId: string) => void;
 };
 
+/** What a block is, in plain words, for blocks that carry a kind (the Flexible composition ones). */
+const BLOCK_KIND_NAMES: Record<string, string> = { text: "Text", image: "Picture", button: "Button", group: "Group" };
+
 // The words the owner typed name the row: a plan's name, a stat's number + label, a testimonial's quote…
 const blockWords = (block: any) => {
   const stat = block.value && block.label ? `${displayValue(block.value)} ${displayValue(block.label)}` : "";
@@ -53,7 +56,7 @@ function NestedBlocks({ blocks, section, depth, selectedId, blockId, label, onSe
           <div className="studio-tree-row" data-selected={selectedId === section.id && blockId === block.id} data-hidden={block.hidden}>
             <button {...handleProps} className="studio-grip" aria-label={`Reorder ${nameOf(block, i, "Block")}`}><GripVertical size={13} /></button>
             <button className="studio-tree-label" aria-current={selectedId === section.id && blockId === block.id} onClick={() => onSelect(section.id, block.id)}>
-              {nameOf(block, i)}<small>{block.sharedBlockId ? "Linked shared block" : block.type || "content"}{block.children?.length ? ` · ${block.children.length} children` : ""}</small>
+              {nameOf(block, i)}<small>{block.sharedBlockId ? "Reusable block" : BLOCK_KIND_NAMES[block.type] || label}{block.children?.length ? ` · ${block.children.length} children` : ""}</small>
             </button>
             <IconButton label={block.hidden ? "Show block" : "Hide block"} onClick={() => onChange(mapBlock(blocks, block.id, b => ({ ...b, hidden: !b.hidden })))}>{block.hidden ? <EyeOff size={13} /> : <Eye size={13} />}</IconButton>
             {onMoveBlock && <IconButton label={`Move ${nameOf(block, i)} to another section`} onClick={() => onMoveBlock(section.id, block.id)}><ArrowRightLeft size={13} /></IconButton>}
@@ -166,15 +169,15 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
                 data-picked={picked.includes(section.id) || undefined}
                 data-hovered={hoveredId === section.id} onMouseEnter={() => onHover?.(section.id)} onMouseLeave={() => onHover?.(null)}
                 onContextMenu={e => openMenu(section.id, e)}>
-                <button {...(searching ? {} : handleProps)} disabled={searching} className="studio-grip" aria-label={`Reorder ${meta?.label || section.type}`}><GripVertical size={15} /></button>
+                <button {...(searching ? {} : handleProps)} disabled={searching} className="studio-grip" aria-label={`Reorder ${meta?.label || "section"}`}><GripVertical size={15} /></button>
                 {supportsBlocks && <button className="studio-expand" aria-label={`Expand ${meta?.label}`} aria-expanded={open} disabled={searching}
                   title={searching ? "Matching sections stay open while you search" : undefined} onClick={() => setExpanded(prev => {
                   const next = new Set(prev); next.has(section.id) ? next.delete(section.id) : next.add(section.id); return next;
                 })}><ChevronDown size={14} style={{ transform: open ? undefined : "rotate(-90deg)" }} /></button>}
                 <button className="studio-tree-label" aria-current={selectedId === section.id && !blockId} aria-pressed={actions ? picked.includes(section.id) : undefined}
                   onClick={e => { if (actions && (e.ctrlKey || e.metaKey || e.shiftKey)) { e.preventDefault(); pick(section.id, e.shiftKey); return; } setPicked([]); onSelect(section.id); }}>
-                  <strong>{picked.includes(section.id) && <Check size={12} className="studio-picked-mark" aria-hidden="true" />}{index + 1}. {(section as any).label || meta?.label || section.type}</strong>
-                  <small>{section.visible === false ? "Hidden · " : sectionPreviewNote(section, device, undefined, templateId) ? `${sectionPreviewNote(section, device, undefined, templateId)} · ` : ""}{(section as any).label ? `${meta?.label || section.type} · ` : ""}{section.type === "PageContentSection" ? "This page's title and text (written in Pages)" : displayValue(section.settings.title || section.settings.heading) || (supportsBlocks ? `${blocks.length} blocks` : "Section")}</small>
+                  <strong>{picked.includes(section.id) && <Check size={12} className="studio-picked-mark" aria-hidden="true" />}{index + 1}. {(section as any).label || meta?.label || "Section"}</strong>
+                  <small>{section.visible === false ? "Hidden · " : sectionPreviewNote(section, device, undefined, templateId) ? `${sectionPreviewNote(section, device, undefined, templateId)} · ` : ""}{(section as any).label ? `${meta?.label || "Section"} · ` : ""}{section.type === "PageContentSection" ? "This page's title and text (written in Pages)" : displayValue(section.settings.title || section.settings.heading) || (supportsBlocks ? `${blocks.length} blocks` : "Section")}</small>
                 </button>
                 <IconButton label={section.visible === false ? "Show section" : "Hide section"} onClick={() => onToggle(section.id)}>{section.visible === false ? <EyeOff size={14} /> : <Eye size={14} />}</IconButton>
                 <details className="studio-row-menu" ref={el => { if (el) menus.current.set(section.id, el); else menus.current.delete(section.id); }}

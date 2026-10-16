@@ -1,5 +1,5 @@
 // The page structure Studio lists in its Page panel: what the preview actually rendered, grouped
-// as Header · Page · Footer · Pop-overs. The preview bridge scans the live DOM (sections, built-in
+// as Header · Page · Footer · Pop-ups. The preview bridge scans the live DOM (sections, built-in
 // regions and click-to-edit targets in document order) and sends it as STRUCTURE; this module turns
 // that flat scan into a small tree. Pure — no DOM, no React — so it is easy to test.
 
@@ -109,7 +109,7 @@ export function primaryTarget(target: string): string {
   return list.find(t => t.startsWith("style:")) || list[0] || "";
 }
 
-const ZONE_NAMES: Record<string, string> = { header: "Header", main: "Page", footer: "Footer", overlay: "Pop-overs", page: "Page" };
+const ZONE_NAMES: Record<string, string> = { header: "Header", main: "Page", footer: "Footer", overlay: "Pop-ups", page: "Page" };
 
 /** Where a part sits, for the inspector's breadcrumb: its zone, then the parts around it. */
 export function structurePath(structure: PageStructure | null, key: string): string[] {

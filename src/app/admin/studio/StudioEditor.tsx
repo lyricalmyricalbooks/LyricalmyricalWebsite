@@ -129,14 +129,14 @@ const SETTING_LABELS = new Map<string, string>([
   ...COPY_SCHEMA.flatMap(g => g.fields.map(f => [`copy.${f.key}`, `“${f.label}” text`] as [string, string])),
 ]);
 /** Plain name of a setting for undo labels: "Change Accent colour". */
-const settingLabel = (path: string) => SETTING_LABELS.get(path) || path.replace(/^copy\./, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+const settingLabel = (path: string) => SETTING_LABELS.get(path) || SETTING_LABELS.get(path.split(".").pop() || "") || path.replace(/^copy\./, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 
 /** "heroPage.sections" → "Home › sections" for the save-conflict dialog. */
 function conflictLabel(path: string, templates: { id: string; label: string }[]) {
   const [top, ...rest] = path.split(".");
   if (top === "copy" && rest[0]) return `Text & labels › ${COPY_SCHEMA.flatMap(g => g.fields).find(f => f.key === rest[0])?.label || rest[0]}`;
   const page = templates.find(t => t.id === top)?.label;
-  const name = (key: string) => key === "copy" ? "Text & labels" : key === "sections" ? "sections" : key.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  const name = (key: string) => key === "copy" ? "Text & labels" : key === "sections" ? "sections" : SETTING_LABELS.get(key) || key.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
   return page ? [page, ...rest.map(name)].join(" › ") : [name(top), ...rest].join(" › ");
 }
 /** Pseudo-category id for the "What I've changed" list (Theme settings and Text & labels). */
@@ -188,7 +188,7 @@ function sectionTitle(s: Section) {
   const meta = getSectionMeta(s.type);
   const st = s.settings || {};
   const snippet = [st.title, st.heading, st.headline, st.text].find((v) => typeof v === "string" && v.trim());
-  return { label: meta?.label || s.type, snippet: snippet ? String(snippet).slice(0, 40) : "" };
+  return { label: meta?.label || "Section", snippet: snippet ? String(snippet).slice(0, 40) : "" };
 }
 
 // ── Menu editor ────────────────────────────────────────────────────────────
@@ -780,9 +780,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           onChange={v => setScopedStyle(g.id, f.key, v)}
           uploadFile={uploadStudioImage} />
         {(region || local) && <div className="studio-field-status">
-          <small>{own != null && own !== "" ? "Custom value" : region ? "Inherited from larger size / shared layout" : "Inherited from all pages"}</small>
-          {own !== undefined && <button type="button" className="studio-reset" aria-label={`${local ? "Reset to global" : "Reset to inherited"}: ${f.label}`}
-            onClick={() => setScopedStyle(g.id, f.key, undefined)}>{local ? "Reset to global" : "Reset to inherited"}</button>}
+          <small>{own != null && own !== "" ? "Custom value" : region ? "Same as the larger screen" : "Same as all pages"}</small>
+          {own !== undefined && <button type="button" className="studio-reset" aria-label={`${local ? "Use the all-pages value" : "Use the larger screen's value"}: ${f.label}`}
+            onClick={() => setScopedStyle(g.id, f.key, undefined)}>{local ? "Use the all-pages value" : "Use the larger screen's value"}</button>}
         </div>}
         {differs && <div className="studio-field-status">
           <small>Changed from default</small>
@@ -1661,7 +1661,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // Built-in parts of the previewed page (header, buy card, bag…), so they can be found by name.
   const structureElements = useMemo(() => {
     if (!structure) return [];
-    const zones: [string, StructureItem[]][] = [["Header", structure.header], ["Page", structure.main], ["Footer", structure.footer], ["Pop-overs", structure.overlay], ["Whole page", structure.page]];
+    const zones: [string, StructureItem[]][] = [["Header", structure.header], ["Page", structure.main], ["Footer", structure.footer], ["Pop-ups", structure.overlay], ["Whole page", structure.page]];
     const out: { key: string; label: string; where: string; target: string }[] = [];
     const walk = (items: StructureItem[], where: string) => items.forEach(i => { out.push({ key: i.key, label: i.label, where, target: i.target }); walk(i.children, `${where} › ${i.label}`); });
     for (const [zone, items] of zones) walk(items, `This page › ${zone}`);
@@ -1732,7 +1732,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const autoFitPage = (overwrite = false) => {
     const r = autoFitSections(sections, overwrite);
     const regions = autoFitRegions({ ...design.regions, ...(target.kind === "template" ? design[target.id]?.regions : {}) }, overwrite);
-    if (!r.touched && !regions.changes.length) { say("ok", "No new phone overrides to apply. Check the phone preview for this page."); return; }
+    if (!r.touched && !regions.changes.length) { say("ok", "Nothing new to adjust for phones. Check the phone preview for this page."); return; }
     change(d => {
       let next = setSections(d, target, r.value);
       for (const [key, value] of Object.entries(regions.value)) {
@@ -1742,7 +1742,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       return next;
     });
     setDevice("mobile");
-    say("ok", `Auto-fitted ${r.touched} sections and ${regions.changes.length} region settings for phones. Check the preview; Undo (Ctrl+Z) reverts.`);
+    say("ok", `Auto-fitted ${r.touched} sections and ${regions.changes.length} page-part settings for phones. Check the preview; Undo (Ctrl+Z) reverts.`);
   };
   const runAction = (id: string) => {
     switch (id) {
@@ -2361,7 +2361,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         ...(selected && blockId ? [selectedBlockCrumb(selected, blockId)] : []),
         ...(!selected && selectedElement ? [{ label: selectedElement.label }] : []),
       ]} />
-      <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
+      <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{[["outline", "Sections"], ["preview", "Preview"], ["settings", "Edit"]].map(([panel, name]) => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{name}</button>)}</div>
       {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
       {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={() => { void askConfirm({ title: "Discard local edits?", message: "The unsaved edits kept on this device will be deleted. This can't be undone.", confirmLabel: "Discard local edits" }).then(ok => { if (ok) dismissRecovery(); }); }}>Discard local recovery</SecondaryButton></div>}
       {themePreview && <div className="studio-recovery studio-incoming" role="status" data-studio-theme-preview>
