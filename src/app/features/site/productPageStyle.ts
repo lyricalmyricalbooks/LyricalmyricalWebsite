@@ -192,6 +192,7 @@ export function productPageCss(design: any): string {
   const descWidth = num(d, "pdpPanelTextWidth", 65, 0, 160);
   const thumbActive = color(d, "pdpThumbActiveColor", "var(--accent)");
   const thumbSize = num(d, "pdpThumbSize", 64, 40, 160);
+  const thumbGap = num(d, "pdpThumbGap", 10, 0, 24);
   const stockDot = color(d, "pdpStockColor", "var(--success)");
 
   let css = "";
@@ -206,7 +207,7 @@ export function productPageCss(design: any): string {
   // Photo column: thumbnail rail beside (side) or under (below) the framed photo.
   css += `${S} .fm-pdp-media{display:grid;gap:14px;align-items:start;grid-template-columns:minmax(0,1fr);}`;
   css += `${S} .fm-pdp-media[data-thumbs="side"]{grid-template-columns:${thumbSize + 12}px minmax(0,1fr);}`;
-  css += `${S} .fm-pdp-rail{display:flex;gap:10px;overflow-x:auto;padding-bottom:2px;}`;
+  css += `${S} .fm-pdp-rail{display:flex;gap:${thumbGap}px;overflow-x:auto;padding-bottom:2px;}`;
   css += `${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-rail{flex-direction:column;max-height:min(80vh, 760px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;}`;
   css += `${S} .fm-pdp-media[data-thumbs="below"] .fm-pdp-rail{order:2;}`;
   css += `${S} .fm-pdp-thumb{flex:none;width:${thumbSize}px;padding:0;overflow:hidden;background:var(--surface);border:2px solid rgba(var(--border-rgb), 0.5);opacity:.72;transition:opacity 140ms,border-color 140ms;}`;
@@ -296,6 +297,20 @@ export function productPageCss(design: any): string {
     css += `${S} .fm-pdp-media[data-thumbs="below"] .fm-pdp-rail{${grid}}${S} .fm-pdp-media[data-thumbs="below"] .fm-pdp-thumb{${cell}}`;
     css += `@media (max-width:${PHONE_MAX}px){${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-rail{${grid}}${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-thumb{${cell}}}`;
   }
+  // Thumbnails that fill the strip edge to edge (pdpThumbFill, on by default): ThumbStrip measures the strip
+  // and sets data-fill, --thumb-cols and --thumb-h (thumbStrip.ts). Each thumbnail takes an equal share of
+  // the row; every thumbnail keeps the same height, and a short last row stretches (data-last-row="stretch"),
+  // sits left or is centred. Without data-fill (prerendered HTML, a strip beside the photo) nothing changes.
+  const fill = `${S} .fm-pdp-media[data-thumbs] .fm-pdp-rail[data-fill]`;
+  const share = `calc((100% - (var(--thumb-cols) - 1) * ${thumbGap}px) / var(--thumb-cols))`;
+  css += `${fill}{display:flex;flex-direction:row;max-height:none;}`;
+  css += `${fill} .fm-pdp-thumb{width:auto;min-width:0;height:var(--thumb-h);aspect-ratio:auto !important;}`;
+  css += `${fill}[data-fill="line"]{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;}`;
+  css += `${fill}[data-fill="line"] .fm-pdp-thumb{flex:0 0 ${share};}`;
+  css += `${fill}[data-fill="wrap"]{flex-wrap:wrap;overflow:visible;}`;
+  css += `${fill}[data-fill="wrap"] .fm-pdp-thumb{flex:1 1 ${share};max-width:100%;}`;
+  css += `${fill}[data-last-row="left"] .fm-pdp-thumb,${fill}[data-last-row="center"] .fm-pdp-thumb{flex-grow:0;}`;
+  css += `${fill}[data-last-row="center"]{justify-content:center;}`;
   return css;
 }
 

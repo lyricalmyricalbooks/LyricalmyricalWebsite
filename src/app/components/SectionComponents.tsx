@@ -2510,7 +2510,10 @@ export function PageContentSection({ settings: own, enableAnimations }: any) {
     : sampleHtml(page?.body, "<p>Your page text appears here. Write it in Studio › Pages.</p>");
   // Option D "Ruled" pieces — each value comes from Style › Custom pages or the section's own fields.
   const lineUp = settings.maxWidth === "header";
-  const headerWidth = settings.headerWidth === "full" ? "100%" : pageNum(settings.headerWidth, 900, 1600) ?? 1200;
+  // "full", a side-margin width (`min(…)` from contentMaxWidth) or a px Content width (up to 2560, like the header).
+  const headerWidth = settings.headerWidth === "full" ? "100%"
+    : typeof settings.headerWidth === "string" && /^min\(100%, max\(320px, calc\(100% - \d+(\.\d+)?vw\)\)\)$/.test(settings.headerWidth) ? settings.headerWidth
+    : pageNum(settings.headerWidth, 800, 2560) ?? 1200;
   const sizeD = pageNum(settings.titleSizePx, 0, 200) || 0;
   const sizeM = pageNum(settings.titleSizePxMobile, 0, 120) || sizeD;
   const ruleSpacing = pageNum(settings.ruleSpacing, 0, 96);

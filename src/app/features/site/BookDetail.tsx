@@ -63,6 +63,7 @@ import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid,
 import { gridPhotoSizes, THUMB_PHOTO_SIZES, pdpPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
 import { adjustStyle, framingStyle, motionFraming } from "./photoFraming";
 import { PhotoToneDefs } from "./PhotoToneDefs";
+import { ThumbStrip } from "./ThumbStrip";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 /** The title's inline variables: Studio's "Title size" preset and the phone cap that keeps its longest word whole. */
@@ -270,6 +271,9 @@ export default function BookDetail() {
   const pdpThumbPosition  = tokenSource.pdpThumbPosition  || "side";
   // Room the side thumbnail rail takes from the photo column (Style › Thumbnail size; 64px → 90px).
   const thumbRailWidth    = Math.min(160, Math.max(40, Number(tokenSource.pdpThumbSize) || 64)) + 26;
+  // Studio › Style › Book page · photos & layout › Gap between thumbnails / Thumbnail shape.
+  const thumbGap          = Math.min(24, Math.max(0, Number(tokenSource.pdpThumbGap ?? 10) || 0));
+  const thumbAspect       = tokenSource.pdpThumbShape ? aspectRatioValue(tokenSource.pdpThumbShape, productImageAspect) : productImageAspect;
   const pdpDetailsBelow   = (tokenSource.pdpDetailsPlacement || "below") === "below";
   const pdpSpecsRecord    = (tokenSource.pdpSpecsStyle || "record") === "record";
   const headingFontName   = tokenSource.headingFont || tokenSource.font || tokenSource.bodyFont;
@@ -1225,7 +1229,18 @@ export default function BookDetail() {
                 <div className="fm-pdp-media" data-thumbs={showThumbRail ? pdpThumbPosition : "none"}>
                   {/* Thumbnail rail */}
                   {showThumbRail && (
-                    <div className="fm-pdp-rail" role="group" aria-label={getCopy(settings?.design, "pdpPhotosAria")}>
+                    <ThumbStrip
+                      count={photos.length}
+                      position={pdpThumbPosition}
+                      fill={tokenSource.pdpThumbFill !== false}
+                      wrap={tokenSource.pdpThumbWrap === true}
+                      size={Math.min(160, Math.max(40, Number(tokenSource.pdpThumbSize) || 64))}
+                      gap={thumbGap}
+                      perRow={Math.min(12, Math.max(0, Number(tokenSource.pdpThumbPerRow) || 0))}
+                      ratio={aspectNumber(thumbAspect) || 0.75}
+                      lastRow={tokenSource.pdpThumbLastRow}
+                      ariaLabel={getCopy(settings?.design, "pdpPhotosAria")}
+                    >
                       {photos.map((photo: any, i: number) => (
                         <button
                           key={i}
@@ -1234,14 +1249,14 @@ export default function BookDetail() {
                           aria-current={shownIndex === i}
                           aria-label={getCopy(settings?.design, isVideoItem(photo) ? "ariaGoToVideo" : "ariaGoToPhoto", { n: i + 1 })}
                           className="fm-pdp-thumb relative"
-                          style={{ aspectRatio: productImageAspect }}
+                          style={{ aspectRatio: thumbAspect }}
                         >
                           <img src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt={mediaName(photo, i)} loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit, ...framingStyle(photo) }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
                           <PhotoToneDefs photo={photo} />
                           {isVideoItem(photo) && <span className="fm-video-mark absolute inset-0 m-auto w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center pointer-events-none" aria-hidden="true"><Play size={12} fill="currentColor" /></span>}
                         </button>
                       ))}
-                    </div>
+                    </ThumbStrip>
                   )}
 
                   <figure className="m-0 min-w-0">
