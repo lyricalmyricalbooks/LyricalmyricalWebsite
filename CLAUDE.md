@@ -370,6 +370,7 @@ published design snapshot.
 **Studio interaction rules (1.2):** never use `window.confirm/prompt/alert` in Studio — undoable actions run at once
 with `say("ok", text, { label: "Undo", run })`, permanent ones use Riso `useConfirm`, names use `usePrompt`. Name every
 edit: `change(fn, { label, coalesce })`. Add shortcuts to `studio/shortcuts.ts` (the cheat sheet reads the same table).
+Studio messages: failures go through `studio/friendlyError.ts` (never show `err.message`), warnings and delete-with-Undo use `say("warn", …)` (stays until dismissed).
 Link into Studio with `studioHash()` from `lib/studioLocation.ts` (`/admin#designer?…`); What's new links can carry `studio`.
 
 **Pickers & catalog sources (2.3):** section/block fields of kind `link`, `book`, `books`, `category`, `page`, `video`,

@@ -17,7 +17,7 @@ it("lists a page's own values with plain labels and both actions", () => {
   expect(host.textContent).toContain("This page: 18 · All pages: 42");
   expect(host.textContent).toMatch(/Text & labels › .* › /);
   const buttons = [...host.querySelectorAll("button")];
-  act(() => buttons.find(b => b.textContent === "Use all-pages value")!.click());
+  act(() => buttons.find(b => b.textContent === "Use the all-pages value")!.click());
   act(() => buttons.find(b => b.textContent === "Make this the all-pages value")!.click());
   expect(onUseAll).toHaveBeenCalledWith("catalogGridGap");
   expect(onMakeAll).toHaveBeenCalledWith("catalogGridGap", 18);

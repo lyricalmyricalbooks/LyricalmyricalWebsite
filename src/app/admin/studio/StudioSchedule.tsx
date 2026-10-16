@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { Dialog, PrimaryButton, SecondaryButton, StatusBadge } from "../riso/components";
 import { designSize } from "./studioChecks";
+import { friendlyError } from "./friendlyError";
 import {
   formatToronto, isoToTorontoLocal, NOTE_WORDS, scheduleProblems, schedulerHealth, STATUS_WORDS, torontoLocalToIso,
   type ScheduleEntry, type ScheduleKind,
@@ -86,7 +87,7 @@ export function StudioSchedule(p: Props) {
   const cancel = async (e: ScheduleEntry) => {
     if (!(await p.askConfirm({ title: `Cancel “${e.name}”?`, message: "It won't go live. Nothing on the shop changes.", confirmLabel: "Cancel schedule" }))) return;
     try { await p.api.cancel(e.id); p.say("ok", "Schedule cancelled."); await load(); }
-    catch (err: any) { p.say("err", `Couldn't cancel: ${err?.message || "try again"}`); await load(); }
+    catch (err: any) { p.say("err", friendlyError(err, "cancel the schedule")); await load(); }
   };
   const endNow = async (e: ScheduleEntry) => {
     if (!(await p.askConfirm({ title: `End “${e.name}” now?`, message: "The shop switches back to the design it replaced at the scheduler's next check (within 15 minutes).", confirmLabel: "End campaign" }))) return;

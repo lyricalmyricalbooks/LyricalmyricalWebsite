@@ -221,7 +221,7 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       `designModel.property.test.ts` proves on the published design (`__fixtures__/liveDesign.json`) that tidying changes
       no page and that the only differences from the old resolver are the intended fixes (categories, copy,
       globalSections, navOrder). Theme settings shows **This page differs from all pages (N)** for the current page
-      with **Use all-pages value** / **Make this the all-pages value** (`StudioPageOverrides.tsx`). Check before
+      with **Use the all-pages value** / **Make this the all-pages value** (`StudioPageOverrides.tsx`). Check before
       publishing reports the design size; saves over ~900 KB are refused with a plain message.
 
 **Phase 1 — Navigation overhaul ("one tree, one inspector")**
@@ -733,6 +733,25 @@ without a yes.
 - Sends Google only the field's words, its label and the section/group name (or the owner's brief) — never customers,
   orders, stock or costs. Same key, house style and rate limit (`LIMITS.aiWrite`) as the book/page AI buttons. The Studio
   fixture answers through `setAiTransport` (`admin/aiWriter.ts`), so browser checks never call Google.
+
+### Friendlier Studio (16 October 2026)
+Three audits (first-time owner, click paths, feedback) led to one round of fixes. No design key, save logic or storefront code changed.
+- **Words:** no raw ids or developer terms on screen. Phone tabs read Sections · Preview · Edit. Find's badges are Go to / On the page / Look / Words / Menu / Do,
+  and its tab names match the rail. Pages: "Web address", "Google listing (SEO)", "Title on Google", "Description on Google". Responsive fields say
+  "Same as the larger screen" / "Use the all-pages value". Linked shared blocks show as "Reusable block". Pop-overs are "Pop-ups".
+  `settingLabel`/`conflictLabel` use `STYLE_GROUPS`/`COPY_SCHEMA` labels.
+- **Place kept:** clicking the active rail tab keeps the selection, and each tab's scroll is restored. The inspector keeps its tab across sections of the same type
+  (`studio/inspectorState.ts`). There are Move up/down buttons in the inspector and Flexible-composition block **Hide on phones / Hide on tablets and phones** (`responsive[device].hidden`, preview-size independent; the storefront tablet rule is up-to-tablet, so it covers phones). The Responsive layout card shows only for Flexible composition, the only renderer that reads it. Block Move up/down are their own named undo steps.
+  any page change (template or every-page group) resets "This page only" to All pages. The element inspector has **Back to Page layout**, and the element card goes back to its category. Text & labels opens
+  the sub-section holding the focused key. The mode button says the action, and the preview bridge sends `LINK_BLOCKED` once for a one-time hint (`lm:studio-mode-hint`).
+- **Feedback:** the status pill reads Not saved yet · shop unchanged / Saved as draft · shop unchanged / Live · the shop shows this.
+  - `say("warn", …)` stays until dismissed. Use it for warnings and every delete toast with Undo.
+  - "ok" toasts last `toastDuration` (`studio/toastTiming.ts`) and pause on hover/focus.
+  - Failures go through `studio/friendlyError.ts` (plain sentence, raw error to the console). Never show `err.message` directly.
+  - A live-sync failure shows a persistent banner. The Publish dialog counts changes and says when the live shop couldn't be read.
+  - The preview shows "Loading your shop preview…".
+  - Deleting 3+ sections or a template asks first.
+  - `StudioCopyField` notes when Theme settings' `addToBagLabel` overrides the Add-to-bag words (`CopyTargetContext`).
 
 ### Phase 9 — Multi-language EN/FR *(needs owner go-ahead)*
 - [ ] Carry out `docs/superpowers/plans/2026-10-04-local-fulfillment-content-languages.md`: translating words and pages,

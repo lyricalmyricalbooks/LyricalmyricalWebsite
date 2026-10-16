@@ -1,6 +1,6 @@
 import { StudioSpacingControls } from "./StudioSpacingControls";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Copy, Eye, EyeOff, Trash2, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Copy, Eye, EyeOff, Trash2, X } from "lucide-react";
 import { uploadStudioImage } from "./mediaUpload";
 import { ConnectableField } from "./StudioConnect";
 import { BlockFieldEditor, BlockListFieldEditor, getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, SectionFieldEditor } from "../ThemeEditorExtensions";
@@ -12,15 +12,18 @@ import { updateBlocks } from "./studioWorkflow";
 import { blockLabel } from "./StudioOutline";
 import { autoFitSection, resetPhoneLayout } from "./autoMobile";
 import { layerOrder, setBlockGrid, shiftLayer } from "./gridPlacement";
+import { blockMoveRoom, HIDE_DEVICES, moveBlockBy, tabAfterSelection, withDeviceHidden, type InspectorTab } from "./inspectorState";
 
-export function StudioInspector({ section, blockId, colorSchemes, device, sharedBlocks, onSaveShared, onPatchShared, onInsertShared, onPatch, onSelectBlock, onDuplicate, onDelete, onToggle, onClose, onNotice, arranging = false, onArrange, onReplayMotion, onAddBlock, onCopyBlock, canPasteBlock = false, onPasteBlock }: {
+export function StudioInspector({ section, blockId, colorSchemes, device, sharedBlocks, onSaveShared, onPatchShared, onInsertShared, onPatch, onSelectBlock, onDuplicate, onDelete, onToggle, onClose, onNotice, onMoveSection, sectionRoom, arranging = false, onArrange, onReplayMotion, onAddBlock, onCopyBlock, canPasteBlock = false, onPasteBlock }: {
   section: Section; blockId: string | null; colorSchemes: any[];
   device: "desktop" | "tablet" | "mobile"; sharedBlocks: SharedBlock[];
   onSaveShared: (blockId: string, name: string) => void; onInsertShared: (shared: SharedBlock) => void;
   onPatchShared: (sharedId: string, patch: Record<string, any>) => void;
-  onPatch: (patch: Record<string, any>) => void; onSelectBlock: (id: string | null) => void;
+  onPatch: (patch: Record<string, any>, meta?: { label: string }) => void; onSelectBlock: (id: string | null) => void;
   onDuplicate: () => void; onDelete: () => void; onToggle: () => void; onClose: () => void;
   onNotice?: (text: string) => void;
+  /** Move the section one place up/down on its page, and whether there is room to (Move up / Move down buttons). */
+  onMoveSection?: (direction: -1 | 1) => void; sectionRoom?: { up: boolean; down: boolean };
   /** Flexible composition: whether its blocks are being arranged on the preview's grid (3.0 phase 3). */
   arranging?: boolean; onArrange?: (on: boolean) => void;
   /** Plays this section's motion again in the preview (3.0 phase 4). */
@@ -28,7 +31,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   /** Block library 3.0: open the block picker, copy a block, and paste the copied block (after a block, or at the end). */
   onAddBlock?: () => void; onCopyBlock?: (blockId: string) => void; canPasteBlock?: boolean; onPasteBlock?: (afterId: string | null) => void;
 }) {
-  const [tab, setTab] = useState<"content" | SectionTab>("content");
+  const [sectionTab, setTab] = useState<"content" | SectionTab>("content");
   const [askText, promptNode] = usePrompt();
   const [search, setSearch] = useState("");
   // Docked in its own resizable panel on tablets and desktops; a full-screen sheet on phones.
@@ -41,13 +44,21 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
     return () => media.removeEventListener("change", update);
   }, []);
   useFocusTrap(ref, overlay, onClose);
-  useEffect(() => { setTab("content"); setSearch(""); }, [section.id, blockId]);
+  // The chosen tab sticks when another section of the same kind is selected; a different kind (or an unknown tab) starts on Content.
+  const lastType = useRef(section.type);
+  useEffect(() => {
+    setTab(cur => tabAfterSelection(cur, lastType.current, section.type) as "content" | SectionTab);
+    lastType.current = section.type;
+  }, [section.id, section.type]);
+  useEffect(() => { setSearch(""); }, [section.id, blockId]);
   const styleFields = useMemo(() => sectionStyleFields(colorSchemes), [colorSchemes]);
   const meta = getSectionMeta(section.type);
   const key = getBlocksKey(section.type);
   const blocks = section.settings[key] || section.settings.blocks || [];
   const placement = blockId ? findBlock(blocks, blockId) : undefined;
   const block = placement ? resolveSharedBlocks([placement], sharedBlocks)[0] : undefined;
+  // A selected block always shows its Content; the section's tab is remembered for when the owner goes back.
+  const tab: InspectorTab = block ? "content" : sectionTab;
   const fields = (block ? getBlockFields(section.type) : getSectionFields(section.type)).filter(f => `${f.label} ${f.key}`.toLowerCase().includes(search.toLowerCase()));
   const patchBlock = (patch: any) => {
     if (placement?.sharedBlockId && !Object.keys(patch).some(k => k === "grid" || k === "responsive" || k === "hidden")) onPatchShared(placement.sharedBlockId, patch);
@@ -64,9 +75,9 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   };
   const resetPhone = () => {
     const patch = resetPhoneLayout(section);
-    if (!Object.keys(patch).length) { onNotice?.("This section has no phone or tablet overrides to reset."); return; }
+    if (!Object.keys(patch).length) { onNotice?.("This section has nothing set just for phones or tablets."); return; }
     onPatch(patch);
-    onNotice?.("Phone and tablet overrides removed from this section.");
+    onNotice?.("Phone and tablet adjustments removed from this section.");
   };
   /** Turns a linked placement into an ordinary block holding the shared content, so later edits stay here. */
   const makeIndependent = () => {
@@ -79,22 +90,30 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
     // Children inherited from the source get their own ids (other placements show the same source children).
     if (!placement.children && Array.isArray(source.children)) copy.children = source.children.map(freshBlockIds);
     onPatch(updateBlocks(section, key, list => mapBlock(list, placement.id, () => copy)));
-    onNotice?.("This block is independent now: editing it no longer changes the shared block. Undo (Ctrl+Z) links it again.");
+    onNotice?.("This block no longer syncs: editing it no longer changes the reusable block. Undo (Ctrl+Z) links it again.");
   };
-  const title = block ? blockLabel(block, Math.max(0, blocks.findIndex((b: any) => b.id === blockId)), meta?.blockLabel) : meta?.label || section.type;
+  const title = block ? blockLabel(block, Math.max(0, blocks.findIndex((b: any) => b.id === blockId)), meta?.blockLabel) : meta?.label || "Section";
   return <aside ref={ref} className="studio-inspector" role={overlay ? "dialog" : undefined} aria-modal={overlay || undefined} aria-label="Content settings" tabIndex={-1}>
     {promptNode}
     <header className="studio-inspector-head">
-      <div><small>{block ? `${meta?.label} / Block` : "SECTION"}</small><h2>{title}</h2></div>
+      <div><small>{block ? `${meta?.label || "Section"} / Block` : "SECTION"}</small><h2>{title}</h2></div>
       <IconButton label="Close settings" onClick={onClose}><X size={17} /></IconButton>
     </header>
     <div className="studio-edit-context" role="status">
       <strong>{device === "mobile" ? "Phone" : device === "tablet" ? "Tablet" : "Desktop"} preview</strong>
-      <span>Content is shared across devices. Responsive layout overrides apply to this size.</span>
+      <span>Words and pictures are the same on every screen. Layout changes here apply to this screen size only.</span>
     </div>
     <div className="studio-inspector-actions">
       {block && <IconButton label="Back to section" onClick={() => onSelectBlock(null)}><ArrowLeft size={15} /></IconButton>}
       <IconButton label={block ? (block.hidden ? "Show block" : "Hide block") : section.visible === false ? "Show section" : "Hide section"} onClick={block ? () => patchBlock({ hidden: !block.hidden }) : onToggle}>{(block ? block.hidden : section.visible === false) ? <EyeOff size={15} /> : <Eye size={15} />}</IconButton>
+      {(block ? true : !!onMoveSection) && (() => {
+        const room = block ? blockMoveRoom(blocks, block.id) : sectionRoom || { up: false, down: false };
+        const move = (d: -1 | 1) => block ? onPatch(updateBlocks(section, key, list => moveBlockBy(list, block.id, d)), { label: `Move ${meta?.blockLabel || "block"} ${d < 0 ? "up" : "down"}` }) : onMoveSection?.(d);
+        return <>
+          <IconButton label="Move up" disabled={!room.up} onClick={() => move(-1)}><ChevronUp size={15} /></IconButton>
+          <IconButton label="Move down" disabled={!room.down} onClick={() => move(1)}><ChevronDown size={15} /></IconButton>
+        </>;
+      })()}
       <IconButton label={block ? "Duplicate block" : "Duplicate section"} onClick={block && placement ? () => {
         // Copy the stored placement (a linked block stays linked) and put it right after the original, in the same group.
         const copy = freshBlockIds(placement);
@@ -151,20 +170,27 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
               <SectionFieldEditor field={f as any} value={section.settings[f.key]} settings={section.settings} onChange={v => onPatch({ [f.key]: v })} onPatch={onPatch} uploadFile={uploadStudioImage} />
             </ConnectableField>}
         </div>)}
-        {block && <div className="studio-control-card">
+        {block && section.type === "CompositionSection" && <div className="studio-control-card">
           <strong>Responsive layout · {device}</strong>
-          <p className="studio-hint">These overrides follow the preview size. Blank values inherit desktop.</p>
-          <label>Alignment<select value={block.responsive?.[device]?.align || ""} onChange={e => patchResponsive("responsive", "align", e.target.value || undefined)}><option value="">Inherit</option><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
-          <label><input type="checkbox" checked={Boolean(block.responsive?.[device]?.hidden)} onChange={e => patchResponsive("responsive", "hidden", e.target.checked || undefined)} /> Hide at this size</label>
+          <p className="studio-hint">Changes here only apply at this screen size. Blank = same as the computer version. The Hide boxes work whichever size you are previewing.</p>
+          <label>Alignment<select value={block.responsive?.[device]?.align || ""} onChange={e => patchResponsive("responsive", "align", e.target.value || undefined)}><option value="">Same as the larger screen</option><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
+          <div className="studio-hide-devices" role="group" aria-label="Hide this block on some screens">
+            {HIDE_DEVICES.map(h => {
+              // Hidden on tablets covers phones too (the storefront rule is "up to tablet width").
+              const coveredByTablet = h.device === "mobile" && Boolean(block.responsive?.tablet?.hidden);
+              return <label key={h.device} title={coveredByTablet ? "Already hidden on phones because it is hidden on tablets and phones" : undefined}><input type="checkbox" disabled={coveredByTablet} checked={coveredByTablet || Boolean(block.responsive?.[h.device]?.hidden)}
+              onChange={e => patchBlock({ responsive: withDeviceHidden(block.responsive, h.device, e.target.checked) })} /> {h.label}</label>;
+            })}
+          </div>
           {section.type === "CompositionSection" && <div className="studio-grid-fields" data-studio-panel="block-look">
             {[["rotate", "Rotate (°)", -45, 45], ["scale", "Size (%)", 50, 150], ["opacity", "See-through (%)", 10, 100]].map(([field, label, min, max]) => <label key={String(field)}>{label}<input type="number" min={Number(min)} max={Number(max)} value={block.responsive?.[device]?.[String(field)] ?? ""} onChange={e => patchResponsive("responsive", String(field), e.target.value === "" ? undefined : Math.max(Number(min), Math.min(Number(max), Number(e.target.value))))} /></label>)}
           </div>}
           {section.type === "CompositionSection" && <div className="studio-grid-fields">
             {[["column", "Column", 1, 24], ["span", "Width", 1, 24], ["row", "Row", 1, 30], ["rowSpan", "Height", 1, 12], ["z", "Layer", 0, 20]].map(([field, label, min, max]) => <label key={String(field)}>{label}<input type="number" min={Number(min)} max={Number(max)} value={block.grid?.[device]?.[String(field)] ?? ""} onChange={e => patchResponsive("grid", String(field), e.target.value ? Number(e.target.value) : undefined)} /></label>)}
           </div>}
-          {!placement?.sharedBlockId && <button className="studio-link-button" onClick={async () => { const name = await askText({ title: "Save as linked shared block", label: "Name", defaultValue: title, confirmLabel: "Save block" }); if (name?.trim()) onSaveShared(block.id, name.trim()); }}>Save as linked shared block</button>}
-          {placement?.sharedBlockId && <button className="studio-link-button" onClick={makeIndependent}>Make this block independent</button>}
-          {block.sharedBlockId && <small>Linked to {sharedBlocks.find(s => s.id === block.sharedBlockId)?.name || "a missing shared block"}. Content updates from its library source; layout stays local.</small>}
+          {!placement?.sharedBlockId && <button className="studio-link-button" onClick={async () => { const name = await askText({ title: "Save as reusable block", label: "Name", defaultValue: title, confirmLabel: "Save block" }); if (name?.trim()) onSaveShared(block.id, name.trim()); }}>Save as reusable block</button>}
+          {placement?.sharedBlockId && <button className="studio-link-button" onClick={makeIndependent}>Stop syncing this block</button>}
+          {block.sharedBlockId && <small>Linked to {sharedBlocks.find(s => s.id === block.sharedBlockId)?.name || "a missing reusable block"}. Content updates from its library source; layout stays local.</small>}
         </div>}
       </>}
       {!block && sharedBlocks.some(shared => !shared.sectionType || shared.sectionType === section.type) && <div className="studio-control-card"><strong>Shared blocks</strong><p className="studio-hint">Insert a compatible linked instance. Editing its source updates every placement.</p>{sharedBlocks.filter(shared => !shared.sectionType || shared.sectionType === section.type).map(shared => <button key={shared.id} className="studio-link-button" onClick={() => onInsertShared(shared)}>+ {shared.name}</button>)}</div>}

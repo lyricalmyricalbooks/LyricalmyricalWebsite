@@ -1,4 +1,4 @@
-import { StudioCopyField } from "./StudioCopyField";
+import { StudioCopyField, CopyTargetContext } from "./StudioCopyField";
 import { StudioRegionBrowser } from "./StudioRegionBrowser";
 import { REGION_GROUPS, REGION_SUFFIXES, REGION_DEVICE_LABELS, regionFieldDevice, regionKey, regionValue, type RegionDevice } from "../../features/site/storefrontRegions";
 import { canInlineFormat } from "./richText";
@@ -6,7 +6,7 @@ import { applyContextAction, applySpacing, contextCapabilities, GAP_KEYS, PADDIN
 import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles,
   ArrowLeft, ChevronDown, Clock, ChevronUp, Clipboard, Copy, Eye, EyeOff, ExternalLink, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
-  Download, ListChecks, Pencil, Tablet, Trash2, Undo2, Upload, X,
+  Download, Globe, ListChecks, Pencil, Tablet, Trash2, Undo2, Upload, X,
 } from "lucide-react";
 import { adminApi } from "../api";
 import { uploadStudioImage } from "./mediaUpload";
@@ -56,6 +56,8 @@ import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewSta
 import { sectionStyleFields, SPACING_CARD_KEYS } from "./sectionStyleSchema";
 import type { OutlineActions } from "./StudioOutline";
 import { useStudioPersistence } from "./useStudioPersistence";
+import { friendlyError } from "./friendlyError";
+import { toastDuration } from "./toastTiming";
 import { ActionMenu, Dialog, PrimaryButton, SecondaryButton, useConfirm, usePrompt } from "../riso/components";
 import { applyInlineText, INLINE_STYLE_KEYS } from "./inlineText";
 import { filterSettingGroups } from "./studioNavigation";
@@ -112,7 +114,8 @@ import "./studio.css";
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "media" | "themes";
 /** `expect`: the design the toast's Undo belongs to (filled in once the change lands); see `undoAction`. */
 type ToastAction = { label: string; run: () => void; expect?: { present?: any; past?: any[] } };
-type Toast = { kind: "ok" | "err"; text: string; action?: ToastAction } | null;
+/** "ok" fades by itself (and waits while hovered or focused); "warn" and "err" stay until dismissed. */
+type Toast = { kind: "ok" | "warn" | "err"; text: string; action?: ToastAction; id: number } | null;
 
 function designChecks(design: any) {
   return buildDesignChecks(design, { sectionFields: getSectionFields, blockFields: getBlockFields, blocksKey: getBlocksKey });
@@ -129,14 +132,14 @@ const SETTING_LABELS = new Map<string, string>([
   ...COPY_SCHEMA.flatMap(g => g.fields.map(f => [`copy.${f.key}`, `“${f.label}” text`] as [string, string])),
 ]);
 /** Plain name of a setting for undo labels: "Change Accent colour". */
-const settingLabel = (path: string) => SETTING_LABELS.get(path) || path.replace(/^copy\./, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+const settingLabel = (path: string) => SETTING_LABELS.get(path) || SETTING_LABELS.get(path.split(".").pop() || "") || path.replace(/^copy\./, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 
 /** "heroPage.sections" → "Home › sections" for the save-conflict dialog. */
 function conflictLabel(path: string, templates: { id: string; label: string }[]) {
   const [top, ...rest] = path.split(".");
   if (top === "copy" && rest[0]) return `Text & labels › ${COPY_SCHEMA.flatMap(g => g.fields).find(f => f.key === rest[0])?.label || rest[0]}`;
   const page = templates.find(t => t.id === top)?.label;
-  const name = (key: string) => key === "copy" ? "Text & labels" : key === "sections" ? "sections" : key.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  const name = (key: string) => key === "copy" ? "Text & labels" : key === "sections" ? "sections" : SETTING_LABELS.get(key) || key.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
   return page ? [page, ...rest.map(name)].join(" › ") : [name(top), ...rest].join(" › ");
 }
 /** Pseudo-category id for the "What I've changed" list (Theme settings and Text & labels). */
@@ -148,7 +151,7 @@ const btn =
 const btnPrimary =
   "inline-flex items-center gap-1.5 px-4 h-9 text-xs font-bold rounded-lg bg-neutral-900 text-white hover:bg-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed";
 const iconBtn =
-  "inline-flex items-center justify-center w-8 h-8 rounded-md text-neutral-600 hover:bg-neutral-200 disabled:opacity-30";
+  "inline-flex items-center justify-center w-9 h-9 min-w-[36px] min-h-[36px] rounded-md text-neutral-600 hover:bg-neutral-200 disabled:opacity-30";
 
 // Clicking a region in the preview (data-studio-target) focuses the matching panel here.
 type StudioFocus = { id: string | null; nonce: number };
@@ -188,7 +191,7 @@ function sectionTitle(s: Section) {
   const meta = getSectionMeta(s.type);
   const st = s.settings || {};
   const snippet = [st.title, st.heading, st.headline, st.text].find((v) => typeof v === "string" && v.trim());
-  return { label: meta?.label || s.type, snippet: snippet ? String(snippet).slice(0, 40) : "" };
+  return { label: meta?.label || "Section", snippet: snippet ? String(snippet).slice(0, 40) : "" };
 }
 
 // ── Menu editor ────────────────────────────────────────────────────────────
@@ -419,6 +422,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [blockId, setBlockId] = useState<string | null>(null);
   const [mode, setMode] = useState<"edit" | "browse">("edit");
   const [mobilePanel, setMobilePanel] = useState("preview");
+  // First link click swallowed in Edit mode: tell the owner once per browser how to follow links (Browse mode).
+  const [linkHint, setLinkHint] = useState(false);
+  const linkHintShown = useRef(false);
+  useEffect(() => { if (mode !== "edit") setLinkHint(false); }, [mode]);
+  useEffect(() => { if (!linkHint) return; const t = setTimeout(() => setLinkHint(false), 12000); return () => clearTimeout(t); }, [linkHint]);
   const [styleCategory, setStyleCategory] = useState<string | null>(null);
   const [textCategory, setTextCategory] = useState<string | null>(null);
   // Field Find anything is jumping to, so its collapsed sub-section opens first.
@@ -426,7 +434,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [tipsNonce, setTipsNonce] = useState(0);
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
   // Opening (or leaving) a category starts at its top; Find anything then scrolls to its field.
-  useEffect(() => { sidebarScrollRef.current?.scrollTo?.({ top: 0 }); }, [styleCategory, textCategory, leftTab]);
+  // Each rail tab remembers how far it was scrolled; coming back through the rail puts the owner back there.
+  const tabScroll = useRef<Record<string, number>>({});
+  const restoreScrollFor = useRef<string | null>(null);
+  useEffect(() => {
+    const back = restoreScrollFor.current === leftTab ? tabScroll.current[leftTab] || 0 : 0;
+    restoreScrollFor.current = null;
+    sidebarScrollRef.current?.scrollTo?.({ top: back });
+  }, [styleCategory, textCategory, leftTab]);
   const [styleSearch, setStyleSearch] = useState("");
   // Region clicked in the preview → a pinned "Editing: <label>" card with only that region's controls.
   const [styleFocus, setStyleFocus] = useState<{ id: string; label: string } | null>(null);
@@ -514,6 +529,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const template = templates.find((t) => t.id === templateId) || templates[0];
   // Collection alternates bring sections only (their page styles follow the default collection page).
   useEffect(() => { if (parseAltSurface(template.id)?.base === "collectionPage") setStyleScope("all"); }, [template.id]);
+  // "This page only" belongs to the page it was chosen on. However the canvas moves to another page (page picker,
+  // a followed link, Pages › Show, a section on another page, the every-page group), Studio goes back to All pages and says so.
+  const scopePageRef = useRef(`${template.id}|${showGlobal}`);
+  useEffect(() => {
+    const now = `${template.id}|${showGlobal}`;
+    if (scopePageRef.current === now) return;
+    scopePageRef.current = now;
+    if (styleScope === "page") { setStyleScope("all"); say("ok", "Back to All pages: changes now apply to every page."); }
+  }, [template.id, showGlobal]);
   const target: SectionTarget = showGlobal ? { kind: "global", group: globalGroup } : { kind: "template", id: template.id };
   const sections = getSections(design, target);
   const selected = sections.find((s) => s.id === selectedId) || null;
@@ -530,9 +554,24 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const dirtyDraft = useMemo(() => !sameDesign(design, savedDraft), [design, savedDraft]);
   const unpublished = useMemo(() => !sameDesign(design, published), [design, published]);
 
-  const say = (kind: "ok" | "err", text: string, action?: ToastAction) => {
-    setToast({ kind, text, action });
-    if (kind === "ok") setTimeout(() => setToast((t) => (t?.text === text ? null : t)), action ? 8000 : 3500);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const toastSeq = useRef(0);
+  // While the pointer or keyboard focus is on the message it is being read: no timer runs (a new message arriving
+  // under the pointer waits too); the timer starts when both have left.
+  const toastHeld = useRef({ hover: false, focus: false });
+  const armToast = (id: number, ms: number) => {
+    clearTimeout(toastTimer.current);
+    if (toastHeld.current.hover || toastHeld.current.focus) return;
+    toastTimer.current = setTimeout(() => setToast(t => (t?.id === id ? null : t)), ms);
+  };
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
+  // A closed message can't send mouseleave/blur: forget the hold so the next message times out normally.
+  useEffect(() => { if (!toast) toastHeld.current = { hover: false, focus: false }; }, [toast]);
+  const say = (kind: "ok" | "warn" | "err", text: string, action?: ToastAction) => {
+    const id = ++toastSeq.current;
+    setToast({ kind, text, action, id });
+    clearTimeout(toastTimer.current);
+    if (kind === "ok") armToast(id, toastDuration(text, Boolean(action)));
   };
   const histRef = useRef(hist); histRef.current = hist;
   /** A toast's "Undo" undoes exactly the change the toast names: call it right after that `change(…)`. It records the
@@ -600,9 +639,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     templates, sectionName: (type: string) => getSectionMeta(type)?.label, sectionFields: (type: string) => getSectionFields(type),
   }), [templates]);
   const normalizeForDiff = useCallback((d: any) => normalizeDesign(d, defaults), [defaults]);
+  /** The Publish / Discard lists: how many changes there are, and one line each (the first few). */
   const publishSummary = (from: any, to: any) => {
-    const lines = summariseDiff(diffDesigns(normalizeForDiff(from), normalizeForDiff(to), diffContext));
-    return lines.length ? lines : ["No saved design differences"];
+    const items = diffDesigns(normalizeForDiff(from), normalizeForDiff(to), diffContext);
+    return { count: items.length, lines: summariseDiff(items) };
   };
   const loadVersions = useCallback(async () => {
     try { setVersions(await adminApi.listThemeVersions() as ThemeVersion[]); }
@@ -615,8 +655,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const setList = (fn: (l: Section[]) => Section[], meta?: { label?: string; coalesce?: string }) => change((d) => setSections(d, target, fn(getSections(d, target))), meta);
   // Adding to a custom page makes its fixed title/text a movable Page content section first (see withPageText).
   const keepPageText = (l: Section[]) => target.kind === "template" ? withPageText(l, target.id, getSectionMeta("PageContentSection")?.defaults || {}) : l;
-  const patchSelected = (patch: Record<string, any>) => selectedId && setList((l) => patchSectionSettings(l, selectedId, patch),
-    { label: `Edit ${selected ? sectionTitle(selected).label : "section"}`, coalesce: `patch:${selectedId}:${Object.keys(patch).sort().join(",")}` });
+  // A named one-off action (a block move) gets its own undo step; typing merges into one.
+  const patchSelected = (patch: Record<string, any>, meta?: { label: string }) => selectedId && setList((l) => patchSectionSettings(l, selectedId, patch),
+    meta ? { label: meta.label } : { label: `Edit ${selected ? sectionTitle(selected).label : "section"}`, coalesce: `patch:${selectedId}:${Object.keys(patch).sort().join(",")}` });
   const saveSharedBlock = (id: string, name: string) => {
     if (!selected) return;
     const key = getBlocksKey(selected.type), blocks = selected.settings[key] || selected.settings.blocks || [];
@@ -686,7 +727,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (themesBusyRef.current) { say("err", "Still saving My themes — try again in a moment."); return; }
     themesBusyRef.current = true;
     try { await saveSavedThemes(workspace, savedThemes, next); setSavedThemes(next); say("ok", okText); }
-    catch (err: any) { say("err", `Could not save themes: ${err?.message || err}`); }
+    catch (err: any) { say("err", friendlyError(err, "save your themes")); }
     finally { themesBusyRef.current = false; }
   };
   /** Saving or renaming onto another theme's name replaces that theme: ask first. */
@@ -780,9 +821,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           onChange={v => setScopedStyle(g.id, f.key, v)}
           uploadFile={uploadStudioImage} />
         {(region || local) && <div className="studio-field-status">
-          <small>{own != null && own !== "" ? "Custom value" : region ? "Inherited from larger size / shared layout" : "Inherited from all pages"}</small>
-          {own !== undefined && <button type="button" className="studio-reset" aria-label={`${local ? "Reset to global" : "Reset to inherited"}: ${f.label}`}
-            onClick={() => setScopedStyle(g.id, f.key, undefined)}>{local ? "Reset to global" : "Reset to inherited"}</button>}
+          <small>{own != null && own !== "" ? "Custom value" : region ? "Same as the larger screen" : "Same as all pages"}</small>
+          {own !== undefined && <button type="button" className="studio-reset" aria-label={`${local ? "Use the all-pages value" : "Use the larger screen's value"}: ${f.label}`}
+            onClick={() => setScopedStyle(g.id, f.key, undefined)}>{local ? "Use the all-pages value" : "Use the larger screen's value"}</button>}
         </div>}
         {differs && <div className="studio-field-status">
           <small>Changed from default</small>
@@ -1107,11 +1148,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (workbench.open && workbench.tab === "health") setHealthRun(n => n + 1);
   }, [published]); // eslint-disable-line react-hooks/exhaustive-deps
   // The Publish confirmation says how the page in the preview checks out.
-  const [publishHealth, setPublishHealth] = useState<ReturnType<typeof summarise> | null>(null);
-  useEffect(() => { if (confirmAction === "publish") { const found = runHealth(); setPublishHealth(found ? summarise(found) : null); } }, [confirmAction]); // eslint-disable-line react-hooks/exhaustive-deps
+  // null = not checked yet ("Checking the page…"); "failed" = the preview couldn't be checked.
+  const [publishHealthState, setPublishHealthState] = useState<ReturnType<typeof summarise> | "failed" | null>(null);
+  const publishHealth = publishHealthState === "failed" ? null : publishHealthState;
+  useEffect(() => {
+    if (confirmAction !== "publish") { setPublishHealthState(null); return; }
+    const found = runHealth();
+    setPublishHealthState(found ? summarise(found) : previewStatus === "loading" ? null : "failed");
+  }, [confirmAction, previewStatus]); // eslint-disable-line react-hooks/exhaustive-deps
   const openStructureItem = (item: StructureItem) =>
     openElement({ key: item.key, label: item.label, target: item.target, region: item.region || undefined }, true);
-  const closeElement = () => { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); setMobilePanel("outline"); };
+  const closeElement = () => { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); setMobilePanel("preview"); };
   // "Open in Theme settings" from the element inspector: the region's own controls, else its style category.
   const openElementInTheme = (el: ElementRef) => {
     const region = el.region && REGION_GROUPS.flatMap(g => g.regions).find(r => r.id === el.region);
@@ -1156,7 +1203,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       if (pendingShow.current !== request) return;
       pendingShow.current = null;
       setLeftTab("style"); setStyleCategory(groupId); setMobilePanel("outline");
-      say("ok", `${categoryTitle(groupId)} isn't showing on this page right now — it may be switched off or need content first. Its settings are open instead.`);
+      say("warn", `${categoryTitle(groupId)} isn't showing on this page right now — it may be switched off or need content first. Its settings are open instead.`);
     }, 8000);
     pendingShow.current = request;
     setStyleCategory(null); setStyleFocus(null); setSelectedId(null); setBlockId(null); setShowGlobal(false);
@@ -1223,6 +1270,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         return;
       }
       if (d.type === "STRUCTURE") { const nodes = readStructure(d.nodes); if (nodes) setStructure(buildPageStructure(nodes)); return; }
+      if (d.type === "LINK_BLOCKED") {
+        if (linkHintShown.current) return;
+        linkHintShown.current = true;
+        try { if (localStorage.getItem("lm:studio-mode-hint")) return; localStorage.setItem("lm:studio-mode-hint", "1"); } catch { /* private window: hint shows once per visit */ }
+        setLinkHint(true);
+        return;
+      }
       if (d.type === "NODE_HOVER") { setHoverKey(typeof d.key === "string" ? d.key : null); return; }
       if (d.type === "CANVAS_SELECT" && d.sectionId) canvasSelectionRef.current = {sectionId:d.sectionId,blockId:d.blockId || null};
       if (d.type === "SECTION_SELECT" && d.instanceId) {
@@ -1270,7 +1324,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       if (d.type === "CONTEXT_ACTION" && typeof d.sectionId === "string") {
         change(current => applyContextAction(current, d, getBlocksKey));
         if (d.action === "delete" || d.action === "hide") { canvasSelectionRef.current = null; highlight(null,false,null); setSelectedId(null); setBlockId(null); }
-        if (d.action === "delete") say("ok", d.blockId ? "Block deleted." : "Section deleted.", undoAction());
+        if (d.action === "delete") say("warn", d.blockId ? "Block deleted." : "Section deleted.", undoAction());
       }
       if ((d.type === "SPACING_COMMIT" || d.type === "SPACING_RESET") && typeof d.sectionId === "string") {
         change(current => {
@@ -1307,7 +1361,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           const owner = findSectionOwner(designRef.current, d.sectionId);
           if (owner) { setShowGlobal(isGroupSurface(owner.surface)); if (isGroupSurface(owner.surface)) setGlobalGroup(owner.surface); else setTemplateId(owner.surface); }
           setLeftTab("sections"); setSelectedId(d.sectionId); setBlockId(d.blockId || null); setMobilePanel("settings");
-        } else if (d.kind === "copy") { setCopyFilter(d.key || ""); setLeftTab("text"); setMobilePanel("outline"); }
+        } else if (d.kind === "copy") {
+          const openWords = () => { setCopyFilter(d.key || ""); if (d.key) setFieldFocus({ key: String(d.key), nonce: Date.now() }); setLeftTab("text"); setMobilePanel("outline"); };
+          openWords();
+          say("warn", "This text is built from a template; open Text & labels to change it.", { label: "Open Text & labels", run: openWords });
+          return;
+        }
         say("ok", "Formatted or templated text opens in the inspector so its structure is preserved.");
       }
 
@@ -1316,24 +1375,36 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     return () => window.removeEventListener("message", h);
   }, [templates, selectedId, sendPreviewState, sendCopyMap, highlight, change, mode]);
 
-  const { busy, saveDraft, publish, discard, recovery, recover, dismissRecovery, conflict, resolveConflict, incoming, resolveIncoming } = useStudioPersistence({
+  const { busy, lastSaved, liveSyncPaused, saveDraft, publish, discard, recovery, recover, dismissRecovery, conflict, resolveConflict, incoming, resolveIncoming } = useStudioPersistence({
     design, savedDraft, published, setSavedDraft, setPublished, onPersisted, workspace,
     reset: (next) => { setHist(initHistory(next)); setSelectedId(null); setBlockId(null); },
     restore: next => change(() => normalizeDesign(next, defaults)), say,
     normalize: next => normalizeDesign(next, defaults),
     readPublished,
   });
+  // The status pill's hover text: what it means for the shop, and when this tab last saved.
+  const statusTitle = [
+    dirtyDraft ? "Your edits are only in this browser tab until you press Save draft. The shop is unchanged."
+      : unpublished ? "Your draft is saved, but shoppers still see the older design until you press Publish."
+      : "Shoppers see exactly this design.",
+    lastSaved ? `${lastSaved.kind === "publish" ? "Published" : "Draft saved"} at ${new Date(lastSaved.at).toLocaleTimeString()}.` : "",
+  ].filter(Boolean).join(" ");
+  // Set when reading the live design fails: the Publish list is then compared with an older copy.
+  const [liveCheckFailed, setLiveCheckFailed] = useState(false);
+  const refreshPublished = (alive: () => boolean) => readPublished().then(
+    fresh => { if (alive()) { setLiveCheckFailed(false); setPublished((prev: any) => (designEqual(prev, fresh) ? prev : fresh)); } },
+    () => { if (alive()) setLiveCheckFailed(true); });
   // Studio opened from a long-lived admin session: what is live may have changed (a scheduled go-live) since the page loaded.
   useEffect(() => {
     let alive = true;
-    readPublished().then(fresh => { if (alive) setPublished((prev: any) => (designEqual(prev, fresh) ? prev : fresh)); }, () => {});
+    void refreshPublished(() => alive);
     return () => { alive = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // The Publish / Discard questions compare against what is live right now, not what was live when Studio opened.
   useEffect(() => {
     if (!confirmAction) return;
     let alive = true;
-    readPublished().then(fresh => { if (alive) setPublished((prev: any) => (designEqual(prev, fresh) ? prev : fresh)); }, () => {});
+    void refreshPublished(() => alive);
     return () => { alive = false; };
   }, [confirmAction]); // eslint-disable-line react-hooks/exhaustive-deps
   const exit = () => {
@@ -1356,7 +1427,21 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // One keyboard listener for the whole editor; the latest handlers are read through a ref, so it
   // is registered once. The preview forwards its key presses here too (KEY_COMMAND).
   // `forPanel`: a command that names the panel's section itself (Find › current selection), not a keyboard shortcut.
-  const selectRail = (id: LeftTab) => { setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setSelectedElement(null); setMobilePanel("outline"); };
+  // Clicking the tab you are already on keeps what you selected; changing tabs clears it and remembers each tab's scroll.
+  const selectRail = (id: LeftTab) => {
+    setMobilePanel("outline");
+    // Clicking the tab already open keeps the selection; on Theme settings it still leaves an element's focus card.
+    if (id === leftTab) { setStyleFocus(null); return; }
+    restoreScrollFor.current = id;
+    setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setSelectedElement(null);
+  };
+  /** Moves the selected section one place on its page (shortcut and the inspector's Move up / Move down). */
+  const moveSelectedSection = (direction: -1 | 1) => {
+    if (!selected) return;
+    const index = sections.findIndex(x => x.id === selected.id), to = index + direction;
+    if (index < 0 || to < 0 || to >= sections.length) return;
+    setList(l => moveSection(l, index, to), { label: `Move ${sectionTitle(selected).label} ${direction < 0 ? "up" : "down"}` });
+  };
   const runShortcut = (action: ShortcutAction, forPanel = false) => {
     if (busy === "discard") return;
     if (inlineEditingRef.current && ["save", "undo", "redo", "delete", "duplicate", "moveUp", "moveDown"].includes(action)) {
@@ -1399,12 +1484,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "deselect": if (selectedId) { setSelectedId(null); setBlockId(null); } else if (selectedElement) closeElement(); break;
       case "delete": if (selected && !blockId) delSection(selected.id); break;
       case "duplicate": if (selected) dupSection(selected.id); break;
-      case "moveUp": case "moveDown": {
-        const to = index + (action === "moveUp" ? -1 : 1);
-        if (index < 0 || to < 0 || to >= sections.length) break;
-        setList(l => moveSection(l, index, to), { label: `Move ${sectionTitle(selected!).label} ${action === "moveUp" ? "up" : "down"}` });
-        break;
-      }
+      case "moveUp": case "moveDown": moveSelectedSection(action === "moveUp" ? -1 : 1); break;
       default:
         if (action.startsWith("go:")) selectRail(action.slice(3) as LeftTab);
     }
@@ -1466,7 +1546,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const gone = sections.find(x => x.id === id);
     setList((l) => removeSection(l, id), { label: `Delete ${gone ? sectionTitle(gone).label : "section"}` });
     if (selectedId === id) { setSelectedId(null); setBlockId(null); }
-    say("ok", `Deleted ${gone ? sectionTitle(gone).label : "the section"}.`, undoAction());
+    say("warn", `Deleted ${gone ? sectionTitle(gone).label : "the section"}.`, undoAction());
   };
   // Block library 3.0: Add block (the picker), Copy block and Paste copied block. Each add is one named, undoable change.
   const openBlockPicker = (sectionId: string) => {
@@ -1498,12 +1578,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   const pasteBlockNow = (section: Section, afterId: string | null) => {
     if (!canPasteBlock(copiedBlock, section.type)) {
-      say("ok", copiedBlock ? `That block came from a ${getSectionMeta(copiedBlock.sectionType)?.label || "different"} section, so it only pastes into one of those.` : "Copy a block first: select it and choose Copy block.");
+      say("warn", copiedBlock ? `That block came from a ${getSectionMeta(copiedBlock.sectionType)?.label || "different"} section, so it only pastes into one of those.` : "Copy a block first: select it and choose Copy block.");
       return;
     }
     const linkedTo = copiedBlock!.block.sharedBlockId;
     if (linkedTo && !(designRef.current.sharedBlocks || []).some((x: SharedBlock) => x.id === linkedTo)) {
-      say("ok", "The copied block was linked to a shared block that has since been deleted, so there's nothing to paste. Copy the block again.");
+      say("warn", "The copied block was linked to a shared block that has since been deleted, so there's nothing to paste. Copy the block again.");
       return;
     }
     const block = pasteBlock([], copiedBlock!).list[0];
@@ -1573,9 +1653,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setVisible: (ids, visible) => change(d => updateSectionsById(d, ids, sec => ({ ...sec, visible })),
       { label: `${visible ? "Show" : "Hide"} ${ids.length} section${ids.length === 1 ? "" : "s"}` }),
     remove: ids => {
-      change(d => updateSectionsById(d, ids, () => null), { label: `Delete ${ids.length} section${ids.length === 1 ? "" : "s"}` });
-      if (selectedId && ids.includes(selectedId)) { setSelectedId(null); setBlockId(null); }
-      say("ok", `Deleted ${ids.length} section${ids.length === 1 ? "" : "s"}.`, undoAction());
+      const run = () => {
+        change(d => updateSectionsById(d, ids, () => null), { label: `Delete ${ids.length} section${ids.length === 1 ? "" : "s"}` });
+        if (selectedId && ids.includes(selectedId)) { setSelectedId(null); setBlockId(null); }
+        say("warn", `Deleted ${ids.length} section${ids.length === 1 ? "" : "s"}.`, undoAction());
+      };
+      // One or two sections are undone from the toast; three or more ask first.
+      if (ids.length < 3) { run(); return; }
+      void askConfirm({ title: `Delete ${ids.length} sections?`, message: "They will be removed from this page. You can undo this right after with the Undo button or Ctrl+Z.", confirmLabel: `Delete ${ids.length} sections` })
+        .then(ok => { if (ok) run(); });
     },
     moveBlock: (sectionId, blockId) => { setMoveDest(""); setMoveDialog({ kind: "block", sectionId, blockId }); },
   };
@@ -1612,7 +1698,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const deleteTemplateNow = (base: AltBase, id: string, name: string) => {
     change(d => deleteAlternate(d, base, id), { label: `Delete template “${name}”` });
     setTemplateId(base); setSelectedId(null); setBlockId(null);
-    say("ok", `Template “${name}” deleted. Anything that used it shows the default layout.`, undoAction());
+    say("warn", `Template “${name}” deleted. Anything that used it shows the default layout.`, undoAction());
   };
   /** Add section › "Add it there instead": add a section to the group or page it is made for, and go there. */
   const addSectionBestPlace = (type: string) => {
@@ -1639,7 +1725,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   const deletePresetNow = (preset: any) => {
     change(d => deletePreset(d, preset.id), { label: "Delete saved section" });
-    say("ok", `“${preset.name}” deleted from your saved sections.`, undoAction());
+    say("warn", `“${preset.name}” deleted from your saved sections.`, undoAction());
   };
   const renameSharedAsk = async (shared: SharedBlock) => {
     const name = await askText({ title: "Rename shared block", label: "Name", defaultValue: shared.name || "", confirmLabel: "Rename" });
@@ -1648,7 +1734,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   const deleteSharedNow = (shared: SharedBlock) => {
     change(d => deleteSharedBlock(d, shared.id), { label: "Delete shared block" });
-    say("ok", `“${shared.name}” deleted. Where it was placed, a copy stays.`, undoAction());
+    say("warn", `“${shared.name}” deleted. Where it was placed, a copy stays.`, undoAction());
   };
   const addPreset = (preset: any) => {
     const source = preset.section;
@@ -1661,7 +1747,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // Built-in parts of the previewed page (header, buy card, bag…), so they can be found by name.
   const structureElements = useMemo(() => {
     if (!structure) return [];
-    const zones: [string, StructureItem[]][] = [["Header", structure.header], ["Page", structure.main], ["Footer", structure.footer], ["Pop-overs", structure.overlay], ["Whole page", structure.page]];
+    const zones: [string, StructureItem[]][] = [["Header", structure.header], ["Page", structure.main], ["Footer", structure.footer], ["Pop-ups", structure.overlay], ["Whole page", structure.page]];
     const out: { key: string; label: string; where: string; target: string }[] = [];
     const walk = (items: StructureItem[], where: string) => items.forEach(i => { out.push({ key: i.key, label: i.label, where, target: i.target }); walk(i.children, `${where} › ${i.label}`); });
     for (const [zone, items] of zones) walk(items, `This page › ${zone}`);
@@ -1732,7 +1818,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const autoFitPage = (overwrite = false) => {
     const r = autoFitSections(sections, overwrite);
     const regions = autoFitRegions({ ...design.regions, ...(target.kind === "template" ? design[target.id]?.regions : {}) }, overwrite);
-    if (!r.touched && !regions.changes.length) { say("ok", "No new phone overrides to apply. Check the phone preview for this page."); return; }
+    if (!r.touched && !regions.changes.length) { say("ok", "Nothing new to adjust for phones. Check the phone preview for this page."); return; }
     change(d => {
       let next = setSections(d, target, r.value);
       for (const [key, value] of Object.entries(regions.value)) {
@@ -1742,7 +1828,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       return next;
     });
     setDevice("mobile");
-    say("ok", `Auto-fitted ${r.touched} sections and ${regions.changes.length} region settings for phones. Check the preview; Undo (Ctrl+Z) reverts.`);
+    say("ok", `Auto-fitted ${r.touched} sections and ${regions.changes.length} page-part settings for phones. Check the preview; Undo (Ctrl+Z) reverts.`);
   };
   const runAction = (id: string) => {
     switch (id) {
@@ -1816,6 +1902,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (t.type === "copy") {
       setTextCategory(t.group); setLeftTab("text"); setSelectedId(null); setBlockId(null);
       setCopyFilter(t.key || "");
+      if (t.key) setFieldFocus({ key: t.key, nonce: Date.now() });
       setFocus(f => ({ id: `copy:${t.group}`, nonce: f.nonce + 1 }));
       flashPanel(t.key ? `[data-copy-key="${CSS.escape(t.key)}"]` : `[data-studio-panel="${CSS.escape(`copy:${t.group}`)}"]`, Boolean(t.key));
       return;
@@ -1864,7 +1951,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             <span>{leftTab === "sections" ? (showGlobal ? `Every page · ${groupLabel(globalGroup)}` : template.label) + ` · ${sections.length} ${sections.length === 1 ? "section" : "sections"}` : `Previewing: ${showGlobal ? groupLabel(globalGroup) : template.label}`}</span>
             <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : leftTab === "media" ? "Upload images, describe them and see where each is used." : leftTab === "themes" ? "Save, compare, share and switch whole designs." : "Create pages and edit their content or layout."}</small>
           </div>
-          <div className="flex-1 overflow-auto" ref={sidebarScrollRef}>
+          <div className="flex-1 overflow-auto" ref={sidebarScrollRef} onScroll={e => { tabScroll.current[leftTab] = e.currentTarget.scrollTop; }}>
             {brandKit && <StudioBrandKit design={design} onPreview={setBrandChoice} onApply={applyBrandKit} onClose={() => setBrandKit(false)} />}
             <div hidden={brandKit}>
             <StudioTips forceOpen={tipsNonce} />
@@ -1888,7 +1975,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               <StudioTemplateCard design={design} templateId={template.id} books={books} previewBookSlug={productSlug}
                 onSwitch={id => { setTemplateId(id); setSelectedId(null); setBlockId(null); }}
                 onPreviewBook={setProductSlug}
-                onCreate={createTemplateAsk} onRename={renameTemplateAsk} onDelete={deleteTemplateNow} />
+                onCreate={createTemplateAsk} onRename={renameTemplateAsk} onDelete={(base, id, name) => {
+                  void askConfirm({ title: "Delete this template?", message: `“${name}” will be removed. Books and categories that use it show the default layout instead. You can undo this right after.`, confirmLabel: "Delete template" })
+                    .then(ok => { if (ok) deleteTemplateNow(base, id, name); });
+                }} />
             )}
             {leftTab === "sections" && adding === null && !blockPicker && !showGlobal && isProductTemplate(template.id) && (
               <StudioProductBlocks design={design} templateId={template.id} change={change}
@@ -1925,7 +2015,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 { label: selected ? "Copy selected section" : "Copy a section (select one first)", icon: <Copy size={14} />,
                   onSelect: () => { if (!selected) { say("ok", "Select a section in the list or the preview first, then copy it."); return; } setCopiedSection(JSON.parse(JSON.stringify(selected))); say("ok", "Section copied. Open any page, then Section tools › Paste copied section."); } },
                 { label: copiedSection ? "Paste copied section" : "Paste (nothing copied yet)", icon: <Clipboard size={14} />,
-                  onSelect: () => { if (!copiedSection) { say("ok", "Copy a section first with Section tools › Copy selected section."); return; } pasteSection(); } },
+                  onSelect: () => { if (!copiedSection) { say("warn", "Copy a section first with Section tools › Copy selected section."); return; } pasteSection(); } },
                 { label: selected ? "Save selected section for reuse" : "Save a section for reuse (select one first)", icon: <Download size={14} />,
                   onSelect: () => { if (!selected) { say("ok", "Select a section first, then save it. Saved sections appear in Add section."); return; } saveSection(selected); } },
               ]} /></div>
@@ -2089,7 +2179,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                       <p className="text-sm font-bold">{styleFocus.label}</p>
                       <p className="text-xs text-neutral-500 mt-0.5">{picked.length} settings for this element{styleScope === "page" ? "" : " · all pages"}</p>
                     </div>
-                    <button type="button" className={btn} onClick={() => { setStyleFocus(null); setStyleCategory(null); }}>Back to theme settings</button>
+                    <button type="button" className={btn} onClick={() => setStyleFocus(null)}>{(() => {
+                      // Back to the category the owner came from (its element list), else the Theme settings home.
+                      const from = styleCategory && (EXTRA_STYLE_CATEGORIES[styleCategory]?.title || STYLE_GROUPS.find(g => g.id === styleCategory)?.title);
+                      return from ? `Back to ${from}` : "Back to theme settings";
+                    })()}</button>
                   </div>
                   <div className="px-4 pb-4 space-y-4">
                     {region && <div className="studio-region-context">
@@ -2151,7 +2245,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                     onChange={value => setCopy(f.key, value)} />);
                   if (!q) return <div key={g.group} data-studio-panel={`copy:${g.group}`} className="px-4 pb-4 space-y-4">
                     {textSubsectionsFor(g).map((sub, i, all) => <SettingsSubsection key={sub.title || "all"} title={all.length > 1 ? sub.title : ""} noun="word"
-                      count={sub.fields.length} changed={changedCopyCount(sub.fields, design)} defaultOpen={i === 0} keys={sub.fields.map(f => f.key)}>
+                      /* Opens the short list holding the word being focused or searched for; otherwise the first one. */
+                      count={sub.fields.length} changed={changedCopyCount(sub.fields, design)} keys={sub.fields.map(f => f.key)} focusKey={fieldFocus}
+                      defaultOpen={(() => { const at = fieldFocus ? all.findIndex(x => x.fields.some(f => f.key === fieldFocus.key)) : -1; return at >= 0 ? i === at : i === 0; })()}>
                       {sub.fields.map(f => <StudioCopyField key={f.key} field={f} design={design} settings={settings} aiWhere={g.group} onChange={value => setCopy(f.key, value)} />)}
                     </SettingsSubsection>)}
                   </div>;
@@ -2222,7 +2318,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 <MenusPanel design={design} settings={settings} pages={pages} onChange={(m) => setStyle("menus", m)}
                   onRemove={(m, label) => {
                     change((d) => applyGlobalStyle(d, "menus", m, surfaceIds), { label: `Remove menu link “${label}”` });
-                    say("ok", `Removed “${label}” from the menu.`, undoAction());
+                    say("warn", `Removed “${label}” from the menu.`, undoAction());
                   }} />
               </>
             )}
@@ -2274,11 +2370,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   );
   const canvasPanel = (
         <main className="studio-canvas">
-          <div className="studio-canvas-status"><span>{template.label} · {device} ({DEVICE_W[device]}) · {mode === "edit" ? "Double-click text to type · click other elements for settings" : "Browse your storefront"}</span><span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}
+          <div className="studio-canvas-status"><span>{template.label} · {device} ({DEVICE_W[device]}) · {mode === "edit" ? "Double-click text to type · click other elements for settings" : "Browse your storefront"}</span>{linkHint && mode === "edit" && <span role="status" data-studio-link-hint>Links don't open while you're editing. Use Switch to Browse mode to follow them.</span>}<span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}
             <label className="studio-zoom">Zoom<select aria-label="Preview zoom" value={String(zoom)} onChange={e => setZoom(e.target.value === "fit" ? "fit" : Number(e.target.value) as Zoom)}>
               <option value="fit">Fit to screen</option><option value="100">100%</option><option value="75">75%</option><option value="50">50%</option></select></label></div>
           {template.id === "productPage" && !books.some(b => b.slug === productSlug) ? <p className="studio-empty">Choose a book in “Page to edit” to preview this template.</p> :
-          <StudioPreviewFrame deviceWidth={parseInt(DEVICE_W[device], 10)} zoom={zoom}>
+          <StudioPreviewFrame deviceWidth={parseInt(DEVICE_W[device], 10)} zoom={zoom} loading={previewStatus === "loading"} loadingText="Loading your shop preview…">
             <iframe ref={iframeRef} key={previewUrl + previewRevision} src={previewUrl} title="Live preview" onLoad={onIframeLoad} className="w-full h-full border-0" />
           </StudioPreviewFrame>}
           {workbenchPanel}
@@ -2291,8 +2387,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             canPasteBlock={canPasteBlock(copiedBlock, selected?.type)} onPasteBlock={afterId => pasteBlockNow(selected, afterId)}
             onPatch={patchSelected} onDuplicate={() => dupSection(selected.id)} onDelete={() => delSection(selected.id)}
             onToggle={() => setList((l) => toggleSection(l, selected.id))} onNotice={(text) => say("ok", text)}
+            onMoveSection={moveSelectedSection} sectionRoom={(() => { const i = sections.findIndex(x => x.id === selected?.id); return { up: i > 0, down: i >= 0 && i < sections.length - 1 }; })()}
             onReplayMotion={() => { setMode("edit"); postPreview({ type: "HIGHLIGHT_SECTION", instanceId: selected.id, blockId: null, scroll: true }); setTimeout(() => postPreview({ type: "MOTION_REPLAY", sectionId: selected.id }), 450); }}
-            arranging={arrangeId === selected?.id} onArrange={on => { setArrangeId(on ? selected.id : null); if (on) setMode("edit"); }} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
+            arranging={arrangeId === selected?.id} onArrange={on => { setArrangeId(on ? selected.id : null); if (on) setMode("edit"); }} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("preview"); }} />
   );
 
   const inspectorEmpty = (
@@ -2311,6 +2408,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             onOpenTheme={() => openElementInTheme(selectedElement)}
             onOpenText={group => { setCopyFilter(""); setTextCategory(group); setLeftTab("text"); setMobilePanel("outline"); }}
             onOpenTarget={target => openTarget(target, selectedElement.label)}
+            onBack={() => { setSelectedElement(null); postPreview({ type: "SELECT_NODE", key: null }); setLeftTab("sections"); setStyleFocus(null); setMobilePanel("outline"); }}
             onClose={closeElement} />
   );
 
@@ -2326,18 +2424,22 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <button className={btn} onClick={() => setFindOpen(true)} aria-label="Find anything (Ctrl+K)" title="Find any setting, word, page, section or action"><Search size={14} /> Find <kbd aria-hidden="true">Ctrl K</kbd></button>
         <TemplatePicker options={pickerList} current={pickerCurrent} onPick={pickPage} />
         <div className="flex items-center gap-0.5" role="group" aria-label="Preview size">
-          {([["desktop", Monitor], ["tablet", Tablet], ["mobile", Smartphone]] as const).map(([d, Icon]) => (
+          {([["desktop", Monitor, "Computer"], ["tablet", Tablet, "Tablet"], ["mobile", Smartphone, "Phone"]] as const).map(([d, Icon, name]) => (
             <button key={d} className={`${iconBtn} ${device === d ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""}`}
-              onClick={() => setDevice(d)} aria-label={`${d} preview`} aria-pressed={device === d}><Icon size={15} /></button>
+              onClick={() => setDevice(d)} aria-label={`${name} preview`} title={`${name} preview`} aria-pressed={device === d}><Icon size={15} /></button>
           ))}
         </div>
-        <button className={btn} title={mode === "edit" ? "Edit mode: clicking the preview selects parts to edit. Click to switch to Browse mode, where links and buttons work like on the shop." : "Browse mode: links and buttons work like on the shop. Click to switch to Edit mode and select parts to edit."} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}>{mode === "edit" ? "Edit mode" : "Browse mode"}</button>
+        <button className={btn} aria-pressed={mode === "browse"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}
+          title={mode === "edit" ? "You are in Edit mode: clicking the preview selects parts to edit. Click to switch to Browse mode, where links and buttons work like on the shop." : "You are in Browse mode: links and buttons work like on the shop. Click to switch to Edit mode and select parts to edit."}>
+          {mode === "edit" ? <Globe size={14} aria-hidden="true" /> : <Pencil size={14} aria-hidden="true" />} {mode === "edit" ? "Switch to Browse mode" : "Switch to Edit mode"}</button>
 
         <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.past.length} onClick={() => stepHistory("undo")} aria-label="Undo (Ctrl+Z)" title={hist.past.length ? `Undo: ${undoLabel(hist)} (Ctrl+Z)` : "Nothing to undo"}><Undo2 size={15} /></button>
         <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.future.length} onClick={() => stepHistory("redo")} aria-label="Redo (Ctrl+Shift+Z)" title={hist.future.length ? `Redo: ${redoLabel(hist)} (Ctrl+Shift+Z or Ctrl+Y)` : "Nothing to redo"}><Redo2 size={15} /></button>
         <div className="flex-1" />
-        <span className="text-xs font-bold px-2 py-1 rounded-full bg-neutral-100" role="status">
-          {dirtyDraft ? "Unsaved changes" : unpublished ? "Draft saved · not live" : "Live"}
+        {/* Two short lines keep the bar on one row; the text still reads "Not saved yet · shop unchanged". */}
+        <span className="studio-status text-xs px-2 py-1 rounded-full bg-neutral-100" role="status" data-studio-status={dirtyDraft ? "unsaved" : unpublished ? "draft" : "live"}
+          title={statusTitle}>
+          <strong>{dirtyDraft ? "Not saved yet" : unpublished ? "Saved as draft" : "Live"}</strong><span className="studio-status-sep"> · </span><span>{dirtyDraft || unpublished ? "shop unchanged" : "the shop shows this"}</span>
         </span>
         <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
           { label: "Preview in new tab", icon: <ExternalLink size={14} />, onSelect: openPreviewTab },
@@ -2361,9 +2463,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         ...(selected && blockId ? [selectedBlockCrumb(selected, blockId)] : []),
         ...(!selected && selectedElement ? [{ label: selectedElement.label }] : []),
       ]} />
-      <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
+      <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{[["outline", "Sections"], ["preview", "Preview"], ["settings", "Edit"]].map(([panel, name]) => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{name}</button>)}</div>
       {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
       {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={() => { void askConfirm({ title: "Discard local edits?", message: "The unsaved edits kept on this device will be deleted. This can't be undone.", confirmLabel: "Discard local edits" }).then(ok => { if (ok) dismissRecovery(); }); }}>Discard local recovery</SecondaryButton></div>}
+      {liveSyncPaused && <div className="studio-recovery" role="status" data-studio-live-sync-paused><span>Live updates from other tabs are paused. Reload Studio before publishing to be safe.</span></div>}
       {themePreview && <div className="studio-recovery studio-incoming" role="status" data-studio-theme-preview>
         <span>Previewing “{themePreview.label}” in the canvas. Your draft hasn't changed.</span>
         <SecondaryButton size="sm" onClick={() => setThemePreview(null)}>Stop preview</SecondaryButton>
@@ -2384,14 +2487,20 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       </div>}
       {draftPage && leftTab !== "pages" && <div className="studio-recovery" role="status"><span>{pageBusy ? "Saving" : "Unsaved edits to"} page “{draftPage.title || draftPage.slug || "Untitled"}”. {pageBusy ? "Wait for the save to finish." : "Return to Pages to review and save it."}</span>{!pageBusy && <SecondaryButton onClick={() => setLeftTab("pages")}>Return to Pages</SecondaryButton>}</div>}
       {toast && (
-        <div role={toast.kind === "err" ? "alert" : "status"}
-          className={`absolute top-16 left-1/2 -translate-x-1/2 z-[350] px-4 py-2 rounded-lg text-sm font-bold shadow-lg ${toast.kind === "err" ? "bg-red-600 text-white" : "bg-neutral-900 text-white"}`}>
+        <div role={toast.kind === "err" ? "alert" : "status"} data-studio-toast={toast.kind}
+          // A message that is being read stays up: it waits while the pointer or keyboard focus is on it.
+          onMouseEnter={() => { toastHeld.current.hover = true; clearTimeout(toastTimer.current); }}
+          onFocus={() => { toastHeld.current.focus = true; clearTimeout(toastTimer.current); }}
+          onMouseLeave={() => { toastHeld.current.hover = false; if (toast.kind === "ok") armToast(toast.id, 2000); }}
+          onBlur={e => { if (e.currentTarget.contains(e.relatedTarget as Node | null)) return; toastHeld.current.focus = false; if (toast.kind === "ok") armToast(toast.id, 2000); }}
+          className={`studio-toast absolute top-16 left-1/2 -translate-x-1/2 z-[350] px-4 py-2 rounded-lg text-sm font-bold shadow-lg ${toast.kind === "err" ? "bg-red-600 text-white" : toast.kind === "warn" ? "studio-toast-warn" : "bg-neutral-900 text-white"}`}>
           {toast.text}
           {toast.action && <button className="ml-3 underline" onClick={() => { const action = toast.action!; setToast(null); action.run(); }}>{toast.action.label}</button>}
-          {toast.kind === "err" && <button className="ml-3 underline" onClick={() => setToast(null)}>Dismiss</button>}
+          {toast.kind !== "ok" && <button className="ml-3 underline" onClick={() => setToast(null)}>Dismiss</button>}
         </div>
       )}
 
+      <CopyTargetContext.Provider value={openTarget}>
       <MediaPickerContext.Provider value={mediaLib.pickerApi}>
       <FocusContext.Provider value={focus}>
       <div className="studio-workspace" {...inertWhen(busy === "discard")}>
@@ -2414,6 +2523,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       </div>
       </FocusContext.Provider>
       </MediaPickerContext.Provider>
+      </CopyTargetContext.Provider>
       <MediaPickerDialog lib={mediaLib} />
 
       <Dialog open={!!moveDialog} onClose={() => setMoveDialog(null)}
@@ -2458,8 +2568,18 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         askText={askText} askConfirm={askConfirm} say={(kind, text) => say(kind, text)} />
       <Dialog open={confirmAction !== null} onClose={() => setConfirmAction(null)} title={confirmAction === "publish" ? "Publish this design?" : "Discard this draft?"}>
         <div className="space-y-4">
-          <p className="text-sm">{confirmAction === "publish" ? "These changes will become visible to shoppers immediately:" : "These draft changes will be permanently replaced by the current live design:"}</p>
-          <ul className="list-disc pl-5 text-sm space-y-1">{confirmAction !== null && publishSummary(confirmAction === "publish" ? published : design, confirmAction === "publish" ? design : published).map(x => <li key={x}>{x}</li>)}</ul>
+          {confirmAction !== null && (() => {
+            const summary = publishSummary(confirmAction === "publish" ? published : design, confirmAction === "publish" ? design : published);
+            if (!summary.count) return <p className="text-sm font-bold" data-publish-empty>{confirmAction === "publish" ? "Nothing differs from the live shop — publishing changes nothing." : "Nothing differs from the live shop — discarding changes nothing."}</p>;
+            return <>
+              <p className="text-sm font-bold" data-publish-count>{summary.count} change{summary.count === 1 ? "" : "s"}</p>
+              <p className="text-sm">{confirmAction === "publish" ? "These changes will become visible to shoppers immediately:" : "These draft changes will be permanently replaced by the current live design:"}</p>
+              <ul className="list-disc pl-5 text-sm space-y-1">{summary.lines.map(x => <li key={x}>{x}</li>)}</ul>
+            </>;
+          })()}
+          {liveCheckFailed && <p className="text-sm font-bold studio-dialog-warn" role="status" data-publish-live-check-failed>Couldn't check the live shop just now. The list above compares with the last version Studio saw, so it may miss changes made elsewhere.</p>}
+          {confirmAction === "publish" && !publishHealth && <p className="studio-health-publish" data-publish-health-pending>
+            <ShieldCheck size={14} aria-hidden /> {publishHealthState === "failed" ? "Studio Health couldn't check this page just now. Open Theme actions › Studio Health to try again." : "Checking the page…"}</p>}
           {confirmAction === "publish" && publishHealth && <p className="studio-health-publish" data-publish-health>
             <ShieldCheck size={14} aria-hidden /> {site.report && site.complete && site.ranAt?.device === device && !site.running
               ? <>Studio Health checked {template.label} on {REGION_DEVICE_LABELS[device].toLowerCase()}: {publishHealth.text}. Check every page at {new Date(site.ranAt.at).toLocaleTimeString()} ({site.report.totals.checked} pages, before any later edits): {site.report.totals.issues ? `${site.report.totals.issues} to fix` : "nothing to fix"}{site.report.totals.failed ? `, ${site.report.totals.failed} not checked` : ""}.</>

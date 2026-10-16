@@ -50,7 +50,7 @@ export function StudioPageOverrides({ design, surface, pageLabel, onUseAll, onMa
             <span className="studio-overrides-name">{overrideLabel(o.key)}</span>
             <span className="studio-overrides-values">This page: <b>{shown(o.value)}</b> · All pages: <b>{shown(o.inherited)}</b></span>
             <span className="studio-overrides-actions">
-              <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => onUseAll(o.key)}>Use all-pages value</button>
+              <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => onUseAll(o.key)}>Use the all-pages value</button>
               <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onMakeAll(o.key, o.value)}>Make this the all-pages value</button>
             </span>
           </li>

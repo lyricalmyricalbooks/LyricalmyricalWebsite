@@ -81,13 +81,13 @@ await check("add section, undo, redo, save draft", desktop, async page => {
 });
 
 await check("device switch keeps the real viewport width", desktop, async page => {
-  await page.getByRole("button", { name: "tablet preview" }).click();
+  await page.getByRole("button", { name: "Tablet preview" }).click();
   // The frame keeps the device's real CSS width (the preview is scaled to fit, never squeezed),
   // so the storefront inside switches to the matching breakpoint.
   const frameWidth = () => page.evaluate(() => document.querySelector(".studio-preview-frame")?.style.width);
   await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "820px", null, { timeout: 5000 })
     .catch(async () => { throw new Error(`tablet frame is ${await frameWidth()}`); });
-  await page.getByRole("button", { name: "mobile preview" }).click();
+  await page.getByRole("button", { name: "Phone preview" }).click();
   await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "390px", null, { timeout: 5000 })
     .catch(async () => { throw new Error(`phone frame is ${await frameWidth()}`); });
 });
@@ -120,7 +120,7 @@ await check("find anything opens a setting", desktop, async page => {
 });
 
 await check("find anything opens an element setting at the size being previewed", desktop, async page => {
-  await page.getByRole("button", { name: "mobile preview" }).click();
+  await page.getByRole("button", { name: "Phone preview" }).click();
   await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "390px", null, { timeout: 5000 });
   await page.keyboard.press(`${mod}+k`);
   await page.getByRole("dialog").getByRole("combobox").fill("newsletter button padding top");
@@ -130,7 +130,7 @@ await check("find anything opens an element setting at the size being previewed"
   const width = await page.evaluate(() => document.querySelector(".studio-preview-frame")?.style.width);
   if (width !== "390px") throw new Error(`the preview left phone size (${width})`);
   // From desktop, a search that names "phone" opens the phone setting and the phone preview.
-  await page.getByRole("button", { name: "desktop preview" }).click();
+  await page.getByRole("button", { name: "Computer preview" }).click();
   await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "1200px", null, { timeout: 5000 });
   await page.keyboard.press(`${mod}+k`);
   await page.getByRole("dialog").getByRole("combobox").fill("newsletter button phone padding top");
@@ -156,7 +156,7 @@ await check("find anything offers commands for the selected section, recent pick
   const options = page.getByRole("dialog").getByRole("option");
   await options.first().waitFor({ timeout: 5000 });
   const kinds = await options.locator(".studio-find-kind").allTextContents();
-  if (kinds.some(k => !/action|area/i.test(k))) throw new Error(`> showed non-commands: ${kinds.join(", ")}`);
+  if (kinds.some(k => !/^(do|go to)$/i.test(k.trim()))) throw new Error(`> showed non-commands: ${kinds.join(", ")}`);
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "390px", null, { timeout: 5000 });
   await page.keyboard.press(`${mod}+k`);
@@ -194,7 +194,7 @@ await check("page structure lists the header, follows the pointer and opens the 
   await masthead.hover();
   const frame = page.frameLocator("iframe").first();
   await frame.locator("[data-studio-overlay]", { hasText: "Masthead" }).first().waitFor({ state: "visible", timeout: 5000 });
-  await panel.locator("summary", { hasText: "Pop-overs" }).click();
+  await panel.locator("summary", { hasText: "Pop-ups" }).click();
   await panel.getByRole("button", { name: "Open in preview" }).first().click();
   await frame.locator("[role=dialog][data-studio-label='Cart drawer']").waitFor({ state: "visible", timeout: 8000 });
   await panel.getByRole("button", { name: /^Shopping bag/ }).click();
@@ -374,7 +374,7 @@ await check("page-only overrides are listed and can follow all pages", desktop, 
   const count = async () => Number(await card.locator(".studio-overrides-count").textContent());
   const before = await count();
   if (!(before > 0)) throw new Error("no page overrides listed for the live catalog page");
-  await card.getByRole("button", { name: "Use all-pages value" }).first().click();
+  await card.getByRole("button", { name: "Use the all-pages value" }).first().click();
   await page.waitForFunction(n => Number(document.querySelector("[data-studio-page-overrides] .studio-overrides-count")?.textContent) === n - 1, before);
 }, "?live=1");
 
@@ -413,7 +413,7 @@ await check("Media lists a library image and opens its details", desktop, async 
   await expectText(page, "Where it's used");
   await expectText(page, "Not used anywhere yet");
   await page.getByRole("table", { name: "Sizes shoppers download" }).waitFor({ timeout: 5000 });
-  await page.getByLabel("Description (alt text)").fill("Red dot on yellow paper");
+  await page.getByLabel("Picture description").fill("Red dot on yellow paper");
   await page.getByRole("button", { name: "Save description" }).click();
   await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "saveMedia" && c.args[0].alt === "Red dot on yellow paper"));
 });
@@ -727,7 +727,7 @@ await check("the wishlist page shows the one shop header and footer, listed in P
 await check("a Newsletter in the Pop-up group opens as a pop-up in the preview and saves to overlaySections", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const panel = page.locator(".studio-structure");
-  await panel.locator("summary", { hasText: "Pop-overs" }).click();
+  await panel.locator("summary", { hasText: "Pop-ups" }).click();
   await panel.getByRole("button", { name: /^Pop-up sections/ }).click();
   await panel.locator("summary", { hasText: "Every page · Pop-up" }).waitFor({ timeout: 5000 });
   await page.getByRole("button", { name: "Add section" }).first().click();
@@ -867,7 +867,7 @@ await check("the buy box follows Buy box blocks, and Add to bag still adds to th
   const saved = design.productPage?.productInfoBlocks || [];
   if (!saved.some(b => b.type === "collapsible") || !saved.find(b => b.type === "tag")?.hidden) throw new Error(`blocks not saved: ${JSON.stringify(saved)}`);
   // Commerce safety: the moved buy box still buys.
-  await page.getByRole("button", { name: "Edit mode" }).click();
+  await page.getByRole("button", { name: "Switch to Browse mode" }).click();
   await frame.evaluate(() => localStorage.removeItem("fm_cart"));
   await frame.locator(".fm-pdp-card [data-section=buttons]").click();
   await frame.waitForFunction(() => (JSON.parse(localStorage.getItem("fm_cart") || "[]")).length === 1, undefined, { timeout: 10000 });
@@ -1189,7 +1189,7 @@ await check("Themes saves the draft as a theme, previews a look without changing
   const preset = panel.locator("[data-theme-card^='preset:']").first();
   await preset.getByRole("button", { name: "Preview" }).click();
   await page.locator("[data-studio-theme-preview]").waitFor({ timeout: 5000 });
-  if (await page.getByText("Unsaved changes", { exact: true }).isVisible()) throw new Error("previewing a look changed the draft");
+  if (await page.locator("[data-studio-status=\"unsaved\"]").isVisible()) throw new Error("previewing a look changed the draft");
   await page.locator("[data-studio-theme-preview]").getByRole("button", { name: "Stop preview" }).click();
   await page.locator("[data-studio-theme-preview]").waitFor({ state: "detached", timeout: 5000 });
   if (JSON.stringify((await page.evaluate(() => window.__studioFixture.calls)).filter(c => c.method === "saveDesign")) !== before) throw new Error("preview saved something");
@@ -1277,12 +1277,12 @@ await check("a single click on header words opens that header part, not the sear
   if (await frame.locator("[role=dialog]").count()) throw new Error("the click opened the search instead of selecting the header");
 });
 
-await check("Pop-overs opens the cookie banner in the preview even after it was answered", desktop, async page => {
+await check("Pop-ups opens the cookie banner in the preview even after it was answered", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const frame = page.frameLocator("iframe").first();
   if (await frame.getByText("your call.").count()) throw new Error("the answered cookie banner showed before Studio asked for it");
   const panel = page.locator(".studio-structure");
-  await panel.locator("summary", { hasText: "Pop-overs" }).click();
+  await panel.locator("summary", { hasText: "Pop-ups" }).click();
   await panel.locator(".studio-structure-row", { hasText: "Cookie banner" }).getByRole("button", { name: "Open in preview" }).click();
   await frame.getByText("your call.").first().waitFor({ timeout: 8000 });
   // Answering it in the preview never changes this browser's real answer.
@@ -1308,8 +1308,8 @@ await check("a custom page takes uploaded and pasted pictures, with size, positi
   await tools.waitFor({ timeout: 10000 });
   await tools.getByRole("button", { name: "Medium" }).click();
   await tools.getByRole("button", { name: "Line up centre" }).click();
-  await tools.getByLabel("Description (alt text)").pressSequentially("Open book spread");
-  if (await tools.getByLabel("Description (alt text)").inputValue() !== "Open book spread") throw new Error("typing a description closed the picture tools");
+  await tools.getByLabel("Picture description").pressSequentially("Open book spread");
+  if (await tools.getByLabel("Picture description").inputValue() !== "Open book spread") throw new Error("typing a description closed the picture tools");
   // A pasted picture is uploaded too, never kept as data: text.
   await page.locator(".studio-page-body .ql-editor").click();
   await page.evaluate(b64 => {
@@ -1378,11 +1378,11 @@ await check("a custom page's search listing fills in from the page", desktop, as
   await page.getByRole("button", { name: "Pages", exact: true }).click();
   await page.getByRole("button", { name: "Edit About" }).click();
   await page.getByRole("button", { name: "Auto-fill from page" }).click();
-  if (await page.getByLabel("SEO title").inputValue() !== "About") throw new Error("search title wasn't filled from the page title");
+  if (await page.getByLabel("Title on Google").inputValue() !== "About") throw new Error("search title wasn't filled from the page title");
   const preview = page.getByLabel("Search result preview");
   if (!/About — /.test(await preview.innerText()) || !(await preview.innerText()).includes("We publish books.")) throw new Error(`search preview: ${await preview.innerText()}`);
   await expectText(page, "with the shop name");
-  if (await page.getByLabel("Meta description").inputValue() !== "We publish books.") throw new Error("description wasn't filled from the page text");
+  if (await page.getByLabel("Description on Google").inputValue() !== "We publish books.") throw new Error("description wasn't filled from the page text");
   if ((await calls(page)).some(c => c.method === "updatePage")) throw new Error("auto-fill saved before Save page");
   await page.getByRole("button", { name: "All pages" }).click();
   await page.getByRole("button", { name: "Discard changes" }).click();
@@ -1547,6 +1547,33 @@ await check("adding a section to a custom page makes its text a movable Page con
   await rows.getByText("2. Page content").waitFor({ timeout: 5000 });
   await rows.getByText("1. Newsletter").waitFor({ timeout: 5000 });
   if (await page.locator("[data-studio-panel=page-content]").count()) throw new Error("the fixed-text card is still shown");
+});
+
+await check("mode button names what it does, and the inspector keeps its tab and can move a section", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const toBrowse = page.getByRole("button", { name: "Switch to Browse mode" });
+  await toBrowse.click();
+  const toEdit = page.getByRole("button", { name: "Switch to Edit mode" });
+  if ((await toEdit.getAttribute("aria-pressed")) !== "true") throw new Error("the mode button is not marked pressed in Browse mode");
+  await toEdit.click();
+  await page.getByRole("button", { name: "Switch to Browse mode" }).waitFor({ timeout: 5000 });
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole("button", { name: "Add section" }).first().click();
+    await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  }
+  const labels = page.locator(".studio-outline .studio-tree-label");
+  await labels.first().click();
+  await page.locator(".studio-inspector").getByRole("tab", { name: "Style" }).click();
+  await labels.nth(1).click();
+  const selected = await page.locator(".studio-inspector").getByRole("tab", { name: "Style" }).getAttribute("aria-selected");
+  if (selected !== "true") throw new Error("the inspector went back to Content when another section of the same kind was selected");
+  const actions = page.locator(".studio-inspector-actions");
+  if (!(await actions.getByRole("button", { name: "Move down" }).isDisabled())) throw new Error("Move down is enabled on the last section");
+  await actions.getByRole("button", { name: "Move up" }).click();
+  await page.locator('.studio-outline .studio-tree-label[aria-current="true"]').getByText(/^1\./).waitFor({ timeout: 5000 });
+  // Clicking the rail tab you are on keeps the selection.
+  await page.getByRole("button", { name: "Page layout" }).first().click();
+  if (!(await page.locator(".studio-inspector-actions").count())) throw new Error("clicking the active rail tab closed the inspector");
 });
 
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {

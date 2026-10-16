@@ -271,7 +271,7 @@ function MediaDetails({ item, usage, lib, onBack, savedThemes, getVersions, getS
       {isOverBudget(item) && <p className="studio-hint">Large files slow the page down. Replace it with a smaller or simpler picture if you can.</p>}
 
       <div className="rp-field studio-field">
-        <label className="rp-label" htmlFor={`media-alt-${item.id}`}>Description (alt text)</label>
+        <label className="rp-label" htmlFor={`media-alt-${item.id}`}>Picture description (read aloud to blind visitors and used by Google)</label>
         <textarea id={`media-alt-${item.id}`} className="rp-input" rows={3} value={alt} onChange={e => setAlt(e.target.value)}
           placeholder="What's in the picture, for people using screen readers" />
         <small className="studio-hint">Used wherever this picture appears without its own description.</small>

@@ -13,12 +13,13 @@ import { reconcileSavedPage } from "./studioWorkflow";
 import { askAi } from "../aiWriter";
 import { PAGE_STARTERS, pageFromStarter, type PageStarter } from "./pageStarters";
 import { useConfirm } from "../riso/components";
+import { friendlyError } from "./friendlyError";
 
 const btn =
   "inline-flex items-center gap-1.5 px-3 h-9 text-xs font-bold border border-neutral-300 rounded-lg bg-white hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed";
 const btnPrimary =
   "inline-flex items-center gap-1.5 px-4 h-9 text-xs font-bold rounded-lg bg-neutral-900 text-white hover:bg-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed";
-const iconBtn = "inline-flex items-center justify-center w-8 h-8 rounded-md text-neutral-600 hover:bg-neutral-200 disabled:opacity-30";
+const iconBtn = "inline-flex items-center justify-center w-9 h-9 min-w-[36px] min-h-[36px] rounded-md text-neutral-600 hover:bg-neutral-200 disabled:opacity-30";
 const input = "w-full border border-neutral-200 rounded-lg px-3 h-9 text-xs";
 
 const toSlug = (t: string) => t.toLowerCase().replace(/[^a-z0-9 -]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();
@@ -103,8 +104,8 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
     if (!editing || locked.current) return;
     if (uploading) return setError("Wait for the pictures to finish uploading.");
     if (!editing.title?.trim()) return setError("Give the page a title.");
-    if (!editing.slug?.trim()) return setError("A URL slug is required.");
-    if (pages.some((p) => p.slug === editing.slug && p.id !== editing.id)) return setError("Another page already uses this slug.");
+    if (!editing.slug?.trim()) return setError("A web address is required.");
+    if (pages.some((p) => p.slug === editing.slug && p.id !== editing.id)) return setError("Another page already uses this web address.");
     const captured = JSON.parse(JSON.stringify(editing));
     // What the editor held before pasted pictures were uploaded, so a body left untouched during the save takes the uploaded links.
     const sent = JSON.parse(JSON.stringify(editing));
@@ -131,7 +132,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
       const followUp = moved ? await Promise.resolve(onAddressChange?.(before.slug, next.slug!, before.status === "published")).catch(() =>
         `The page's address changed, but its old links couldn't be updated. Check Navigation and Settings › URL redirects.`) : "";
       say("ok", `Page saved.${followUp ? ` ${followUp}` : ""} Any newer edits remain unsaved.`);
-    } catch (e: any) { say("err", e?.message || "Could not save the page."); }
+    } catch (e: any) { say("err", friendlyError(e, "save the page", { keepsChanges: true })); }
     finally { locked.current = false; setSaving(false); onBusy?.(false); }
   }
 
@@ -206,20 +207,20 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
       const blanks = missingSeo(editing, formatTitle);
       if (Object.keys(blanks).length) {
         set(blanks);
-        say("ok", "Search listing filled in from the page. Check it, then Save page.");
+        say("ok", "Google listing filled in from the page. Check it, then Save page.");
         return;
       }
-      if (auto.seoTitle === editing.seoTitle && auto.metaDescription === editing.metaDescription) return say("ok", "The search listing already matches the page.");
-      if (!(await askConfirm({ title: "Replace your search listing?", message: "Your search title and description will be rewritten from the page's title and opening sentences. Nothing is saved until you press Save page.", confirmLabel: "Replace" }))) return;
+      if (auto.seoTitle === editing.seoTitle && auto.metaDescription === editing.metaDescription) return say("ok", "The Google listing already matches the page.");
+      if (!(await askConfirm({ title: "Replace your Google listing?", message: "Your Google title and description will be rewritten from the page's title and opening sentences. Nothing is saved until you press Save page.", confirmLabel: "Replace" }))) return;
       set(auto);
-      say("ok", "Search listing rewritten from the page. Check it, then Save page.");
+      say("ok", "Google listing rewritten from the page. Check it, then Save page.");
     };
     // Write with AI (Gemini, Settings › General › AI writing assistant): same rule as Auto-fill. The storefront wraps
     // the search title in the shop's title format, so the server is told how much room that takes.
     const writeWithAi = async () => {
       if (!(editing.title || "").trim() && !pageBodyText(editing.body || "").trim()) return say("err", "Write the page title or some text first.");
       const written = (editing.seoTitle || "").trim() || (editing.metaDescription || "").trim();
-      if (written && !(await askConfirm({ title: "Rewrite your search listing with AI?", message: "Gemini writes a new search title and description from the page. Nothing is saved until you press Save page.", confirmLabel: "Rewrite" }))) return;
+      if (written && !(await askConfirm({ title: "Rewrite your Google listing with AI?", message: "Gemini writes a new Google title and description from the page. Nothing is saved until you press Save page.", confirmLabel: "Rewrite" }))) return;
       setAiBusy(true);
       const opened = openCount.current;
       try {
@@ -227,9 +228,9 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
         if (opened !== openCount.current) return;
         const patch = { ...(out.seoTitle ? { seoTitle: out.seoTitle } : {}), ...(out.metaDescription ? { metaDescription: out.metaDescription } : {}) };
         setEditing((p) => (p && opened === openCount.current ? { ...p, ...patch } : p));
-        say("ok", "Search listing drafted with AI. Check it, then Save page.");
+        say("ok", "Google listing drafted with AI. Check it, then Save page.");
       } catch (err: any) {
-        say("err", err?.message || "The AI assistant couldn't answer.");
+        say("err", friendlyError(err, "write the search listing with AI"));
       } finally {
         setAiBusy(false);
       }
@@ -250,8 +251,8 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
             onChange={(e) => set({ title: e.target.value, slug: slugEdited ? editing.slug : toSlug(e.target.value) })} />
         </label>
         <label className="block">
-          <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block mb-1">URL slug</span>
-          <input className={`${input} font-mono`} value={editing.slug || ""} placeholder="page-url-slug"
+          <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block mb-1">Web address</span>
+          <input className={`${input} font-mono`} value={editing.slug || ""} placeholder="about-us"
             onChange={(e) => { setSlugEdited(true); set({ slug: toSlug(e.target.value) }); }} />
           <span className="text-[11px] text-neutral-500 break-all">{publicUrl(editing.slug || "…")}</span>
         </label>
@@ -265,21 +266,21 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
         </div>
         <div className="space-y-2 border-t border-neutral-200 pt-3">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-bold">Search listing (SEO)</p>
+            <p className="text-xs font-bold">Google listing (SEO)</p>
             <div className="flex flex-wrap justify-end gap-2">
               <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={saving} onClick={autoFill}
-                title="Write the search title and description from this page's title and opening sentences">
+                title="Write the Google title and description from this page's title and opening sentences">
                 <Sparkles size={13} aria-hidden /> Auto-fill from page
               </button>
               <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={saving || aiBusy} onClick={() => void writeWithAi()}
-                title="Draft the search title and description with Google Gemini (Settings › General › AI writing assistant)">
+                title="Draft the Google title and description with Google Gemini (Settings › General › AI writing assistant)">
                 <Sparkles size={13} aria-hidden /> {aiBusy ? "Writing…" : "Write with AI"}
               </button>
             </div>
           </div>
-          <input className={input} value={editing.seoTitle || ""} placeholder={editing.title || "SEO title"} aria-label="SEO title" onChange={(e) => set({ seoTitle: e.target.value })} />
-          <textarea className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-xs" rows={3} maxLength={320} aria-label="Meta description"
-            value={editing.metaDescription || ""} placeholder="A brief summary for search engines…" onChange={(e) => set({ metaDescription: e.target.value })} />
+          <input className={input} value={editing.seoTitle || ""} placeholder={editing.title || "Title on Google"} aria-label="Title on Google" onChange={(e) => set({ seoTitle: e.target.value })} />
+          <textarea className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-xs" rows={3} maxLength={320} aria-label="Description on Google"
+            value={editing.metaDescription || ""} placeholder="A short summary shown under your title on Google…" onChange={(e) => set({ metaDescription: e.target.value })} />
           <div className="space-y-1">
             <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block">Sharing image</span>
             <div className="flex items-start gap-2">

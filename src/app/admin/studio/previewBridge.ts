@@ -60,11 +60,13 @@ export const PREVIEW_BRIDGE_SOURCE = String.raw`(function(){
     else if(dragging){var before=section&&sid(section);if(before&&before!==dragging){e.preventDefault();send({type:'SECTION_MOVE',sectionId:dragging,beforeId:before});}}
     dragging=null;draggingBlock=null;dragSection=null;},true);
   document.addEventListener('dragend',function(){dragging=null;draggingBlock=null;dragSection=null;place(hover,null);},true);
+  var linkTold=false;
   document.addEventListener('click',function(e){var link=closest(e.target,'a[href]');
     if(mode==='browse'){if(link){var url=new URL(link.href,location.href);if(url.origin===O){url.searchParams.set('preview','true');link.href=url.href;}else{link.target='_blank';link.rel='noopener noreferrer';}}return;}
     if(closest(e.target,'[contenteditable]')){e.stopPropagation();return;}
     if(editing&&editingNode&&e.detail===0&&e.target.contains&&e.target.contains(editingNode)){e.preventDefault();e.stopPropagation();return;}
     if(closest(e.target,'[data-studio-overlay]'))return;
+    if(link&&!linkTold){linkTold=true;send({type:'LINK_BLOCKED'});}
     var section=closest(e.target,SEC),textTarget=resolveTextTarget(e.target);
     if(textTarget&&textTarget.editable&&(section||!closest(e.target,NODE))){e.preventDefault();e.stopPropagation();if(section){selected=sid(section);selectedKey=null;pickedEl=null;block=bid(closest(e.target,BLK));send({type:'CANVAS_SELECT',sectionId:selected,blockId:block});draw();}return;}
     if(!section){var t=closest(e.target,NODE);if(!t)return;e.preventDefault();e.stopPropagation();

@@ -38,7 +38,7 @@ export type SearchEntry = {
   id: string;
   kind: SearchKind;
   title: string;
-  /** Where it lives, in the words used on screen: "Style › Product page". */
+  /** Where it lives, in the words used on screen: "Theme settings › Product page". */
   where: string;
   /** Extra words that should find this entry but aren't shown. */
   keywords: string;
@@ -48,8 +48,8 @@ export type SearchEntry = {
 };
 
 export const KIND_LABEL: Record<SearchKind, string> = {
-  action: "Action", page: "Page", section: "Section", style: "Style", text: "Text", menu: "Menu", area: "Area",
-  element: "Part", book: "Book",
+  action: "Do", page: "Page", section: "Section", style: "Look", text: "Words", menu: "Menu", area: "Go to",
+  element: "On the page", book: "Book",
 };
 
 type StyleGroupLike = { id: string; title: string; hint?: string; fields: { key: string; label: string }[] };
@@ -130,12 +130,12 @@ const ACTIONS: { id: StudioActionId; title: string; keywords: string }[] = [
 ];
 
 const TABS: { tab: StudioTab; title: string; keywords: string }[] = [
-  { tab: "sections", title: "Page layout", keywords: "page structure sections blocks homepage outline header footer announcement pop-overs shared global" },
-  { tab: "style", title: "Style", keywords: "colors fonts spacing look design theme" },
+  { tab: "sections", title: "Page layout", keywords: "page structure sections blocks homepage outline header footer announcement pop-ups pop-overs shared global" },
+  { tab: "style", title: "Theme settings", keywords: "style colors fonts spacing look design theme" },
   { tab: "text", title: "Text & labels", keywords: "words wording copy messages" },
-  { tab: "menus", title: "Menus", keywords: "navigation header footer categories links" },
+  { tab: "menus", title: "Navigation", keywords: "menus navigation header footer categories links" },
   { tab: "pages", title: "Pages", keywords: "about journal custom page content" },
-  { tab: "media", title: "Media library", keywords: "images pictures photos uploads files alt text description srcset replace delete unused" },
+  { tab: "media", title: "Media", keywords: "media library images pictures photos uploads files alt text description srcset replace delete unused" },
   { tab: "themes", title: "Themes", keywords: "my themes saved themes presets theme library looks share preview link private download import duplicate publish" },
 ];
 
@@ -151,7 +151,7 @@ export function buildStudioIndex(input: IndexInput): SearchEntry[] {
 
   for (const a of ACTIONS) out.push(staticEntry(`action:${a.id}`, "action", a.title, "Studio", a.keywords, { type: "action", id: a.id }, keysFor(ACTION_KEYS[a.id])));
   for (const t of TABS) out.push(staticEntry(`tab:${t.tab}`, "area", t.title, "Studio", t.keywords, { type: "tab", tab: t.tab }, keysFor(`go:${t.tab}` as ShortcutAction)));
-  for (const m of MENU_PANELS) out.push(staticEntry(m.panel, "menu", m.title, "Menus", m.keywords, { type: "menus", panel: m.panel }));
+  for (const m of MENU_PANELS) out.push(staticEntry(m.panel, "menu", m.title, "Navigation", m.keywords, { type: "menus", panel: m.panel }));
 
   for (const t of input.templates) {
     out.push(staticEntry(`template:${t.id}`, "page", t.label, "Pages you can design", `edit sections ${t.pageSlug || ""}`, { type: "template", id: t.id }));
@@ -185,13 +185,13 @@ export function buildStudioIndex(input: IndexInput): SearchEntry[] {
   }
 
   for (const g of input.styleGroups) {
-    out.push(staticEntry(`style-group:${g.id}`, "style", g.title, "Style", `${g.hint || ""} all settings group`, { type: "style", groupId: g.id }));
+    out.push(staticEntry(`style-group:${g.id}`, "style", g.title, "Theme settings", `${g.hint || ""} all settings group`, { type: "style", groupId: g.id }));
     for (const f of g.fields) {
       // An element setting exists once per screen size; index it once (the desktop field) and let
       // "tablet"/"phone" match it — the element's controls follow the previewed size anyway.
       const region = f.key.startsWith("regions.");
       if (region && regionFieldDevice(f.key) !== "desktop") continue;
-      out.push(staticEntry(`style:${g.id}:${f.key}`, "style", f.label, `Style › ${g.title}`, `${f.key} ${g.title}${region ? " tablet phone mobile" : ""}`, { type: "style", groupId: g.id, key: f.key }));
+      out.push(staticEntry(`style:${g.id}:${f.key}`, "style", f.label, `Theme settings › ${g.title}`, `${f.key} ${g.title}${region ? " tablet phone mobile" : ""}`, { type: "style", groupId: g.id, key: f.key }));
     }
   }
 
