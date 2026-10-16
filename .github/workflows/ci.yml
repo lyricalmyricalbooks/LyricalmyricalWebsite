@@ -86,3 +86,38 @@ jobs:
           name: studio-screenshots
           path: studio-shots
           if-no-files-found: ignore
+
+  studio-controls:
+    # Changes every Studio control in the fixture's preview of the live design and fails when one that used to
+    # change the page no longer does, or a new control has no entry in scripts/studio-control-baseline.json
+    # (CLAUDE.md › Studio controls must reach the shop).
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - name: Every Studio control still reaches the preview
+        run: node scripts/studio-control-audit.mjs
+        env:
+          AUDIT_CHECK: "1"
+          AUDIT_OUT: studio-control-audit.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: studio-control-audit
+          path: studio-control-audit.json
+          if-no-files-found: ignore

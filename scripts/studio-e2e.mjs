@@ -43,6 +43,10 @@ async function check(name, viewport, run, query = "", prepare = null) {
     await page.waitForSelector("[data-studio-editor]", { timeout: 30000 });
     await run(page);
     if (errors.length) throw new Error(`page errors: ${errors.join(" | ")}`);
+    // Any Studio button that opened nothing during the check (openTarget's reportDeadStudioLink) fails it.
+    await page.waitForTimeout(100);
+    const dead = await page.evaluate(() => window.__studioDeadLinks || []).catch(() => []);
+    if (dead.length) throw new Error(`buttons opened nothing: ${dead.join(", ")}`);
     results.push({ name, ok: true });
   } catch (error) {
     // Keep Playwright's "waiting for <locator>" line so a CI failure names the element it waited for.
@@ -1701,6 +1705,75 @@ await check("View website opens the shop in a new tab with the draft and says wh
   if (shots) await tab.screenshot({ path: join(shots, "View-website-tab.png") }).catch(() => {});
   await tab.close();
 });
+
+// Every part listed in Page layout: its row, its Style / Words shortcuts and every link button in the inspector
+// must open a settings panel, and a Theme settings element panel must hold at least one control.
+async function checkPartButtons(page) {
+  const dead = [];
+  const openLayout = async () => {
+    await page.locator('nav[aria-label="Studio workspaces"] button[aria-label="Page layout"]').click();
+    await page.locator(".studio-structure").waitFor({ timeout: 8000 });
+    for (const d of await page.locator(".studio-structure details.studio-structure-group").all()) await d.evaluate(el => { el.open = true; });
+  };
+  let clicked = 0;
+  const landed = async (what) => {
+    clicked++;
+    await page.waitForTimeout(1500);
+    const result = await page.evaluate(() => {
+      const links = window.__studioDeadLinks || []; window.__studioDeadLinks = [];
+      const focus = document.querySelector('[data-studio-panel="style-focus"]');
+      const count = focus ? Number((focus.textContent.match(/(\d+) settings for this element/) || [])[1] ?? -1) : -1;
+      return { links, emptyFocus: count === 0 };
+    });
+    if (result.links.length) dead.push(`${what} (${result.links.join(", ")})`);
+    if (result.emptyFocus) dead.push(`${what} (Theme settings opened with no settings)`);
+  };
+  await openLayout();
+  const rows = await page.locator(".studio-structure-row").count();
+  for (let i = 0; i < rows; i++) {
+    await openLayout();
+    const row = page.locator(".studio-structure-row").nth(i);
+    if (!await row.count()) break;
+    const label = ((await row.locator(".studio-tree-label").innerText().catch(() => "")) || "").split("\n")[0].trim();
+    const shortcuts = await row.locator(".studio-structure-actions button").allTextContents();
+    for (const name of shortcuts) {
+      await openLayout();
+      await page.locator(".studio-structure-row").nth(i).locator(".studio-structure-actions button", { hasText: name }).click();
+      await landed(`${label} › ${name}`);
+    }
+    await openLayout();
+    await page.locator(".studio-structure-row").nth(i).locator(".studio-tree-label").click();
+    await landed(label);
+    const inspector = page.locator("[data-studio-element-inspector]");
+    if (!await inspector.isVisible().catch(() => false)) continue;
+    const buttons = await inspector.locator(".studio-element-links button").allTextContents();
+    for (const name of buttons) {
+      await openLayout();
+      await page.locator(".studio-structure-row").nth(i).locator(".studio-tree-label").click();
+      await inspector.waitFor({ timeout: 5000 });
+      await inspector.locator(".studio-element-links button", { hasText: name }).first().click();
+      await landed(`${label} › ${name}`);
+    }
+  }
+  if (rows < 5 || clicked < 20) throw new Error(`Page layout listed only ${rows} parts (${clicked} buttons tried)`);
+  console.log(`  checked ${clicked} buttons on ${rows} parts`);
+  if (dead.length) throw new Error(`buttons that open nothing: ${dead.join(" · ")}`);
+}
+
+await check("every part's Style, Words and inspector buttons open real settings (Home)", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  await page.waitForTimeout(1500);
+  await checkPartButtons(page);
+}, "?live=1");
+
+await check("every part's Style, Words and inspector buttons open real settings (book page)", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frames().find(f => /preview=true/.test(f.url()));
+  const slug = await frame.evaluate(() => window.__studioPreviewState?.books?.[0]?.slug);
+  await frame.goto(new URL(`/books/${slug}?preview=true`, frame.url()).href);
+  await page.waitForTimeout(3000);
+  await checkPartButtons(page);
+}, "?live=1");
 
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);

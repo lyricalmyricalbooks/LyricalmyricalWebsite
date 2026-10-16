@@ -698,6 +698,27 @@ renders into `<body>` (`createPortal`, inside a `data-fm-store` wrapper). Dots u
 
 **Every Style control must reach every surface (and the preview iframe):** the card title/price and small-print CSS comes from one place, `features/site/StorefrontOverrides.tsx` (`storefrontOverridesCss`). `StorefrontThemeStyle` renders it, and so do `MainSite`'s `TypographyTokens` and `BookDetail` — any new storefront root that injects its own token `<style>` must render `<StorefrontOverrides>` too. `storefrontOverrides.test.ts` fails on a surface that skips it and on any `STYLE_GROUPS` control that nothing on the storefront reads (wire it or delete it — don't allow-list). Custom code (Style › Custom code) is injected by `features/site/customCode.ts` on public pages only — never in the preview, checkout or admin.
 
+> [!IMPORTANT]
+> **Studio controls must reach the shop (16 October 2026, after an audit found ~30 dead controls).** A control that
+> exists only in the schema, or whose CSS another rule beats, is a bug the owner finds by clicking it. Rules:
+> - **Every control is in `scripts/studio-control-baseline.json`** with what it does to the Studio fixture preview
+>   (`visible` / `css-only` / `dom-only`), or `none: <reason>` naming the state or setting it needs (a full bag, hover,
+>   another switch). `studioControlBaseline.test.ts` fails on a missing, stale or reasonless entry; CI job
+>   **studio-controls** (`pnpm run test:studio-controls`, ~15 min) changes every control in the browser and fails when one
+>   that worked stops. After adding or changing a control run `AUDIT_UPDATE=1 node scripts/studio-control-audit.mjs`
+>   (or `AUDIT_ONLY=<group ids>` locally first) and commit the baseline. Never mark a working control `none` to get green.
+> - **Write CSS that wins where it lands:** the Riso look (`RISO_STOREFRONT_CSS`) and Fine-tune element CSS use
+>   `!important`; Tailwind classes set their own line height/tracking/size per element. A site-wide value must move the
+>   Tailwind variables (see `shopTypography.ts`) or target the element with enough specificity, and an element's own
+>   setting must beat the theme reset (`:not([style*="border-radius"])`, `:not(#fm-studio)`). A default value must draw
+>   exactly as before (parity tests).
+> - **One reader per key:** when two surfaces read the same keys (MainSite `resolveTypography` vs `StorefrontThemeStyle`),
+>   give them the same priority. A key read only in one layout or state says so in its label.
+> - **Buttons land somewhere:** every Studio button that opens settings goes through `openTarget` (or marks its panel with
+>   `data-studio-panel`); one that opens nothing calls `reportDeadStudioLink` and fails `pnpm run test:studio`, which clicks
+>   every part's Style / Words / inspector buttons on Home and a book page.
+> - The audit report is `docs/STUDIO_CONTROL_AUDIT.md`; re-run the audit for a large Studio change and update it.
+
 **Photo shapes:** Studio › Style › **Book cards in the shop grid** has **Image shape (proportions)** (12 ratios, 3:4 … 21:9 … 9:16 — `PHOTO_RATIOS` in `features/site/photoShapes.ts`, also used by the Product grid / Product showcase grid / cover carousel sections) and **Image outline** (`photoOutline`: arch, window, pill, circle/oval, leaf, hexagon, octagon, diamond, cut corners, slanted). The product page has its own **Photo shape** / **Photo outline** (`productImageAspect`, `productPhotoOutline`; "Same as shop grid" by default). Outlines are CSS from `photoOutlineCss` (via `StorefrontOverrides`); new photo frames opt in with `fm-photo-frame` (shop cards) or `fm-photo-frame-pdp` (product photos).
 
 **Shopping bag (cart drawer):** `components/CartDrawer.tsx` is a Riso "order slip" — ruled header, free-shipping
@@ -930,8 +951,8 @@ it. Don't add new compat rules for new work; compose the components instead.
 
 ## Verification
 
-- **CI** (`.github/workflows/ci.yml`) runs `pnpm test`, `pnpm run typecheck`, `vite build` and the Studio browser
-  checks (`pnpm run test:studio`) on every PR.
+- **CI** (`.github/workflows/ci.yml`) runs `pnpm test`, `pnpm run typecheck`, `vite build`, the Studio browser
+  checks (`pnpm run test:studio`) and the Studio control check (`pnpm run test:studio-controls`) on every PR.
 - **Studio fixture:** `pnpm dev` then open `/studio-fixture.html` — the real Studio with in-memory data
   (`studio/fixture/fakeStudioApi.ts`; writes are recorded in `window.__studioFixture.calls`, nothing reaches
   Firestore). `pnpm run test:studio` drives it in Chromium (`CHROMIUM_PATH` to reuse an installed browser,
@@ -1008,7 +1029,7 @@ Bug / edge case the change introduced · the next logical feature · draft/publi
 - Use a descriptive PR title based on the feature/fix being implemented.
 - **After a PR is merged, start the next change on a brand-new branch and open a new PR** — never push commits onto a merged branch to revive it.
 - **Merge your own PRs automatically (owner's standing instruction, 12 October 2026).** Open the PR ready for review (not
-  draft), wait for its checks (`test`, `studio-browser`, `release-note`) to finish, and merge it yourself (merge commit,
+  draft), wait for its checks (`test`, `studio-browser`, `studio-controls`, `release-note`) to finish, and merge it yourself (merge commit,
   pinned to the head SHA) once every check is green and GitHub reports no merge conflict. Never merge with a red, pending
   or missing check; fix the failure first (bring `main` in, re-run the tests) and push. Merging to `main` deploys the live
   shop. GitHub's own "Allow auto-merge" is off in the repository settings, so the agent does the merge.
