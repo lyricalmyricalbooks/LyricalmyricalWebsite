@@ -8,6 +8,7 @@ import { contentMaxWidth } from "./headerNav";
 import { regionProps } from "./storefrontRegions";
 import { gridPhotoSizes, photoSrcSet } from "./photoSources";
 import { framingStyle } from "./photoFraming";
+import { PhotoToneDefs } from "./PhotoToneDefs";
 
 export default function RecentlyViewedRow({ excludeId }: { excludeId?: string }) {
   const { ids } = useRecentlyViewed();
@@ -44,6 +45,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
                     style={framingStyle(book.photos?.[0])}
                     loading="lazy"
                   />
+                  <PhotoToneDefs photo={book.photos?.[0]} />
                 </div>
                 <p className="fm-card-title mt-2 text-[9px] font-black tracking-widest uppercase text-white/40 group-hover:text-white/80 transition-colors leading-tight" data-studio-target="style:products" data-studio-label="Card title & price">
                   {book.title}
