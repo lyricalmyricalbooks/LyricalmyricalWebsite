@@ -233,7 +233,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "products",
-    title: "Product cards & grid",
+    title: "Book cards in the shop grid",
     fields: [
       { key: "productCardStyle", label: "Card style", kind: "select", options: opts("card", "minimal", "editorial") },
       { key: "placeholderImageUrl", label: "Image shown for books with no photo", kind: "image" },
@@ -429,7 +429,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "catalog",
-    title: "Catalog page header & filters",
+    title: "Shop page heading & filters",
     hint: "The heading, category chips, search bar and result count above the book grid.",
     fields: [
       { key: "catalogHeading", label: "Heading (leave empty to hide)", kind: "text" },
@@ -456,7 +456,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "catalogLayout",
-    title: "Catalog layout (advanced)",
+    title: "Shop page masthead & covers",
     hint: "Masthead, grid and image details of the shop page.",
     fields: [
       { key: "catalogLayoutStyle", label: "Layout", kind: "select", defaultValue: "reference", options: [{ value: "modern", label: "Modern" }, { value: "reference", label: "Reference" }] },
@@ -510,7 +510,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "productPage",
-    title: "Product page layout",
+    title: "Book page · photos & layout",
     fields: [
       { key: "showPdpEditionDetails", label: "Show edition details", kind: "toggle", defaultValue: true },
       { key: "lowStockProductThreshold", label: "Show “only N left” on the product page at or below", kind: "number", min: 1, max: 100, step: 1 },
@@ -551,7 +551,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "productCard",
-    title: "Product page · buy card & details",
+    title: "Book page · buy box & details",
     hint: "The bordered buy card, photo rail and caption, breadcrumb and the Description / Details / Reviews tabs. Leave a colour empty to follow the theme.",
     fields: [
       { key: "pdpShowBackLink", label: "Show “Back” link above the breadcrumb", kind: "toggle" },
@@ -664,7 +664,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "effects",
-    title: "Motion, spacing & effects",
+    title: "Animations & hover effects",
     fields: [
       { key: "enableAnimations", label: "Page animations", kind: "toggle" },
       { key: "density", label: "Space above and below shop sections", kind: "select", options: [{ value: "compact", label: "Compact" }, { value: "comfortable", label: "Comfortable" }, { value: "spacious", label: "Spacious" }] },
@@ -675,7 +675,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "checkout",
-    title: "Checkout & cart drawer",
+    title: "Checkout page",
     hint: "Leave blank to inherit the main colors.",
     fields: [
       { key: "checkoutAccentColor", label: "Checkout accent", kind: "color" },
@@ -775,7 +775,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "riso",
-    title: "Riso print treatment",
+    title: "Printed-paper look (Riso)",
     hint: "Outlines, offset shadows, focus ring and texture of the Riso Press look.",
     fields: [
       { key: "themeStyle", label: "Print style", kind: "select", options: [{ value: "riso", label: "Riso Press (outlined, flat shadows)" }, { value: "default", label: "Standard" }] },
@@ -791,7 +791,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   },
   {
     id: "elements",
-    title: "Storefront elements",
+    title: "Show or hide whole features",
     hint: "Show or hide whole parts of the public site.",
     fields: [
       { key: "showRecentlyViewed", label: "“Recently viewed” row (product page)", kind: "toggle" },

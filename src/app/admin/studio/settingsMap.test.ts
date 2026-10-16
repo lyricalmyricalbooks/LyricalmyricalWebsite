@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { STYLE_GROUPS } from "./styleSchema";
 import { COPY_SCHEMA } from "../../features/site/storeCopy";
 import {
-  CATEGORY_PAGES, EXTRA_STYLE_CATEGORIES, GROUP_BLURBS, MORE_SETTINGS, MORE_WORDS, STYLE_SUBSECTIONS, TEXT_BLURBS, TEXT_HEADINGS, TEXT_SUBSECTIONS, THEME_HEADINGS,
+  CATEGORY_PAGES, EXTRA_STYLE_CATEGORIES, GROUP_BLURBS, MORE_SETTINGS, MORE_WORDS, SHOP_MAP, STYLE_SUBSECTIONS, TEXT_BLURBS, TEXT_HEADINGS, TEXT_SUBSECTIONS, THEME_HEADINGS,
   blurbFor, changedCopyCount, changedCounts, changedFields, isChanged, subsectionsFor, textSubsectionsFor,
 } from "./settingsMap";
 
@@ -28,6 +28,35 @@ describe("Theme settings home", () => {
     const missing = everyday.filter((id) => !blurbFor(STYLE_GROUPS.find((g) => g.id === id), id));
     expect(missing).toEqual([]);
     expect(Object.keys(GROUP_BLURBS).filter((id) => !STYLE_GROUPS.some((g) => g.id === id))).toEqual([]);
+  });
+});
+
+describe("Where is it on the shop? map", () => {
+  it("lists the parts of the shop in the order a shopper meets them", () => {
+    const everyday = THEME_HEADINGS.filter((h) => !h.advanced).map((h) => h.id);
+    expect(everyday).toEqual(["top", "shop", "buy", "pages", "bottom", "popups", "system"]);
+  });
+
+  it("points every map block at a real heading, once, and covers every everyday heading", () => {
+    const ids = THEME_HEADINGS.map((h) => h.id);
+    expect(SHOP_MAP.filter((b) => !ids.includes(b.heading))).toEqual([]);
+    expect(new Set(SHOP_MAP.map((b) => b.heading)).size).toBe(SHOP_MAP.length);
+    expect(THEME_HEADINGS.filter((h) => !h.advanced && !SHOP_MAP.some((b) => b.heading === h.id))).toEqual([]);
+  });
+
+  it("starts the two bands the owner reads first and keeps every category reachable", () => {
+    expect(THEME_HEADINGS[0].band).toBe("Parts of your shop, top to bottom");
+    expect(THEME_HEADINGS.find((h) => h.id === "system")!.band).toBe("Whole-site look");
+  });
+
+  it("keeps jargon out of everyday category names and descriptions", () => {
+    const everyday = THEME_HEADINGS.filter((h) => !h.advanced).flatMap((h) => h.groups);
+    const words = everyday.map((id) => `${EXTRA_STYLE_CATEGORIES[id]?.title ?? STYLE_GROUPS.find((g) => g.id === id)?.title} ${blurbFor(STYLE_GROUPS.find((g) => g.id === id), id)}`).join(" | ");
+    expect(words).not.toMatch(/\b(catalog|storefront|treatment|tokens?|PDP|region)\b/i);
+  });
+
+  it("offers Show on page for the logo too", () => {
+    expect(CATEGORY_PAGES.logo).toBeTruthy();
   });
 });
 
@@ -101,14 +130,15 @@ describe("Text & labels home", () => {
 });
 
 describe("Theme settings bands and Show on page", () => {
-  it("opens with the site-wide design system, then the parts of the shop, then advanced tools", () => {
-    expect(THEME_HEADINGS.filter(h => h.band).map(h => h.band)).toEqual(["Site-wide design", "Parts of your shop", "Advanced"]);
-    expect(THEME_HEADINGS[0].groups[0]).toBe("themeLook");
+  it("opens with the parts of the shop top to bottom, then the whole-site look, then advanced tools", () => {
+    expect(THEME_HEADINGS.filter(h => h.band).map(h => h.band)).toEqual(["Parts of your shop, top to bottom", "Whole-site look", "Advanced"]);
+    expect(THEME_HEADINGS.find(h => h.id === "system")!.groups[0]).toBe("themeLook");
     expect(THEME_HEADINGS.filter(h => h.advanced).every(h => THEME_HEADINGS.indexOf(h) > THEME_HEADINGS.findIndex(x => x.band === "Advanced") - 1)).toBe(true);
   });
   it("can show every part-of-the-shop category on a page", () => {
-    const start = THEME_HEADINGS.findIndex(h => h.band === "Parts of your shop"), end = THEME_HEADINGS.findIndex(h => h.band === "Advanced");
-    const parts = THEME_HEADINGS.slice(start, end).flatMap(h => h.groups).filter(id => id !== "elements");
+    const end = THEME_HEADINGS.findIndex(h => h.band === "Whole-site look");
+    // "elements" are feature switches and "toasts" only appear after an action, so neither has a page to open.
+    const parts = THEME_HEADINGS.slice(0, end).flatMap(h => h.groups).filter(id => id !== "elements" && id !== "toasts");
     expect(parts.filter(id => !CATEGORY_PAGES[id])).toEqual([]);
   });
 });

@@ -62,8 +62,8 @@ import { ActionMenu, Dialog, PrimaryButton, SecondaryButton, useConfirm, useProm
 import { applyInlineText, INLINE_STYLE_KEYS } from "./inlineText";
 import { filterSettingGroups } from "./studioNavigation";
 import { designChecks as buildDesignChecks, designSize } from "./studioChecks";
-import { CATEGORY_PAGES, EXTRA_STYLE_CATEGORIES, textSubsectionsFor, TEXT_BLURBS, TEXT_HEADINGS, THEME_HEADINGS, blurbFor, changedCopyCount, changedCounts, changedFields, defaultFor, isChanged, subsectionsFor } from "./settingsMap";
-import { CategoryHeader, SettingsHome, SettingsSubsection, StudioTips, type HomeHeading } from "./StudioSettingsHome";
+import { CATEGORY_PAGES, EXTRA_STYLE_CATEGORIES, SHOP_MAP, textSubsectionsFor, TEXT_BLURBS, TEXT_HEADINGS, THEME_HEADINGS, blurbFor, changedCopyCount, changedCounts, changedFields, defaultFor, isChanged, subsectionsFor } from "./settingsMap";
+import { CategoryHeader, PreviewClickHint, SettingsHome, SettingsSubsection, StudioTips, type HomeHeading } from "./StudioSettingsHome";
 
 import { saveSavedThemes, type Workspace } from "../themeStore";
 import { writeDesignValue } from "../../features/site/designModel";
@@ -2052,6 +2052,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             {brandKit && <StudioBrandKit design={design} onPreview={setBrandChoice} onApply={applyBrandKit} onClose={() => setBrandKit(false)} />}
             <div hidden={brandKit}>
             <StudioTips forceOpen={tipsNonce} />
+            {leftTab === "sections" && <PreviewClickHint />}
             {leftTab === "sections" && adding !== null && (
               <StudioSectionLibrary registry={SECTION_REGISTRY} design={design}
                 surface={showGlobal ? globalGroup : template.id}
@@ -2148,7 +2149,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 onMakeAll={(key, value) => change(d => writeDesignValue(d, key, value, "all"))} />
             )}
             {leftTab === "style" && !styleSearch.trim() && !styleCategory && !styleFocus && (
-              <SettingsHome headings={themeHome} onOpen={(id) => setStyleCategory(id)} onShowOnPage={showOnPage}
+              <SettingsHome headings={themeHome} map={SHOP_MAP} onOpen={(id) => setStyleCategory(id)} onShowOnPage={showOnPage}
                 changedTotal={changed.total} onOpenChanged={() => setStyleCategory(CHANGED_CATEGORY)} />
             )}
             {leftTab === "style" && !styleSearch.trim() && styleCategory && !styleFocus && (() => {
