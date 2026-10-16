@@ -3,7 +3,7 @@
 // column already filled the screen). The owner can now pick a wider desktop screen, and Studio
 // widens it by itself when a width setting wouldn't fit. Pure, so it is tested on its own.
 
-export const DESKTOP_WIDTHS = [1200, 1440, 1920] as const;
+export const DESKTOP_WIDTHS = [1200, 1440, 1920, 2560] as const;
 export type DesktopWidth = typeof DESKTOP_WIDTHS[number];
 
 /** Labels for the preview's Screen width picker. */
@@ -11,6 +11,7 @@ export const DESKTOP_WIDTH_LABELS: Record<DesktopWidth, string> = {
   1200: "Laptop (1200px)",
   1440: "Large laptop (1440px)",
   1920: "Big monitor (1920px)",
+  2560: "Extra-wide monitor (2560px)",
 };
 
 /** Content columns keep 24px of side padding on each side (`px-6`). */

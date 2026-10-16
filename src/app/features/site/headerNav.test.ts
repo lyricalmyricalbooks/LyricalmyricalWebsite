@@ -43,11 +43,11 @@ describe("navLinkStyle link case", () => {
 });
 
 describe("content width bounds", () => {
-  it("follows the Studio slider's whole range (800–1800px)", async () => {
+  it("follows the Studio slider's whole range (800–2560px)", async () => {
     const { contentMaxWidth, catalogHeaderMaxWidth } = await import("./headerNav");
     expect(contentMaxWidth({ containerWidth: 800 })).toBe(800);
-    expect(contentMaxWidth({ containerWidth: 1800 })).toBe(1800);
-    expect(contentMaxWidth({ containerWidth: 5000 })).toBe(1800);
+    expect(contentMaxWidth({ containerWidth: 2400 })).toBe(2400);
+    expect(contentMaxWidth({ containerWidth: 5000 })).toBe(2560);
     expect(contentMaxWidth({})).toBe(1200);
     expect(contentMaxWidth({ containerWidth: "x" })).toBe(1200);
     expect(contentMaxWidth({ fullWidth: true, containerWidth: 900 })).toBe("100%");

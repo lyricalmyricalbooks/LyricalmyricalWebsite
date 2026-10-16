@@ -178,7 +178,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     title: "Layout & spacing",
     fields: [
       { key: "fullWidth", label: "Use the full screen width (header, shop, book pages, custom pages and footer run to the screen edges; Content width and Shop page masthead & covers › Header width are then ignored)", kind: "toggle", defaultValue: false },
-      { key: "containerWidth", label: "Content width", kind: "range", min: 800, max: 1800, step: 20, suffix: "px" },
+      { key: "containerWidth", label: "Content width", kind: "range", min: 800, max: 2560, step: 20, suffix: "px" },
       { key: "sectionSpacing", label: "Space between sections", kind: "range", min: 0, max: 160, step: 4, suffix: "px" },
       { key: "cardRadius", label: "Card corner radius (boxed card style only)", kind: "range", min: 0, max: 30, step: 1, suffix: "px" },
       { key: "lazySections", label: "Draw sections lower on the page only when shoppers scroll near them (faster first load)", kind: "toggle", defaultValue: true },
@@ -464,7 +464,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "brandTransform", label: "Masthead text case", kind: "select", options: [{ value: "none", label: "None" }, { value: "uppercase", label: "Uppercase" }, { value: "lowercase", label: "Lowercase" }, { value: "capitalize", label: "Capitalize" }] },
       { key: "catalogMastheadDesktop", label: "Masthead size (desktop)", kind: "range", defaultValue: 58, min: 28, max: 96, step: 1, suffix: "px" },
       { key: "catalogMastheadMobile", label: "Masthead size (phone)", kind: "range", defaultValue: 38, min: 24, max: 72, step: 1, suffix: "px" },
-      { key: "catalogHeaderWidth", label: "Header width", kind: "range", min: 900, max: 1800, step: 20, suffix: "px" },
+      { key: "catalogHeaderWidth", label: "Header width", kind: "range", min: 900, max: 2560, step: 20, suffix: "px" },
       { key: "catalogHeaderRuleWidth", label: "Header rule thickness", kind: "range", min: 0, max: 8, step: 1, suffix: "px" },
       { key: "catalogNavGapDesktop", label: "Space between category links, desktop (wins over Navigation links › Space between links)", kind: "range", defaultValue: 40, min: 12, max: 80, step: 1, suffix: "px" },
       { key: "catalogNavGapMobile", label: "Space between category links, phone", kind: "range", defaultValue: 18, min: 8, max: 40, step: 1, suffix: "px" },

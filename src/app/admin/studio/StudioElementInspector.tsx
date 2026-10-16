@@ -4,6 +4,8 @@ import { IconButton, useFocusTrap } from "../riso/components";
 import { StudioCopyField } from "./StudioCopyField";
 import { ELEMENT_TABS, visibleTabs, type ElementRef, type ElementTabId, type ElementTabs, type PickedField } from "./elementCatalog";
 import { TARGET_LABELS } from "./targetLabels";
+import { STYLE_GROUPS } from "./styleSchema";
+import { EXTRA_STYLE_CATEGORIES } from "./settingsMap";
 
 type Props = {
   element: ElementRef;
@@ -88,10 +90,17 @@ export function StudioElementInspector(p: Props) {
       </>}
       {q && !words.length && !picked.length && <p className="studio-empty">No settings match “{search}”.</p>}
       <div className="studio-element-links">
-        {p.tabs.styleGroups.length > 0 && <button type="button" className="studio-link-button" onClick={p.onOpenTheme}>Open in Theme settings</button>}
+        {/* A whole-page part spans several categories (colours, fonts, spacing): one button each, so "Space between sections" opens Layout & spacing. */}
+        {p.tabs.styleGroups.length > 1 && !p.element.region
+          ? p.tabs.styleGroups.map(g => <button key={g} type="button" className="studio-link-button" onClick={() => p.onOpenTarget(`style:${g}`)}>Open {styleGroupTitle(g)} in Theme settings</button>)
+          : p.tabs.styleGroups.length > 0 && <button type="button" className="studio-link-button" onClick={p.onOpenTheme}>Open in Theme settings</button>}
         {p.tabs.copyGroups.map(g => <button key={g} type="button" className="studio-link-button" onClick={() => p.onOpenText(g)}>All words: {g}</button>)}
         {links.map(t => <button key={t} type="button" className="studio-link-button" onClick={() => p.onOpenTarget(t)}>{TARGET_LABELS[t] || t}</button>)}
       </div>
     </div>
   </aside>;
+}
+
+function styleGroupTitle(id: string): string {
+  return EXTRA_STYLE_CATEGORIES[id]?.title || STYLE_GROUPS.find(g => g.id === id)?.title || id;
 }
