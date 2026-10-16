@@ -594,11 +594,27 @@
 .studio-workbench-meter span { display: block; height: 100%; background: var(--rp-primary); }
 .studio-health-item[data-done=true] strong { text-decoration: line-through; color: var(--rp-text-subtle); }
 @media (pointer: coarse) { .studio-workbench-bar button, .studio-workbench-steps button { min-height: 44px; } }
-/* Breadcrumb for the current selection, under the top bar. */
-.studio-breadcrumb { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px 16px; font-size: 12px; border-bottom: 1px solid var(--rp-divider); background: var(--rp-surface); color: var(--rp-text-subtle); }
-.studio-breadcrumb button { background: transparent; border: 0; padding: 2px 4px; color: var(--rp-text); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+/* Where you are (workspace › category or page › section › block) with ← Back, under the top bar. */
+.studio-breadcrumb { display: flex; align-items: center; gap: 8px; padding: 4px 16px; font-size: 12px; border-bottom: 1px solid var(--rp-divider); background: var(--rp-surface); color: var(--rp-text-subtle); min-width: 0; }
+.studio-breadcrumb button { background: transparent; border: 0; padding: 2px 4px; font: inherit; color: var(--rp-text); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .studio-breadcrumb [aria-current] { color: var(--rp-text); font-weight: 700; }
 .studio-breadcrumb button:focus-visible { outline: 2px solid var(--rp-focus); }
+.studio-breadcrumb .studio-back { flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 2px 10px; border: 1px solid var(--rp-border); border-radius: 4px; background: var(--rp-surface); text-decoration: none; font-weight: 600; white-space: nowrap; }
+.studio-breadcrumb .studio-back:hover:not(:disabled) { background: var(--rp-canvas); }
+.studio-breadcrumb .studio-back:disabled { opacity: .45; cursor: default; }
+.studio-crumbs { display: flex; flex-wrap: wrap; align-items: center; margin: 0; padding: 0; list-style: none; min-width: 0; flex: 1; }
+.studio-crumb { display: inline-flex; align-items: center; min-width: 0; }
+.studio-crumb > span:not(.studio-crumb-sep), .studio-crumb > button { max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-crumb-sep { white-space: pre; }
+@media (pointer: coarse) { .studio-breadcrumb .studio-back, .studio-crumb > button { min-height: 44px; } }
+/* On a phone only the last two steps of the path show (the full path is the Back button's and each crumb's tooltip). */
+@media (max-width: 767px) {
+  .studio-breadcrumb { padding: 4px 8px; gap: 6px; }
+  .studio-crumbs { flex-wrap: nowrap; overflow: hidden; }
+  .studio-crumb:not(:nth-last-child(-n+2)) { display: none; }
+  .studio-crumb:nth-last-child(2) .studio-crumb-sep { display: none; }
+  .studio-crumb > span:not(.studio-crumb-sep), .studio-crumb > button { max-width: 14ch; }
+}
 
 /* Theme settings › Design scales preview (3.0 phase 2). */
 .studio-scale-preview { display: grid; gap: 14px; padding: 12px; border: 1px solid var(--rp-border); background: var(--rp-canvas); }

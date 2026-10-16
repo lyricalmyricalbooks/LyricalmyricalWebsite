@@ -202,6 +202,55 @@ await check("page structure lists the header, follows the pointer and opens the 
   if (pressed !== "true") throw new Error("Shopping bag did not open its settings");
 });
 
+await check("Back returns to where you were after a Find jump, and the path shows the workspace", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const crumbs = () => page.locator("[data-studio-breadcrumb] .studio-crumbs").innerText().then(t => t.replace(/\s+/g, " ").trim());
+  const pressed = name => page.locator(`nav[aria-label="Studio workspaces"] button[aria-label="${name}"]`).getAttribute("aria-pressed");
+  const back = page.locator("[data-studio-back]");
+  if (!(await back.isDisabled())) throw new Error("Back is enabled before the owner has gone anywhere");
+  if (!(await crumbs()).startsWith("Page layout")) throw new Error(`the path does not start with the workspace: ${await crumbs()}`);
+  await page.waitForTimeout(1000);
+  await page.keyboard.press(`${mod}+k`);
+  await page.getByRole("dialog").getByRole("combobox").fill("announcement");
+  await page.getByRole("option").first().waitFor({ state: "attached", timeout: 5000 });
+  await page.keyboard.press("Enter");
+  await page.getByRole("dialog").waitFor({ state: "detached", timeout: 5000 });
+  // Find opens the Announcement bar part of the page: the path names it, and Back closes it again.
+  await page.waitForFunction(() => /^Page layout › Home › Announcement bar$/.test((document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").replace(/\s+/g, " ").trim()), null, { timeout: 5000 })
+    .catch(async () => { throw new Error(`the path does not name the part Find opened: ${await crumbs()}`); });
+  if (await back.isDisabled()) throw new Error("Back stayed disabled after a Find jump");
+  await page.waitForTimeout(900);
+  await back.click();
+  await page.waitForFunction(() => /^Page layout › Home$/.test((document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").replace(/\s+/g, " ").trim()), null, { timeout: 5000 })
+    .catch(async () => { throw new Error(`Back did not return to Page layout › Home: ${await crumbs()}`); });
+  if ((await pressed("Page layout")) !== "true") throw new Error("Back did not keep Page layout on the rail");
+  if (!await back.isDisabled()) throw new Error("Back is still enabled with nowhere left to go");
+  // A rail change is a jump too; Alt+Left (from the keyboard) returns from it, and the path names the workspace.
+  await page.waitForTimeout(900);
+  await page.locator('nav[aria-label="Studio workspaces"] button[aria-label="Theme settings"]').click();
+  await page.waitForFunction(() => (document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").trim() === "Theme settings", null, { timeout: 5000 })
+    .catch(async () => { throw new Error(`the path does not name Theme settings: ${await crumbs()}`); });
+  await page.waitForTimeout(900);
+  await page.keyboard.press("Alt+ArrowLeft");
+  await page.waitForFunction(() => /^Page layout › Home$/.test((document.querySelector("[data-studio-breadcrumb] .studio-crumbs")?.textContent || "").replace(/\s+/g, " ").trim()), null, { timeout: 5000 })
+    .catch(async () => { throw new Error(`Alt+Left did not go back: ${await crumbs()}`); });
+  if ((await pressed("Page layout")) !== "true") throw new Error("Alt+Left did not reopen Page layout on the rail");
+});
+
+await check("Back closes a page part opened by clicking the preview", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const frame = page.frameLocator("iframe").first();
+  const crumbs = () => page.locator("[data-studio-breadcrumb] .studio-crumbs").innerText().then(t => t.replace(/\s+/g, " ").trim());
+  await page.waitForTimeout(1000);
+  await frame.locator("header [data-studio-copy='navSearch']").first().click({ timeout: 15000 });
+  await page.locator("[data-studio-element-inspector]").waitFor({ timeout: 8000 });
+  if (!/^Page layout › Home › \S/.test(await crumbs())) throw new Error(`the path does not name the clicked part: ${await crumbs()}`);
+  await page.waitForTimeout(900);
+  await page.locator("[data-studio-back]").click();
+  await page.getByText("Nothing selected").waitFor({ timeout: 5000 });
+  if ((await crumbs()) !== "Page layout › Home") throw new Error(`Back left the path at: ${await crumbs()}`);
+});
+
 await check("a page part opens in the inspector with its words, and an edit shows in the preview", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   const panel = page.locator(".studio-structure");

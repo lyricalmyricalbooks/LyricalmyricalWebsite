@@ -2,7 +2,7 @@
 
 export type ShortcutAction = "find" | "save" | "undo" | "redo" | "delete" | "duplicate" | "moveUp" | "moveDown"
   | "deselect" | "help" | "desktop" | "tablet" | "mobile" | "toggleMode"
-  | "workbench" | "addSection" | "prevSection" | "nextSection" | "goPrefix" | GoAction;
+  | "workbench" | "back" | "addSection" | "prevSection" | "nextSection" | "goPrefix" | GoAction;
 
 /** "G then a letter" jumps to a Studio workspace (a two-key sequence, like Gmail or GitHub). */
 export const GO_KEYS = [
@@ -31,6 +31,7 @@ export const SHORTCUTS: { action: ShortcutAction; keys: string; label: string; g
   { action: "save", keys: "Ctrl/⌘ S", label: "Save draft (in Pages: save the page)", group: "Everywhere" },
   { action: "undo", keys: "Ctrl/⌘ Z", label: "Undo", group: "Everywhere" },
   { action: "redo", keys: "Ctrl/⌘ Shift Z  ·  Ctrl/⌘ Y", label: "Redo", group: "Everywhere" },
+  { action: "back", keys: "Alt ←", label: "Go back to where you were before your last jump (Find, a click in the preview, a new page)", group: "Everywhere" },
   { action: "help", keys: "?", label: "Show these shortcuts", group: "Everywhere" },
   { action: "workbench", keys: "W", label: "Open or close the Workbench (Health, Changes, Setup)", group: "Everywhere" },
   ...GO_KEYS.map(g => ({ action: `go:${g.tab}` as ShortcutAction, keys: `G then ${g.key.toUpperCase()}`, label: `Go to ${g.label}`, group: "Go to a workspace" })),
@@ -63,6 +64,7 @@ export function resolveShortcut(e: KeyInput): ShortcutAction | null {
     return null;
   }
   if (e.typing || e.dialogOpen || mod) return null;
+  if (e.alt && !e.shift && key === "ArrowLeft") return "back";
   if (e.alt && key === "ArrowUp") return "moveUp";
   if (e.alt && key === "ArrowDown") return "moveDown";
   if (e.alt) return null;
