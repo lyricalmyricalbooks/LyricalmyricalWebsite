@@ -25,24 +25,47 @@ export type SettingsHeading = {
 const REGION_IDS = REGION_GROUPS.map((g) => g.id);
 
 /**
- * Theme settings home. The site-wide design system first (one change restyles the whole shop),
- * then the parts of the shop (each also editable by clicking it on the page), then advanced tools.
+ * Theme settings home, in the order a shopper meets the shop: the top of every page, the shop and
+ * book pages, the bag and checkout, custom pages, the bottom of every page, pop-ups — then the
+ * whole-site look (colours, fonts, buttons: one change restyles everything) and the advanced tools.
+ * Each part is also editable by clicking it in the preview.
  */
 export const THEME_HEADINGS: SettingsHeading[] = [
-  { id: "system", band: "Site-wide design", title: "", blurb: "Presets, brand, colours, fonts, buttons and spacing used on every page. One change restyles the whole shop.",
-    groups: ["themeLook", "logo", "colors", "schemes", "type", "tokens", "smallPrint", "buttons", "layout", "effects", "toasts", "riso"] },
-  { id: "chrome", band: "Parts of your shop", title: "Header, menu & footer", blurb: "The parts that repeat at the top and bottom of every page. Tip: click one in the preview to edit it there.",
-    groups: ["header", "navlinks", "footer", "popup", "paymentIcons"] },
-  { id: "shop", title: "Shop & book pages", blurb: "The book grid, book cards and each book's own page.",
-    groups: ["products", "catalog", "labels", "productPage", "productCard", "catalogLayout"] },
+  { id: "top", band: "Parts of your shop, top to bottom", title: "Top of every page",
+    blurb: "What shoppers see first: the announcement bar, logo and menu. Tip: click one in the preview to edit it there.",
+    groups: ["header", "logo", "navlinks"] },
+  { id: "shop", title: "Shop & book pages", blurb: "The grid of books, each book card, and each book's own page.",
+    groups: ["products", "catalog", "catalogLayout", "labels", "productPage", "productCard"] },
   { id: "buy", title: "Bag, checkout & accounts", blurb: "Everything after a shopper presses Add to bag.",
     groups: ["cartDrawer", "checkout", "accounts"] },
-  { id: "pages", title: "Pages & features", blurb: "Custom pages (About, Journal…) and switching whole features on or off.",
+  { id: "pages", title: "Custom pages & features", blurb: "Pages like About or Journal, and switching whole features on or off.",
     groups: ["customPages", "elements"] },
-  { id: "elements", band: "Advanced", title: "Fine-tune single elements", advanced: true,
-    blurb: "Spacing, size, borders and visibility for one element at a time, per screen size. Quicker: click the element in the preview.",
+  { id: "bottom", title: "Bottom of every page", blurb: "The footer: links, social icons and small print.",
+    groups: ["footer", "paymentIcons"] },
+  { id: "popups", title: "Pop-ups & notices", blurb: "Windows and little messages that appear on top of the page.",
+    groups: ["popup", "toasts"] },
+  { id: "system", band: "Whole-site look", title: "", blurb: "Presets, colours, fonts, buttons and spacing used on every page. One change restyles the whole shop.",
+    groups: ["themeLook", "colors", "schemes", "type", "buttons", "layout", "effects", "riso", "tokens", "smallPrint"] },
+  { id: "elements", band: "Advanced", title: "Fine-tune one element at a time", advanced: true,
+    blurb: "Spacing, size, borders and visibility for a single element, per screen size. Quicker: click the element in the preview.",
     groups: REGION_IDS },
   { id: "code", title: "Custom code", advanced: true, blurb: "Your own CSS or scripts (public pages only).", groups: ["code"] },
+];
+
+/**
+ * The little shop drawing at the top of Theme settings: each block names a heading above and jumps
+ * to it. `shape` only decides how the block is drawn. Pure data so the test can check every
+ * block points at a real heading.
+ */
+export type ShopMapBlock = { heading: string; label: string; note: string; shape: "bar" | "body" | "foot" | "float" | "look" };
+export const SHOP_MAP: ShopMapBlock[] = [
+  { heading: "top", label: "Top of every page", note: "Announcement bar · logo · menu", shape: "bar" },
+  { heading: "shop", label: "Shop & book pages", note: "Book grid · book page", shape: "body" },
+  { heading: "buy", label: "Bag & checkout", note: "Bag · checkout · accounts", shape: "body" },
+  { heading: "pages", label: "Custom pages", note: "About · Journal · features", shape: "body" },
+  { heading: "bottom", label: "Bottom of every page", note: "Footer links · social", shape: "foot" },
+  { heading: "popups", label: "Pop-ups & notices", note: "Pop-up · “Added to bag”", shape: "float" },
+  { heading: "system", label: "Whole-site look", note: "Colours · fonts · buttons", shape: "look" },
 ];
 
 /**
@@ -51,7 +74,7 @@ export const THEME_HEADINGS: SettingsHeading[] = [
  * page linked to the category, in the inspector.
  */
 export const CATEGORY_PAGES: Record<string, { template?: string; overlay?: StudioOverlay }> = {
-  header: {}, navlinks: {}, footer: {}, paymentIcons: {}, popup: { overlay: "popup" },
+  header: {}, logo: {}, navlinks: {}, footer: {}, paymentIcons: {}, popup: { overlay: "popup" },
   products: { template: "storefront" }, catalog: { template: "storefront" }, labels: { template: "productPage" },
   catalogLayout: { template: "storefront" }, productPage: { template: "productPage" }, productCard: { template: "productPage" },
   cartDrawer: { overlay: "cart" }, checkout: { template: "cartPage" }, accounts: { template: "accountPage" },
@@ -60,32 +83,32 @@ export const CATEGORY_PAGES: Record<string, { template?: string; overlay?: Studi
 
 /** One plain-English line under each category name (falls back to the group's own hint). */
 export const GROUP_BLURBS: Record<string, string> = {
-  colors: "Page background, text, accent and status colours.",
-  schemes: "Named colour sets for sections, book cards, the buy card and the bag, with contrast checks.",
-  toasts: "Where the short “Removed from your bag · Undo” style messages appear, and their colours, size and corners.",
-  popup: "When the pop-up opens, how often, where and how wide. Its content is the Pop-up sections in Page layout.",
-  type: "Heading, body and menu fonts, sizes and weights.",
-  buttons: "Button style, colours and corners.",
-  logo: "Logo image or text wordmark, and the picture shown when your shop is shared.",
-  riso: "The printed-paper texture and ink effects of the Riso look.",
-  effects: "Animations, hover effects and section spacing.",
-  header: "Header layout and colours, the announcement bar, and which icons show.",
-  navlinks: "Size, colour and spacing of menu links, and the drop-down menus.",
-  footer: "Footer layout, social links and what the footer shows.",
-  products: "Book cards in the shop grid: columns, photos, title, price and badges.",
-  catalog: "The heading, category chips and search above the book grid.",
-  labels: "Sale, sold-out and other little labels on books.",
-  productPage: "Each book's page: photo layout, add-to-bag button and extras.",
-  productCard: "The bordered buy box, breadcrumb and Description / Details tabs.",
-  catalogLayout: "Masthead, cover cropping and nav spacing of the shop page.",
-  cartDrawer: "The bag that slides in: size, colours, book rows and checkout button.",
-  checkout: "Checkout colours, fonts, fields and what the order summary shows.",
-  accounts: "Turn customer accounts on or off.",
-  customPages: "One look for every custom page: title, text, width and the line under the title.",
+  colors: "The main colours of every page: background, text, buttons and links.",
+  schemes: "Ready-made colour pairs you can give to a section, book cards, the buy box or the bag.",
+  toasts: "The little message that pops up after “Added to bag” or “Removed · Undo”: where, how big, what colour.",
+  popup: "The window that opens over the page (a welcome or offer): when it opens, how often, where and how wide.",
+  type: "The fonts and text sizes used on every page.",
+  buttons: "How buttons look everywhere: style, colours and rounded corners.",
+  logo: "Your logo or shop name at the top, plus the picture shown when someone shares your shop.",
+  riso: "The printed-paper grain and ink-style effects of the Riso look.",
+  effects: "Animations when the page loads or scrolls, and what happens when you hover.",
+  header: "The strip at the very top: its layout and colours, the announcement bar, and the search, wishlist and bag icons.",
+  navlinks: "The menu links in the header: their size, colour and spacing, and the drop-down menus.",
+  footer: "The bottom of every page: its layout, link groups, social icons and what it shows.",
+  products: "The book cards in the shop: columns, photo shape, title, price and badges.",
+  catalog: "The heading, category buttons and search bar above the book grid.",
+  labels: "The small tags on books: Sale, New, Pre-order, Coming soon and Sold out.",
+  productPage: "A book's own page: photo layout, the Add to bag button and extras.",
+  productCard: "The bordered box with the price and Add to bag, plus the Description and Details tabs.",
+  catalogLayout: "The big title at the top of the shop page, how covers are cropped, and menu spacing.",
+  cartDrawer: "The bag that slides in from the side: size, colours, book rows and the checkout button.",
+  checkout: "The checkout page: colours, fonts, form fields and what the order summary shows.",
+  accounts: "Turn customer accounts (sign-in and order history) on or off.",
+  customPages: "One look for every page you create (About, Journal…): title, text, width and the line under the title.",
   layout: "How wide your content is and the space around it.",
-  tokens: "One type scale, spacing unit, corner set and focus and pressed look for the whole shop.",
-  smallPrint: "The tiny labels and captions everywhere, all at once.",
-  elements: "Switch whole storefront features on or off.",
+  tokens: "Shop-wide scales for text size, spacing, rounded corners and the keyboard focus ring.",
+  smallPrint: "The tiny labels and captions across the shop, all at once.",
+  elements: "Switch whole parts on or off: Recently viewed, breadcrumbs, the cookie banner and the under-construction page.",
   code: "Your own CSS or scripts (public pages only).",
 };
 

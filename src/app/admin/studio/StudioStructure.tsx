@@ -39,11 +39,23 @@ type Props = {
  */
 export function StudioStructure(p: Props) {
   const s = p.structure;
+  // "Style" / "Words": jump straight to the Theme settings category or Text & labels group behind a part.
+  const actions = (label: string, target: string, inline = false): ReactNode => {
+    const parts = target.split("|");
+    const style = parts.find(t => t.startsWith("style:"));
+    const words = parts.find(t => t.startsWith("copy:"));
+    if (!style && !words) return null;
+    return <span className="studio-structure-actions" data-inline={inline || undefined}>
+      {style && <button type="button" aria-label={`Style settings for ${label}`} onClick={() => p.onOpenTarget(style, label)}>Style</button>}
+      {words && <button type="button" aria-label={`Words for ${label}`} onClick={() => p.onOpenTarget(words, label)}>Words</button>}
+    </span>;
+  };
   const row = (item: StructureItem, depth = 0): ReactNode => {
     const toggle = item.region ? p.regionState(item.region) : null;
     const off = toggle?.visible === false;
     return <div key={item.key}>
       <div className="studio-tree-row studio-structure-row" data-hovered={p.hoverKey === item.key} data-selected={p.selectedKey === item.key} data-hidden={off}
+        data-has-actions={/(^|\|)(style|copy):/.test(item.target) || undefined}
         style={depth ? { paddingLeft: depth * 14 } : undefined}
         onMouseEnter={() => p.onHover(item.key)} onMouseLeave={() => p.onHover(null)}>
         <button className="studio-tree-label" aria-current={p.selectedKey === item.key || undefined} onClick={() => p.onOpen(item)} onFocus={() => p.onHover(item.key)} onBlur={() => p.onHover(null)}>
@@ -53,6 +65,7 @@ export function StudioStructure(p: Props) {
             off ? `Hidden on ${p.deviceLabel.toLowerCase()}` : item.hidden ? `Not showing on ${p.deviceLabel.toLowerCase()} right now` : "",
           ].filter(Boolean).join(" · ") || "Built in"}</small>
         </button>
+        {actions(item.label, item.target)}
         {toggle && (toggle.required
           ? <span className="studio-structure-lock" title="Shoppers need this to buy or stay informed, so it can be restyled but not hidden."><Lock size={13} aria-label="Always shown" /></span>
           : <IconButton label={off ? `Show ${item.label} on ${p.deviceLabel.toLowerCase()}` : `Hide ${item.label} on ${p.deviceLabel.toLowerCase()}`}
@@ -103,6 +116,7 @@ export function StudioStructure(p: Props) {
       {groupButton("overlaySections", "Pop-up sections")}
       {STUDIO_OVERLAYS.map(o => <div key={o.id} className="studio-tree-row studio-structure-row">
         <button className="studio-tree-label" onClick={() => p.onOpenTarget(o.target.split("|")[0], o.label)}>{o.label}<small>Settings</small></button>
+        {actions(o.label, o.target, true)}
         <button className="studio-structure-open" onClick={() => p.onOverlay(o.id)}>Open in preview</button>
       </div>)}
       {s && s.overlay.length > 0 && <><p className="studio-structure-sub">Open in the preview now</p>{s.overlay.map(i => row(i))}</>}

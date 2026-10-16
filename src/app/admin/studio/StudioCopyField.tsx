@@ -45,7 +45,7 @@ export function StudioCopyField({ field, design, settings, onChange, aiWhere }: 
     {field.hint && <p className="studio-hint">{field.hint}</p>}
     {field.key === "addToBagLabel" && addToBagOverride(design) && <p className="studio-hint" data-copy-override-note>
       Theme settings › Product page › Add-to-bag text is set and wins. Clear it there to use these words.
-      {openTarget && <> <button type="button" className="studio-reset" onClick={() => openTarget("style:productPage", "Product page layout")}>Open Add-to-bag text</button></>}
+      {openTarget && <> <button type="button" className="studio-reset" onClick={() => openTarget("style:productPage", "Book page · photos & layout")}>Open Add-to-bag text</button></>}
     </p>}
     {copyPlaceholders(field).length > 0 && <p className="studio-hint" data-copy-tokens>
       Words in {"{ }"} are filled in by the shop; keep them as they are: {copyPlaceholders(field).join(", ")}

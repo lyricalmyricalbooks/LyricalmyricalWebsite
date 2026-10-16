@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
-import { ArrowLeft, ChevronDown, ChevronRight, Eye } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, Eye, X } from "lucide-react";
+import type { ShopMapBlock } from "./settingsMap";
 
 // Presentation-only pieces for Studio's friendlier Theme settings / Text & labels homes.
 // They never edit the design themselves; StudioEditor passes the existing editors in as children.
@@ -14,9 +15,40 @@ export function ChangedBadge({ count, label = "changed" }: { count?: number; lab
   return <span className="studio-changed-badge"><span aria-hidden="true">● </span>{count} {label}</span>;
 }
 
+/**
+ * "Where is it on the shop?": a small drawing of a shop page (top, content, bottom, pop-ups, whole-site
+ * look). Each block jumps to the heading below that holds those categories. It edits nothing.
+ */
+export function ShopMap({ blocks }: { blocks: ShopMapBlock[] }) {
+  const jump = (heading: string) => {
+    const el = document.getElementById(`studio-heading-${heading}`);
+    const target = el?.closest("section") ?? el;
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    target.classList.add("studio-flash");
+    window.setTimeout(() => target.classList.remove("studio-flash"), 1600);
+  };
+  return (
+    <section className="studio-shop-map" aria-label="Where is it on the shop?">
+      <strong>Where is it on the shop?</strong>
+      <small>Pick the part you are looking at. Or click it in the preview.</small>
+      <div className="studio-shop-map-grid">
+        {blocks.map((b) => (
+          <button key={b.heading} type="button" className="studio-shop-map-block" data-shape={b.shape}
+            aria-label={`Jump to ${b.label}`} onClick={() => jump(b.heading)}>
+            <b>{b.label}</b><span>{b.note}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /** Category cards under task headings. Advanced headings stay folded until asked for. */
-export function SettingsHome({ headings, onOpen, changedTotal, onOpenChanged, changedNoun = "setting", onShowOnPage }: {
+export function SettingsHome({ headings, onOpen, changedTotal, onOpenChanged, changedNoun = "setting", onShowOnPage, map }: {
   headings: HomeHeading[]; onOpen: (id: string) => void;
+  /** The shop drawing shown above the headings (Theme settings only). */
+  map?: ShopMapBlock[];
   changedTotal?: number; onOpenChanged?: () => void; changedNoun?: string;
   /** "Show on page": open the page where this category's part appears and select it. */
   onShowOnPage?: (id: string) => void;
@@ -24,6 +56,7 @@ export function SettingsHome({ headings, onOpen, changedTotal, onOpenChanged, ch
   const [showAdvanced, setShowAdvanced] = useState<Record<string, boolean>>({});
   return (
     <div className="studio-settings-home">
+      {map && <ShopMap blocks={map} />}
       {Boolean(changedTotal) && onOpenChanged && (
         <button type="button" className="studio-changed-link" onClick={onOpenChanged}>
           <span><strong>What I've changed</strong><small>{plural(changedTotal!, changedNoun)} {changedTotal === 1 ? "differs" : "differ"} from the default, all in one list</small></span>
@@ -128,5 +161,21 @@ export function StudioTips({ forceOpen = 0 }: { forceOpen?: number }) {
       </ol>
       <button type="button" className="studio-reset" onClick={dismiss}>Got it, hide these tips</button>
     </aside>
+  );
+}
+
+const HINT_KEY = "studio-click-hint-dismissed";
+const readHintHidden = () => { try { return window.localStorage.getItem(HINT_KEY) === "1"; } catch { return false; } };
+
+/** One line at the top of Page layout: the preview itself is the quickest way to find a setting. */
+export function PreviewClickHint() {
+  const [hidden, setHidden] = useState(readHintHidden);
+  if (hidden) return null;
+  const dismiss = () => { setHidden(true); try { window.localStorage.setItem(HINT_KEY, "1"); } catch { /* private mode */ } };
+  return (
+    <p className="studio-click-hint" role="note">
+      <span><b>Tip:</b> click anything in the preview to edit it. Or use <b>Style</b> and <b>Words</b> beside a part below.</span>
+      <button type="button" className="studio-click-hint-close" aria-label="Hide this tip" onClick={dismiss}><X size={13} aria-hidden="true" /></button>
+    </p>
   );
 }
