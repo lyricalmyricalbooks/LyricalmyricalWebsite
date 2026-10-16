@@ -120,6 +120,12 @@
 .studio-find-kind[data-kind=action] { background: var(--rp-primary-tint); color: var(--rp-primary-text); border-color: transparent; }
 .studio-find-group { padding: 8px 12px 4px; font: 700 10px/1.2 var(--rp-font-mono, "DM Mono", monospace); letter-spacing: .08em; text-transform: uppercase; color: var(--rp-text-subtle); border-bottom: 1px solid var(--rp-divider); background: var(--rp-surface, transparent); }
 .studio-find-main { flex: 1 1 auto; }
+.studio-find-empty { display: grid; gap: 10px; padding: 14px 4px 4px; }
+.studio-find-empty p { margin: 0; }
+.studio-find-suggest { display: flex; flex-wrap: wrap; gap: 8px; }
+.studio-find-chip { min-height: 36px; padding: 4px 12px; border: 1px solid var(--rp-border); border-radius: 999px; background: var(--rp-surface, transparent); color: var(--rp-text); font-size: 12px; font-weight: 700; cursor: pointer; }
+.studio-find-chip:hover { background: var(--rp-primary-tint); }
+.studio-find-chip:focus-visible { outline: 2px solid var(--rp-gold, #e8402a); outline-offset: 2px; }
 .studio-find-keys { flex: 0 0 auto; margin-left: auto; font: 500 11px/1 var(--rp-font-mono, "DM Mono", monospace); padding: 3px 6px; border: 1px solid var(--rp-border); border-radius: 3px; color: var(--rp-text-subtle); white-space: nowrap; }
 .studio-topbar kbd { font: 600 10px/1 var(--rp-font-mono, monospace); padding: 2px 5px; border: 1px solid var(--rp-border); border-radius: 3px; color: var(--rp-text-subtle); }
 /* Studio organization: readable navigation, category browsing and clear editing context. */
