@@ -10,6 +10,7 @@ describe("desktop preview width", () => {
     expect(screenForWidth(1200, 1300)).toBe(1440);
     expect(screenForWidth(1200, 1600)).toBe(1920);
     expect(screenForWidth(1440, 1800)).toBe(1920);
+    expect(screenForWidth(1200, 2200)).toBe(2560);
   });
   it("ignores junk", () => {
     expect(screenForWidth(1200, NaN)).toBe(1200);
