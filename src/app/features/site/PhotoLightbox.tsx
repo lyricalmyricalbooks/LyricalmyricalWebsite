@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { PhotoCarousel } from "./PhotoCarousel";
@@ -16,7 +17,8 @@ function warm(photo: LightboxPhoto | undefined) {
 }
 
 /** `videoUrl`: a book video (features/site/bookVideo.ts); `url` is then its still frame. */
-export type LightboxPhoto = { url: string; alt: string; srcSet?: string; videoUrl?: string };
+// `style`: the photo's quick edits (colour, mirroring) — the viewer always shows the whole photo, never the crop.
+export type LightboxPhoto = { url: string; alt: string; srcSet?: string; videoUrl?: string; style?: CSSProperties };
 
 type Labels = { close: string; prev: string; next: string; dialog: string; count: string };
 
@@ -118,6 +120,7 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
               decoding="async"
               className="max-w-[94vw] max-h-[88vh] w-auto h-auto object-contain select-none"
               draggable={false}
+              style={photos[i].style}
             />
             )}
           </div>

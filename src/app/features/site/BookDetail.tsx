@@ -61,7 +61,7 @@ import { ga4Once } from "../../lib/ga4";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
 import { gridPhotoSizes, THUMB_PHOTO_SIZES, pdpPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
-import { framingStyle, motionFraming } from "./photoFraming";
+import { adjustStyle, framingStyle, motionFraming } from "./photoFraming";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 /** The title's inline variables: Studio's "Title size" preset and the phone cap that keeps its longest word whole. */
@@ -1281,7 +1281,7 @@ export default function BookDetail() {
                               ref={(el) => { muteVideo(el); if (el && i === carouselIndex) setImageLoaded(true); }}
                             />
                           );
-                          const framed = motionFraming(photo);
+                          const framed = motionFraming(photo, productImageHoverScale);
                           return (
                             <m.img
                               src={url}
@@ -1293,10 +1293,10 @@ export default function BookDetail() {
                               // The photo shown and its neighbours load now, so a swipe never reveals an empty frame.
                               loading={Math.abs(i - carouselIndex) <= 1 ? "eager" : "lazy"}
                               {...(i === 0 ? { fetchpriority: "high" } : {})}
-                              // Books › edit › Images › Crop & position: placement as style, the zoom as motion's scale
-                              // (motion owns `transform`), so the hover zoom grows from the cropped size.
-                              style={{ ...framed.style, scale: framed.zoom }}
-                              whileHover={{ scale: productImageHoverScale * framed.zoom }}
+                              // Books › edit › Images › Crop & edit: placement and quick edits as style, the zoom and
+                              // flip as motion values (motion owns `transform`), so the hover zoom grows from the cropped size.
+                              style={framed.style}
+                              whileHover={framed.hover}
                               transition={{ duration: 0.45 }}
                               // A photo already in the browser cache (or loaded before the page woke up) never
                               // fires onLoad, which left the placeholder over it; check `complete` too.
@@ -1419,6 +1419,7 @@ export default function BookDetail() {
                           url: ph.url,
                           srcSet: photoSrcSet(ph, "100vw").srcSet,
                           alt: mediaName(ph, i),
+                          style: adjustStyle(ph),
                           ...(isVideoItem(ph) ? { videoUrl: ph.videoUrl } : {}),
                         }))}
                         start={Math.max(0, shownIndex)}

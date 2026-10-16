@@ -60,7 +60,7 @@ import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, S
 import { uploadBookPhoto } from "./bookPhotoUpload";
 import { BOOK_VIDEO_ACCEPT, MAX_BOOK_VIDEOS, MAX_BOOK_VIDEO_BYTES, formatMegabytes, isVideoFile, uploadBookVideo, videoProblem } from "./bookVideoUpload";
 import { isVideoItem } from "../features/site/bookVideo";
-import { framingStyle, photoFraming } from "../features/site/photoFraming";
+import { framingStyle, photoAdjust, photoFraming } from "../features/site/photoFraming";
 import { PhotoCropDialog } from "./PhotoCropDialog";
 import { studioHash } from "../lib/studioLocation";
 
@@ -93,7 +93,7 @@ function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover, onCrop }: {
     <div ref={setNodeRef} style={style} className="be-photo">
       <div className="be-photo-img">
         <img src={photo.url} alt={photo.altText || ""} style={framingStyle(photo)} />
-        {photoFraming(photo) && <span className="be-photo-framed">Cropped</span>}
+        {(photoFraming(photo) || photoAdjust(photo)) && <span className="be-photo-framed">{photoFraming(photo) && photoAdjust(photo) ? "Cropped · edited" : photoFraming(photo) ? "Cropped" : "Edited"}</span>}
         <span className="be-photo-badge">{index === 0 ? "Cover" : isVideoItem(photo) ? `Video · ${index + 1}` : `Image ${index + 1}`}</span>
         {isVideoItem(photo) && (
           <a className="be-photo-play" href={photo.videoUrl} target="_blank" rel="noopener noreferrer" aria-label={`Play video ${index + 1} in a new tab`}>
@@ -105,7 +105,7 @@ function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover, onCrop }: {
       </div>
       <input className="rp-input" aria-label={`${isVideoItem(photo) ? "Description of video" : "Alt text for image"} ${index + 1}`} placeholder={isVideoItem(photo) ? "What the video shows" : "Alt text"} value={photo.altText || ""} onChange={(e) => onAlt(photo.id, e.target.value)} />
       <div className="be-photo-actions">
-        {!isVideoItem(photo) && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onCrop(photo.id)} aria-label={`Crop and position ${index === 0 ? "the cover" : `image ${index + 1}`}`}><Crop size={13} aria-hidden /> Crop & position</button>}
+        {!isVideoItem(photo) && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onCrop(photo.id)} aria-label={`Crop and edit ${index === 0 ? "the cover" : `image ${index + 1}`}`}><Crop size={13} aria-hidden /> Crop & edit</button>}
         {index !== 0 && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onMakeCover(photo.id)}>Make cover</button>}
         <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onRemove(photo.id)}><Trash2 size={13} aria-hidden /> Remove</button>
       </div>
@@ -217,7 +217,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   const [confirmSlug, setConfirmSlug] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
-  // Books › edit › Images › Crop & position (PhotoCropDialog); the design gives the shop's frame shapes.
+  // Books › edit › Images › Crop & edit (PhotoCropDialog); the design gives the shop's frame shapes.
   const [cropId, setCropId] = useState<string | null>(null);
   const [liveDesign, setLiveDesign] = useState<any>(null);
   const uploadingRef = useRef(false);
@@ -1288,12 +1288,12 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                 return photo ? (
                   <PhotoCropDialog photo={photo} label={i === 0 ? "Cover" : `Image ${i + 1}`} design={liveDesign}
                     onClose={() => setCropId(null)}
-                    onSave={(framing) => setFormData((prev: any) => ({
+                    onSave={({ framing, adjust }) => setFormData((prev: any) => ({
                       ...prev,
                       photos: prev.photos.map((p: any) => {
                         if (p.id !== cropId) return p;
-                        const { framing: _old, ...rest } = p;
-                        return framing ? { ...rest, framing } : rest;
+                        const { framing: _old, adjust: _oldAdjust, ...rest } = p;
+                        return { ...rest, ...(framing ? { framing } : {}), ...(adjust ? { adjust } : {}) };
                       }),
                     }))} />
                 ) : null;
