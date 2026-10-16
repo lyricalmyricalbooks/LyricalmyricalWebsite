@@ -12,7 +12,8 @@
     "check:readability": "node scripts/check-readability.mjs",
     "test": "vitest run",
     "typecheck": "node scripts/typecheck-ratchet.mjs",
-    "test:studio": "node scripts/studio-e2e.mjs"
+    "test:studio": "node scripts/studio-e2e.mjs",
+    "test:studio-controls": "AUDIT_CHECK=1 node scripts/studio-control-audit.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

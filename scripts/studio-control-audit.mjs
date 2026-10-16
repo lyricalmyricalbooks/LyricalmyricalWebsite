@@ -7,12 +7,24 @@
 //   AUDIT_ONLY=type,header node scripts/...               (only these Style categories)
 //   AUDIT_OUT=file.json                                   (where the results go)
 //   CHROMIUM_PATH=/path/to/chrome                         (use an installed Chromium)
+//   AUDIT_CHECK=1                                         (CI: compare with scripts/studio-control-baseline.json and
+//                                                          fail when a control that worked stops, or a new one isn't listed)
+//   AUDIT_UPDATE=1                                        (rewrite the baseline from this run, keeping its reasons)
 // Results: "visible" (something on the page moved or changed colour), "css-only" (the page's
 // CSS changed but nothing drawn did: a hover/focus state, or a rule another rule beats),
 // "dom-only" (markup changed, nothing drawn), "none" (nothing at all happened).
 import { chromium } from "playwright";
 import { createServer } from "vite";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+
+const BASELINE_FILE = new URL("./studio-control-baseline.json", import.meta.url);
+const baselineFile = (process.env.AUDIT_CHECK || process.env.AUDIT_UPDATE) ? JSON.parse(readFileSync(BASELINE_FILE, "utf8")) : null;
+const RANK = { none: 0, "dom-only": 1, "css-only": 2, visible: 3 };
+/** What the baseline expects of a control: its result, or "none" with the reason it can't show on the fixture. */
+const expected = (id) => {
+  const v = baselineFile?.controls?.[id];
+  return v == null ? null : String(v).startsWith("none") ? "none" : v;
+};
 
 let server;
 let base = process.env.STUDIO_URL;
@@ -28,9 +40,12 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, re
 page.on("pageerror", e => console.warn("[studio error]", e.message));
 await page.goto(`${base}/studio-fixture.html?live=1`).catch(() => {});
 await page.waitForTimeout(6000); // first visit: Vite finishes bundling and may reload once
-await page.goto(`${base}/studio-fixture.html?live=1`);
-await page.getByText("Preview connected").first().waitFor({ timeout: 60000 });
-await page.waitForTimeout(1500);
+async function openStudio() {
+  await page.goto(`${base}/studio-fixture.html?live=1`);
+  await page.getByText("Preview connected").first().waitFor({ timeout: 60000 });
+  await page.waitForTimeout(1500);
+}
+await openStudio();
 
 const frame = () => page.frames().find(f => f !== page.mainFrame() && f.url().includes("preview=true"));
 
@@ -95,11 +110,12 @@ async function go(route, overlay, device) {
 }
 let baselineState = null;
 
+let settle = 350;
 async function send(design) {
   const state = baselineState;
   const msg = { type: "STUDIO_PREVIEW_STATE", settings: { ...state.settings, design, draftDesign: design }, design, pages: state.pages, books: state.books };
   await frame().evaluate(m => window.dispatchEvent(new MessageEvent("message", { data: m, origin: location.origin, source: window.parent })), msg);
-  await frame().evaluate(() => new Promise(r => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(r)), 350)));
+  await frame().evaluate(s => new Promise(r => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(r)), s)), settle);
 }
 
 const FINGERPRINT = () => {
@@ -161,7 +177,7 @@ function trialValues(f, cur) {
       return [...new Set(vals)].slice(0, 2);
     }
     case "select": return f.options.filter(v => v !== (eff ?? "")).slice(-3);
-    case "text": case "textarea": return [/url|link|href|image/i.test(f.key) ? "https://example.com/a.png" : "Audit 123"];
+    case "text": case "textarea": return [/url|link|href|image|^social\./i.test(f.key) ? "https://example.com/a.png" : "Audit 123"];
     case "image": return ["https://picsum.photos/seed/audit/600/400"];
     case "link": return ["/page/about"];
     default: return [];
@@ -184,6 +200,7 @@ function setRoot(design, path, value) {
 }
 
 const results = [];
+const sectionId = (type, key, device) => `section:${type}:${key}@${device}`;
 // Region controls (Fine-tune one element at a time) share one CSS writer: AUDIT_REGIONS=1 samples
 // their desktop text/box controls; whether each region is on its page is a separate check.
 const REGION_SAMPLE = /(?:Padding|Background|Color|Size|LineHeight|LetterSpacing|Visible)$/;
@@ -199,19 +216,28 @@ for (const [i, f] of todo.entries()) {
     const design = baselineState.design;
     const cur = get(design, f.key);
     let best = { status: "none", value: null };
-    for (const value of trialValues(f, cur)) {
-      await send(setRoot(design, f.key, value));
-      const r = await compare();
-      const status = r.changed ? "visible" : r.css ? "css-only" : r.dom ? "dom-only" : "none";
-      const rank = { none: 0, "dom-only": 1, "css-only": 2, visible: 3 };
-      if (rank[status] > rank[best.status]) best = { status, value, changed: r.changed, samples: r.samples };
-      if (status === "visible") break;
+    const want = expected(f.key);
+    // A result below the baseline gets one slower second try before it counts (CI machines vary).
+    for (const wait of want ? [350, 1200] : [350]) {
+      settle = wait;
+      for (const value of trialValues(f, cur)) {
+        await send(setRoot(design, f.key, value));
+        const r = await compare();
+        const status = r.changed ? "visible" : r.css ? "css-only" : r.dom ? "dom-only" : "none";
+        if (RANK[status] > RANK[best.status]) best = { status, value, changed: r.changed, samples: r.samples };
+        if (status === "visible") break;
+      }
+      if (!want || RANK[best.status] >= RANK[want]) break;
+      await send(design); await baseline();
     }
+    settle = 350;
     await send(design);
     results.push({ ...f, options: undefined, route: where.route, overlay: where.overlay || null, device, current: cur ?? null, ...best });
   } catch (e) {
     results.push({ ...f, options: undefined, route: where.route, device, status: "error", error: String(e.message || e).split("\n")[0] });
-    current = { route: null, overlay: null, device: current.device };
+    // The preview frame went away (a reload): open Studio again so one hiccup doesn't fail every later control.
+    if (!frame()) await openStudio().catch(() => {});
+    current = { route: null, overlay: null, device: "desktop" };
   }
   if (i % 25 === 0) console.log(`${i}/${todo.length}  ${Math.round((Date.now() - t0) / 1000)}s`);
 }
@@ -237,16 +263,23 @@ if (!only.length || only.includes("sections")) {
     await baseline();
     for (const s of sections) for (const f of list) {
       let best = { status: "none", value: null };
-      for (const value of f.key === "customCss" ? ["& { outline: 5px solid red; }"] : trialValues(f, s.settings?.[f.key])) {
-        const next = { ...d, heroPage: { ...d.heroPage, sections: sections.map(x => x.id === s.id ? { ...x, settings: { ...x.settings, [f.key]: value } } : x) } };
-        await send(next);
-        const r = await compare();
-        const status = r.changed ? "visible" : r.css ? "css-only" : r.dom ? "dom-only" : "none";
-        if (rank[status] > rank[best.status]) best = { status, value, changed: r.changed, samples: r.samples };
-        if (status === "visible") break;
+      const id = sectionId(s.type, f.key, dev), want = expected(id);
+      for (const wait of want ? [350, 1200] : [350]) {
+        settle = wait;
+        for (const value of f.key === "customCss" ? ["& { outline: 5px solid red; }"] : trialValues(f, s.settings?.[f.key])) {
+          const next = { ...d, heroPage: { ...d.heroPage, sections: sections.map(x => x.id === s.id ? { ...x, settings: { ...x.settings, [f.key]: value } } : x) } };
+          await send(next);
+          const r = await compare();
+          const status = r.changed ? "visible" : r.css ? "css-only" : r.dom ? "dom-only" : "none";
+          if (rank[status] > rank[best.status]) best = { status, value, changed: r.changed, samples: r.samples };
+          if (status === "visible") break;
+        }
+        if (!want || RANK[best.status] >= RANK[want]) break;
+        await send(d); await baseline();
       }
+      settle = 350;
       await send(d);
-      results.push({ group: "section:" + s.type, groupTitle: "Section · " + s.type, key: f.key, label: f.label, kind: f.kind, route: "/", device: dev, ...best });
+      results.push({ id, group: "section:" + s.type, groupTitle: "Section · " + s.type, key: f.key, label: f.label, kind: f.kind, route: "/", device: dev, ...best });
     }
     current = { route: null, overlay: null, device: dev };
   }
@@ -257,3 +290,34 @@ const tally = results.reduce((t, r) => ((t[r.status] = (t[r.status] || 0) + 1), 
 console.log(tally);
 await browser.close();
 await server?.close();
+
+const idOf = (r) => r.id || r.key;
+if (process.env.AUDIT_UPDATE) {
+  // Keep each "none" control's written reason; a new one gets TODO, which studioControlBaseline.test.ts refuses.
+  // A partial run (AUDIT_ONLY) keeps every other entry; studioControlBaseline.test.ts catches stale ones.
+  const controls = { ...baselineFile.controls };
+  for (const r of results) {
+    if (r.status === "error") continue;
+    const old = baselineFile.controls[idOf(r)];
+    controls[idOf(r)] = r.status !== "none" ? r.status : (old && String(old).startsWith("none: ") ? old : "none: TODO say why this control can't show on the fixture page");
+  }
+  writeFileSync(BASELINE_FILE, JSON.stringify({ ...baselineFile, controls: Object.fromEntries(Object.entries(controls).sort()) }, null, 1) + "\n");
+  console.log(`Baseline updated: ${Object.keys(controls).length} controls`);
+}
+if (process.env.AUDIT_CHECK) {
+  const problems = [];
+  for (const r of results) {
+    const want = expected(idOf(r));
+    const name = `${r.groupTitle} › ${r.label} (${idOf(r)})`;
+    if (r.status === "error") problems.push(`${name}: the check itself failed: ${r.error}`);
+    else if (want == null) problems.push(`${name}: new control with no entry in scripts/studio-control-baseline.json (run with AUDIT_UPDATE=1, then give a reason if it shows nothing)`);
+    else if (RANK[r.status] < RANK[want]) problems.push(`${name}: used to change the preview (${want}), now ${r.status}`);
+  }
+  const better = results.filter(r => expected(idOf(r)) === "none" && r.status !== "none").map(r => idOf(r));
+  if (better.length) console.log(`These now change the preview; record it with AUDIT_UPDATE=1: ${better.join(", ")}`);
+  if (problems.length) {
+    console.error(`\n${problems.length} Studio control(s) no longer reach the preview:\n- ${problems.join("\n- ")}`);
+    process.exit(1);
+  }
+  console.log("Every Studio control still reaches the preview as recorded.");
+}

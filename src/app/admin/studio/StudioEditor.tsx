@@ -363,6 +363,15 @@ function MenusPanel({ design, settings, pages, onChange, onRemove }: {
 }
 
 // ── Main editor ────────────────────────────────────────────────────────────
+/** A Studio button that opens a settings panel must land on one. One whose panel never appears is a dead
+ * button (the owner clicks and nothing happens): it is logged and recorded on `window.__studioDeadLinks`,
+ * which the browser checks (scripts/studio-e2e.mjs) fail on. */
+export function reportDeadStudioLink(target: string, panel: string) {
+  console.error(`[studio] the button for "${target}" opened nothing (no panel "${panel}")`);
+  const w = window as any;
+  w.__studioDeadLinks = [...(w.__studioDeadLinks || []), target];
+}
+
 export function StudioEditor({ settings, onExit, onPersisted, appearance = "light", workspace: openedWorkspace, initialLocation }: {
   appearance?: "light" | "dark";
   /** Opened from a Studio link (#designer?…): start on that page/tool instead of where you left off. */
@@ -1063,13 +1072,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setLeftTab(tab);
     const panel = kind === "menus" && (rest === "header" || rest === "footer") ? "menus:links" : tab === "style" && STYLE_GROUPS.some(g => g.id === rest) ? "style-focus" : target;
     setFocus(f => ({ id: target, nonce: f.nonce + 1 }));
-    setTimeout(() => {
+    // The panel can mount a moment later (lazy tabs): look again before calling the button dead.
+    const land = (tries: number) => setTimeout(() => {
       const el = document.querySelector<HTMLElement>(`[data-studio-panel="${CSS.escape(panel)}"]`);
-      if (!el) return;
+      if (!el) { if (tries > 0) land(tries - 1); else reportDeadStudioLink(target, panel); return; }
       el.scrollIntoView({ behavior: "smooth", block: "start" });
       el.classList.add("studio-flash");
       setTimeout(() => el.classList.remove("studio-flash"), 1600);
-    }, 120);
+    }, tries === 6 ? 120 : 200);
+    land(6);
   };
   // Page structure rows: a built-in region opens its own controls, anything else its click-to-edit settings.
   // Open a built-in part in the inspector (Words · Style · Layout · Visibility); the preview outlines it.
@@ -2301,10 +2312,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               const pattern = STYLE_TARGET_FIELDS[styleFocus.label];
               const regionGroup = REGION_GROUPS.find(g => g.id === styleFocus.id);
               const region = regionGroup?.regions.find(r => r.label === styleFocus.label);
-              if (regionGroup && !region) return <Group title={regionGroup.title} open>
+              // A part that spans several elements (the cookie banner) lists them to pick from.
+              if (regionGroup && !region) return <div data-studio-panel="style-focus"><Group title={regionGroup.title} open>
                 <StudioRegionBrowser groupId={regionGroup.id} fields={focusGroup.fields} device={device}
                   values={{ ...design.regions, ...(styleScope === "page" ? design[template.id]?.regions : {}) }} onPick={openRegion} />
-              </Group>;
+              </Group></div>;
               const pickedAll = region ? regionStyleFields(focusGroup, region.id).map(f => ({ g: focusGroup, f })) : pattern
                 ? STYLE_GROUPS.flatMap(g => g.fields.filter(f => pattern.test(f.key)).map(f => ({ g, f })))
                 : focusGroup.fields.map(f => ({ g: focusGroup, f }));
