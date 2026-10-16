@@ -17,6 +17,8 @@ export type StudioFixture = {
   watchers?: ((remote: any) => void)[];
   /** Studio › Themes share links (previewTokens). `previewDenied` acts as if their rules weren't deployed. */
   previewLinks?: any[]; previewDenied?: boolean;
+  /** Makes the next Save draft / Publish fail with this error (once), like a refused or dropped write. */
+  saveError?: any;
   /** Scheduled publishes and campaigns (themeSchedule) and the scheduler's last run. */
   schedule?: any[]; schedulerLastRunAt?: string | null;
   remoteSave?: (draft: any, options?: { publish?: boolean }) => void;
@@ -152,6 +154,7 @@ export function installFakeStudioApi(api: Record<string, any>, fixture: StudioFi
   const restoreBackend = setThemeBackend({
     open: async () => ({ draft: clone(fixture.settings.draftDesign), rev: fixture.rev, savedThemes: clone(fixture.settings.savedThemes || []) }),
     write: async (expectedRev, draft, live) => {
+      if (fixture.saveError) { const error = fixture.saveError; fixture.saveError = undefined; throw error; }
       if (expectedRev !== fixture.rev) throw new ThemeConflictError({ draft: clone(fixture.settings.draftDesign), rev: fixture.rev });
       record("saveDesign", { design: draft }, { publish: Boolean(live) });
       fixture.settings.draftDesign = clone(draft);

@@ -3,6 +3,7 @@ import { auth } from "../../../lib/firebase";
 import { discardDraft, publishDesign, saveDraft, studioTabId, ThemeConflictError, watchWorkspace, type RemoteWorkspace, type Workspace } from "../themeStore";
 import { sameDesign } from "./studioModel";
 import { designSize } from "./studioChecks";
+import { friendlyError } from "./friendlyError";
 import { createSnapshotWriter, decideRemoteChange, newestRecovery, parseRecovery, RECOVERY_PREFIX, resolveSaveConflict } from "./studioWorkflow";
 
 type Kind = "draft" | "publish" | "discard";
@@ -22,7 +23,8 @@ export function useStudioPersistence(props: {
   setSavedDraft: (design: any) => void; setPublished: (design: any) => void;
   onPersisted?: (design: any, published: boolean) => void;
   reset: (design: any) => void; restore: (design: any) => void;
-  say: (kind: "ok" | "err", message: string) => void;
+  /** "warn" toasts stay until dismissed; an action is a button inside the toast. */
+  say: (kind: "ok" | "warn" | "err", message: string, action?: { label: string; run: () => void }) => void;
   /** Normalise a design the way Studio holds it (live sync compares like with like). */
   normalize?: (design: any) => any;
   /** Read the live design fresh (a scheduled go-live can change it behind Studio's back). Discard goes back to it. */
@@ -34,6 +36,10 @@ export function useStudioPersistence(props: {
   const rev = useRef(props.workspace.rev);
   const [busy, setBusy] = useState<null | Kind>(null);
   const [conflict, setConflict] = useState<SaveConflict | null>(null);
+  /** When this tab last saved, for the status pill's hover text. */
+  const [lastSaved, setLastSaved] = useState<null | { at: number; kind: "draft" | "publish" }>(null);
+  /** The live-updates subscription failed: other tabs' saves are no longer followed. */
+  const [liveSyncPaused, setLiveSyncPaused] = useState(false);
   // One recovery record per browser tab, so two open Studio tabs never overwrite each other's.
   const prefix = `${RECOVERY_PREFIX}${import.meta.env.BASE_URL}:${auth.currentUser?.uid || "local-preview"}:`;
   const recoveryKey = prefix + studioTabId();
@@ -109,6 +115,7 @@ export function useStudioPersistence(props: {
       if (kind === "publish") p.setPublished(source);
       if (kind === "discard") { p.reset(source); dismissRecovery(); }
       p.onPersisted?.(snapshot, kind === "publish");
+      if (kind !== "discard") setLastSaved({ at: Date.now(), kind });
       p.say("ok", kind === "publish" ? "Published. Newer edits remain in your draft." : kind === "discard" ? "Draft discarded." : "Draft saved. Publish when you’re ready to go live.");
       if (kind !== "discard") {
         try { await adminApiVersion(kind, snapshot); }
@@ -116,7 +123,11 @@ export function useStudioPersistence(props: {
       }
     } catch (error: any) {
       if (error instanceof ThemeConflictError) lost = error;
-      else p.say("err", `Could not ${kind === "draft" ? "save draft" : kind}: ${error?.message || "unknown error"}. Your edits are still available; retry when connected.`);
+      else {
+        // A draft save can be retried straight from the toast; Publish goes back through its review dialog.
+        p.say("err", friendlyError(error, kind === "draft" ? "save the draft" : kind === "publish" ? "publish" : "discard the draft", { keepsChanges: kind !== "discard" }),
+          kind === "draft" ? { label: "Try again", run: () => { void persist("draft"); } } : undefined);
+      }
     } finally { locked.current = false; setBusy(null); }
     if (lost) await handleConflict(kind, lost.server);
     // A change that arrived from another tab while this one was saving is looked at now.
@@ -143,7 +154,7 @@ export function useStudioPersistence(props: {
     setIncoming({ remote, merged: decision.merged, paths: decision.kind === "conflict" ? decision.paths : [] });
   };
   const receiveRef = useRef(receive); receiveRef.current = receive;
-  useEffect(() => watchWorkspace(remote => receiveRef.current(remote), error => console.warn("[Studio] live updates paused", error)), []);
+  useEffect(() => watchWorkspace(remote => receiveRef.current(remote), error => { console.warn("[Studio] live updates paused", error); setLiveSyncPaused(true); }), []);
 
   /** Banner choices: combine both (keeping mine where we both changed something), take theirs, or decide later. */
   const resolveIncoming = (choice: "combine" | "theirs" | "later") => {
@@ -179,7 +190,7 @@ export function useStudioPersistence(props: {
     // A Publish never goes out carrying the other tab's unpublished draft work: the combined design is shown
     // here, and the owner reviews it and presses Publish again.
     if (kind === "publish") {
-      p.say("ok", "This design was also saved in another tab or device. Both sets of changes were combined and nothing was published. Review the result, then press Publish.");
+      p.say("warn", "This design was also saved in another tab or device. Both sets of changes were combined and nothing was published. Review the result, then press Publish.");
       return;
     }
     p.say("ok", "This design was also saved in another tab or device. Both sets of changes were combined.");
@@ -200,14 +211,14 @@ export function useStudioPersistence(props: {
     }
     p.restore(c.mine);
     if (c.kind === "publish") {
-      p.say("ok", "Kept your version of the settings you both changed, and brought in the other tab's other changes. Nothing is published yet: review the result, then press Publish.");
+      p.say("warn", "Kept your version of the settings you both changed, and brought in the other tab's other changes. Nothing is published yet: review the result, then press Publish.");
       return;
     }
     return persist(c.kind, c.mine);
   };
 
   return {
-    busy, recovery, recover, dismissRecovery, conflict, resolveConflict, incoming, resolveIncoming,
+    busy, lastSaved, liveSyncPaused, recovery, recover, dismissRecovery, conflict, resolveConflict, incoming, resolveIncoming,
     saveDraft: () => persist("draft"), publish: () => persist("publish"), discard: () => persist("discard"),
   };
 }
