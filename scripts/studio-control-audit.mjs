@@ -121,10 +121,13 @@ async function send(design) {
 const FINGERPRINT = () => {
   const BOX = ["display", "visibility", "opacity", "background-color", "background-image", "border-top-color", "border-top-width",
     "border-top-style", "border-bottom-color", "border-bottom-width", "border-left-width", "border-right-width", "border-top-left-radius",
-    "box-shadow", "transform", "outline-color", "outline-width", "filter", "clip-path", "object-fit", "object-position", "fill", "stroke", "mix-blend-mode"];
+    "box-shadow", "transform", "backdrop-filter", "outline-color", "outline-width", "filter", "clip-path", "object-fit", "object-position", "fill", "stroke", "mix-blend-mode"];
   const TEXT = ["color", "font-family", "font-size", "font-weight", "font-style", "line-height", "letter-spacing", "text-transform",
     "text-align", "text-decoration-line", "text-decoration-color", "text-shadow", "word-spacing", "-webkit-text-fill-color"];
   const PSEUDO = ["content", "display", "background-color", "background-image", "border-top-color", "border-top-width", "width", "height", "opacity", "color"];
+  // Endless animations (skeleton pulse, spinners) ignore reduced motion: hold them at their start so
+  // two looks at the page compare what the control did, not where a loop happened to be.
+  for (const a of document.getAnimations()) if (a.effect?.getComputedTiming?.().iterations === Infinity) { a.pause(); a.currentTime = 0; }
   const out = [];
   for (const el of document.body.querySelectorAll("*")) {
     if (el.closest("[data-studio-bridge],[data-studio-ui]") || ["SCRIPT", "STYLE", "LINK", "META"].includes(el.tagName)) { out.push(""); continue; }
@@ -211,7 +214,8 @@ const t0 = Date.now();
 for (const [i, f] of todo.entries()) {
   const where = pageFor(f);
   const device = f.key.startsWith("regions.") ? (f.key.includes("Mobile") ? "mobile" : f.key.includes("Tablet") ? "tablet" : "desktop") : deviceFor(f.key);
-  try {
+  // A preview reload mid-check ("Frame was detached") says nothing about the control: reopen and try it once more.
+  for (let attempt = 1; attempt <= 2; attempt++) try {
     await go(where.route, where.overlay, device);
     const design = baselineState.design;
     const cur = get(design, f.key);
@@ -233,8 +237,9 @@ for (const [i, f] of todo.entries()) {
     settle = 350;
     await send(design);
     results.push({ ...f, options: undefined, route: where.route, overlay: where.overlay || null, device, current: cur ?? null, ...best });
+    break;
   } catch (e) {
-    results.push({ ...f, options: undefined, route: where.route, device, status: "error", error: String(e.message || e).split("\n")[0] });
+    if (attempt === 2) results.push({ ...f, options: undefined, route: where.route, device, status: "error", error: String(e.message || e).split("\n")[0] });
     // The preview frame went away (a reload): open Studio again so one hiccup doesn't fail every later control.
     if (!frame()) await openStudio().catch(() => {});
     current = { route: null, overlay: null, device: "desktop" };

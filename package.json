@@ -88,7 +88,7 @@
     "playwright": "1.62.1",
     "tailwindcss": "4.1.12",
     "typescript": "^6.0.3",
-    "vite": "6.3.5",
+    "vite": "6.4.4",
     "vitest": "^4.1.8"
   },
   "peerDependencies": {
@@ -105,9 +105,18 @@
   },
   "pnpm": {
     "overrides": {
-      "vite": "6.3.5",
+      "vite": "6.4.4",
       "@grpc/grpc-js": "^1.14.6",
-      "protobufjs": "^7.6.5"
+      "protobufjs": "^7.6.6",
+      "browserslist": "^4.28.7",
+      "source-map-js": "^1.2.2"
     }
+  },
+  "overrides": {
+    "vite": "6.4.4",
+    "@grpc/grpc-js": "^1.14.6",
+    "protobufjs": "^7.6.6",
+    "browserslist": "^4.28.7",
+    "source-map-js": "^1.2.2"
   }
 }
