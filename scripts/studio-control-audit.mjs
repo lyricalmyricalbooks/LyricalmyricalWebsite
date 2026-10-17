@@ -69,7 +69,11 @@ const ROUTES = {
   heroPage: "/", storefront: "/?catalog=true", productPage: `/books/${product}`, cartPage: "/checkout",
   accountPage: "/account", page: "/page/about", wishlistPage: "/wishlist", trackingPage: "/track", page404: "/nope-404",
 };
+// Site-wide controls whose only drawing on the home page is a loading placeholder (gone once photos load,
+// so the result depended on the network): check them where they are drawn at rest.
+const KEY_ROUTES = { surfaceRaisedColor: ROUTES.cartPage }; // checkout's order summary panel
 const pageFor = (f) => {
+  if (KEY_ROUTES[f.key]) return { route: KEY_ROUTES[f.key] };
   const where = f.where || {};
   if (where.template) return { route: ROUTES[where.template] || "/", overlay: where.overlay };
   const k = f.group;
