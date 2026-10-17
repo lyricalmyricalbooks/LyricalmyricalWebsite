@@ -718,6 +718,10 @@ renders into `<body>` (`createPortal`, inside a `data-fm-store` wrapper). Dots u
 >   `data-studio-panel`); one that opens nothing calls `reportDeadStudioLink` and fails `pnpm run test:studio`, which clicks
 >   every part's Style / Words / inspector buttons on Home and a book page.
 > - The audit report is `docs/STUDIO_CONTROL_AUDIT.md`; re-run the audit for a large Studio change and update it.
+> - **Reviving a dead control starts at Off (owner's choice, 16 October 2026):** when a control never drew, its saved value was
+>   never seen, so wire a new key that defaults to today's look (`sectionGap`, `cardShadowDepth`, `showCollectionBreadcrumbs`)
+>   instead of switching the old saved value on. A Style control that a Fine-tune element setting beats goes in
+>   `studio/fineTuneConflicts.ts` so Studio says so; on All pages a field notes the previewed page's own value (`fieldPageOverride`).
 
 **Photo shapes:** Studio › Style › **Book cards in the shop grid** has **Image shape (proportions)** (12 ratios, 3:4 … 21:9 … 9:16 — `PHOTO_RATIOS` in `features/site/photoShapes.ts`, also used by the Product grid / Product showcase grid / cover carousel sections) and **Image outline** (`photoOutline`: arch, window, pill, circle/oval, leaf, hexagon, octagon, diamond, cut corners, slanted). The product page has its own **Photo shape** / **Photo outline** (`productImageAspect`, `productPhotoOutline`; "Same as shop grid" by default). Outlines are CSS from `photoOutlineCss` (via `StorefrontOverrides`); new photo frames opt in with `fm-photo-frame` (shop cards) or `fm-photo-frame-pdp` (product photos).
 

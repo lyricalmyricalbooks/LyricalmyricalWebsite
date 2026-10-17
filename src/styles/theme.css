@@ -944,19 +944,6 @@
 .admin-reso[data-admin-theme="reso"] [class~="hover:bg-[#6D28D9]"]:hover, .admin-reso[data-admin-theme="reso"] [class~="hover:bg-[#7C3AED]"]:hover { background-color: #ff6b55 !important; }
 .admin-reso[data-admin-theme="reso"] [class~="text-[#7C3AED]"] { color: #b4271a !important; }
 
-/* Shadow and spacing scale utilities */
-[data-fm-store] .shadow-card {
-  box-shadow: var(--card-shadow);
-  transition: box-shadow 0.2s ease;
-}
-[data-fm-store] .shadow-card:hover {
-  box-shadow: var(--card-shadow-hover);
-}
-[data-fm-store] .section-spaced {
-  padding-top: var(--section-padding, 4rem);
-  padding-bottom: var(--section-padding, 4rem);
-}
-
 /* ── Studio editor: keep light-on-dark controls readable ───────────────────────
  * The admin compatibility layer remaps `.text-white` to dark ink (correct for the light Riso
  * admin canvas). Studio's own dark controls (primary buttons, selected tabs/devices, Publish)

@@ -35,3 +35,13 @@ it("names controls by their Studio category", () => {
   expect(overrideLabel("catalogGridGap")).toMatch(/ › /);
   expect(overrideLabel("social")).toMatch(/ › social$/);
 });
+
+it("finds one field's page value, nested keys included", async () => {
+  const { fieldPageOverride } = await import("./StudioPageOverrides");
+  const design = { transparentHeader: false, social: { instagram: "a" }, heroPage: { transparentHeader: true, logoUrl: "https://x/logo.png", social: { instagram: "b" }, sections: [] } };
+  expect(fieldPageOverride(design, "heroPage", "transparentHeader")).toEqual({ value: true });
+  expect(fieldPageOverride(design, "heroPage", "logoUrl")).toEqual({ value: "https://x/logo.png" });
+  expect(fieldPageOverride(design, "heroPage", "social.instagram")).toEqual({ value: "b" });
+  expect(fieldPageOverride(design, "heroPage", "primaryColor")).toBeNull();
+  expect(fieldPageOverride(design, "productPage", "transparentHeader")).toBeNull();
+});

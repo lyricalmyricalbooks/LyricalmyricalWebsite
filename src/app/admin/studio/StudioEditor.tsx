@@ -68,7 +68,8 @@ import { CategoryHeader, PreviewClickHint, SettingsHome, SettingsSubsection, Stu
 
 import { saveSavedThemes, type Workspace } from "../themeStore";
 import { writeDesignValue } from "../../features/site/designModel";
-import { StudioPageOverrides } from "./StudioPageOverrides";
+import { StudioPageOverrides, fieldPageOverride, shown as shownValue } from "./StudioPageOverrides";
+import { fineTuneConflict } from "./fineTuneConflicts";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { StudioRail } from "./StudioRail";
 import { MediaPickerDialog, StudioMediaPanel, useMediaLibrary } from "./StudioMedia";
@@ -836,6 +837,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const effective = region ? regionValue(values, region.id, suffix, regionFieldDevice(f.key))
       : (local ? readStyle(design[template.id], f.key) : undefined) ?? readStyle(design, f.key) ?? readStyle(defaults, f.key);
     const differs = !region && !local && isChanged(f, design, defaults);
+    // All pages shows the shop-wide value; say so when the previewed page draws its own instead.
+    const pageOwn = !region && !local && !showGlobal ? fieldPageOverride(design, template.id, f.key) : null;
+    const tuned = region ? null : fineTuneConflict(design, f.key, "productPage");
     return (
       <div key={f.key} className="studio-field" data-style-key={f.key}>
         <SectionFieldEditor field={f as any} value={effective ?? f.defaultValue}
@@ -851,6 +855,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             : fillsScreen(desktopWidth, Number(effective ?? f.defaultValue)) ? `This width fills the ${desktopWidth}px preview screen. Pick a wider Screen width above the preview to see it.`
             : `Preview screen: ${desktopWidth}px wide. Smaller screens show the column at their own width.`}
         </small>}
+        {pageOwn && <div className="studio-field-status" data-page-own>
+          <small>{template.label} uses its own value: <b>{shownValue(pageOwn.value)}</b>. The preview shows that.</small>
+          <button type="button" className="studio-reset" aria-label={`Use the all-pages value on ${template.label}: ${f.label}`}
+            onClick={() => change(d => writeDesignValue(d, f.key, undefined, { surface: template.id }), { label: `Use the all-pages ${settingLabel(f.key)}` })}>Use the all-pages value</button>
+        </div>}
+        {tuned && <div className="studio-field-status" data-fine-tune-wins>
+          <small>Fine-tune one element › <b>{tuned.label}</b> sets its own value ({shownValue(tuned.value)}), which is drawn instead of this.</small>
+          <button type="button" className="studio-reset" aria-label={`Clear the ${tuned.label} element setting so ${f.label} applies`}
+            onClick={() => change(d => tuned.paths.reduce((next, path) => applyGlobalStyle(next, path, undefined, surfaceIds), d), { label: `Clear ${tuned.label} element setting` })}>Use this control instead</button>
+        </div>}
         {differs && <div className="studio-field-status">
           <small>Changed from default</small>
           <button type="button" className="studio-reset" aria-label={`Reset to default: ${f.label}`}

@@ -18,13 +18,25 @@ export function overrideLabel(key: string) {
   return child ? `${child.title} › ${human(key)}` : human(key);
 }
 
-function shown(value: any) {
+export function shown(value: any) {
   if (value === undefined || value === null || value === "") return "not set";
   if (value === true) return "On";
   if (value === false) return "Off";
   if (typeof value === "object") return Array.isArray(value) ? `${value.length} item${value.length === 1 ? "" : "s"}` : "custom";
   const text = String(value);
   return text.length > 28 ? text.slice(0, 27) + "…" : text;
+}
+
+/**
+ * One field's value on the previewed page when that page sets its own (so the all-pages value
+ * the field shows isn't what the preview draws), else null. Nested keys (`social.x`) are found
+ * inside the page's own map.
+ */
+export function fieldPageOverride(design: any, surface: string, key: string): { value: any } | null {
+  const hit = pageOverrides(design, surface).find(o => o.key === key || key.startsWith(o.key + "."));
+  if (!hit) return null;
+  const value = hit.key === key ? hit.value : key.slice(hit.key.length + 1).split(".").reduce((n: any, k) => (n == null ? undefined : n[k]), hit.value);
+  return value === undefined ? null : { value };
 }
 
 /**
