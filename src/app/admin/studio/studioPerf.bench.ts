@@ -1,7 +1,7 @@
 // Studio editing cost (Phase 4): what one edit costs on the published design snapshot — the same work `change()` and the
 // Save-draft / Publish state do on every keystroke. Run with `pnpm exec vitest bench src/app/admin/studio/studioPerf.bench.ts`.
 // Not part of CI timing gates; numbers are recorded in the PR.
-import { describe, test } from "vitest";
+import { bench, describe } from "vitest";
 import live from "../../features/site/__fixtures__/liveDesign.json";
 import { defaultSettings } from "../defaultSettings";
 import { normalizeDesign, sameDesign, setPath } from "./studioModel";
@@ -18,9 +18,6 @@ const big = normalizeDesign({
   ...(live as any).design,
   ...Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`page:p${i}`, { sections: Array.from({ length: 12 }, (_, j) => section(`p${i}-${j}`)) }])),
 }, defaults);
-// Vitest 5 hands `bench` to each test through its context; one benchmark per test keeps the old shape.
-const bench = (name: string, fn: () => void) => test(name, async ({ bench }) => { await bench(name, fn).run(); });
-
 export const BIG_DESIGN_BYTES = JSON.stringify(big).length;
 
 /** One edit as Studio runs it: normalise the result, skip no-ops, then work out dirty/unpublished. */

@@ -4,6 +4,8 @@ on:
     branches: [main]
 jobs:
   release-note:
+    # Dependabot's dependency bumps can't write a note; a person's follow-up PR adds one if shoppers notice.
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
