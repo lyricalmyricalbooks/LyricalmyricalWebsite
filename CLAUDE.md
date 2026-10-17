@@ -31,8 +31,7 @@ originally generated from a Figma design ("Artsy Website for Publisher").
 - **React Router 7** (`react-router`) — client-side routing in `src/app/App.tsx`.
 - **Tailwind CSS v4** (via `@tailwindcss/vite`) for styling; **shadcn/ui** +
   **Radix UI** primitives in `src/app/components/ui/`.
-- **MUI** and **motion** (Framer Motion successor) are also present for some
-  components/animations.
+- **motion** (Framer Motion successor) for animations (MUI/Emotion were removed in October 2026: nothing imported them).
 - **Firebase 11** client SDK (`src/lib/firebaseApp.ts` app + App Check; `src/lib/firebase.ts` full Firestore + Auth;
   `src/lib/firestoreLite.ts` shopper Firestore Lite — see *Storefront bundle* below, project
   `lyricalmyrical-web-v2`). The inventory app's project (`lyricalmyrical-37c46`) is reached only by
