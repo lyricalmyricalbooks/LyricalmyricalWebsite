@@ -1,4 +1,5 @@
 import { ga4Event, purchaseEvent } from "./ga4";
+import { cleanAcquisition } from "./visitSource";
 import { inEditorPreview, trackingAllowed } from "./trackingGuard";
 import { analyticsKey, cleanSearchTerm, deviceOf } from "./analyticsKeys";
 import { orderDay } from "./shopDay";
@@ -86,6 +87,8 @@ export const orderApi = {
       // The Toronto calendar day the order was placed: Date/PaidAt are UTC moments, so an evening order
       // (and the last evening of a month or tax period) would otherwise land on the next day.
       "ShopDate", "PaidShopDate",
+      // How the shopper found the shop (lib/visitSource.ts); older orders have only Source (referralSource).
+      "Source", "Medium", "Campaign", "ReferringPage", "LandingPage",
     ];
     const money = (v: any) => (v === undefined || v === null || v === "" ? "" : (Number(v) || 0).toFixed(2));
     const kept = orders.filter(o => o.isTest !== true
@@ -128,6 +131,11 @@ export const orderApi = {
         (o.items || []).reduce((acc: number, i: any) => acc + (i.quantity || 0), 0),
         orderDay(o.createdAt),
         o.paidAt ? orderDay(o.paidAt) : "",
+        cleanAcquisition(o.acquisition)?.source || o.referralSource || "",
+        cleanAcquisition(o.acquisition)?.medium || "",
+        cleanAcquisition(o.acquisition)?.campaign || "",
+        cleanAcquisition(o.acquisition)?.referrer || "",
+        cleanAcquisition(o.acquisition)?.landingPage || "",
       ];
     });
     // A cell starting with = + - @ is run as a formula by spreadsheet apps: quote it as text.
