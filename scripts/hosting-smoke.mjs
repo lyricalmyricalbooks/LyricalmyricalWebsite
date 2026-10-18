@@ -8,6 +8,8 @@
 //     "node scripts/hosting-smoke.mjs"
 // Against the live site after a deploy (reads the same dist/ that was deployed):
 //   node scripts/hosting-smoke.mjs --base https://lyricalmyrical-web-v2.web.app
+// Live runs try failing checks again for about 3 minutes (retryChecks.mjs), while the CDN lets go of the previous
+// version; the emulator has no CDN, so there a failure is final at once.
 // --expect-noindex: every page must carry X-Robots-Tag: noindex (a copy kept out of search engines).
 import { readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -16,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { publicRoutes, routeOutputPath } from './prerenderHtml.mjs';
 import { parseAssetManifest, isFingerprint } from './assetManifest.mjs';
 import { FIREBASE_PROJECT } from './canonicalHost.mjs';
+import { retryFailing, LIVE_RETRY_WAITS_MS } from './retryChecks.mjs';
 
 const args = process.argv.slice(2);
 const flag = name => args.includes(name);
@@ -36,18 +39,23 @@ const live = Boolean(option('--base'));
 
 const read = name => readFile(resolve(dist, name), 'utf8');
 const shell = await read('spa.html');
-const failures = [];
-let checked = 0;
+const failures = []; // problems with dist itself: no retry fixes those
+const checks = [];
 
 async function request(path, url = base + path) {
   const response = await fetch(url, { redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(20000) });
   return { status: response.status, headers: response.headers, body: await response.text() };
 }
 
-async function check(path, expect) {
-  checked += 1;
+// Checks are collected first and run together at the end, so the failing ones can be tried again.
+function check(path, expect) {
+  checks.push({ path, expect });
+}
+
+// Resolves to what is wrong with the answer, or '' when it is right.
+async function problemsWith({ path, expect }) {
   let res;
-  try { res = await request(path, expect.url); } catch (error) { failures.push(`${path}: ${error.message}`); return; }
+  try { res = await request(path, expect.url); } catch (error) { return error.message; }
   const problems = [];
   const header = name => res.headers.get(name) || '';
   if (expect.status && res.status !== expect.status) problems.push(`status ${res.status}, expected ${expect.status}`);
@@ -68,16 +76,25 @@ async function check(path, expect) {
     const noindex = header('x-robots-tag').includes('noindex');
     if (noindex !== expect.noindex) problems.push(expect.noindex ? 'missing X-Robots-Tag: noindex' : 'unexpected X-Robots-Tag: noindex');
   }
-  if (problems.length) failures.push(`${path}: ${problems.join('; ')}`);
+  return problems.join('; ');
+}
+
+async function runChecks(items) {
+  const failing = [];
+  for (const item of items) {
+    const message = await problemsWith(item);
+    if (message) failing.push({ item, message });
+  }
+  return failing;
 }
 
 const page = { status: 200, cache: 'no-cache', security: true, noindex: expectNoindex };
 const appShell = { ...page, body: shell, bodyName: 'the app shell (spa.html)' };
 
 // Home and prerendered pages (only when this dist was prerendered).
-await check('/', { ...page, contains: 'id="root"' });
-await check('/', { contains: 'moveToCanonicalHost' });
-await check('/index.html', { status: 301, location: '/' });
+check('/', { ...page, contains: 'id="root"' });
+check('/', { contains: 'moveToCanonicalHost' });
+check('/index.html', { status: 301, location: '/' });
 if (existsSync(resolve(dist, 'prerender-routes.xml'))) {
   const siteUrl = process.env.SITE_URL || (live ? base : '');
   const routes = siteUrl ? publicRoutes(await read('prerender-routes.xml'), siteUrl, () => {}) : [];
@@ -85,37 +102,37 @@ if (existsSync(resolve(dist, 'prerender-routes.xml'))) {
     const route = routes.find(r => r.startsWith(`/${kind}/`) && existsSync(resolve(dist, routeOutputPath(r))));
     if (!route) continue;
     const snapshot = await read(routeOutputPath(route));
-    await check(route, { ...page, body: snapshot, bodyName: `the prerendered ${routeOutputPath(route)}` });
-    await check(route + '/', { status: 301, location: route });
-    await check(route + '.html', { status: 301, location: route });
+    check(route, { ...page, body: snapshot, bodyName: `the prerendered ${routeOutputPath(route)}` });
+    check(route + '/', { status: 301, location: route });
+    check(route + '.html', { status: 301, location: route });
   }
 }
 
 // App routes without a prerendered page get the app shell with 200.
 for (const path of ['/books/zz-hosting-smoke-not-a-book', '/account', '/account/orders', '/admin', '/checkout?cartId=smoke', '/track?orderId=smoke&key=smoke', '/wishlist']) {
-  await check(path, appShell);
+  check(path, appShell);
 }
 // Unknown URLs: a real 404 that still boots the app (editable missing page; Studio previews it too).
 for (const path of ['/no-such-page-hosting-smoke', '/studio-missing-page?preview=true']) {
-  await check(path, { status: 404, body: shell, bodyName: 'the app shell (404.html)', security: true });
+  check(path, { status: 404, body: shell, bodyName: 'the app shell (404.html)', security: true });
 }
-await check('/spa', { status: 200, noindex: true });
+check('/spa', { status: 200, noindex: true });
 
 // Hashed assets: immutable; a missing one is a 404, never HTML with 200.
 const manifest = existsSync(resolve(dist, 'asset-manifest.txt')) ? parseAssetManifest(await read('asset-manifest.txt')) : [];
 const assets = manifest.length ? manifest : (await readdir(resolve(dist, 'assets'))).sort();
 const asset = assets.find(name => name.endsWith('.js')) || assets[0];
-if (asset) await check(`/assets/${asset}`, { status: 200, cache: 'immutable', security: true });
-await check('/assets/hosting-smoke-missing.js', { status: 404 });
+if (asset) check(`/assets/${asset}`, { status: 200, cache: 'immutable', security: true });
+check('/assets/hosting-smoke-missing.js', { status: 404 });
 
 // Files the deploy workflow and search engines read back from the live site.
 if (existsSync(resolve(dist, 'seo-published-fingerprint.txt'))) {
   const fingerprint = (await read('seo-published-fingerprint.txt')).trim();
   if (!isFingerprint(fingerprint)) failures.push('dist/seo-published-fingerprint.txt is not a SHA-256 fingerprint');
-  await check('/seo-published-fingerprint.txt', { status: 200, cache: 'no-cache', match: new RegExp(`^${fingerprint}\\s*$`) });
+  check('/seo-published-fingerprint.txt', { status: 200, cache: 'no-cache', match: new RegExp(`^${fingerprint}\\s*$`) });
 }
 for (const file of ['sitemap.xml', 'robots.txt', 'google-merchant-feed.xml']) {
-  if (existsSync(resolve(dist, file))) await check(`/${file}`, { status: 200, cache: 'no-cache' });
+  if (existsSync(resolve(dist, file))) check(`/${file}`, { status: 200, cache: 'no-cache' });
 }
 
 // The project's other default addresses must hand visitors to the canonical one (both of them once the shop has
@@ -123,7 +140,7 @@ for (const file of ['sitemap.xml', 'robots.txt', 'google-merchant-feed.xml']) {
 const liveHost = live ? new URL(base).hostname : '';
 if (live) {
   for (const host of [`${FIREBASE_PROJECT}.web.app`, `${FIREBASE_PROJECT}.firebaseapp.com`]) {
-    if (host !== liveHost) await check(`${host} /`, { url: `https://${host}/`, status: 200, contains: 'moveToCanonicalHost' });
+    if (host !== liveHost) check(`${host} /`, { url: `https://${host}/`, status: 200, contains: 'moveToCanonicalHost' });
   }
 }
 // The www/bare twin of the shop's own domain should forward too: a Firebase console redirect (3xx to the shop) or
@@ -139,6 +156,14 @@ if (live && !liveHost.endsWith('.web.app') && !liveHost.endsWith('.firebaseapp.c
     console.log(`::warning::https://${twin}/ didn't answer (${error.message}). Connect it in Firebase console › Hosting as a redirect to ${liveHost} so typed or old www links still reach the shop (docs/CUSTOM_DOMAIN.md).`);
   }
 }
+
+const failing = await retryFailing(checks, runChecks, {
+  waits: live ? LIVE_RETRY_WAITS_MS : [],
+  onRetry: (now, wait) => console.log(`${now.length} of ${checks.length} checks not passing yet (${now.map(f => f.item.path).join(', ')}); `
+    + `the CDN may still be serving the previous version. Trying those again in ${wait / 1000} s.`),
+});
+failures.push(...failing.map(({ item, message }) => `${item.path}: ${message}`));
+const checked = checks.length;
 
 if (failures.length) {
   console.error(`Firebase Hosting check failed (${failures.length} of ${checked} checks) at ${base}:`);
