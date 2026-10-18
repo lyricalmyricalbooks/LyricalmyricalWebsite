@@ -56,7 +56,7 @@ async function main() {
   const apply = process.argv.includes("--apply");
   const projectFlag = process.argv.indexOf("--project");
   const require = createRequire(new URL("../functions/package.json", import.meta.url));
-  const admin = require("firebase-admin");
+  const admin = require("./adminSdk.js")(require("firebase-admin"));
   const firebaserc = (() => { try { return JSON.parse(readFileSync(new URL("../.firebaserc", import.meta.url), "utf8")); } catch { return {}; } })();
   const projectId = (projectFlag > -1 && process.argv[projectFlag + 1]) || process.env.GCLOUD_PROJECT || firebaserc?.projects?.default;
   if (!projectId) throw new Error("No project id: pass --project <id>.");
