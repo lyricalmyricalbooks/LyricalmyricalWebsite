@@ -6,7 +6,7 @@
 // The Admin SDK bypasses the inventory app's rules, so this file is the only code that may touch that
 // database, and it touches only the link's own documents (plus a read of the book list, reduced to
 // safe fields by projectInventoryCatalog).
-const admin = require("firebase-admin");
+const admin = require("./adminSdk")(require("firebase-admin"));
 const { getFirestore } = require("firebase-admin/firestore");
 const { projectInventoryCatalog } = require("./inventoryLink");
 
