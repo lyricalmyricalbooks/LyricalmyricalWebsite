@@ -26,7 +26,7 @@ installFakeStudioApi(adminApi as any, fixture);
 setAiTransport(async body => {
   fixture.calls.push({ method: "aiWrite", args: [body] } as any);
   const answer = (fixture as any).aiAnswer?.(body);
-  return answer || { status: 412, data: { error: "Add your free Google AI key first: Settings › General › AI writing assistant.", needsKey: true } };
+  return answer || { status: 412, data: { error: "Add an AI key first: Settings › General › AI writing assistant (a free Google AI key, or an OpenRouter key).", needsKey: true } };
 });
 
 createRoot(document.getElementById("root")!).render(

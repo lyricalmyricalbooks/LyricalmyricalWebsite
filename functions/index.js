@@ -7363,7 +7363,7 @@ async function handleBackups(req, res) {
   }
 }
 
-// Admin AI writing assistant (Books › edit, Studio › Pages): Google Gemini with the key in adminSecrets/ai.
+// Admin AI writing assistant (Books › edit, Studio › Pages): Google Gemini or OpenRouter, keys in adminSecrets/ai.
 async function handleAiWriteRequest(req, res) {
   const adminUser = await requireAdmin(req, res);
   if (!adminUser) return;
@@ -7371,7 +7371,7 @@ async function handleAiWriteRequest(req, res) {
     const { status, body } = await handleAiWrite(req.body || {}, {
       readSettings: async () => {
         const saved = await readAdminSecret("ai");
-        return { apiKey: saved.geminiKey, voice: saved.voice };
+        return { apiKey: saved.geminiKey, openrouterKey: saved.openrouterKey, openrouterModel: saved.openrouterModel, provider: saved.provider, voice: saved.voice };
       },
       allow: () => hitLimit(db, "ai-write", req, LIMITS.aiWrite),
       bucket: admin.app().options.storageBucket || `${process.env.GCLOUD_PROJECT || admin.app().options.projectId}.firebasestorage.app`,

@@ -2178,8 +2178,13 @@ unit box (or the street when Studio hides that box). Credit lines: Text & labels
 
 ## AI writing assistant (13 October 2026)
 
-Settings › General › **AI writing assistant** (`admin/AiWriterCard.tsx`) stores a free Google AI Studio (Gemini) key and an
-optional house style in admin-only `adminSecrets/ai` (`geminiKey`, `voice`); never in public settings. **Write with AI** buttons:
+Settings › General › **AI writing assistant** (`admin/AiWriterCard.tsx`) stores a free Google AI Studio (Gemini) key, an
+OpenRouter key + optional model, which one writes, and an optional house style in admin-only `adminSecrets/ai` (`geminiKey`,
+`openrouterKey`, `openrouterModel`, `provider`, `voice`); never in public settings. `pickProvider` (`functions/aiWriter.js`) uses
+`provider` when that key is saved, else OpenRouter, else Gemini. OpenRouter calls chat completions with the task's schema
+(`toJsonSchema`) and reads the answer through the same `parseResponse`; an owner-named model is never swapped, the default list
+(`OPENROUTER_MODELS`, first = `DEFAULT_OPENROUTER_MODEL` in `admin/aiWriter.ts`) moves on when one is retired. Key and model
+rules are mirrored client-side (`aiWriter.parity.test.ts`). **Write with AI** buttons:
 Books › edit › Search (SEO) (`bookSeo` → metaTitle/metaDescription), Books › edit › Details description toolbar (`bookDescription`,
 plain paragraphs, **Undo AI draft**) and Studio › Pages › Search listing (`pageSeo`; the server is told the shop-title suffix length).
 Books › edit › Images › **Describe with AI** (per photo, or every photo without a real description; task `photoAlt`: the server

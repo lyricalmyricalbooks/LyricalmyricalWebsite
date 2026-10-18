@@ -913,7 +913,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     if (!String(formData.title || "").trim()) { toast.error("Give the book a title first."); return; }
     if (current.trim() && !(await askConfirm({
       title: "Improve the description with AI?",
-      message: "Gemini rewrites the description from what is written now and the book's details. You can undo it, and nothing is saved until you save the book. Check every fact before saving.",
+      message: "The AI rewrites the description from what is written now and the book's details. You can undo it, and nothing is saved until you save the book. Check every fact before saving.",
       confirmLabel: "Improve it",
     }))) return;
     setDescAiBusy(true);
@@ -941,7 +941,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     const index = formData.photos.findIndex((p: any) => p.id === id);
     if (index < 0) return;
     const current = describedAlt(formData.photos[index].altText);
-    if (current && !(await askConfirm({ title: "Replace this description?", message: `Gemini writes a new description for this photo in place of “${current}”. Nothing is saved until you save the book.`, confirmLabel: "Replace it" }))) return;
+    if (current && !(await askConfirm({ title: "Replace this description?", message: `The AI writes a new description for this photo in place of “${current}”. Nothing is saved until you save the book.`, confirmLabel: "Replace it" }))) return;
     setDescribingId(id);
     try {
       await describePhoto(formData.photos[index], index);
@@ -1200,7 +1200,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Add link" onMouseDown={(e) => e.preventDefault()} onClick={openDescLink}><Link2 size={14} aria-hidden /> Add link</button>
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-pressed={descPreview} onClick={() => setDescPreview((v) => !v)}><Eye size={14} aria-hidden /> {descPreview ? "Hide preview" : "Preview"}</button>
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" disabled={descAiBusy} onClick={() => void writeDescriptionWithAi()}
-                        title="Draft this description with Google Gemini (Settings › General › AI writing assistant)">
+                        title="Draft this description with AI (Settings › General › AI writing assistant)">
                         {descAiBusy ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Sparkles size={14} aria-hidden />} {descAiBusy ? "Writing…" : (formData.description || "").trim() ? "Improve with AI" : "Write with AI"}
                       </button>
                       {descBeforeAi !== null && (

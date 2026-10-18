@@ -3,9 +3,9 @@ import { functionFetch } from "../lib/functionsBase";
 import { bookCreators, searchText } from "../lib/bookSeo";
 import type { Book } from "../features/site/types";
 
-// AI writing assistant (Google Gemini, free AI Studio key). The key lives in admin-only adminSecrets/ai and
-// is used only by the createStripeCheckoutSession `aiWrite` action (functions/aiWriter.js). Every answer is
-// a suggestion placed in the editor; nothing is saved until the owner saves the book or page.
+// AI writing assistant: Google Gemini (free AI Studio key) or OpenRouter. The keys live in admin-only
+// adminSecrets/ai and are used only by the createStripeCheckoutSession `aiWrite` action (functions/aiWriter.js).
+// Every answer is a suggestion placed in the editor; nothing is saved until the owner saves the book or page.
 
 export type AiTask = "bookSeo" | "bookDescription" | "photoAlt" | "pageSeo" | "rewrite" | "sectionDraft";
 /** Studio's section drafts carry lists (`items`) as well as words. */
@@ -15,7 +15,26 @@ export type AiResult = Record<string, any>;
 export function aiKeyProblem(value: string): string {
   const v = value.trim();
   if (!v) return "";
+  if (/^sk-or-/.test(v)) return "That's an OpenRouter key. Paste it in the OpenRouter box instead.";
   return /^[A-Za-z0-9_.-]{30,200}$/.test(v) ? "" : "That doesn't look like a Google AI key (it usually starts with AIza and is 39 characters).";
+}
+
+export type AiProvider = "gemini" | "openrouter";
+/** What OpenRouter uses when the owner names no model (functions/aiWriter.js OPENROUTER_MODELS[0]). */
+export const DEFAULT_OPENROUTER_MODEL = "google/gemini-2.5-flash";
+
+/** Same rule as functions/aiWriter.js openRouterKeyProblem ("" = fine or empty). */
+export function openRouterKeyProblem(value: string): string {
+  const v = value.trim();
+  if (!v) return "";
+  return /^sk-or-[A-Za-z0-9_-]{20,200}$/.test(v) ? "" : "That doesn't look like an OpenRouter key (it starts with sk-or- and comes from openrouter.ai/keys).";
+}
+
+/** Same rule as functions/aiWriter.js openRouterModelProblem ("" = fine or empty, which means the default model). */
+export function openRouterModelProblem(value: string): string {
+  const v = value.trim();
+  if (!v) return "";
+  return v.length <= 120 && /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(v) ? "" : "Model names look like google/gemini-2.5-flash. Copy one from openrouter.ai/models.";
 }
 
 /** An error the editor can show; `needsKey` = point the owner at Settings › General › AI writing assistant. */
@@ -85,21 +104,22 @@ export async function askAi(task: AiTask, input: Record<string, unknown>, extra:
   return data.result as AiResult;
 }
 
-/** Settings card's Check key: one tiny request with the saved key. */
-export async function checkAiKey(): Promise<{ ok: boolean; message: string }> {
+/** Settings card's Check key: one tiny request with the saved key for that service. */
+export async function checkAiKey(provider: AiProvider = "gemini"): Promise<{ ok: boolean; message: string }> {
   const idToken = await auth.currentUser?.getIdToken();
   if (!idToken) return { ok: false, message: "Sign in again as the shop administrator." };
   try {
     const res = await functionFetch("createStripeCheckoutSession", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-      body: JSON.stringify({ action: "aiWrite", op: "check" }),
+      body: JSON.stringify({ action: "aiWrite", op: "check", provider }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, message: data.error || `The shop's server answered ${res.status}. Check that Cloud Functions are deployed.` };
+    const who = provider === "openrouter" ? `OpenRouter${data.model ? ` (${data.model})` : ""}` : "Gemini";
     return data.ok
-      ? { ok: true, message: "Gemini answered with this key. The Write with AI buttons are ready in Books and Studio › Pages." }
-      : { ok: false, message: data.error || "Google refused the key." };
+      ? { ok: true, message: `${who} answered with this key. The Write with AI buttons are ready in Books and Studio.` }
+      : { ok: false, message: data.error || (provider === "openrouter" ? "OpenRouter refused the key." : "Google refused the key.") };
   } catch (err: any) {
     return { ok: false, message: err?.message || "Could not check the key." };
   }

@@ -61,7 +61,7 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
   const writeWithAi = async () => {
     if (!(book.title || '').trim()) { toast.error('Give the book a title first.'); return; }
     const written = (book.metaTitle || '').trim() || (book.metaDescription || '').trim();
-    if (written && !(await askConfirm({ title: 'Rewrite the search listing with AI?', message: 'Gemini writes a new search title and description from the book’s details. Nothing is saved until you save the book.', confirmLabel: 'Rewrite' }))) return;
+    if (written && !(await askConfirm({ title: 'Rewrite the search listing with AI?', message: 'The AI writes a new search title and description from the book’s details. Nothing is saved until you save the book.', confirmLabel: 'Rewrite' }))) return;
     setAiBusy(true);
     try {
       const out = await askAi('bookSeo', bookAiInput(book), { siteName: getCopy(design, 'siteName') });
@@ -80,7 +80,7 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
       <div><button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={autoFill}
         title="Write the search title and description from this book's title, author and description">Auto-fill from book</button>
         {' '}<button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => void writeWithAi()} disabled={aiBusy}
-          title="Draft the search title and description with Google Gemini (Settings › General › AI writing assistant)">{aiBusy ? 'Writing…' : '✦ Write with AI'}</button></div>
+          title="Draft the search title and description with AI (Settings › General › AI writing assistant)">{aiBusy ? 'Writing…' : '✦ Write with AI'}</button></div>
       <label className="rp-hint"><input type="checkbox" checked={book.seoNoindex === true} onChange={event => onChange('seoNoindex', event.target.checked)} /> Exclude this listing from search engines</label>
       <p className="rp-hint">Useful for test and duplicate listings. The book stays available in the shop; Google receives noindex and the sitemap omits it.</p>
       <div className="be-grid">
