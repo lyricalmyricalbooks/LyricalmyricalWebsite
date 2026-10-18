@@ -365,3 +365,79 @@ ul.fw-problems {
   margin-top: 6px;
   font-weight: 600;
 }
+
+/* Ship station: the three steps as a strip, and step 3's parcel, rates and Buy label inline. */
+.fw-strip {
+  list-style: none;
+  margin: 0;
+  padding: 16px 24px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  border-bottom: 1px solid var(--rp-divider);
+}
+@media (max-width: 640px) {
+  .fw-strip { grid-template-columns: minmax(0, 1fr); }
+}
+.fw-strip-step {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--rp-border);
+  background: var(--rp-surface);
+  min-width: 0;
+}
+.fw-strip-step > span:last-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fw-strip-step strong { font-size: var(--rp-text-sm); }
+.fw-strip-step .rp-hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fw-strip-step[data-state="now"] { border: 2px solid var(--rp-border-strong); box-shadow: var(--rp-shadow-sm); }
+.fw-strip-step[data-state="done"] { background: var(--rp-surface-sunken); }
+.fw-strip-mark {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--rp-radius-pill);
+  border: 1px solid var(--rp-text-subtle);
+  color: var(--rp-text-subtle);
+  font-size: var(--rp-text-xs);
+}
+.fw-strip-step[data-state="done"] .fw-strip-mark { background: var(--rp-success); border-color: var(--rp-success); color: var(--rp-surface); }
+.fw-strip-step[data-state="now"] .fw-strip-mark { background: var(--rp-primary); border: 2px solid var(--rp-border-strong); color: var(--rp-on-primary); }
+
+.ss-label { display: flex; flex-direction: column; gap: 16px; margin-top: 14px; }
+.ss-label-row { display: flex; flex-direction: column; gap: 10px; }
+.ss-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ss-chip {
+  min-height: var(--rp-target-compact, 36px);
+  padding: 7px 12px;
+  border: 1px solid var(--rp-border);
+  background: var(--rp-surface);
+  color: var(--rp-text);
+  font: 700 var(--rp-text-sm) var(--rp-font-body);
+  cursor: pointer;
+}
+.ss-chip.is-on { border: 2px solid var(--rp-border-strong); background: var(--rp-inverse); color: var(--rp-on-inverse); }
+.ss-chip:focus-visible, .ss-rate:focus-within { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.ss-dims { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 640px) {
+  .ss-dims { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.ss-preset summary { cursor: pointer; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.ss-preset-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-top: 10px; }
+.ss-rates { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ss-rates legend { padding: 0; margin-bottom: 4px; }
+.ss-rate {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--rp-border);
+  background: var(--rp-surface);
+  cursor: pointer;
+}
+.ss-rate.is-on { border: 2px solid var(--rp-border-strong); background: var(--rp-primary-tint); }
