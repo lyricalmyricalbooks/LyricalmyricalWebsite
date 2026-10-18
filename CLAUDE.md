@@ -1433,7 +1433,7 @@ and one shop email (`[NEW ORDER] <id> · paid …`, `new_order_admin`, on paid, 
 (`pending`) orders. Card payments send no Stripe receipt (`receipt_email` removed); Stripe's own "successful payments"
 customer email must also be off in the Stripe dashboard. `functions/orderEmails.test.js` pins this.
 
-**Orders desk = Ship station (18 October 2026, design A):** Admin › Orders opens on the **Ship station** (`admin/OrdersDesk.tsx`,
+**Orders desk = Ship station (18 October 2026, design A):** Admin › Orders always opens on **All orders** › Open, newest first, as covers (owner's choice; the layout/tab are no longer remembered), and a `#orders/<id>` link opens the **Ship station** (`admin/OrdersDesk.tsx`,
 pure rules in `shipStation.ts` + `ordersDesk.ts`, tested): a header (To ship · Labels today on the Toronto day from
 `operations.labelBoughtAt` · Oldest, **Print pick list** for orders still to pack, **All orders · completed**), the numbered queue
 (`stationQueue` = the old Needs me: problems, packing, then labels, oldest first in each; `stationStep` pill) with **Not in this
