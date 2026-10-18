@@ -7,6 +7,8 @@
 const { cleanRange, fetchJson } = require("./googleAnalytics");
 
 const API = "https://searchconsole.googleapis.com/webmasters/v3/";
+const INSPECT_API = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect";
+const MAX_INSPECT = 30;
 const SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
 const SHOP_HOST = "lyricalmyricalbooks.com";
 
@@ -59,13 +61,51 @@ function shapeTotals(body) {
   return { clicks: num(r?.clicks), impressions: num(r?.impressions), ctr: num(r?.ctr) * 100, position: num(r?.position) };
 }
 
+/** Does this page belong to the property? ("sc-domain:shop.com" covers shop.com and its sub-domains.) */
+function inSite(url, site) {
+  let u;
+  try { u = new URL(url); } catch { return false; }
+  if (!/^https?:$/.test(u.protocol)) return false;
+  if (site.startsWith("sc-domain:")) {
+    const host = site.slice(10);
+    return u.hostname === host || u.hostname.endsWith(`.${host}`);
+  }
+  return u.href.startsWith(site);
+}
+
+/** URL Inspection API answer → what the Books › Google indexing list shows. Google's own words are kept. */
+function shapeInspection(url, body) {
+  const r = body?.inspectionResult || {};
+  const idx = r.indexStatusResult || {};
+  return {
+    url,
+    verdict: ["PASS", "PARTIAL", "FAIL", "NEUTRAL"].includes(idx.verdict) ? idx.verdict : "UNKNOWN",
+    coverageState: String(idx.coverageState || ""),
+    lastCrawlTime: String(idx.lastCrawlTime || ""),
+    googleCanonical: String(idx.googleCanonical || ""),
+    robotsTxtState: String(idx.robotsTxtState || ""),
+    indexingState: String(idx.indexingState || ""),
+    link: /^https:\/\/search\.google\.com\//.test(String(r.inspectionResultLink || "")) ? String(r.inspectionResultLink) : "",
+  };
+}
+
+/** Runs `work` over `items`, `limit` at a time, keeping their order. */
+async function eachLimited(items, limit, work) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) { const i = next++; out[i] = await work(items[i], i); }
+  }));
+  return out;
+}
+
 /**
  * The admin action. deps: `readSettings()` → { searchConsoleSite }, `allow()` → rate limit, `credentials()` →
  * { accessToken, email }, `fetchImpl`, `projectId`. op "status" lists the properties the shop can read and the one in
  * use; op "report" returns totals for both windows plus the top searches and pages for the current one.
  */
 async function handleSearchConsole(body, deps) {
-  const op = body?.op === "status" ? "status" : "report";
+  const op = body?.op === "status" ? "status" : body?.op === "inspect" ? "inspect" : "report";
   if (!(await deps.allow())) return { status: 429, body: { error: "Too many Search Console requests. Wait a few minutes." } };
   const saved = await deps.readSettings();
   let creds = { accessToken: "", email: "" };
@@ -87,6 +127,27 @@ async function handleSearchConsole(body, deps) {
   }
   if (!site) return { status: 200, body: { ...base, connected: false, sites, code: "pick_site", error: "Pick which Search Console property is the shop." } };
   if (op === "status") return { status: 200, body: { ...base, connected: true, sites, site } };
+  if (op === "inspect") {
+    // Books › Google indexing: is each book page in Google's index? (URL Inspection API, 2,000 checks a day per property.)
+    const urls = [...new Set((Array.isArray(body?.urls) ? body.urls : []).filter(u => typeof u === "string" && u.length <= 500))];
+    if (!urls.length || urls.length > MAX_INSPECT) return { status: 400, body: { error: `Send between 1 and ${MAX_INSPECT} page addresses.` } };
+    const outside = urls.filter(u => !inSite(u, site));
+    if (outside.length) return { status: 200, body: { ...base, connected: true, sites, site, code: "outside_site", error: `These pages aren't in the Search Console property ${site}: open the admin on the shop's own address and try again.`, results: [] } };
+    let refused = null;
+    const results = await eachLimited(urls, 4, async url => {
+      if (refused) return { url, verdict: "UNKNOWN", error: true };
+      const res = await fetchJson(deps.fetchImpl, INSPECT_API, { method: "POST", headers, body: JSON.stringify({ inspectionUrl: url, siteUrl: site, languageCode: "en-US" }) })
+        .catch(() => ({ ok: false, status: 0, body: null }));
+      if (!res.ok) { refused = refused || res; return { url, verdict: "UNKNOWN", error: true }; }
+      return shapeInspection(url, res.body);
+    });
+    if (refused && results.every(r => r.error)) {
+      const out = fail(refused);
+      if (out.body.code === "no_access") out.body.error += " If it is already there, change its permission to Full: some checks need it.";
+      return out;
+    }
+    return { status: 200, body: { ...base, connected: true, sites, site, results, sitemapsUrl: `https://search.google.com/search-console/sitemaps?resource_id=${encodeURIComponent(site)}` } };
+  }
 
   const range = cleanRange(body?.range);
   if (!range) return { status: 400, body: { error: "Pick a valid date range." } };
@@ -110,4 +171,4 @@ async function handleSearchConsole(body, deps) {
   };
 }
 
-module.exports = { SCOPE, cleanSite, pickSite, scErrorMessage, shapeRows, handleSearchConsole };
+module.exports = { SCOPE, cleanSite, pickSite, scErrorMessage, shapeRows, handleSearchConsole, inSite, shapeInspection };

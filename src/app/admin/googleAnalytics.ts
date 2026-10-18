@@ -38,6 +38,8 @@ export interface SearchConsoleAnswer {
   connected: boolean; code?: string; error?: string; serviceAccount?: string; enableApiUrl?: string;
   sites?: Array<{ siteUrl: string; permissionLevel: string }>; site?: string;
   report?: { totals: { current: SearchTotals; previous: SearchTotals }; queries: SearchRow[]; pages: SearchRow[] };
+  /** op "inspect": one answer per page asked about (Books › Google indexing). */
+  results?: import("./googleIndex").Inspection[]; sitemapsUrl?: string;
 }
 
 async function call(payload: Record<string, unknown>): Promise<any> {
@@ -76,6 +78,8 @@ export const googleAnalyticsApi = {
   report: (range: Ga4Range): Promise<Ga4Answer> => call({ action: "ga4Report", op: "report", range }),
   searchConsoleStatus: (): Promise<SearchConsoleAnswer> => call({ action: "searchConsole", op: "status" }),
   searchConsoleReport: (range: Ga4Range): Promise<SearchConsoleAnswer> => call({ action: "searchConsole", op: "report", range }),
+  /** Books › Google indexing: is each page in Google's index? (up to 30 addresses on the shop's own domain) */
+  searchConsoleInspect: (urls: string[]): Promise<SearchConsoleAnswer> => call({ action: "searchConsole", op: "inspect", urls }),
   /** The Search Console property to read ("sc-domain:…" or "https://…/"), in admin-only adminSecrets/googleAnalytics. */
   saveSearchConsoleSite: (site: string) =>
     setDoc(doc(db, "adminSecrets", "googleAnalytics"), { searchConsoleSite: String(site || "").trim(), updatedAt: serverTimestamp() }, { merge: true }),

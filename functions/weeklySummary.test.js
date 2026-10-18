@@ -118,4 +118,33 @@ describe("Search Console", () => {
     expect((await handleSearchConsole({ op: "report", range: { startDate: "x" } }, deps(fetchImpl))).status).toBe(400);
     expect((await handleSearchConsole({ op: "report", range: RANGE }, { ...deps(fetchImpl), allow: async () => false })).status).toBe(429);
   });
+
+  it("checks whether book pages are in Google's index", async () => {
+    const asked = [];
+    const fetchImpl = async (url, init) => {
+      if (url.endsWith("/sites")) return reply(200, { siteEntry: [{ siteUrl: "sc-domain:lyricalmyricalbooks.com", permissionLevel: "siteRestrictedUser" }] });
+      const body = JSON.parse(init.body);
+      asked.push(body);
+      if (body.inspectionUrl.endsWith("/hound")) return reply(200, { inspectionResult: { inspectionResultLink: "https://search.google.com/search-console/inspect?x=1", indexStatusResult: { verdict: "PASS", coverageState: "Submitted and indexed", lastCrawlTime: "2026-10-17T10:00:00Z" } } });
+      return reply(200, { inspectionResult: { inspectionResultLink: "javascript:alert(1)", indexStatusResult: { verdict: "NEUTRAL", coverageState: "Discovered - currently not indexed" } } });
+    };
+    const urls = ["https://lyricalmyricalbooks.com/books/hound", "https://www.lyricalmyricalbooks.com/books/tempo"];
+    const { body } = await handleSearchConsole({ op: "inspect", urls }, deps(fetchImpl));
+    expect(asked.map(a => a.siteUrl)).toEqual(["sc-domain:lyricalmyricalbooks.com", "sc-domain:lyricalmyricalbooks.com"]);
+    expect(body.results[0]).toMatchObject({ verdict: "PASS", coverageState: "Submitted and indexed", link: "https://search.google.com/search-console/inspect?x=1" });
+    expect(body.results[1]).toMatchObject({ verdict: "NEUTRAL", link: "" });
+    expect(body.sitemapsUrl).toContain(encodeURIComponent("sc-domain:lyricalmyricalbooks.com"));
+    const outside = await handleSearchConsole({ op: "inspect", urls: ["https://evil.example/books/x"] }, deps(fetchImpl));
+    expect(outside.body.code).toBe("outside_site");
+    expect((await handleSearchConsole({ op: "inspect", urls: [] }, deps(fetchImpl))).status).toBe(400);
+  });
+
+  it("says what to do when Google refuses every inspection", async () => {
+    const fetchImpl = async url => (url.endsWith("/sites")
+      ? reply(200, { siteEntry: [{ siteUrl: "sc-domain:lyricalmyricalbooks.com", permissionLevel: "siteRestrictedUser" }] })
+      : reply(403, { error: { message: "User does not have sufficient permission for site" } }));
+    const { body } = await handleSearchConsole({ op: "inspect", urls: ["https://lyricalmyricalbooks.com/books/a"] }, deps(fetchImpl));
+    expect(body.connected).toBe(false);
+    expect(body.code).toBe("no_access");
+  });
 });

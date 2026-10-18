@@ -8,6 +8,7 @@ import { type InventoryLinks } from "./inventoryLink";
 import { compareShopOrder, moveId, shopOrderWrites } from "../features/site/shopOrder";
 import { BookImportDialog } from "./BookImportDialog";
 import { MerchantFeedDialog } from "./MerchantFeedDialog";
+import { GoogleIndexDialog } from "./GoogleIndexDialog";
 import { catalogToCsv, inventoryCsv, planPriceChange, type PriceMode } from "./bulkPricing";
 import { adminApi } from "./api";
 import { inventoryApi } from "./inventoryApi";
@@ -65,6 +66,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [includeEditions, setIncludeEditions] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [feedOpen, setFeedOpen] = useState(false);
+  const [indexOpen, setIndexOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportScope, setExportScope] = useState<"all" | "filtered" | "selected">("filtered");
   const [exportKind, setExportKind] = useState<"full" | "inventory">("full");
@@ -464,6 +466,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
           { label: "Import CSV…", onSelect: () => setImportOpen(true) },
           { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
           { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
+          { label: "Google indexing", onSelect: () => setIndexOpen(true) },
         ]} />
       </FilterBar>
 
@@ -500,6 +503,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
       {importOpen && <BookImportDialog books={books} onClose={() => setImportOpen(false)} onDone={importDone} />}
       <EditionStockDialog book={stockEditId ? byId.get(stockEditId) || null : null} onClose={() => setStockEditId(null)} onSaved={loadBooks} />
       <MerchantFeedDialog open={feedOpen} onClose={() => setFeedOpen(false)} books={books} />
+      <GoogleIndexDialog open={indexOpen} onClose={() => setIndexOpen(false)} books={books} />
       <Dialog open={exportOpen} onClose={() => setExportOpen(false)} title="Export books"
         footer={<><SecondaryButton onClick={() => setExportOpen(false)}>Cancel</SecondaryButton><PrimaryButton onClick={exportCsv}>Download CSV</PrimaryButton></>}>
         <div className="rp-stack">
