@@ -29,7 +29,7 @@ export function releaseArrived(scheduleDate, now = new Date()) {
   return Number.isFinite(at) ? at <= now.getTime() : value <= now.toISOString();
 }
 
-const isLive = (book, now) => (!book.status || book.status === 'published') && releaseArrived(book.scheduleDate, now);
+export const isLive = (book, now) => (!book.status || book.status === 'published') && releaseArrived(book.scheduleDate, now);
 
 export function saleActive(book, now) {
   if (!book?.isOnSale || !(Number(book.salePrice) > 0)) return false;
@@ -84,12 +84,12 @@ export function isbn13(value) {
   return (10 - (sum % 10)) % 10 === Number(d[12]) ? d : '';
 }
 
-const plain = value => String(value ?? '')
+export const plain = value => String(value ?? '')
   .replace(/<(br|\/p|\/div|\/li|\/h\d)\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ' ')
   .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
   .replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim();
 
-const cut = (text, max) => (text.length <= max ? text : text.slice(0, max - 1).replace(/\s+\S*$/, '') + '…');
+export const cut = (text, max) => (text.length <= max ? text : text.slice(0, max - 1).replace(/\s+\S*$/, '') + '…');
 
 const httpsUrl = (value, base) => {
   if (typeof value !== 'string' || !value.trim() || value.startsWith('data:')) return '';

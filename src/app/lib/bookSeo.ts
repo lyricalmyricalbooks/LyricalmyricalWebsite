@@ -238,10 +238,19 @@ export function seoTopicList(raw: unknown): string[] {
   return String(raw ?? '').split(/[,\n]/).map(t => searchText(t)).filter(t => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase())).slice(0, 20);
 }
 
-export function siteStructuredData(options: { name: string; url: string; description?: string; logo?: string; sameAs?: unknown[]; topics?: string[] }) {
+/** Text & labels › Site & sharing › Other places the shop is listed: one https link per line (or comma-separated). */
+export function profileLinks(raw: unknown): string[] {
+  return [...new Set(String(raw ?? '').split(/[\s,]+/).map(v => v.trim()).filter(v => /^https:\/\/[^/\s]+\.[^/\s]+/i.test(v)))].slice(0, 20);
+}
+
+export function siteStructuredData(options: { name: string; url: string; description?: string; logo?: string; sameAs?: unknown[]; topics?: string[]; email?: string; area?: { city?: string; region?: string; country?: string } }) {
   const url = canonicalUrl(options.url);
-  const sameAs = (options.sameAs || []).filter((v): v is string => typeof v === 'string' && /^https:\/\//i.test(v.trim())).map(v => v.trim());
+  const sameAs = [...new Set((options.sameAs || []).filter((v): v is string => typeof v === 'string' && /^https:\/\//i.test(v.trim())).map(v => v.trim()))];
   const logo = options.logo ? absolute(options.logo, url) : '';
+  const email = searchText(options.email);
+  // Town, province and country only: the shop's street address is not published to search engines.
+  const area = { addressLocality: searchText(options.area?.city), addressRegion: searchText(options.area?.region), addressCountry: searchText(options.area?.country) };
+  const hasArea = Object.values(area).some(Boolean);
   return [
     {
       '@context': 'https://schema.org',
@@ -253,6 +262,8 @@ export function siteStructuredData(options: { name: string; url: string; descrip
       ...(logo ? { logo, image: logo } : {}),
       ...(sameAs.length ? { sameAs } : {}),
       ...(options.topics?.length ? { knowsAbout: options.topics } : {}),
+      ...(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ? { email } : {}),
+      ...(hasArea ? { address: { '@type': 'PostalAddress', ...Object.fromEntries(Object.entries(area).filter(([, v]) => v)) } } : {}),
     },
     {
       '@context': 'https://schema.org',
@@ -274,7 +285,21 @@ function creatorProps(book: Book & Record<string, any>) {
   };
 }
 
-export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; ratingSummary?: { count: number; average: number } | null; seller?: string }) {
+/** The shop as a schema.org reference: the same @id as the home page's BookStore, so Google joins book and shop. */
+function shopRef(name: string, shopUrl?: string) {
+  const url = shopUrl ? canonicalUrl(shopUrl) : '';
+  return { '@type': 'Organization', ...(url ? { '@id': url + '#organization', url } : {}), name };
+}
+
+/** "Lyricalmyrical Books", "lyricalmyrical", "Lyricalmyrical Books (Toronto)" all name the shop; a co-publisher does not. */
+function namesShop(publisher: string, shop: string) {
+  const key = (v: string) => v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const p = key(publisher), s = key(shop);
+  const core = s.replace(/\s(books|press|editions|publishing)$/, '');
+  return !!p && !!core && (p === s || p === core || p.startsWith(s + ' ') || p.startsWith(core + ' '));
+}
+
+export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; ratingSummary?: { count: number; average: number } | null; seller?: string; shopUrl?: string }) {
   const variants = book.variants || [];
   const backorder = book.onBackorder || (variants.length > 0 && variants.every((v: any) => v.onBackorder));
   // Coming soon (Books › Inventory): shown but not for sale yet, so it is honestly out of stock.
@@ -296,7 +321,7 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
     ...(book.sku ? { sku: book.sku } : {}),
     ...(book.language ? { inLanguage: book.language } : {}),
     ...creatorProps(book),
-    ...(book.publisher ? { publisher: { '@type': 'Organization', name: book.publisher } } : {}),
+    ...(book.publisher ? { publisher: options.seller && namesShop(searchText(book.publisher), options.seller) ? shopRef(searchText(book.publisher), options.shopUrl) : { '@type': 'Organization', name: book.publisher } } : {}),
     offers: {
       '@type': 'Offer', url: options.url,
       priceCurrency: options.currency,
@@ -304,7 +329,7 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
       availability: `https://schema.org/${preorder ? 'PreOrder' : soon ? 'OutOfStock' : backorder ? 'BackOrder' : available ? 'InStock' : 'OutOfStock'}`,
       ...(release ? { availabilityStarts: release } : {}),
       itemCondition: 'https://schema.org/NewCondition',
-      ...(options.seller ? { seller: { '@type': 'Organization', name: options.seller } } : {}),
+      ...(options.seller ? { seller: shopRef(options.seller, options.shopUrl) } : {}),
     },
     ...ratingData(options.reviews, options.ratingSummary),
   };

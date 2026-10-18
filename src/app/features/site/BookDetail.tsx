@@ -371,6 +371,7 @@ export default function BookDetail() {
         reviews: reviewsReady ? seoReviews!.list : [],
         ratingSummary: reviewsReady ? seoReviews!.summary : null,
         seller: getCopy(settings?.design, "siteName"),
+        shopUrl: siteBase,
       }),
       breadcrumbData([
         { name: getCopy(settings?.design, "pdpCrumbShop"), url: siteBase },

@@ -38,7 +38,7 @@ import { useWishlist, liveWishlistCount } from "../lib/wishlist";
 import { isLiveBook } from "../features/site/liveBook";
 import { displayPrice as cardDisplayPrice, showsSale, salePercentOff } from "../features/site/displayPrice";
 import { useSEO } from "../lib/seo";
-import { breadcrumbData, collectionStructuredData, seoTopicList, siteStructuredData } from "../lib/bookSeo";
+import { breadcrumbData, collectionStructuredData, profileLinks, seoTopicList, siteStructuredData } from "../lib/bookSeo";
 import { CatalogControls, applyCatalogControls, appliedFilters, filterView, EMPTY_FILTERS, type CatalogFilterState, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { StoreHeader } from "../features/site/StoreHeader";
@@ -576,8 +576,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         url: siteBase,
         description: settings?.info?.description || getCopy(settings?.design, "siteDefaultDescription"),
         logo: storefrontLogoDesign?.logoUrl || settings?.design?.shareImageUrl,
-        sameAs: Object.values(settings?.design?.social ?? DEFAULT_SOCIAL),
+        sameAs: [...Object.values(settings?.design?.social ?? DEFAULT_SOCIAL), ...profileLinks(getCopy(settings?.design, "seoProfiles"))],
         topics: seoTopicList(getCopy(settings?.design, "seoTopics")),
+        email: settings?.info?.email,
+        area: { city: settings?.location?.city, region: settings?.location?.state, country: settings?.location?.country },
       });
     })(),
   });

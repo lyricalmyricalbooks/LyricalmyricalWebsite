@@ -13,5 +13,8 @@ export function stockOf(book: any, variantId?: string | null): number;
 export function bundleStock(book: any, getBook: (id: string) => any): number;
 export function isbn13(value: unknown): string;
 export function creatorNames(book: any): string[];
+export function isLive(book: any, now?: Date): boolean;
+export function plain(value: unknown): string;
+export function cut(text: string, max: number): string;
 export function merchantFeedItems(siteUrl: string, books: any[], options?: { shopName?: string; now?: Date }): { items: MerchantFeedItem[]; skipped: MerchantFeedSkip[] };
 export function merchantFeedXml(siteUrl: string, items: MerchantFeedItem[], options?: { shopName?: string }): string;

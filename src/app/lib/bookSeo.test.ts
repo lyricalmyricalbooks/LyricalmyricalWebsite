@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoBookSeo, bookCreators, creatorLinks, creatorPeople, namesCreator, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, seoTopicList, siteStructuredData, snippet } from './bookSeo';
+import { autoBookSeo, bookCreators, creatorLinks, creatorPeople, namesCreator, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, seoTopicList, siteStructuredData, snippet, profileLinks } from './bookSeo';
 const book = { id: 'one', title: 'Photo book', description: '<p>Art &amp; photography.</p>', retailPrice: 24, stockLevel: 0, status: 'published', slug: 'photo-book', metaTitle: 'An artist’s photo book', metaDescription: 'A unique collection of photographs.', seoImage: 'https://example.com/share.jpg' };
 describe('book search metadata', () => {
   it('uses saved search fields and sharing image', () => {
@@ -75,6 +75,26 @@ describe('book search metadata', () => {
     expect(org).toMatchObject({ '@type': 'BookStore', '@id': 'https://example.com/shop/#organization', logo: 'https://example.com/shop/logo.png', sameAs: ['https://instagram.com/x'] });
     expect(site).toMatchObject({ '@type': 'WebSite', publisher: { '@id': 'https://example.com/shop/#organization' } });
     expect(org.knowsAbout).toBeUndefined();
+  });
+  it('adds other profiles, the contact email and the town (never the street) to the shop', () => {
+    expect(profileLinks('https://www.goodreads.com/x\nhttp://old.example.com, https://bsky.app/profile/y https://www.goodreads.com/x\nnot a link')).toEqual(['https://www.goodreads.com/x', 'https://bsky.app/profile/y']);
+    expect(profileLinks(undefined)).toEqual([]);
+    const [org]: any[] = siteStructuredData({ name: 'Shop', url: 'https://example.com/', sameAs: ['https://instagram.com/x', 'https://instagram.com/x', 'https://bsky.app/profile/y'], email: 'hello@example.com', area: { city: 'Toronto', region: 'Ontario', country: 'Canada' } });
+    expect(org.sameAs).toEqual(['https://instagram.com/x', 'https://bsky.app/profile/y']);
+    expect(org.email).toBe('hello@example.com');
+    expect(org.address).toEqual({ '@type': 'PostalAddress', addressLocality: 'Toronto', addressRegion: 'Ontario', addressCountry: 'Canada' });
+    const [bare]: any[] = siteStructuredData({ name: 'Shop', url: 'https://example.com/', email: 'not an email', area: {} });
+    expect(bare.email).toBeUndefined();
+    expect(bare.address).toBeUndefined();
+  });
+  it('ties a book to the shop by @id when the shop published it, and keeps co-publishers by name', () => {
+    const opts = { currency: 'CAD', price: 24, url: 'https://example.com/books/one', seller: 'Lyricalmyrical Books', shopUrl: 'https://example.com/' };
+    const own: any = bookStructuredData({ ...book, publisher: 'Lyricalmyrical' } as any, opts);
+    expect(own.publisher).toEqual({ '@type': 'Organization', '@id': 'https://example.com/#organization', url: 'https://example.com/', name: 'Lyricalmyrical' });
+    expect(own.offers.seller).toMatchObject({ '@id': 'https://example.com/#organization', name: 'Lyricalmyrical Books' });
+    expect((bookStructuredData({ ...book, publisher: 'Lyricalmyrical Books (Toronto)' } as any, opts) as any).publisher['@id']).toBe('https://example.com/#organization');
+    expect((bookStructuredData({ ...book, publisher: 'Other Press' } as any, opts) as any).publisher).toEqual({ '@type': 'Organization', name: 'Other Press' });
+    expect((bookStructuredData({ ...book, publisher: 'Lyricalmyrical Books' } as any, { ...opts, shopUrl: undefined }) as any).publisher).toEqual({ '@type': 'Organization', name: 'Lyricalmyrical Books' });
   });
   it('lists what the shop publishes as knowsAbout, trimmed and without repeats', () => {
     expect(seoTopicList(" Art books, Photography books,, art books ,Artists' books\nZines")).toEqual(['Art books', 'Photography books', "Artists' books", 'Zines']);
