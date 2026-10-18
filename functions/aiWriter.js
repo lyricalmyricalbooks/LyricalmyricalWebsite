@@ -159,6 +159,7 @@ const TASKS = {
     prompt: (f, ctx) => `Write the Google search listing for this book on ${ctx.siteName || "an independent publisher's online shop"}.
 - metaTitle: at most 60 characters. Lead with the book title, then the author if it fits${ctx.siteName ? `, then " — ${ctx.siteName}" only if it still fits` : ""}.
 - metaDescription: 130 to 155 characters, one or two complete sentences that make a reader want to click: what the book is and why it is worth reading. Mention the format if known.
+- If an author or artist is given, name them in the metaTitle or the metaDescription (spelled exactly as given), so people searching for their name find this book.
 
 ${factLines(bookFacts(f))}`,
     schema: { type: "OBJECT", properties: { metaTitle: { type: "STRING" }, metaDescription: { type: "STRING" } }, required: ["metaTitle", "metaDescription"] },

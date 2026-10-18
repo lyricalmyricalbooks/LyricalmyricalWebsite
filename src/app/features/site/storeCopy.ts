@@ -264,6 +264,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "specFormat", label: "Spec: format", default: "Format" },
       { key: "specPublished", label: "Publication date label", default: "Publication date" },
       { key: "specPublisher", label: "Publisher label", default: "Publisher" },
+      { key: "specArtistLinks", label: "Artist website label (Details tab)", default: "Artist website" },
       { key: "specPages", label: "Page count label", default: "Pages" },
       { key: "specEdition", label: "Edition label", default: "Edition" },
       { key: "specLanguage", label: "Spec: language", default: "Language" },

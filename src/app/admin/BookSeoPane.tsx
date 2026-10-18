@@ -5,7 +5,7 @@ import { adminApi } from './api';
 import { loadCatalog } from '../features/site/loadCatalog';
 import { resolveProductRoutes } from '../features/site/productRoutes';
 import { getCopy } from '../features/site/storeCopy';
-import { autoBookSeo, bookMetadata, defaultBookTitle, seoChecks } from '../lib/bookSeo';
+import { autoBookSeo, bookCreators, bookMetadata, defaultBookTitle, seoChecks } from '../lib/bookSeo';
 import type { Book } from '../features/site/types';
 import { askAi, bookAiInput } from './aiWriter';
 
@@ -19,7 +19,7 @@ function loadSeoData(): Promise<[any, Book[]]> {
   return promise;
 }
 
-export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange: (key: string, value: string | boolean) => void }) {
+export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange: (key: string, value: unknown) => void }) {
   const [design, setDesign] = useState<any>(null);
   const [catalog, setCatalog] = useState<Book[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -97,10 +97,43 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
       {image && <div className="be-serp"><span className="be-label-xs">Sharing image preview</span><img src={image} alt="Sharing preview" style={{ display: 'block', maxWidth: '100%', maxHeight: 180, marginTop: 12 }} /></div>}
       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { onChange('metaTitle', ''); onChange('metaDescription', ''); onChange('seoImage', ''); }}>Use catalog defaults</button>
     </SectionCard>
+    <ArtistLinks book={book} onChange={onChange} />
     <SectionCard title={`SEO checks · ${checks.filter(c => c.ok).length}/${checks.length}`} description="Content checks are guidance, not a Google ranking score. Changes save with the book.">
       <ul className="be-check">{checks.map(c => <li key={c.id} className={c.ok ? 'is-ok' : ''}><span aria-hidden>{c.ok ? '✓' : '○'}</span> {c.label}<span className="rp-sr-only">{c.ok ? ' Complete.' : ' Needs attention.'}</span></li>)}</ul>
       <p className="rp-hint">Canonical URLs and product details are generated automatically. The public price, currency and availability feed structured data. Submit the deployed sitemap in Google Search Console and inspect the book URL after publishing.</p>
       {url && <a className="rp-btn rp-btn-ghost rp-btn-sm" href={`https://search.google.com/test/rich-results?url=${encodeURIComponent(url)}`} target="_blank" rel="noopener noreferrer">Test deployed URL with Google</a>}
     </SectionCard>
   </>;
+}
+
+type LinkRow = { name: string; url: string };
+
+/** Books › edit › Search (SEO) › Artist links: each credited artist's own website. It is linked from the book page's
+ *  Details tab and given to Google with the artist's name, which is how a search for the name finds the book. */
+function ArtistLinks({ book, onChange }: { book: Partial<Book>; onChange: (key: string, value: unknown) => void }) {
+  const rows: LinkRow[] = Array.isArray(book.creatorLinks) ? book.creatorLinks.map(r => ({ name: String(r?.name || ''), url: String(r?.url || '') })) : [];
+  const creators = bookCreators(book as any);
+  const save = (next: LinkRow[]) => onChange('creatorLinks', next);
+  const edit = (i: number, key: keyof LinkRow, value: string) => save(rows.map((r, j) => (j === i ? { ...r, [key]: value } : r)));
+  const unlinked = creators.find(name => !rows.some(r => r.name.trim().toLowerCase() === name.toLowerCase()));
+  const badUrl = (url: string) => !!url.trim() && !/^https?:\/\/[^\s/]+\.[^\s]+$/i.test(url.trim());
+  return (
+    <SectionCard title="Artist links" description="The artist’s own website (or main profile). It shows as a link in the book page’s Details tab and tells Google which person this book is by. Google decides rankings; the strongest help is the artist linking back to this book page from their site.">
+      {rows.map((row, i) => (
+        <div className="be-grid" key={i}>
+          <div><TextField label="Artist name" value={row.name} list="be-artist-names" onChange={e => edit(i, 'name', e.target.value)}
+            hint={creators.length ? 'Spelled as in Author / contributors.' : 'Spelled as on the book.'} /></div>
+          <div><TextField label="Website" type="url" value={row.url} onChange={e => edit(i, 'url', e.target.value)} placeholder="https://"
+            hint="Their official website." error={badUrl(row.url) ? 'Enter the full address, starting with https://' : undefined} /></div>
+          <div className="be-span-2"><button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => save(rows.filter((_, j) => j !== i))}>Remove link</button></div>
+        </div>
+      ))}
+      <datalist id="be-artist-names">{creators.map(name => <option key={name} value={name} />)}</datalist>
+      {rows.length < 10 && (
+        <div><button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => save([...rows, { name: unlinked || '', url: '' }])}>
+          {unlinked ? `Add ${unlinked}’s website` : 'Add an artist link'}
+        </button></div>
+      )}
+    </SectionCard>
+  );
 }

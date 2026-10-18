@@ -29,7 +29,7 @@ import { placeholderImage } from "./constants";
 import type { Book } from "./types";
 import { trackBookView } from "../../lib/recentlyViewed";
 import { useWishlist } from "../../lib/wishlist";
-import { bookMetadata, bookStructuredData, breadcrumbData, canonicalUrl, defaultBookTitle } from "../../lib/bookSeo";
+import { bookMetadata, bookStructuredData, breadcrumbData, canonicalUrl, creatorLinks, defaultBookTitle } from "../../lib/bookSeo";
 import { reviewsApi } from "../../lib/reviews";
 import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
@@ -76,7 +76,7 @@ function titleStyle(autoSize: string | undefined, title: unknown): React.CSSProp
 }
 
 // ── small helper ────────────────────────────────────────────────────────────
-function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5 bg-white/[0.03] border border-white/[0.07] rounded-2xl p-4 hover:border-white/[0.14] transition-colors">
       <div className="flex items-center gap-2 text-white/30">
@@ -621,12 +621,19 @@ export default function BookDetail() {
     showEditionFacts: storefrontDesign.showPdpEditionDetails !== false,
     edition: selectedVariant?.name,
   }).map((r) => ({ ...r, icon: SPEC_ICONS[r.key] || <BookOpen size={11} /> }));
-  const hasSpecs = showSpecs !== false && regionVisible(regionDesign, "productSpecs") && (specRows.length > 0 || isLowStock);
+  // Books › edit › Search (SEO) › Artist links: the artist's own website, a normal followed link (Studio › Style ›
+  // Book page · photos & layout › Show artist website links; label Text & labels › Product page › specArtistLinks).
+  const artistLinks = storefrontDesign.showPdpArtistLinks !== false ? creatorLinks(bk) : [];
+  const hasSpecs = showSpecs !== false && regionVisible(regionDesign, "productSpecs") && (specRows.length > 0 || artistLinks.length > 0 || isLowStock);
+  const artistLink = (l: { name: string; url: string }) => <a href={l.url} target="_blank" rel="noopener" className="underline underline-offset-2">{l.name}</a>;
 
   const renderSpecs = () => pdpSpecsRecord ? (
     <dl className="fm-pdp-record w-full text-left">
       {specRows.map((r) => (
         <Fragment key={r.key}><dt>{r.label}</dt><dd>{r.value}</dd></Fragment>
+      ))}
+      {artistLinks.map((l, i) => (
+        <Fragment key={`artist-${i}`}><dt>{getCopy(settings?.design, "specArtistLinks")}</dt><dd>{artistLink(l)}</dd></Fragment>
       ))}
       {isLowStock && (
         <><dt>{getCopy(settings?.design, "specAvailability")}</dt><dd style={{ color: lowInventoryColor }}>{getCopy(settings?.design, "specRemaining", { count: stockLevel })}</dd></>
@@ -635,6 +642,7 @@ export default function BookDetail() {
   ) : (
     <div className="grid grid-cols-2 gap-3 w-full text-left">
       {specRows.map((r) => <SpecItem key={r.key} icon={r.icon} label={r.label} value={r.value} />)}
+      {artistLinks.map((l, i) => <SpecItem key={`artist-${i}`} icon={<Globe size={11} />} label={getCopy(settings?.design, "specArtistLinks")} value={artistLink(l)} />)}
       {isLowStock && (
         <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label={getCopy(settings?.design, "specAvailability")} value={getCopy(settings?.design, "specRemaining", { count: stockLevel })} />
       )}

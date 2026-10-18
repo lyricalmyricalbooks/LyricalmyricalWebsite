@@ -696,6 +696,7 @@
   "showOrderNote": "visible",
   "showPageFooter": "visible",
   "showPaymentBadges": "none: the Payment icons list is empty in the live design",
+  "showPdpArtistLinks": "none: needs a book with Artist links (Books › edit › Search (SEO))",
   "showPdpEditionDetails": "none: needs a book sold in editions",
   "showPdpWishlist": "visible",
   "showPhotoLightbox": "visible",
