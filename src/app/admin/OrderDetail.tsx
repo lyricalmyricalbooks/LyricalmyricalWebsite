@@ -10,7 +10,7 @@ import {
   defaultRestockOnRefund,
   booksLeftOutAfterRefund,
   matchesCustomerService,
-  suggestedParcelWeightLb,
+  suggestedParcelWeightGrams,
   canMarkManualPaid,
   lockedAddressFields,
   packingTicksKey,
@@ -25,6 +25,7 @@ import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Copy, ExternalLink } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
+import { formatGrams } from "../features/site/metricWeight";
 import {
   ActionMenu,
   Checkbox,
@@ -114,9 +115,9 @@ export function OrderDetail({
     length: "10",
     width: "8",
     height: "2",
-    weight: "1.5",
+    weight: "680",
     distance_unit: "in",
-    mass_unit: "lb",
+    mass_unit: "g",
   });
   const parcelTouched = useRef(false);
   const [presetName, setPresetName] = useState("");
@@ -209,8 +210,8 @@ export function OrderDetail({
       }
       if (data) {
         fillTracking(data);
-        // Start the label dialog from the books' catalog weights, not a fixed 1.5 lb.
-        if (!parcelTouched.current) setParcel((p) => ({ ...p, weight: suggestedParcelWeightLb(data) }));
+        // Start the label dialog from the books' catalog weights (grams), not a fixed guess.
+        if (!parcelTouched.current) setParcel((p) => ({ ...p, weight: suggestedParcelWeightGrams(data), mass_unit: "g" }));
       }
     } catch (err) {
       console.error(err);
@@ -1214,8 +1215,9 @@ export function OrderDetail({
                 const selected = presets.find((p) => p.name === e.target.value);
                 if (selected) {
                   parcelTouched.current = true;
-                  // Keep the box size; the weight still comes from this order's books.
-                  setParcel({ ...selected.parcel, weight: suggestedParcelWeightLb(order) });
+                  // Keep the box size; the weight still comes from this order's books, in grams
+                  // (presets saved before weights went metric carry mass_unit "lb").
+                  setParcel({ ...selected.parcel, weight: suggestedParcelWeightGrams(order), mass_unit: "g" });
                 }
               }}
             >
@@ -1229,16 +1231,16 @@ export function OrderDetail({
             {(["length", "width", "height", "weight"] as const).map((k) => (
               <TextField
                 key={k}
-                label={`${k[0].toUpperCase() + k.slice(1)} (${k === "weight" ? "lb" : "in"})`}
+                label={`${k[0].toUpperCase() + k.slice(1)} (${k === "weight" ? "g" : "in"})`}
                 type="number"
-                min="0.01"
-                step="0.01"
+                min={k === "weight" ? "1" : "0.01"}
+                step={k === "weight" ? "1" : "0.01"}
                 value={parcel[k]}
                 onChange={(e) => {
                   parcelTouched.current = true;
                   setParcel((prev) => ({ ...prev, [k]: e.target.value }));
                 }}
-                hint={k === "weight" ? `Suggested ${suggestedParcelWeightLb(order)} lb from the books' catalog weights plus packaging.` : undefined}
+                hint={k === "weight" ? `Suggested ${formatGrams(Number(suggestedParcelWeightGrams(order)))} from the books' catalog weights plus packaging.` : undefined}
               />
             ))}
           </div>

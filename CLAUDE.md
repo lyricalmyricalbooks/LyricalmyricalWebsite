@@ -208,6 +208,12 @@ profile/zone path. Selected live quotes are fetched and validated again server-s
 amount matches checkout. Admin UI: Settings › Shipping › profile editor (Profile rules, Test this
 profile, rate dialog).
 
+**Weights are metric (18 October 2026).** Book/edition weights are entered in g or kg only (`WEIGHT_UNITS`); older
+"1 lb"/"8 oz" values still parse identically (`parseWeightGrams`), open in grams (`splitWeight`) and are saved as whole
+grams by the book editor (`withMetricWeights`) and CSV import (`metricWeightValue`). Shoppers see `metricWeight`
+(`features/site/metricWeight.ts`). Every Shippo parcel, order line and customs item is sent in grams
+(`functions/parcelWeight.js`, fallback 680 g a copy); the label dialog asks for grams (`suggestedParcelWeightGrams`).
+
 ## Theme editor
 
 > [!IMPORTANT]

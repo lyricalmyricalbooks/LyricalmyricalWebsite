@@ -7,8 +7,8 @@ const { countryCodeOf } = require("./addressRules");
 
 const DEFAULT_DESCRIPTION = "Printed books";
 const DEFAULT_HS_CODE = "4901.99"; // Printed books, brochures and similar: other (not single sheets)
-const GRAMS_PER_LB = 453.592;
-const FALLBACK_LB_PER_COPY = 1.5; // the label tool's own per-copy assumption
+const GRAMS_PER_LB = 453.592; // older catalog values typed in lb still read correctly
+const { FALLBACK_COPY_GRAMS } = require("./parcelWeight"); // the label tool's own per-copy assumption
 
 // 4 to 10 digits, optionally dotted (4901, 4901.99, 4901.99.0000, 490199).
 const HS_PATTERN = /^\d{4}(?:[.\s-]?\d{2}){0,3}$/;
@@ -57,8 +57,8 @@ function customsItems(order, books, defaultOrigin) {
     return {
       description: cleanDescription(book.customsDescription),
       quantity,
-      net_weight: ((grams != null ? grams / GRAMS_PER_LB : FALLBACK_LB_PER_COPY) * quantity).toFixed(3),
-      mass_unit: "lb",
+      net_weight: ((grams != null ? grams : FALLBACK_COPY_GRAMS) * quantity).toFixed(1),
+      mass_unit: "g",
       value_amount: lineValue.toFixed(2),
       value_currency: "CAD",
       origin_country: origin,

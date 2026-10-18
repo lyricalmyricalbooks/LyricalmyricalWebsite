@@ -5,6 +5,8 @@
 //   own rows       { key: "custom:<id>", label, value, hidden? }
 // No `detailRows` = the original order, then the older `extraDetails` rows.
 
+import { metricWeight } from "./metricWeight";
+
 export type DetailRow = { key: string; label?: string; value?: string; hidden?: boolean };
 export type ShownRow = { key: string; label: string; value: string; builtin: boolean };
 
@@ -37,7 +39,7 @@ export function builtinDetailValue(book: any, key: string, edition?: string): st
     case "specLanguage": return text(b.language);
     case "specDimensions": return text(b.dimensions);
     case "specIsbn": return text(b.isbn);
-    case "specWeight": return text(b.weight);
+    case "specWeight": return metricWeight(text(b.weight));
     default: return "";
   }
 }

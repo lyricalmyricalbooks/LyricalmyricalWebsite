@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editorDirty, fillEmpty, isbnWarning, joinWeight, needsPublishReview, parseGoogleBooks, parseOpenLibrary, slugClash, splitWeight } from "./bookEditorState";
+import { editorDirty, fillEmpty, isbnWarning, joinWeight, needsPublishReview, parseGoogleBooks, parseOpenLibrary, slugClash, splitWeight, withMetricWeights } from "./bookEditorState";
 import { parseWeightGrams } from "../features/site/shippingEngine";
 
 describe("book editor dirty check", () => {
@@ -32,7 +32,14 @@ describe("small editor helpers", () => {
     expect(splitWeight("0.5 kg")).toEqual({ amount: "0.5", unit: "kg" });
     expect(splitWeight("450")).toEqual({ amount: "450", unit: "g" });
     expect(splitWeight("about a pound").unreadable).toBe("about a pound");
-    expect(parseWeightGrams(joinWeight("2", "lb"))).toBeCloseTo(907.18, 1);
+    expect(parseWeightGrams(joinWeight("2", "kg"))).toBe(2000);
+    // Older imperial values open in grams and are saved that way.
+    expect(splitWeight("1 lb")).toEqual({ amount: "454", unit: "g" });
+    expect(splitWeight("8 oz")).toEqual({ amount: "227", unit: "g" });
+    const book = { weight: "1 lb", variants: [{ id: "a", weight: "8 oz" }, { id: "b", weight: "300 g" }] };
+    expect(withMetricWeights(book)).toEqual({ weight: "454 g", variants: [{ id: "a", weight: "227 g" }, { id: "b", weight: "300 g" }] });
+    const metric = { weight: "450 g", variants: [{ id: "b", weight: "300 g" }] };
+    expect(withMetricWeights(metric)).toBe(metric);
     expect(joinWeight("", "g")).toBe("");
   });
   it("flags a slug another book uses", () => {

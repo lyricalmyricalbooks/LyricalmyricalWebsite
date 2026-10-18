@@ -10,6 +10,7 @@
 // - Price and stock of books sold in editions are edited in the book editor, not here.
 
 import { parseWeightGrams } from "../features/site/shippingEngine";
+import { metricWeightValue } from "../features/site/metricWeight";
 
 export type ImportField =
   | "id" | "title" | "subtitle" | "description" | "format" | "isbn" | "sku" | "status" | "isFeatured"
@@ -281,8 +282,9 @@ export function planImport(text: string, books: any[], shopCategories: string[] 
     const text = (f: ImportField, field: string = f) => { if (given(f)) next[field] = value[f]!; };
     text("title"); text("subtitle"); text("description"); text("format"); text("sku"); text("publisher"); text("edition"); text("language");
     if (given("weight")) {
-      if (parseWeightGrams(value.weight) === null) errors.push(`Weight “${value.weight}” must be a number with g, kg, oz or lb, e.g. 450 g.`);
-      else next.weight = value.weight!;
+      if (parseWeightGrams(value.weight) === null) errors.push(`Weight “${value.weight}” must be a number in g or kg, e.g. 450 g.`);
+      // Imperial values in an older file are still understood and saved in grams.
+      else next.weight = metricWeightValue(value.weight!);
     }
     for (const f of ["saleStartsAt", "saleEndsAt"] as const) {
       if (!given(f)) continue;

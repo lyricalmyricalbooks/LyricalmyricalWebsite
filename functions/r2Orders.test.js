@@ -265,10 +265,21 @@ test("fault 35: an international label quote carries a customs declaration built
   expect(res.code).toBe(200);
   expect(res.body.customs).toBe(true);
   const item = app.calls.find(c => c.url.includes("customs/items")).body;
-  expect(item).toMatchObject({ description: "Poetry chapbook", tariff_number: "4901.91", origin_country: "CA", quantity: 1, value_amount: "20.00", value_currency: "CAD", mass_unit: "lb" });
+  expect(item).toMatchObject({ description: "Poetry chapbook", tariff_number: "4901.91", origin_country: "CA", quantity: 1, value_amount: "20.00", value_currency: "CAD", mass_unit: "g", net_weight: "450.0" });
   const declaration = app.calls.find(c => c.url.includes("customs/declarations")).body;
   expect(declaration).toMatchObject({ contents_type: "MERCHANDISE", certify: true, items: ["ci_1"], non_delivery_option: "RETURN" });
   expect(app.calls.find(c => c.url.endsWith("shipments/")).body.customs_declaration).toBe("cd_1");
+  // Parcel weights go to Shippo in grams.
+  expect(app.calls.find(c => c.url.endsWith("shipments/")).body.parcels[0]).toMatchObject({ mass_unit: "g" });
+});
+
+test("label parcels sent in grams from the dialog stay grams; an older tab's lb parcel is still read as lb", async () => {
+  const grams = harness({ order: baseOrder(), fetchImpl: customsFetch });
+  await grams.label({ mode: "rates", parcel: { length: "10", width: "8", height: "2", distance_unit: "in", weight: "830", mass_unit: "g" } });
+  expect(grams.calls.find(c => c.url.endsWith("shipments/")).body.parcels[0]).toMatchObject({ weight: "830", mass_unit: "g" });
+  const pounds = harness({ order: baseOrder(), fetchImpl: customsFetch });
+  await pounds.label({ mode: "rates", parcel: { weight: "1.8", mass_unit: "lb" } });
+  expect(pounds.calls.find(c => c.url.endsWith("shipments/")).body.parcels[0]).toMatchObject({ weight: "1.8", mass_unit: "lb" });
 });
 
 test("fault 35: books with no customs answers use printed-book defaults, and a domestic parcel needs no paperwork", async () => {
@@ -286,7 +297,7 @@ test("fault 35: customs items skip e-books, share a discount and ignore bad tari
   const order = { subtotal: 40, discount: 10, items: [{ id: "a", price: 20, quantity: 2, format: "Paperback" }, { id: "e", price: 5, quantity: 1, format: "E-book (PDF)", isDigital: true }] };
   const items = customsItems(order, { a: { hsTariffNumber: "nonsense", weight: "1 lb" } }, "CA");
   expect(items).toHaveLength(1);
-  expect(items[0]).toMatchObject({ tariff_number: "4901.99", value_amount: "30.00", quantity: 2, net_weight: "2.000" });
+  expect(items[0]).toMatchObject({ tariff_number: "4901.99", value_amount: "30.00", quantity: 2, net_weight: "907.2", mass_unit: "g" });
   expect(needsCustoms("CA", "US")).toBe(true);
   expect(needsCustoms("CA", "Canada")).toBe(false);
   expect(validHsCode("4901.99")).toBe(true);

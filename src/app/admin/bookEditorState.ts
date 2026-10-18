@@ -2,6 +2,7 @@
 import { sameValue } from "./bookStockMerge";
 import { catalogPublishIssues } from "./catalogPublishReview";
 import { validIsbn } from "./catalogImport";
+import { metricWeightValue } from "../features/site/metricWeight";
 
 const DERIVED_CURRENCY = ["usdPrice", "eurPrice", "usdCostPrice", "eurCostPrice", "usdSalePrice", "eurSalePrice"];
 
@@ -80,17 +81,18 @@ export function slugFollowsTitle(prev: { slug?: unknown; title?: unknown }, lock
 
 // ── Weight ───────────────────────────────────────────────────────
 
-export const WEIGHT_UNITS = ["g", "kg", "oz", "lb"] as const;
+// Metric only. An older "1 lb" / "8 oz" value is shown as whole grams and saved that way (withMetricWeights).
+export const WEIGHT_UNITS = ["g", "kg"] as const;
 export type WeightUnit = typeof WEIGHT_UNITS[number];
 
-/** "450 g" → { amount: "450", unit: "g" }; anything parseWeightGrams can't read is reported as `unreadable`. */
+/** "450 g" → { amount: "450", unit: "g" }; "1 lb" → { amount: "454", unit: "g" }; anything parseWeightGrams can't read is reported as `unreadable`. */
 export function splitWeight(raw: unknown, fallbackUnit: WeightUnit = "g"): { amount: string; unit: WeightUnit; unreadable?: string } {
   const text = String(raw ?? "").trim();
   if (!text) return { amount: "", unit: fallbackUnit };
   const m = text.toLowerCase().match(/^([\d.]+)\s*(kg|g|lbs?|oz)?$/);
   if (!m || !Number.isFinite(parseFloat(m[1]))) return { amount: "", unit: fallbackUnit, unreadable: text };
-  const unit = (m[2] ? (m[2].startsWith("lb") ? "lb" : m[2]) : "g") as WeightUnit;
-  return { amount: m[1], unit };
+  if (m[2] === "oz" || m[2]?.startsWith("lb")) return { amount: String(Math.round(parseFloat(m[1]) * (m[2] === "oz" ? 28.3495 : 453.592))), unit: "g" };
+  return { amount: m[1], unit: (m[2] || "g") as WeightUnit };
 }
 
 /** The stored format the shipping engines read (shippingEngine.parseWeightGrams): "450 g", "0.5 kg", "" when blank. */
@@ -98,6 +100,17 @@ export function joinWeight(amount: string, unit: WeightUnit): string {
   const n = String(amount ?? "").trim();
   if (!n || !Number.isFinite(Number(n)) || Number(n) < 0) return "";
   return `${n} ${unit}`;
+}
+
+/** The book (and its editions) with any older lb/oz weight saved as whole grams; same object when nothing changes. */
+export function withMetricWeights<T extends { weight?: unknown; variants?: unknown }>(book: T): T {
+  const imperial = (w: unknown) => typeof w === "string" && /(lb|oz)/i.test(w) && metricWeightValue(w) !== w.trim();
+  let out: any = book;
+  if (imperial(book.weight)) out = { ...out, weight: metricWeightValue(book.weight) };
+  if (Array.isArray(book.variants) && book.variants.some((v: any) => imperial(v?.weight))) {
+    out = { ...out, variants: book.variants.map((v: any) => (imperial(v?.weight) ? { ...v, weight: metricWeightValue(v.weight) } : v)) };
+  }
+  return out;
 }
 
 // ── Fill from ISBN ───────────────────────────────────────────────
