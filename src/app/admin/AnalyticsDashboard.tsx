@@ -7,7 +7,7 @@ import { salesReportCsv } from "./salesReport";
 import { launchReadiness } from "./launchReadiness";
 import toast from "react-hot-toast";
 import {
-  DataTable, EmptyState, ErrorState, LoadingState, SectionCard, StatusBadge, type BadgeTone, type Column,
+  DataTable, EmptyState, ErrorState, LoadingState, SecondaryButton, SectionCard, StatusBadge, type BadgeTone, type Column,
 } from "./riso/components";
 import {
   bestSellers, customerMix, dormantStock, newestSales, newsletterSummary, orderStatusWords, orderTodos, reprintWatch, reviewSummary,
@@ -15,8 +15,7 @@ import {
 } from "./overviewInsights";
 import { recordedSince, sumMap } from "./overviewTraffic";
 import { PRESETS, rangeWords, resolveRange, trafficShift, trafficWindow, type CompareMode, type Preset } from "./overviewRange";
-import { autoGrain } from "./overviewRange";
-import { bucketSeries, buildRangeSeries, metricValue, monthPace, type ChartMetric } from "./overviewSeries";
+import { monthPace } from "./overviewSeries";
 import { mergeNewestPage } from "./ordersDesk";
 import { googleTraffic, shopRowsIn, shopTraffic } from "./overviewSources";
 import { whatChanged, type Change } from "./overviewChanges";
@@ -24,7 +23,7 @@ import { profitSummary, titlePerformance } from "./overviewProfit";
 import { googleAnalyticsApi } from "./googleAnalytics";
 import { shopDayKey } from "../lib/shopDay";
 import { isOwnOrder } from "../lib/ownerDevice";
-import { Figure, NeedsList, Pill, ReadinessStrip, ROW, Trend, money, percent, type NeedItem } from "./OverviewParts";
+import { Figure, ReadinessStrip, RunRow, ROW, Trend, money, percent } from "./OverviewParts";
 import { readinessSummary } from "./launchReadiness";
 import { leadStory } from "./overviewStory";
 import { OverviewSales } from "./OverviewSales";
@@ -50,9 +49,6 @@ const PERIOD_BUTTONS: Array<{ id: Preset; label: string; title: string }> = [
   { id: "90d", label: "90d", title: "The last 90 days" }, { id: "mtd", label: "MTD", title: "This month so far" }, { id: "lastMonth", label: "Last month", title: "Last calendar month" },
   { id: "ytd", label: "YTD", title: "This year so far" }, { id: "365d", label: "12m", title: "The last 12 months" }, { id: "custom", label: "Custom", title: "Pick your own dates" },
 ];
-/** Figures that have a day-by-day line to draw under them. */
-const SPARK_METRIC: Partial<Record<FigureId, ChartMetric>> = { revenue: "revenue", orders: "orders", units: "units", aov: "aov", visitors: "visitors", conversion: "conversion" };
-const plural = (n: number, one: string, many: string) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 const CHANGE_BADGE: Record<Change["tone"], { tone: BadgeTone; text: string }> = {
   up: { tone: "success", text: "▲ Up" }, down: { tone: "danger", text: "▼ Down" }, info: { tone: "info", text: "● New" }, warn: { tone: "warning", text: "! Check" },
 };
@@ -276,6 +272,9 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const refreshLabel = loadedAt ? `Updated ${loadedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · auto every 5 min` : "Loading…";
 
   const story = insights ? leadStory({ cur: insights.cur, prev: insights.prev, top: insights.top, days: range.preset === "today" ? 1 : Math.max(2, range.days), phrase: range.phrase, money, before: range.before }) : null;
+  const openTodos = insights && reviews && todos ? insights.fulfil.length + reviews.pending + insights.reprint.length + insights.shelf.soldOut
+    + todos.requests.length + todos.giftCardsMissing.length + todos.awaitingRelease.length
+    + (counts?.unreadMessages || 0) + (counts?.openPrivacyRequests || 0) : null;
   const cartStep = funnel && funnel.add_to_cart > 0 ? (funnel.checkout_start / funnel.add_to_cart) * 100 : null;
   const profit = insights?.profit;
 
@@ -283,18 +282,6 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const addsRecorded = !!recordedSince(daily.rows || [], "bookAdds");
   const discountRate = insights && insights.cur.subtotal > 0 ? (insights.cur.discounts / insights.cur.subtotal) * 100 : 0;
   const prevDiscountRate = insights && insights.prev.subtotal > 0 ? (insights.prev.discounts / insights.prev.subtotal) * 100 : 0;
-
-  // One line per figure under its number: day by day, or by week or month over long periods.
-  const sparks = useMemo(() => {
-    if (!periods) return null;
-    const visitsOn = traffic?.visitsOn || (() => 0);
-    return bucketSeries(buildRangeSeries(periods.paid, range, visitsOn), autoGrain(range.days));
-  }, [periods, range, traffic]);
-  const sparkFor = (id: FigureId) => {
-    const metric = SPARK_METRIC[id];
-    if (!sparks || !metric || sparks.length < 2 || ((metric === "visitors" || metric === "conversion") && !trafficReady)) return undefined;
-    return sparks.map(b => metricValue(b, metric));
-  };
 
   // Every number a "Key figures" widget can show, worked out once for all of them.
   const figure = (id: FigureId) => {
@@ -335,52 +322,47 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           lastReset={lastReset} firstDay={firstTrafficDay} onReset={resetTraffic} setActiveTab={setActiveTab} />
   )));
 
-  // "Needs you": live jobs, not tied to the period. Each row opens the page where it is done.
-  const oldestWait = insights?.fulfil[0]?.ageDays ?? 0;
-  const requestsAllCancel = !!todos && todos.requests.every((o: any) => (o.customerRequest?.type || "cancel") === "cancel");
-  const needs: NeedItem[] = [
-    { id: "ship", count: insights ? insights.fulfil.length : null, loading: ordersLoading, openLabel: "Ship orders",
-      title: n => plural(n, "order to ship", "orders to ship"),
-      detail: oldestWait > 0 ? `Oldest has waited ${plural(oldestWait, "day", "days")}` : "Paid today",
-      pill: oldestWait >= 2 ? { tone: "danger", glyph: "●", text: plural(oldestWait, "day", "days") } : oldestWait === 1 ? { tone: "warning", glyph: "◐", text: "1 day" } : { tone: "info", glyph: "●", text: "Today" },
-      onOpen: () => { openFirstActionQueue(); setActiveTab?.("orders"); } },
-    { id: "requests", count: todos ? todos.requests.length : null, loading: ordersLoading, openLabel: "Answer requests",
-      title: n => plural(n, requestsAllCancel ? "cancel request" : "customer request", requestsAllCancel ? "cancel requests" : "customer requests"),
-      detail: "A shopper asked before it ships", pill: { tone: "warning", glyph: "◐", text: "Open" },
-      onOpen: () => { openOrdersQueue("Needs attention"); setActiveTab?.("orders"); } },
-    { id: "giftcards", count: todos ? todos.giftCardsMissing.length : null, loading: ordersLoading, openLabel: "Open gift cards",
-      title: n => plural(n, "gift card not issued", "gift cards not issued"), detail: "Paid, but the buyer has no code yet",
-      pill: { tone: "danger", glyph: "!", text: "Fix" }, onOpen: () => setActiveTab?.("giftCards") },
-    { id: "reprint", count: insights ? insights.reprint.length : null, loading: ordersLoading || stockLoading, openLabel: "Open inventory",
-      title: n => plural(n, "reprint", "reprints"), detail: `On course to sell out within ${REORDER_COVER_DAYS} days`,
-      pill: { tone: "warning", glyph: "◐", text: "Decide" }, onOpen: () => setActiveTab?.("inventory") },
-    { id: "soldout", count: insights ? insights.shelf.soldOut : null, loading: ordersLoading || stockLoading, openLabel: "Open inventory",
-      title: n => plural(n, "book sold out", "books sold out"), detail: "Customers can't buy these right now",
-      pill: { tone: "danger", glyph: "✕", text: "Sold out" }, onOpen: () => setActiveTab?.("inventory") },
-    { id: "preorders", count: todos ? todos.awaitingRelease.length : null, loading: ordersLoading, openLabel: "Open pre-orders",
-      title: n => plural(n, "pre-order awaiting release", "pre-orders awaiting release"), detail: "Ship each one when the books arrive",
-      pill: { tone: "info", glyph: "●", text: "Waiting" }, onOpen: () => { openOrdersQueue("Awaiting release"); setActiveTab?.("orders"); } },
-    { id: "reviews", count: reviews ? reviews.pending : null, loading: !audience.data && !audience.error, openLabel: "Moderate reviews",
-      title: n => plural(n, "review", "reviews"), detail: "Waiting for approval",
-      pill: { tone: "info", glyph: "●", text: `${reviews?.pending || 0} new` }, onOpen: () => setActiveTab?.("reviews") },
-    { id: "messages", count: counts ? counts.unreadMessages : null, loading: !counts, openLabel: "Read messages",
-      title: n => plural(n, "message", "messages"), detail: "Waiting for a reply",
-      pill: { tone: "info", glyph: "●", text: `${counts?.unreadMessages || 0} new` }, onOpen: () => setActiveTab?.("messages") },
-    { id: "privacy", count: counts ? counts.openPrivacyRequests : null, loading: !counts, openLabel: "Open privacy requests",
-      title: n => plural(n, "privacy request", "privacy requests"), detail: "A copy or deletion of their data",
-      pill: { tone: "warning", glyph: "◐", text: "Open" }, onOpen: () => setActiveTab?.("general") },
-  ];
-  const needsMissing = [allOrders.error && "orders", audience.error && "reviews", stock.error && "books"].filter(Boolean) as string[];
-  const needsList = (
-    <NeedsList items={needs}
-      live={gaReport && gaReport.activeNow !== null ? <><b>{gaReport.activeNow}</b> {gaReport.activeNow === 1 ? "person is" : "people are"} on the site now (Google Analytics)</> : undefined}
-      missing={needsMissing.length ? `${needsMissing.join(", ")} could not be loaded, so some jobs may be missing.` : undefined} />
+  const runSheet = (
+    <aside className="rp-ov-run" aria-label="Needs you">
+      <div className="rp-ov-eyebrow">Live — not tied to the period</div>
+      <div className="rp-ov-run-total" aria-hidden="true">{openTodos === null ? "…" : openTodos}</div>
+      <p className="rp-ov-run-sub">{openTodos === null ? "Counting…" : openTodos === 0 ? "Nothing needs you right now." : `${openTodos} thing${openTodos === 1 ? "" : "s"} need${openTodos === 1 ? "s" : ""} you`}</p>
+      {gaReport && gaReport.activeNow !== null && (
+        <p className="rp-ov-run-sub"><strong style={{ color: "var(--rp-primary-hover)" }}>{gaReport.activeNow}</strong> {gaReport.activeNow === 1 ? "person is" : "people are"} on the site now (Google Analytics)</p>
+      )}
+      <ul className="rp-list" aria-label="Things that need attention">
+        <RunRow label="paid orders waiting to ship" count={insights ? insights.fulfil.length : null} loading={ordersLoading}
+          detail={insights && insights.fulfil[0] ? `Oldest has waited ${insights.fulfil[0].ageDays} day${insights.fulfil[0].ageDays === 1 ? "" : "s"}` : ""}
+          onOpen={() => { openFirstActionQueue(); setActiveTab?.("orders"); }} openLabel="Ship orders" />
+        <RunRow label="reviews to moderate" count={reviews ? reviews.pending : null} loading={!audience.data && !audience.error}
+          detail="Readers are waiting to see these" onOpen={() => setActiveTab?.("reviews")} openLabel="Moderate" />
+        <RunRow label="titles to reprint soon" count={insights ? insights.reprint.length : null} loading={ordersLoading || stockLoading}
+          detail={`On course to sell out within ${REORDER_COVER_DAYS} days`} onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
+        <RunRow label="print books or editions sold out" count={insights ? insights.shelf.soldOut : null} loading={ordersLoading || stockLoading}
+          detail="Customers can't buy these right now" onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
+        <RunRow label="cancel or return requests" count={todos ? todos.requests.length : null} loading={ordersLoading}
+          detail="Customers asked from their order page" onOpen={() => { openOrdersQueue("Needs attention"); setActiveTab?.("orders"); }} openLabel="Answer requests" />
+        <RunRow label="gift cards not issued" count={todos ? todos.giftCardsMissing.length : null} loading={ordersLoading}
+          detail="Paid, but the buyer has no code yet" onOpen={() => setActiveTab?.("giftCards")} openLabel="Open gift cards" />
+        <RunRow label="pre-orders awaiting release" count={todos ? todos.awaitingRelease.length : null} loading={ordersLoading}
+          detail="Press Ready to ship now on each order when the books arrive" onOpen={() => { openOrdersQueue("Awaiting release"); setActiveTab?.("orders"); }} openLabel="Open pre-orders" />
+        <RunRow label="unread messages" count={counts ? counts.unreadMessages : null} loading={!counts}
+          detail="From the contact form on your website" onOpen={() => setActiveTab?.("messages")} openLabel="Read messages" />
+        <RunRow label="privacy requests" count={counts ? counts.openPrivacyRequests : null} loading={!counts}
+          detail="Customers asked for a copy or deletion of their data" onOpen={() => setActiveTab?.("general")} openLabel="Open privacy requests" />
+      </ul>
+      {(allOrders.error || audience.error || stock.error) && (
+        <p className="rp-ov-run-sub">
+          {[allOrders.error && "orders", audience.error && "reviews", stock.error && "books"].filter(Boolean).join(", ")} could not be loaded, so some counts are missing.
+        </p>
+      )}
+    </aside>
   );
 
   const renderWidget: RenderWidget = (w, { full, setConfig }) => {
     const band = widgetMeta(w.type).band;
     switch (w.type) {
-      case "needs": return needsList;
+      case "needs": return runSheet;
       case "readiness":
         return launch.error ? <ErrorState title="Launch checks unavailable" description="Settings, shipping or email records could not be loaded. Readiness is unknown until these checks refresh." onRetry={refresh} />
           : !readiness ? <LoadingState label="Checking…" />
@@ -408,30 +390,13 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           </SectionCard>
         );
       case "newest":
-        if (allOrders.error) return <ErrorState title="Orders unavailable" description="Recent orders could not be loaded." onRetry={refresh} />;
-        if (!allOrders.orders) return <LoadingState label="Loading orders…" />;
-        if (full) {
-          return <DataTable caption="Newest orders" columns={recentColumns} rows={newestSales(allOrders.orders, 25)} rowKey={o => o.id}
-            empty={<EmptyState title="No orders yet" description="New orders appear here as soon as customers check out." />} />;
-        }
-        return recentOrders.length === 0 ? <EmptyState title="No orders yet" description="New orders appear here as soon as customers check out." /> : (
-          <div>
-            <ul className="rp-wb-rows" aria-label="Newest orders">
-              {recentOrders.map((o: any) => {
-                const w = orderStatusWords(o);
-                return (
-                  <li key={o.id}>
-                    <a className="rp-wb-nrow" href={`#orders/${encodeURIComponent(o.id)}`} aria-label={`Open order ${o.orderId || o.id}`}>
-                      <span className="rp-wb-nrow-main"><b>{o.customer?.name || o.customer?.email || "Customer"}</b><small className="rp-mono">{o.orderId || o.id}</small></span>
-                      <span className="rp-wb-nrow-end"><span className="rp-mono">{money(o.total)}</span>
-                        <Pill tone={w === "Refunded" || w === "Needs attention" ? "warning" : w === "Paid · to send" ? "info" : "success"} glyph={w === "Paid · to send" ? "●" : w === "Refunded" || w === "Needs attention" ? "◐" : "✓"}>{w}</Pill></span>
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-            <p className="rp-wb-foot"><button type="button" className="rp-wb-a" onClick={() => setActiveTab?.("orders")}>All orders →</button></p>
-          </div>
+        return (
+          <SectionCard flush title="Newest orders" description="The latest real sales" actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("orders")}>All orders</SecondaryButton>}>
+            {allOrders.error ? <ErrorState title="Orders unavailable" description="Recent orders could not be loaded." />
+              : !allOrders.orders ? <LoadingState label="Loading orders…" />
+              : <DataTable caption="Newest orders" columns={recentColumns} rows={full ? newestSales(allOrders.orders, 25) : recentOrders} rowKey={o => o.id}
+                  empty={<EmptyState title="No orders yet" description="New orders appear here as soon as customers check out." />} />}
+          </SectionCard>
         );
       case "story":
         return (
@@ -462,7 +427,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         const ids = (w.config?.figures?.length ? w.config.figures : DEFAULT_FIGURES) as FigureId[];
         return (
           <section className="rp-ov-figures" aria-label="Key figures">
-            {ids.map(id => { const f = figure(id); return <Figure key={id} label={FIGURES.find(x => x.id === id)!.label} value={f.value} foot={f.foot} tone={(f as any).tone} spark={sparkFor(id)} />; })}
+            {ids.map(id => { const f = figure(id); return <Figure key={id} label={FIGURES.find(x => x.id === id)!.label} value={f.value} foot={f.foot} tone={(f as any).tone} />; })}
           </section>
         );
       }
