@@ -61,6 +61,11 @@ function buildBatches(range) {
       },
       { key: "visitorType", dateRanges: [cur], dimensions: [dim("newVsReturning")], metrics: ["activeUsers", "sessions"].map(metric), limit: 5 },
     ],
+    [
+      // Tagged links (utm_campaign) for Overview › Marketing › Campaigns and links that sell; "(not set)" and
+      // "(direct)"/"(organic)"/"(referral)" are Google's names for untagged visits and are left out by the Overview.
+      { key: "campaigns", dateRanges: [cur], dimensions: [dim("sessionCampaignName"), dim("sessionSource"), dim("sessionMedium")], metrics: engagement, limit: 50, orderBys: [{ metric: { metricName: "sessions" }, desc: true }] },
+    ],
   ];
 }
 
@@ -99,6 +104,7 @@ function shapeReport(batches, realtime) {
     devices: strip(reports.devices || []),
     pages: strip(reports.pages || []),
     visitorType: strip(reports.visitorType || []),
+    campaigns: strip(reports.campaigns || []),
     events: { current: events("current"), previous: events("previous") },
     activeNow: realtime === null ? null : Number(rowsOf(realtime)[0]?.activeUsers) || 0,
   };
@@ -134,9 +140,9 @@ async function fetchJson(fetchImpl, url, init) {
 }
 
 /** The running service account's token (scoped to Analytics, read only) and email, from the metadata server. */
-async function metadataCredentials(fetchImpl) {
+async function metadataCredentials(fetchImpl, scope = SCOPE) {
   const headers = { "Metadata-Flavor": "Google" };
-  const token = await fetchJson(fetchImpl, `${METADATA}token?scopes=${encodeURIComponent(SCOPE)}`, { headers });
+  const token = await fetchJson(fetchImpl, `${METADATA}token?scopes=${encodeURIComponent(scope)}`, { headers });
   if (!token.ok || !token.body?.access_token) throw Object.assign(new Error("No service-account token"), { code: "no_token" });
   let email = "";
   try {
@@ -187,5 +193,5 @@ async function handleGa4Report(body, deps) {
 }
 
 module.exports = {
-  cleanPropertyId, propertyIdProblem, cleanRange, buildBatches, rowsOf, shapeReport, gaErrorMessage, handleGa4Report, metadataCredentials,
+  cleanPropertyId, propertyIdProblem, cleanRange, buildBatches, rowsOf, shapeReport, gaErrorMessage, handleGa4Report, metadataCredentials, fetchJson,
 };

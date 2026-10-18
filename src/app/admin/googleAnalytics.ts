@@ -21,12 +21,23 @@ export interface Ga4Report {
   totals: { current: Row; previous: Row };
   byDate: { current: Row[]; previous: Row[] };
   channels: Row[]; sources: Row[]; landing: Row[]; countries: Row[]; devices: Row[]; pages: Row[]; visitorType: Row[];
+  /** Sessions per tagged campaign (utm_campaign); missing on reports from before 18 October 2026. */
+  campaigns?: Row[];
   events: { current: Record<string, number>; previous: Record<string, number> };
   activeNow: number | null;
 }
 export interface Ga4Answer {
   connected: boolean; code?: string; error?: string; serviceAccount?: string; propertyId?: string; enableApiUrl?: string;
   activeNow?: number; report?: Ga4Report;
+}
+
+/** Google Search Console (functions/searchConsole.js): searches and pages that showed the shop on Google. */
+export interface SearchRow { key: string; clicks: number; impressions: number; ctr: number; position: number }
+export interface SearchTotals { clicks: number; impressions: number; ctr: number; position: number }
+export interface SearchConsoleAnswer {
+  connected: boolean; code?: string; error?: string; serviceAccount?: string; enableApiUrl?: string;
+  sites?: Array<{ siteUrl: string; permissionLevel: string }>; site?: string;
+  report?: { totals: { current: SearchTotals; previous: SearchTotals }; queries: SearchRow[]; pages: SearchRow[] };
 }
 
 async function call(payload: Record<string, unknown>): Promise<any> {
@@ -63,6 +74,11 @@ export const googleAnalyticsApi = {
   },
   status: (): Promise<Ga4Answer> => call({ action: "ga4Report", op: "status" }),
   report: (range: Ga4Range): Promise<Ga4Answer> => call({ action: "ga4Report", op: "report", range }),
+  searchConsoleStatus: (): Promise<SearchConsoleAnswer> => call({ action: "searchConsole", op: "status" }),
+  searchConsoleReport: (range: Ga4Range): Promise<SearchConsoleAnswer> => call({ action: "searchConsole", op: "report", range }),
+  /** The Search Console property to read ("sc-domain:…" or "https://…/"), in admin-only adminSecrets/googleAnalytics. */
+  saveSearchConsoleSite: (site: string) =>
+    setDoc(doc(db, "adminSecrets", "googleAnalytics"), { searchConsoleSite: String(site || "").trim(), updatedAt: serverTimestamp() }, { merge: true }),
   /** Overview › Start traffic counts again: deletes the shop's own daily traffic counters (never orders). */
   resetTraffic: (): Promise<{ ok: boolean; at: string; removedDays: number }> => call({ action: "resetTraffic", confirm: "RESET" }),
   /** When the shop's own counters were last reset (admin-read systemStatus/trafficReset), or null. */

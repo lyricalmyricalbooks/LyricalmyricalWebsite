@@ -385,6 +385,8 @@ export default function BookDetail() {
       trackBookView(book.id);
       funnelApi.track("view");
       funnelApi.trackProductView(book.id);
+      // Sold out (every edition) or coming soon: Overview › Stock › "Wanted but can't be bought".
+      if (!quickAddChoice(book).inStock) funnelApi.trackUnavailableView(book.id);
       const price = Math.round((displayPrice(book) || 0) * 100) / 100;
       ga4Once(`view_${book.id}`, "view_item", { currency: "CAD", value: price, items: [{ item_id: book.id, item_name: String(book.title || "Book").slice(0, 100), price, quantity: 1 }] });
       const bookCategories = (book as any)?.categories || (book as any)?.genres || [];

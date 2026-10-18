@@ -6,21 +6,25 @@ import { buildCustomers, customerStats, SEGMENT_LABELS } from "./customerInsight
 import { cohortRetention, newVsReturningRevenue, repeatTiming } from "./overviewCohorts";
 import { shopDayKey } from "../lib/shopDay";
 import { abandonedCartApi } from "../lib/commerce";
-import { SPLIT, StatRow, money, percent } from "./OverviewParts";
+import { BarRow, SPLIT, StatRow, money, percent } from "./OverviewParts";
+import { newsletterWeeks, reminderResults } from "./overviewSignals";
+import { SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
 
 type Mix = { total: number; returning: number; fresh: number; returningRate: number };
 type Reviews = { pending: number; approved: number; average: number | null } | null;
 type Subs = { total: number; added: number } | null;
 
 /** Overview › Dig deeper › Customers: who buys, who comes back, and what happens to carts people leave. */
-export function OverviewCustomers({ paid, current, startKey, mix, startMs, reviews, subs, audienceFailed, setActiveTab }: {
+export function OverviewCustomers({ paid, current, startKey, mix, startMs, reviews, subs, audienceFailed, setActiveTab, newsletter = null }: {
   paid: Order[]; current: Order[]; startKey: string; mix: Mix; startMs: number; reviews: Reviews; subs: Subs; audienceFailed: boolean; setActiveTab?: (tab: string) => void;
+  newsletter?: { subscribers: any[]; pending: any[] } | null;
 }) {
   // Carts are read only when this tab is opened (the panel mounts then), so the Overview itself stays light.
   const [carts, setCarts] = useState<{ rows: any[] | null; error: boolean }>({ rows: null, error: false });
   const load = () => {
     setCarts({ rows: null, error: false });
-    abandonedCartApi.list(500).then(rows => setCarts({ rows, error: false })).catch(() => setCarts({ rows: null, error: true }));
+    // The owner's own test carts aren't customers.
+    abandonedCartApi.list(500).then(rows => setCarts({ rows: rows.filter((c: any) => String(c?.email || "").toLowerCase() !== SHOP_OWNER_EMAIL), error: false })).catch(() => setCarts({ rows: null, error: true }));
   };
   useEffect(load, []);
 
@@ -28,6 +32,9 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
   const stats = useMemo(() => customerStats(customers), [customers]);
   const top = useMemo(() => [...customers].sort((a, b) => b.totalSpent - a.totalSpent).slice(0, 5), [customers]);
   const recovery = useMemo(() => (carts.rows ? cartRecovery(carts.rows, startMs) : null), [carts.rows, startMs]);
+  const reminders = useMemo(() => (carts.rows ? reminderResults(carts.rows, startMs) : null), [carts.rows, startMs]);
+  const weeks = useMemo(() => (newsletter ? newsletterWeeks(newsletter.subscribers, newsletter.pending) : null), [newsletter]);
+  const weekTop = Math.max(1, ...(weeks || []).map(w => w.confirmed + w.waiting));
   const cohorts = useMemo(() => cohortRetention(paid, shopDayKey(Date.now()), 12, 6), [paid]);
   const timing = useMemo(() => repeatTiming(paid), [paid]);
   const split = useMemo(() => newVsReturningRevenue(paid, current, startKey), [paid, current, startKey]);
@@ -91,6 +98,36 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
                 <StatRow label="Still waiting" hint="value of books left in bags" value={money(recovery.openValue)} tone={recovery.openValue > 0 ? "danger" : "muted"} />
               </ul>
             )}
+        </SectionCard>
+
+        <SectionCard flush title="Did the reminder emails work?" description="Reminder emails sent for carts left behind in this period, and who bought after getting one">
+          {carts.error ? <ErrorState title="Carts unavailable" description="The saved carts could not be loaded." onRetry={load} />
+            : !reminders ? <LoadingState label="Loading carts…" />
+            : reminders.sent === 0 ? <EmptyState title="No reminders sent in this period" description="A reminder goes out about an hour after a shopper leaves a cart with their email (Settings › Notifications › Abandoned cart)." />
+            : (
+              <ul className="rp-list" aria-label="Reminder emails">
+                <StatRow label="Reminders sent" value={reminders.sent} />
+                <StatRow label="Bought after the reminder" hint={reminders.rate === null ? undefined : `${percent(reminders.rate, 0)} of reminders`} value={reminders.bought} />
+                <StatRow label="Sales after a reminder" hint="the bag's value when it was left" value={money(reminders.value)} />
+              </ul>
+            )}
+          <p className="rp-hint" style={{ padding: "12px 20px 16px", margin: 0 }}>Saved carts are kept for 30 days, so longer periods show the last 30 days.</p>
+        </SectionCard>
+
+        <SectionCard flush title="Newsletter sign-ups by week" description="Confirmed sign-ups and those still waiting for the shopper to click the confirmation email, last 8 weeks">
+          {!weeks ? (audienceFailed ? <ErrorState title="Newsletter unavailable" description="Sign-ups could not be loaded." /> : <LoadingState label="Loading sign-ups…" />)
+            : weeks.every(w => w.confirmed + w.waiting === 0) ? <EmptyState title="No sign-ups in the last 8 weeks" description="Sign-ups from the newsletter box appear here by week." />
+            : (
+              <ul className="rp-list" aria-label="Newsletter sign-ups by week">
+                {weeks.map(w => (
+                  <BarRow key={w.week} label={`Week of ${w.label}`} share={((w.confirmed + w.waiting) / weekTop) * 100} color="var(--rp-success)"
+                    value={<>{w.confirmed} confirmed{w.waiting > 0 && <span style={{ color: "var(--rp-warning)" }}> · {w.waiting} waiting</span>}</>} />
+                ))}
+              </ul>
+            )}
+          {weeks && weeks.reduce((s, w) => s + w.waiting, 0) > weeks.reduce((s, w) => s + w.confirmed, 0) && (
+            <p className="rp-hint" style={{ padding: "12px 20px 16px", margin: 0, color: "var(--rp-warning)" }}>! More sign-ups are waiting than confirmed: the confirmation email may be landing in spam folders.</p>
+          )}
         </SectionCard>
 
         <SectionCard flush title="Reader reviews" description="What readers say about your books"

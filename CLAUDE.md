@@ -2064,6 +2064,33 @@ it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badg
   `systemStatus/trafficReset` (`at`, `removedDays`). Never touches orders, revenue or Google Analytics.
 - Deploy Functions with the frontend. No Firestore rule or index change.
 
+## Overview analytics 3.0 + your own visits (18 October 2026)
+
+- **Owner never counted:** `lib/ownerDevice.ts` (pure). A browser is the owner's (`localStorage lm:owner-device` = on) after the
+  first admin sign-in there (`markOwnerDeviceOnSignIn` in `Dashboard.tsx`, unless the owner chose "off"), via Settings › General ›
+  **Your own visits** (`OwnVisitsCard.tsx`), or by opening any page with `?owner-device=on|off` (`takeOwnerDeviceLink`, first in
+  `main.tsx`, strips it). `trackingGuard.neverCounted()` also refuses `looksAutomated()` (webdriver, bots, headless, speed testers);
+  both the shop counter and GA4 use it. Orders by `SHOP_OWNER_EMAIL` or with `metadata.ownerDevice: true` (Checkout stamps it) are
+  `isOwnOrder`: kept in Orders, to-dos and readiness, left out of every Overview figure (`shopOrders` in `AnalyticsDashboard`) and the
+  Monday email; the owner's own carts are left out of cart stats.
+- **New counters** (`lib/commerce.ts` funnelApi, all behind `trackingAllowed()`): `bookAdds`, `wishlistAdds`, `unbuyableViews` (free
+  maps per book id; the bag and wishlist only emit `lib/shopSignals.ts` window events, listened to from `main.tsx`), `checkout`
+  (fixed keys `CHECKOUT_STEPS`, once per step per visit/day) and `vitals` (`lib/pageSpeed.ts`: one key per visit
+  `<phone|computer>_<lcp><inp><cls>`, g/o/p/n, Google's limits, PerformanceObserver only). `firestore.rules` lists them; the
+  checkout map's check is deliberately cheap (the rules engine's 1,000-expression budget). Add a step to both `CHECKOUT_STEPS` and the rule.
+- **Panels** (pure maths in `admin/overviewSignals.ts`, UI in `OverviewMarketingExtras.tsx`): Titles › Into bag + flags (`titleFlag`);
+  Marketing › Where checkout loses people, Campaigns and links that sell (order `acquisition`, GA4 batch 3 `campaigns`), Pages that
+  start sales, Page speed for real shoppers, Found on Google; Customers › Did the reminder emails work? + Newsletter sign-ups by week
+  (`getAudienceSnapshot().pendingSubscribers`); Stock › Wanted but can't be bought. Never draw a zero for a signal never recorded.
+- **Search Console:** `functions/searchConsole.js` (`action: "searchConsole"`, admin, `LIMITS.ga4` bucket `search-console`), the
+  Functions' metadata token with scope `webmasters.readonly` (`metadataCredentials(fetch, scope)`); property in admin-only
+  `adminSecrets/googleAnalytics.searchConsoleSite` (else the shop's domain, else the only one). Owner setup: add the service account
+  as a Restricted user in Search Console and enable the Search Console API. Settings › General › **Google Search Console**.
+- **Monday summary:** `exports.weeklySummary` (Mondays 08:00 Toronto) → `functions/weeklySummary.js` (pure): last Mon–Sun vs the week
+  before, real paid non-owner orders, visits from `analytics/<UTC day>`. Switch `settings/notifications.shopAlerts.weeklySummary`
+  (missing = on), Settings › Email sender › Shop alerts, with **Send me last week's summary now** (`sendTestEmail` `weeklySummaryNow`).
+- Deploy Firestore rules + Functions with the frontend.
+
 ## Round-2 digital downloads (10 October 2026)
 
 `downloadDigitalAsset` rules live in `functions/digitalDelivery.js` (pure, `digitalDownloads.test.js`); the endpoint and the

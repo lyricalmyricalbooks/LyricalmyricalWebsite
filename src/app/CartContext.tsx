@@ -1,4 +1,5 @@
 import { ga4Event, ga4Items } from "./lib/ga4";
+import { emitShopSignal } from "./lib/shopSignals";
 import { useStudioOverlay } from "./features/site/studioOverlay";
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from "react";
 import { preorderActive, releaseDateOf } from "./features/site/preorder";
@@ -315,6 +316,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
     setIsCartOpen(true);
     ga4Event("add_to_cart", { currency: "CAD", value: round2(price * quantity), items: ga4Items([{ ...draft, quantity }]) });
+    emitShopSignal("bookAdd", product.id);
     return true;
   };
 

@@ -54,6 +54,8 @@ import { RedirectsCard } from "./RedirectsCard";
 import { AddressFinderCard } from "./AddressFinderCard";
 import { AiWriterCard } from "./AiWriterCard";
 import { GoogleAnalyticsCard } from "./GoogleAnalyticsCard";
+import { OwnVisitsCard } from "./OwnVisitsCard";
+import { SearchConsoleCard } from "./SearchConsoleCard";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
 import { saveSectionsInOrder } from "./settingsSave";
 import { TaxesSettings } from "./TaxesSettings";
@@ -298,7 +300,11 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
 
       <RedirectsCard />
 
+      <OwnVisitsCard />
+
       <GoogleAnalyticsCard />
+
+      <SearchConsoleCard />
 
       <AiWriterCard />
 

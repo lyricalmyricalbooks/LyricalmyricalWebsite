@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { emitShopSignal } from "./shopSignals";
 
 export const WISHLIST_KEY = "fm_wishlist_v1";
 const KEY = WISHLIST_KEY;
@@ -37,8 +38,10 @@ export function useWishlist() {
 
   const toggle = useCallback((id: string) => {
     const current = read();
-    const next = current.includes(id) ? current.filter(x => x !== id) : [...current, id];
+    const adding = !current.includes(id);
+    const next = adding ? [...current, id] : current.filter(x => x !== id);
     write(next);
+    if (adding) emitShopSignal("wishlistAdd", id);
   }, []);
 
   const remove = useCallback((id: string) => {

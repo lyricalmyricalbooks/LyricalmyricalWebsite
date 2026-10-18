@@ -1822,6 +1822,8 @@ export const adminApi = {
       reviews: reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
       // Signups still waiting for the confirmation email click are not subscribers yet.
       subscribers: subsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter((d: any) => d.status !== "pending"),
+      // …but they show on the Overview's weekly sign-ups, to spot a confirmation email that isn't arriving.
+      pendingSubscribers: subsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter((d: any) => d.status === "pending"),
       pendingReviews: pending as number | null,
       approvedReviews: approved as { count: number; average: number | null } | null,
     };

@@ -92,12 +92,13 @@ describe("handleGa4Report", () => {
     expect((await handleGa4Report({ op: "report", range: { startDate: "x" } }, deps({ fetchImpl: vi.fn(async () => reply(200, {})) }))).status).toBe(400);
     expect((await handleGa4Report({ op: "report", range: RANGE }, deps({ allow: async () => false }))).status).toBe(429);
   });
-  it("report: two batches plus realtime", async () => {
+  it("report: three batches (the last one campaigns) plus realtime", async () => {
     const d = deps({ fetchImpl: vi.fn(async () => reply(200, { reports: [] })) });
     const { body } = await handleGa4Report({ op: "report", range: RANGE }, d);
     expect(body.connected).toBe(true);
-    expect(d.fetchImpl).toHaveBeenCalledTimes(3);
+    expect(d.fetchImpl).toHaveBeenCalledTimes(4);
     expect(body.report.totals.current).toEqual({});
+    expect(body.report.campaigns).toEqual([]);
   });
 });
 

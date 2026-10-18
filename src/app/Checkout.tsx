@@ -64,6 +64,7 @@ import { isGiftCardProduct, bundleComponents, bundleWeightGrams } from "./featur
 import { isLiveBook } from "./features/site/liveBook";
 import { previewSampleCart } from "./features/site/previewSampleCart";
 import { inEditorPreview } from "./lib/trackingGuard";
+import { isOwnerDevice } from "./lib/ownerDevice";
 import { componentsSummary } from "./features/site/orderLineNotes";
 import { FulfillmentMethodPicker, bestFirst, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
 import { smallPhotoUrl } from "./features/site/photoSources";
@@ -1269,7 +1270,15 @@ export function Checkout() {
     });
   }, [detailProblems]);
 
+  // Overview › Marketing & traffic › "Where checkout loses people": how far each shopper got (once per step and session).
+  const emailTyped = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(customer.email || "").trim());
+  const deliveryPriceShown = cart.length > 0 && (digitalOnly ? detailProblems.length === 0 : availableRates.length > 0 || localQuotes.length > 0);
+  useEffect(() => { if (cart.length > 0 && emailTyped) void funnelApi.trackCheckoutStep("email"); }, [emailTyped, cart.length]);
+  useEffect(() => { if (cart.length > 0 && detailProblems.length === 0) void funnelApi.trackCheckoutStep("address"); }, [detailProblems.length, cart.length]);
+  useEffect(() => { if (deliveryPriceShown) void funnelApi.trackCheckoutStep("delivery"); }, [deliveryPriceShown]);
+
   const completePurchase = async () => {
+    void funnelApi.trackCheckoutStep("pay");
     if (catalogState !== "ready") {
       setNotice({ tone: "error", text: c(catalogState === "failed" ? "coCatalogFailed" : "coCatalogLoading") });
       return;
@@ -1289,6 +1298,7 @@ export function Checkout() {
     // Name every field that needs fixing next to its box, then move to the first (a mistyped
     // email means no confirmation and no e-book link).
     if (detailProblems.length) {
+      void funnelApi.trackCheckoutStep("fields");
       setFieldErrors(Object.fromEntries(detailProblems.map(problem => [problem.field, c(problem.copyKey)])));
       setNotice({ tone: "error", text: c("coErrShippingFields") });
       const first = detailProblems[0].field;
@@ -1399,7 +1409,8 @@ export function Checkout() {
         appliedDiscount: appliedDiscount
           ? { id: appliedDiscount.id, code: appliedDiscount.code, type: appliedDiscount.type, value: appliedDiscount.value }
           : null,
-        metadata: { userAgent: navigator.userAgent, platform: "web" }
+        // A browser marked as the owner's (lib/ownerDevice.ts): the Overview leaves the order out of its figures.
+        metadata: { userAgent: navigator.userAgent, platform: "web", ...(isOwnerDevice() ? { ownerDevice: true } : {}) }
       };
       
       // Save customer email in localStorage to recover cart on payment success landing
@@ -1598,6 +1609,7 @@ export function Checkout() {
           }
           // Not confirmed: the kept order/intent is reused by the next Pay, so a failed form may be reloaded.
           setInlineAttemptStarted(false);
+          void funnelApi.trackCheckoutStep("declined");
           setNotice({ tone: "error", text: result.error });
           return;
         }
@@ -1641,6 +1653,7 @@ export function Checkout() {
         setNotice({ tone: "error", text: c("coDiscountRejected", { reason: err.reason }) });
         return;
       }
+      void funnelApi.trackCheckoutStep("failed");
       setNotice({ tone: "error", text: c("coCheckoutFailed", { error: copyErrorText(err, checkoutDesign, "coStripeError") }) });
     }
   };

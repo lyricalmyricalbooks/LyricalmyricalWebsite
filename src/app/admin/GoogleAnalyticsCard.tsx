@@ -52,7 +52,7 @@ export function GoogleAnalyticsCard() {
 
   return (
     <SectionCard title="Google Analytics"
-      description="Counts visitors with Google Analytics 4 and shows its traffic figures on the Overview (channels, landing pages, countries, devices, engagement, people on the site now). Visitors who decline analytics cookies, the design preview and you (signed in as admin) are never counted, and private details in page addresses (email addresses, order links, sign-in codes) are never sent to Google."
+      description="Counts visitors with Google Analytics 4 and shows its traffic figures on the Overview (channels, landing pages, countries, devices, engagement, people on the site now). Visitors who decline analytics cookies, the design preview, search-engine robots and your own browsers (Settings › General › Your own visits) are never counted, and private details in page addresses (email addresses, order links, sign-in codes) are never sent to Google."
       actions={loaded && <StatusBadge tone={tracking ? "success" : "neutral"}>{tracking ? "Tracking on" : "Off"}</StatusBadge>}>
       <ol className="rp-hint" style={{ margin: "0 0 12px", paddingLeft: 20, lineHeight: 1.6 }}>
         <li>At <a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer">analytics.google.com</a> create a GA4 property for the shop (time zone: Toronto, currency: Canadian dollar) and a <strong>Web</strong> data stream for the shop's address.</li>

@@ -6,6 +6,8 @@ import { bookInterest, rankMap, recordedSince, sourcePerformance, sumMap, type D
 import { funnelSteps, type TrafficFigures } from "./overviewSources";
 import type { Ga4Answer } from "./googleAnalytics";
 import { BarRow, SPLIT, StatRow, Trend, money, percent } from "./OverviewParts";
+import { CampaignsCard, CheckoutJourneyCard, FoundOnGoogleCard, LandingSalesCard, PageSpeedCard } from "./OverviewMarketingExtras";
+import type { Ga4Range } from "./googleAnalytics";
 
 const since = (key: string | null) => (key ? new Date(`${key}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : null);
 const NOT_YET = (what: string) => <EmptyState icon="⏳" title="Not recorded yet" description={`${what} start counting once shoppers visit the updated storefront. Until then there is nothing to show — not even zero.`} />;
@@ -16,8 +18,8 @@ export type GaState = { status: "loading" | "off" | "error" | "connected"; answe
 type Row = Record<string, any>;
 
 /** Overview › Dig deeper › Marketing & traffic: how people arrive, what they look for, and where they drop off. */
-export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current, books, lastReset, firstDay, onReset, setActiveTab }: {
-  ga: GaState; traffic: TrafficFigures; dailyCurrent: Daily[]; dailyAll: Daily[]; current: Order[]; books: Book[];
+export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current, paidAll, range, books, lastReset, firstDay, onReset, setActiveTab }: {
+  ga: GaState; traffic: TrafficFigures; dailyCurrent: Daily[]; dailyAll: Daily[]; current: Order[]; paidAll: Order[]; range: Ga4Range; books: Book[];
   lastReset: { at: string; removedDays: number } | null; firstDay: string | null; onReset: () => Promise<void>; setActiveTab?: (tab: string) => void;
 }) {
   const [confirm, confirmNode] = useConfirm();
@@ -50,7 +52,7 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
   const reset = async () => {
     const ok = await confirm({
       title: "Start traffic counts again?",
-      message: "This deletes the shop's own visit, add-to-bag, checkout, search, source and book-view counts so far (for example test visits before launch) and starts counting from now. Orders, revenue, customers and Google Analytics are not touched. This can't be undone.",
+      message: "This deletes the shop's own visit, add-to-bag, checkout-step, search, source, book-view and page-speed counts so far (for example test visits before launch) and starts counting from now. Orders, revenue, customers and Google Analytics are not touched. This can't be undone.",
       confirmLabel: "Reset counts",
     });
     if (!ok) return;
@@ -146,6 +148,8 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
           )}
         </SectionCard>
 
+        <CheckoutJourneyCard dailyCurrent={dailyCurrent} />
+
         <SectionCard flush title="Sources that sell"
           description={recordedSince(dailyAll, "sources") ? `Visits per source beside the paid orders that came from it · shop counter since ${since(recordedSince(dailyAll, "sources"))}` : "Visits per source beside the paid orders that came from it"}>
           {sources.length === 0
@@ -153,6 +157,10 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
             : <DataTable caption="Sources that sell" columns={sourceColumns} rows={sources} rowKey={r => r.source} />}
           <p className="rp-hint" style={{ padding: "12px 20px 16px" }}>Share a link ending in <span className="rp-mono">?ref=name</span> and it shows up here under that name. Visits with no referrer count as direct.</p>
         </SectionCard>
+
+        <CampaignsCard current={current} paidAll={paidAll} dailyCurrent={dailyCurrent} gaCampaigns={report?.campaigns} />
+
+        <LandingSalesCard current={current} />
 
         {ga.status !== "connected" && (
           <SectionCard flush title="Devices" description="What shoppers browse on (shop counter)">
@@ -196,6 +204,10 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
             </ul>
           )}
         </SectionCard>
+
+        <PageSpeedCard dailyCurrent={dailyCurrent} />
+
+        <FoundOnGoogleCard range={range} setActiveTab={setActiveTab} />
 
         <SectionCard title="The shop's own counter"
           description="A simple first-party count of visits, bag adds, checkouts, searches, sources and book views, kept even without Google Analytics."

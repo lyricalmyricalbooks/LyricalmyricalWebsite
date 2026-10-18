@@ -12,7 +12,7 @@ import {
   SectionHead, SelectField, StatusBadge, Tabs, TextField, type BadgeTone, type Column,
 } from "./riso/components";
 import {
-  bestSellers, customerMix, dormantStock, newestSales, newsletterSummary, orderStatusWords, orderTodos, reprintWatch, reviewSummary,
+  bestSellers, customerMix, isRealPaidOrder, dormantStock, newestSales, newsletterSummary, orderStatusWords, orderTodos, reprintWatch, reviewSummary,
   splitRange, stockValue, titleStock, toFulfil, totals, REORDER_COVER_DAYS,
 } from "./overviewInsights";
 import { recordedSince, sumMap } from "./overviewTraffic";
@@ -23,6 +23,7 @@ import { whatChanged, type Change } from "./overviewChanges";
 import { profitSummary, titlePerformance } from "./overviewProfit";
 import { googleAnalyticsApi } from "./googleAnalytics";
 import { shopDayKey } from "../lib/shopDay";
+import { isOwnOrder } from "../lib/ownerDevice";
 import { Figure, ReadinessPanel, RunRow, SPLIT, ROW, Trend, money, percent } from "./OverviewParts";
 import { leadStory } from "./overviewStory";
 import { OverviewSales } from "./OverviewSales";
@@ -63,7 +64,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const [daily, setDaily] = useState<{ rows: any[] | null; error: boolean }>({ rows: null, error: false });
   const [allOrders, setAllOrders] = useState<{ orders: any[] | null; error: boolean }>({ orders: null, error: false });
   const [stock, setStock] = useState<{ books: any[] | null; error: boolean }>({ books: null, error: false });
-  const [audience, setAudience] = useState<{ data: { reviews: any[]; subscribers: any[]; pendingReviews?: number | null; approvedReviews?: { count: number; average: number | null } | null } | null; error: boolean }>({ data: null, error: false });
+  const [audience, setAudience] = useState<{ data: { reviews: any[]; subscribers: any[]; pendingSubscribers?: any[]; pendingReviews?: number | null; approvedReviews?: { count: number; average: number | null } | null } | null; error: boolean }>({ data: null, error: false });
   const [counts, setCounts] = useState<{ unreadMessages: number | null; openPrivacyRequests: number | null } | null>(null);
   const [launch, setLaunch] = useState<{ parts: any | null; error: boolean }>({ parts: null, error: false });
   const [costs, setCosts] = useState<Record<string, number>>({});
@@ -142,7 +143,11 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const books = stock.books || [];
 
   // Everything sales-related comes from paid, real orders — one source of truth for revenue, orders and conversion.
-  const periods = useMemo(() => (allOrders.orders ? splitRange(allOrders.orders, range) : null), [allOrders.orders, range]);
+  // Orders the owner placed themselves (their own email, or checkout on a browser marked as theirs) stay in Orders and
+  // in today's to-dos, but are left out of every figure below so they never look like customers.
+  const shopOrders = useMemo(() => (allOrders.orders ? allOrders.orders.filter(o => !isOwnOrder(o)) : null), [allOrders.orders]);
+  const ownOrderCount = useMemo(() => (allOrders.orders || []).filter(o => isOwnOrder(o) && isRealPaidOrder(o)).length, [allOrders.orders]);
+  const periods = useMemo(() => (shopOrders ? splitRange(shopOrders, range) : null), [shopOrders, range]);
   const insights = useMemo(() => {
     if (!periods || !allOrders.orders) return null;
     const rows = titleStock(periods.paid, books);
@@ -211,6 +216,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const titleRows = useMemo(() => (periods ? titlePerformance({
     current: periods.current, previous: periods.previous, books, costs,
     viewsById: recordedSince(daily.rows || [], "bookViews") ? sumMap(dailyCurrent, "bookViews") : null,
+    addsById: recordedSince(daily.rows || [], "bookAdds") ? sumMap(dailyCurrent, "bookAdds") : null,
     stock: insights?.stockRows || [],
   }) : []), [periods, books, costs, daily.rows, dailyCurrent, insights]);
 
@@ -269,7 +275,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       <header className="rp-ov-mast">
         <div className="rp-ov-dateline">
           <span>{today}</span>
-          <span aria-live="polite">{refreshLabel}{traffic ? ` · traffic from ${sourceName}` : ""}</span>
+          <span aria-live="polite">{refreshLabel}{traffic ? ` · traffic from ${sourceName}` : ""}
+            {ownOrderCount > 0 && ` · ${ownOrderCount} ${ownOrderCount === 1 ? "order" : "orders"} you placed yourself left out`}</span>
         </div>
         <div className="rp-ov-mast-row">
           <h2 className="rp-ov-title">The shop today</h2>
@@ -490,23 +497,26 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       {section === "stock" ? (
         stock.error ? <ErrorState title="Stock unavailable" description="Books could not be loaded." onRetry={refresh} />
         : !insights ? (allOrders.error ? <ErrorState title="Stock insights unavailable" description="Orders could not be loaded, so sales pace can't be calculated." onRetry={refresh} /> : <LoadingState label="Calculating…" />)
-        : <OverviewStock key={reloadKey} books={books} shelf={insights.shelf} reprint={insights.reprint} dormant={insights.dormant} setActiveTab={setActiveTab} />
+        : <OverviewStock key={reloadKey} books={books} shelf={insights.shelf} reprint={insights.reprint} dormant={insights.dormant} setActiveTab={setActiveTab}
+            dailyCurrent={dailyCurrent} dailyAll={daily.rows || []} />
       ) : allOrders.error ? <ErrorState title="Details unavailable" description="Orders could not be loaded, so these lists can't be calculated." onRetry={refresh} />
         : !insights || !periods ? <LoadingState label="Calculating…" />
         : section === "sales" ? (
           <OverviewSales current={periods.current} previous={periods.previous} books={books} dailyCurrent={dailyCurrent}
             categoriesSetting={launch.parts?.settings?.design?.categories} onEditBook={handleEditClick} fetchingBookId={fetchingBookId} />
         ) : section === "titles" ? (
-          <OverviewTitles rows={titleRows} startKey={range.startKey} endKey={range.endKey} viewsRecorded={!!recordedSince(daily.rows || [], "bookViews")}
+          <OverviewTitles rows={titleRows} startKey={range.startKey} endKey={range.endKey} viewsRecorded={!!recordedSince(daily.rows || [], "bookViews")} addsRecorded={!!recordedSince(daily.rows || [], "bookAdds")}
             costsKnown={!!profit && profit.costedUnits > 0} onEditBook={handleEditClick} fetchingBookId={fetchingBookId} />
         ) : section === "marketing" ? (
           trafficFailed && ga.status !== "loading" ? <ErrorState title="Traffic unavailable" description="Visits, searches and sources could not be loaded." onRetry={loadDaily} />
           : !traffic ? <LoadingState label="Loading traffic…" />
-          : <OverviewMarketing ga={ga} traffic={traffic} dailyCurrent={dailyCurrent} dailyAll={daily.rows || []} current={periods.current} books={books}
+          : <OverviewMarketing ga={ga} traffic={traffic} dailyCurrent={dailyCurrent} dailyAll={daily.rows || []} current={periods.current} paidAll={periods.paid} books={books}
+              range={{ startDate: range.startKey, endDate: range.endKey, prevStartDate: range.prevStartKey, prevEndDate: range.prevEndKey }}
               lastReset={lastReset} firstDay={firstTrafficDay} onReset={resetTraffic} setActiveTab={setActiveTab} />
         ) : (
           <OverviewCustomers key={reloadKey} paid={periods.paid} current={periods.current} startKey={periods.startKey} mix={insights.mix} startMs={periods.start}
-            reviews={reviews} subs={subs} audienceFailed={audience.error} setActiveTab={setActiveTab} />
+            reviews={reviews} subs={subs} audienceFailed={audience.error} setActiveTab={setActiveTab}
+            newsletter={audience.data ? { subscribers: audience.data.subscribers, pending: audience.data.pendingSubscribers || [] } : null} />
         )}
     </div>
   );

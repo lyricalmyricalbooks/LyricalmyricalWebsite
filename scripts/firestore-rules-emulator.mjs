@@ -61,6 +61,16 @@ await check("unknown device bucket refused", assertFails(setDoc(doc(anon, "analy
 await check("source +1 ok (one entry per write)", assertSucceeds(setDoc(doc(anon, "analytics", today), { date: today, sources: { google: increment(1) } }, { merge: true })));
 await check("two sources in one write refused", assertFails(setDoc(doc(anon, "analytics", today), { date: today, sources: { bing: increment(1), duckduckgo: increment(1) } }, { merge: true })));
 await check("a write can't wipe the sources map", assertFails(setDoc(doc(anon, "analytics", today), { date: today, sources: { other: increment(1) } })));
+// Overview analytics 3.0: per-book bag/wishlist adds, unbuyable views, checkout steps and page speed
+await check("book added to bag +1 ok", assertSucceeds(setDoc(doc(anon, "analytics", today), { date: today, bookAdds: { book1: increment(1) } }, { merge: true })));
+await check("wishlist add +1 ok", assertSucceeds(setDoc(doc(anon, "analytics", today), { date: today, wishlistAdds: { book1: increment(1) } }, { merge: true })));
+await check("unbuyable view +1 ok", assertSucceeds(setDoc(doc(anon, "analytics", today), { date: today, unbuyableViews: { book1: increment(1) } }, { merge: true })));
+await check("two books in one bag write refused", assertFails(setDoc(doc(anon, "analytics", today), { date: today, bookAdds: { a: increment(1), b: increment(1) } }, { merge: true })));
+await check("checkout step +1 ok", assertSucceeds(setDoc(doc(anon, "analytics", today), { date: today, checkout: { pay: increment(1) } }, { merge: true })));
+await check("unknown checkout step refused", assertFails(setDoc(doc(anon, "analytics", today), { date: today, checkout: { made_up: increment(1) } }, { merge: true })));
+await check("forged checkout count refused", assertFails(setDoc(doc(anon, "analytics", today), { date: today, checkout: { declined: 5000 } }, { merge: true })));
+await check("page speed +1 ok", assertSucceeds(setDoc(doc(anon, "analytics", today), { date: today, vitals: { phone_ggg: increment(1) } }, { merge: true })));
+await check("unknown analytics field refused", assertFails(setDoc(doc(anon, "analytics", today), { date: today, madeUp: { x: increment(1) } }, { merge: true })));
 
 // reviews + contacts
 {
