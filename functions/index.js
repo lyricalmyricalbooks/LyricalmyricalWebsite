@@ -414,7 +414,8 @@ async function sendOrderEmailOnce(orderId, kind, message) {
 // `queue` (a short kind, e.g. "orderConfirmed"): when every sender refuses, park the email in
 // the server-only retry queue (emailOutbox) instead of losing it; the thrown error carries
 // `.queued` (the queue id). `outboxId` marks a send made by the retry queue itself.
-async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "", attempt = 0, claimId = "", about = {} }) {
+// `attachments` ([{ filename, content: Buffer, contentType }]) go with the email but never into the retry queue (pass no `queue`).
+async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "", attempt = 0, claimId = "", about = {}, attachments = [] }) {
   const recipientList = cleanRecipients(to);
   subject = cleanSubject(subject);
   const sourceHtml = html;
@@ -503,6 +504,7 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
         subject,
         html: withFooter(html),
         replyTo: replyTo || undefined,
+        ...(attachments.length ? { attachments } : {}),
       });
       await logEmailAttempt({ to: recipients, subject, status: "sent", from: ADMIN_TO, keySource: "gmail", id: info.messageId || null, ...okExtra });
       return { id: info.messageId || null };
@@ -556,7 +558,8 @@ async function sendEmail({ to, subject, html, secret, queue = "", outboxId = "",
       to,
       subject,
       html: withFooter(html),
-      replyTo: replyTo || undefined
+      replyTo: replyTo || undefined,
+      ...(attachments.length ? { attachments: attachments.map(a => ({ filename: a.filename, content: a.content, contentType: a.contentType })) } : {}),
     }, queueId ? { idempotencyKey: `${queueId}:${fromAddress}` } : undefined)
       .catch(err => ({ data: null, error: { message: err?.message || String(err) } }));
     return Promise.race([request, timeout]).finally(() => clearTimeout(timer));
@@ -4923,8 +4926,21 @@ async function sendWeeklySummary(nowMs = Date.now()) {
   const recentSnap = await db.collection("orders").where("paymentStatus", "==", "paid")
     .where("createdAt", ">=", digestSince(nowMs)).orderBy("createdAt", "desc").limit(DIGEST_ORDER_LIMIT).get();
   const toShip = buildOrderDigest(recentSnap.docs.map(d => ({ id: d.id, ...d.data() })), new Map(), nowMs).unshipped.length;
-  const { subject, html } = buildWeeklySummary({ orders: paid, daily, week, firstOrderIds: firstOrders(paid), toDo: { toShip }, link: siteLink });
-  await sendEmail({ to: ADMIN_TO, subject, html, secret: RESEND_API_KEY.value() });
+  const firstOrderIds = firstOrders(paid);
+  const { subject, html } = buildWeeklySummary({ orders: paid, daily, week, firstOrderIds, toDo: { toShip }, link: siteLink, withPdf: true });
+  // The attached PDF (functions/weeklyPdf.js) names the most looked-at books, so it needs their titles.
+  const bookTitles = new Map();
+  await db.collection("books").select("title").get()
+    .then(snap => snap.docs.forEach(d => bookTitles.set(d.id, String(d.data()?.title || ""))))
+    .catch(err => console.warn("Weekly summary: book titles unavailable:", err.message));
+  let attachments = [];
+  try {
+    const pdf = buildWeeklyPdf(weeklyHighlights({ orders: paid, daily, week, firstOrderIds, bookTitles }));
+    attachments = [{ filename: weeklyPdfName(week), content: pdf, contentType: "application/pdf" }];
+  } catch (err) {
+    console.error("Weekly summary PDF failed; sending the email without it:", err);
+  }
+  await sendEmail({ to: ADMIN_TO, subject, html: attachments.length ? html : html.replace(WEEKLY_PDF_LINE, ""), secret: RESEND_API_KEY.value(), attachments });
   return { subject };
 }
 
@@ -4943,7 +4959,8 @@ const ABANDONED_CART_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const ABANDONED_CART_MAX_ITEMS = 20;
 const ABANDONED_CART_BATCH = 500;
 const { digestSince, digestNeedsOperations, DIGEST_ORDER_LIMIT } = require("./orderDigest");
-const { lastWeek, buildWeeklySummary, weeklySummaryEnabled, firstOrders } = require("./weeklySummary");
+const { lastWeek, buildWeeklySummary, weeklyHighlights, weeklySummaryEnabled, firstOrders, WEEKLY_PDF_LINE } = require("./weeklySummary");
+const { buildWeeklyPdf, weeklyPdfName } = require("./weeklyPdf");
 const { pruneOldCarts } = require("./cartCleanup");
 
 exports.abandonedCartSweep = onSchedule(

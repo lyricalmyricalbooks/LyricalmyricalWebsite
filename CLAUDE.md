@@ -2102,6 +2102,9 @@ it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badg
 - **Monday summary:** `exports.weeklySummary` (Mondays 08:00 Toronto) → `functions/weeklySummary.js` (pure): last Mon–Sun vs the week
   before, real paid non-owner orders, visits from `analytics/<UTC day>`. Switch `settings/notifications.shopAlerts.weeklySummary`
   (missing = on), Settings › Email sender › Shop alerts, with **Send me last week's summary now** (`sendTestEmail` `weeklySummaryNow`).
+  It attaches a two-page PDF (`functions/weeklyPdf.js`, hand-written PDF with built-in Helvetica, no package) drawn from
+  `weeklyHighlights` (same sales rules; `analytics` maps for sources/devices/bookViews/searches/funnel; unrecorded = empty, never 0).
+  `sendEmail` takes `attachments` (Gmail and Resend; never queued). If the PDF fails the email goes without it.
 - Deploy Firestore rules + Functions with the frontend.
 
 ## Round-2 digital downloads (10 October 2026)

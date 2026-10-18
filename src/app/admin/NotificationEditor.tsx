@@ -675,7 +675,7 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
             <Toggle label="Daily “orders needing you” email (8am)" checked={shopAlerts.dailyOrderDigest !== false}
               onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, dailyOrderDigest: on } })} />
             <p className="rp-hint" style={{ margin: 0 }}>Lists paid orders not shipped after 3 days, parcels stuck in transit and label purchases to check. Nothing is sent on days with nothing to report.</p>
-            <Toggle label="Monday summary — last week's sales and visits (Mondays, 8am)" checked={shopAlerts.weeklySummary !== false}
+            <Toggle label="Monday summary — last week's sales and visits, with a PDF of the highlights (Mondays, 8am)" checked={shopAlerts.weeklySummary !== false}
               onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, weeklySummary: on } })} />
             <p className="rp-hint" style={{ margin: 0 }}>Revenue, orders, average order, copies sold, new customers, visits and the three best sellers, each against the week before. Test orders and your own orders are left out.</p>
             <WeeklySummaryNow />

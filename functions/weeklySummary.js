@@ -56,7 +56,7 @@ function figures(orders, from, to, firstOrderIds) {
   return {
     orders: week.length, revenue, units, aov: week.length ? revenue / week.length : 0,
     newCustomers: week.filter(o => firstOrderIds.has(o.id)).length,
-    top: [...books.values()].sort((a, b) => b.units - a.units || a.title.localeCompare(b.title)).slice(0, 3),
+    top: [...books.values()].sort((a, b) => b.units - a.units || a.title.localeCompare(b.title)).slice(0, 5),
   };
 }
 
@@ -81,12 +81,15 @@ const changeWords = (now, before) => {
 const escapeHtml = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const dayWords = key => new Date(keyMs(key)).toLocaleDateString("en-CA", { day: "numeric", month: "short", timeZone: "UTC" });
 
+/** The email's pointer to the attached highlights PDF (index.js drops it again if the PDF couldn't be made). */
+const WEEKLY_PDF_LINE = `<p style="margin:24px 0 0;">The attached PDF has last week's highlights on two pages: sales and visits by day, best sellers, the most looked-at books, where visitors came from, searches and how many shoppers went from looking to buying.</p>`;
+
 /**
  * The email for the week. `orders` are the paid orders of at least the last two weeks (any extra are ignored),
  * `firstOrderIds` the ids of each customer's first-ever paid order (for "new customers"), `daily` the analytics docs.
  * `toDo` is what still needs the owner today ({ toShip: paid orders waiting 3+ days, as in the daily digest }). Returns { subject, html, figures }.
  */
-function buildWeeklySummary({ orders, daily, week, firstOrderIds = new Set(), toDo = {}, link = p => p }) {
+function buildWeeklySummary({ orders, daily, week, firstOrderIds = new Set(), toDo = {}, link = p => p, withPdf = false }) {
   const sales = (orders || []).filter(countsAsSale);
   const cur = figures(sales, week.start, week.end, firstOrderIds);
   const prev = figures(sales, week.prevStart, week.prevEnd, firstOrderIds);
@@ -110,7 +113,7 @@ function buildWeeklySummary({ orders, daily, week, firstOrderIds = new Set(), to
     ] : []),
   ].join("");
   const top = cur.top.length
-    ? `<h3 style="margin:24px 0 8px;">Best sellers</h3><ol style="padding-left:20px;margin:0;">${cur.top.map(b => `<li style="margin:4px 0;">${escapeHtml(b.title)} — ${b.units} ${b.units === 1 ? "copy" : "copies"}</li>`).join("")}</ol>`
+    ? `<h3 style="margin:24px 0 8px;">Best sellers</h3><ol style="padding-left:20px;margin:0;">${cur.top.slice(0, 3).map(b => `<li style="margin:4px 0;">${escapeHtml(b.title)} — ${b.units} ${b.units === 1 ? "copy" : "copies"}</li>`).join("")}</ol>`
     : "";
   const toShip = num(toDo.toShip);
   const todo = toShip > 0
@@ -123,11 +126,68 @@ function buildWeeklySummary({ orders, daily, week, firstOrderIds = new Set(), to
       <table style="width:100%;border-collapse:collapse;">${rows}</table>
       ${top}
       ${todo}
+      ${withPdf ? WEEKLY_PDF_LINE : ""}
       <p style="margin:24px 0 0;"><a href="${link("/admin#overview")}">See everything on the Overview &rarr;</a></p>
       <p style="margin:24px 0 0;color:#999;font-size:12px;">Test orders and your own orders are left out. Turn this email off in Settings › Email sender › Shop alerts.</p>
     </div>`;
   const subject = `[WEEKLY] ${cur.orders === 0 ? "No sales" : `${money(cur.revenue)} · ${cur.orders} ${cur.orders === 1 ? "order" : "orders"}`} last week`;
   return { subject, html, figures: { cur, prev, traffic: tCur, conversion: conv } };
+}
+
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const daysOf = start => WEEKDAYS.map((_, i) => shiftKey(start, i));
+/** A free-key count map summed over the week's analytics docs, biggest first. */
+function sumMap(rows, field) {
+  const out = new Map();
+  rows.forEach(d => Object.entries(d?.[field] || {}).forEach(([k, v]) => { if (num(v) > 0) out.set(k, (out.get(k) || 0) + num(v)); }));
+  return [...out.entries()].map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+}
+
+/**
+ * Everything the PDF attached to the Monday email draws (functions/weeklyPdf.js), from the same inputs and rules as
+ * buildWeeklySummary. `bookTitles` maps a book id to its title (for "most viewed"). Signals the shop never recorded
+ * that week come back empty (`recorded: false` / []), never as made-up zeros.
+ */
+function weeklyHighlights({ orders, daily, week, firstOrderIds = new Set(), bookTitles = new Map() }) {
+  const sales = (orders || []).filter(countsAsSale);
+  const cur = figures(sales, week.start, week.end, firstOrderIds);
+  const prev = figures(sales, week.prevStart, week.prevEnd, firstOrderIds);
+  const tCur = traffic(daily, week.start, week.end);
+  const tPrev = traffic(daily, week.prevStart, week.prevEnd);
+  const inWeek = (from, to) => (daily || []).filter(d => { const k = String(d?.date || d?.id || ""); return k >= from && k <= to; });
+  const rows = inWeek(week.start, week.end);
+  const dayOfDoc = new Map((daily || []).map(d => [String(d?.date || d?.id || ""), d]));
+  const revenueOn = key => sales.filter(o => torontoDay(timeOf(o.createdAt)) === key)
+    .reduce((s, o) => s + Math.max(0, num(o.total) - refundedAmount(o)), 0);
+  const series = (start, fn) => daysOf(start).map(fn);
+  const title = id => bookTitles.get(id) || bookTitles.get(String(id)) || "A book no longer in the catalogue";
+
+  const adds = new Map(sumMap(rows, "bookAdds").map(r => [r.key, r.count]));
+  const funnel = rows.reduce((f, d) => {
+    ["view", "add_to_cart", "checkout_start", "purchase"].forEach(k => { f[k] += num(d?.funnel?.[k]); });
+    return f;
+  }, { view: 0, add_to_cart: 0, checkout_start: 0, purchase: 0 });
+
+  return {
+    week,
+    cur, prev,
+    traffic: { cur: tCur, prev: tPrev },
+    conversion: tCur.visits > 0 ? (cur.orders / tCur.visits) * 100 : null,
+    prevConversion: tPrev.visits > 0 ? (prev.orders / tPrev.visits) * 100 : null,
+    days: WEEKDAYS,
+    revenueByDay: { cur: series(week.start, revenueOn), prev: series(week.prevStart, revenueOn) },
+    visitsByDay: {
+      cur: series(week.start, k => num(dayOfDoc.get(k)?.visits)),
+      prev: series(week.prevStart, k => num(dayOfDoc.get(k)?.visits)),
+    },
+    bestSellers: cur.top,
+    mostViewed: sumMap(rows, "bookViews").slice(0, 5).map(r => ({ title: title(r.key), views: r.count, adds: adds.get(r.key) || 0 })),
+    sources: sumMap(rows, "sources").slice(0, 6),
+    devices: sumMap(rows, "devices"),
+    funnel: funnel.view + funnel.add_to_cart + funnel.checkout_start + funnel.purchase > 0 ? funnel : null,
+    searches: sumMap(rows, "searches").slice(0, 6),
+    noResults: sumMap(rows, "noResults").slice(0, 6),
+  };
 }
 
 /** Settings › Email sender › Shop alerts › Monday summary (on unless switched off). */
@@ -145,4 +205,4 @@ function firstOrders(orders) {
   return new Set([...first.values()].map(o => o.id));
 }
 
-module.exports = { lastWeek, buildWeeklySummary, weeklySummaryEnabled, firstOrders, countsAsSale, isOwnOrder, torontoDay };
+module.exports = { WEEKLY_PDF_LINE, lastWeek, buildWeeklySummary, weeklyHighlights, weeklySummaryEnabled, firstOrders, countsAsSale, isOwnOrder, torontoDay };
