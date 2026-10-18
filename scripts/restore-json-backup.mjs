@@ -28,7 +28,7 @@ const flag = name => { const i = args.indexOf(name); return i > -1 ? args[i + 1]
 const only = flag("--only") ? flag("--only").split(",").map(s => s.trim()).filter(Boolean) : null;
 
 const require = createRequire(new URL("../functions/package.json", import.meta.url));
-const admin = require("firebase-admin");
+const admin = require("./adminSdk.js")(require("firebase-admin"));
 const { decodeValue, BACKUP_FORMAT } = require("./backupJson.js");
 let firebaserc = null;
 try { firebaserc = JSON.parse(readFileSync(new URL("../.firebaserc", import.meta.url), "utf8")); } catch { /* optional */ }

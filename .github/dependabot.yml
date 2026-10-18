@@ -1,7 +1,8 @@
 # Security updates only (version update PRs stay off: open-pull-requests-limit 0).
-# Ignore rules still apply to security updates: a major jump of these broke main twice
-# (vitest 5 fails to start in CI; firebase-admin 14 removes the admin.firestore() API the
-# Functions use). Patched 4.x / 13.x releases are still offered.
+# Ignore rules still apply to security updates: vitest 5 broke main's install twice, so its
+# major jumps wait for a deliberate upgrade. Patched 4.x releases are still offered.
+# firebase-admin majors are offered again: CI's "Cloud Functions load like the deploy" step
+# fails the PR if one breaks loading the Functions.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -21,6 +22,3 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 0
-    ignore:
-      - dependency-name: "firebase-admin"
-        update-types: ["version-update:semver-major"]
