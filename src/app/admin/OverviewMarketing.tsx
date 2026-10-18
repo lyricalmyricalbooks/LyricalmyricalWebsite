@@ -14,11 +14,17 @@ const NOT_YET = (what: string) => <EmptyState icon="⏳" title="Not recorded yet
 const duration = (s: number) => { const m = Math.floor(s / 60), r = Math.round(s % 60); return `${m}m ${String(r).padStart(2, "0")}s`; };
 const num = (v: unknown) => Number(v) || 0;
 
+/** Panels that only exist when Google Analytics is connected. */
+export const GA_PANELS = ["channels", "gaSources", "landing", "gaPages", "gaCountries", "gaDevices"];
+export const GOOGLE_PARTS: Record<string, "totals" | "queries" | "pages"> = { google: "totals", googleQueries: "queries", googlePages: "pages" };
+
 export type GaState = { status: "loading" | "off" | "error" | "connected"; answer?: Ga4Answer; message?: string };
 type Row = Record<string, any>;
 
 /** Overview › Dig deeper › Marketing & traffic: how people arrive, what they look for, and where they drop off. */
-export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current, paidAll, range, books, lastReset, firstDay, onReset, setActiveTab }: {
+export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current, paidAll, range, books, lastReset, firstDay, onReset, setActiveTab, only }: {
+  /** Show just one panel (an Overview board widget); see GA_PANELS and the show() ids below. */
+  only?: string;
   ga: GaState; traffic: TrafficFigures; dailyCurrent: Daily[]; dailyAll: Daily[]; current: Order[]; paidAll: Order[]; range: Ga4Range; books: Book[];
   lastReset: { at: string; removedDays: number } | null; firstDay: string | null; onReset: () => Promise<void>; setActiveTab?: (tab: string) => void;
 }) {
@@ -60,6 +66,9 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
     try { await onReset(); } catch (err: any) { toast.error(err?.message || "The counts couldn't be reset."); } finally { setResetting(false); }
   };
 
+  const show = (id: string) => !only || only === id;
+  const gaPanel = !!only && GA_PANELS.includes(only);
+  const gaAsked = !only || only === "gaKpis" || gaPanel;
   const t = report?.totals;
   const engagedRate = num(t?.current?.engagementRate) * 100;
   const visitorType = (key: string) => num(report?.visitorType?.find(r => r.newVsReturning === key)?.activeUsers);
@@ -67,10 +76,10 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
 
   return (
     <>
-      {ga.status === "loading" && <LoadingState label="Reading Google Analytics…" />}
+      {gaAsked && ga.status === "loading" && <LoadingState label="Reading Google Analytics…" />}
       {ga.status === "connected" && report && (
         <>
-          <div className="rp-kpi-grid">
+          {show("gaKpis") && <div className="rp-kpi-grid">
             <MetricCard label="On the site now" tone="gold" value={report.activeNow === null ? "—" : report.activeNow.toLocaleString()} footer="Google Analytics, last 30 minutes" />
             <MetricCard label="Visitors" value={num(t?.current?.activeUsers).toLocaleString()}
               footer={<><Trend now={num(t?.current?.activeUsers)} before={num(t?.previous?.activeUsers)} /> {num(t?.current?.newUsers).toLocaleString()} new</>} />
@@ -78,28 +87,28 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
               footer={<><Trend now={num(t?.current?.sessions)} before={num(t?.previous?.sessions)} /> {pagesPerVisit.toFixed(1)} pages per visit</>} />
             <MetricCard label="Engaged visits" value={percent(engagedRate, 0)} footer={`${duration(num(t?.current?.averageSessionDuration))} average visit`} />
             <MetricCard label="Returning visitors" value={visitorType("returning").toLocaleString()} footer={`${visitorType("new").toLocaleString()} new visitors`} />
-          </div>
-          <div className="rp-split" style={SPLIT}>
-            <SectionCard flush title="How people find you" description="Google Analytics channels: search, social, email, links from other sites, or typed in directly">
+          </div>}
+          {(!only || gaPanel) && <div className="rp-split" style={SPLIT}>
+            {show("channels") && <SectionCard flush title="How people find you" description="Google Analytics channels: search, social, email, links from other sites, or typed in directly">
               {report.channels.length === 0 ? <EmptyState title="No visits yet" description="Channels appear once Google Analytics records visits." />
                 : <DataTable caption="Channels" columns={gaColumns("Channel", r => r.sessionDefaultChannelGroup)} rows={report.channels} rowKey={r => r.sessionDefaultChannelGroup} />}
-            </SectionCard>
-            <SectionCard flush title="Sources" description="The exact site, search engine or campaign (source / medium)">
+            </SectionCard>}
+            {show("gaSources") && <SectionCard flush title="Sources" description="The exact site, search engine or campaign (source / medium)">
               {report.sources.length === 0 ? <EmptyState title="No visits yet" description="Sources appear once Google Analytics records visits." />
                 : <DataTable caption="Sources" columns={gaColumns("Source / medium", r => `${r.sessionSource} / ${r.sessionMedium}`)} rows={report.sources.slice(0, 12)} rowKey={r => `${r.sessionSource}/${r.sessionMedium}`} />}
-            </SectionCard>
-            <SectionCard flush title="Landing pages" description="The first page people saw — where your visits start">
+            </SectionCard>}
+            {show("landing") && <SectionCard flush title="Landing pages" description="The first page people saw — where your visits start">
               {report.landing.length === 0 ? <EmptyState title="No visits yet" description="Landing pages appear once Google Analytics records visits." />
                 : <DataTable caption="Landing pages" columns={gaColumns("Page", r => r.landingPage)} rows={report.landing.slice(0, 12)} rowKey={r => r.landingPage} />}
-            </SectionCard>
-            <SectionCard flush title="Most viewed pages" description="Page views in this period">
+            </SectionCard>}
+            {show("gaPages") && <SectionCard flush title="Most viewed pages" description="Page views in this period">
               {report.pages.length === 0 ? <EmptyState title="No page views yet" /> : (
                 <ul className="rp-list" aria-label="Most viewed pages">
                   {report.pages.slice(0, 10).map(p => <StatRow key={p.pagePath} label={<span className="rp-mono" style={{ fontWeight: 500 }}>{p.pagePath}</span>} hint={`${num(p.activeUsers).toLocaleString()} visitors`} value={num(p.screenPageViews).toLocaleString()} />)}
                 </ul>
               )}
-            </SectionCard>
-            <SectionCard flush title="Where visitors are" description="Visitors by country (Google Analytics)">
+            </SectionCard>}
+            {show("gaCountries") && <SectionCard flush title="Where visitors are" description="Visitors by country (Google Analytics)">
               {report.countries.length === 0 ? <EmptyState title="No visits yet" /> : (
                 <ul className="rp-list" aria-label="Visitors by country">
                   {(() => { const top = Math.max(1, ...report.countries.map(c => num(c.activeUsers))); return report.countries.slice(0, 8).map(c => (
@@ -107,8 +116,8 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
                   )); })()}
                 </ul>
               )}
-            </SectionCard>
-            <SectionCard flush title="Devices" description="What visitors browse on (Google Analytics)">
+            </SectionCard>}
+            {show("gaDevices") && <SectionCard flush title="Devices" description="What visitors browse on (Google Analytics)">
               {report.devices.length === 0 ? <EmptyState title="No visits yet" /> : (
                 <ul className="rp-list" aria-label="Visitors by device">
                   {(() => { const all = report.devices.reduce((s, d) => s + num(d.activeUsers), 0); return report.devices.map(d => (
@@ -116,25 +125,25 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
                   )); })()}
                 </ul>
               )}
-            </SectionCard>
-          </div>
+            </SectionCard>}
+          </div>}
         </>
       )}
-      {ga.status === "off" && (
+      {gaAsked && ga.status === "off" && (
         <SectionCard title="Connect Google Analytics" description="See where visitors come from (search, social, email, other sites), which pages they land on, how long they stay, their countries and devices — and how many are on the site right now."
           actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("general")}>Set up Google Analytics</SecondaryButton>}>
           <p className="rp-hint" style={{ margin: 0 }}>Until it is connected, the figures below come from the shop's own simple counter. Setup is in Settings › General › Google Analytics and takes about five minutes.</p>
         </SectionCard>
       )}
-      {ga.status === "error" && (
+      {gaAsked && ga.status === "error" && (
         <SectionCard title={ga.answer?.code ? "Google Analytics isn't connected yet" : "Google Analytics couldn't be read just now"} actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("general")}>Open Google Analytics settings</SecondaryButton>}>
           <p className="rp-hint" style={{ margin: 0, color: "var(--rp-danger)" }}>✕ {ga.message || "Google Analytics couldn't be read."}</p>
           <p className="rp-hint" style={{ margin: "8px 0 0" }}>The figures below come from the shop's own counter meanwhile.</p>
         </SectionCard>
       )}
 
-      <div className="rp-split" style={SPLIT}>
-        <SectionCard title="Shopping funnel"
+      {(!only || !gaAsked) && <div className="rp-split" style={SPLIT}>
+        {show("funnel") && <SectionCard title="Shopping funnel"
           description={`${traffic.source === "google" ? "Google Analytics shop events" : "The shop's own counter"} · ${funnel[0].count > 0 ? `${percent((funnel[3].count / funnel[0].count) * 100, 2)} of book views end in a purchase` : "only recorded events are shown"}`}>
           {funnel[0].count === 0 && funnel[1].count === 0 ? (
             <EmptyState title="No shopping events recorded" description="Book views, add-to-bag, checkout and purchase events chart here once shoppers generate them." />
@@ -146,23 +155,23 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
               ))}
             </ol>
           )}
-        </SectionCard>
+        </SectionCard>}
 
-        <CheckoutJourneyCard dailyCurrent={dailyCurrent} />
+        {show("checkout") && <CheckoutJourneyCard dailyCurrent={dailyCurrent} />}
 
-        <SectionCard flush title="Sources that sell"
+        {show("sources") && <SectionCard flush title="Sources that sell"
           description={recordedSince(dailyAll, "sources") ? `Visits per source beside the paid orders that came from it · shop counter since ${since(recordedSince(dailyAll, "sources"))}` : "Visits per source beside the paid orders that came from it"}>
           {sources.length === 0
             ? (recordedSince(dailyAll, "sources") ? <EmptyState title="No visits in this period" description="Sources appear when shoppers arrive." /> : NOT_YET("Traffic sources"))
             : <DataTable caption="Sources that sell" columns={sourceColumns} rows={sources} rowKey={r => r.source} />}
           <p className="rp-hint" style={{ padding: "12px 20px 16px" }}>Share a link ending in <span className="rp-mono">?ref=name</span> and it shows up here under that name. Visits with no referrer count as direct.</p>
-        </SectionCard>
+        </SectionCard>}
 
-        <CampaignsCard current={current} paidAll={paidAll} dailyCurrent={dailyCurrent} gaCampaigns={report?.campaigns} />
+        {show("campaigns") && <CampaignsCard current={current} paidAll={paidAll} dailyCurrent={dailyCurrent} gaCampaigns={report?.campaigns} />}
 
-        <LandingSalesCard current={current} />
+        {show("landingSales") && <LandingSalesCard current={current} />}
 
-        {ga.status !== "connected" && (
+        {(only === "devices" || (!only && ga.status !== "connected")) && (
           <SectionCard flush title="Devices" description="What shoppers browse on (shop counter)">
             {devices.length === 0 ? NOT_YET("Devices") : (
               <ul className="rp-list" aria-label="Visits by device">
@@ -173,15 +182,15 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
           </SectionCard>
         )}
 
-        <SectionCard flush title="What people search for" description="Most common searches that found books">
+        {show("searches") && <SectionCard flush title="What people search for" description="Most common searches that found books">
           {searches.length === 0 ? NOT_YET("Search terms") : (
             <ul className="rp-list" aria-label="Top searches">
               {searches.map(s => <StatRow key={s.key} label={s.key} value={`${s.count}×`} />)}
             </ul>
           )}
-        </SectionCard>
+        </SectionCard>}
 
-        <SectionCard flush title="Searches that found nothing" description="Books or topics shoppers want that the shop doesn't show">
+        {show("missed") && <SectionCard flush title="Searches that found nothing" description="Books or topics shoppers want that the shop doesn't show">
           {missed.length === 0
             ? (recordedSince(dailyAll, "noResults") || recordedSince(dailyAll, "searches")
                 ? <EmptyState icon="✓" title="No empty searches" description="Every recorded search found something." />
@@ -191,9 +200,9 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
                 {missed.map(s => <StatRow key={s.key} label={s.key} value={<StatusBadge tone="warning">{s.count}×</StatusBadge>} />)}
               </ul>
             )}
-        </SectionCard>
+        </SectionCard>}
 
-        <SectionCard flush title="Most viewed books" description="Product-page views beside copies sold in this period">
+        {show("viewed") && <SectionCard flush title="Most viewed books" description="Product-page views beside copies sold in this period">
           {interest.rows.length === 0 ? NOT_YET("Book views") : (
             <ul className="rp-list" aria-label="Most viewed books">
               {interest.rows.slice(0, 8).map(r => (
@@ -203,13 +212,13 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
               ))}
             </ul>
           )}
-        </SectionCard>
+        </SectionCard>}
 
-        <PageSpeedCard dailyCurrent={dailyCurrent} />
+        {show("speed") && <PageSpeedCard dailyCurrent={dailyCurrent} />}
 
-        <FoundOnGoogleCard range={range} setActiveTab={setActiveTab} />
+        {(!only || only in GOOGLE_PARTS) && <FoundOnGoogleCard range={range} setActiveTab={setActiveTab} part={only ? GOOGLE_PARTS[only] : undefined} />}
 
-        <SectionCard title="The shop's own counter"
+        {show("counter") && <SectionCard title="The shop's own counter"
           description="A simple first-party count of visits, bag adds, checkouts, searches, sources and book views, kept even without Google Analytics."
           actions={<SecondaryButton size="sm" onClick={reset} disabled={resetting}>{resetting ? "Resetting…" : "Start traffic counts again"}</SecondaryButton>}>
           <p className="rp-hint" style={{ margin: 0 }}>
@@ -217,8 +226,8 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
               : firstDay ? `Counting since ${since(firstDay)}.` : "Nothing counted yet."}
             {" "}Reset it once after launch to drop test visits. Orders and revenue are never affected.
           </p>
-        </SectionCard>
-      </div>
+        </SectionCard>}
+      </div>}
       {confirmNode}
     </>
   );

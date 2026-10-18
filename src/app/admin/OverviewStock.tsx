@@ -6,12 +6,15 @@ import { wantedButUnavailable } from "./overviewSignals";
 import { adminApi } from "./api";
 import { isSoldOut, stockRowLabel, trackedStockRows } from "./stockRules";
 import { ROW, SPLIT, StatRow, money } from "./OverviewParts";
+import { sharedLoad } from "./overviewShared";
 
 export const LOW_STOCK = 5;
 
 /** Overview › Dig deeper › Stock: what to reprint, what is gathering dust, what is running low, who is waiting. */
-export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, dailyCurrent = [], dailyAll = [] }: {
+export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, dailyCurrent = [], dailyAll = [], only }: {
   books: Book[];
+  /** Show just one panel (an Overview board widget): kpis, reprint, wanted, backInStock, slow or low. */
+  only?: string;
   /** The period's daily traffic docs (views of books that couldn't be bought, wishlist saves). */
   dailyCurrent?: Daily[]; dailyAll?: Daily[];
   shelf: { units: number; value: number; soldOut: number; titles: number };
@@ -20,11 +23,14 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
 }) {
   // Back-in-stock sign-ups are read only when this tab is opened.
   const [alerts, setAlerts] = useState<{ rows: any[] | null; error: boolean }>({ rows: null, error: false });
-  const load = () => {
+  const needsAlerts = !only || only === "kpis" || only === "wanted" || only === "backInStock";
+  const load = (fresh = false) => {
+    if (!needsAlerts) return;
     setAlerts({ rows: null, error: false });
-    adminApi.getStockAlerts().then(rows => setAlerts({ rows, error: false })).catch(() => setAlerts({ rows: null, error: true }));
+    sharedLoad("stockAlerts", () => adminApi.getStockAlerts(), fresh).then(rows => setAlerts({ rows, error: false })).catch(() => setAlerts({ rows: null, error: true }));
   };
-  useEffect(load, []);
+  useEffect(() => load(), []);
+  const show = (id: string) => !only || only === id;
 
   const lowStock = useMemo(
     // Tracked print books/editions only (stockRules): never digital, untracked, gift cards, box sets or archived.
@@ -40,15 +46,15 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
 
   return (
     <>
-      <div className="rp-kpi-grid">
+      {show("kpis") && <div className="rp-kpi-grid">
         <MetricCard label="Shelf value" value={money(shelf.value)} footer={`${shelf.units.toLocaleString()} print copies at retail`} />
         <MetricCard label="Print titles" value={shelf.titles} footer={`${shelf.soldOut} sold out (books or editions)`} tone={shelf.soldOut > 0 ? "danger" : undefined} />
         <MetricCard label="Reprint soon" value={reprint.length} footer={`under ${REORDER_COVER_DAYS} days of stock`} tone={reprint.length > 0 ? "warn" : undefined} />
         <MetricCard label="Readers waiting" value={waitingTotal === null ? (alerts.error ? "—" : "…") : waitingTotal}
           footer={alerts.error ? "Sign-ups unavailable" : "asked to be told when a book is back"} tone={waitingTotal ? "warn" : undefined} />
-      </div>
-      <div className="rp-split" style={SPLIT}>
-        <SectionCard flush title="Reprint watch" description={`Selling fast, under ${REORDER_COVER_DAYS} days of stock`}
+      </div>}
+      {only !== "kpis" && <div className="rp-split" style={SPLIT}>
+        {show("reprint") && <SectionCard flush title="Reprint watch" description={`Selling fast, under ${REORDER_COVER_DAYS} days of stock`}
           actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("inventory")}>Open inventory</SecondaryButton>}>
           {reprint.length === 0 ? <EmptyState icon="✓" title="No reprints urgent" description="No title is on course to sell out within a month." /> : (
             <ul className="rp-list" aria-label="Titles to reprint">
@@ -63,9 +69,9 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
               ))}
             </ul>
           )}
-        </SectionCard>
+        </SectionCard>}
 
-        <SectionCard flush title="Wanted but can't be bought" description="Books people looked at while sold out or coming soon, saved to their wishlist, or asked to hear about, in this period"
+        {show("wanted") && <SectionCard flush title="Wanted but can't be bought" description="Books people looked at while sold out or coming soon, saved to their wishlist, or asked to hear about, in this period"
           actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("catalog")}>Open books</SecondaryButton>}>
           {!wanted ? <LoadingState label="Loading…" />
             : wanted.length === 0 ? (wantedRecorded || (alerts.rows && alerts.rows.length)
@@ -80,10 +86,10 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
                 ))}
               </ul>
             )}
-        </SectionCard>
+        </SectionCard>}
 
-        <SectionCard flush title="Back-in-stock demand" description="Readers who asked to be emailed when a title returns">
-          {alerts.error ? <ErrorState title="Sign-ups unavailable" description="Back-in-stock requests could not be loaded." onRetry={load} />
+        {show("backInStock") && <SectionCard flush title="Back-in-stock demand" description="Readers who asked to be emailed when a title returns">
+          {alerts.error ? <ErrorState title="Sign-ups unavailable" description="Back-in-stock requests could not be loaded." onRetry={() => load(true)} />
             : !demand ? <LoadingState label="Loading requests…" />
             : demand.length === 0 ? <EmptyState icon="✓" title="Nobody is waiting" description="Requests from sold-out product pages are listed here — a strong reprint signal." />
             : (
@@ -95,9 +101,9 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
                 ))}
               </ul>
             )}
-        </SectionCard>
+        </SectionCard>}
 
-        <SectionCard flush title="Slow-moving stock" description={`In stock, no sale in ${DORMANT_DAYS}+ days`}>
+        {show("slow") && <SectionCard flush title="Slow-moving stock" description={`In stock, no sale in ${DORMANT_DAYS}+ days`}>
           {dormant.length === 0 ? <EmptyState icon="✓" title="Nothing dormant" description="Every title with stock has sold recently." /> : (
             <ul className="rp-list" aria-label="Slow-moving titles">
               {dormant.map(r => (
@@ -111,9 +117,9 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
               ))}
             </ul>
           )}
-        </SectionCard>
+        </SectionCard>}
 
-        <SectionCard flush title="Running low" description={`${LOW_STOCK} units or fewer`}
+        {show("low") && <SectionCard flush title="Running low" description={`${LOW_STOCK} units or fewer`}
           actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("catalog")}>Manage books</SecondaryButton>}>
           {lowStock.length === 0 ? <EmptyState icon="✓" title="Stock looks healthy" description="No published titles are at or below the low-stock threshold." /> : (
             <ul className="rp-list" aria-label="Low stock titles">
@@ -125,8 +131,8 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
               ))}
             </ul>
           )}
-        </SectionCard>
-      </div>
+        </SectionCard>}
+      </div>}
     </>
   );
 }

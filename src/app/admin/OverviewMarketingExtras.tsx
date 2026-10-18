@@ -8,6 +8,7 @@ import {
 } from "./overviewSignals";
 import { googleAnalyticsApi, type Ga4Range, type SearchConsoleAnswer, type SearchRow } from "./googleAnalytics";
 import { BarRow, StatRow, Trend, money, percent } from "./OverviewParts";
+import { sharedLoad } from "./overviewShared";
 
 // Overview › Marketing & traffic, the 18 October 2026 panels: where checkout loses people, campaigns and links that
 // sell, pages that start sales, real page speed and Google searches (Search Console). Pure maths in overviewSignals.ts.
@@ -124,13 +125,18 @@ export function PageSpeedCard({ dailyCurrent }: { dailyCurrent: Daily[] }) {
 type ScState = { status: "loading" } | { status: "done"; answer: SearchConsoleAnswer } | { status: "error"; message: string };
 
 /** What people typed into Google before seeing or clicking the shop (Search Console, read by the shop's server). */
-export function FoundOnGoogleCard({ range, setActiveTab }: { range: Ga4Range; setActiveTab?: (tab: string) => void }) {
+export function FoundOnGoogleCard({ range, setActiveTab, part }: {
+  range: Ga4Range; setActiveTab?: (tab: string) => void;
+  /** One of the three cards only (an Overview board widget); every widget shares one Search Console read. */
+  part?: "totals" | "queries" | "pages";
+}) {
   const [state, setState] = useState<ScState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
     setState({ status: "loading" });
-    googleAnalyticsApi.searchConsoleReport(range)
+    const key = `searchConsole:${range.startDate}:${range.endDate}:${range.prevStartDate}:${range.prevEndDate}`;
+    sharedLoad(key, () => googleAnalyticsApi.searchConsoleReport(range), attempt > 0)
       .then(answer => { if (live) setState({ status: "done", answer }); })
       .catch((err: any) => { if (live) setState({ status: "error", message: err?.message || "Search Console couldn't be read." }); });
     return () => { live = false; };
@@ -144,12 +150,13 @@ export function FoundOnGoogleCard({ range, setActiveTab }: { range: Ga4Range; se
     { key: "p", header: "Position", numeric: true, render: r => r.position.toFixed(1) },
   ];
 
-  if (state.status === "loading") return <SectionCard title="Found on Google"><LoadingState label="Reading Search Console…" /></SectionCard>;
-  if (state.status === "error") return <SectionCard title="Found on Google"><ErrorState title="Search Console couldn't be read" description={state.message} onRetry={() => setAttempt(a => a + 1)} /></SectionCard>;
+  const cardTitle = part === "queries" ? "What people searched on Google" : part === "pages" ? "Pages Google showed" : "Found on Google";
+  if (state.status === "loading") return <SectionCard title={cardTitle}><LoadingState label="Reading Search Console…" /></SectionCard>;
+  if (state.status === "error") return <SectionCard title={cardTitle}><ErrorState title="Search Console couldn't be read" description={state.message} onRetry={() => setAttempt(a => a + 1)} /></SectionCard>;
   const a = state.answer;
   if (!a.connected || !a.report) {
     return (
-      <SectionCard title="Found on Google" description="What people typed into Google before they saw or clicked the shop"
+      <SectionCard title={cardTitle} description="What people typed into Google before they saw or clicked the shop"
         actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("general")}>Set up Search Console</SecondaryButton>}>
         <p className="rp-hint" style={{ margin: 0 }}>{a.code === "no_token" ? a.error : `Not connected yet. ${a.error || ""}`} Setup is in Settings › General › Google Search Console.</p>
       </SectionCard>
@@ -158,22 +165,22 @@ export function FoundOnGoogleCard({ range, setActiveTab }: { range: Ga4Range; se
   const { totals, queries, pages } = a.report;
   return (
     <>
-      <SectionCard title="Found on Google" description={`Google searches for ${a.site} · Google's figures run two to three days behind`}>
+      {(!part || part === "totals") && <SectionCard title="Found on Google" description={`Google searches for ${a.site} · Google's figures run two to three days behind`}>
         <ul className="rp-list" style={{ margin: -20 }} aria-label="Google search totals">
           <StatRow label="Clicks from Google" hint={`${totals.previous.clicks.toLocaleString()} before`} value={<>{totals.current.clicks.toLocaleString()} <Trend now={totals.current.clicks} before={totals.previous.clicks} /></>} />
           <StatRow label="Times the shop was seen in results" hint={`${totals.previous.impressions.toLocaleString()} before`} value={<>{totals.current.impressions.toLocaleString()} <Trend now={totals.current.impressions} before={totals.previous.impressions} /></>} />
           <StatRow label="Click rate" hint={`${percent(totals.previous.ctr, 1)} before`} value={percent(totals.current.ctr, 1)} />
           <StatRow label="Average position" hint={`${totals.previous.position ? totals.previous.position.toFixed(1) : "—"} before · 1 is the top of the first page`} value={totals.current.position ? totals.current.position.toFixed(1) : "—"} />
         </ul>
-      </SectionCard>
-      <SectionCard flush title="What people searched on Google" description="Searches that showed the shop, most clicked first">
+      </SectionCard>}
+      {(!part || part === "queries") && <SectionCard flush title="What people searched on Google" description="Searches that showed the shop, most clicked first">
         {queries.length === 0 ? <EmptyState title="No searches in this period" description="Google lists searches once enough people see the shop in results." />
           : <DataTable caption="Google searches" columns={columns("Search")} rows={queries} rowKey={r => r.key} />}
-      </SectionCard>
-      <SectionCard flush title="Pages Google showed" description="Shop pages in Google results, most clicked first">
+      </SectionCard>}
+      {(!part || part === "pages") && <SectionCard flush title="Pages Google showed" description="Shop pages in Google results, most clicked first">
         {pages.length === 0 ? <EmptyState title="No pages in this period" />
           : <DataTable caption="Pages Google showed" columns={columns("Page")} rows={pages} rowKey={r => r.key} />}
-      </SectionCard>
+      </SectionCard>}
     </>
   );
 }

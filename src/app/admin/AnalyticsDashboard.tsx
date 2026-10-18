@@ -1,6 +1,5 @@
 import { openFirstActionQueue, openOrdersQueue } from "./Orders";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { adminApi } from "./api";
 import { inventoryApi } from "./inventoryApi";
 import { getOrdersCached } from "./ordersCache";
@@ -8,40 +7,38 @@ import { salesReportCsv } from "./salesReport";
 import { launchReadiness } from "./launchReadiness";
 import toast from "react-hot-toast";
 import {
-  Checkbox, DataTable, EmptyState, ErrorState, LoadingState, SecondaryButton, SectionCard,
-  SectionHead, SelectField, StatusBadge, Tabs, TextField, type BadgeTone, type Column,
+  DataTable, EmptyState, ErrorState, LoadingState, SecondaryButton, SectionCard,
+  SelectField, StatusBadge, TextField, type BadgeTone, type Column,
 } from "./riso/components";
 import {
   bestSellers, customerMix, dormantStock, newestSales, newsletterSummary, orderStatusWords, orderTodos, reprintWatch, reviewSummary,
   splitRange, stockValue, titleStock, toFulfil, totals, REORDER_COVER_DAYS,
 } from "./overviewInsights";
 import { recordedSince, sumMap } from "./overviewTraffic";
-import { autoGrain, PRESETS, rangeWords, resolveRange, trafficShift, trafficWindow, type CompareMode, type Grain, type Preset } from "./overviewRange";
-import { bucketSeries, buildRangeSeries, CHART_METRICS, metricValue, monthPace, seriesSummary, type ChartMetric } from "./overviewSeries";
+import { PRESETS, rangeWords, resolveRange, trafficShift, trafficWindow, type CompareMode, type Preset } from "./overviewRange";
+import { monthPace } from "./overviewSeries";
 import { googleTraffic, shopRowsIn, shopTraffic } from "./overviewSources";
 import { whatChanged, type Change } from "./overviewChanges";
 import { profitSummary, titlePerformance } from "./overviewProfit";
 import { googleAnalyticsApi } from "./googleAnalytics";
 import { shopDayKey } from "../lib/shopDay";
 import { isOwnOrder } from "../lib/ownerDevice";
-import { Figure, ReadinessPanel, RunRow, SPLIT, ROW, Trend, money, percent } from "./OverviewParts";
+import { Figure, ReadinessStrip, RunRow, ROW, Trend, money, percent } from "./OverviewParts";
+import { readinessSummary } from "./launchReadiness";
 import { leadStory } from "./overviewStory";
 import { OverviewSales } from "./OverviewSales";
-import { OverviewMarketing, type GaState } from "./OverviewMarketing";
+import { GOOGLE_PARTS, OverviewMarketing, type GaState } from "./OverviewMarketing";
+import { FoundOnGoogleCard } from "./OverviewMarketingExtras";
 import { OverviewCustomers } from "./OverviewCustomers";
 import { OverviewStock } from "./OverviewStock";
 import { OverviewTitles } from "./OverviewTitles";
+import { OverviewChart } from "./OverviewChart";
+import { OverviewBoard, useBoardStore, type RenderWidget } from "./OverviewBoard";
+import { DEFAULT_FIGURES, FIGURES, widgetMeta, type FigureId } from "./overviewBoard";
+import { clearShared } from "./overviewShared";
 
-type Section = "sales" | "titles" | "marketing" | "customers" | "stock";
-const SECTION_COPY: Record<Section, string> = {
-  sales: "What is selling, in which format, where, when and at what discount — and how fast it ships.",
-  titles: "Every title side by side: copies, revenue, change, interest, profit and stock.",
-  marketing: "How people find you, which pages they land on, what they search for, and where they drop off.",
-  customers: "Who buys, who comes back and when, and what happens to the carts people leave.",
-  stock: "What to reprint, what is gathering dust, what is running low, and who is waiting.",
-};
 const PREFS_KEY = "lm:overview-view";
-type Prefs = { preset?: Preset; compare?: CompareMode; from?: string; to?: string; metric?: ChartMetric };
+type Prefs = { preset?: Preset; compare?: CompareMode; from?: string; to?: string };
 const readPrefs = (): Prefs => { try { return JSON.parse(window.localStorage.getItem(PREFS_KEY) || "{}") || {}; } catch { return {}; } };
 const writePrefs = (p: Prefs) => { try { window.localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* per-browser convenience only */ } };
 const CHANGE_BADGE: Record<Change["tone"], { tone: BadgeTone; text: string }> = {
@@ -53,10 +50,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const [preset, setPreset] = useState<Preset>(saved.preset && PRESETS.some(p => p.id === saved.preset) ? saved.preset : "30d");
   const [compareMode, setCompareMode] = useState<CompareMode>(saved.compare === "lastYear" ? "lastYear" : "previous");
   const [custom, setCustom] = useState({ from: saved.from || "", to: saved.to || "" });
-  const [metric, setMetric] = useState<ChartMetric>(CHART_METRICS.some(m => m.id === saved.metric) ? saved.metric as ChartMetric : "revenue");
-  const [grainChoice, setGrainChoice] = useState<Grain | "auto">("auto");
-  const [section, setSection] = useState<Section>("sales");
-  const [showCompare, setShowCompare] = useState(true);
+  const boards = useBoardStore();
   const [fetchingBookId, setFetchingBookId] = useState<string | null>(null);
   const [loadedAt, setLoadedAt] = useState<Date | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -71,10 +65,9 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const [ga, setGa] = useState<GaState>({ status: "loading" });
   const [lastReset, setLastReset] = useState<{ at: string; removedDays: number } | null>(null);
   const [firstTrafficDay, setFirstTrafficDay] = useState<string | null>(null);
-  const metricIds = useRef(Object.fromEntries(CHART_METRICS.map(m => [m.id, `ov-chart-tab-${m.id}`])) as Record<ChartMetric, string>);
 
   const range = useMemo(() => resolveRange(preset, { custom, compare: compareMode }), [preset, custom, compareMode, reloadKey]);
-  useEffect(() => { writePrefs({ preset, compare: compareMode, from: custom.from, to: custom.to, metric }); }, [preset, compareMode, custom, metric]);
+  useEffect(() => { writePrefs({ preset, compare: compareMode, from: custom.from, to: custom.to }); }, [preset, compareMode, custom]);
 
   // Every daily traffic doc of the range AND its comparison window, however long ago (a year-on-year view needs ~2 years).
   const { fromKey: trafficFrom, toKey: trafficTo } = trafficWindow(range);
@@ -116,10 +109,14 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     adminApi.getFirstAnalyticsDay().then(setFirstTrafficDay).catch(() => setFirstTrafficDay(null));
   }, [reloadKey]);
 
+  // The shared reads (carts, sign-ups, Search Console) last one visit: coming back to the Overview reads them again.
+  useEffect(() => () => clearShared(), []);
+
   const refresh = () => {
     setAllOrders({ orders: null, error: false }); setStock({ books: null, error: false });
     setAudience({ data: null, error: false }); setLaunch({ parts: null, error: false }); setDaily({ rows: null, error: false });
-    // Panels that load their own extra data (carts, stock sign-ups) remount via their key.
+    // Panels that load their own extra data (carts, stock sign-ups, Search Console) remount via their key and read again.
+    clearShared();
     setReloadKey(k => k + 1);
   };
 
@@ -191,23 +188,6 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const todos = useMemo(() => (allOrders.orders ? orderTodos(allOrders.orders) : null), [allOrders.orders]);
   const subs = audience.data && periods ? newsletterSummary(audience.data.subscribers, periods.start) : null;
 
-  // The chart. "Today" has no hourly data, so it shows the last 7 days for context.
-  const chartRange = useMemo(() => (range.preset === "today" ? resolveRange("7d", { compare: compareMode }) : range), [range, compareMode]);
-  const grain: Grain = grainChoice === "auto" ? autoGrain(chartRange.days) : grainChoice;
-  const metricMeta = CHART_METRICS.find(m => m.id === metric) || CHART_METRICS[0];
-  // Google's figures cover only the chosen range, so "Today"'s 7-day context can't chart Google visitors.
-  const visitorsCharted = trafficReady && !(range.preset === "today" && traffic?.source === "google");
-  const metricUsable = !metricMeta.needsTraffic || visitorsCharted;
-  const buckets = useMemo(() => (periods ? bucketSeries(buildRangeSeries(periods.paid, chartRange, traffic?.visitsOn || (() => 0)), grain) : []), [periods, chartRange, traffic, grain]);
-  const chartData = useMemo(() => buckets.map(b => ({ key: b.date, label: b.label, value: metricValue(b, metric), prev: metricValue(b, metric, true) })), [buckets, metric]);
-  const summary = useMemo(() => seriesSummary(buckets, metric), [buckets, metric]);
-  const fmt = (v: number | null) => (v === null ? "—" : metricMeta.kind === "money" ? money(v) : metricMeta.kind === "percent" ? percent(v, 2) : Math.round(v).toLocaleString());
-  const axisFmt = (v: number) => (metricMeta.kind === "money" ? (v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${Math.round(v)}`) : metricMeta.kind === "percent" ? `${v}%` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v));
-  const chartEmpty = chartData.every(d => !d.value) && chartData.every(d => !d.prev);
-  const chartSummary = buckets.length
-    ? `${metricMeta.label} by ${grain} over ${chartRange.phrase}: ${fmt(summary.value)}${summary.previous !== null ? ` (${fmt(summary.previous)} in ${chartRange.before})` : ""}.${summary.best ? ` Best ${grain}: ${summary.best.label}, ${fmt(summary.best.value)}.` : ""}`
-    : "No chart data for this period.";
-
   const changes = useMemo(() => (insights && periods ? whatChanged({
     cur: insights.cur, prev: insights.prev, current: periods.current, previous: periods.previous,
     visits: trafficReady ? visits : null, before: range.before, money,
@@ -237,15 +217,6 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     a.href = url; a.download = `sales-report-${periods.startKey}-to-${periods.endKey}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
-  const onMetricKey = (e: React.KeyboardEvent) => {
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
-    e.preventDefault();
-    const ids = CHART_METRICS.map(m => m.id);
-    const i = ids.indexOf(metric);
-    const target = e.key === "Home" ? ids[0] : e.key === "End" ? ids[ids.length - 1] : ids[(i + (e.key === "ArrowRight" ? 1 : ids.length - 1)) % ids.length];
-    setMetric(target);
-    requestAnimationFrame(() => document.getElementById(metricIds.current[target])?.focus());
-  };
   const resetTraffic = async () => {
     const result = await googleAnalyticsApi.resetTraffic();
     setLastReset({ at: result.at, removedDays: result.removedDays });
@@ -265,259 +236,233 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     + todos.requests.length + todos.giftCardsMissing.length + todos.awaitingRelease.length
     + (counts?.unreadMessages || 0) + (counts?.openPrivacyRequests || 0) : null;
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  const onFlare = "var(--rp-on-primary)";
   const cartStep = funnel && funnel.add_to_cart > 0 ? (funnel.checkout_start / funnel.add_to_cart) * 100 : null;
   const profit = insights?.profit;
 
-  return (
-    <div className="rp-stack rp-ov">
-      {/* 1 · Masthead: the date, freshness and the period control for every figure that depends on it */}
-      <header className="rp-ov-mast">
-        <div className="rp-ov-dateline">
-          <span>{today}</span>
-          <span aria-live="polite">{refreshLabel}{traffic ? ` · traffic from ${sourceName}` : ""}
-            {ownOrderCount > 0 && ` · ${ownOrderCount} ${ownOrderCount === 1 ? "order" : "orders"} you placed yourself in this period left out`}</span>
-        </div>
-        <div className="rp-ov-mast-row">
-          <h2 className="rp-ov-title">The shop today</h2>
-          <div className="rp-ov-mast-actions">
-            <SecondaryButton size="sm" onClick={refresh} disabled={ordersLoading}>Refresh</SecondaryButton>
-            <SecondaryButton size="sm" onClick={downloadReport} disabled={!periods}>Download sales report (CSV)</SecondaryButton>
-          </div>
-        </div>
-        <div className="rp-ov-controls">
-          <SelectField label="Period" value={preset} onChange={e => setPreset(e.target.value as Preset)}>
-            {PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </SelectField>
-          {preset === "custom" && (
-            <>
-              <TextField label="From" type="date" value={custom.from} max={custom.to || shopDayKey(Date.now())} onChange={e => setCustom(c => ({ ...c, from: e.target.value }))} />
-              <TextField label="To" type="date" value={custom.to} min={custom.from || undefined} max={shopDayKey(Date.now())} onChange={e => setCustom(c => ({ ...c, to: e.target.value }))} />
-            </>
-          )}
-          <SelectField label="Compare with" value={compareMode} onChange={e => setCompareMode(e.target.value as CompareMode)}>
-            <option value="previous">The period before</option>
-            <option value="lastYear">The same days last year</option>
-          </SelectField>
-          <p className="rp-ov-range" aria-live="polite">
-            <strong>{range.phrase[0].toUpperCase() + range.phrase.slice(1)}</strong>{range.preset !== "custom" && <> · {rangeWords(range.startKey, range.endKey)}</>}
-            <span> · compared with {range.before} ({rangeWords(range.prevStartKey, range.prevEndKey)})</span>
-            {preset === "custom" && range.preset !== "custom" && <span> · pick both dates to use a custom range</span>}
-          </p>
-        </div>
-      </header>
+  const viewsRecorded = !!recordedSince(daily.rows || [], "bookViews");
+  const addsRecorded = !!recordedSince(daily.rows || [], "bookAdds");
+  const discountRate = insights && insights.cur.subtotal > 0 ? (insights.cur.discounts / insights.cur.subtotal) * 100 : 0;
+  const prevDiscountRate = insights && insights.prev.subtotal > 0 ? (insights.prev.discounts / insights.prev.subtotal) * 100 : 0;
 
-      {/* 2 · Launch checks: a slim strip while anything is open, gone once everything is green */}
-      <ReadinessPanel error={launch.error} items={readiness} onRetry={refresh} onOpen={tab => setActiveTab?.(tab)} />
+  // Every number a "Key figures" widget can show, worked out once for all of them.
+  const figure = (id: FigureId) => {
+    const wait = { value: "…", foot: KPI_WAIT };
+    switch (id) {
+      case "revenue": return insights ? { value: money(insights.cur.net), foot: <><Trend now={insights.cur.net} before={insights.prev.net} /> after refunds</> } : wait;
+      case "orders": return insights ? { value: insights.cur.orders.toLocaleString(), foot: <><Trend now={insights.cur.orders} before={insights.prev.orders} /> paid orders</> } : wait;
+      case "units": return insights ? { value: insights.cur.units.toLocaleString(), foot: <><Trend now={insights.cur.units} before={insights.prev.units} /> copies</> } : wait;
+      case "aov": return insights ? { value: money(insights.cur.aov), foot: <><Trend now={insights.cur.aov} before={insights.prev.aov} /> per paid order</> } : wait;
+      case "visitors": return trafficReady ? { value: visits.cur.toLocaleString(), foot: <><Trend now={visits.cur} before={visits.prev} /> {sourceName}</> } : { value: trafficFailed ? "—" : "…", foot: trafficFooter(KPI_WAIT) };
+      case "conversion": return conv ? { value: percent(conv.cur), foot: <><Trend now={conv.cur} before={conv.prev} /> paid orders ÷ visitors</> } : { value: trafficFailed ? "—" : "…", foot: trafficFooter(KPI_WAIT) };
+      case "cartStep": return trafficReady
+        ? { value: cartStep !== null ? percent(cartStep, 0) : "—", foot: funnel && funnel.add_to_cart > 0 ? `${funnel.checkout_start.toLocaleString()} checkouts from ${funnel.add_to_cart.toLocaleString()} bag adds` : "no bag adds recorded yet" }
+        : { value: "…", foot: trafficFooter(KPI_WAIT) };
+      case "profit": return profit
+        ? { value: profit.costedUnits > 0 ? money(profit.profit) : "—", foot: profit.costedUnits > 0 ? `${profit.margin === null ? "—" : percent(profit.margin, 0)} margin · cost known for ${percent(profit.coverage, 0)} of copies` : "add cost prices in Inventory to see profit" }
+        : wait;
+      case "returning": return insights ? { value: percent(insights.mix.returningRate, 0), foot: `${insights.mix.returning} returning · ${insights.mix.fresh} new` } : wait;
+      case "refunds": return insights ? { value: money(insights.cur.refunded + insights.cur.discounts), foot: `${money(insights.cur.refunded)} refunded · ${money(insights.cur.discounts)} in codes`, tone: insights.cur.refunded > 0 ? "warn" as const : undefined } : wait;
+      case "shipping": return insights ? { value: money(insights.cur.shipping), foot: <><Trend now={insights.cur.shipping} before={insights.prev.shipping} /> charged to customers</> } : wait;
+      case "discounts": return insights ? { value: percent(discountRate), foot: `${percent(prevDiscountRate)} before · share of list price given in codes` } : wait;
+    }
+  };
 
-      {/* 3 · Lead story (flare) with the chart, beside today's run sheet (ink) */}
-      <div className="rp-ov-front">
-        <article className="rp-ov-lead" aria-labelledby="ov-lead-title">
-          <div className="rp-ov-lead-head">
-            <div style={{ minWidth: 0 }}>
-              <div className="rp-ov-eyebrow">Lead story · {range.phrase}</div>
-              <h2 id="ov-lead-title" className="rp-ov-headline">
-                {allOrders.error ? "Sales figures unavailable" : story ? story.headline : "Counting this period's sales…"}
-              </h2>
-              <p className="rp-ov-dek">
-                {allOrders.error ? "Orders could not be loaded, so revenue can't be calculated." : story ? story.dek : "Paid orders are loading."}
-                {insights && insights.cur.refunded > 0 && ` After ${money(insights.cur.refunded)} refunded.`}
-              </p>
-              {insights?.pace && insights.pace.soFar > 0 && (
-                <p className="rp-ov-dek" style={{ marginTop: 4 }}>
-                  This month: {money(insights.pace.soFar)} in {insights.pace.daysIn} days — on pace for about <strong>{money(Math.round(insights.pace.projected))}</strong> by month end (a projection at this month's daily average).
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="rp-ov-switch" role="tablist" aria-label="Chart measure" style={{ marginTop: 14, flexWrap: "wrap" }}>
-            {CHART_METRICS.map(m => (
-              <button key={m.id} id={metricIds.current[m.id]} type="button" role="tab" aria-selected={metric === m.id}
-                aria-controls="ov-chart-panel" tabIndex={metric === m.id ? 0 : -1} onKeyDown={onMetricKey} onClick={() => setMetric(m.id)}>
-                {m.label}
-              </button>
-            ))}
-          </div>
+  const ordersGate = (content: () => React.ReactNode) => (
+    allOrders.error ? <ErrorState title="Figures unavailable" description="Orders could not be loaded, so this can't be calculated." onRetry={refresh} />
+      : !insights || !periods ? <LoadingState label="Calculating…" /> : content()
+  );
+  const marketing = (only: string) => (only in GOOGLE_PARTS
+    // Search Console needs neither orders nor the shop's traffic, so a failure there never holds these up.
+    ? <FoundOnGoogleCard range={{ startDate: range.startKey, endDate: range.endKey, prevStartDate: range.prevStartKey, prevEndDate: range.prevEndKey }}
+        setActiveTab={setActiveTab} part={GOOGLE_PARTS[only]} />
+    : ordersGate(() => (
+    trafficFailed && ga.status !== "loading" && !only.startsWith("google") ? <ErrorState title="Traffic unavailable" description="Visits, searches and sources could not be loaded." onRetry={loadDaily} />
+      : !traffic ? <LoadingState label="Loading traffic…" />
+      : <OverviewMarketing only={only} ga={ga} traffic={traffic} dailyCurrent={dailyCurrent} dailyAll={daily.rows || []} current={periods!.current} paidAll={periods!.paid} books={books}
+          range={{ startDate: range.startKey, endDate: range.endKey, prevStartDate: range.prevStartKey, prevEndDate: range.prevEndKey }}
+          lastReset={lastReset} firstDay={firstTrafficDay} onReset={resetTraffic} setActiveTab={setActiveTab} />
+  )));
 
-          <div id="ov-chart-panel" role="tabpanel" aria-labelledby={metricIds.current[metric]}>
-          {allOrders.error ? <ErrorState title="Chart unavailable" description="Orders could not be loaded, so the trend can't be drawn." onRetry={refresh} />
-            : metricMeta.needsTraffic && trafficFailed ? <ErrorState title="Traffic unavailable" description="Visits could not be loaded." onRetry={loadDaily} />
-            : !periods || (metricMeta.needsTraffic && !trafficReady) ? <LoadingState label="Loading chart…" />
-            : !metricUsable ? <p className="rp-ov-dek" style={{ marginTop: 16 }}>Google Analytics visitors chart over a longer period — choose 7 days or more.</p>
-            : chartEmpty ? (
-              <p className="rp-ov-dek" style={{ marginTop: 16 }}>
-                {metricMeta.needsTraffic ? "Visitors will chart here once the storefront records them." : "This will chart here once customers place paid orders."}
-              </p>
-            ) : (
-              <>
-                <p className="rp-sr-only">{chartSummary}</p>
-                <div className="rp-ov-chart-stats" aria-hidden="true">
-                  <span><b>{fmt(summary.value)}</b> {metricMeta.kind === "money" && metric === "aov" ? "average" : "in total"}{summary.previous !== null && <> · <Trend now={summary.value || 0} before={summary.previous || 0} /></>}</span>
-                  {summary.perDay !== null && <span><b>{fmt(summary.perDay)}</b> a day</span>}
-                  {summary.best && <span>Best {grain}: <b>{summary.best.label}</b> ({fmt(summary.best.value)})</span>}
-                </div>
-                <div style={{ height: 240, width: "100%", marginTop: 8 }} role="img" aria-label={chartSummary}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ left: 0, right: 8, top: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={onFlare} strokeOpacity={0.18} />
-                      <XAxis dataKey="label" axisLine={false} tickLine={false} minTickGap={24} tick={{ fontSize: 11, fill: onFlare }} />
-                      <YAxis axisLine={false} tickLine={false} width={48} tick={{ fontSize: 11, fill: onFlare }} tickFormatter={axisFmt} />
-                      <Tooltip formatter={(v: any, name: any) => [fmt(v === null || v === undefined ? null : Number(v)), name]}
-                        contentStyle={{ background: "var(--rp-surface)", border: "2px solid var(--rp-border-strong)", borderRadius: 0, color: "var(--rp-text)", fontSize: 12 }} />
-                      {showCompare && <Area type="monotone" dataKey="prev" name={`${metricMeta.label} (${chartRange.compare === "lastYear" ? "last year" : "before"})`} stroke={onFlare} strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 4" fill="none" connectNulls />}
-                      <Area type="monotone" dataKey="value" name={metricMeta.label} stroke={onFlare} strokeWidth={3} fill={onFlare} fillOpacity={0.14} connectNulls />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="rp-ov-lead-foot">
-                  <span className="rp-ov-legend">
-                    <span><i data-line="solid" aria-hidden="true" />{metricMeta.label}{metricMeta.needsTraffic ? ` · ${sourceName}` : ""}</span>
-                    {showCompare && <span><i data-line="dashed" aria-hidden="true" />{chartRange.compare === "lastYear" ? "Same days last year" : range.preset === "today" ? "Week before" : "Period before"}</span>}
-                  </span>
-                  <span style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                    <span className="rp-ov-switch" role="group" aria-label="Group the chart by">
-                      {(["auto", "day", "week", "month"] as const).map(g => (
-                        <button key={g} type="button" aria-pressed={grainChoice === g} onClick={() => setGrainChoice(g)}>
-                          {g === "auto" ? `Auto (${autoGrain(chartRange.days)})` : g}
-                        </button>
-                      ))}
-                    </span>
-                    <Checkbox label="Show comparison" checked={showCompare} onChange={e => setShowCompare(e.target.checked)} />
-                  </span>
-                </div>
-                {range.preset === "today" && <p className="rp-ov-dek" style={{ marginTop: 4 }}>Hourly data isn't recorded — the chart shows the last 7 days for context.</p>}
-                <details className="rp-ov-table-toggle">
-                  <summary>View chart data as a table</summary>
-                  <div style={{ marginTop: 8 }}>
-                    <DataTable caption="Chart data" rows={chartData} rowKey={d => d.key}
-                      columns={[
-                        { key: "d", header: grain === "day" ? "Date" : grain === "week" ? "Week" : "Month", render: d => d.label },
-                        { key: "v", header: metricMeta.label, numeric: true, render: d => fmt(d.value) },
-                        { key: "p", header: chartRange.compare === "lastYear" ? "Last year" : "Before", numeric: true, render: d => fmt(d.prev) },
-                      ]} />
-                  </div>
-                </details>
-              </>
-            )}
-          </div>
-        </article>
-
-        <aside className="rp-ov-run" aria-labelledby="ov-run-title">
-          <div className="rp-ov-eyebrow">Live — not tied to the period</div>
-          <h2 id="ov-run-title" className="rp-ov-run-title">Today's run sheet</h2>
-          <div className="rp-ov-run-total" aria-hidden="true">{openTodos === null ? "…" : openTodos}</div>
-          <p className="rp-ov-run-sub">{openTodos === null ? "Counting…" : openTodos === 0 ? "Nothing needs you right now." : `${openTodos} thing${openTodos === 1 ? "" : "s"} need${openTodos === 1 ? "s" : ""} you`}</p>
-          {gaReport && gaReport.activeNow !== null && (
-            <p className="rp-ov-run-sub"><strong style={{ color: "var(--rp-primary-hover)" }}>{gaReport.activeNow}</strong> {gaReport.activeNow === 1 ? "person is" : "people are"} on the site now (Google Analytics)</p>
-          )}
-          <ul className="rp-list" aria-label="Things that need attention">
-            <RunRow label="paid orders waiting to ship" count={insights ? insights.fulfil.length : null} loading={ordersLoading}
-              detail={insights && insights.fulfil[0] ? `Oldest has waited ${insights.fulfil[0].ageDays} day${insights.fulfil[0].ageDays === 1 ? "" : "s"}` : ""}
-              onOpen={() => { openFirstActionQueue(); setActiveTab?.("orders"); }} openLabel="Ship orders" />
-            <RunRow label="reviews to moderate" count={reviews ? reviews.pending : null} loading={!audience.data && !audience.error}
-              detail="Readers are waiting to see these" onOpen={() => setActiveTab?.("reviews")} openLabel="Moderate" />
-            <RunRow label="titles to reprint soon" count={insights ? insights.reprint.length : null} loading={ordersLoading || stockLoading}
-              detail={`On course to sell out within ${REORDER_COVER_DAYS} days`} onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
-            <RunRow label="print books or editions sold out" count={insights ? insights.shelf.soldOut : null} loading={ordersLoading || stockLoading}
-              detail="Customers can't buy these right now" onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
-            <RunRow label="cancel or return requests" count={todos ? todos.requests.length : null} loading={ordersLoading}
-              detail="Customers asked from their order page" onOpen={() => { openOrdersQueue("Needs attention"); setActiveTab?.("orders"); }} openLabel="Answer requests" />
-            <RunRow label="gift cards not issued" count={todos ? todos.giftCardsMissing.length : null} loading={ordersLoading}
-              detail="Paid, but the buyer has no code yet" onOpen={() => setActiveTab?.("giftCards")} openLabel="Open gift cards" />
-            <RunRow label="pre-orders awaiting release" count={todos ? todos.awaitingRelease.length : null} loading={ordersLoading}
-              detail="Press Ready to ship now on each order when the books arrive" onOpen={() => { openOrdersQueue("Awaiting release"); setActiveTab?.("orders"); }} openLabel="Open pre-orders" />
-            <RunRow label="unread messages" count={counts ? counts.unreadMessages : null} loading={!counts}
-              detail="From the contact form on your website" onOpen={() => setActiveTab?.("messages")} openLabel="Read messages" />
-            <RunRow label="privacy requests" count={counts ? counts.openPrivacyRequests : null} loading={!counts}
-              detail="Customers asked for a copy or deletion of their data" onOpen={() => setActiveTab?.("general")} openLabel="Open privacy requests" />
-          </ul>
-          {(allOrders.error || audience.error || stock.error) && (
-            <p className="rp-ov-run-sub">
-              {[allOrders.error && "orders", audience.error && "reviews", stock.error && "books"].filter(Boolean).join(", ")} could not be loaded, so some counts are missing.
-            </p>
-          )}
-        </aside>
-      </div>
-
-      {/* 4 · The figures behind the story, in ruled columns */}
-      {!allOrders.error && (
-        <section className="rp-ov-figures" aria-label="Key figures">
-          <Figure label="Orders" value={insights ? insights.cur.orders.toLocaleString() : "…"}
-            foot={insights ? <><Trend now={insights.cur.orders} before={insights.prev.orders} /> {insights.cur.units.toLocaleString()} books sold</> : KPI_WAIT} />
-          <Figure label="Average order" value={insights ? money(insights.cur.aov) : "…"}
-            foot={insights ? <><Trend now={insights.cur.aov} before={insights.prev.aov} /> per paid order</> : KPI_WAIT} />
-          <Figure label="Visitors" value={trafficReady ? visits.cur.toLocaleString() : trafficFailed ? "—" : "…"}
-            foot={trafficReady ? <><Trend now={visits.cur} before={visits.prev} /> {sourceName}</> : trafficFooter(KPI_WAIT)} />
-          <Figure label="Visitors → sale" value={conv ? percent(conv.cur) : trafficFailed ? "—" : "…"}
-            foot={conv ? <><Trend now={conv.cur} before={conv.prev} /> paid orders ÷ visitors</> : trafficFooter(KPI_WAIT)} />
-          <Figure label="Bag → checkout" value={trafficReady && cartStep !== null ? percent(cartStep, 0) : trafficReady ? "—" : "…"}
-            foot={trafficReady && funnel ? (funnel.add_to_cart > 0 ? `${funnel.checkout_start.toLocaleString()} checkouts from ${funnel.add_to_cart.toLocaleString()} bag adds` : "no bag adds recorded yet") : trafficFooter(KPI_WAIT)} />
-          <Figure label="Gross profit" value={profit ? (profit.costedUnits > 0 ? money(profit.profit) : "—") : "…"}
-            foot={profit ? (profit.costedUnits > 0 ? `${profit.margin === null ? "—" : percent(profit.margin, 0)} margin · cost known for ${percent(profit.coverage, 0)} of copies` : "add cost prices in Inventory to see profit") : KPI_WAIT} />
-          <Figure label="Returning readers" value={insights ? percent(insights.mix.returningRate, 0) : "…"}
-            foot={insights ? `${insights.mix.returning} returning · ${insights.mix.fresh} new` : KPI_WAIT} />
-          <Figure label="Refunds & codes" tone={insights && insights.cur.refunded > 0 ? "warn" : undefined} value={insights ? money(insights.cur.refunded + insights.cur.discounts) : "…"}
-            foot={insights ? `${money(insights.cur.refunded)} refunded · ${money(insights.cur.discounts)} in codes` : KPI_WAIT} />
-        </section>
+  const runSheet = (
+    <aside className="rp-ov-run" aria-label="Needs you">
+      <div className="rp-ov-eyebrow">Live — not tied to the period</div>
+      <div className="rp-ov-run-total" aria-hidden="true">{openTodos === null ? "…" : openTodos}</div>
+      <p className="rp-ov-run-sub">{openTodos === null ? "Counting…" : openTodos === 0 ? "Nothing needs you right now." : `${openTodos} thing${openTodos === 1 ? "" : "s"} need${openTodos === 1 ? "s" : ""} you`}</p>
+      {gaReport && gaReport.activeNow !== null && (
+        <p className="rp-ov-run-sub"><strong style={{ color: "var(--rp-primary-hover)" }}>{gaReport.activeNow}</strong> {gaReport.activeNow === 1 ? "person is" : "people are"} on the site now (Google Analytics)</p>
       )}
+      <ul className="rp-list" aria-label="Things that need attention">
+        <RunRow label="paid orders waiting to ship" count={insights ? insights.fulfil.length : null} loading={ordersLoading}
+          detail={insights && insights.fulfil[0] ? `Oldest has waited ${insights.fulfil[0].ageDays} day${insights.fulfil[0].ageDays === 1 ? "" : "s"}` : ""}
+          onOpen={() => { openFirstActionQueue(); setActiveTab?.("orders"); }} openLabel="Ship orders" />
+        <RunRow label="reviews to moderate" count={reviews ? reviews.pending : null} loading={!audience.data && !audience.error}
+          detail="Readers are waiting to see these" onOpen={() => setActiveTab?.("reviews")} openLabel="Moderate" />
+        <RunRow label="titles to reprint soon" count={insights ? insights.reprint.length : null} loading={ordersLoading || stockLoading}
+          detail={`On course to sell out within ${REORDER_COVER_DAYS} days`} onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
+        <RunRow label="print books or editions sold out" count={insights ? insights.shelf.soldOut : null} loading={ordersLoading || stockLoading}
+          detail="Customers can't buy these right now" onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
+        <RunRow label="cancel or return requests" count={todos ? todos.requests.length : null} loading={ordersLoading}
+          detail="Customers asked from their order page" onOpen={() => { openOrdersQueue("Needs attention"); setActiveTab?.("orders"); }} openLabel="Answer requests" />
+        <RunRow label="gift cards not issued" count={todos ? todos.giftCardsMissing.length : null} loading={ordersLoading}
+          detail="Paid, but the buyer has no code yet" onOpen={() => setActiveTab?.("giftCards")} openLabel="Open gift cards" />
+        <RunRow label="pre-orders awaiting release" count={todos ? todos.awaitingRelease.length : null} loading={ordersLoading}
+          detail="Press Ready to ship now on each order when the books arrive" onOpen={() => { openOrdersQueue("Awaiting release"); setActiveTab?.("orders"); }} openLabel="Open pre-orders" />
+        <RunRow label="unread messages" count={counts ? counts.unreadMessages : null} loading={!counts}
+          detail="From the contact form on your website" onOpen={() => setActiveTab?.("messages")} openLabel="Read messages" />
+        <RunRow label="privacy requests" count={counts ? counts.openPrivacyRequests : null} loading={!counts}
+          detail="Customers asked for a copy or deletion of their data" onOpen={() => setActiveTab?.("general")} openLabel="Open privacy requests" />
+      </ul>
+      {(allOrders.error || audience.error || stock.error) && (
+        <p className="rp-ov-run-sub">
+          {[allOrders.error && "orders", audience.error && "reviews", stock.error && "books"].filter(Boolean).join(", ")} could not be loaded, so some counts are missing.
+        </p>
+      )}
+    </aside>
+  );
 
-      {/* 5 · What changed, beside the newest orders */}
-      <div className="rp-split" style={SPLIT}>
-        <SectionCard flush title="What changed" description={`The biggest moves compared with ${range.before}`}>
-          {allOrders.error ? <ErrorState title="Changes unavailable" description="Orders could not be loaded." onRetry={refresh} />
-            : !changes ? <LoadingState label="Comparing…" />
-            : changes.length === 0 ? <EmptyState icon="≈" title="Nothing moved much" description={`Sales, titles and traffic are close to ${range.before}.`} />
-            : (
-              <ul className="rp-list" aria-label="What changed">
-                {changes.map(c => (
-                  <li key={c.id} style={ROW}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, overflowWrap: "anywhere" }}>{c.title}</div>
-                      <div className="rp-hint">{c.detail}</div>
-                    </div>
-                    <StatusBadge tone={CHANGE_BADGE[c.tone].tone}>{CHANGE_BADGE[c.tone].text}</StatusBadge>
-                  </li>
-                ))}
-              </ul>
+  const renderWidget: RenderWidget = (w, { full, setConfig }) => {
+    const band = widgetMeta(w.type).band;
+    switch (w.type) {
+      case "needs": return runSheet;
+      case "readiness":
+        return launch.error ? <ErrorState title="Launch checks unavailable" description="Settings, shipping or email records could not be loaded. Readiness is unknown until these checks refresh." onRetry={refresh} />
+          : !readiness ? <LoadingState label="Checking…" />
+          : readinessSummary(readiness) === "ok" ? <EmptyState icon="✓" title="Ready to sell" description="Every launch check passes." />
+          : <ReadinessStrip items={readiness} onOpen={tab => setActiveTab?.(tab)} />;
+      case "changes":
+        return (
+          <SectionCard flush title="What changed" description={`The biggest moves compared with ${range.before}`}>
+            {allOrders.error ? <ErrorState title="Changes unavailable" description="Orders could not be loaded." onRetry={refresh} />
+              : !changes ? <LoadingState label="Comparing…" />
+              : changes.length === 0 ? <EmptyState icon="≈" title="Nothing moved much" description={`Sales, titles and traffic are close to ${range.before}.`} />
+              : (
+                <ul className="rp-list" aria-label="What changed">
+                  {changes.map(c => (
+                    <li key={c.id} style={ROW}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, overflowWrap: "anywhere" }}>{c.title}</div>
+                        <div className="rp-hint">{c.detail}</div>
+                      </div>
+                      <StatusBadge tone={CHANGE_BADGE[c.tone].tone}>{CHANGE_BADGE[c.tone].text}</StatusBadge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+          </SectionCard>
+        );
+      case "newest":
+        return (
+          <SectionCard flush title="Newest orders" description="The latest real sales" actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("orders")}>All orders</SecondaryButton>}>
+            {allOrders.error ? <ErrorState title="Orders unavailable" description="Recent orders could not be loaded." />
+              : !allOrders.orders ? <LoadingState label="Loading orders…" />
+              : <DataTable caption="Newest orders" columns={recentColumns} rows={full ? newestSales(allOrders.orders, 25) : recentOrders} rowKey={o => o.id}
+                  empty={<EmptyState title="No orders yet" description="New orders appear here as soon as customers check out." />} />}
+          </SectionCard>
+        );
+      case "story":
+        return (
+          <article className="rp-ov-lead" aria-label="Headline">
+            <div className="rp-ov-eyebrow">Lead story · {range.phrase}</div>
+            <p className="rp-ov-headline" style={{ fontSize: full ? undefined : "clamp(22px, 2.4vw, 32px)" }}>
+              {allOrders.error ? "Sales figures unavailable" : story ? story.headline : "Counting this period's sales…"}
+            </p>
+            <p className="rp-ov-dek">
+              {allOrders.error ? "Orders could not be loaded, so revenue can't be calculated." : story ? story.dek : "Paid orders are loading."}
+              {insights && insights.cur.refunded > 0 && ` After ${money(insights.cur.refunded)} refunded.`}
+            </p>
+            {insights?.pace && insights.pace.soFar > 0 && (
+              <p className="rp-ov-dek">
+                This month: {money(insights.pace.soFar)} in {insights.pace.daysIn} days — on pace for about <strong>{money(Math.round(insights.pace.projected))}</strong> by month end (a projection at this month's daily average).
+              </p>
             )}
-        </SectionCard>
-        <SectionCard flush title="Newest orders" actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("orders")}>All orders</SecondaryButton>}>
-          {allOrders.error ? <ErrorState title="Orders unavailable" description="Recent orders could not be loaded." />
-            : !allOrders.orders ? <LoadingState label="Loading orders…" />
-            : <DataTable caption="Newest orders" columns={recentColumns} rows={recentOrders} rowKey={o => o.id}
-                empty={<EmptyState title="No orders yet" description="New orders appear here as soon as customers check out." />} />}
-        </SectionCard>
-      </div>
-
-      {/* 6 · Detail, grouped by the question you're asking */}
-      <SectionHead kicker="Inside this issue" title="Dig deeper" subcopy={SECTION_COPY[section]}
-        actions={<Tabs<Section> label="Detail" value={section} onChange={setSection}
-          tabs={[{ id: "sales", label: "Sales" }, { id: "titles", label: "Titles" }, { id: "marketing", label: "Marketing & traffic" }, { id: "customers", label: "Customers" }, { id: "stock", label: "Stock" }]} />} />
-
-      {section === "stock" ? (
-        stock.error ? <ErrorState title="Stock unavailable" description="Books could not be loaded." onRetry={refresh} />
-        : !insights ? (allOrders.error ? <ErrorState title="Stock insights unavailable" description="Orders could not be loaded, so sales pace can't be calculated." onRetry={refresh} /> : <LoadingState label="Calculating…" />)
-        : <OverviewStock key={reloadKey} books={books} shelf={insights.shelf} reprint={insights.reprint} dormant={insights.dormant} setActiveTab={setActiveTab}
-            dailyCurrent={dailyCurrent} dailyAll={daily.rows || []} />
-      ) : allOrders.error ? <ErrorState title="Details unavailable" description="Orders could not be loaded, so these lists can't be calculated." onRetry={refresh} />
-        : !insights || !periods ? <LoadingState label="Calculating…" />
-        : section === "sales" ? (
-          <OverviewSales current={periods.current} previous={periods.previous} books={books} dailyCurrent={dailyCurrent}
-            categoriesSetting={launch.parts?.settings?.design?.categories} onEditBook={handleEditClick} fetchingBookId={fetchingBookId} />
-        ) : section === "titles" ? (
-          <OverviewTitles rows={titleRows} startKey={range.startKey} endKey={range.endKey} viewsRecorded={!!recordedSince(daily.rows || [], "bookViews")} addsRecorded={!!recordedSince(daily.rows || [], "bookAdds")}
+          </article>
+        );
+      case "chart":
+        return (
+          <OverviewChart widgetId={w.id} paid={periods ? periods.paid : null} range={range} compareMode={compareMode} traffic={traffic}
+            trafficReady={trafficReady} trafficFailed={trafficFailed} ordersError={allOrders.error} sourceName={sourceName}
+            config={w.config || {}} onConfig={setConfig} onRetry={refresh} onRetryTraffic={loadDaily} full={full} />
+        );
+      case "figures": {
+        if (allOrders.error) return <ErrorState title="Figures unavailable" description="Orders could not be loaded." onRetry={refresh} />;
+        const ids = (w.config?.figures?.length ? w.config.figures : DEFAULT_FIGURES) as FigureId[];
+        return (
+          <section className="rp-ov-figures" aria-label="Key figures">
+            {ids.map(id => { const f = figure(id); return <Figure key={id} label={FIGURES.find(x => x.id === id)!.label} value={f.value} foot={f.foot} tone={(f as any).tone} />; })}
+          </section>
+        );
+      }
+      case "titles":
+        return ordersGate(() => (
+          <OverviewTitles rows={titleRows} startKey={range.startKey} endKey={range.endKey} viewsRecorded={viewsRecorded} addsRecorded={addsRecorded}
             costsKnown={!!profit && profit.costedUnits > 0} onEditBook={handleEditClick} fetchingBookId={fetchingBookId} />
-        ) : section === "marketing" ? (
-          trafficFailed && ga.status !== "loading" ? <ErrorState title="Traffic unavailable" description="Visits, searches and sources could not be loaded." onRetry={loadDaily} />
-          : !traffic ? <LoadingState label="Loading traffic…" />
-          : <OverviewMarketing ga={ga} traffic={traffic} dailyCurrent={dailyCurrent} dailyAll={daily.rows || []} current={periods.current} paidAll={periods.paid} books={books}
-              range={{ startDate: range.startKey, endDate: range.endKey, prevStartDate: range.prevStartKey, prevEndDate: range.prevEndKey }}
-              lastReset={lastReset} firstDay={firstTrafficDay} onReset={resetTraffic} setActiveTab={setActiveTab} />
-        ) : (
-          <OverviewCustomers key={reloadKey} paid={periods.paid} current={periods.current} startKey={periods.startKey} mix={insights.mix} startMs={periods.start}
-            reviews={reviews} subs={subs} audienceFailed={audience.error} setActiveTab={setActiveTab}
-            newsletter={audience.data ? { subscribers: audience.data.subscribers, pending: audience.data.pendingSubscribers || [] } : null} />
+        ));
+      case "viewed": return marketing("viewed");
+      default: break;
+    }
+    if (band === "sales") {
+      return ordersGate(() => (
+        <OverviewSales only={w.type} current={periods!.current} previous={periods!.previous} books={books} dailyCurrent={dailyCurrent}
+          categoriesSetting={launch.parts?.settings?.design?.categories} onEditBook={handleEditClick} fetchingBookId={fetchingBookId} />
+      ));
+    }
+    if (band === "traffic" || band === "search") return marketing(w.type);
+    if (band === "customers") {
+      return ordersGate(() => (
+        <OverviewCustomers key={reloadKey} only={w.type === "custKpis" ? "kpis" : w.type} paid={periods!.paid} current={periods!.current} startKey={periods!.startKey} mix={insights!.mix} startMs={periods!.start}
+          reviews={reviews} subs={subs} audienceFailed={audience.error} setActiveTab={setActiveTab}
+          newsletter={audience.data ? { subscribers: audience.data.subscribers, pending: audience.data.pendingSubscribers || [] } : null} />
+      ));
+    }
+    if (band === "stock") {
+      return stock.error ? <ErrorState title="Stock unavailable" description="Books could not be loaded." onRetry={refresh} />
+        : !insights ? (allOrders.error ? <ErrorState title="Stock insights unavailable" description="Orders could not be loaded, so sales pace can't be calculated." onRetry={refresh} /> : <LoadingState label="Calculating…" />)
+        : <OverviewStock key={reloadKey} only={w.type === "stockKpis" ? "kpis" : w.type} books={books} shelf={insights.shelf} reprint={insights.reprint} dormant={insights.dormant} setActiveTab={setActiveTab}
+            dailyCurrent={dailyCurrent} dailyAll={daily.rows || []} />;
+    }
+    return null;
+  };
+
+  // The masthead: the date, freshness and the period control for every figure on the board.
+  const masthead = (
+    <header className="rp-ov-mast">
+      <div className="rp-ov-dateline">
+        <span>{today}</span>
+        <span aria-live="polite">{refreshLabel}{traffic ? ` · traffic from ${sourceName}` : ""}
+          {ownOrderCount > 0 && ` · ${ownOrderCount} ${ownOrderCount === 1 ? "order" : "orders"} you placed yourself in this period left out`}</span>
+      </div>
+      <div className="rp-ov-mast-row">
+        <h2 className="rp-ov-title">The shop today</h2>
+        <div className="rp-ov-mast-actions">
+          <SecondaryButton size="sm" onClick={refresh} disabled={ordersLoading}>Refresh</SecondaryButton>
+          <SecondaryButton size="sm" onClick={downloadReport} disabled={!periods}>Download sales report (CSV)</SecondaryButton>
+        </div>
+      </div>
+      <div className="rp-ov-controls">
+        <SelectField label="Period" value={preset} onChange={e => setPreset(e.target.value as Preset)}>
+          {PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </SelectField>
+        {preset === "custom" && (
+          <>
+            <TextField label="From" type="date" value={custom.from} max={custom.to || shopDayKey(Date.now())} onChange={e => setCustom(c => ({ ...c, from: e.target.value }))} />
+            <TextField label="To" type="date" value={custom.to} min={custom.from || undefined} max={shopDayKey(Date.now())} onChange={e => setCustom(c => ({ ...c, to: e.target.value }))} />
+          </>
         )}
-    </div>
+        <SelectField label="Compare with" value={compareMode} onChange={e => setCompareMode(e.target.value as CompareMode)}>
+          <option value="previous">The period before</option>
+          <option value="lastYear">The same days last year</option>
+        </SelectField>
+        <p className="rp-ov-range" aria-live="polite">
+          <strong>{range.phrase[0].toUpperCase() + range.phrase.slice(1)}</strong>{range.preset !== "custom" && <> · {rangeWords(range.startKey, range.endKey)}</>}
+          <span> · compared with {range.before} ({rangeWords(range.prevStartKey, range.prevEndKey)})</span>
+          {preset === "custom" && range.preset !== "custom" && <span> · pick both dates to use a custom range</span>}
+        </p>
+      </div>
+    </header>
+  );
+
+  return (
+    <OverviewBoard store={boards.store} setStore={boards.setStore} saveState={boards.saveState} saveError={boards.saveError}
+      onRetrySave={boards.retrySave} renderWidget={renderWidget} header={masthead} />
   );
 }

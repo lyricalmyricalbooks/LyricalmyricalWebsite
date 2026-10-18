@@ -150,6 +150,12 @@ function writeFolded(key: string, folded: boolean) {
 }
 
 /**
+ * Inside an Overview board widget the widget's own bar carries the title and the fold button, so cards there
+ * keep only their description and actions (see OverviewBoard.tsx).
+ */
+export const CardInWidget = createContext(false);
+
+/**
  * A titled card. Cards with a title can be folded down to just their heading (chevron button); the choice is
  * remembered per browser by `foldKey` (default: the title). Pass `collapsible={false}` to keep a card always open.
  */
@@ -158,7 +164,8 @@ export function SectionCard({ title, description, actions, children, bodyClassNa
   collapsible?: boolean; foldKey?: string;
   "data-print"?: "hide";
 }) {
-  const canFold = collapsible !== false && !!title;
+  const inWidget = useContext(CardInWidget);
+  const canFold = !inWidget && collapsible !== false && !!title;
   const key = foldKey || title || "";
   const [folded, setFolded] = useState(() => canFold && readFolded(key));
   const bodyId = useId();
@@ -166,7 +173,7 @@ export function SectionCard({ title, description, actions, children, bodyClassNa
   const isFolded = canFold && folded;
   return (
     <section className="rp-card" data-folded={isFolded || undefined} {...rest}>
-      {(title || actions) && (
+      {((title && (!inWidget || description)) || actions) && (
         <div className="rp-card-head" style={isFolded ? { borderBottom: 0 } : undefined}>
           <div style={canFold ? { display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0 } : undefined}>
             {canFold && (
@@ -176,7 +183,7 @@ export function SectionCard({ title, description, actions, children, bodyClassNa
               </button>
             )}
             <div style={{ minWidth: 0 }}>
-              {title && <h2 className="rp-card-title" onClick={canFold ? toggle : undefined} style={canFold ? { cursor: "pointer" } : undefined}>{title}</h2>}
+              {title && !inWidget && <h2 className="rp-card-title" onClick={canFold ? toggle : undefined} style={canFold ? { cursor: "pointer" } : undefined}>{title}</h2>}
               {description && <p className="rp-card-desc">{description}</p>}
             </div>
           </div>
