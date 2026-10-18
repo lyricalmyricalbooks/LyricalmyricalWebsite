@@ -14,7 +14,7 @@ beforeEach(() => {
 });
 
 describe("OrdersDesk", () => {
-  it("opens on the Ship station: header, numbered queue and the full order page", () => {
+  it("a link to one order opens the Ship station: header, numbered queue and the full order page", () => {
     const html = renderToStaticMarkup(<OrdersDesk selectedId="ABC" onSelect={() => {}} />);
     expect(html).toContain("Ship today");
     expect(html).toContain("Labels today");
@@ -26,11 +26,15 @@ describe("OrdersDesk", () => {
     expect(html).toContain("Shortcuts:");
   });
 
-  it("remembers the All orders covers page with its Open / Completed / All tabs", () => {
-    store.set("orders-desk-layout", "grid");
+  it("opens on All orders › Open, newest first, as covers, whatever was picked last time", () => {
+    store.set("orders-desk-layout", "desk");
+    store.set("orders-grid-tab", "all");
     const html = renderToStaticMarkup(<OrdersDesk selectedId={null} onSelect={() => {}} />);
     expect(html).toContain("All orders</h2>");
     for (const label of ["Open", "Completed", "All orders", "Export orders", "Covers", "Ship station"]) expect(html).toContain(label);
     expect(html).not.toContain("data-order-detail");
+    expect(html).toContain('aria-selected="true" tabindex="0">Open<');
+    expect(html).toContain('<option value="newest" selected="">Newest first');
+    expect(html).toContain('aria-pressed="true" class="is-on">Covers<');
   });
 });

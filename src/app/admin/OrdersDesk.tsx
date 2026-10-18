@@ -9,10 +9,6 @@ import { printOrders } from "./orderPrint";
 import { queueOf } from "./fulfillment";
 import type { CatalogSearchIndex } from "./orderSearch";
 
-const LAYOUT_KEY = "orders-desk-layout";
-const TAB_KEY = "orders-grid-tab";
-const read = (k: string, d: string) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
-const write = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
 const REFRESH_MS = 60 * 1000;
 const PAGE = 40;
 type Layout = "desk" | "grid" | "table";
@@ -33,16 +29,12 @@ const typingIn = (t: EventTarget | null) => {
 export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null; onSelect: (id: string | null) => void }) {
   const [orders, setOrders] = useState<any[] | null>(null);
   const [failed, setFailed] = useState(false);
-  const [layout, setLayout] = useState<Layout>(() => {
-    const saved = read(LAYOUT_KEY, "desk");
-    return saved === "grid" || saved === "table" ? saved : "desk";
-  });
+  // Orders always opens on All orders › Open, newest first, as covers (owner's choice, 18 October 2026);
+  // a link to one order (/admin#orders/<id>) opens it in the Ship station.
+  const [layout, setLayout] = useState<Layout>(() => (selectedId ? "desk" : "grid"));
   const [query, setQuery] = useState("");
   const [gridQuery, setGridQuery] = useState("");
-  const [tab, setTab] = useState<GridTab>(() => {
-    const saved = read(TAB_KEY, "open");
-    return saved === "completed" || saved === "all" ? saved : "open";
-  });
+  const [tab, setTab] = useState<GridTab>("open");
   const [only, setOnly] = useState<Only>("");
   const [sort, setSort] = useState<GridSort>("newest");
   const [shown, setShown] = useState(PAGE);
@@ -135,8 +127,8 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
     return () => window.removeEventListener("keydown", onKey);
   }, [layout]);
 
-  const pickLayout = (l: Layout) => { setLayout(l); write(LAYOUT_KEY, l); };
-  const pickTab = (t: GridTab) => { setTab(t); setOnly(""); write(TAB_KEY, t); };
+  const pickLayout = (l: Layout) => setLayout(l);
+  const pickTab = (t: GridTab) => { setTab(t); setOnly(""); };
   const showOnly = (o: Exclude<Only, "">) => { setOnly(o); setGridQuery(""); pickLayout("grid"); };
   // From the covers page: open the order in the station (it stays open even when it isn't in the queue).
   const openInStation = (id: string) => { pickLayout("desk"); open(id); };
