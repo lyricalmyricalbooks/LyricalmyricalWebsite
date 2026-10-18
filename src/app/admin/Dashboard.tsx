@@ -601,11 +601,12 @@ export function Dashboard() {
           </Topbar>
         }
       >
-        <PageHeader
+        {/* The Overview board draws its own header (title, period, layout and Edit board). */}
+        {!((activeTab === "overview" || activeTab === "analytics") && !selectedOrder) && <PageHeader
           breadcrumbs={<Breadcrumbs trail={trail} />}
           title={selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
           description={selectedOrder && activeTab !== "orders" ? "Payment, fulfillment, and tracking for this order." : copy.description}
-        />
+        />}
         <AdminAlerts
           alerts={[...settingsAlerts(originalSettings), ...alerts]}
           onOpenNotifications={() => { setActiveTab("settings"); setSettingsTab("notifications"); setShowEditor(false); setSelectedOrder(null); }}

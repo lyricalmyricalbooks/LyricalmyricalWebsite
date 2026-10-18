@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { SecondaryButton, SectionCard, StatusBadge, GhostButton, ErrorState, type BadgeTone } from "./riso/components";
+import { SecondaryButton, StatusBadge, ErrorState, type BadgeTone } from "./riso/components";
 import { change } from "./overviewInsights";
 import { readinessProgress, readinessSummary, type ReadinessItem } from "./launchReadiness";
 
@@ -10,11 +10,37 @@ export const percent = (n: number, digits = 1) => `${Number(n || 0).toFixed(digi
 export const SPLIT = { gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" } as const;
 export const ROW = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 } as const;
 
-/** % change badge; "new" when there is nothing earlier to compare with. */
-export function Trend({ now, before }: { now: number; before: number }) {
+/** A rounded status pill with its own glyph (the B4 board's "● 2 days", "▲ 29%"). The glyph is decoration. */
+export function Pill({ tone = "neutral", glyph, children, title }: { tone?: BadgeTone; glyph?: string; children: ReactNode; title?: string }) {
+  return <span className="rp-badge" data-tone={tone} title={title}>{glyph && <span aria-hidden="true">{glyph}</span>}{children}</span>;
+}
+
+/** The change against the comparison period as a pill: ▲ up, ▼ down, = flat, ● new when there was nothing before. */
+export function Trend({ now, before, title }: { now: number; before: number; title?: string }) {
   const v = change(now, before);
-  const tone: BadgeTone = v === null || v > 0 ? "success" : v < 0 ? "danger" : "neutral";
-  return <StatusBadge tone={tone}>{v === null ? "new" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`}</StatusBadge>;
+  if (v === null) return <Pill tone="info" glyph="●" title={title}>New</Pill>;
+  const size = Math.abs(v);
+  const words = `${size >= 10 ? Math.round(size) : size.toFixed(1)}%`;
+  if (Math.round(v * 10) === 0) return <Pill tone="neutral" glyph="=" title={title}>0%</Pill>;
+  return (
+    <Pill tone={v > 0 ? "success" : "danger"} glyph={v > 0 ? "▲" : "▼"} title={title}>
+      <span className="rp-sr-only">{v > 0 ? "up " : "down "}</span>{words}
+    </Pill>
+  );
+}
+
+/** A tiny line of the period's values (decorative: the figure beside it carries the number). */
+export function Sparkline({ values }: { values: Array<number | null> }) {
+  const pts = values.map(v => (v === null || !Number.isFinite(v) ? 0 : v));
+  if (pts.length < 2 || pts.every(v => v === 0)) return null;
+  const max = Math.max(...pts), min = Math.min(...pts);
+  const span = max - min || 1;
+  const line = pts.map((v, i) => `${((i / (pts.length - 1)) * 100).toFixed(2)},${(21 - ((v - min) / span) * 18).toFixed(2)}`).join(" ");
+  return (
+    <svg className="rp-ov-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <polyline fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" points={line} />
+    </svg>
+  );
 }
 
 /** A thin proportional bar. Decorative on its own; give it `label` when it stands alone as a progress readout. */
@@ -39,30 +65,56 @@ export function BarRow({ label, value, share, color }: { label: ReactNode; value
   );
 }
 
-/** One line of the run sheet (the ink "to do" tile): a big count, what it is, and where to fix it. */
-export function RunRow({ label, detail, count, loading, onOpen, openLabel }: {
-  label: string; detail: string; count: number | null; loading: boolean; onOpen: () => void; openLabel: string;
-}) {
-  const clear = count === 0;
+/** One thing on the "Needs you" list. `count` null = still loading; zero = done, so it isn't listed. */
+export type NeedItem = {
+  id: string; count: number | null; loading: boolean; title: (n: number) => string; detail: string;
+  pill: { tone: BadgeTone; glyph: string; text: string }; onOpen: () => void; openLabel: string;
+};
+
+/**
+ * "Needs you" as the B4 board draws it: one light row per open job (bold count, a line on why, a status pill), each
+ * opening the page where it is done. Jobs that are done drop off; the footer counts what is left.
+ */
+export function NeedsList({ items, live, missing }: { items: NeedItem[]; live?: ReactNode; missing?: string }) {
+  const open = items.filter(i => !i.loading && (i.count || 0) > 0);
+  const checking = items.filter(i => i.loading).length;
+  const total = open.reduce((n, i) => n + (i.count || 0), 0);
   return (
-    <li className="rp-ov-run-row" data-clear={clear || undefined}>
-      <span className="rp-ov-run-count">{loading ? "…" : count}</span>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div className="rp-ov-run-label">{label}</div>
-        <div className="rp-ov-run-detail">{loading ? "Loading…" : clear ? "✓ All clear" : detail}</div>
-        {!loading && !clear && <button type="button" className="rp-ov-run-go" onClick={onOpen}>{openLabel} <span aria-hidden="true">→</span></button>}
-      </div>
-    </li>
+    <div className="rp-wb-needs">
+      {live && <p className="rp-wb-needs-live">{live}</p>}
+      {open.length === 0 && checking === 0 && (
+        <p className="rp-wb-needs-clear"><span aria-hidden="true">✓</span> Nothing needs you right now.</p>
+      )}
+      {open.length > 0 && (
+        <ul className="rp-wb-rows" aria-label="Things that need you">
+          {open.map(i => (
+            <li key={i.id}>
+              <button type="button" className="rp-wb-nrow" onClick={i.onOpen} aria-label={`${i.title(i.count!)}: ${i.openLabel}`}>
+                <span className="rp-wb-nrow-main"><b>{i.title(i.count!)}</b>{i.detail && <small>{i.detail}</small>}</span>
+                <Pill tone={i.pill.tone} glyph={i.pill.glyph}>{i.pill.text}</Pill>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="rp-wb-foot" aria-live="polite">
+        {checking > 0 && open.length === 0 ? "Checking orders, reviews and messages…"
+          : total > 0 ? `${total} thing${total === 1 ? "" : "s"} in all${checking > 0 ? ", still checking the rest" : ""}. Done items drop off by themselves.`
+          : "Live: this list doesn't follow the period above."}
+        {missing && ` ${missing}`}
+      </p>
+    </div>
   );
 }
 
-/** One column of the Overview's ruled figures strip. */
-export function Figure({ label, value, foot, tone }: { label: string; value: ReactNode; foot: ReactNode; tone?: "warn" }) {
+/** One figure tile: label, the number, how it moved, and a small line of the period when there is one. */
+export function Figure({ label, value, foot, tone, spark }: { label: string; value: ReactNode; foot: ReactNode; tone?: "warn"; spark?: Array<number | null> }) {
   return (
     <div className="rp-ov-figure" data-tone={tone}>
       <div className="rp-ov-figure-label">{label}</div>
       <div className="rp-ov-figure-value">{value}</div>
       <div className="rp-ov-figure-foot">{foot}</div>
+      {spark && <Sparkline values={spark} />}
     </div>
   );
 }
@@ -98,34 +150,36 @@ function ReadinessRow({ item, onOpen }: { item: ReadinessItem; onOpen: (tab: str
 }
 
 /**
- * "Ready to sell?" as a slim progress strip: how many checks are green, only the open ones listed, and the finished
- * ones folded away. The page parent hides it entirely once every check passes.
+ * "Ready to sell" as the B4 board draws it: "7 of 8" with a pill, one box per check, then only the open checks
+ * (the finished ones fold away). The board shows a plain "Ready to sell" once every check passes.
  */
 export function ReadinessStrip({ items, onOpen }: { items: ReadinessItem[]; onOpen: (tab: string) => void }) {
   const [showDone, setShowDone] = useState(false);
   const { done, total, open, completed } = readinessProgress(items);
-  const blocking = open.some(i => i.status === "block");
+  const blocking = open.filter(i => i.status === "block").length;
   return (
-    <SectionCard flush title="Ready to sell?"
-      description={`${done} of ${total} launch checks are ready${blocking ? " — something is blocking sales" : ""}`}
-      actions={completed.length > 0
-        ? <GhostButton size="sm" aria-expanded={showDone} aria-controls="overview-readiness-done" onClick={() => setShowDone(v => !v)}>
-            {showDone ? "Hide" : "Show"} completed ({completed.length})
-          </GhostButton>
-        : undefined}>
-      <div style={{ padding: "0 20px 16px" }}>
-        <Meter share={total ? (done / total) * 100 : 0} color={blocking ? "var(--rp-danger)" : "var(--rp-primary)"}
-          label="Launch checks ready" valueText={`${done} of ${total}`} />
+    <div className="rp-wb-ready">
+      <div className="rp-wb-ready-head">
+        <span className="rp-wb-big">{done} of {total}</span>
+        {blocking > 0 ? <Pill tone="danger" glyph="✕">{blocking} blocking</Pill> : <Pill tone="warning" glyph="◐">{open.length} open</Pill>}
+      </div>
+      <div className="rp-wb-meter" role="progressbar" aria-label="Launch checks ready" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} aria-valuetext={`${done} of ${total}`}>
+        {[...completed, ...open].map(i => <i key={i.id} data-state={i.status} />)}
       </div>
       <ul className="rp-list" aria-label="Launch checks still open">
         {open.map(item => <ReadinessRow key={item.id} item={item} onOpen={onOpen} />)}
       </ul>
+      {completed.length > 0 && (
+        <button type="button" className="rp-wb-a" aria-expanded={showDone} aria-controls="overview-readiness-done" onClick={() => setShowDone(v => !v)}>
+          {showDone ? "Hide" : "Show"} the {completed.length} finished check{completed.length === 1 ? "" : "s"}
+        </button>
+      )}
       {showDone && (
-        <ul id="overview-readiness-done" className="rp-list" aria-label="Launch checks already done" style={{ borderTop: "1px solid var(--rp-divider)" }}>
+        <ul id="overview-readiness-done" className="rp-list" aria-label="Launch checks already done">
           {completed.map(item => <ReadinessRow key={item.id} item={item} onOpen={onOpen} />)}
         </ul>
       )}
-    </SectionCard>
+    </div>
   );
 }
 

@@ -2,6 +2,7 @@
 // belongs to, the starting layouts, and every edit the board editor makes. The React side is OverviewBoard.tsx;
 // the figures themselves still come from AnalyticsDashboard and the Overview* panels.
 import { CHART_METRICS, type ChartMetric } from "./overviewSeries";
+import { PRESETS, isDayKey, type CompareMode, type Preset } from "./overviewRange";
 
 export type BandId = "today" | "sales" | "titles" | "traffic" | "search" | "customers" | "stock";
 export type WidgetSize = "s" | "m" | "l" | "xl";
@@ -52,7 +53,9 @@ const FIGURE_IDS = FIGURES.map(f => f.id) as string[];
 export const DEFAULT_FIGURES: FigureId[] = ["revenue", "orders", "aov", "visitors", "conversion", "cartStep", "profit", "returning"];
 
 export type ChartGrain = "auto" | "day" | "week" | "month";
-export type WidgetConfig = { metric?: ChartMetric; grain?: ChartGrain; compare?: boolean; figures?: FigureId[] };
+export type WidgetConfig = { metric?: ChartMetric; grain?: ChartGrain; compare?: boolean; bars?: boolean; figures?: FigureId[] };
+/** A period a board opens on ("Save these figures as a view"): the preset, the comparison and, for Custom, the dates. */
+export type BoardView = { preset: Preset; compare: CompareMode; from?: string; to?: string };
 
 export type WidgetType =
   | "needs" | "changes" | "newest" | "readiness"
@@ -135,7 +138,7 @@ export const isWidgetType = (v: unknown): v is WidgetType => typeof v === "strin
 
 export type BoardWidget = { id: string; type: WidgetType; size: WidgetSize; height: WidgetHeight; collapsed?: boolean; title?: string; config?: WidgetConfig };
 export type BoardBand = { id: BandId; collapsed?: boolean; hidden?: boolean; widgets: BoardWidget[] };
-export type Board = { id: string; name: string; template: TemplateId; density: Density; bands: BoardBand[] };
+export type Board = { id: string; name: string; template: TemplateId; density: Density; bands: BoardBand[]; view?: BoardView };
 export type BoardStore = { v: 1; activeId: string; boards: Board[]; updatedAt: number };
 
 type Spec = WidgetType | [WidgetType, WidgetSize?, WidgetConfig?];
@@ -211,6 +214,7 @@ function cleanConfig(type: WidgetType, raw: any): WidgetConfig | undefined {
     if (CHART_METRICS.some(m => m.id === raw?.metric)) out.metric = raw.metric;
     if (["auto", "day", "week", "month"].includes(raw?.grain)) out.grain = raw.grain;
     if (typeof raw?.compare === "boolean") out.compare = raw.compare;
+    if (typeof raw?.bars === "boolean") out.bars = raw.bars;
   }
   if (type === "figures" && Array.isArray(raw?.figures)) {
     const picked = FIGURE_IDS.filter(id => raw.figures.includes(id)) as FigureId[];
@@ -218,6 +222,19 @@ function cleanConfig(type: WidgetType, raw: any): WidgetConfig | undefined {
   }
   return out;
 }
+
+/** A saved period made safe: a known preset, and dates only for a Custom one with both days set in order. */
+export function cleanView(raw: any): BoardView | undefined {
+  if (!raw || !PRESETS.some(p => p.id === raw.preset)) return undefined;
+  const view: BoardView = { preset: raw.preset, compare: raw.compare === "lastYear" ? "lastYear" : "previous" };
+  if (raw.preset === "custom") {
+    if (!isDayKey(raw.from) || !isDayKey(raw.to) || raw.from > raw.to) return undefined;
+    view.from = raw.from; view.to = raw.to;
+  }
+  return view;
+}
+export const sameView = (a: BoardView | undefined, b: BoardView | undefined) =>
+  !!a && !!b && a.preset === b.preset && a.compare === b.compare && (a.preset !== "custom" || (a.from === b.from && a.to === b.to));
 
 /** Anything read back from storage, made safe: known widgets only, each in its own band, every band present once. */
 export function normalizeBoard(raw: any, fallbackName = "My board"): Board {
@@ -248,10 +265,11 @@ export function normalizeBoard(raw: any, fallbackName = "My board"): Board {
     });
   }));
   const template = TEMPLATES.some(t => t.id === raw?.template) ? raw.template : DEFAULT_TEMPLATE;
+  const view = cleanView(raw?.view);
   return {
     id: typeof raw?.id === "string" && raw.id ? raw.id.slice(0, 40) : `b${widgetId()}`,
     name: typeof raw?.name === "string" && raw.name.trim() ? raw.name.trim().slice(0, 40) : fallbackName,
-    template, density: raw?.density === "compact" ? "compact" : "comfortable", bands,
+    template, density: raw?.density === "compact" ? "compact" : "comfortable", bands, ...(view ? { view } : {}),
   };
 }
 
@@ -454,7 +472,15 @@ export function resetBoard(s: BoardStore, id: string, now = Date.now()): BoardSt
   const b = s.boards.find(x => x.id === id);
   if (!b) return s;
   const fresh = templateBoard(b.template, b.name);
-  return replaceBoard(s, { ...fresh, id: b.id, density: b.density }, now);
+  return replaceBoard(s, { ...fresh, id: b.id, density: b.density, ...(b.view ? { view: b.view } : {}) }, now);
+}
+
+/** The period this board opens on, or none (null) so it keeps whatever period is chosen. */
+export function setBoardView(b: Board, view: BoardView | null): Board {
+  const clean = view ? cleanView(view) : undefined;
+  if (sameView(clean, b.view) || (!clean && !b.view)) return b;
+  const { view: _old, ...rest } = b;
+  return clean ? { ...rest, view: clean } : rest;
 }
 
 function uniqueName(s: BoardStore, base: string) {
