@@ -37,7 +37,7 @@ import { useWishlist, liveWishlistCount } from "../lib/wishlist";
 import { isLiveBook } from "../features/site/liveBook";
 import { displayPrice as cardDisplayPrice, showsSale, salePercentOff } from "../features/site/displayPrice";
 import { useSEO } from "../lib/seo";
-import { breadcrumbData, collectionStructuredData, siteStructuredData } from "../lib/bookSeo";
+import { breadcrumbData, collectionStructuredData, seoTopicList, siteStructuredData } from "../lib/bookSeo";
 import { CatalogControls, applyCatalogControls, appliedFilters, filterView, EMPTY_FILTERS, type CatalogFilterState, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { StoreHeader } from "../features/site/StoreHeader";
@@ -563,7 +563,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           .filter((book: any) => book.seoNoindex !== true)
           .map((book: any) => ({ name: book.title, url: new URL(`books/${encodeURIComponent(getBookSlug(book))}`, siteBase).href, image: book.photos?.[0]?.url }));
         return [
-          collectionStructuredData({ name: routeCategoryName, description: routeCategory?.description, url: collectionUrl, books: collectionBooks }),
+          collectionStructuredData({ name: routeCategoryName, description: collectionIntro(activeDesign, collectionSlug, routeCategory) || undefined, url: collectionUrl, books: collectionBooks }),
           breadcrumbData([{ name: getCopy(activeDesign, "breadcrumbHome"), url: siteBase }, { name: routeCategoryName, url: collectionUrl }]),
         ];
       }
@@ -573,6 +573,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         description: settings?.info?.description || getCopy(settings?.design, "siteDefaultDescription"),
         logo: storefrontLogoDesign?.logoUrl || settings?.design?.shareImageUrl,
         sameAs: Object.values(settings?.design?.social ?? DEFAULT_SOCIAL),
+        topics: seoTopicList(getCopy(settings?.design, "seoTopics")),
       });
     })(),
   });
