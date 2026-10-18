@@ -5,7 +5,7 @@ import {
   BANDS, TEMPLATES, WIDGETS, MAX_BOARDS, addBoard, addWidget, canAdd, collapseBandWidgets, collapseEverything, copyBoard, countOf,
   defaultStore, deleteBoard, duplicateWidget, findWidget, moveBand, moveWidget, moveWidgetTo, newerStore, normalizeBoard, normalizeStore,
   removeWidget, restoreWidget, revealWidget, renameBoard, renameWidget, resetBoard, searchCatalog, selectBoard, setWidgetConfig, templateBoard, updateWidget,
-  visibleBands, widgetMeta, widgetTitle, activeBoard, type Board,
+  visibleBands, widgetMeta, widgetTitle, activeBoard, setBoardView, cleanView, sameView, replaceBoard, type Board,
 } from "./overviewBoard";
 
 const ids = (b: Board, band: string) => b.bands.find(x => x.id === band)!.widgets.map(w => w.type);
@@ -273,5 +273,35 @@ describe("add-widget search", () => {
     expect(searchCatalog("zzzz nothing")).toEqual([]);
     const groups = searchCatalog("stock").map(g => g.band.id);
     expect(groups).toEqual(BANDS.map(b => b.id).filter(id => groups.includes(id)));
+  });
+});
+
+describe("a board's saved period", () => {
+  it("saves, keeps through storage, copy and reset, and forgets", () => {
+    let s = defaultStore(1);
+    const b = setBoardView(activeBoard(s), { preset: "365d", compare: "lastYear" });
+    expect(b.view).toEqual({ preset: "365d", compare: "lastYear" });
+    s = replaceBoard(s, b, 2);
+    expect(normalizeStore(JSON.parse(JSON.stringify(s))).boards[0].view).toEqual({ preset: "365d", compare: "lastYear" });
+    expect(activeBoard(copyBoard(s, undefined, 3)).view).toEqual(b.view);
+    expect(resetBoard(s, b.id, 4).boards[0].view).toEqual(b.view);
+    const forgot = setBoardView(b, null);
+    expect(forgot.view).toBeUndefined();
+    expect("view" in forgot).toBe(false);
+    expect(setBoardView(b, { preset: "365d", compare: "lastYear" })).toBe(b);
+  });
+
+  it("refuses unknown presets and half-filled custom dates", () => {
+    expect(cleanView({ preset: "decade", compare: "previous" })).toBeUndefined();
+    expect(cleanView({ preset: "custom", compare: "previous", from: "2026-10-01" })).toBeUndefined();
+    expect(cleanView({ preset: "custom", compare: "previous", from: "2026-10-09", to: "2026-10-01" })).toBeUndefined();
+    expect(cleanView({ preset: "custom", compare: "x", from: "2026-10-01", to: "2026-10-09" })).toEqual({ preset: "custom", compare: "previous", from: "2026-10-01", to: "2026-10-09" });
+    expect(cleanView({ preset: "7d", compare: "previous", from: "junk" })).toEqual({ preset: "7d", compare: "previous" });
+    expect(sameView({ preset: "custom", compare: "previous", from: "a", to: "b" }, { preset: "custom", compare: "previous", from: "a", to: "c" })).toBe(false);
+  });
+
+  it("keeps a chart's visitor bars switch", () => {
+    const w = normalizeBoard({ bands: [{ id: "sales", widgets: [{ id: "c1", type: "chart", size: "l", config: { metric: "orders", bars: false } }] }] }).bands.find(x => x.id === "sales")!.widgets[0];
+    expect(w.config).toMatchObject({ metric: "orders", bars: false });
   });
 });

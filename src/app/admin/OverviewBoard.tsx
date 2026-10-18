@@ -1,16 +1,17 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronRight, GripVertical, Maximize2, Plus } from "lucide-react";
+import { ArrowUpRight, ChevronRight, Pencil, Plus } from "lucide-react";
 import {
   ActionMenu, CardInWidget, Checkbox, Dialog, EmptyState, GhostButton, IconButton, PrimaryButton, SearchField, SecondaryButton,
-  SelectField, StatusBadge, TextField, useConfirm, usePrompt, useRisoToast, type MenuAction,
+  StatusBadge, TextField, useConfirm, usePrompt, useRisoToast, type MenuAction,
 } from "./riso/components";
 import {
   BANDS, FIGURES, HEIGHTS, MAX_BOARDS, SIZES, TEMPLATES, WIDGETS, activeBoard, addBoard, addWidget, collapseBandWidgets, collapseEverything,
   copyBoard, countOf, defaultStore, deleteBoard, duplicateWidget, findWidget, makeWidget, moveBand, moveWidget, moveWidgetTo, removeWidget,
-  renameBoard, renameWidget, replaceBoard, resetBoard, restoreWidget, revealWidget, searchCatalog, selectBoard, setWidgetConfig, updateBand, updateWidget, visibleBands,
-  widgetMeta, widgetTitle, canAdd,
-  type BandId, type Board, type BoardStore, type BoardWidget, type FigureId, type TemplateId, type WidgetConfig, type WidgetType,
+  renameBoard, renameWidget, replaceBoard, resetBoard, restoreWidget, revealWidget, sameView, searchCatalog, selectBoard, setBoardView, setWidgetConfig,
+  updateBand, updateWidget, visibleBands, widgetMeta, widgetTitle, canAdd,
+  type BandId, type Board, type BoardStore, type BoardView, type BoardWidget, type FigureId, type TemplateId, type WidgetConfig, type WidgetSize, type WidgetType,
 } from "./overviewBoard";
+import { Pill } from "./OverviewParts";
 import { readLocalBoards, readRemoteBoards, writeLocalBoards, writeRemoteBoards } from "./overviewBoardStore";
 
 export type SaveState = "loading" | "saving" | "saved" | "local" | "error";
@@ -84,16 +85,38 @@ export function useBoardStore() {
   }, []);
   return { store, setStore, saveState, saveError, retrySave: upload };
 }
-
 type Focus = { kind: "widget"; id: string } | { kind: "type"; type: WidgetType } | { kind: "band"; band: BandId } | null;
 const bandMeta = (id: BandId) => BANDS.find(b => b.id === id)!;
 const SAVE_WORDS: Record<SaveState, string> = {
   loading: "Opening your boards…", saving: "Saving…", saved: "✓ Saved to your account", local: "Saved on this browser only", error: "! Not saved to your account",
 };
+const spanOf = (size: WidgetSize) => SIZES.find(s => s.id === size)!.span;
+
+/** What the Overview puts in the board's header: the period controls and the words around them. */
+export type BoardHeader = {
+  /** "Updated 9:41 · auto every 5 min" */
+  updated: ReactNode;
+  /** The period buttons and the comparison select. */
+  period: ReactNode;
+  /** The period in words, for the hint line. */
+  summary: ReactNode;
+  /** The period's name ("the last 12 months"), for "Save these figures as a view". */
+  viewName: string;
+  view: BoardView;
+  onApplyView: (v: BoardView) => void;
+  onExport: () => void; exportReady: boolean;
+  onRefresh: () => void; refreshing: boolean;
+};
+
+const GRIP = (
+  <svg width="14" height="18" viewBox="0 0 14 18" aria-hidden="true" fill="currentColor">
+    <circle cx="4" cy="3" r="1.6" /><circle cx="10" cy="3" r="1.6" /><circle cx="4" cy="9" r="1.6" /><circle cx="10" cy="9" r="1.6" /><circle cx="4" cy="15" r="1.6" /><circle cx="10" cy="15" r="1.6" />
+  </svg>
+);
 
 export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySave, renderWidget, header }: {
   store: BoardStore; setStore: (s: BoardStore) => void; saveState: SaveState; saveError: string; onRetrySave: () => void;
-  renderWidget: RenderWidget; header: ReactNode;
+  renderWidget: RenderWidget; header: BoardHeader;
 }) {
   const board = activeBoard(store);
   const say = useRisoToast();
@@ -111,6 +134,7 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
   // Drag handlers read the ref: the first dragover can fire before React has re-rendered with the new state.
   const dragRef = useRef<{ id: string; over: string | null } | null>(null);
   const setDrag = (d: { id: string; over: string | null } | null) => { dragRef.current = d; setDragState(d); };
+  const [resizing, setResizing] = useState<{ id: string; size: WidgetSize } | null>(null);
   const [tempConfig, setTempConfig] = useState<Record<string, WidgetConfig>>({});
   const scrollBack = useRef(0);
 
@@ -138,9 +162,17 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     setStore({ ...next, updatedAt: Date.now() });
   }, [future, store, setStore]);
 
-  // A toast's action runs later, so it reaches the board as it is then, not as it was when the toast was made.
+  // A toast's action (or a resize that ends later) reaches the board as it is then, not as it was when it began.
   const commitRef = useRef(commit);
   commitRef.current = commit;
+
+  // A board with a saved period opens on it, each time it is picked (and when the Overview opens on it).
+  const appliedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (appliedFor.current === board.id) return;
+    appliedFor.current = board.id;
+    if (board.view && !sameView(board.view, header.view)) header.onApplyView(board.view);
+  }, [board.id, board.view]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -187,17 +219,50 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     if (name !== null) commit(b => renameWidget(b, w.id, name));
   };
   const renameThisBoard = async () => {
-    const name = await prompt({ title: "Rename this board", label: "Board name", defaultValue: board.name, confirmLabel: "Rename" });
+    const name = await prompt({ title: "Rename this layout", label: "Layout name", defaultValue: board.name, confirmLabel: "Rename" });
     if (name && name.trim()) commitStore(renameBoard(store, board.id, name));
   };
   const deleteThisBoard = async () => {
-    if (!(await confirm({ title: `Delete “${board.name}”?`, message: "Only this layout is deleted. Your orders, figures and other boards are not touched.", confirmLabel: "Delete board" }))) return;
+    if (!(await confirm({ title: `Delete “${board.name}”?`, message: "Only this layout is deleted. Your orders, figures and other layouts are not touched.", confirmLabel: "Delete layout" }))) return;
     commitStore(deleteBoard(store, board.id));
   };
   const resetThisBoard = async () => {
     const t = TEMPLATES.find(x => x.id === board.template)!;
-    if (!(await confirm({ title: `Put “${board.name}” back to the ${t.name} layout?`, message: "Widgets you added, moved, resized or renamed on this board go back to how the layout starts. You can press Undo straight after.", confirmLabel: "Reset layout" }))) return;
+    if (!(await confirm({ title: `Put “${board.name}” back to the ${t.name} layout?`, message: "Widgets you added, moved, resized or renamed on this layout go back to how it starts. You can press Undo straight after.", confirmLabel: "Reset layout" }))) return;
     commitStore(resetBoard(store, board.id));
+  };
+  const saveView = () => {
+    commit(b => setBoardView(b, header.view));
+    say(`“${board.name}” now opens on ${header.viewName}`, { actionLabel: "Undo", onAction: () => commitRef.current(b => setBoardView(b, board.view || null)) });
+  };
+  const forgetView = () => commit(b => setBoardView(b, null));
+
+  // Corner drag (edit mode): the widget snaps to the nearest size as the pointer moves, and is saved on release.
+  const startResize = (e: React.PointerEvent<HTMLElement>, w: BoardWidget) => {
+    const handle = e.currentTarget;
+    const card = handle.closest("article");
+    const grid = card?.parentElement;
+    if (!card || !grid) return;
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    const left = card.getBoundingClientRect().left;
+    const width = grid.getBoundingClientRect().width;
+    const pick = (x: number): WidgetSize => {
+      const cols = ((x - left) / width) * 12;
+      return SIZES.reduce((best, s) => (Math.abs(s.span - cols) < Math.abs(best.span - cols) ? s : best)).id;
+    };
+    const move = (ev: PointerEvent) => setResizing({ id: w.id, size: pick(ev.clientX) });
+    const end = (ev: PointerEvent) => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", end);
+      handle.removeEventListener("pointercancel", end);
+      setResizing(null);
+      const size = pick(ev.clientX);
+      if (ev.type === "pointerup" && size !== w.size) commitRef.current(b => updateWidget(b, w.id, { size }));
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
   };
 
   const allFolded = board.bands.every(b => b.collapsed || b.widgets.every(w => w.collapsed));
@@ -205,10 +270,10 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
   const hiddenBands = board.bands.filter(b => b.hidden);
   const widgetCount = board.bands.reduce((n, b) => n + b.widgets.length, 0);
 
-  const sizeButtons = (w: BoardWidget) => (
-    <span className="rp-wb-sizes" role="group" aria-label={`Size of ${widgetTitle(w)}`}>
+  const sizeButtons = (w: BoardWidget, cls = "") => (
+    <span className={`rp-wb-seg rp-wb-sizes ${cls}`} role="group" aria-label={`Size of ${widgetTitle(w)}`}>
       {SIZES.map(s => (
-        <button key={s.id} type="button" aria-pressed={w.size === s.id} title={s.name} aria-label={s.name} onClick={() => commit(b => updateWidget(b, w.id, { size: s.id }))}>{s.label}</button>
+        <button key={s.id} type="button" aria-pressed={w.size === s.id} title={s.name} aria-label={`${s.label}: ${s.name}`} onClick={() => commit(b => updateWidget(b, w.id, { size: s.id }))}>{s.label}</button>
       ))}
     </span>
   );
@@ -230,7 +295,10 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     return list;
   };
 
-  /** One widget: its bar (title, fold, full view, menu; in edit mode grip, move and size) and its content. */
+  /**
+   * One widget, as the B4 board draws it: grip, title, sizes on hover, ⋯ and "Full view ↗" over a ruled body.
+   * In edit mode a size bar sits under the title and the corner drags to resize.
+   */
   const frame = (w: BoardWidget, opts: { index: number; total: number; explore?: boolean }) => {
     const title = widgetTitle(w);
     const meta = widgetMeta(w.type);
@@ -242,56 +310,152 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     const bodyId = `wb-body-${w.id}`;
     const isDragging = drag?.id === w.id;
     const dropHere = drag && drag.over === w.id && drag.id !== w.id;
+    const size = resizing?.id === w.id ? resizing.size : w.size;
+    const openFull = () => openFocus(live || findWidget(board, w.id) ? { kind: "widget", id: w.id } : { kind: "type", type: w.type });
     return (
-      <article key={w.id} id={`wb-${w.id}`} className="rp-wb-widget" data-size={w.size} data-height={w.height} data-folded={folded || undefined}
-        data-flash={flash === w.id || undefined} data-dragging={isDragging || undefined} data-drop={dropHere || undefined} aria-label={title}
+      <article key={w.id} id={`wb-${w.id}`} className="rp-wb-widget" data-size={size} data-height={w.height} data-folded={folded || undefined}
+        data-flash={flash === w.id || undefined} data-dragging={isDragging || undefined} data-drop={dropHere || undefined}
+        data-resizing={resizing?.id === w.id || undefined} aria-label={title}
         onDragOver={e => { const d = dragRef.current; if (!d || d.id === w.id || findWidget(board, d.id)?.band.id !== meta.band) return; e.preventDefault(); if (d.over !== w.id) setDrag({ ...d, over: w.id }); }}
         onDrop={e => { const d = dragRef.current; if (!d) return; e.preventDefault(); commit(b => moveWidgetTo(b, d.id, w.id)); setDrag(null); }}>
         <header className="rp-wb-bar">
-          {editing && live && (
-            <span className="rp-wb-grip" title="Drag to move within this topic" aria-hidden="true" draggable
+          {live && (
+            <span className="rp-wb-grip" title={editing ? "Drag to move within this topic" : "Drag to move within this topic (Edit board has more)"} aria-hidden="true" draggable
               onDragStart={e => {
                 e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", w.id);
                 const card = e.currentTarget.closest("article");
                 if (card) e.dataTransfer.setDragImage(card, 24, 20);
                 setDrag({ id: w.id, over: null });
               }}
-              onDragEnd={() => setDrag(null)}><GripVertical size={16} /></span>
+              onDragEnd={() => setDrag(null)}>{GRIP}</span>
           )}
           {live && (
             <button type="button" className="rp-wb-fold" aria-expanded={!folded} aria-controls={bodyId} aria-label={`${folded ? "Unfold" : "Fold"} ${title}`}
               onClick={() => commit(b => updateWidget(b, w.id, { collapsed: !folded }))}>
-              <ChevronRight size={16} aria-hidden style={{ transform: folded ? "none" : "rotate(90deg)" }} />
+              <ChevronRight size={15} aria-hidden style={{ transform: folded ? "none" : "rotate(90deg)" }} />
             </button>
           )}
-          <h3 className="rp-wb-title">
-            <button type="button" onClick={() => openFocus(live ? { kind: "widget", id: w.id } : { kind: "type", type: w.type })} title="Open full view">{title}</button>
-          </h3>
+          <h3 className="rp-wb-title" title={title}>{title}</h3>
           {meta.google && <span className="rp-wb-tag" title="Needs Google Analytics">GA</span>}
-          <span className="rp-wb-tools">
-            {editing && live && (
-              <>
-                <IconButton label={`Move ${title} earlier`} disabled={opts.index === 0} onClick={() => commit(b => moveWidget(b, w.id, -1))}><span aria-hidden="true">←</span></IconButton>
-                <IconButton label={`Move ${title} later`} disabled={opts.index >= opts.total - 1} onClick={() => commit(b => moveWidget(b, w.id, 1))}><span aria-hidden="true">→</span></IconButton>
-                {sizeButtons(w)}
-              </>
-            )}
-            {!live && (!onBoard && canAdd(board, w.type)
-              ? <SecondaryButton size="sm" onClick={() => add(w.type, tempConfig[w.id] || w.config)}><Plus size={14} aria-hidden /> Add to board</SecondaryButton>
-              : <StatusBadge tone="success">On your board</StatusBadge>)}
-            {!opts.explore && <IconButton label={`Open ${title} full view`} onClick={() => openFocus({ kind: "widget", id: w.id })}><Maximize2 size={15} aria-hidden /></IconButton>}
-            {opts.explore && <IconButton label={`Open ${title} full view`} onClick={() => openFocus(onBoard && findWidget(board, w.id) ? { kind: "widget", id: w.id } : { kind: "type", type: w.type })}><Maximize2 size={15} aria-hidden /></IconButton>}
-            {live && <ActionMenu label={`More for ${title}`} actions={menuFor(w, opts.index, opts.total)} />}
-          </span>
+          {live && !editing && sizeButtons(w, "rp-wb-hover")}
+          {!live && (!onBoard && canAdd(board, w.type)
+            ? <SecondaryButton size="sm" onClick={() => add(w.type, tempConfig[w.id] || w.config)}><Plus size={14} aria-hidden /> Add to board</SecondaryButton>
+            : <StatusBadge tone="success">On your board</StatusBadge>)}
+          {live && <ActionMenu label={`More options for ${title}`} actions={menuFor(w, opts.index, opts.total)} />}
+          <button type="button" className="rp-wb-fullink" onClick={openFull} aria-label={`Open ${title} full view`} title="Open full view">
+            <span className="rp-wb-fullink-word">Full view</span><ArrowUpRight size={14} aria-hidden />
+          </button>
         </header>
+        {editing && live && (
+          <div className="rp-wb-sub">
+            <span className="rp-wb-lbl">Size</span>
+            {sizeButtons(w)}
+            <span className="rp-wb-lbl rp-mono">{isDragging ? "Moving · drop it on a widget or a dashed zone" : `${spanOf(size)} of 12 columns`}</span>
+            <span className="rp-wb-sub-moves">
+              <IconButton label={`Move ${title} earlier`} disabled={opts.index === 0} onClick={() => commit(b => moveWidget(b, w.id, -1))}><span aria-hidden="true">←</span></IconButton>
+              <IconButton label={`Move ${title} later`} disabled={opts.index >= opts.total - 1} onClick={() => commit(b => moveWidget(b, w.id, 1))}><span aria-hidden="true">→</span></IconButton>
+            </span>
+          </div>
+        )}
         {!folded && (
           <div id={bodyId} className="rp-wb-body">
             <CardInWidget.Provider value={true}>{renderWidget(shown, { full: false, setConfig })}</CardInWidget.Provider>
           </div>
         )}
+        {editing && live && <span className="rp-wb-handle" aria-hidden="true" title="Drag the corner to resize" onPointerDown={e => startResize(e, w)} />}
       </article>
     );
   };
+
+  const layoutPicker = (
+    <>
+      <label className="rp-wb-lbl" htmlFor="wb-layout">Layout</label>
+      <select id="wb-layout" className="rp-wb-select" value={board.id} onChange={e => {
+        if (e.target.value === "__new") setNewBoardOpen(true);
+        else commitStore(selectBoard(store, e.target.value));
+      }}>
+        {store.boards.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+        {store.boards.length < MAX_BOARDS && <option value="__new">+ New layout…</option>}
+      </select>
+      <ActionMenu label="Layout actions" actions={[
+        { label: "Rename this layout…", onSelect: renameThisBoard },
+        ...(store.boards.length < MAX_BOARDS ? [
+          { label: "Copy this layout", onSelect: () => commitStore(copyBoard(store)) },
+          { label: "New layout…", onSelect: () => setNewBoardOpen(true) },
+        ] : []),
+        { label: `Reset to the ${TEMPLATES.find(t => t.id === board.template)?.name} layout…`, onSelect: resetThisBoard },
+        ...(store.boards.length > 1 ? [{ label: "Delete this layout…", tone: "danger" as const, onSelect: deleteThisBoard }] : []),
+      ]} />
+    </>
+  );
+  const saveStatus = (
+    <span className="rp-wb-save" role="status" aria-live="polite" data-state={saveState} title={saveState === "error" ? saveError : saveState === "local" ? "Your account copy couldn't be reached; this browser keeps your layout." : undefined}>
+      {SAVE_WORDS[saveState]}
+      {saveState === "error" && <button type="button" className="rp-wb-a" onClick={onRetrySave}>Try again</button>}
+    </span>
+  );
+  const undoRedo = (past.length > 0 || future.length > 0) && (
+    <span className="rp-wb-undo">
+      <GhostButton size="sm" onClick={undo} disabled={!past.length} aria-keyshortcuts="Control+Z">Undo</GhostButton>
+      <GhostButton size="sm" onClick={redo} disabled={!future.length} aria-keyshortcuts="Control+Shift+Z">Redo</GhostButton>
+    </span>
+  );
+  const viewSaved = sameView(board.view, header.view);
+
+  // The header (design B4). View mode: title, freshness, period, layout and Edit board, then the hint line.
+  // Edit mode: "Edit board" with density, undo, reset and Done, then how editing works.
+  const head = editing ? (
+    <>
+      <header className="rp-wb-head" data-editing="">
+        <div className="rp-wb-head-title">
+          <h1 className="rp-wb-h1">Edit board</h1>
+          <Pill tone="info" glyph="●">Editing · {board.name}</Pill>
+          {saveStatus}
+        </div>
+        <div className="rp-wb-head-controls">
+          <span className="rp-wb-lbl">Density</span>
+          <span className="rp-wb-seg" role="group" aria-label="Density">
+            {(["comfortable", "compact"] as const).map(d => (
+              <button key={d} type="button" aria-pressed={board.density === d} onClick={() => commit(b => ({ ...b, density: d }))}>{d === "comfortable" ? "Comfortable" : "Compact"}</button>
+            ))}
+          </span>
+          {undoRedo}
+          <SecondaryButton size="sm" onClick={resetThisBoard}>Reset</SecondaryButton>
+          <PrimaryButton size="sm" onClick={() => setEditing(false)}>Done</PrimaryButton>
+        </div>
+      </header>
+      <div className="rp-wb-hint" role="note">
+        <span>Drag a grip to move a widget within its topic, or use ← → under its title.</span>
+        <span>Pick S, M, L or XL under each title, or drag the corner.</span>
+        <span>Topics move with ↑ ↓. Changes save by themselves; Ctrl/⌘+Z undoes.</span>
+      </div>
+    </>
+  ) : (
+    <>
+      <header className="rp-wb-head">
+        <div className="rp-wb-head-title">
+          <h1 className="rp-wb-h1">Overview</h1>
+          <span className="rp-wb-lbl" aria-live="polite">{header.updated}</span>
+        </div>
+        <div className="rp-wb-head-controls">
+          {header.period}
+          <span className="rp-wb-divider" aria-hidden="true" />
+          {layoutPicker}
+          <button type="button" className="rp-wb-editbtn" aria-pressed={false} onClick={() => setEditing(true)}><Pencil size={14} aria-hidden /> Edit board</button>
+        </div>
+      </header>
+      <div className="rp-wb-hint">
+        <span>{header.summary} Layout: <b>{board.name}</b> · {widgetCount} widget{widgetCount === 1 ? "" : "s"}. Hover a widget to resize it; choose <b>Edit board</b> to move things around.</span>
+        <span className="rp-wb-hint-links">
+          <button type="button" className="rp-wb-a" onClick={header.onRefresh} disabled={header.refreshing}>Refresh</button>{" · "}
+          <button type="button" className="rp-wb-a" onClick={header.onExport} disabled={!header.exportReady}>Export CSV</button>{" · "}
+          {viewSaved
+            ? <span>✓ This layout opens on these figures (<button type="button" className="rp-wb-a" onClick={forgetView}>forget</button>)</span>
+            : <button type="button" className="rp-wb-a" onClick={saveView} title={`Open “${board.name}” on ${header.viewName} from now on`}>Save these figures as a view</button>}
+        </span>
+      </div>
+    </>
+  );
 
   // ── Full view: one widget at full size, then everything else on the same topic ──
   if (focus) {
@@ -310,31 +474,35 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
       return onBoardCopy || { ...makeWidget(m.type), id: `explore-${m.type}` };
     });
     const meta = bandMeta(band);
+    const fullTitle = main ? widgetTitle(main) : meta.title;
     return (
       <div className="rp-stack rp-ov rp-wb" data-density={board.density}>
-        {header}
-        <nav className="rp-wb-crumbs" aria-label="Where you are">
-          <GhostButton size="sm" onClick={closeFocus}>← Back to “{board.name}”</GhostButton>
-          <span aria-hidden="true">›</span>
-          {main ? <button type="button" className="rp-wb-crumb" onClick={() => openFocus({ kind: "band", band })}>{meta.title}</button> : <span>{meta.title}</span>}
-          {main && <><span aria-hidden="true">›</span><span aria-current="page">{widgetTitle(main)}</span></>}
-          <span className="rp-hint" style={{ marginLeft: "auto" }}>Esc goes back</span>
-        </nav>
+        <header className="rp-wb-head">
+          <nav className="rp-wb-head-title rp-wb-crumbs" aria-label="Where you are">
+            <SecondaryButton size="sm" onClick={closeFocus}>← Back to board</SecondaryButton>
+            <span className="rp-wb-lbl">
+              Overview <span aria-hidden="true">›</span>{" "}
+              {main ? <button type="button" className="rp-wb-crumb" onClick={() => openFocus({ kind: "band", band })}>{meta.title}</button> : <span aria-current="page" className="rp-wb-crumb-here">{meta.title}</span>}
+              {main && <> <span aria-hidden="true">›</span> <span aria-current="page" className="rp-wb-crumb-here">{widgetTitle(main)}</span></>}
+            </span>
+          </nav>
+          <div className="rp-wb-head-controls">
+            {header.period}
+            {main && focus.kind === "type" && (canAdd(board, main.type)
+              ? <PrimaryButton size="sm" onClick={() => add(main.type, mainConfig || undefined)}><Plus size={14} aria-hidden /> Add to board</PrimaryButton>
+              : <Pill tone="success" glyph="✓">On your board</Pill>)}
+            {main && focus.kind === "widget" && main.type === "figures" && <SecondaryButton size="sm" onClick={() => setFiguresFor(main.id)}>Choose figures…</SecondaryButton>}
+          </div>
+        </header>
+        <div className="rp-wb-full-intro">
+          <div>
+            <h2 className="rp-wb-full-title">{fullTitle}</h2>
+            <p className="rp-wb-full-blurb">{main ? widgetMeta(main.type).blurb : meta.blurb}. {header.summary}</p>
+          </div>
+          <span className="rp-wb-lbl">{main && focus.kind === "widget" ? <>On the layout <b>{board.name}</b> · Esc goes back</> : "Esc goes back"}</span>
+        </div>
         {main && (
-          <section className="rp-wb-full" aria-labelledby="wb-full-title">
-            <div className="rp-wb-full-head">
-              <div>
-                <div className="rp-ov-eyebrow">{meta.title} · full view</div>
-                <h2 id="wb-full-title" className="rp-wb-full-title">{widgetTitle(main)}</h2>
-                <p className="rp-hint" style={{ margin: "4px 0 0" }}>{widgetMeta(main.type).blurb}</p>
-              </div>
-              <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {focus.kind === "type" && (canAdd(board, main.type)
-                  ? <PrimaryButton size="sm" onClick={() => add(main.type, mainConfig || undefined)}><Plus size={14} aria-hidden /> Add to board</PrimaryButton>
-                  : <StatusBadge tone="success">On your board</StatusBadge>)}
-                {focus.kind === "widget" && main.type === "figures" && <SecondaryButton size="sm" onClick={() => setFiguresFor(main.id)}>Choose figures…</SecondaryButton>}
-              </span>
-            </div>
+          <section className="rp-wb-full" aria-label={`${fullTitle}, full view`}>
             <div className="rp-wb-full-body">
               <CardInWidget.Provider value={true}>{renderWidget({ ...main, ...(mainConfig ? { config: mainConfig } : {}) }, { full: true, setConfig: setMainConfig })}</CardInWidget.Provider>
             </div>
@@ -344,10 +512,10 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
           <div className="rp-wb-band-head">
             <div style={{ minWidth: 0 }}>
               <h2 id="wb-more-title" className="rp-wb-band-title">{main ? `More about ${meta.title.toLowerCase()}` : `Everything about ${meta.title.toLowerCase()}`}</h2>
-              <p className="rp-wb-band-blurb">{meta.blurb}. Widgets already on your board say so; add any other with one click.</p>
+              <p className="rp-wb-band-blurb">Widgets already on your board say so; add any other with one click.</p>
             </div>
           </div>
-          <div className="rp-wb-grid">{(main ? others : [...others]).map((w, i, a) => frame(w, { index: i, total: a.length, explore: true }))}</div>
+          <div className="rp-wb-grid">{others.map((w, i, a) => frame(w, { index: i, total: a.length, explore: true }))}</div>
         </section>
         {figuresFor && <FiguresDialog board={board} widgetId={figuresFor} onClose={() => setFiguresFor(null)} onSave={figs => commit(b => setWidgetConfig(b, figuresFor, { figures: figs }))} />}
         {confirmNode}{promptNode}
@@ -355,45 +523,61 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     );
   }
 
+  const bandList = bands.map((band, bi) => {
+    const meta = bandMeta(band.id);
+    const folded = !!band.collapsed;
+    const allWidgetsFolded = band.widgets.length > 0 && band.widgets.every(w => w.collapsed);
+    return (
+      <section key={band.id} id={`wb-band-${band.id}`} className="rp-wb-band" data-band={band.id} data-folded={folded || undefined} aria-labelledby={`wb-band-title-${band.id}`}>
+        <div className="rp-wb-band-head">
+          <button type="button" className="rp-wb-fold" aria-expanded={!folded} aria-controls={`wb-band-body-${band.id}`} aria-label={`${folded ? "Unfold" : "Fold"} ${meta.title}`}
+            onClick={() => commit(b => updateBand(b, band.id, { collapsed: !folded }))}>
+            <ChevronRight size={18} aria-hidden style={{ transform: folded ? "none" : "rotate(90deg)" }} />
+          </button>
+          <div style={{ minWidth: 0, flex: "1 1 240px" }}>
+            <h2 id={`wb-band-title-${band.id}`} className="rp-wb-band-title">
+              <button type="button" onClick={() => commit(b => updateBand(b, band.id, { collapsed: !folded }))}>{meta.title}</button>
+              <span className="rp-wb-band-count">{band.widgets.length}</span>
+            </h2>
+            {!folded && <p className="rp-wb-band-blurb">{meta.blurb}</p>}
+          </div>
+          <span className="rp-wb-band-actions">
+            {!folded && band.widgets.length > 1 && (
+              <button type="button" className="rp-wb-a" onClick={() => commit(b => collapseBandWidgets(b, band.id, !allWidgetsFolded))}>{allWidgetsFolded ? "Unfold widgets" : "Fold widgets"}</button>
+            )}
+            <button type="button" className="rp-wb-a" onClick={() => openFocus({ kind: "band", band: band.id })}>Explore all {WIDGETS.filter(w => w.band === band.id).length} ↗</button>
+            {editing && (
+              <>
+                <IconButton label={`Move ${meta.title} up`} disabled={bi === 0} onClick={() => commit(b => moveBand(b, band.id, -1))}><span aria-hidden="true">↑</span></IconButton>
+                <IconButton label={`Move ${meta.title} down`} disabled={bi === bands.length - 1} onClick={() => commit(b => moveBand(b, band.id, 1))}><span aria-hidden="true">↓</span></IconButton>
+                <GhostButton size="sm" onClick={() => commit(b => updateBand(b, band.id, { hidden: true }))}>Hide topic</GhostButton>
+              </>
+            )}
+          </span>
+        </div>
+        {!folded && (
+          <div id={`wb-band-body-${band.id}`} className="rp-wb-grid">
+            {band.widgets.map((w, i) => frame(w, { index: i, total: band.widgets.length }))}
+            {editing && (
+              <button type="button" className="rp-wb-dropzone" data-drop={drag && drag.over === `end-${band.id}` || undefined}
+                onDragOver={e => { const d = dragRef.current; if (!d || findWidget(board, d.id)?.band.id !== band.id) return; e.preventDefault(); if (d.over !== `end-${band.id}`) setDrag({ ...d, over: `end-${band.id}` }); }}
+                onDrop={e => { const d = dragRef.current; if (!d) return; e.preventDefault(); commit(b => moveWidgetTo(b, d.id, null)); setDrag(null); }}
+                onClick={() => { setTray(t => ({ ...t, band: band.id })); document.querySelector<HTMLInputElement>(".rp-wb-dock input[type=search]")?.focus(); }}>
+                {drag ? "Drop here to put it last" : band.widgets.length === 0 ? `Nothing in ${meta.title} yet · pick one from the tray` : `Drop here, or pick a ${meta.title} widget from the tray`}
+              </button>
+            )}
+          </div>
+        )}
+      </section>
+    );
+  });
+
   return (
     <div className="rp-stack rp-ov rp-wb" data-density={board.density} data-editing={editing || undefined}>
-      {header}
+      {head}
 
-      {/* The board's own toolbar: which board, how dense, fold everything, add widgets, edit */}
-      <div className="rp-wb-toolbar" role="toolbar" aria-label="Board">
-        <div className="rp-wb-toolbar-row">
-          <div className="rp-wb-boardpick">
-            <SelectField label="Board" value={board.id} onChange={e => {
-              if (e.target.value === "__new") setNewBoardOpen(true);
-              else commitStore(selectBoard(store, e.target.value));
-            }}>
-              {store.boards.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-              {store.boards.length < MAX_BOARDS && <option value="__new">+ New board…</option>}
-            </SelectField>
-            <ActionMenu label="Board actions" actions={[
-              { label: "Rename this board…", onSelect: renameThisBoard },
-              ...(store.boards.length < MAX_BOARDS ? [
-                { label: "Copy this board", onSelect: () => commitStore(copyBoard(store)) },
-                { label: "New board…", onSelect: () => setNewBoardOpen(true) },
-              ] : []),
-              { label: `Reset to the ${TEMPLATES.find(t => t.id === board.template)?.name} layout…`, onSelect: resetThisBoard },
-              ...(store.boards.length > 1 ? [{ label: "Delete this board…", tone: "danger" as const, onSelect: deleteThisBoard }] : []),
-            ]} />
-          </div>
-          <div className="rp-wb-toolbar-actions">
-            <span className="rp-ov-switch" role="group" aria-label="Density">
-              {(["comfortable", "compact"] as const).map(d => (
-                <button key={d} type="button" aria-pressed={board.density === d} onClick={() => commit(b => ({ ...b, density: d }))}>{d === "comfortable" ? "Comfortable" : "Compact"}</button>
-              ))}
-            </span>
-            <SecondaryButton size="sm" onClick={() => commit(b => collapseEverything(b, !allFolded))}>{allFolded ? "Unfold everything" : "Fold everything"}</SecondaryButton>
-            <SecondaryButton size="sm" onClick={() => setTray({ open: true, band: "all" })}><Plus size={14} aria-hidden /> Add widgets</SecondaryButton>
-            {editing
-              ? <PrimaryButton size="sm" onClick={() => setEditing(false)}>Done editing</PrimaryButton>
-              : <SecondaryButton size="sm" onClick={() => setEditing(true)}>Edit board</SecondaryButton>}
-          </div>
-        </div>
-        <div className="rp-wb-toolbar-row">
+      {!editing && (
+        <div className="rp-wb-topics" role="toolbar" aria-label="Topics">
           <nav className="rp-wb-jump" aria-label="Jump to a topic">
             {bands.filter(b => b.widgets.length > 0).map(b => (
               <a key={b.id} href={`#wb-band-${b.id}`} onClick={e => {
@@ -403,92 +587,49 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
               }}>{bandMeta(b.id).title}<span className="rp-mono"> {b.widgets.length}</span></a>
             ))}
           </nav>
-          <span className="rp-wb-save" role="status" aria-live="polite" data-state={saveState} title={saveState === "error" ? saveError : saveState === "local" ? "Your account copy couldn't be reached; this browser keeps your layout." : undefined}>
-            {SAVE_WORDS[saveState]}
-            {saveState === "error" && <button type="button" className="rp-wb-link" onClick={onRetrySave}>Try again</button>}
+          <span className="rp-wb-topics-actions">
+            {saveStatus}
+            {undoRedo}
+            <button type="button" className="rp-wb-a" onClick={() => commit(b => collapseEverything(b, !allFolded))}>{allFolded ? "Unfold everything" : "Fold everything"}</button>
+            <SecondaryButton size="sm" onClick={() => setTray({ open: true, band: "all" })}><Plus size={14} aria-hidden /> Add widgets</SecondaryButton>
           </span>
-          {(past.length > 0 || future.length > 0) && (
-            <span style={{ display: "flex", gap: 6 }}>
-              <GhostButton size="sm" onClick={undo} disabled={!past.length} aria-keyshortcuts="Control+Z">Undo</GhostButton>
-              <GhostButton size="sm" onClick={redo} disabled={!future.length} aria-keyshortcuts="Control+Shift+Z">Redo</GhostButton>
-            </span>
-          )}
         </div>
-        {editing && (
-          <p className="rp-wb-edit-hint">
-            Editing <strong>{board.name}</strong>: drag a widget by its grip (or use ← →) to move it within its topic, pick S · M · L · XL to resize, and use ⋯ to rename, change height, duplicate or remove.
-            Topics move with ↑ ↓. Changes save by themselves; Ctrl/⌘+Z undoes.
-          </p>
-        )}
-      </div>
+      )}
 
-      {widgetCount === 0 && (
+      {widgetCount === 0 && !editing && (
         <EmptyState title="This board is empty" description="Add the figures and lists you want to watch. They sit under their own topic, so the board stays tidy."
           action={<PrimaryButton onClick={() => setTray({ open: true, band: "all" })}>Add widgets</PrimaryButton>} />
       )}
 
-      {bands.map((band, bi) => {
-        const meta = bandMeta(band.id);
-        const folded = !!band.collapsed;
-        const allWidgetsFolded = band.widgets.length > 0 && band.widgets.every(w => w.collapsed);
-        return (
-          <section key={band.id} id={`wb-band-${band.id}`} className="rp-wb-band" data-band={band.id} data-folded={folded || undefined} aria-labelledby={`wb-band-title-${band.id}`}>
-            <div className="rp-wb-band-head">
-              <button type="button" className="rp-wb-fold" aria-expanded={!folded} aria-controls={`wb-band-body-${band.id}`} aria-label={`${folded ? "Unfold" : "Fold"} ${meta.title}`}
-                onClick={() => commit(b => updateBand(b, band.id, { collapsed: !folded }))}>
-                <ChevronRight size={20} aria-hidden style={{ transform: folded ? "none" : "rotate(90deg)" }} />
-              </button>
-              <div style={{ minWidth: 0, flex: "1 1 240px" }}>
-                <h2 id={`wb-band-title-${band.id}`} className="rp-wb-band-title">
-                  <button type="button" onClick={() => commit(b => updateBand(b, band.id, { collapsed: !folded }))}>{meta.title}</button>
-                  <span className="rp-wb-band-count">{band.widgets.length}</span>
-                </h2>
-                {!folded && <p className="rp-wb-band-blurb">{meta.blurb}</p>}
-              </div>
-              <span className="rp-wb-band-actions">
-                {!folded && band.widgets.length > 1 && (
-                  <GhostButton size="sm" onClick={() => commit(b => collapseBandWidgets(b, band.id, !allWidgetsFolded))}>{allWidgetsFolded ? "Unfold widgets" : "Fold widgets"}</GhostButton>
-                )}
-                <SecondaryButton size="sm" onClick={() => openFocus({ kind: "band", band: band.id })}>Explore all {WIDGETS.filter(w => w.band === band.id).length}</SecondaryButton>
-                {editing && (
-                  <>
-                    <IconButton label={`Move ${meta.title} up`} disabled={bi === 0} onClick={() => commit(b => moveBand(b, band.id, -1))}><span aria-hidden="true">↑</span></IconButton>
-                    <IconButton label={`Move ${meta.title} down`} disabled={bi === bands.length - 1} onClick={() => commit(b => moveBand(b, band.id, 1))}><span aria-hidden="true">↓</span></IconButton>
-                    <SecondaryButton size="sm" onClick={() => setTray({ open: true, band: band.id })}><Plus size={14} aria-hidden /> Add</SecondaryButton>
-                    <GhostButton size="sm" onClick={() => commit(b => updateBand(b, band.id, { hidden: true }))}>Hide topic</GhostButton>
-                  </>
-                )}
-              </span>
-            </div>
-            {!folded && (
-              <div id={`wb-band-body-${band.id}`} className="rp-wb-grid">
-                {band.widgets.map((w, i) => frame(w, { index: i, total: band.widgets.length }))}
-                {editing && (
-                  <button type="button" className="rp-wb-dropzone" data-drop={drag && drag.over === `end-${band.id}` || undefined}
-                    onDragOver={e => { const d = dragRef.current; if (!d || findWidget(board, d.id)?.band.id !== band.id) return; e.preventDefault(); if (d.over !== `end-${band.id}`) setDrag({ ...d, over: `end-${band.id}` }); }}
-                    onDrop={e => { const d = dragRef.current; if (!d) return; e.preventDefault(); commit(b => moveWidgetTo(b, d.id, null)); setDrag(null); }}
-                    onClick={() => setTray({ open: true, band: band.id })}>
-                    {drag ? "Drop here to put it last" : band.widgets.length === 0 ? `Nothing in ${meta.title} yet — add a widget` : `+ Add to ${meta.title}`}
-                  </button>
-                )}
-              </div>
+      {editing ? (
+        <div className="rp-wb-editwrap">
+          <div className="rp-wb-editmain">
+            {bandList}
+            {hiddenBands.length > 0 && (
+              <p className="rp-wb-edit-hint">
+                Hidden topics:{" "}
+                {hiddenBands.map((b, i) => (
+                  <Fragment key={b.id}>{i > 0 && " · "}<button type="button" className="rp-wb-a" onClick={() => commit(x => updateBand(x, b.id, { hidden: false }))}>Show {bandMeta(b.id).title}</button></Fragment>
+                ))}
+              </p>
             )}
-          </section>
-        );
-      })}
+          </div>
+          <aside className="rp-wb-dock" aria-label="Add a widget">
+            <h2 className="rp-wb-dock-title">Add a widget</h2>
+            <p className="rp-wb-dock-blurb">Press Add to put it at the end of its topic. Widgets already on the board say so.</p>
+            <TrayBody band={tray.band} board={board} onBand={b => setTray(t => ({ ...t, band: b }))} onAdd={add} compact
+              onPreview={type => openFocus({ kind: "type", type })} />
+          </aside>
+        </div>
+      ) : bandList}
 
-      {editing && hiddenBands.length > 0 && (
-        <p className="rp-wb-edit-hint">
-          Hidden topics:{" "}
-          {hiddenBands.map((b, i) => (
-            <Fragment key={b.id}>{i > 0 && " · "}<button type="button" className="rp-wb-link" onClick={() => commit(x => updateBand(x, b.id, { hidden: false }))}>Show {bandMeta(b.id).title}</button></Fragment>
-          ))}
-        </p>
-      )}
-
-      <AddWidgetTray open={tray.open} band={tray.band} board={board} onBand={band => setTray(t => ({ ...t, band }))}
-        onClose={() => setTray(t => ({ ...t, open: false }))} onAdd={add}
-        onPreview={type => { setTray(t => ({ ...t, open: false })); openFocus({ kind: "type", type }); }} />
+      <Dialog open={tray.open && !editing} onClose={() => setTray(t => ({ ...t, open: false }))} variant="drawer" title="Add widgets"
+        description={`${WIDGETS.length} widgets in ${BANDS.length} topics. Each joins its own topic on the board.`}
+        footer={<PrimaryButton onClick={() => setTray(t => ({ ...t, open: false }))}>Done</PrimaryButton>}>
+        <TrayBody band={tray.band} board={board} onBand={b => setTray(t => ({ ...t, band: b }))}
+          onAdd={(type) => { const can = canAdd(board, type); add(type); if (!can) setTray(t => ({ ...t, open: false })); }}
+          onPreview={type => { setTray(t => ({ ...t, open: false })); openFocus({ kind: "type", type }); }} />
+      </Dialog>
       <NewBoardDialog open={newBoardOpen} onClose={() => setNewBoardOpen(false)} canCopy={store.boards.length < MAX_BOARDS}
         onCreate={(template, name) => { commitStore(template === "copy" ? copyBoard(store, name) : addBoard(store, template, name)); setNewBoardOpen(false); }} />
       {figuresFor && <FiguresDialog board={board} widgetId={figuresFor} onClose={() => setFiguresFor(null)} onSave={figs => commit(b => setWidgetConfig(b, figuresFor, { figures: figs }))} />}
@@ -497,55 +638,71 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
   );
 }
 
-/** "Add widgets": every widget there is, by topic, with a search box. Adding keeps the tray open for the next one. */
-function AddWidgetTray({ open, band, board, onBand, onClose, onAdd, onPreview }: {
-  open: boolean; band: BandId | "all"; board: Board; onBand: (b: BandId | "all") => void; onClose: () => void;
-  onAdd: (type: WidgetType) => void; onPreview: (type: WidgetType) => void;
+/** A tiny drawing of how wide a widget starts: its share of the board's 12 columns. */
+function SizePreview({ size }: { size: WidgetSize }) {
+  const span = spanOf(size);
+  return <span className="rp-wb-pv" aria-hidden="true"><i style={{ width: `${(span / 12) * 100}%` }} /></span>;
+}
+
+/** Every widget there is, by topic, with a search box: in the "Add widgets" drawer, and docked beside the board while editing. */
+function TrayBody({ band, board, onBand, onAdd, onPreview, compact }: {
+  band: BandId | "all"; board: Board; onBand: (b: BandId | "all") => void;
+  onAdd: (type: WidgetType) => void; onPreview: (type: WidgetType) => void; compact?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const groups = useMemo(() => searchCatalog(query).filter(g => band === "all" || g.band.id === band), [query, band]);
   const total = groups.reduce((n, g) => n + g.widgets.length, 0);
   return (
-    <Dialog open={open} onClose={onClose} variant="drawer" title="Add widgets" description={`${WIDGETS.length} widgets in ${BANDS.length} topics. Each joins its own topic on the board.`}
-      footer={<PrimaryButton onClick={onClose}>Done</PrimaryButton>}>
-      <div className="rp-stack" style={{ gap: 12 }}>
-        <SearchField label="Find a widget" placeholder="Try “refunds”, “Google”, “reprint”…" value={query} onChange={e => setQuery(e.target.value)} />
-        <div className="rp-wb-chips" role="group" aria-label="Topic">
-          <button type="button" aria-pressed={band === "all"} onClick={() => onBand("all")}>All</button>
-          {BANDS.map(b => <button key={b.id} type="button" aria-pressed={band === b.id} onClick={() => onBand(b.id)}>{b.title}</button>)}
-        </div>
-        <p className="rp-hint" role="status" aria-live="polite" style={{ margin: 0 }}>{total} widget{total === 1 ? "" : "s"}</p>
-        {groups.length === 0 && <EmptyState title="No widget matches" description="Try another word, or pick All topics." />}
-        {groups.map(g => (
-          <section key={g.band.id} aria-label={g.band.title}>
-            <h3 className="rp-wb-tray-head">{g.band.title}</h3>
-            <ul className="rp-wb-tray">
-              {g.widgets.map(m => {
-                const n = countOf(board, m.type);
-                const can = canAdd(board, m.type);
-                return (
-                  <li key={m.type}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontWeight: 700 }}>{m.title}</div>
-                      <div className="rp-hint">{m.blurb}</div>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
-                        {n > 0 && <StatusBadge tone="success">On board{n > 1 ? ` ×${n}` : ""}</StatusBadge>}
-                        {m.multi && <StatusBadge tone="info">Add as many as you like</StatusBadge>}
-                        {m.google && <StatusBadge tone="neutral">Google Analytics</StatusBadge>}
-                      </div>
-                    </div>
-                    <span style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "stretch" }}>
-                      <SecondaryButton size="sm" onClick={() => { onAdd(m.type); if (!can) onClose(); }} aria-label={`${can ? "Add" : "Show"} ${m.title}`}>{can ? "Add" : "Show it"}</SecondaryButton>
-                      <GhostButton size="sm" onClick={() => onPreview(m.type)} aria-label={`Preview ${m.title}`}>Preview</GhostButton>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
+    <div className="rp-stack rp-wb-traybody" style={{ gap: 12 }} data-compact={compact || undefined}>
+      <SearchField label="Find a widget" placeholder="Try “refunds”, “Google”, “reprint”…" value={query} onChange={e => setQuery(e.target.value)} />
+      <div className="rp-wb-chips" role="group" aria-label="Topic">
+        <button type="button" aria-pressed={band === "all"} onClick={() => onBand("all")}>All</button>
+        {BANDS.map(b => <button key={b.id} type="button" aria-pressed={band === b.id} onClick={() => onBand(b.id)}>{b.title}</button>)}
       </div>
-    </Dialog>
+      <p className="rp-hint" role="status" aria-live="polite" style={{ margin: 0 }}>{total} widget{total === 1 ? "" : "s"}</p>
+      {groups.length === 0 && <EmptyState title="No widget matches" description="Try another word, or pick All topics." />}
+      {groups.map(g => (
+        <section key={g.band.id} aria-label={g.band.title}>
+          <h3 className="rp-wb-tray-head">{g.band.title}</h3>
+          <ul className="rp-wb-tray">
+            {g.widgets.map(m => {
+              const n = countOf(board, m.type);
+              const can = canAdd(board, m.type);
+              return (
+                compact ? (
+                <li key={m.type} data-compact>
+                  <SizePreview size={m.size} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="rp-wb-tray-title">{m.title}{n > 0 && <span className="rp-wb-tray-on"> · ✓ on board{n > 1 ? ` ×${n}` : ""}</span>}</div>
+                    <div className="rp-hint rp-wb-tray-blurb" title={m.blurb}>{m.blurb}</div>
+                    <button type="button" className="rp-wb-tray-preview" onClick={() => onPreview(m.type)} aria-label={`Preview ${m.title}`}>Preview</button>
+                  </div>
+                  <SecondaryButton size="sm" onClick={() => onAdd(m.type)} aria-label={`${can ? "Add" : "Show"} ${m.title}`}>{can ? "Add" : "Show"}</SecondaryButton>
+                </li>
+                ) : (
+                <li key={m.type}>
+                  <SizePreview size={m.size} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 700 }}>{m.title}</div>
+                    <div className="rp-hint">{SIZES.find(s => s.id === m.size)!.label} · {m.blurb}</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                      {n > 0 && <Pill tone="success" glyph="✓">On board{n > 1 ? ` ×${n}` : ""}</Pill>}
+                      {m.multi && <Pill tone="info" glyph="●">Add as many as you like</Pill>}
+                      {m.google && <Pill tone="neutral" glyph="○">Google Analytics</Pill>}
+                    </div>
+                  </div>
+                  <span style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "stretch" }}>
+                    <SecondaryButton size="sm" onClick={() => onAdd(m.type)} aria-label={`${can ? "Add" : "Show"} ${m.title}`}>{can ? "Add" : "Show it"}</SecondaryButton>
+                    <GhostButton size="sm" onClick={() => onPreview(m.type)} aria-label={`Preview ${m.title}`}>Preview</GhostButton>
+                  </span>
+                </li>
+                )
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
   );
 }
 
