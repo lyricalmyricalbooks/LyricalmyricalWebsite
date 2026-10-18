@@ -11,7 +11,7 @@ export const defaultSettings = (): any => ({
   domain: { subdomain: "lyricalmyrical", custom: "lyricalmyricalbooks.com" },
   info: { 
     name: "Lyricalmyrical Books", 
-    description: "Lyricalmyrical Books is an independent publishing house based in Toronto with roots in Italy, specializing in publishing photography and art books.",
+    description: "Lyricalmyrical Books is an independent publishing house based in Toronto with roots in Italy, specializing in publishing photography and art books, photobooks and artists' books.",
     website: "https://lyricalmyricalbooks.com"
   },
   inventory: { tracking: true, overselling: false },

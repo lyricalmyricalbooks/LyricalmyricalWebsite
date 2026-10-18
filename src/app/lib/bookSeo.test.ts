@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoBookSeo, bookCreators, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, siteStructuredData, snippet } from './bookSeo';
+import { autoBookSeo, bookCreators, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, seoTopicList, siteStructuredData, snippet } from './bookSeo';
 const book = { id: 'one', title: 'Photo book', description: '<p>Art &amp; photography.</p>', retailPrice: 24, stockLevel: 0, status: 'published', slug: 'photo-book', metaTitle: 'An artist’s photo book', metaDescription: 'A unique collection of photographs.', seoImage: 'https://example.com/share.jpg' };
 describe('book search metadata', () => {
   it('uses saved search fields and sharing image', () => {
@@ -74,6 +74,13 @@ describe('book search metadata', () => {
     const [org, site]: any[] = siteStructuredData({ name: 'Lyricalmyrical Books', url: 'https://example.com/shop/', logo: '/shop/logo.png', sameAs: ['https://instagram.com/x', '', 'javascript:alert(1)', 42] });
     expect(org).toMatchObject({ '@type': 'BookStore', '@id': 'https://example.com/shop/#organization', logo: 'https://example.com/shop/logo.png', sameAs: ['https://instagram.com/x'] });
     expect(site).toMatchObject({ '@type': 'WebSite', publisher: { '@id': 'https://example.com/shop/#organization' } });
+    expect(org.knowsAbout).toBeUndefined();
+  });
+  it('lists what the shop publishes as knowsAbout, trimmed and without repeats', () => {
+    expect(seoTopicList(" Art books, Photography books,, art books ,Artists' books\nZines")).toEqual(['Art books', 'Photography books', "Artists' books", 'Zines']);
+    expect(seoTopicList('')).toEqual([]);
+    const [org]: any[] = siteStructuredData({ name: 'Shop', url: 'https://example.com/', topics: ['Art books', 'Photobooks'] });
+    expect(org.knowsAbout).toEqual(['Art books', 'Photobooks']);
   });
   it('cuts long fallback descriptions at a word boundary but keeps custom ones exact', () => {
     const long = 'Photographs '.repeat(20).trim();

@@ -193,7 +193,13 @@ export function collectionStructuredData(options: { name: string; description?: 
 }
 
 /** The shop itself (brand panel) and the website, linked by @id. */
-export function siteStructuredData(options: { name: string; url: string; description?: string; logo?: string; sameAs?: unknown[] }) {
+/** Text & labels › Site & sharing › What the shop publishes: a comma-separated list, trimmed and de-duplicated. */
+export function seoTopicList(raw: unknown): string[] {
+  const seen = new Set<string>();
+  return String(raw ?? '').split(/[,\n]/).map(t => searchText(t)).filter(t => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase())).slice(0, 20);
+}
+
+export function siteStructuredData(options: { name: string; url: string; description?: string; logo?: string; sameAs?: unknown[]; topics?: string[] }) {
   const url = canonicalUrl(options.url);
   const sameAs = (options.sameAs || []).filter((v): v is string => typeof v === 'string' && /^https:\/\//i.test(v.trim())).map(v => v.trim());
   const logo = options.logo ? absolute(options.logo, url) : '';
@@ -207,6 +213,7 @@ export function siteStructuredData(options: { name: string; url: string; descrip
       ...(options.description ? { description: searchText(options.description) } : {}),
       ...(logo ? { logo, image: logo } : {}),
       ...(sameAs.length ? { sameAs } : {}),
+      ...(options.topics?.length ? { knowsAbout: options.topics } : {}),
     },
     {
       '@context': 'https://schema.org',
