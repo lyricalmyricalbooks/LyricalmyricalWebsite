@@ -37,7 +37,7 @@ describe("your own visits", () => {
 
   it("knows the owner's orders and robots", () => {
     expect(isOwnOrder({ customer: { email: " LyricalMyricalBooks@gmail.com " } })).toBe(true);
-    expect(isOwnOrder({ customer: { email: "reader@example.com" }, metadata: { ownerDevice: true } })).toBe(true);
+    expect(isOwnOrder({ customer: { email: "reader@example.com" }, metadata: { ownerDevice: true } } as any)).toBe(false);
     expect(isOwnOrder({ customer: { email: "reader@example.com" } })).toBe(false);
     expect(looksAutomated({ userAgent: "Mozilla/5.0 (compatible; Googlebot/2.1)" })).toBe(true);
     expect(looksAutomated({ userAgent: "Mozilla/5.0 HeadlessChrome/120" })).toBe(true);

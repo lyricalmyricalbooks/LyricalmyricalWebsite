@@ -64,7 +64,6 @@ import { isGiftCardProduct, bundleComponents, bundleWeightGrams } from "./featur
 import { isLiveBook } from "./features/site/liveBook";
 import { previewSampleCart } from "./features/site/previewSampleCart";
 import { inEditorPreview } from "./lib/trackingGuard";
-import { isOwnerDevice } from "./lib/ownerDevice";
 import { componentsSummary } from "./features/site/orderLineNotes";
 import { FulfillmentMethodPicker, bestFirst, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
 import { smallPhotoUrl } from "./features/site/photoSources";
@@ -1272,7 +1271,8 @@ export function Checkout() {
 
   // Overview › Marketing & traffic › "Where checkout loses people": how far each shopper got (once per step and session).
   const emailTyped = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(customer.email || "").trim());
-  const deliveryPriceShown = cart.length > 0 && (digitalOnly ? detailProblems.length === 0 : availableRates.length > 0 || localQuotes.length > 0);
+  // Only once the address is complete: before that the rates are a placeholder estimate every shopper "sees".
+  const deliveryPriceShown = cart.length > 0 && detailProblems.length === 0 && (digitalOnly || availableRates.length > 0 || localQuotes.length > 0);
   useEffect(() => { if (cart.length > 0 && emailTyped) void funnelApi.trackCheckoutStep("email"); }, [emailTyped, cart.length]);
   useEffect(() => { if (cart.length > 0 && detailProblems.length === 0) void funnelApi.trackCheckoutStep("address"); }, [detailProblems.length, cart.length]);
   useEffect(() => { if (deliveryPriceShown) void funnelApi.trackCheckoutStep("delivery"); }, [deliveryPriceShown]);
@@ -1409,8 +1409,7 @@ export function Checkout() {
         appliedDiscount: appliedDiscount
           ? { id: appliedDiscount.id, code: appliedDiscount.code, type: appliedDiscount.type, value: appliedDiscount.value }
           : null,
-        // A browser marked as the owner's (lib/ownerDevice.ts): the Overview leaves the order out of its figures.
-        metadata: { userAgent: navigator.userAgent, platform: "web", ...(isOwnerDevice() ? { ownerDevice: true } : {}) }
+        metadata: { userAgent: navigator.userAgent, platform: "web" }
       };
       
       // Save customer email in localStorage to recover cart on payment success landing

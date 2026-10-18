@@ -21,7 +21,7 @@ export function OwnVisitsCard() {
 
   return (
     <SectionCard title="Your own visits"
-      description="Your own browsing and test orders are kept out of the Overview, the Monday summary and Google Analytics, so the numbers show real customers only."
+      description="Your own browsing and the orders you place with the shop's email are kept out of the Overview, the Monday summary and Google Analytics, so the numbers show real customers only."
       actions={<StatusBadge tone={on ? "success" : "warning"}>{on ? "This browser: not counted" : "This browser: counted"}</StatusBadge>}>
       <Toggle label="Leave this browser out of the shop's numbers" checked={on} onChange={flip} />
       <p className="rp-hint" style={{ margin: "8px 0 0" }}>
@@ -33,7 +33,8 @@ export function OwnVisitsCard() {
         <SecondaryButton size="sm" onClick={copy}>Copy link</SecondaryButton>
       </div>
       <ul className="rp-hint" style={{ margin: "12px 0 0", paddingLeft: 20, lineHeight: 1.6 }}>
-        <li>Orders placed with <span className="rp-mono">{SHOP_OWNER_EMAIL}</span>, or from a browser left out here, stay in Orders but don't count as sales on the Overview.</li>
+        <li>Orders placed with <span className="rp-mono">{SHOP_OWNER_EMAIL}</span> stay in Orders but don't count as sales on the Overview. An order you place for a customer with their email counts as normal, on any browser.</li>
+        <li>Keep the link to yourself: anyone who opens it stops being counted on that browser.</li>
         <li>Search-engine robots, speed testers and automated browsers are never counted{looksAutomated() ? " (this browser looks automated, so it isn't counted either)" : ""}.</li>
         <li>Visits already counted before today can't be taken back. Overview › Marketing & traffic › <strong>Start traffic counts again</strong> clears the shop's own counter; Google Analytics keeps its history.</li>
         <li>Clearing this browser's data (cookies and site data) forgets the setting: sign in to the admin or open the link again.</li>

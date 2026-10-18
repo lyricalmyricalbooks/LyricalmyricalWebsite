@@ -114,7 +114,7 @@ export function PageSpeedCard({ dailyCurrent }: { dailyCurrent: Daily[] }) {
               </ul>
             </div>
           ))}
-          <p className="rp-hint" style={{ margin: 0 }}>Visits with no tap or click have no "Responding" measure and are left out of that line only.</p>
+          <p className="rp-hint" style={{ margin: 0 }}>Visits with no tap or click have no "Responding" measure and are left out of that line only. A visit is sent after 45 seconds or when the shopper switches away, so some very short visits are missed and real loading may be a little slower than shown.</p>
         </div>
       )}
     </SectionCard>

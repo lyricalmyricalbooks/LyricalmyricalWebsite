@@ -70,6 +70,26 @@ await check("checkout step +1 ok", assertSucceeds(setDoc(doc(anon, "analytics", 
 await check("unknown checkout step refused", assertFails(setDoc(doc(anon, "analytics", today), { date: today, checkout: { made_up: increment(1) } }, { merge: true })));
 await check("forged checkout count refused", assertFails(setDoc(doc(anon, "analytics", today), { date: today, checkout: { declined: 5000 } }, { merge: true })));
 await check("page speed +1 ok", assertSucceeds(setDoc(doc(anon, "analytics", today), { date: today, vitals: { phone_ggg: increment(1) } }, { merge: true })));
+// A busy day: every map on the doc at once. A merge write carries all of them, and must still fit the rules budget.
+{
+  const busy = today;
+  const many = (prefix, n) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`${prefix}${i}`, 3]));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "analytics", busy), {
+      date: busy, visits: 500, funnel: { view: 40, add_to_cart: 9, checkout_start: 5, purchase: 2 }, devices: { mobile: 9, tablet: 1, desktop: 4 },
+      sources: many("s", 59), searches: many("q", 149), noResults: many("n", 149), bookViews: many("b", 299), categoryViews: many("c", 99),
+      bookAdds: many("b", 299), wishlistAdds: many("b", 299), unbuyableViews: many("b", 299),
+      checkout: { email: 5, address: 4, delivery: 4, pay: 3, fields: 1, declined: 1, failed: 1 }, vitals: many("phone_gg", 1),
+    });
+  });
+  await check("busy day: a visit still counts", assertSucceeds(setDoc(doc(anon, "analytics", busy), { date: busy, visits: increment(1) }, { merge: true })));
+  await check("busy day: a book view still counts", assertSucceeds(setDoc(doc(anon, "analytics", busy), { date: busy, bookViews: { b1: increment(1) } }, { merge: true })));
+  await check("busy day: a funnel step still counts", assertSucceeds(setDoc(doc(anon, "analytics", busy), { date: busy, funnel: { view: increment(1) } }, { merge: true })));
+  await check("busy day: a checkout step still counts", assertSucceeds(setDoc(doc(anon, "analytics", busy), { date: busy, checkout: { email: increment(1) } }, { merge: true })));
+  await check("busy day: a page speed visit still counts", assertSucceeds(setDoc(doc(anon, "analytics", busy), { date: busy, vitals: { computer_ggg: increment(1) } }, { merge: true })));
+  await check("busy day: a checkout step can't go down", assertFails(setDoc(doc(anon, "analytics", busy), { date: busy, checkout: { pay: -5 } }, { merge: true })));
+  await check("busy day: a sources map can't be emptied", assertFails(setDoc(doc(anon, "analytics", busy), { date: busy, sources: {} })));
+}
 await check("unknown analytics field refused", assertFails(setDoc(doc(anon, "analytics", today), { date: today, madeUp: { x: increment(1) } }, { merge: true })));
 
 // reviews + contacts

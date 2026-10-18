@@ -8,11 +8,12 @@
 export const SHOP_OWNER_EMAIL = "lyricalmyricalbooks@gmail.com";
 
 /**
- * An order the owner placed themselves (their own email, or checkout on a browser marked as theirs): kept in Orders,
- * left out of the Overview's figures and the Monday summary (functions/weeklySummary.js has the same rule).
+ * An order the owner placed themselves (with the shop's own email): kept in Orders, left out of the Overview's figures
+ * and the Monday summary (functions/weeklySummary.js has the same rule). The browser flag below is for visits only: the
+ * owner may ring up a real customer's order on their own computer, and that sale must count.
  */
-export const isOwnOrder = (order: { customer?: { email?: unknown }; metadata?: { ownerDevice?: unknown } } | null | undefined) =>
-  String(order?.customer?.email || "").trim().toLowerCase() === SHOP_OWNER_EMAIL || order?.metadata?.ownerDevice === true;
+export const isOwnOrder = (order: { customer?: { email?: unknown } } | null | undefined) =>
+  String(order?.customer?.email || "").trim().toLowerCase() === SHOP_OWNER_EMAIL;
 
 export const OWNER_DEVICE_KEY = "lm:owner-device";
 export const OWNER_DEVICE_PARAM = "owner-device";

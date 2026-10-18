@@ -1,7 +1,7 @@
 // The Monday summary email (Settings › Email sender › Shop alerts › Monday summary): last week (Monday to Sunday,
 // Toronto days) against the week before, from real paid orders and the shop's own daily traffic counters. Same rules as
-// the admin Overview: test orders, unpaid/refunded orders and the owner's own orders (their email, or checkout on a
-// browser marked as theirs: src/app/lib/ownerDevice.ts) don't count; revenue is after partial refunds. Pure.
+// the admin Overview: test orders, unpaid/refunded orders and the owner's own orders (placed with the shop's own email:
+// src/app/lib/ownerDevice.ts isOwnOrder) don't count; revenue is after partial refunds. Pure.
 const OWNER_EMAIL = "lyricalmyricalbooks@gmail.com";
 const TZ = "America/Toronto";
 const DAY = 86_400_000;
@@ -27,7 +27,7 @@ const timeOf = v => {
 };
 const num = v => Number(v) || 0;
 
-const isOwnOrder = o => String(o?.customer?.email || "").trim().toLowerCase() === OWNER_EMAIL || o?.metadata?.ownerDevice === true;
+const isOwnOrder = o => String(o?.customer?.email || "").trim().toLowerCase() === OWNER_EMAIL;
 /** A sale the Overview counts. */
 const countsAsSale = o => o?.paymentStatus === "paid" && o?.isTest !== true && o?.sandboxPayment !== true && !isOwnOrder(o);
 

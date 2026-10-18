@@ -25,7 +25,8 @@ describe("Monday summary", () => {
     expect(countsAsSale(order("s", "2026-10-13T15:00:00Z", { sandboxPayment: true }))).toBe(false);
     expect(countsAsSale(order("u", "2026-10-13T15:00:00Z", { paymentStatus: "unpaid" }))).toBe(false);
     expect(countsAsSale(order("o", "2026-10-13T15:00:00Z", { customer: { email: "LyricalMyricalBooks@gmail.com" } }))).toBe(false);
-    expect(countsAsSale(order("d", "2026-10-13T15:00:00Z", { metadata: { ownerDevice: true } }))).toBe(false);
+    // A customer's order rung up on the owner's computer is a real sale.
+    expect(countsAsSale(order("d", "2026-10-13T15:00:00Z", { metadata: { ownerDevice: true } }))).toBe(true);
   });
 
   it("compares the two weeks and names the best sellers", () => {

@@ -275,20 +275,23 @@ service cloud.firestore {
       allow read: if isAdmin();
       // Each recorded map stays small, so a forged client can't bloat the doc, and
       // one write can't raise the visit counter by more than one.
-      function analyticsMapsOk() {
+      // Only the maps a write changes are checked (`ch` = every field on create, the changed fields on update): a
+      // merge write carries the whole day doc, and checking a dozen unchanged maps overran the rules engine's
+      // 1,000-expression budget, which would silently refuse every counter. Unchanged maps can't have been altered.
+      function analyticsMapsOk(ch) {
         let d = request.resource.data;
-        return (!('funnel' in d) || (d.funnel is map && d.funnel.size() <= 4))
-          && (!('sources' in d) || (d.sources is map && d.sources.size() <= 60))
-          && (!('devices' in d) || (d.devices is map && d.devices.size() <= 4))
-          && (!('searches' in d) || (d.searches is map && d.searches.size() <= 150))
-          && (!('noResults' in d) || (d.noResults is map && d.noResults.size() <= 150))
-          && (!('bookViews' in d) || (d.bookViews is map && d.bookViews.size() <= 300))
-          && (!('categoryViews' in d) || (d.categoryViews is map && d.categoryViews.size() <= 100))
-          && (!('bookAdds' in d) || (d.bookAdds is map && d.bookAdds.size() <= 300))
-          && (!('wishlistAdds' in d) || (d.wishlistAdds is map && d.wishlistAdds.size() <= 300))
-          && (!('unbuyableViews' in d) || (d.unbuyableViews is map && d.unbuyableViews.size() <= 300))
-          && (!('checkout' in d) || d.checkout is map)
-          && (!('vitals' in d) || (d.vitals is map && d.vitals.size() <= 128));
+        return (!('funnel' in ch) || (d.funnel is map && d.funnel.size() <= 4))
+          && (!('sources' in ch) || (d.sources is map && d.sources.size() <= 60))
+          && (!('devices' in ch) || (d.devices is map && d.devices.size() <= 4))
+          && (!('searches' in ch) || (d.searches is map && d.searches.size() <= 150))
+          && (!('noResults' in ch) || (d.noResults is map && d.noResults.size() <= 150))
+          && (!('bookViews' in ch) || (d.bookViews is map && d.bookViews.size() <= 300))
+          && (!('categoryViews' in ch) || (d.categoryViews is map && d.categoryViews.size() <= 100))
+          && (!('bookAdds' in ch) || (d.bookAdds is map && d.bookAdds.size() <= 300))
+          && (!('wishlistAdds' in ch) || (d.wishlistAdds is map && d.wishlistAdds.size() <= 300))
+          && (!('unbuyableViews' in ch) || (d.unbuyableViews is map && d.unbuyableViews.size() <= 300))
+          && (!('checkout' in ch) || d.checkout is map)
+          && (!('vitals' in ch) || (d.vitals is map && d.vitals.size() <= 128));
       }
       // Counters only ever go up by one per write, and a write can't wipe or rewrite recorded data (#111).
       // Fixed-key maps (the funnel, device buckets, checkout steps = lib/commerce.ts CHECKOUT_STEPS) are checked key
@@ -305,33 +308,28 @@ service cloud.firestore {
         return n.keys().hasOnly(['mobile', 'tablet', 'desktop'])
           && stepOk(n, o, 'mobile') && stepOk(n, o, 'tablet') && stepOk(n, o, 'desktop');
       }
-      // Seven named steps: one may change per write, by +1 at most (cheaper than stepOk per key, which overran the
-      // rules engine's 1,000-expression budget beside the other maps).
       function checkoutStepOk(n, o) {
         return n.keys().hasOnly(['email', 'address', 'delivery', 'pay', 'fields', 'declined', 'failed'])
-          && n.diff(o).removedKeys().size() == 0 && n.diff(o).affectedKeys().size() <= 1
-          && n.get('email', 0) <= o.get('email', 0) + 1 && n.get('address', 0) <= o.get('address', 0) + 1
-          && n.get('delivery', 0) <= o.get('delivery', 0) + 1 && n.get('pay', 0) <= o.get('pay', 0) + 1
-          && n.get('fields', 0) <= o.get('fields', 0) + 1 && n.get('declined', 0) <= o.get('declined', 0) + 1
-          && n.get('failed', 0) <= o.get('failed', 0) + 1;
+          && stepOk(n, o, 'email') && stepOk(n, o, 'address') && stepOk(n, o, 'delivery') && stepOk(n, o, 'pay')
+          && stepOk(n, o, 'fields') && stepOk(n, o, 'declined') && stepOk(n, o, 'failed');
       }
       function freeMapStepOk(n, o) {
         return n is map && n.diff(o).removedKeys().size() == 0 && n.diff(o).affectedKeys().size() <= 1;
       }
-      function analyticsStepsOk(o) {
+      function analyticsStepsOk(o, ch) {
         let d = request.resource.data;
-        return (!('funnel' in d) || funnelStepOk(d.funnel, o.get('funnel', {})))
-          && (!('devices' in d) || devicesStepOk(d.devices, o.get('devices', {})))
-          && (!('sources' in d) || freeMapStepOk(d.sources, o.get('sources', {})))
-          && (!('searches' in d) || freeMapStepOk(d.searches, o.get('searches', {})))
-          && (!('noResults' in d) || freeMapStepOk(d.noResults, o.get('noResults', {})))
-          && (!('bookViews' in d) || freeMapStepOk(d.bookViews, o.get('bookViews', {})))
-          && (!('categoryViews' in d) || freeMapStepOk(d.categoryViews, o.get('categoryViews', {})))
-          && (!('bookAdds' in d) || freeMapStepOk(d.bookAdds, o.get('bookAdds', {})))
-          && (!('wishlistAdds' in d) || freeMapStepOk(d.wishlistAdds, o.get('wishlistAdds', {})))
-          && (!('unbuyableViews' in d) || freeMapStepOk(d.unbuyableViews, o.get('unbuyableViews', {})))
-          && (!('checkout' in d) || checkoutStepOk(d.checkout, o.get('checkout', {})))
-          && (!('vitals' in d) || freeMapStepOk(d.vitals, o.get('vitals', {})));
+        return (!('funnel' in ch) || funnelStepOk(d.funnel, o.get('funnel', {})))
+          && (!('devices' in ch) || devicesStepOk(d.devices, o.get('devices', {})))
+          && (!('sources' in ch) || freeMapStepOk(d.sources, o.get('sources', {})))
+          && (!('searches' in ch) || freeMapStepOk(d.searches, o.get('searches', {})))
+          && (!('noResults' in ch) || freeMapStepOk(d.noResults, o.get('noResults', {})))
+          && (!('bookViews' in ch) || freeMapStepOk(d.bookViews, o.get('bookViews', {})))
+          && (!('categoryViews' in ch) || freeMapStepOk(d.categoryViews, o.get('categoryViews', {})))
+          && (!('bookAdds' in ch) || freeMapStepOk(d.bookAdds, o.get('bookAdds', {})))
+          && (!('wishlistAdds' in ch) || freeMapStepOk(d.wishlistAdds, o.get('wishlistAdds', {})))
+          && (!('unbuyableViews' in ch) || freeMapStepOk(d.unbuyableViews, o.get('unbuyableViews', {})))
+          && (!('checkout' in ch) || checkoutStepOk(d.checkout, o.get('checkout', {})))
+          && (!('vitals' in ch) || freeMapStepOk(d.vitals, o.get('vitals', {})));
       }
       // Visitors write only today's day doc (commerce.ts dayKey / publicApi.recordVisit: the
       // id is the UTC date "YYYY-MM-DD" and `date` repeats it), within a day of the server
@@ -350,8 +348,8 @@ service cloud.firestore {
         && request.resource.data.get('visits', 0) is int
         && request.resource.data.get('visits', 0) >= 0
         && request.resource.data.get('visits', 0) <= 1
-        && analyticsMapsOk()
-        && analyticsStepsOk({})
+        && analyticsMapsOk(request.resource.data.keys())
+        && analyticsStepsOk({}, request.resource.data.keys())
       );
       allow update: if isAdmin() || (
         analyticsDayOk()
@@ -361,8 +359,8 @@ service cloud.firestore {
         && request.resource.data.get('visits', 0) - resource.data.get('visits', 0) <= 1
         && request.resource.data.get('visits', 0) >= resource.data.get('visits', 0)
         && request.resource.data.get('visits', 0) is int
-        && analyticsMapsOk()
-        && analyticsStepsOk(resource.data)
+        && analyticsMapsOk(request.resource.data.diff(resource.data).affectedKeys())
+        && analyticsStepsOk(resource.data, request.resource.data.diff(resource.data).affectedKeys())
       );
       allow delete: if isAdmin();
     }

@@ -4912,7 +4912,7 @@ exports.weeklySummary = onSchedule(
 async function sendWeeklySummary(nowMs = Date.now()) {
   const week = lastWeek(nowMs);
   const paidSnap = await db.collection("orders").where("paymentStatus", "==", "paid")
-    .select("createdAt", "paidAt", "paymentStatus", "isTest", "sandboxPayment", "customer.email", "metadata.ownerDevice", "total",
+    .select("createdAt", "paidAt", "paymentStatus", "isTest", "sandboxPayment", "customer.email", "total",
       "refundedAmountMinor", "expectedAmountMinor", "expectedCurrency", "checkoutCurrency", "items")
     .limit(20000).get();
   const paid = paidSnap.docs.map(d => ({ id: d.id, ...d.data() }));

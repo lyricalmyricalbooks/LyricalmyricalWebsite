@@ -2070,14 +2070,16 @@ it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badg
   first admin sign-in there (`markOwnerDeviceOnSignIn` in `Dashboard.tsx`, unless the owner chose "off"), via Settings › General ›
   **Your own visits** (`OwnVisitsCard.tsx`), or by opening any page with `?owner-device=on|off` (`takeOwnerDeviceLink`, first in
   `main.tsx`, strips it). `trackingGuard.neverCounted()` also refuses `looksAutomated()` (webdriver, bots, headless, speed testers);
-  both the shop counter and GA4 use it. Orders by `SHOP_OWNER_EMAIL` or with `metadata.ownerDevice: true` (Checkout stamps it) are
-  `isOwnOrder`: kept in Orders, to-dos and readiness, left out of every Overview figure (`shopOrders` in `AnalyticsDashboard`) and the
-  Monday email; the owner's own carts are left out of cart stats.
+  both the shop counter and GA4 use it. The device flag is for visits only (the owner may ring up a customer's order on it); orders
+  by `SHOP_OWNER_EMAIL` are `isOwnOrder`: kept in Orders, to-dos and readiness, left out of every Overview figure (`shopOrders` in
+  `AnalyticsDashboard`) and the Monday email; the owner's own carts are left out of cart stats.
 - **New counters** (`lib/commerce.ts` funnelApi, all behind `trackingAllowed()`): `bookAdds`, `wishlistAdds`, `unbuyableViews` (free
   maps per book id; the bag and wishlist only emit `lib/shopSignals.ts` window events, listened to from `main.tsx`), `checkout`
   (fixed keys `CHECKOUT_STEPS`, once per step per visit/day) and `vitals` (`lib/pageSpeed.ts`: one key per visit
-  `<phone|computer>_<lcp><inp><cls>`, g/o/p/n, Google's limits, PerformanceObserver only). `firestore.rules` lists them; the
-  checkout map's check is deliberately cheap (the rules engine's 1,000-expression budget). Add a step to both `CHECKOUT_STEPS` and the rule.
+  `<phone|computer>_<lcp><inp><cls>`, g/o/p/n, Google's limits, PerformanceObserver only; sent at 45 s or when hidden, so visits
+  closed sooner are often lost). `firestore.rules` checks only the maps a write changes (`ch`), because a merge write carries the
+  whole day doc and checking every map overran the 1,000-expression budget; the emulator script's "busy day" checks guard it.
+  Add a step to both `CHECKOUT_STEPS` and `checkoutStepOk`. The "delivery" step counts only once the address is complete.
 - **Panels** (pure maths in `admin/overviewSignals.ts`, UI in `OverviewMarketingExtras.tsx`): Titles › Into bag + flags (`titleFlag`);
   Marketing › Where checkout loses people, Campaigns and links that sell (order `acquisition`, GA4 batch 3 `campaigns`), Pages that
   start sales, Page speed for real shoppers, Found on Google; Customers › Did the reminder emails work? + Newsletter sign-ups by week

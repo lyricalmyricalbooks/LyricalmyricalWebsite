@@ -12,7 +12,7 @@ import {
   SectionHead, SelectField, StatusBadge, Tabs, TextField, type BadgeTone, type Column,
 } from "./riso/components";
 import {
-  bestSellers, customerMix, isRealPaidOrder, dormantStock, newestSales, newsletterSummary, orderStatusWords, orderTodos, reprintWatch, reviewSummary,
+  bestSellers, customerMix, dormantStock, newestSales, newsletterSummary, orderStatusWords, orderTodos, reprintWatch, reviewSummary,
   splitRange, stockValue, titleStock, toFulfil, totals, REORDER_COVER_DAYS,
 } from "./overviewInsights";
 import { recordedSince, sumMap } from "./overviewTraffic";
@@ -143,11 +143,11 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const books = stock.books || [];
 
   // Everything sales-related comes from paid, real orders — one source of truth for revenue, orders and conversion.
-  // Orders the owner placed themselves (their own email, or checkout on a browser marked as theirs) stay in Orders and
+  // Orders the owner placed themselves (with the shop's own email) stay in Orders and
   // in today's to-dos, but are left out of every figure below so they never look like customers.
   const shopOrders = useMemo(() => (allOrders.orders ? allOrders.orders.filter(o => !isOwnOrder(o)) : null), [allOrders.orders]);
-  const ownOrderCount = useMemo(() => (allOrders.orders || []).filter(o => isOwnOrder(o) && isRealPaidOrder(o)).length, [allOrders.orders]);
   const periods = useMemo(() => (shopOrders ? splitRange(shopOrders, range) : null), [shopOrders, range]);
+  const ownOrderCount = useMemo(() => splitRange((allOrders.orders || []).filter(o => isOwnOrder(o)), range).current.length, [allOrders.orders, range]);
   const insights = useMemo(() => {
     if (!periods || !allOrders.orders) return null;
     const rows = titleStock(periods.paid, books);
@@ -276,7 +276,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         <div className="rp-ov-dateline">
           <span>{today}</span>
           <span aria-live="polite">{refreshLabel}{traffic ? ` · traffic from ${sourceName}` : ""}
-            {ownOrderCount > 0 && ` · ${ownOrderCount} ${ownOrderCount === 1 ? "order" : "orders"} you placed yourself left out`}</span>
+            {ownOrderCount > 0 && ` · ${ownOrderCount} ${ownOrderCount === 1 ? "order" : "orders"} you placed yourself in this period left out`}</span>
         </div>
         <div className="rp-ov-mast-row">
           <h2 className="rp-ov-title">The shop today</h2>
