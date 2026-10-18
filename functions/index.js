@@ -7312,6 +7312,7 @@ async function handleAiWriteRequest(req, res) {
         return { apiKey: saved.geminiKey, voice: saved.voice };
       },
       allow: () => hitLimit(db, "ai-write", req, LIMITS.aiWrite),
+      bucket: admin.app().options.storageBucket || `${process.env.GCLOUD_PROJECT || admin.app().options.projectId}.firebasestorage.app`,
     });
     res.status(status).json(body);
   } catch (err) {

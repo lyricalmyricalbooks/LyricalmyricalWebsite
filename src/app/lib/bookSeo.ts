@@ -3,6 +3,7 @@ import { comingSoonActive } from '../features/site/comingSoon';
 import type { Book } from '../features/site/types';
 import { formatKey } from '../features/site/CatalogControls';
 import { descriptionPlainText } from '../features/site/descriptionLinks';
+import { describedAlt } from '../features/site/photoAlt';
 
 /** Search descriptions are plain text, even when catalog descriptions are rich HTML. */
 export function searchText(value = ''): string {
@@ -273,7 +274,7 @@ export function seoChecks(book: Partial<Book>, listingTitle = bookMetadata(book)
     { id: 'description', ok: meta.description.length >= 80 && meta.description.length <= 160, label: 'Write a useful search summary of about 80–160 characters. Google may choose its own snippet.' },
     { id: 'content', ok: searchText(descriptionPlainText(book.description)).length >= 100, label: 'Describe this book’s subject, creator and edition in the book description.' },
     { id: 'cover', ok: !!book.photos?.[0]?.url, label: 'Add a cover photo so product results can include an image.' },
-    { id: 'alt', ok: !!book.photos?.length && book.photos.every(p => !!p.altText?.trim()), label: 'Describe each book photo with meaningful alt text in Media.' },
+    { id: 'alt', ok: !!book.photos?.length && book.photos.every(p => !!describedAlt(p.altText)), label: 'Describe each book photo in Images (a file name like "IMG_1234" doesn\'t count). Describe with AI can write them.' },
     { id: 'isbn', ok: !!book.isbn?.trim(), label: 'Add the ISBN when this edition has one; do not invent an identifier.' },
     { id: 'published', ok: book.status === 'published', label: 'Publish the book to make its public page available to search engines.' },
   ];

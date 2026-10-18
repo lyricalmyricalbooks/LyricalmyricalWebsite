@@ -695,7 +695,8 @@ until a colour is edited (render-equivalence guard in `colorSchemes.test.ts`). H
 breadcrumb, thumbnail rail + framed photo + "Fig. n" caption, one bordered buy card (tag, title, price,
 stock line | formats, qty, Add to bag, wishlist, share), then Description / Details / Reviews tabs (or
 accordions) with Details as a label | value record. Every piece is a Studio › Style › **Book page · buy
-box & details** control (`pdp*` keys, turned into CSS by `features/site/productPageStyle.ts`, `fm-pdp-*`
+box & details** control (inactive Description/Details tabs and closed accordions render `hidden` so crawlers and the prerender
+read them; reviews stay lazy and Studio's preview skips the hidden copies) (`pdp*` keys, turned into CSS by `features/site/productPageStyle.ts`, `fm-pdp-*`
 classes); its words are in Text & labels › Product page (`pdp*` copy keys). The main photo and the enlarged viewer are one swipeable,
 snapping strip (`features/site/PhotoCarousel.tsx`: native scroll-snap for touch, mouse drag via `dragPlan`); the viewer
 renders into `<body>` (`createPortal`, inside a `data-fm-store` wrapper). Dots under the photo: `pdpPhotoDots`. The old trust-signal lines
@@ -2132,6 +2133,10 @@ Settings › General › **AI writing assistant** (`admin/AiWriterCard.tsx`) sto
 optional house style in admin-only `adminSecrets/ai` (`geminiKey`, `voice`); never in public settings. **Write with AI** buttons:
 Books › edit › Search (SEO) (`bookSeo` → metaTitle/metaDescription), Books › edit › Details description toolbar (`bookDescription`,
 plain paragraphs, **Undo AI draft**) and Studio › Pages › Search listing (`pageSeo`; the server is told the shop-title suffix length).
+Books › edit › Images › **Describe with AI** (per photo, or every photo without a real description; task `photoAlt`: the server
+fetches the photo itself, only from the shop's own Storage bucket (`photoImageUrl`, ≤7 MB, `photoAiUrl` picks the ~960px copy) and sends
+it to Gemini as inline data; the photos are public already). Alt text that is really a file name ("01", "IMG_9564") counts as none:
+`features/site/photoAlt.ts` `describedAlt` (BookDetail falls back to Text & labels `bookPhotoAlt`, the SEO pane's check flags it).
 All go through `admin/aiWriter.ts` `askAi` → `createStripeCheckoutSession` `action: "aiWrite"` (admin only, `LIMITS.aiWrite`) →
 `functions/aiWriter.js` (pure, tested): JSON-schema output, honesty rules (no invented facts), retired models fall through
 `MODELS` on 404, plain-English errors (`aiErrorMessage`). `bookAiInput` sends public catalog facts only — never cost, stock,

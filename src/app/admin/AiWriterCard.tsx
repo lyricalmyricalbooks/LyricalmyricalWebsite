@@ -89,7 +89,7 @@ export function AiWriterCard() {
 
   return (
     <SectionCard title="AI writing assistant"
-      description="Adds Write with AI buttons that draft search titles and descriptions (Books › edit › Search (SEO), Studio › Pages) and book descriptions (Books › edit › Details), using Google's Gemini with a free key. You always see the draft first; nothing is saved until you save the book or page."
+      description="Adds Write with AI buttons that draft search titles and descriptions (Books › edit › Search (SEO), Studio › Pages) book descriptions (Books › edit › Details) and photo descriptions (Books › edit › Images › Describe with AI, which shows Gemini the photo), using Google's Gemini with a free key. You always see the draft first; nothing is saved until you save the book or page."
       actions={stored !== null && <StatusBadge tone={stored ? "success" : "neutral"}>{stored ? "On" : "Off"}</StatusBadge>}>
       <ol className="rp-hint" style={{ margin: "0 0 12px", paddingLeft: 20, lineHeight: 1.6 }}>
         <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com/apikey</a> and sign in with the shop's Google account.</li>

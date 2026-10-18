@@ -7,7 +7,7 @@ import type { Book } from "../features/site/types";
 // is used only by the createStripeCheckoutSession `aiWrite` action (functions/aiWriter.js). Every answer is
 // a suggestion placed in the editor; nothing is saved until the owner saves the book or page.
 
-export type AiTask = "bookSeo" | "bookDescription" | "pageSeo" | "rewrite" | "sectionDraft";
+export type AiTask = "bookSeo" | "bookDescription" | "photoAlt" | "pageSeo" | "rewrite" | "sectionDraft";
 /** Studio's section drafts carry lists (`items`) as well as words. */
 export type AiResult = Record<string, any>;
 
@@ -45,6 +45,13 @@ export function bookAiInput(book: Partial<Book> & Record<string, any>) {
     preorder: book.preorder === true,
     comingSoon: book.comingSoon === true,
   };
+}
+
+/** Pure: the copy of a book photo Describe with AI sends (about 960px is plenty to see it; less to download). */
+export function photoAiUrl(photo: { url?: string; srcset?: { url?: string; w?: number }[] } | null | undefined): string {
+  const copies = (Array.isArray(photo?.srcset) ? photo!.srcset : []).filter((c) => c?.url && Number(c.w) > 0);
+  const fit = copies.filter((c) => Number(c.w) >= 640 && Number(c.w) <= 1600).sort((a, b) => Math.abs(Number(a.w) - 960) - Math.abs(Number(b.w) - 960))[0];
+  return String(fit?.url || photo?.url || "");
 }
 
 type AiTransport = (body: Record<string, unknown>) => Promise<{ status: number; data: any }>;

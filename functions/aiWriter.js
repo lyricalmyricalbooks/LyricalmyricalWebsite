@@ -185,6 +185,20 @@ ${factLines(bookFacts(f))}`,
     }),
     ok: out => Boolean(out.description),
   },
+  // Books › edit › Images › Describe with AI: one photo's alt text (what Google Images and screen readers read).
+  // The server fetches the picture itself (photoImageUrl allows only the shop's own Storage bucket).
+  photoAlt: {
+    needs: f => Boolean(f.title),
+    prompt: (f, ctx) => `Write the alt text for this photo of the book below, shown on its shop page${ctx.input?.photoNumber ? ` (photo ${Math.max(1, Math.floor(Number(ctx.input.photoNumber)) || 1)} of the book)` : ""}.
+- alt: 60 to 125 characters, one plain sentence or phrase describing what the photo actually shows (the cover, a spread, a page, the book held or on a table) and what is visible in the pictures printed in it.
+- Name the book title once. Name the author only if it fits naturally.
+- Describe only what you can see; if you can't tell what something is, leave it out. Don't start with "Image of" or "Photo of".
+
+${factLines(bookFacts(f))}`,
+    schema: { type: "OBJECT", properties: { alt: { type: "STRING" } }, required: ["alt"] },
+    clean: out => ({ alt: fitWords(String(out.alt || "").replace(/\*\*|__|`/g, "").replace(/^["“]|["”]$/g, ""), 140) }),
+    ok: out => Boolean(out.alt),
+  },
   // Studio › Pages: the storefront adds the shop name around a page's search title, so the title leaves it out.
   pageSeo: {
     needs: f => Boolean(clip(f?.title, 200) || plainText(f?.text, 100)),
@@ -288,7 +302,10 @@ function buildRequest(task, input, ctx = {}, model = MODELS[0]) {
   if (/^gemini-2\.5-flash/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
   return {
     systemInstruction: { parts: [{ text: systemText(ctx.voice, task) }] },
-    contents: [{ role: "user", parts: [{ text: spec.prompt(input || {}, ctx) }] }],
+    contents: [{ role: "user", parts: [
+      ...(ctx.image ? [{ inlineData: { mimeType: ctx.image.mimeType, data: ctx.image.data } }] : []),
+      { text: spec.prompt(input || {}, ctx) },
+    ] }],
     generationConfig,
   };
 }
@@ -373,11 +390,41 @@ async function generate({ apiKey, task, input, ctx = {}, models = MODELS, fetchI
   throw err;
 }
 
+const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const IMAGE_MAX_BYTES = 7 * 1024 * 1024;
+/** Only a picture in the shop's own Storage bucket may be fetched (never an address the browser chose freely). */
+function photoImageUrl(value, bucket) {
+  let url;
+  try { url = new URL(String(value || "")); } catch { return ""; }
+  if (url.protocol !== "https:" || url.username || url.password || url.port || !bucket) return "";
+  const b = encodeURIComponent(bucket);
+  const ok = (url.hostname === "firebasestorage.googleapis.com" && url.pathname.startsWith(`/v0/b/${b}/o/`))
+    || (url.hostname === "storage.googleapis.com" && url.pathname.startsWith(`/${b}/`));
+  return ok ? url.href : "";
+}
+/** Downloads the picture for the photoAlt task as Gemini inline data, with a size cap and a timeout. */
+async function fetchPhoto(url, fetchImpl) {
+  const ctrl = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), 15000) : null;
+  try {
+    const res = await fetchImpl(url, { redirect: "error", ...(ctrl ? { signal: ctrl.signal } : {}) });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const mimeType = String(res.headers?.get?.("content-type") || "").split(";")[0].trim().toLowerCase();
+    if (!IMAGE_TYPES.has(mimeType)) throw new Error("not an image");
+    if (Number(res.headers?.get?.("content-length")) > IMAGE_MAX_BYTES) throw new Error("too big");
+    const bytes = Buffer.from(await res.arrayBuffer());
+    if (!bytes.length || bytes.length > IMAGE_MAX_BYTES) throw new Error("too big");
+    return { mimeType, data: bytes.toString("base64") };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /**
  * The admin `aiWrite` action. `op: "check"` tries the saved key with a tiny request; otherwise `task` is
  * one of TASKS and `input` its facts. Deps keep it testable: readSettings → { apiKey, voice }, allow → rate limit.
  */
-async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, siteName = "" }) {
+async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, siteName = "", bucket = "" }) {
   const settings = await readSettings();
   const apiKey = String(settings?.apiKey || "").trim();
   if (!apiKey || aiKeyProblem(apiKey)) {
@@ -404,17 +451,28 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
     const problem = format === "html" ? richTextProblem(text) : "";
     if (problem) return { status: 400, body: { error: problem } };
   }
+  let image = null;
+  if (task === "photoAlt") {
+    const url = photoImageUrl(input.imageUrl, bucket);
+    if (!url) return { status: 400, body: { error: "Only photos uploaded to the shop can be described. Upload this photo again and retry." } };
+    if (!bookFacts(input).title) return { status: 400, body: { error: "Give the book a title first." } };
+    try {
+      image = await fetchPhoto(url, fetchImpl);
+    } catch {
+      return { status: 502, body: { error: "Couldn't open this photo to describe it. Try again, or upload it again." } };
+    }
+  }
   const raw = task === "pageSeo" || task === "rewrite" || task === "sectionDraft";
   if (!TASKS[task].needs(raw ? input : bookFacts(input))) {
     const why = { pageSeo: "Write the page title or some text first.", rewrite: "There's no text to rewrite yet.", sectionDraft: "Say what the section should be about first." };
     return { status: 400, body: { error: why[task] || "Give the book a title first." } };
   }
   try {
-    const result = await generate({ apiKey, task, input, ctx: { ...ctx, input }, fetchImpl });
+    const result = await generate({ apiKey, task, input, ctx: { ...ctx, input, ...(image ? { image } : {}) }, fetchImpl });
     return { status: 200, body: { ok: true, result } };
   } catch (err) {
     return { status: err.status === 429 ? 429 : 502, body: { error: err.message } };
   }
 }
 
-module.exports = { MODELS, TASKS, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
+module.exports = { MODELS, TASKS, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
