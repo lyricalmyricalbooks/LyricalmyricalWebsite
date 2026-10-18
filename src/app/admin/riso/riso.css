@@ -506,6 +506,26 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-wordmark { font-family: var(--rp-font-display); font-style: normal; font-weight: 400; text-transform: uppercase; font-size: 1.2rem; letter-spacing: 0.02em; }
 .rp-wordmark em { font-style: normal; color: var(--rp-primary-text); }
 .rp-wordmark-sub, .rp-breadcrumbs ol { font-size: var(--rp-text-2xs); font-weight: 800; letter-spacing: 0.16em; }
+/* Sidebar brand: one ink lockup that links back to Overview */
+.rp-brand-link {
+  display: flex; align-items: center; gap: 12px; min-width: 0; margin: -6px; padding: 6px;
+  color: var(--rp-text); text-decoration: none; border-radius: var(--rp-radius);
+}
+.rp-brand-link .rp-brand-mark {
+  width: 38px; height: 38px; background: transparent; color: var(--rp-text);
+  border: var(--rp-stroke) solid var(--rp-border-strong); box-shadow: var(--rp-shadow-sm);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.rp-brand-text { display: block; min-width: 0; }
+.rp-brand-link .rp-wordmark { display: block; font-size: 1.3rem; letter-spacing: 0.03em; color: var(--rp-text); }
+.rp-brand-link .rp-wordmark em { color: inherit; }
+.rp-brand-link .rp-wordmark-sub {
+  margin-top: 5px; padding-top: 5px; border-top: var(--rp-hair) solid var(--rp-border-strong);
+  font-family: var(--rp-font-mono); font-size: 10px; font-weight: 500; letter-spacing: 0.22em; color: var(--rp-text);
+}
+.rp-brand-link:hover .rp-brand-mark { transform: translate(-1px, -1px); box-shadow: var(--rp-shadow); }
+.rp-brand-link:active .rp-brand-mark { transform: translate(1px, 1px); box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .rp-brand-link .rp-brand-mark { transition: none; } }
 .rp-metric-value, .rp-num, .rp-mono, .rp-tab-count, time { font-family: var(--rp-font-mono); font-variant-numeric: tabular-nums; }
 .rp-metric-value { font-size: 28px; font-weight: 500; letter-spacing: -0.02em; }
 .rp-table th { background: var(--rp-inverse); color: var(--rp-on-inverse); border-bottom: 0; font-size: var(--rp-text-3xs); letter-spacing: 0.16em; }
