@@ -3,6 +3,7 @@
 // in Inventory (admin-only inventoryCosts/{bookId}) or on the book (Books › edit › Pricing); a digital edition costs
 // nothing to send. Lines with no cost known are left out of profit and reported as "cost unknown" — never guessed.
 // Gift cards are money held, not sales, so they are left out. Shipping and tax are not product profit. Pure.
+import { titleFlag, TITLE_FLAG_WORDS, type TitleFlag } from "./overviewSignals";
 import { isDigitalBook, type Book, type Order } from "./overviewInsights";
 import type { TitleStock } from "./overviewInsights";
 
@@ -71,6 +72,10 @@ export interface TitleRow {
   id: string; title: string; units: number; revenue: number; prevUnits: number; prevRevenue: number;
   views: number | null; viewToSale: number | null; profit: number | null; margin: number | null;
   stock: number | null; coverDays: number | null;
+  /** Times put in the bag (once per visit); null until bag adds were recorded (18 October 2026). */
+  adds: number | null;
+  /** What the views/bag/bought numbers suggest (overviewSignals.titleFlag). */
+  flag: TitleFlag;
 }
 
 /**
@@ -80,14 +85,16 @@ export interface TitleRow {
 export function titlePerformance(input: {
   current: Order[]; previous: Order[]; books: Book[]; costs: Record<string, number>;
   viewsById: Record<string, number> | null; stock: TitleStock[];
+  addsById?: Record<string, number> | null;
 }): TitleRow[] {
   const { current, previous, books, costs, viewsById, stock } = input;
+  const addsById = input.addsById ?? null;
   const titles = new Map(books.map(b => [b.id, b.title || "Untitled"]));
   const rows = new Map<string, TitleRow>();
   const row = (id: string, title?: string) => {
     let r = rows.get(id);
     if (!r) {
-      r = { id, title: titles.get(id) || title || "Removed book", units: 0, revenue: 0, prevUnits: 0, prevRevenue: 0, views: viewsById ? 0 : null, viewToSale: null, profit: null, margin: null, stock: null, coverDays: null };
+      r = { id, title: titles.get(id) || title || "Removed book", units: 0, revenue: 0, prevUnits: 0, prevRevenue: 0, views: viewsById ? 0 : null, viewToSale: null, profit: null, margin: null, stock: null, coverDays: null, adds: addsById ? 0 : null, flag: null };
       rows.set(id, r);
     }
     return r;
@@ -99,6 +106,7 @@ export function titlePerformance(input: {
   });
   soldLines(previous, books, costs).forEach(l => { const r = row(l.id, l.title); r.prevUnits += l.units; r.prevRevenue += l.revenue; });
   if (viewsById) Object.entries(viewsById).forEach(([id, n]) => { if (num(n) > 0 && titles.has(id)) row(id).views = num(n); });
+  if (addsById) Object.entries(addsById).forEach(([id, n]) => { if (num(n) > 0 && titles.has(id)) row(id).adds = num(n); });
   const stockById = new Map(stock.map(s => [s.id, s]));
   rows.forEach(r => {
     if (r.views !== null && r.views > 0) r.viewToSale = (r.units / r.views) * 100;
@@ -106,14 +114,15 @@ export function titlePerformance(input: {
     if (c) { r.profit = c.revenue - c.cost; r.margin = c.revenue > 0 ? (r.profit / c.revenue) * 100 : null; }
     const s = stockById.get(r.id);
     if (s) { r.stock = s.stock; r.coverDays = s.coverDays; }
+    r.flag = titleFlag(r);
   });
   return [...rows.values()];
 }
 
-export type TitleSort = "revenue" | "units" | "growth" | "views" | "conversion" | "profit" | "margin";
+export type TitleSort = "revenue" | "units" | "growth" | "views" | "adds" | "conversion" | "profit" | "margin";
 export const TITLE_SORTS: Array<{ id: TitleSort; label: string }> = [
   { id: "revenue", label: "Revenue" }, { id: "units", label: "Copies sold" }, { id: "growth", label: "Biggest change" },
-  { id: "views", label: "Most viewed" }, { id: "conversion", label: "Views → sale" }, { id: "profit", label: "Profit" }, { id: "margin", label: "Margin" },
+  { id: "views", label: "Most viewed" }, { id: "adds", label: "Most added to bag" }, { id: "conversion", label: "Views → sale" }, { id: "profit", label: "Profit" }, { id: "margin", label: "Margin" },
 ];
 
 export function sortTitles(rows: TitleRow[], by: TitleSort): TitleRow[] {
@@ -122,6 +131,7 @@ export function sortTitles(rows: TitleRow[], by: TitleSort): TitleRow[] {
       case "units": return r.units;
       case "growth": return Math.abs(r.revenue - r.prevRevenue);
       case "views": return r.views ?? -1;
+      case "adds": return r.adds ?? -1;
       case "conversion": return r.viewToSale ?? -1;
       case "profit": return r.profit ?? -Infinity;
       case "margin": return r.margin ?? -Infinity;
@@ -136,9 +146,9 @@ const m2 = (n: number | null) => (n === null ? "" : (Math.round(n * 100) / 100).
 
 /** The table as CSV (CSV-injection safe), for Overview › Titles › Download. */
 export function titlesCsv(rows: TitleRow[], startKey: string, endKey: string): string {
-  const head = ["Title", "Copies sold", "Net revenue (CAD)", "Copies before", "Net revenue before", "Product views", "Views to sale %", "Gross profit", "Margin %", "In stock", "Days of stock"];
+  const head = ["Title", "Copies sold", "Net revenue (CAD)", "Copies before", "Net revenue before", "Product views", "Added to bag", "Views to sale %", "Gross profit", "Margin %", "In stock", "Days of stock", "Note"];
   return [cell(`Titles ${startKey} to ${endKey}`), head.map(cell).join(","), ...rows.map(r => [
-    r.title, r.units, m2(r.revenue), r.prevUnits, m2(r.prevRevenue), r.views ?? "", r.viewToSale === null ? "" : r.viewToSale.toFixed(1),
-    m2(r.profit), r.margin === null ? "" : r.margin.toFixed(1), r.stock ?? "", r.coverDays ?? "",
+    r.title, r.units, m2(r.revenue), r.prevUnits, m2(r.prevRevenue), r.views ?? "", r.adds ?? "", r.viewToSale === null ? "" : r.viewToSale.toFixed(1),
+    m2(r.profit), r.margin === null ? "" : r.margin.toFixed(1), r.stock ?? "", r.coverDays ?? "", r.flag ? TITLE_FLAG_WORDS[r.flag].badge : "",
   ].map(cell).join(","))].join("\n");
 }

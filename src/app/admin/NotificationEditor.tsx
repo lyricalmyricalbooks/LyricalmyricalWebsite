@@ -73,7 +73,7 @@ type NotificationSettings = {
   /** Older saved switch for the shop's new-order email; read only as shopAlerts.newOrder's fallback. */
   new_order_admin?: { enabled?: boolean };
   /** Emails to the shop itself; on unless switched off. */
-  shopAlerts: { newOrder: boolean; shipped: boolean; dailyOrderDigest?: boolean };
+  shopAlerts: { newOrder: boolean; shipped: boolean; dailyOrderDigest?: boolean; weeklySummary?: boolean };
 };
 
 type TemplateKey = Exclude<keyof NotificationSettings, "brand" | "new_order_admin" | "shopAlerts">;
@@ -164,7 +164,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     enabled: false,
     delayDays: 14
   },
-  shopAlerts: { newOrder: true, shipped: true, dailyOrderDigest: true }
+  shopAlerts: { newOrder: true, shipped: true, dailyOrderDigest: true, weeklySummary: true }
 };
 
 // Every customer email the editor shows. A template added to DEFAULT_SETTINGS appears
@@ -675,6 +675,10 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
             <Toggle label="Daily “orders needing you” email (8am)" checked={shopAlerts.dailyOrderDigest !== false}
               onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, dailyOrderDigest: on } })} />
             <p className="rp-hint" style={{ margin: 0 }}>Lists paid orders not shipped after 3 days, parcels stuck in transit and label purchases to check. Nothing is sent on days with nothing to report.</p>
+            <Toggle label="Monday summary — last week's sales and visits (Mondays, 8am)" checked={shopAlerts.weeklySummary !== false}
+              onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, weeklySummary: on } })} />
+            <p className="rp-hint" style={{ margin: 0 }}>Revenue, orders, average order, copies sold, new customers, visits and the three best sellers, each against the week before. Test orders and your own orders are left out.</p>
+            <WeeklySummaryNow />
           </div>
         </SectionCard>
       ) : (
@@ -836,5 +840,26 @@ function RowsOrCards<T>({ narrow, columns, rows, rowKey, caption, empty, rowStat
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Settings › Email sender › Shop alerts › Send me last week's summary now (the Monday email, on demand). */
+function WeeklySummaryNow() {
+  const [sending, setSending] = useState(false);
+  const send = async () => {
+    setSending(true);
+    try {
+      await emailFunction({ action: "weeklySummaryNow" });
+      toast.success("Last week's summary is on its way to lyricalmyricalbooks@gmail.com");
+    } catch (err: any) {
+      toast.error(err?.message || "The summary couldn't be sent.");
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <div>
+      <SecondaryButton size="sm" onClick={send} disabled={sending}>{sending ? "Sending…" : "Send me last week's summary now"}</SecondaryButton>
+    </div>
   );
 }

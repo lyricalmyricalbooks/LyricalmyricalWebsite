@@ -109,13 +109,24 @@ describe("firestore.rules round-2 security (#18, #111, #112)", () => {
   it("keeps analytics counters from going negative or being forged", () => {
     const analytics = block("analytics/{docId}");
     expect(analytics).toMatch(/get\('visits', 0\) >= 0/);
-    expect(analytics).toMatch(/analyticsStepsOk\(\{\}\)/);
-    expect(analytics).toMatch(/analyticsStepsOk\(resource\.data\)/);
+    expect(analytics).toMatch(/analyticsStepsOk\(\{\}, request\.resource\.data\.keys\(\)\)/);
+    expect(analytics).toMatch(/analyticsStepsOk\(resource\.data, request\.resource\.data\.diff\(resource\.data\)\.affectedKeys\(\)\)/);
     expect(analytics).toMatch(/hasOnly\(\['view', 'add_to_cart', 'checkout_start', 'purchase'\]\)/);
     expect(analytics).toMatch(/removedKeys\(\)\.size\(\) == 0/);
     // The storefront funnel sends exactly those four events.
     const funnel = read("src/app/lib/commerce.ts");
     expect(funnel).toMatch(/track: async \(event: "view" \| "add_to_cart" \| "checkout_start" \| "purchase"\)/);
+  });
+
+  it("accepts exactly the checkout steps and per-book signals the storefront sends", () => {
+    const analytics = block("analytics/{docId}");
+    const steps = read("src/app/lib/commerce.ts").match(/CHECKOUT_STEPS = \[([^\]]+)\]/)?.[1].replace(/"/g, "'");
+    expect(steps).toBeTruthy();
+    expect(analytics).toContain(`hasOnly([${steps}])`);
+    for (const field of ["bookAdds", "wishlistAdds", "unbuyableViews", "checkout", "vitals"]) {
+      expect(analytics).toContain(`'${field}' in ch`);
+      expect(analytics.match(new RegExp(`'${field}'`, "g"))!.length).toBeGreaterThanOrEqual(4);
+    }
   });
 
   it("gives every browser-written order field a type and a size", () => {

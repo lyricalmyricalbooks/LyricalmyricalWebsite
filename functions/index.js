@@ -59,6 +59,7 @@ const { hitLimit, LIMITS, clientIpOf, serverGeoCountry } = require("./rateLimit"
 const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./addressLookup");
 const { handleAiWrite } = require("./aiWriter");
 const { handleGa4Report, metadataCredentials } = require("./googleAnalytics");
+const { handleSearchConsole, SCOPE: SEARCH_CONSOLE_SCOPE } = require("./searchConsole");
 const { handleTrafficReset } = require("./trafficReset");
 const { publicErrorMessage } = require("./publicErrors");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
@@ -1784,6 +1785,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
     if (req.body?.action === "backups") return handleBackups(req, res);
     if (req.body?.action === "aiWrite") return handleAiWriteRequest(req, res);
     if (req.body?.action === "ga4Report") return handleGa4ReportRequest(req, res);
+    if (req.body?.action === "searchConsole") return handleSearchConsoleRequest(req, res);
     if (req.body?.action === "resetTraffic") return handleResetTrafficRequest(req, res);
     if (req.body?.action === "cancelOrder") return handleCancelOrder(req, res);
     if (req.body?.action === "resolvePaymentMismatch") return handleResolveMismatch(req, res);
@@ -4896,6 +4898,36 @@ exports.dailyOrderDigest = onSchedule(
   }
 );
 
+// The Monday summary email: last week's sales and visits against the week before (functions/weeklySummary.js).
+// Reads every paid order once a week (only the fields it needs) so "new customers" means first-ever orders.
+exports.weeklySummary = onSchedule(
+  { schedule: "every monday 08:00", timeZone: "America/Toronto", timeoutSeconds: 120, secrets: [RESEND_API_KEY] },
+  async () => {
+    const notificationDoc = await db.collection("settings").doc("notifications").get().catch(() => null);
+    if (!weeklySummaryEnabled(notificationDoc?.data?.() || {})) return;
+    await sendWeeklySummary();
+  }
+);
+
+async function sendWeeklySummary(nowMs = Date.now()) {
+  const week = lastWeek(nowMs);
+  const paidSnap = await db.collection("orders").where("paymentStatus", "==", "paid")
+    .select("createdAt", "paidAt", "paymentStatus", "isTest", "sandboxPayment", "customer.email", "total",
+      "refundedAmountMinor", "expectedAmountMinor", "expectedCurrency", "checkoutCurrency", "items")
+    .limit(20000).get();
+  const paid = paidSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Analytics docs are keyed by UTC day; the two weeks plus a day either side cover the Toronto weeks.
+  const dailySnap = await db.collection("analytics").where("date", ">=", week.prevStart).where("date", "<=", week.end).get();
+  const daily = dailySnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // "Waiting to ship" uses the daily digest's rule on the last 180 days of paid orders.
+  const recentSnap = await db.collection("orders").where("paymentStatus", "==", "paid")
+    .where("createdAt", ">=", digestSince(nowMs)).orderBy("createdAt", "desc").limit(DIGEST_ORDER_LIMIT).get();
+  const toShip = buildOrderDigest(recentSnap.docs.map(d => ({ id: d.id, ...d.data() })), new Map(), nowMs).unshipped.length;
+  const { subject, html } = buildWeeklySummary({ orders: paid, daily, week, firstOrderIds: firstOrders(paid), toDo: { toShip }, link: siteLink });
+  await sendEmail({ to: ADMIN_TO, subject, html, secret: RESEND_API_KEY.value() });
+  return { subject };
+}
+
 // Secret for signing unsubscribe links, created once and kept server-only in adminSecrets.
 async function marketingUnsubscribeKey() {
   const ref = db.collection("adminSecrets").doc("marketing");
@@ -4911,6 +4943,7 @@ const ABANDONED_CART_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const ABANDONED_CART_MAX_ITEMS = 20;
 const ABANDONED_CART_BATCH = 500;
 const { digestSince, digestNeedsOperations, DIGEST_ORDER_LIMIT } = require("./orderDigest");
+const { lastWeek, buildWeeklySummary, weeklySummaryEnabled, firstOrders } = require("./weeklySummary");
 const { pruneOldCarts } = require("./cartCleanup");
 
 exports.abandonedCartSweep = onSchedule(
@@ -6325,6 +6358,18 @@ exports.sendTestEmail = onBrowserRequest(
       return;
     }
 
+    // Settings › Email sender › Shop alerts › Send me last week's summary now.
+    if (body.action === "weeklySummaryNow") {
+      try {
+        const { subject } = await sendWeeklySummary();
+        res.status(200).json({ ok: true, subject });
+      } catch (err) {
+        console.error("weeklySummaryNow failed:", err);
+        res.status(500).json({ error: "The summary couldn't be sent just now. Check Recent deliveries below and try again in a minute." });
+      }
+      return;
+    }
+
     // Settings › Notifications › Gmail sending › Check connection: signs in to Gmail without
     // sending anything, so a revoked or mistyped app password shows up before an order does.
     if (body.action === "verifyGmail") {
@@ -7337,6 +7382,25 @@ async function handleGa4ReportRequest(req, res) {
   } catch (err) {
     console.error("ga4Report failed:", err?.message || err);
     res.status(500).json({ error: "Google Analytics couldn't be read just now. Try again in a minute." });
+  }
+}
+
+// Overview › Found on Google (admin): the Search Console API read with this function's own service account.
+async function handleSearchConsoleRequest(req, res) {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+  try {
+    const { status, body } = await handleSearchConsole(req.body || {}, {
+      readSettings: () => readAdminSecret("googleAnalytics"),
+      allow: () => hitLimit(db, "search-console", req, LIMITS.ga4),
+      credentials: () => metadataCredentials(fetch, SEARCH_CONSOLE_SCOPE),
+      fetchImpl: fetch,
+      projectId: process.env.GCLOUD_PROJECT || admin.app().options.projectId || "",
+    });
+    res.status(status).json(body);
+  } catch (err) {
+    console.error("searchConsole failed:", err?.message || err);
+    res.status(500).json({ error: "Search Console couldn't be read just now. Try again in a minute." });
   }
 }
 

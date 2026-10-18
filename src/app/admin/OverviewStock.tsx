@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState, ErrorState, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
 import { DORMANT_DAYS, REORDER_COVER_DAYS, type Book, type TitleStock } from "./overviewInsights";
-import { stockDemand } from "./overviewTraffic";
+import { recordedSince, stockDemand, type Daily } from "./overviewTraffic";
+import { wantedButUnavailable } from "./overviewSignals";
 import { adminApi } from "./api";
 import { isSoldOut, stockRowLabel, trackedStockRows } from "./stockRules";
 import { ROW, SPLIT, StatRow, money } from "./OverviewParts";
@@ -9,8 +10,10 @@ import { ROW, SPLIT, StatRow, money } from "./OverviewParts";
 export const LOW_STOCK = 5;
 
 /** Overview › Dig deeper › Stock: what to reprint, what is gathering dust, what is running low, who is waiting. */
-export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab }: {
+export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, dailyCurrent = [], dailyAll = [] }: {
   books: Book[];
+  /** The period's daily traffic docs (views of books that couldn't be bought, wishlist saves). */
+  dailyCurrent?: Daily[]; dailyAll?: Daily[];
   shelf: { units: number; value: number; soldOut: number; titles: number };
   reprint: TitleStock[]; dormant: TitleStock[];
   setActiveTab?: (tab: string) => void;
@@ -31,6 +34,9 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab }: 
   );
   const demand = useMemo(() => (alerts.rows ? stockDemand(alerts.rows, books) : null), [alerts.rows, books]);
   const waitingTotal = demand ? demand.reduce((s, d) => s + d.waiting, 0) : null;
+  const wanted = useMemo(() => (alerts.rows || alerts.error ? wantedButUnavailable(dailyCurrent, books, alerts.rows) : null), [dailyCurrent, books, alerts.rows, alerts.error]);
+  const wantedRecorded = !!recordedSince(dailyAll, "unbuyableViews") || !!recordedSince(dailyAll, "wishlistAdds");
+  const STATE_TONE = { "sold out": "danger", "coming soon": "info", "available now": "success", removed: "neutral" } as const;
 
   return (
     <>
@@ -57,6 +63,23 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab }: 
               ))}
             </ul>
           )}
+        </SectionCard>
+
+        <SectionCard flush title="Wanted but can't be bought" description="Books people looked at while sold out or coming soon, saved to their wishlist, or asked to hear about, in this period"
+          actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("catalog")}>Open books</SecondaryButton>}>
+          {!wanted ? <LoadingState label="Loading…" />
+            : wanted.length === 0 ? (wantedRecorded || (alerts.rows && alerts.rows.length)
+              ? <EmptyState icon="✓" title="Nothing waiting" description="No one looked for a book they couldn't buy in this period." />
+              : <EmptyState icon="⏳" title="Not recorded yet" description="Views of sold-out and coming-soon books and wishlist saves start counting once shoppers use the updated storefront." />)
+            : (
+              <ul className="rp-list" aria-label="Books wanted but unavailable">
+                {wanted.slice(0, 8).map(r => (
+                  <StatRow key={r.id} label={r.title}
+                    hint={[r.views && `${r.views} ${r.views === 1 ? "view" : "views"} while unavailable`, r.saves && `${r.saves} wishlist ${r.saves === 1 ? "save" : "saves"}`, r.waiting && `${r.waiting} waiting for an email`].filter(Boolean).join(" · ")}
+                    value={<StatusBadge tone={STATE_TONE[r.state]}>{r.state}</StatusBadge>} />
+                ))}
+              </ul>
+            )}
         </SectionCard>
 
         <SectionCard flush title="Back-in-stock demand" description="Readers who asked to be emailed when a title returns">

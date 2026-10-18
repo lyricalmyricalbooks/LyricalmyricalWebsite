@@ -8,6 +8,9 @@
   import { installTranslateSafeDom } from "./app/lib/translateSafeDom";
   import { arrivedPrerendered, keepPrerenderedPage } from "./app/lib/prerenderedPage";
   import { preloadSiteData } from "./app/features/site/useSiteData";
+  import { takeOwnerDeviceLink } from "./app/lib/ownerDevice";
+  import { listenShopSignals } from "./app/lib/shopSignals";
+  import { watchPageSpeed } from "./app/lib/pageSpeed";
 
   // Shoppers may translate the page with Google Translate: keep React from crashing on the translated text.
   installTranslateSafeDom();
@@ -18,6 +21,11 @@
   rememberPreviewSnapshot();
   // Studio › "Preview in new tab": receive the unsaved draft (no-op for shoppers).
   startPreviewTab();
+  // Settings › General › Your own visits: `?owner-device=on` leaves this browser out of the shop's numbers.
+  takeOwnerDeviceLink();
+  // Per-book bag and wishlist counts, and real page speed, for Overview › Dig deeper (lib/commerce.ts decides what counts).
+  listenShopSignals();
+  watchPageSpeed();
   // Admin › Discounts › Copy share link: remember ?discount=CODE for checkout and tidy the address.
   captureSharedDiscount();
 

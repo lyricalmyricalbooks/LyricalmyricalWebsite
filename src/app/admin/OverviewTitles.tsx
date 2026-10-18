@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { DataTable, EmptyState, GhostButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, type Column } from "./riso/components";
 import { sortTitles, titlesCsv, TITLE_SORTS, type TitleRow, type TitleSort } from "./overviewProfit";
+import { TITLE_FLAG_WORDS } from "./overviewSignals";
 import { money, percent } from "./OverviewParts";
 
 const PAGE = 25;
 
 /** Overview › Dig deeper › Titles: every title's sales, change, interest, profit and stock for the period. */
-export function OverviewTitles({ rows, startKey, endKey, viewsRecorded, costsKnown, onEditBook, fetchingBookId }: {
-  rows: TitleRow[]; startKey: string; endKey: string; viewsRecorded: boolean; costsKnown: boolean;
+export function OverviewTitles({ rows, startKey, endKey, viewsRecorded, addsRecorded = false, costsKnown, onEditBook, fetchingBookId }: {
+  rows: TitleRow[]; startKey: string; endKey: string; viewsRecorded: boolean; addsRecorded?: boolean; costsKnown: boolean;
   onEditBook: (id: string) => void; fetchingBookId: string | null;
 }) {
   const [sort, setSort] = useState<TitleSort>("revenue");
@@ -32,15 +33,17 @@ export function OverviewTitles({ rows, startKey, endKey, viewsRecorded, costsKno
     return <StatusBadge tone={d > 0 ? "success" : d < 0 ? "danger" : "neutral"}>{d === 0 ? "same" : `${d > 0 ? "+" : ""}${d}`}</StatusBadge>;
   };
   const columns: Column<TitleRow>[] = [
-    { key: "title", header: "Title", lead: true, render: r => (
+    { key: "title", header: "Title", lead: true, render: r => (<>
       <GhostButton size="sm" onClick={() => onEditBook(r.id)} disabled={fetchingBookId === r.id} aria-label={`Edit ${r.title}`}
         style={{ padding: 0, textAlign: "left", whiteSpace: "normal", textTransform: "none", letterSpacing: 0, fontSize: "var(--rp-text-base)" }}>{r.title}</GhostButton>
-    ) },
+      {r.flag && <div style={{ marginTop: 4 }} title={TITLE_FLAG_WORDS[r.flag].hint}><StatusBadge tone="warning">! {TITLE_FLAG_WORDS[r.flag].badge}</StatusBadge></div>}
+    </>) },
     { key: "units", header: "Sold", numeric: true, render: r => r.units.toLocaleString() },
     { key: "change", header: "vs before", render: change },
     { key: "revenue", header: "Net revenue", numeric: true, render: r => money(r.revenue) },
     ...(viewsRecorded ? [
       { key: "views", header: "Views", numeric: true, render: (r: TitleRow) => (r.views === null ? "—" : r.views.toLocaleString()) },
+      ...(addsRecorded ? [{ key: "adds", header: "Into bag", numeric: true, render: (r: TitleRow) => (r.adds === null ? "—" : r.adds.toLocaleString()) }] : []),
       { key: "conv", header: "Views → sale", numeric: true, render: (r: TitleRow) => (r.viewToSale === null ? "—" : percent(r.viewToSale)) },
     ] : []),
     ...(costsKnown ? [
@@ -57,7 +60,7 @@ export function OverviewTitles({ rows, startKey, endKey, viewsRecorded, costsKno
         <div style={{ flex: "1 1 220px" }}><SearchField label="Find a title" placeholder="Find a title" value={query} onChange={e => { setQuery(e.target.value); setShown(PAGE); }} /></div>
         <div style={{ flex: "0 1 220px" }}>
           <SelectField label="Sort by" value={sort} onChange={e => setSort(e.target.value as TitleSort)}>
-            {TITLE_SORTS.filter(s => (viewsRecorded || (s.id !== "views" && s.id !== "conversion")) && (costsKnown || (s.id !== "profit" && s.id !== "margin")))
+            {TITLE_SORTS.filter(s => (viewsRecorded || (s.id !== "views" && s.id !== "conversion")) && (addsRecorded || s.id !== "adds") && (costsKnown || (s.id !== "profit" && s.id !== "margin")))
               .map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
           </SelectField>
         </div>
@@ -67,6 +70,11 @@ export function OverviewTitles({ rows, startKey, endKey, viewsRecorded, costsKno
         : <DataTable caption="Every title" columns={columns} rows={sorted.slice(0, shown)} rowKey={r => r.id} />}
       {sorted.length > shown && (
         <div style={{ padding: "12px 20px 16px" }}><SecondaryButton size="sm" onClick={() => setShown(n => n + PAGE)}>Show {Math.min(PAGE, sorted.length - shown)} more</SecondaryButton></div>
+      )}
+      {addsRecorded && rows.some(r => r.flag) && (
+        <p className="rp-hint" style={{ padding: "12px 20px 0", margin: 0 }}>
+          <strong>{TITLE_FLAG_WORDS.browsed.badge}</strong>: {TITLE_FLAG_WORDS.browsed.hint} <strong>{TITLE_FLAG_WORDS.abandoned.badge}</strong>: {TITLE_FLAG_WORDS.abandoned.hint}
+        </p>
       )}
       {!costsKnown && (
         <p className="rp-hint" style={{ padding: "12px 20px 16px", margin: 0 }}>Add cost prices in Inventory (or Books › edit › Pricing) to see profit and margin per title.</p>

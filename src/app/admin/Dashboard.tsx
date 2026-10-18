@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { markOwnerDeviceOnSignIn, SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
 import { motion, AnimatePresence } from "motion/react";
 import {
   BookOpen, Settings, LayoutDashboard, LogOut, Plus, History, Tag, BadgePercent,
@@ -245,6 +246,8 @@ export function Dashboard() {
       setUser(u);
       setLoading(false);
       if (u) {
+        // The owner's own browsers never count as shop traffic (Settings › General › Your own visits).
+        if (String(u.email || "").toLowerCase() === SHOP_OWNER_EMAIL) markOwnerDeviceOnSignIn();
         loadSettings();
       }
     });

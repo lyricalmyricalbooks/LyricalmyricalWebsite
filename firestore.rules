@@ -275,19 +275,28 @@ service cloud.firestore {
       allow read: if isAdmin();
       // Each recorded map stays small, so a forged client can't bloat the doc, and
       // one write can't raise the visit counter by more than one.
-      function analyticsMapsOk() {
+      // Only the maps a write changes are checked (`ch` = every field on create, the changed fields on update): a
+      // merge write carries the whole day doc, and checking a dozen unchanged maps overran the rules engine's
+      // 1,000-expression budget, which would silently refuse every counter. Unchanged maps can't have been altered.
+      function analyticsMapsOk(ch) {
         let d = request.resource.data;
-        return (!('funnel' in d) || (d.funnel is map && d.funnel.size() <= 4))
-          && (!('sources' in d) || (d.sources is map && d.sources.size() <= 60))
-          && (!('devices' in d) || (d.devices is map && d.devices.size() <= 4))
-          && (!('searches' in d) || (d.searches is map && d.searches.size() <= 150))
-          && (!('noResults' in d) || (d.noResults is map && d.noResults.size() <= 150))
-          && (!('bookViews' in d) || (d.bookViews is map && d.bookViews.size() <= 300))
-          && (!('categoryViews' in d) || (d.categoryViews is map && d.categoryViews.size() <= 100));
+        return (!('funnel' in ch) || (d.funnel is map && d.funnel.size() <= 4))
+          && (!('sources' in ch) || (d.sources is map && d.sources.size() <= 60))
+          && (!('devices' in ch) || (d.devices is map && d.devices.size() <= 4))
+          && (!('searches' in ch) || (d.searches is map && d.searches.size() <= 150))
+          && (!('noResults' in ch) || (d.noResults is map && d.noResults.size() <= 150))
+          && (!('bookViews' in ch) || (d.bookViews is map && d.bookViews.size() <= 300))
+          && (!('categoryViews' in ch) || (d.categoryViews is map && d.categoryViews.size() <= 100))
+          && (!('bookAdds' in ch) || (d.bookAdds is map && d.bookAdds.size() <= 300))
+          && (!('wishlistAdds' in ch) || (d.wishlistAdds is map && d.wishlistAdds.size() <= 300))
+          && (!('unbuyableViews' in ch) || (d.unbuyableViews is map && d.unbuyableViews.size() <= 300))
+          && (!('checkout' in ch) || d.checkout is map)
+          && (!('vitals' in ch) || (d.vitals is map && d.vitals.size() <= 128));
       }
       // Counters only ever go up by one per write, and a write can't wipe or rewrite recorded data (#111).
-      // Fixed-key maps (the funnel, device buckets) are checked key by key; maps with free keys (sources, searches,
-      // book and category views) may gain or raise one entry per write and never lose any.
+      // Fixed-key maps (the funnel, device buckets, checkout steps = lib/commerce.ts CHECKOUT_STEPS) are checked key
+      // by key; maps with free keys (sources, searches, book and category views, bag/wishlist adds per book, views of
+      // books that can't be bought, page speed) may gain or raise one entry per write and never lose any.
       function stepOk(n, o, k) {
         return n.get(k, 0) is int && n.get(k, 0) - o.get(k, 0) >= 0 && n.get(k, 0) - o.get(k, 0) <= 1;
       }
@@ -299,18 +308,28 @@ service cloud.firestore {
         return n.keys().hasOnly(['mobile', 'tablet', 'desktop'])
           && stepOk(n, o, 'mobile') && stepOk(n, o, 'tablet') && stepOk(n, o, 'desktop');
       }
+      function checkoutStepOk(n, o) {
+        return n.keys().hasOnly(['email', 'address', 'delivery', 'pay', 'fields', 'declined', 'failed'])
+          && stepOk(n, o, 'email') && stepOk(n, o, 'address') && stepOk(n, o, 'delivery') && stepOk(n, o, 'pay')
+          && stepOk(n, o, 'fields') && stepOk(n, o, 'declined') && stepOk(n, o, 'failed');
+      }
       function freeMapStepOk(n, o) {
         return n is map && n.diff(o).removedKeys().size() == 0 && n.diff(o).affectedKeys().size() <= 1;
       }
-      function analyticsStepsOk(o) {
+      function analyticsStepsOk(o, ch) {
         let d = request.resource.data;
-        return (!('funnel' in d) || funnelStepOk(d.funnel, o.get('funnel', {})))
-          && (!('devices' in d) || devicesStepOk(d.devices, o.get('devices', {})))
-          && (!('sources' in d) || freeMapStepOk(d.sources, o.get('sources', {})))
-          && (!('searches' in d) || freeMapStepOk(d.searches, o.get('searches', {})))
-          && (!('noResults' in d) || freeMapStepOk(d.noResults, o.get('noResults', {})))
-          && (!('bookViews' in d) || freeMapStepOk(d.bookViews, o.get('bookViews', {})))
-          && (!('categoryViews' in d) || freeMapStepOk(d.categoryViews, o.get('categoryViews', {})));
+        return (!('funnel' in ch) || funnelStepOk(d.funnel, o.get('funnel', {})))
+          && (!('devices' in ch) || devicesStepOk(d.devices, o.get('devices', {})))
+          && (!('sources' in ch) || freeMapStepOk(d.sources, o.get('sources', {})))
+          && (!('searches' in ch) || freeMapStepOk(d.searches, o.get('searches', {})))
+          && (!('noResults' in ch) || freeMapStepOk(d.noResults, o.get('noResults', {})))
+          && (!('bookViews' in ch) || freeMapStepOk(d.bookViews, o.get('bookViews', {})))
+          && (!('categoryViews' in ch) || freeMapStepOk(d.categoryViews, o.get('categoryViews', {})))
+          && (!('bookAdds' in ch) || freeMapStepOk(d.bookAdds, o.get('bookAdds', {})))
+          && (!('wishlistAdds' in ch) || freeMapStepOk(d.wishlistAdds, o.get('wishlistAdds', {})))
+          && (!('unbuyableViews' in ch) || freeMapStepOk(d.unbuyableViews, o.get('unbuyableViews', {})))
+          && (!('checkout' in ch) || checkoutStepOk(d.checkout, o.get('checkout', {})))
+          && (!('vitals' in ch) || freeMapStepOk(d.vitals, o.get('vitals', {})));
       }
       // Visitors write only today's day doc (commerce.ts dayKey / publicApi.recordVisit: the
       // id is the UTC date "YYYY-MM-DD" and `date` repeats it), within a day of the server
@@ -323,25 +342,25 @@ service cloud.firestore {
       }
       allow create: if isAdmin() || (
         analyticsDayOk()
-        && request.resource.data.keys().hasOnly(['date', 'visits', 'orders', 'revenue', 'conversion', 'funnel', 'categoryViews', 'sources', 'devices', 'searches', 'noResults', 'bookViews'])
+        && request.resource.data.keys().hasOnly(['date', 'visits', 'orders', 'revenue', 'conversion', 'funnel', 'categoryViews', 'sources', 'devices', 'searches', 'noResults', 'bookViews', 'bookAdds', 'wishlistAdds', 'unbuyableViews', 'checkout', 'vitals'])
         && (!('orders' in request.resource.data) || request.resource.data.orders == 0)
         && (!('revenue' in request.resource.data) || request.resource.data.revenue == 0)
         && request.resource.data.get('visits', 0) is int
         && request.resource.data.get('visits', 0) >= 0
         && request.resource.data.get('visits', 0) <= 1
-        && analyticsMapsOk()
-        && analyticsStepsOk({})
+        && analyticsMapsOk(request.resource.data.keys())
+        && analyticsStepsOk({}, request.resource.data.keys())
       );
       allow update: if isAdmin() || (
         analyticsDayOk()
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['date', 'visits', 'funnel', 'categoryViews', 'sources', 'devices', 'searches', 'noResults', 'bookViews'])
+          .hasOnly(['date', 'visits', 'funnel', 'categoryViews', 'sources', 'devices', 'searches', 'noResults', 'bookViews', 'bookAdds', 'wishlistAdds', 'unbuyableViews', 'checkout', 'vitals'])
         // Visits only ever go up by one: a visitor can't reset or shrink the day's count.
         && request.resource.data.get('visits', 0) - resource.data.get('visits', 0) <= 1
         && request.resource.data.get('visits', 0) >= resource.data.get('visits', 0)
         && request.resource.data.get('visits', 0) is int
-        && analyticsMapsOk()
-        && analyticsStepsOk(resource.data)
+        && analyticsMapsOk(request.resource.data.diff(resource.data).affectedKeys())
+        && analyticsStepsOk(resource.data, request.resource.data.diff(resource.data).affectedKeys())
       );
       allow delete: if isAdmin();
     }

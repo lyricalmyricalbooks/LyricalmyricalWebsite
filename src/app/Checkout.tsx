@@ -1269,7 +1269,16 @@ export function Checkout() {
     });
   }, [detailProblems]);
 
+  // Overview › Marketing & traffic › "Where checkout loses people": how far each shopper got (once per step and session).
+  const emailTyped = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(customer.email || "").trim());
+  // Only once the address is complete: before that the rates are a placeholder estimate every shopper "sees".
+  const deliveryPriceShown = cart.length > 0 && detailProblems.length === 0 && (digitalOnly || availableRates.length > 0 || localQuotes.length > 0);
+  useEffect(() => { if (cart.length > 0 && emailTyped) void funnelApi.trackCheckoutStep("email"); }, [emailTyped, cart.length]);
+  useEffect(() => { if (cart.length > 0 && detailProblems.length === 0) void funnelApi.trackCheckoutStep("address"); }, [detailProblems.length, cart.length]);
+  useEffect(() => { if (deliveryPriceShown) void funnelApi.trackCheckoutStep("delivery"); }, [deliveryPriceShown]);
+
   const completePurchase = async () => {
+    void funnelApi.trackCheckoutStep("pay");
     if (catalogState !== "ready") {
       setNotice({ tone: "error", text: c(catalogState === "failed" ? "coCatalogFailed" : "coCatalogLoading") });
       return;
@@ -1289,6 +1298,7 @@ export function Checkout() {
     // Name every field that needs fixing next to its box, then move to the first (a mistyped
     // email means no confirmation and no e-book link).
     if (detailProblems.length) {
+      void funnelApi.trackCheckoutStep("fields");
       setFieldErrors(Object.fromEntries(detailProblems.map(problem => [problem.field, c(problem.copyKey)])));
       setNotice({ tone: "error", text: c("coErrShippingFields") });
       const first = detailProblems[0].field;
@@ -1598,6 +1608,7 @@ export function Checkout() {
           }
           // Not confirmed: the kept order/intent is reused by the next Pay, so a failed form may be reloaded.
           setInlineAttemptStarted(false);
+          void funnelApi.trackCheckoutStep("declined");
           setNotice({ tone: "error", text: result.error });
           return;
         }
@@ -1641,6 +1652,7 @@ export function Checkout() {
         setNotice({ tone: "error", text: c("coDiscountRejected", { reason: err.reason }) });
         return;
       }
+      void funnelApi.trackCheckoutStep("failed");
       setNotice({ tone: "error", text: c("coCheckoutFailed", { error: copyErrorText(err, checkoutDesign, "coStripeError") }) });
     }
   };

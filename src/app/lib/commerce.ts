@@ -265,6 +265,14 @@ export function shouldCountPurchase(orderId: string, order: any, storage: Pick<S
   return true;
 }
 
+/**
+ * Checkout steps after "Started checkout" (funnel.checkout_start) and before "Bought" (funnel.purchase): typed an
+ * email, finished the address, saw the delivery price, pressed Pay. The last three are why a press of Pay didn't
+ * pay: details missing, the card refused, or another failure. firestore.rules lists the same keys.
+ */
+export const CHECKOUT_STEPS = ["email", "address", "delivery", "pay", "fields", "declined", "failed"] as const;
+export type CheckoutStep = (typeof CHECKOUT_STEPS)[number];
+
 export const funnelApi = {
   track: async (event: "view" | "add_to_cart" | "checkout_start" | "purchase") => {
     await bump({ funnel: { [event]: 1 } });
@@ -305,6 +313,36 @@ export const funnelApi = {
   trackProductView: async (bookId: string) => {
     if (!bookId || typeof window === "undefined" || !firstThisSession(`fm_bookview_${bookId}`)) return;
     await bump({ bookViews: { [mapKey(bookId)]: 1 } });
+  },
+
+  /** A book put in the bag (any button: book page, cards, wishlist, bag suggestion) — once per book per session. */
+  trackBookAdd: async (bookId: string) => {
+    if (!bookId || typeof window === "undefined" || !firstThisSession(`fm_bookadd_${bookId}`)) return;
+    await bump({ bookAdds: { [mapKey(bookId)]: 1 } });
+  },
+
+  /** A book saved to the wishlist — once per book per session (taking it off again isn't counted). */
+  trackWishlistAdd: async (bookId: string) => {
+    if (!bookId || typeof window === "undefined" || !firstThisSession(`fm_wishadd_${bookId}`)) return;
+    await bump({ wishlistAdds: { [mapKey(bookId)]: 1 } });
+  },
+
+  /** A book page opened while the book couldn't be bought (sold out or coming soon) — demand you can't serve yet. */
+  trackUnavailableView: async (bookId: string) => {
+    if (!bookId || typeof window === "undefined" || !firstThisSession(`fm_unbuyable_${bookId}`)) return;
+    await bump({ unbuyableViews: { [mapKey(bookId)]: 1 } });
+  },
+
+  /** How far a shopper got in checkout (CHECKOUT_STEPS) — each step once per session and day. */
+  trackCheckoutStep: async (step: CheckoutStep) => {
+    if (!CHECKOUT_STEPS.includes(step) || typeof window === "undefined" || !firstThisSession(`fm_checkout_${step}_${dayKey()}`)) return;
+    await bump({ checkout: { [step]: 1 } });
+  },
+
+  /** Real page speed for this visit (lib/pageSpeed.ts), one combined entry per session. */
+  trackPageSpeed: async (key: string) => {
+    if (!/^(phone|computer)_[gopn]{3}$/.test(key) || typeof window === "undefined" || !firstThisSession("fm_pagespeed")) return;
+    await bump({ vitals: { [key]: 1 } });
   },
 
   /** What shoppers type into search, and whether it found anything. Personal-looking terms are never stored. */
