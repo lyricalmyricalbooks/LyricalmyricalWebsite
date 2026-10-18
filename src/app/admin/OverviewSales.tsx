@@ -7,7 +7,9 @@ import { hourHeatmap, operations } from "./overviewCohorts";
 import { BarRow, ROW, SPLIT, StatRow, money, percent } from "./OverviewParts";
 
 /** Overview › Dig deeper › Sales: what is selling, in which format, where, when and at what discount. */
-export function OverviewSales({ current, previous, books, categoriesSetting, dailyCurrent, onEditBook, fetchingBookId }: {
+export function OverviewSales({ current, previous, books, categoriesSetting, dailyCurrent, onEditBook, fetchingBookId, only }: {
+  /** Show just one panel (an Overview board widget): best, money, formats, countries, categories, weekdays, hours, fulfilment or codes. */
+  only?: string;
   current: Order[]; previous: Order[]; books: Book[]; categoriesSetting: unknown; dailyCurrent: Daily[];
   onEditBook: (id: string) => void; fetchingBookId: string | null;
 }) {
@@ -22,11 +24,12 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
   const maxDay = Math.max(1, ...weekdays.map(d => d.orders));
   const heat = useMemo(() => hourHeatmap(current), [current]);
   const ops = useMemo(() => operations(current), [current]);
+  const show = (id: string) => !only || only === id;
   const hoursText = (h: number | null) => (h === null ? "—" : h < 48 ? `${Math.round(h)} hours` : `${(h / 24).toFixed(1)} days`);
 
   return (
     <div className="rp-split" style={SPLIT}>
-      <SectionCard flush title="Best sellers" description="Top titles by revenue, with units against the period before">
+      {show("best") && <SectionCard flush title="Best sellers" description="Top titles by revenue, with units against the period before">
         {best.length === 0 ? <EmptyState title="No sales in this period" description="Your top titles appear once paid orders arrive." /> : (
           <ul className="rp-list" aria-label="Best selling titles">
             {best.map((b, i) => {
@@ -53,9 +56,9 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
             })}
           </ul>
         )}
-      </SectionCard>
+      </SectionCard>}
 
-      <SectionCard flush title="Where the money goes" description="What customers paid, broken down">
+      {show("money") && <SectionCard flush title="Where the money goes" description="What customers paid, broken down">
         {cur.orders === 0 ? <EmptyState title="No sales in this period" description="The breakdown appears once paid orders arrive." /> : (
           <ul className="rp-list" aria-label="Revenue breakdown">
             <StatRow label="Books" hint="before discounts" value={money(cur.subtotal)} />
@@ -70,9 +73,9 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
             {cur.giftCardsSold > 0 && <StatRow label="Gift cards sold" hint="counted above, but not earned until the card is spent" value={money(cur.giftCardsSold)} tone="muted" />}
           </ul>
         )}
-      </SectionCard>
+      </SectionCard>}
 
-      <SectionCard flush title="Format mix"
+      {show("formats") && <SectionCard flush title="Format mix"
         description={formats.total > 0 ? `${formats.printShare.toFixed(0)}% print · ${formats.digitalShare.toFixed(0)}% digital` : "Revenue by book format"}>
         {formats.formats.length === 0 ? <EmptyState title="No sales in this period" description="Print vs digital revenue shows here once books sell." /> : (
           <ul className="rp-list" aria-label="Revenue by format">
@@ -81,9 +84,9 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
             ))}
           </ul>
         )}
-      </SectionCard>
+      </SectionCard>}
 
-      <SectionCard flush title="Where readers are" description="Top destinations by revenue">
+      {show("countries") && <SectionCard flush title="Where readers are" description="Top destinations by revenue">
         {countries.length === 0 ? <EmptyState title="No orders in this period" description="Countries appear once paid orders arrive." /> : (
           <ul className="rp-list" aria-label="Top countries">
             {countries.map(c => (
@@ -92,9 +95,9 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
             ))}
           </ul>
         )}
-      </SectionCard>
+      </SectionCard>}
 
-      <SectionCard flush title="Categories" description="Sales and recorded visits in this period">
+      {show("categories") && <SectionCard flush title="Categories" description="Sales and recorded visits in this period">
         {categories.every(c => c.sold === 0 && c.views === 0) ? <EmptyState title="Nothing in this period" description="Categories with visits or sales will be listed here." /> : (
           <ul className="rp-list" aria-label="Categories">
             {categories.map(cat => (
@@ -108,17 +111,17 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
             ))}
           </ul>
         )}
-      </SectionCard>
+      </SectionCard>}
 
-      <SectionCard flush title="Busiest days" description="Orders by day of the week (Toronto time)">
+      {show("weekdays") && <SectionCard flush title="Busiest days" description="Orders by day of the week (Toronto time)">
         {cur.orders === 0 ? <EmptyState title="No orders in this period" description="Weekdays fill in as orders arrive." /> : (
           <ul className="rp-list" aria-label="Orders by weekday">
             {weekdays.map(d => <BarRow key={d.day} label={d.day} value={`${d.orders} order${d.orders === 1 ? "" : "s"} · ${money(d.revenue)}`} share={(d.orders / maxDay) * 100} color="var(--rp-info)" />)}
           </ul>
         )}
-      </SectionCard>
+      </SectionCard>}
 
-      <SectionCard title="Busiest hours" description="Orders by weekday and hour (Toronto time) — when to post, send newsletters or launch">
+      {show("hours") && <SectionCard title="Busiest hours" description="Orders by weekday and hour (Toronto time) — when to post, send newsletters or launch">
         {cur.orders === 0 ? <EmptyState title="No orders in this period" description="The grid fills in as orders arrive." /> : (
           <div role="img" aria-label={`Orders by weekday and hour. Busiest: ${(() => { let best = { d: "", h: 0, n: 0 }; heat.grid.forEach(r => r.hours.forEach((n, h) => { if (n > best.n) best = { d: r.day, h, n }; })); return `${best.d} ${best.h}:00 with ${best.n} order${best.n === 1 ? "" : "s"}`; })()}`}>
             <div style={{ display: "grid", gridTemplateColumns: "32px repeat(24, minmax(0, 1fr))", gap: 2, fontSize: 10 }} aria-hidden="true">
@@ -136,9 +139,9 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
             </div>
           </div>
         )}
-      </SectionCard>
+      </SectionCard>}
 
-      <SectionCard flush title="Fulfilment & payments" description="How fast paid orders ship, and how customers pay">
+      {show("fulfilment") && <SectionCard flush title="Fulfilment & payments" description="How fast paid orders ship, and how customers pay">
         {cur.orders === 0 ? <EmptyState title="No orders in this period" description="Shipping speed and payment methods appear once orders arrive." /> : (
           <ul className="rp-list" aria-label="Fulfilment and payments">
             <StatRow label="Typical time to ship" hint={ops.shipped ? `median from payment to dispatch, ${ops.shipped} shipped order${ops.shipped === 1 ? "" : "s"}` : "no order shipped yet in this period"} value={hoursText(ops.medianHoursToShip)} />
@@ -148,9 +151,9 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
             {ops.partlyRefunded > 0 && <StatRow label="Partly refunded orders" value={ops.partlyRefunded} tone="danger" />}
           </ul>
         )}
-      </SectionCard>
+      </SectionCard>}
 
-      <SectionCard flush title="Discount codes" description="Orders that used a code in this period">
+      {show("codes") && <SectionCard flush title="Discount codes" description="Orders that used a code in this period">
         {codes.length === 0 ? <EmptyState title="No codes used" description="Codes customers apply at checkout are ranked here." /> : (
           <ul className="rp-list" aria-label="Discount code results">
             {codes.map(([code, p]) => (
@@ -159,7 +162,7 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
             ))}
           </ul>
         )}
-      </SectionCard>
+      </SectionCard>}
     </div>
   );
 }

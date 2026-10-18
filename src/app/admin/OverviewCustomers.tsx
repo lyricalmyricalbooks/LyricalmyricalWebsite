@@ -9,24 +9,32 @@ import { abandonedCartApi } from "../lib/commerce";
 import { BarRow, SPLIT, StatRow, money, percent } from "./OverviewParts";
 import { newsletterWeeks, reminderResults } from "./overviewSignals";
 import { SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
+import { sharedLoad } from "./overviewShared";
 
 type Mix = { total: number; returning: number; fresh: number; returningRate: number };
 type Reviews = { pending: number; approved: number; average: number | null } | null;
 type Subs = { total: number; added: number } | null;
 
 /** Overview › Dig deeper › Customers: who buys, who comes back, and what happens to carts people leave. */
-export function OverviewCustomers({ paid, current, startKey, mix, startMs, reviews, subs, audienceFailed, setActiveTab, newsletter = null }: {
+export function OverviewCustomers({ paid, current, startKey, mix, startMs, reviews, subs, audienceFailed, setActiveTab, newsletter = null, only }: {
+  /** Show just one panel (an Overview board widget): kpis, retention, top, carts, reminders, newsletter or reviews. */
+  only?: string;
   paid: Order[]; current: Order[]; startKey: string; mix: Mix; startMs: number; reviews: Reviews; subs: Subs; audienceFailed: boolean; setActiveTab?: (tab: string) => void;
   newsletter?: { subscribers: any[]; pending: any[] } | null;
 }) {
   // Carts are read only when this tab is opened (the panel mounts then), so the Overview itself stays light.
   const [carts, setCarts] = useState<{ rows: any[] | null; error: boolean }>({ rows: null, error: false });
-  const load = () => {
+  const needsCarts = !only || only === "carts" || only === "reminders";
+  const load = (fresh = false) => {
+    if (!needsCarts) return;
     setCarts({ rows: null, error: false });
-    // The owner's own test carts aren't customers.
-    abandonedCartApi.list(500).then(rows => setCarts({ rows: rows.filter((c: any) => String(c?.email || "").toLowerCase() !== SHOP_OWNER_EMAIL), error: false })).catch(() => setCarts({ rows: null, error: true }));
+    // The owner's own test carts aren't customers. Every widget on the board shares one read.
+    sharedLoad("carts", () => abandonedCartApi.list(500), fresh)
+      .then(rows => setCarts({ rows: rows.filter((c: any) => String(c?.email || "").toLowerCase() !== SHOP_OWNER_EMAIL), error: false })).catch(() => setCarts({ rows: null, error: true }));
   };
-  useEffect(load, []);
+  const retry = () => load(true);
+  useEffect(() => load(), []);
+  const show = (id: string) => !only || only === id;
 
   const customers = useMemo(() => buildCustomers(paid), [paid]);
   const stats = useMemo(() => customerStats(customers), [customers]);
@@ -55,7 +63,7 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
 
   return (
     <>
-      <div className="rp-kpi-grid">
+      {show("kpis") && <div className="rp-kpi-grid">
         <MetricCard label="Returning readers" value={percent(mix.returningRate, 0)}
           footer={`${mix.returning} returning · ${mix.fresh} new of ${mix.total} buyers this period`} />
         <MetricCard label="Repeat customers" value={percent(stats.repeatRate * 100, 0)}
@@ -66,15 +74,15 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
           footer={timing.within90Rate === null ? "median to a second order" : `median · ${percent(timing.within90Rate, 0)} back within 90 days`} />
         <MetricCard label="Subscribers" value={subs ? subs.total.toLocaleString() : audienceFailed ? "—" : "…"}
           footer={subs ? `+${subs.added} in this period` : audienceFailed ? "Newsletter unavailable" : "Loading…"} />
-      </div>
+      </div>}
 
-      <div className="rp-split" style={SPLIT}>
-        <SectionCard flush title="Do customers come back?" description="Each row is the customers whose first order was in that month; the cells show the share who bought again 1–6 months later (· = not yet)">
+      {(!only || only !== "kpis") && <div className="rp-split" style={SPLIT}>
+        {show("retention") && <SectionCard flush title="Do customers come back?" description="Each row is the customers whose first order was in that month; the cells show the share who bought again 1–6 months later (· = not yet)">
           {cohorts.length === 0 ? <EmptyState title="No customers yet" description="Cohorts appear after the first paid orders." />
             : <DataTable caption="Repeat purchases by first-order month" columns={cohortColumns} rows={cohorts} rowKey={r => r.month} />}
-        </SectionCard>
+        </SectionCard>}
 
-        <SectionCard flush title="Top customers" description="By total spend, all time"
+        {show("top") && <SectionCard flush title="Top customers" description="By total spend, all time"
           actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("customers")}>All customers</SecondaryButton>}>
           {top.length === 0 ? <EmptyState title="No customers yet" description="Customers appear after their first paid order." /> : (
             <ul className="rp-list" aria-label="Top customers">
@@ -85,10 +93,10 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
               ))}
             </ul>
           )}
-        </SectionCard>
+        </SectionCard>}
 
-        <SectionCard flush title="Abandoned carts" description="Carts left with an email address, started in this period">
-          {carts.error ? <ErrorState title="Carts unavailable" description="The saved carts could not be loaded." onRetry={load} />
+        {show("carts") && <SectionCard flush title="Abandoned carts" description="Carts left with an email address, started in this period">
+          {carts.error ? <ErrorState title="Carts unavailable" description="The saved carts could not be loaded." onRetry={retry} />
             : !recovery ? <LoadingState label="Loading carts…" />
             : recovery.total === 0 ? <EmptyState icon="✓" title="No abandoned carts" description="Carts shoppers leave behind (after typing an email) are tracked here." />
             : (
@@ -98,10 +106,10 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
                 <StatRow label="Still waiting" hint="value of books left in bags" value={money(recovery.openValue)} tone={recovery.openValue > 0 ? "danger" : "muted"} />
               </ul>
             )}
-        </SectionCard>
+        </SectionCard>}
 
-        <SectionCard flush title="Did the reminder emails work?" description="Reminder emails sent for carts left behind in this period, and who bought after getting one">
-          {carts.error ? <ErrorState title="Carts unavailable" description="The saved carts could not be loaded." onRetry={load} />
+        {show("reminders") && <SectionCard flush title="Did the reminder emails work?" description="Reminder emails sent for carts left behind in this period, and who bought after getting one">
+          {carts.error ? <ErrorState title="Carts unavailable" description="The saved carts could not be loaded." onRetry={retry} />
             : !reminders ? <LoadingState label="Loading carts…" />
             : reminders.sent === 0 ? <EmptyState title="No reminders sent in this period" description="A reminder goes out about an hour after a shopper leaves a cart with their email (Settings › Notifications › Abandoned cart)." />
             : (
@@ -112,9 +120,9 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
               </ul>
             )}
           <p className="rp-hint" style={{ padding: "12px 20px 16px", margin: 0 }}>Saved carts are kept for 30 days, so longer periods show the last 30 days.</p>
-        </SectionCard>
+        </SectionCard>}
 
-        <SectionCard flush title="Newsletter sign-ups by week" description="Confirmed sign-ups and those still waiting for the shopper to click the confirmation email, last 8 weeks">
+        {show("newsletter") && <SectionCard flush title="Newsletter sign-ups by week" description="Confirmed sign-ups and those still waiting for the shopper to click the confirmation email, last 8 weeks">
           {!weeks ? (audienceFailed ? <ErrorState title="Newsletter unavailable" description="Sign-ups could not be loaded." /> : <LoadingState label="Loading sign-ups…" />)
             : weeks.every(w => w.confirmed + w.waiting === 0) ? <EmptyState title="No sign-ups in the last 8 weeks" description="Sign-ups from the newsletter box appear here by week." />
             : (
@@ -128,9 +136,9 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
           {weeks && weeks.reduce((s, w) => s + w.waiting, 0) > weeks.reduce((s, w) => s + w.confirmed, 0) && (
             <p className="rp-hint" style={{ padding: "12px 20px 16px", margin: 0, color: "var(--rp-warning)" }}>! More sign-ups are waiting than confirmed: the confirmation email may be landing in spam folders.</p>
           )}
-        </SectionCard>
+        </SectionCard>}
 
-        <SectionCard flush title="Reader reviews" description="What readers say about your books"
+        {show("reviews") && <SectionCard flush title="Reader reviews" description="What readers say about your books"
           actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("reviews")}>Moderate</SecondaryButton>}>
           {!reviews ? (audienceFailed ? <ErrorState title="Reviews unavailable" description="Reviews could not be loaded." /> : <LoadingState label="Loading reviews…" />) : (
             <ul className="rp-list" aria-label="Reviews">
@@ -139,8 +147,8 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
               <StatRow label="Waiting for moderation" value={reviews.pending > 0 ? <StatusBadge tone="warning">{reviews.pending}</StatusBadge> : <StatusBadge tone="success">✓ None</StatusBadge>} />
             </ul>
           )}
-        </SectionCard>
-      </div>
+        </SectionCard>}
+      </div>}
     </>
   );
 }

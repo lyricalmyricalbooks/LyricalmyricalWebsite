@@ -99,6 +99,14 @@ service cloud.firestore {
     match /adminSecrets/{docId} {
       allow read, write: if isAdmin();
     }
+    // The owner's admin screen layouts (Overview boards: admin/overviewBoardStore.ts). Admin-only, one JSON string.
+    match /adminPrefs/{docId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin() && docId == "overviewBoard"
+        && request.resource.data.keys().hasOnly(["data", "updatedAt"])
+        && request.resource.data.data is string && request.resource.data.data.size() <= 200000
+        && request.resource.data.updatedAt is number;
+    }
     // Nightly backup outcome (functions nightlyFirestoreBackup); Settings › General › Backups & export.
     match /systemStatus/{docId} {
       allow read: if isAdmin();
