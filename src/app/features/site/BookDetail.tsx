@@ -1,4 +1,6 @@
 import { catName, categoryNames } from "./navItems";
+import { describedAlt } from "./photoAlt";
+import { inEditorPreview } from "../../lib/trackingGuard";
 import { recommendedBooks } from "./merchandising";
 import { shownDetailRows } from "./detailRows";
 import { m } from "motion/react";
@@ -584,7 +586,7 @@ export default function BookDetail() {
   // so the current thumbnail, caption number and alt text follow it rather than the last picked photo.
   const shownIndex    = editionPhotoShown ? photos.findIndex((p: any) => p?.url === activeUrl) : activePhoto;
   const shownPhoto    = shownIndex >= 0 ? photos[shownIndex] : undefined;
-  const mediaName     = (item: any, i: number) => item?.altText?.trim() || getCopy(settings?.design, isVideoItem(item) ? "bookVideoLabel" : "bookPhotoAlt", { title: book?.title, n: i + 1 });
+  const mediaName     = (item: any, i: number) => describedAlt(item?.altText) || getCopy(settings?.design, isVideoItem(item) ? "bookVideoLabel" : "bookPhotoAlt", { title: book?.title, n: i + 1 });
   const carouselIndex = shownIndex >= 0 ? shownIndex : Math.min(activePhoto, photos.length - 1);
   const shownVideo    = !(editionPhotoShown && shownIndex < 0) && isVideoItem(photos[carouselIndex]) ? photos[carouselIndex] : null;
   // A video stops when the shopper swipes away from it.
@@ -658,6 +660,9 @@ export default function BookDetail() {
       <div {...regionProps("productReviews")}><ReviewsSection key={book.id} bookId={book.id} hideHeader={true} /></div>
     ) : null;
 
+  // Inactive tab/accordion text stays in the shop's HTML (hidden) for search engines; Studio's preview leaves it
+  // out so its page scan and click-to-edit see each part once.
+  const keepHiddenText = !inEditorPreview();
   const detailsBlock = !book || !detailTabs.length ? null : productDetailsLayout === "tabs" ? (
     <div className="fm-pdp-tabs w-full" data-studio-target="style:productCard|copy:Product page" data-studio-label="Product details tabs">
       <div role="tablist" aria-label={getCopy(settings?.design, "pdpDetailsAria")}>
@@ -680,6 +685,11 @@ export default function BookDetail() {
       </div>
       <div id="pdp-tabpanel" role="tabpanel" aria-labelledby={`pdp-tab-${activeTab}`} className="fm-pdp-panel">
         {detailContent(activeTab)}
+        {/* The other text tabs stay in the page, hidden, so search engines (and the prerendered HTML) read the
+            description and the Details record whichever tab is open. Reviews load only when opened. */}
+        {keepHiddenText && detailTabs.filter((t) => t.id !== activeTab && t.id !== "reviews").map((t) => (
+          <div key={t.id} hidden data-pdp-hidden-tab={t.id}>{detailContent(t.id)}</div>
+        ))}
       </div>
     </div>
   ) : productDetailsLayout === "accordions" ? (
@@ -696,7 +706,9 @@ export default function BookDetail() {
             <span>{t.label}</span>
             <ChevronDown size={14} className={`shrink-0 transition-transform duration-300 ${openAccordions[t.id] ? "rotate-180" : ""}`} />
           </button>
-          {openAccordions[t.id] && <div id={`pdp-acc-${t.id}`} className="px-5 pb-5">{detailContent(t.id)}</div>}
+          {openAccordions[t.id]
+            ? <div id={`pdp-acc-${t.id}`} className="px-5 pb-5">{detailContent(t.id)}</div>
+            : keepHiddenText && t.id !== "reviews" && <div id={`pdp-acc-${t.id}`} hidden>{detailContent(t.id)}</div>}
         </div>
       ))}
     </div>

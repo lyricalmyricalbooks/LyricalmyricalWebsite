@@ -66,7 +66,8 @@ import { PhotoCropDialog } from "./PhotoCropDialog";
 import { studioHash } from "../lib/studioLocation";
 
 import { BookSeoPane } from "./BookSeoPane";
-import { askAi, bookAiInput } from "./aiWriter";
+import { askAi, bookAiInput, photoAiUrl } from "./aiWriter";
+import { describedAlt } from "../features/site/photoAlt";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/site/preorder";
 import { DEFAULT_CUSTOMS_DESCRIPTION, DEFAULT_HS_CODE, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
@@ -84,10 +85,11 @@ const MAX_BOOK_PHOTOS = 50;
 
 type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "addons" | "boxset" | "organize" | "more" | "seo";
 
-function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover, onCrop }: {
+function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover, onCrop, onDescribe, describing, aiLocked }: {
   photo: any; index: number; onRemove: (id: string) => void; onAlt: (id: string, alt: string) => void; onMakeCover: (id: string) => void;
-  onCrop: (id: string) => void;
+  onCrop: (id: string) => void; onDescribe: (id: string) => void; describing: boolean; aiLocked: boolean;
 }) {
+  const fileNameAlt = !isVideoItem(photo) && !!String(photo.altText || "").trim() && !describedAlt(photo.altText);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: photo.id });
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 2 : 1, opacity: isDragging ? 0.6 : 1 };
   return (
@@ -105,8 +107,16 @@ function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover, onCrop }: {
         )}
         <button type="button" ref={setActivatorNodeRef} {...attributes} {...listeners} className="be-photo-grip" aria-label={`Reorder image ${index + 1}`}><GripVertical size={16} aria-hidden /></button>
       </div>
-      <input className="rp-input" aria-label={`${isVideoItem(photo) ? "Description of video" : "Alt text for image"} ${index + 1}`} placeholder={isVideoItem(photo) ? "What the video shows" : "Alt text"} value={photo.altText || ""} onChange={(e) => onAlt(photo.id, e.target.value)} />
+      <input className="rp-input" aria-label={`${isVideoItem(photo) ? "Description of video" : "Alt text for image"} ${index + 1}`} placeholder={isVideoItem(photo) ? "What the video shows" : "Describe this photo"} value={photo.altText || ""} onChange={(e) => onAlt(photo.id, e.target.value)}
+        aria-describedby={fileNameAlt ? `be-alt-hint-${photo.id}` : undefined} />
+      {fileNameAlt && <p className="rp-hint" id={`be-alt-hint-${photo.id}`}>This is a file name, so the shop shows its own wording instead. Describe the photo, or use Describe with AI.</p>}
       <div className="be-photo-actions">
+        {!isVideoItem(photo) && (
+          <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onDescribe(photo.id)} disabled={aiLocked}
+            aria-label={`Describe ${index === 0 ? "the cover" : `image ${index + 1}`} with AI`}>
+            {describing ? <Loader2 size={13} className="animate-spin" aria-hidden /> : <Sparkles size={13} aria-hidden />} {describing ? "Describing…" : "Describe with AI"}
+          </button>
+        )}
         {!isVideoItem(photo) && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onCrop(photo.id)} aria-label={`Crop and edit ${index === 0 ? "the cover" : `image ${index + 1}`}`}><Crop size={13} aria-hidden /> Crop & edit</button>}
         {index !== 0 && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onMakeCover(photo.id)}>Make cover</button>}
         <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onRemove(photo.id)}><Trash2 size={13} aria-hidden /> Remove</button>
@@ -918,6 +928,52 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
       setDescAiBusy(false);
     }
   };
+  // Describe with AI (Books › edit › Images): Gemini looks at the photo and writes its alt text, which screen
+  // readers and Google Images read. One photo, or every photo without a real description, one after another.
+  const [describingId, setDescribingId] = useState<string | null>(null);
+  const [describeAll, setDescribeAll] = useState<{ done: number; total: number } | null>(null);
+  const describePhoto = async (photo: any, index: number) => {
+    const { alt } = await askAi("photoAlt", { ...bookAiInput(formData), imageUrl: photoAiUrl(photo), photoNumber: index + 1 });
+    setFormData((prev: any) => ({ ...prev, photos: prev.photos.map((p: any) => (p.id === photo.id ? { ...p, altText: alt } : p)) }));
+  };
+  const describeOne = async (id: string) => {
+    if (!String(formData.title || "").trim()) { toast.error("Give the book a title first."); return; }
+    const index = formData.photos.findIndex((p: any) => p.id === id);
+    if (index < 0) return;
+    const current = describedAlt(formData.photos[index].altText);
+    if (current && !(await askConfirm({ title: "Replace this description?", message: `Gemini writes a new description for this photo in place of “${current}”. Nothing is saved until you save the book.`, confirmLabel: "Replace it" }))) return;
+    setDescribingId(id);
+    try {
+      await describePhoto(formData.photos[index], index);
+      toast.success("Photo described. Check it, then save the book.");
+    } catch (err: any) {
+      toast.error(err?.message || "The AI assistant couldn't answer.");
+    } finally {
+      setDescribingId(null);
+    }
+  };
+  const photosToDescribe = (formData.photos || []).filter((p: any) => !isVideoItem(p) && !describedAlt(p.altText));
+  const describeAllPhotos = async () => {
+    if (!String(formData.title || "").trim()) { toast.error("Give the book a title first."); return; }
+    const todo = photosToDescribe.map((p: any) => ({ photo: p, index: formData.photos.findIndex((x: any) => x.id === p.id) }));
+    if (!todo.length) return;
+    setDescribeAll({ done: 0, total: todo.length });
+    let done = 0;
+    try {
+      for (const { photo, index } of todo) {
+        setDescribingId(photo.id);
+        await describePhoto(photo, index);
+        done += 1;
+        setDescribeAll({ done, total: todo.length });
+      }
+      toast.success(`${done} ${done === 1 ? "photo" : "photos"} described. Check them, then save the book.`);
+    } catch (err: any) {
+      toast.error(`${done ? `${done} of ${todo.length} described, then: ` : ""}${err?.message || "The AI assistant couldn't answer."}`);
+    } finally {
+      setDescribingId(null);
+      setDescribeAll(null);
+    }
+  };
   const insertDescLink = (label: string, href: string) => {
     const markup = linkMarkup(label, href);
     setFormData((prev: any) => {
@@ -1259,6 +1315,12 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
             <SectionCard title="Book images" description="Use genuine cover and interior photographs. Drag the ⠿ handle to reorder; the first image is the cover shown in the shop and search."
               actions={<>
                 <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || formData.photos.length >= MAX_BOOK_PHOTOS}><Upload size={14} aria-hidden /> Upload images</button>
+                {photosToDescribe.length > 0 && (
+                  <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={describeAllPhotos} disabled={!!describingId || uploading}>
+                    {describeAll ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Sparkles size={14} aria-hidden />}{" "}
+                    {describeAll ? `Describing ${Math.min(describeAll.done + 1, describeAll.total)} of ${describeAll.total}…` : `Describe ${photosToDescribe.length} ${photosToDescribe.length === 1 ? "photo" : "photos"} with AI`}
+                  </button>
+                )}
                 <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => videoInputRef.current?.click()} disabled={uploading || formData.photos.length >= MAX_BOOK_PHOTOS || formData.photos.filter(isVideoItem).length >= MAX_BOOK_VIDEOS}><Film size={14} aria-hidden /> Add video</button>
               </>}>
               <div className={`be-drop ${dragOver ? "is-over" : ""}`}
@@ -1272,6 +1334,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                         <SortablePhoto key={photo.id} photo={photo} index={i} onRemove={removePhoto}
                           onAlt={(id, alt) => setFormData((prev: any) => ({ ...prev, photos: prev.photos.map((p: any) => (p.id === id ? { ...p, altText: alt } : p)) }))}
                           onCrop={setCropId}
+                          onDescribe={describeOne} describing={describingId === photo.id} aiLocked={!!describingId}
                           onMakeCover={(id) => setFormData((prev: any) => { const p = prev.photos.find((x: any) => x.id === id); return { ...prev, photos: [p, ...prev.photos.filter((x: any) => x.id !== id)] }; })} />
                       ))}
                     </SortableContext>

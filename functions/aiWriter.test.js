@@ -1,7 +1,7 @@
 import { createRequire } from "module";
 import { describe, expect, it, vi } from "vitest";
 
-const { aiKeyProblem, buildRequest, parseResponse, generate, handleAiWrite, fitWords, plainText, bookFacts } = createRequire(import.meta.url)("./aiWriter");
+const { aiKeyProblem, photoImageUrl, buildRequest, parseResponse, generate, handleAiWrite, fitWords, plainText, bookFacts } = createRequire(import.meta.url)("./aiWriter");
 
 const KEY = "AIza" + "x".repeat(35);
 const reply = (status, data) => ({ ok: status >= 200 && status < 300, status, json: async () => data });
@@ -91,6 +91,33 @@ describe("AI writing assistant (Gemini)", () => {
     const fetchImpl = vi.fn().mockResolvedValue(answer({ metaTitle: "Salt by Ana — Lyricalmyrical", metaDescription: "A risograph-printed book of sea poems." }));
     const out = await handleAiWrite({ task: "bookSeo", input: { title: "Salt", author: "Ana" }, siteName: "Lyricalmyrical" }, deps({ fetchImpl }));
     expect(out).toEqual({ status: 200, body: { ok: true, result: { metaTitle: "Salt by Ana — Lyricalmyrical", metaDescription: "A risograph-printed book of sea poems.", model: "gemini-2.5-flash" } } });
+  });
+
+  it("describes a book photo from the shop's own Storage bucket only", async () => {
+    const BUCKET = "shop.firebasestorage.app";
+    const own = "https://firebasestorage.googleapis.com/v0/b/shop.firebasestorage.app/o/products%2F1-01-960w.webp?alt=media&token=t";
+    expect(photoImageUrl(own, BUCKET)).toBe(own);
+    expect(photoImageUrl("https://storage.googleapis.com/shop.firebasestorage.app/products/a.jpg", BUCKET)).toMatch(/^https:/);
+    expect(photoImageUrl("https://firebasestorage.googleapis.com/v0/b/other.appspot.com/o/a.jpg", BUCKET)).toBe("");
+    expect(photoImageUrl("https://evil.example/v0/b/shop.firebasestorage.app/o/a.jpg", BUCKET)).toBe("");
+    expect(photoImageUrl("http://firebasestorage.googleapis.com/v0/b/shop.firebasestorage.app/o/a.jpg", BUCKET)).toBe("");
+    expect(photoImageUrl("https://firebasestorage.googleapis.com:8443/v0/b/shop.firebasestorage.app/o/a.jpg", BUCKET)).toBe("");
+
+    const refused = await handleAiWrite({ task: "photoAlt", input: { title: "Salt", imageUrl: "https://evil.example/a.jpg" } }, deps({ bucket: BUCKET }));
+    expect(refused.status).toBe(400);
+
+    const image = { ok: true, status: 200, headers: { get: h => (h === "content-type" ? "image/webp" : "4") }, arrayBuffer: async () => new Uint8Array([1, 2, 3, 4]).buffer };
+    const fetchImpl = vi.fn().mockResolvedValueOnce(image).mockResolvedValueOnce(answer({ alt: "Salt by Ana, open on a spread of grey sea photographs" }));
+    const out = await handleAiWrite({ task: "photoAlt", input: { title: "Salt", author: "Ana", imageUrl: own, photoNumber: 2 } }, deps({ fetchImpl, bucket: BUCKET }));
+    expect(out.body.result.alt).toBe("Salt by Ana, open on a spread of grey sea photographs");
+    expect(fetchImpl.mock.calls[0][0]).toBe(own);
+    const sent = JSON.parse(fetchImpl.mock.calls[1][1].body);
+    expect(sent.contents[0].parts[0].inlineData).toEqual({ mimeType: "image/webp", data: Buffer.from([1, 2, 3, 4]).toString("base64") });
+    expect(sent.contents[0].parts[1].text).toMatch(/photo 2 of the book/);
+
+    const notImage = { ...image, headers: { get: () => "text/html" } };
+    const bad = await handleAiWrite({ task: "photoAlt", input: { title: "Salt", imageUrl: own } }, deps({ fetchImpl: vi.fn().mockResolvedValue(notImage), bucket: BUCKET }));
+    expect(bad.status).toBe(502);
   });
 
   it("Check key reports Google's refusal in plain English", async () => {
