@@ -91,7 +91,7 @@ export function StudioAiRewrite({ kind, label, where, value, onChange, localUndo
           <input value={custom} maxLength={200} onChange={e => setCustom(e.target.value)} placeholder="Or tell it what to change…" aria-label="Tell the AI what to change" />
           <SecondaryButton size="sm" type="submit" disabled={!custom.trim()}>Go</SecondaryButton>
         </form>
-        <small className="studio-hint">Sends only these words to Google's Gemini. Facts are never added on purpose: check prices, dates and names.</small>
+        <small className="studio-hint">Sends only these words to the AI service set in Settings › General › AI writing assistant. Facts are never added on purpose: check prices, dates and names.</small>
       </div>}
     </div>
   );

@@ -220,7 +220,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
     const writeWithAi = async () => {
       if (!(editing.title || "").trim() && !pageBodyText(editing.body || "").trim()) return say("err", "Write the page title or some text first.");
       const written = (editing.seoTitle || "").trim() || (editing.metaDescription || "").trim();
-      if (written && !(await askConfirm({ title: "Rewrite your Google listing with AI?", message: "Gemini writes a new Google title and description from the page. Nothing is saved until you press Save page.", confirmLabel: "Rewrite" }))) return;
+      if (written && !(await askConfirm({ title: "Rewrite your Google listing with AI?", message: "The AI writes a new Google title and description from the page. Nothing is saved until you press Save page.", confirmLabel: "Rewrite" }))) return;
       setAiBusy(true);
       const opened = openCount.current;
       try {
@@ -273,7 +273,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
                 <Sparkles size={13} aria-hidden /> Auto-fill from page
               </button>
               <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={saving || aiBusy} onClick={() => void writeWithAi()}
-                title="Draft the Google title and description with Google Gemini (Settings › General › AI writing assistant)">
+                title="Draft the Google title and description with AI (Settings › General › AI writing assistant)">
                 <Sparkles size={13} aria-hidden /> {aiBusy ? "Writing…" : "Write with AI"}
               </button>
             </div>
