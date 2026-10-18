@@ -1319,6 +1319,12 @@ http(s) only, ≤10, cleaned by `creatorLinks` in `lib/bookSeo.ts`). `creatorPeo
 The Details tab lists them as followed links (Style › Book page · photos & layout › `showPdpArtistLinks`, label Text & labels ›
 Product page › `specArtistLinks`). `seoChecks` adds `creator` (listing names the artist) and `creatorLink` for books with a named creator.
 
+**Google indexing + feed artists (18 October 2026):** Books › More catalog actions › **Google indexing** (`admin/GoogleIndexDialog.tsx`,
+pure `admin/googleIndex.ts`) sends the home page and every sitemap-eligible book URL (≤30) to `searchConsole` `op: "inspect"` (URL
+Inspection API, same metadata token; URLs must sit inside the property, `inSite`) and links each to Google's `inspectionResultLink`
+(Request indexing exists only in Search Console's own UI). The Merchant feed titles add "by <artists>" and `g:product_detail` Author rows
+(`creatorNames` in `merchantFeed.mjs`, kept equal to `bookCreators` by `merchantFeed.test.ts`).
+
 **Rich results (October 2026):** pages emit one JSON-LD `@graph` — home BookStore+WebSite, book Product/Book + breadcrumb + star rating from approved reviews only (`reviewsApi.listApproved`, shared with the reviews section), collection CollectionPage/ItemList, page breadcrumbs (`lib/bookSeo.ts`, `docs/SEO_CRAWLABILITY.md`). The sitemap lists book photos as `image:image`.
 
 Production builds render the public sitemap into real HTML route documents via

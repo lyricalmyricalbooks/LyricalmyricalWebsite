@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { bookCreators } from "../../lib/bookSeo";
 // @ts-ignore - plain ESM shared with the build script
-import { merchantFeedItems, merchantFeedXml, releaseArrived as feedRelease, stockOf, bundleStock, unitPrice, preorderDate } from "./merchantFeed.mjs";
+import { creatorNames, merchantFeedItems, merchantFeedXml, releaseArrived as feedRelease, stockOf, bundleStock, unitPrice, preorderDate } from "./merchantFeed.mjs";
 // @ts-ignore - plain ESM build helper
 import { releaseArrived as buildRelease } from "../../../../scripts/publicStorefrontData.mjs";
 // @ts-ignore - CommonJS server modules
@@ -65,7 +66,7 @@ describe("merchantFeedItems", () => {
 
   it("describes a book the way Google expects", () => {
     expect(byId.a).toMatchObject({
-      title: "Salt Hours", description: "Poems & tides", link: `${SITE}/books/salt-hours`, image: "https://img.test/a.jpg",
+      title: "Salt Hours by Zoe Moss", creators: ["Zoe Moss"], description: "Poems & tides", link: `${SITE}/books/salt-hours`, image: "https://img.test/a.jpg",
       additionalImages: ["https://img.test/a-back.jpg"], price: "24.00 CAD", availability: "in_stock", gtin: "9780306406157",
       brand: "Lyrical Press", productType: "Poetry", googleCategory: "Media > Books > Print Books", condition: "new",
     });
@@ -86,5 +87,26 @@ describe("merchantFeedItems", () => {
     expect(xml).toContain("<g:identifier_exists>no</g:identifier_exists>");
     expect(xml.match(/<item>/g)).toHaveLength(2);
     expect(merchantFeedXml(SITE, [], { shopName: "Shop" })).toContain("<channel>");
+  });
+});
+
+describe("artist names in the feed", () => {
+  it("credits people the same way as the book page", () => {
+    for (const book of [
+      { subtitle: "Ian Willms" }, { subtitle: "A <b>One</b> &amp; B Two; C" }, { subtitle: "Various artists" },
+      { subtitle: "Subverso Magazines x Lyricalmyrical Books" }, { authorName: "Legacy Name" }, { subtitle: "Ann and Bo + Cy" }, {},
+    ]) expect(creatorNames(book)).toEqual(bookCreators(book as any));
+  });
+  it("puts the artist in the title once and lists them as Author", () => {
+    const books = [
+      { id: "h", title: "The Hound", subtitle: "Ian Willms", retailPrice: 60, photos: [{ url: "https://img.test/h.jpg" }] },
+      { id: "o", title: "Ian Willms: Notes", subtitle: "Ian Willms", retailPrice: 10, photos: [{ url: "https://img.test/o.jpg" }] },
+      { id: "v", title: "Collections #1", subtitle: "Various artists", retailPrice: 10, photos: [{ url: "https://img.test/v.jpg" }] },
+    ];
+    const { items } = merchantFeedItems("https://shop.test", books, { now: new Date("2026-10-18T12:00:00Z") });
+    expect(items.map((i: any) => i.title)).toEqual(["The Hound by Ian Willms", "Ian Willms: Notes", "Collections #1"]);
+    const xml = merchantFeedXml("https://shop.test", items);
+    expect(xml).toContain("<g:product_detail><g:section_name>Book</g:section_name><g:attribute_name>Author</g:attribute_name><g:attribute_value>Ian Willms</g:attribute_value></g:product_detail>");
+    expect(xml.match(/<g:product_detail>/g)).toHaveLength(2);
   });
 });

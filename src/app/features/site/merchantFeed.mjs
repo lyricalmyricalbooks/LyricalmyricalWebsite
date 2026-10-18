@@ -96,6 +96,21 @@ const httpsUrl = (value, base) => {
   try { const url = new URL(value.trim(), base); return /^https?:$/.test(url.protocol) ? url.href : ''; } catch { return ''; }
 };
 
+// Same rule as lib/bookSeo.ts bookCreators (merchantFeed.test.ts checks they agree): the people in the editor's
+// "Author / contributors" box (else the legacy authorName); group credits like "Various artists" name nobody.
+const GROUP_CREDIT = /^(various|vari[eo]?\b|aa\.?\s*vv\.?|autori vari|artisti vari|multiple|anthology)|\s[x×]\s/i;
+export function creatorNames(book) {
+  const credit = plain(book?.subtitle).replace(/\s+/g, ' ') || plain(book?.authorName).replace(/\s+/g, ' ');
+  if (!credit || GROUP_CREDIT.test(credit)) return [];
+  return [...new Set(credit.split(/\s*(?:,|;|&|\s\+\s|\sand\s)\s*/i).map(name => name.trim()).filter(name => name.length > 1))].slice(0, 10);
+}
+
+/** Shopping matches searches on the title, so a book's listing says who made it: "The Hound by Ian Willms". */
+function titleWithCreators(title, names) {
+  if (!names.length || title.toLowerCase().includes(names[0].toLowerCase())) return title;
+  return `${title} by ${names.join(', ')}`;
+}
+
 function googleCategory(format) {
   const f = String(format || '').toLowerCase();
   if (/audio/.test(f)) return 'Media > Books > Audiobooks';
@@ -117,6 +132,7 @@ export function merchantFeedItems(siteUrl, books, { shopName = 'Lyricalmyrical B
   const skipped = [];
   for (const book of resolveProductRoutes(live)) {
     const title = String(book.title || '').trim() || 'Untitled';
+    const creators = creatorNames(book);
     if (book.productType === 'giftCard') continue;
     if (book.seoNoindex === true) { skipped.push({ id: book.id, title, reason: 'Hidden from search engines (Search (SEO) › Hide from search)' }); continue; }
     const link = `${base}/books/${encodeURIComponent(book.slug)}`;
@@ -128,12 +144,13 @@ export function merchantFeedItems(siteUrl, books, { shopName = 'Lyricalmyrical B
     const common = {
       description, link, brand: plain(book.publisher) || shopName, condition: 'new',
       googleCategory: googleCategory(book.format), productType: (book.categories || book.genres || [])[0] || '',
-      bundle,
+      bundle, creators,
     };
     const variants = Array.isArray(book.variants) ? book.variants.filter(v => v && v.id) : [];
     const editions = variants.length ? variants : [null];
     for (const variant of editions) {
-      const name = variant ? `${title} – ${String(variant.name || '').trim() || 'Edition'}` : title;
+      const listed = titleWithCreators(title, creators);
+      const name = variant ? `${listed} – ${String(variant.name || '').trim() || 'Edition'}` : listed;
       const price = unitPrice(book, variant, now);
       const image = (variant && httpsUrl(variant.photoUrl, base + '/')) || photos[0] || '';
       if (!(price > 0)) { skipped.push({ id: book.id, title: name, reason: variant ? 'This edition has no price' : 'No price' }); continue; }
@@ -186,6 +203,7 @@ export function merchantFeedXml(siteUrl, items, { shopName = 'Lyricalmyrical Boo
     + tag('g:brand', item.brand) + (item.gtin ? tag('g:gtin', item.gtin) : tag('g:identifier_exists', 'no'))
     + tag('g:condition', item.condition) + tag('g:google_product_category', item.googleCategory) + tag('g:product_type', item.productType)
     + (item.bundle ? tag('g:is_bundle', 'yes') : '')
+    + (item.creators || []).map(person => `\n      <g:product_detail><g:section_name>Book</g:section_name><g:attribute_name>Author</g:attribute_name><g:attribute_value>${xml(person)}</g:attribute_value></g:product_detail>`).join('')
     + '\n    </item>').join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">\n  <channel>\n    <title>${xml(shopName)}</title>\n    <link>${xml(siteUrl.replace(/\/$/, '') + '/')}</link>\n    <description>${xml(`${shopName} books`)}</description>\n${body}${body ? '\n' : ''}  </channel>\n</rss>\n`;
 }
