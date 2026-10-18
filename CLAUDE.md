@@ -1421,12 +1421,21 @@ and one shop email (`[NEW ORDER] <id> · paid …`, `new_order_admin`, on paid, 
 (`pending`) orders. Card payments send no Stripe receipt (`receipt_email` removed); Stripe's own "successful payments"
 customer email must also be off in the Stripe dashboard. `functions/orderEmails.test.js` pins this.
 
-**Orders desk (7 October 2026):** Admin › Orders is an inbox-style split view (`admin/OrdersDesk.tsx`, logic in
-`ordersDesk.ts`, tested): list on the left (search; **Needs me** / **Shipped** / **All**; test orders hidden unless
-toggled), the full `OrderDetail` on the right — so Stripe sync, refunds, disputes, labels and dispatch are unchanged —
-with the oldest order that needs work opened automatically and finishing an order moving to the next (`goToNext`).
-`OrderDetail` reports reloads via `onChanged` so the list refreshes. Each list row shows the first book's title + cover (`rowBooks`/`rowCover`, catalog read once via `loadOrderBooks`, shared with order search) and refunded rows are tinted red (`refundState`). Phones show list *or* order. **Table view** opens the
-previous `Orders` table (bulk packing, pick lists, CSV). Email links `/admin#orders/<id>` still open that order.
+**Orders desk = Ship station (18 October 2026, design A):** Admin › Orders opens on the **Ship station** (`admin/OrdersDesk.tsx`,
+pure rules in `shipStation.ts` + `ordersDesk.ts`, tested): a header (To ship · Labels today on the Toronto day from
+`operations.labelBoughtAt` · Oldest, **Print pick list** for orders still to pack, **All orders · completed**), the numbered queue
+(`stationQueue` = the old Needs me: problems, packing, then labels, oldest first in each; `stationStep` pill) with **Not in this
+queue** links (pre-orders, e-Transfer/cash waiting, on the way) and the full `OrderDetail` on the right — so Stripe sync, refunds,
+disputes, labels and dispatch are unchanged — with the oldest order opened automatically and finishing an order moving to the next
+(`goToNext`). The workbench shows a three-step strip (`fw-strip`) and step 3 draws `admin/LabelBuyer.tsx` inline (saved parcels as chips,
+size/weight, **Find label rates**, the rates with the customer's service pre-selected, **Buy label · $x**, **Ship without a label**);
+changing the parcel forgets the rates, the purchase is still `buyCanadaPostLabel` and never dispatches or emails. **All orders**
+(`orders-desk-layout` = `grid`) is a covers grid with **Open** (anything not yet with the customer + manual payments due), **Completed**
+(delivered/collected/digital, never cancelled or refunded) and **All orders** (archived and abandoned too) via `gridTabOf`, search,
+sort, 40 per page; a card opens the order in the station. **Table** / **Export orders** open the previous `Orders` table (bulk
+packing, pick lists, CSV). `OrderDetail` reports reloads via `onChanged` so the list refreshes. Refunded cards are tinted red
+(`refundState`); covers come from `rowCover` (catalog read once via `loadOrderBooks`). Phones show queue *or* order. Email links
+`/admin#orders/<id>` still open that order.
 The packing checklist shows each book's current cover and **Shelf location** (Books › edit › Inventory, `shelfLocation`,
 per edition when set; `packingInfo` in `fulfillment.ts`). Shelf codes live in the admin-only private book document (see *Round-2 security*), merged back by `adminApi.getAllBooks` / `getBook`.
 

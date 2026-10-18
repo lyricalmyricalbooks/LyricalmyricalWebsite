@@ -159,3 +159,27 @@ describe("special order lines on the packing checklist", () => {
     expect(html).not.toContain("Packed 1 × Gift card");
   });
 });
+
+describe("ship station steps", () => {
+  it("shows where the order is in three steps", () => {
+    const o = base();
+    o.operations = { addressReviewed: addressKey(o) };
+    const html = render(o);
+    expect(html).toContain("Address checked");
+    expect(html).toContain('aria-current="step"');
+    expect(html).toContain("Step 2 · now");
+    expect(html).toContain("2 books");
+  });
+  it("draws the label step inside step 3 instead of the Buy Shippo label button", () => {
+    const o = base();
+    o.operations = { addressReviewed: addressKey(o), packed: packingKey(o) };
+    const html = renderToStaticMarkup(
+      <FulfillmentWorkbench order={o} checked={new Set()} busy={false} onCheck={() => {}} onReview={() => {}} onCorrect={() => {}} onPack={() => {}}
+        onDispatch={() => {}} onLocalAdvance={() => {}} onRelease={() => {}} labelStep={<div>inline label step</div>} />,
+    );
+    expect(html).toContain("inline label step");
+    expect(html).not.toContain("Buy Shippo label");
+    expect(html).toContain("Step 3 · now");
+  });
+});
+

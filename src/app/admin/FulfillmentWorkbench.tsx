@@ -36,7 +36,10 @@ type Props = {
   onReview: () => void;
   onCorrect: () => void;
   onPack: () => void;
-  onLabel: () => void;
+  /** Opens a label purchase elsewhere. Unused when `labelStep` is given. */
+  onLabel?: () => void;
+  /** Ship station: the parcel, rates and Buy label, drawn inside step 3 instead of the Buy label button. */
+  labelStep?: React.ReactNode;
   onDispatch: () => void;
   onEditTracking?: () => void;
   onDeliveryStatus?: (status: "out_for_delivery" | "delivered") => void;
@@ -75,6 +78,7 @@ export function FulfillmentWorkbench({
   onClearLabelLock,
   onReplaceLabel,
   onClearAppLabel,
+  labelStep,
   books,
 }: Props) {
   const queue = queueOf(order);
@@ -94,6 +98,7 @@ export function FulfillmentWorkbench({
   const addressActive = active && method !== "pickup" && !reviewed && !hold;
   const packingActive = queue === "Ready to pack";
   const shippingActive = queue === "Ready to ship";
+  const copies = physicalItems(order).reduce((n: number, i: any) => n + (Number(i.quantity) || 0), 0);
   return (
     <section
       className="rp-card fw-workbench"
@@ -113,6 +118,29 @@ export function FulfillmentWorkbench({
           {queue}
         </StatusBadge>
       </div>
+      {shipping && method === "shipping" && order.paymentStatus === "paid" && !terminal(order) && (
+        <ol className="fw-strip" aria-label="Steps">
+          {[
+            { done: reviewed, now: addressActive, title: reviewed ? "Address checked" : "Check the address", sub: [addr.city, addr.state, addr.zip].filter(Boolean).join(" ") },
+            { done: packed, now: packingActive, title: packed ? "Packed" : "Pack", sub: `${copies} book${copies === 1 ? "" : "s"}` },
+            {
+              done: ["In transit", "Completed"].includes(queue),
+              now: shippingActive,
+              title: ["In transit", "Completed"].includes(queue) ? "Shipped" : order.labelUrl ? "Hand over & ship" : "Label & ship",
+              sub: ["In transit", "Completed"].includes(queue) ? order.trackingNumber || "Sent" : order.labelUrl ? "Label bought" : "Parcel and rate",
+            },
+          ].map((step, i) => (
+            <li key={i} className="fw-strip-step" data-state={step.done ? "done" : step.now ? "now" : "todo"} aria-current={step.now ? "step" : undefined}>
+              <span className="fw-strip-mark rp-mono" aria-hidden="true">{step.done ? "✓" : i + 1}</span>
+              <span>
+                <span className="rp-label">Step {i + 1}{step.now ? " · now" : ""}</span>
+                <strong>{step.title}</strong>
+                {step.sub ? <span className="rp-hint">{step.sub}</span> : null}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
       {blockingProblem(order) && !(hold && active) && (
         <div className="fw-notice" role="alert">
           <div>
@@ -274,7 +302,7 @@ export function FulfillmentWorkbench({
             <span className="rp-hint">
               {packed
                 ? "All books packed"
-                : `${(order.items || []).reduce((n: number, i: any) => n + Number(i.quantity || 0), 0)} items`}
+                : (() => { const n = (order.items || []).reduce((sum: number, i: any) => sum + Number(i.quantity || 0), 0); return `${n} item${n === 1 ? "" : "s"}`; })()}
             </span>
           </div>
         </div>
@@ -458,7 +486,9 @@ export function FulfillmentWorkbench({
                 <p className="fw-summary">
                   {order.labelUrl
                     ? `Label bought · ${order.trackingCarrier || "Carrier"} · ${order.trackingNumber || "Tracking pending"}. Print it, hand the parcel to the carrier, then mark it shipped — you can add or check the tracking link the customer's email uses.`
-                    : "Buy a Shippo label, or enter the carrier, tracking number and tracking link yourself. The customer's shipping email uses them when you mark it shipped."}
+                    : labelStep
+                      ? "Choose the parcel and a rate, buy the label and print it. Mark the parcel shipped when it leaves: that sends the customer's shipping email."
+                      : "Buy a Shippo label, or enter the carrier, tracking number and tracking link yourself. The customer's shipping email uses them when you mark it shipped."}
                 </p>
                 <div className="fw-actions">
                   {order.labelUrl ? (
@@ -481,7 +511,7 @@ export function FulfillmentWorkbench({
                         </SecondaryButton>
                       )}
                     </>
-                  ) : (
+                  ) : labelStep ? null : (
                     <>
                       <PrimaryButton disabled={busy} onClick={onLabel}>
                         Buy Shippo label
@@ -492,6 +522,7 @@ export function FulfillmentWorkbench({
                     </>
                   )}
                 </div>
+                {!order.labelUrl && labelStep}
               </>
             )
           )}

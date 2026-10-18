@@ -1,6 +1,7 @@
 import { ReturnWorkbench } from "./ReturnWorkbench";
 import { DOWNLOAD_LIMIT } from "../features/site/digitalLine";
 import { FulfillmentWorkbench } from "./FulfillmentWorkbench";
+import { LabelBuyer, type Parcel, type ParcelPreset } from "./LabelBuyer";
 import { CARRIERS, cleanTrackingLink, getTrackingUrl } from "../lib/tracking";
 import {
   addressKey,
@@ -98,8 +99,8 @@ export function OrderDetail({
   const [labelRates, setLabelRates] = useState<any[]>([]);
   const [labelShipmentId, setLabelShipmentId] = useState("");
   const [selectedLabelRate, setSelectedLabelRate] = useState("");
-  const [showLabelRates, setShowLabelRates] = useState(false);
-  const [showParcel, setShowParcel] = useState(false);
+  // Rates were asked for the current parcel (cleared whenever the parcel changes, so a label is never bought for an old size).
+  const [ratesSearched, setRatesSearched] = useState(false);
   const [showHold, setShowHold] = useState(false);
   const [showRefund, setShowRefund] = useState(false);
   const [isBuyingLabel, setIsBuyingLabel] = useState(false);
@@ -120,7 +121,6 @@ export function OrderDetail({
     mass_unit: "g",
   });
   const parcelTouched = useRef(false);
-  const [presetName, setPresetName] = useState("");
   // Parcel presets live in settings/parcelPresets (shared by every browser). Presets saved in
   // this browser's localStorage before that are copied across once, then removed locally.
   const [presets, setPresets] = useState<any[]>([]);
@@ -158,7 +158,6 @@ export function OrderDetail({
   const [refundRestockLines, setRefundRestockLines] = useState<Record<number, number>>({});
   const [confirmAction, setConfirmAction] = useState<null | "markPaid" | "mismatch" | "giftConflict" | "requestHandled" | "resendConfirmation" | "resetDownloads" | "restockRefunded">(null);
   const [confirmReleasePreorder, setConfirmReleasePreorder] = useState(false);
-  const [savingPreset, setSavingPreset] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState<
     "all" | "event" | "note"
   >("all");
@@ -398,12 +397,39 @@ export function OrderDetail({
       // Pre-select the service the customer paid for at checkout; never silently swap it.
       const chosen = (result.rates || []).find((r: any) => matchesCustomerService(r.name, order?.shippingMethod));
       setSelectedLabelRate(chosen?.id || (order?.shippingMethod ? "" : result.rates?.[0]?.id || ""));
-      setShowParcel(false);
-      setShowLabelRates(true);
+      setRatesSearched(true);
     } catch (err: any) {
       toast.error(err.message || "Couldn't load Canada Post rates.");
     } finally {
       setIsGeneratingLabel(false);
+    }
+  };
+
+  const forgetRates = () => {
+    setLabelRates([]);
+    setLabelShipmentId("");
+    setSelectedLabelRate("");
+    setRatesSearched(false);
+  };
+  const changeParcel = (patch: Partial<Parcel>) => {
+    parcelTouched.current = true;
+    setParcel((prev) => ({ ...prev, ...patch }));
+    forgetRates();
+  };
+  // A saved parcel sets the box size; the weight still comes from this order's books, in grams
+  // (presets saved before weights went metric carry mass_unit "lb").
+  const pickPreset = (preset: ParcelPreset) =>
+    changeParcel({ ...preset.parcel, weight: String(suggestedParcelWeightGrams(order)), mass_unit: "g" } as Partial<Parcel>);
+  const savePreset = async (name: string) => {
+    const next = [...presets.filter((p) => p.name !== name), { name: name.slice(0, 60), parcel }].slice(-30);
+    try {
+      await adminApi.saveParcelPresets(next);
+      setPresets(next);
+      toast.success("Parcel saved");
+      return true;
+    } catch {
+      toast.error("Could not save the parcel");
+      return false;
     }
   };
 
@@ -416,9 +442,9 @@ export function OrderDetail({
         labelShipmentId,
         selectedLabelRate,
       );
-      setShowLabelRates(false);
+      forgetRates();
       await loadOrder();
-      toast.success("Canada Post label purchased.");
+      toast.success("Label bought. Print it, then mark the parcel shipped when it leaves.");
     } catch (err: any) {
       toast.error(err.message || "Couldn't purchase the label.");
       await loadOrder();
@@ -673,12 +699,6 @@ export function OrderDetail({
 
   const queue = queueOf(order);
   const problem = dispatchProblem(order);
-  const parcelValid = [
-    parcel.length,
-    parcel.width,
-    parcel.height,
-    parcel.weight,
-  ].every((v) => Number.isFinite(Number(v)) && Number(v) > 0);
 
   return (
     <div className="rp-stack fw-detail">
@@ -814,7 +834,32 @@ export function OrderDetail({
           onReview={() => perform("review", { addressKey: addressKey(order) })}
           onCorrect={() => setEditAddress({ ...addr })}
           onPack={() => perform("pack", { packingKey: packingKey(order) })}
-          onLabel={() => setShowParcel(true)}
+          labelStep={
+            <LabelBuyer
+              order={order}
+              parcel={parcel as Parcel}
+              onParcel={changeParcel}
+              presets={presets}
+              onPreset={pickPreset}
+              suggestedWeight={suggestedParcelWeightGrams(order)}
+              rates={labelRates}
+              searched={ratesSearched}
+              selectedRate={selectedLabelRate}
+              onSelectRate={setSelectedLabelRate}
+              finding={isGeneratingLabel}
+              buying={isBuyingLabel}
+              busy={working || isShipping || isVoiding || loadFailed}
+              problem={problem}
+              onFindRates={handlePushToShippo}
+              onBuy={handleBuyLabel}
+              onDispatch={() => {
+                fillTracking(order);
+                setLabelReplaced(false);
+                setShowShipForm("dispatch");
+              }}
+              onSavePreset={savePreset}
+            />
+          }
           onDispatch={() => {
             fillTracking(order);
             setLabelReplaced(false);
@@ -1185,103 +1230,6 @@ export function OrderDetail({
         )}
       </details>
       <Dialog
-        open={showParcel}
-        onClose={() => !isGeneratingLabel && setShowParcel(false)}
-        title="Set up your parcel"
-        description="Measure and weigh the packed books before comparing Canada Post rates."
-        footer={
-          <>
-            <SecondaryButton
-              onClick={() => setShowParcel(false)}
-              disabled={isGeneratingLabel}
-            >
-              Cancel
-            </SecondaryButton>
-            <PrimaryButton
-              disabled={isGeneratingLabel || !parcelValid || !!problem}
-              onClick={handlePushToShippo}
-            >
-              {isGeneratingLabel ? "Finding rates…" : "Compare rates"}
-            </PrimaryButton>
-          </>
-        }
-      >
-        <div className="rp-stack">
-          {presets.length > 0 && (
-            <SelectField
-              label="Saved parcel"
-              value=""
-              onChange={(e) => {
-                const selected = presets.find((p) => p.name === e.target.value);
-                if (selected) {
-                  parcelTouched.current = true;
-                  // Keep the box size; the weight still comes from this order's books, in grams
-                  // (presets saved before weights went metric carry mass_unit "lb").
-                  setParcel({ ...selected.parcel, weight: suggestedParcelWeightGrams(order), mass_unit: "g" });
-                }
-              }}
-            >
-              <option value="">Choose a saved parcel…</option>
-              {presets.map((p) => (
-                <option key={p.name}>{p.name}</option>
-              ))}
-            </SelectField>
-          )}
-          <div className="fw-dialog-grid">
-            {(["length", "width", "height", "weight"] as const).map((k) => (
-              <TextField
-                key={k}
-                label={`${k[0].toUpperCase() + k.slice(1)} (${k === "weight" ? "g" : "in"})`}
-                type="number"
-                min={k === "weight" ? "1" : "0.01"}
-                step={k === "weight" ? "1" : "0.01"}
-                value={parcel[k]}
-                onChange={(e) => {
-                  parcelTouched.current = true;
-                  setParcel((prev) => ({ ...prev, [k]: e.target.value }));
-                }}
-                hint={k === "weight" ? `Suggested ${formatGrams(Number(suggestedParcelWeightGrams(order)))} from the books' catalog weights plus packaging.` : undefined}
-              />
-            ))}
-          </div>
-          <details className="fw-notes">
-            <summary>Save as a parcel preset</summary>
-            <div className="fw-note-form">
-              <div>
-                <TextField
-                  label="Preset name"
-                  value={presetName}
-                  onChange={(e) => setPresetName(e.target.value)}
-                  placeholder="e.g. Two paperbacks"
-                />
-              </div>
-              <SecondaryButton
-                disabled={savingPreset || !presetName.trim() || !parcelValid}
-                onClick={async () => {
-                  if (savingPreset) return;
-                  setSavingPreset(true);
-                  const next = [
-                    ...presets.filter((p) => p.name !== presetName.trim()),
-                    { name: presetName.trim().slice(0, 60), parcel },
-                  ].slice(-30);
-                  try {
-                    await adminApi.saveParcelPresets(next);
-                    setPresets(next);
-                    toast.success("Parcel preset saved");
-                  } catch {
-                    toast.error("Could not save preset");
-                  } finally {
-                    setSavingPreset(false);
-                  }
-                }}
-              >
-                {savingPreset ? "Saving…" : "Save preset"}
-              </SecondaryButton>
-            </div>
-          </details>
-        </div>
-      </Dialog>
-      <Dialog
         open={!!showShipForm}
         onClose={() => !isShipping && setShowShipForm(false)}
         title={showShipForm === "edit" ? (hasLabel ? "Edit tracking link or number" : "Correct tracking") : "Confirm dispatch"}
@@ -1631,116 +1579,6 @@ export function OrderDetail({
               />
             ))}
           </div>
-        )}
-      </Dialog>
-      <Dialog
-        open={showLabelRates}
-        onClose={() => !isBuyingLabel && setShowLabelRates(false)}
-        title="Choose a label"
-        description="The service the customer paid for is pre-selected. Buying a label charges your Shippo account. The customer is emailed only when you confirm dispatch."
-        footer={
-          <>
-            <SecondaryButton
-              onClick={() => setShowLabelRates(false)}
-              disabled={isBuyingLabel}
-            >
-              Cancel
-            </SecondaryButton>
-            <PrimaryButton
-              onClick={handleBuyLabel}
-              disabled={!selectedLabelRate || isBuyingLabel}
-            >
-              {isBuyingLabel ? "Buying label…" : "Buy selected label"}
-            </PrimaryButton>
-          </>
-        }
-      >
-        {labelRates.length === 0 ? (
-          <EmptyState
-            title="No label rates available"
-            description="Neither Canada Post nor the service the customer chose came back for this parcel and address. Check the address or parcel details, then try again."
-          />
-        ) : (
-          <fieldset style={{ margin: 0, padding: 0, border: 0 }}>
-            <legend className="rp-sr-only">Label choices</legend>
-            {order.shippingMethod && (
-              <p className="rp-hint" style={{ margin: "0 0 10px" }}>
-                Customer chose <strong>{order.shippingMethod}</strong> and paid {money(order.shipping)} for shipping.
-              </p>
-            )}
-            {order.shippingMethod && !labelRates.some((r) => matchesCustomerService(r.name, order.shippingMethod)) && (
-              <p className="fw-problems" role="alert">
-                The customer's service isn't offered for this parcel. Choose the closest service yourself.
-              </p>
-            )}
-            {(() => {
-              const picked = labelRates.find((r) => r.id === selectedLabelRate);
-              return picked && Number(picked.amount) > Number(order.shipping || 0) ? (
-                <p className="rp-hint" role="status" style={{ margin: "0 0 10px" }}>
-                  This label costs more than the customer paid for shipping.
-                </p>
-              ) : null;
-            })()}
-            <div style={{ display: "grid", gap: 10 }}>
-              {labelRates.map((rate, index) => {
-                const selected = selectedLabelRate === rate.id;
-                const days = rate.estimatedDays
-                  ? `${rate.estimatedDays} day${rate.estimatedDays === 1 ? "" : "s"}`
-                  : "Delivery estimate unavailable";
-                return (
-                  <label
-                    key={rate.id}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "auto 1fr auto",
-                      gap: 14,
-                      alignItems: "center",
-                      padding: 16,
-                      cursor: "pointer",
-                      border: `2px solid ${selected ? "var(--rp-primary)" : "var(--rp-border)"}`,
-                      background: selected
-                        ? "var(--rp-primary-tint)"
-                        : "var(--rp-surface)",
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="label-rate"
-                      value={rate.id}
-                      checked={selected}
-                      onChange={() => setSelectedLabelRate(rate.id)}
-                    />
-                    <span>
-                      <strong style={{ display: "block" }}>{rate.name}{rate.carrier && !String(rate.name).toLowerCase().includes(String(rate.carrier).toLowerCase()) ? ` · ${rate.carrier}` : ""}</strong>
-                      <span className="rp-hint">
-                        {days}
-                        {rate.durationTerms ? ` · ${rate.durationTerms}` : ""}
-                      </span>
-                    </span>
-                    <span style={{ textAlign: "right" }}>
-                      {matchesCustomerService(rate.name, order.shippingMethod) ? (
-                        <StatusBadge tone="info">Customer chose</StatusBadge>
-                      ) : index === 0 ? (
-                        <StatusBadge tone="success">Cheapest</StatusBadge>
-                      ) : null}
-                      <strong
-                        className="rp-mono"
-                        style={{
-                          display: "block",
-                          marginTop: index === 0 || matchesCustomerService(rate.name, order.shippingMethod) ? 6 : 0,
-                        }}
-                      >
-                        {new Intl.NumberFormat("en-CA", {
-                          style: "currency",
-                          currency: rate.currency || "CAD",
-                        }).format(rate.amount)}
-                      </strong>
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          </fieldset>
         )}
       </Dialog>
 
