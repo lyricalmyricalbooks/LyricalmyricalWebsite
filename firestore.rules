@@ -137,7 +137,7 @@ service cloud.firestore {
         && request.resource.data.trackingKey is string
         && request.resource.data.trackingKey.matches('^[a-f0-9]{64}$')
         // Only checkout's own fields: no isTest, inventory/discount/refund markers or payment ids.
-        && request.resource.data.keys().hasOnly(['customer', 'cartId', 'customerId', 'referralSource', 'orderNote',
+        && request.resource.data.keys().hasOnly(['customer', 'cartId', 'customerId', 'referralSource', 'acquisition', 'orderNote',
           'addressVerified', 'addressError', 'items', 'subtotal', 'discount', 'shipping', 'shippingMethod',
           'fulfillmentSelection', 'tax', 'total', 'status', 'paymentStatus', 'paymentMethod', 'paymentInstructions',
           'testMode', 'appliedDiscount', 'metadata', 'trackingKey', 'orderId', 'createdAt', 'updatedAt', 'activity', 'giftCards'])
@@ -153,6 +153,9 @@ service cloud.firestore {
           && request.resource.data.metadata.get('userAgent', '') is string && request.resource.data.metadata.get('userAgent', '').size() <= 1000
           && request.resource.data.metadata.get('platform', '') is string && request.resource.data.metadata.get('platform', '').size() <= 40))
         && (!('referralSource' in request.resource.data) || (request.resource.data.referralSource is string && request.resource.data.referralSource.size() <= 200))
+        // How the shopper found the shop (src/app/lib/visitSource.ts), as one JSON string: a per-key check of a map
+        // pushed this rule past the rules engine's expression budget and refused every order that carried it.
+        && (!('acquisition' in request.resource.data) || (request.resource.data.acquisition is string && request.resource.data.acquisition.size() <= 2000))
         && (!('addressError' in request.resource.data) || (request.resource.data.addressError is string && request.resource.data.addressError.size() <= 2000))
         && request.resource.data.items is list
         && request.resource.data.items.size() > 0

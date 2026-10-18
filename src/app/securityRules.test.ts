@@ -47,6 +47,7 @@ describe("firestore.rules anonymous-abuse guards", () => {
     expect(orders).toMatch(/guestCustomerOk\(request\.resource\.data\.customer\)/);
     expect(orders).toMatch(/metadata\.size\(\) <= 4/);
     expect(orders).toMatch(/referralSource\.size\(\) <= 200/);
+    expect(orders).toMatch(/request\.resource\.data\.acquisition is string && request\.resource\.data\.acquisition\.size\(\) <= 2000/);
     expect(rules).toMatch(/function guestCustomerOk\(c\) \{\s*return c is map && c\.size\(\) <= 10/);
     // Rules can't loop over lines (an unrolled check exceeds the 1000-expression limit and
     // refuses every order), so priceOrder clamps each line to 1–99 copies.

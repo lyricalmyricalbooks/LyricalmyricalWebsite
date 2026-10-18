@@ -1,4 +1,5 @@
 import { readCartDestination, prefillCartAddress } from "./features/site/cartDestination";
+import { orderAcquisition } from "./lib/visitSource";
 import { regionProps } from "./features/site/storefrontRegions";
 import { TRACKING_CSS } from "./features/site/trackingStyle";
 import { consentAllows } from "./lib/consent";
@@ -1352,6 +1353,8 @@ export function Checkout() {
       }
 
       const referralSource = typeof window !== "undefined" ? window.sessionStorage.getItem("referral_source") : null;
+      // Campaign tags, referring page and landing page (lib/visitSource.ts); null when nothing was recorded.
+      const acquisition = orderAcquisition();
 
       const checkoutCartId = sessionStorage.getItem("fm_checkout_cart_id");
       const orderData = {
@@ -1361,6 +1364,7 @@ export function Checkout() {
         ...(checkoutCartId ? { cartId: checkoutCartId } : {}),
         customerId: currentUser?.uid || null,
         referralSource: (referralSource || "direct").slice(0, 200),
+        ...(acquisition ? { acquisition } : {}),
         ...(checkoutDesign.showOrderNote && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
         addressVerified,
         addressError,
@@ -1451,6 +1455,7 @@ export function Checkout() {
               ...(orderData.shippingMethod ? { shippingMethod: orderData.shippingMethod } : {}),
               ...(checkoutCartId ? { cartId: checkoutCartId } : {}),
               referralSource: orderData.referralSource,
+              ...(acquisition ? { acquisition } : {}),
               ...(appliedDiscount?.code ? { appliedDiscount: { code: appliedDiscount.code } } : {}),
               ...(checkoutDesign.showOrderNote && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
             },

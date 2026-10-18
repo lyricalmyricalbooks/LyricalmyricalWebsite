@@ -116,6 +116,11 @@ await check("long activity list refused", assertFails(setDoc(doc(anon, "orders/A
 await check("extra customer key refused", assertFails(setDoc(doc(anon, "orders/AB-17"), { ...order({ customer: { ...order().customer, isAdmin: true } }), orderId: "AB-17" })));
 await check("non-boolean testMode refused", assertFails(setDoc(doc(anon, "orders/AB-18"), { ...order({ testMode: "yes" }), orderId: "AB-18" })));
 await check("free order (total 0) ok", assertSucceeds(setDoc(doc(anon, "orders/AB-19"), { ...order({ total: 0, subtotal: 0, paymentMethod: "Free" }), orderId: "AB-19" })));
+// how the shopper found the shop (src/app/lib/visitSource.ts): one JSON string
+const acq = JSON.stringify({ source: "instagram", medium: "social", campaign: "fall", term: "t", content: "c", referrer: "l.instagram.com", landingPage: "/books/x", clickId: "fbclid", firstSeenAt: "2026-10-18T00:00:00.000Z" });
+await check("order with acquisition ok", assertSucceeds(setDoc(doc(anon, "orders/AB-20"), { ...order({ acquisition: acq }), orderId: "AB-20" })));
+await check("long acquisition refused", assertFails(setDoc(doc(anon, "orders/AB-22"), { ...order({ acquisition: "x".repeat(2001) }), orderId: "AB-22" })));
+await check("acquisition as a map refused", assertFails(setDoc(doc(anon, "orders/AB-23"), { ...order({ acquisition: { source: "x" } }), orderId: "AB-23" })));
 
 // books: shoppers see published books only, never the private fields (#18)
 await check("anon reads a published book", assertSucceeds(getDoc(doc(anon, "books/pub"))));

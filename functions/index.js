@@ -50,6 +50,7 @@ const { optOutId, unsubscribeToken, tokenMatches, purposeToken, purposeTokenMatc
 const { runReviewRequests, REVIEW_REQUEST_TEMPLATE } = require("./reviewRequests");
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines, shopDate } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
+const { encodeAcquisition } = require("./acquisition");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
 const { refundRetrySuffix, refundPlan, refundedSoFar, restockLinesFor, withoutRestocked, partialRefundKey } = require("./partialRefund");
 const { leftTheShop, restockRefundedOrder } = require("./refundRestock");
@@ -1829,6 +1830,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
           ...(typeof source.shippingMethod === 'string' && source.shippingMethod ? { shippingMethod: source.shippingMethod.slice(0, 200) } : {}),
           ...(typeof source.cartId === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(source.cartId) ? { cartId: source.cartId } : {}),
           referralSource: typeof source.referralSource === 'string' ? source.referralSource.slice(0, 120) : 'direct',
+          ...(encodeAcquisition(source.acquisition) ? { acquisition: encodeAcquisition(source.acquisition) } : {}),
           appliedDiscount: typeof source.appliedDiscount?.code === 'string' ? { code: source.appliedDiscount.code.slice(0, 100) } : null,
           ...(typeof source.orderNote === 'string' ? { orderNote: source.orderNote.slice(0, 500) } : {}),
           ...(typeof source.locale === 'string' ? { locale: source.locale.slice(0, 20) } : {}),

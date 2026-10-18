@@ -1,4 +1,5 @@
 import { ReturnWorkbench } from "./ReturnWorkbench";
+import { acquisitionRows } from "./orderAcquisition";
 import { DOWNLOAD_LIMIT } from "../features/site/digitalLine";
 import { FulfillmentWorkbench } from "./FulfillmentWorkbench";
 import { LabelBuyer, type Parcel, type ParcelPreset } from "./LabelBuyer";
@@ -1042,6 +1043,18 @@ export function OrderDetail({
               </p>
             )}
           </SectionCard>
+          {acquisitionRows(order).length > 0 && (
+            <SectionCard title="How they found you">
+              <dl style={{ margin: 0, display: "grid", gap: 10 }}>
+                {acquisitionRows(order).map(row => (
+                  <div key={row.label} style={{ display: "grid", gridTemplateColumns: "minmax(110px, 35%) 1fr", gap: 12 }}>
+                    <dt className="rp-label">{row.label}</dt>
+                    <dd style={{ margin: 0, overflowWrap: "anywhere" }}>{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </SectionCard>
+          )}
           <SectionCard title="Payment summary">
             <dl style={{ margin: 0, display: "grid", gap: 12 }}>
               {[

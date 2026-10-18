@@ -1,6 +1,7 @@
 import { useState, lazy, Suspense, useEffect, useRef, type ReactNode } from "react";
 import { consentAllows } from "./lib/consent";
 import { REFERRAL_KEY, referralSourceOf } from "./lib/referralSource";
+import { recordVisitSource } from "./lib/visitSource";
 import { LazyMotion, MotionConfig } from "motion/react";
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router";
 import { ScrollToTop } from "./lib/ScrollToTop";
@@ -106,6 +107,9 @@ export default function App() {
         const source = referralSourceOf(document.referrer, window.location.hostname);
         if (source) window.sessionStorage.setItem(REFERRAL_KEY, source);
       }
+      // The fuller record (campaign tags, landing page) that goes on the order as `acquisition`.
+      // Not from the Studio preview (same test as trackingGuard's inEditorPreview).
+      if (!window.location.search.includes("preview=true")) recordVisitSource();
     }
   }, []);
 
