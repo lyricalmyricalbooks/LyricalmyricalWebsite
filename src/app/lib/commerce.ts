@@ -1,4 +1,4 @@
-import { ga4Event, purchaseEvent } from "./ga4";
+import { ga4BookItem, ga4Event, purchaseEvent } from "./ga4";
 import { cleanAcquisition } from "./visitSource";
 import { inEditorPreview, trackingAllowed } from "./trackingGuard";
 import { analyticsKey, cleanSearchTerm, deviceOf } from "./analyticsKeys";
@@ -324,6 +324,7 @@ export const funnelApi = {
   /** A book saved to the wishlist — once per book per session (taking it off again isn't counted). */
   trackWishlistAdd: async (bookId: string) => {
     if (!bookId || typeof window === "undefined" || !firstThisSession(`fm_wishadd_${bookId}`)) return;
+    ga4Event("add_to_wishlist", { items: [ga4BookItem(bookId)] });
     await bump({ wishlistAdds: { [mapKey(bookId)]: 1 } });
   },
 
@@ -351,6 +352,9 @@ export const funnelApi = {
     if (!term || typeof window === "undefined") return;
     const field = resultCount > 0 ? "searches" : "noResults";
     if (!firstThisSession(`fm_search_${field}_${term}`)) return;
+    // Google's own search report reads `search_term`; a search that found nothing is its own event so it shows
+    // in Reports › Engagement › Events without setting up a custom dimension.
+    ga4Event(resultCount > 0 ? "search" : "search_no_results", { search_term: term });
     await bump({ [field]: { [term]: 1 } });
   },
 };

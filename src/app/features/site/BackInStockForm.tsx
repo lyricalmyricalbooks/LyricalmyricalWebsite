@@ -2,6 +2,7 @@ import { useState } from "react";
 import { lite } from "../../../lib/lite";
 import { getCopy } from "./storeCopy";
 import { inEditorPreview } from "../../lib/trackingGuard";
+import { ga4Event } from "../../lib/ga4";
 
 export function isValidAlertEmail(value: string) {
   return /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(value.trim()) && value.length <= 254;
@@ -31,6 +32,7 @@ export async function saveStockAlert(input: { email: string; bookId: string; boo
     status: "waiting",
     createdAt: new Date().toISOString(),
   }).catch((err: any) => { if (err?.code !== "permission-denied") throw err; });
+  ga4Event("back_in_stock_signup", { items: [{ item_id: input.bookId, item_name: String(input.bookTitle || "Book").slice(0, 100), ...(input.variantName ? { item_variant: String(input.variantName).slice(0, 100) } : {}) }] });
 }
 
 /** "Notify me when back in stock" signup shown on sold-out product pages. */

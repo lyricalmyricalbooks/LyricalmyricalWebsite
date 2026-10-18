@@ -4,6 +4,7 @@
 // `newsletter` collection (firestore.rules), so nobody can add a stranger's address.
 import { functionFetch } from "../../lib/functionsBase";
 import { inEditorPreview } from "../../lib/trackingGuard";
+import { ga4Event } from "../../lib/ga4";
 
 export const isEmailAddress = (email: string) => /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(String(email || "").trim());
 
@@ -17,7 +18,10 @@ export async function subscribeNewsletter(email: string, source: string): Promis
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "newsletterSignup", email: email.trim().toLowerCase(), source: String(source || "website").slice(0, 60) }),
   });
-  if (response.ok) return;
+  if (response.ok) {
+    ga4Event("newsletter_signup", { method: String(source || "website").slice(0, 60) });
+    return;
+  }
   throw new Error(response.status === 400 ? "invalid-email" : response.status === 429 ? "busy" : "failed");
 }
 

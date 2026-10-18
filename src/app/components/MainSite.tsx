@@ -899,7 +899,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             </p>
           )}
 
-          <div data-studio-target="style:products|style:catalogLayout|copy:Catalog & empty states" data-studio-label="Product grid" className={`grid ${mobileColsClass} ${desktopColsClass}`} style={{ gap: storefrontGridGap, rowGap: Math.min(isReferenceCatalog ? Math.max(40, storefrontGridGap * 3) : shopSectionSpacing, storefrontGridGap * 1.5) }}>
+          <div data-ga-list={activeCategory && activeCategory !== "ALL" && catNameForSEO(activeCategory) ? `Shop · ${catNameForSEO(activeCategory)}` : "Shop"} data-studio-target="style:products|style:catalogLayout|copy:Catalog & empty states" data-studio-label="Product grid" className={`grid ${mobileColsClass} ${desktopColsClass}`} style={{ gap: storefrontGridGap, rowGap: Math.min(isReferenceCatalog ? Math.max(40, storefrontGridGap * 3) : shopSectionSpacing, storefrontGridGap * 1.5) }}>
             {filteredItems.map((item: any, index: number) => {
               const slug = getBookSlug(item);
               const stock = item.stockLevel ?? 999;

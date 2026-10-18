@@ -94,7 +94,7 @@ function WishlistContent() {
           </Link>
         </div>
       ) : (
-        <div {...regionProps("wishlistGrid")} className="max-w-6xl mx-auto px-6 py-12 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+        <div {...regionProps("wishlistGrid")} data-ga-list="Wishlist" className="max-w-6xl mx-auto px-6 py-12 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
           {items.map(book => {
             // No saved slug: link by id, which the product page also resolves.
             const slug = (book as any).slug || book.id;

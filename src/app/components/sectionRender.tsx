@@ -72,6 +72,12 @@ export function sectionInWindow(section: any): boolean {
 
 /** Scoped style + font loading for a section's heading/body font overrides. */
 
+/** The name a section's book cards report to Google Analytics (lib/ga4Lists.ts): its heading, else its kind. */
+function gaListName(section: any): string {
+  const heading = section?.settings?.heading ?? section?.settings?.title;
+  return (typeof heading === "string" && heading.replace(/<[^>]*>/g, "").trim()) || String(section?.type || "Section");
+}
+
 function SectionScopedCss({ sectionId, css }: { sectionId: string; css?: string }) {
   if (!css) return null;
   const selector = `[data-fm-section="${sectionId}"]`;
@@ -335,6 +341,7 @@ export function SectionList({
             data-section={dataSection}
             data-section-id={section.id}
             data-fm-section={section.id}
+            data-ga-list={gaListName(section)}
             data-scheme={scheme?.id || undefined}
             data-draw-later={drawLater || undefined}
             className={wrapperCls}

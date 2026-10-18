@@ -162,7 +162,7 @@ export function SearchOverlay({
               </button>
             </div>
 
-            <div id="fm-search-results" role="listbox" className="max-h-[60vh] overflow-y-auto">
+            <div id="fm-search-results" role="listbox" data-ga-list="Search results" className="max-h-[60vh] overflow-y-auto">
               {query.trim() === "" && (
                 <p {...regionProps("searchPrompt")} className="px-5 py-10 text-center text-[10px] tracking-[0.3em] uppercase text-white/30">
                   {c("searchPrompt")}

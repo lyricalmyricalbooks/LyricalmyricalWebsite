@@ -2,14 +2,18 @@
 // and published as `settings/website.analytics.ga4MeasurementId`. Google's tag loads only when the visit may be
 // counted (`googleTrackingAllowed`: analytics not declined, not the Studio preview or a share link, not the shop owner
 // signed in), never in the prerender (it declines analytics) and never on admin pages. A later "decline" stops it at
-// once (`ga-disable-<id>`). Events: page_view per route, view_item, add_to_cart, begin_checkout and purchase.
+// once (`ga-disable-<id>`). Events: page_view per route, view_item_list / select_item (book cards, lib/ga4Lists.ts),
+// view_item, add_to_cart, add_to_wishlist, search, begin_checkout, add_shipping_info, add_payment_info, purchase,
+// newsletter_signup and back_in_stock_signup.
 // Google only ever sees `cleanLocation()`: emailed links carry addresses, signed tokens and private order keys in
 // their query string, so only `ref`/`utm_*`/click ids are kept.
 import { CONSENT_EVENT, consentAllows } from "./consent";
 import { googleTrackingAllowed } from "./trackingGuard";
+import { readSiteCache } from "../features/site/siteCache";
 
 type Params = Record<string, unknown>;
 export interface Ga4Item { item_id: string; item_name: string; price: number; quantity: number; item_variant?: string }
+export interface Ga4ListItem { item_name: string; item_id?: string; item_list_name?: string; index?: number }
 
 const MAX_QUEUE = 40;
 let measurementId = "";
@@ -50,6 +54,12 @@ export function ga4Items(lines: any[]): Ga4Item[] {
     quantity: Math.max(1, Number(l.quantity) || 1),
     ...(l.variantName ? { item_variant: String(l.variantName).slice(0, 100) } : {}),
   }));
+}
+
+/** A book as a GA item from its id, named from the shop data this tab already read (lib/ga4Lists.ts does the same). */
+export function ga4BookItem(bookId: string, books: any[] | null | undefined = readSiteCache()?.books): { item_id: string; item_name?: string } {
+  const book = Array.isArray(books) ? books.find(b => b && String(b.id) === String(bookId)) : null;
+  return { item_id: String(bookId), ...(book?.title ? { item_name: String(book.title).slice(0, 100) } : {}) };
 }
 
 /** The purchase event for a paid order, or null for test/sandbox orders. CAD totals, as stored on the order. */
@@ -104,6 +114,8 @@ export function configureGa4(value: unknown) {
   // No ID yet may just mean the settings haven't arrived: keep what is queued (MAX_QUEUE bounds it).
   if (!id || measurementId || typeof window === "undefined") return;
   measurementId = id;
+  // Book-card views and clicks (lib/ga4Lists.ts), loaded only when there is a Google Analytics ID.
+  void import("./ga4Lists").then(m => m.startListTracking()).catch(() => { /* best-effort */ });
   window.addEventListener(CONSENT_EVENT, () => {
     // Declining analytics stops Google's tag immediately (Google's documented opt-out switch).
     (window as any)[`ga-disable-${id}`] = !consentAllows("analytics");
