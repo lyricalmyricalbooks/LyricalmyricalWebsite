@@ -7,7 +7,7 @@ import {
 import {
   BANDS, FIGURES, HEIGHTS, MAX_BOARDS, SIZES, TEMPLATES, WIDGETS, activeBoard, addBoard, addWidget, collapseBandWidgets, collapseEverything,
   copyBoard, countOf, defaultStore, deleteBoard, duplicateWidget, findWidget, makeWidget, moveBand, moveWidget, moveWidgetTo, removeWidget,
-  renameBoard, renameWidget, replaceBoard, resetBoard, searchCatalog, selectBoard, setWidgetConfig, updateBand, updateWidget, visibleBands,
+  renameBoard, renameWidget, replaceBoard, resetBoard, restoreWidget, revealWidget, searchCatalog, selectBoard, setWidgetConfig, updateBand, updateWidget, visibleBands,
   widgetMeta, widgetTitle, canAdd,
   type BandId, type Board, type BoardStore, type BoardWidget, type FigureId, type TemplateId, type WidgetConfig, type WidgetType,
 } from "./overviewBoard";
@@ -25,41 +25,63 @@ export function useBoardStore() {
   const [saveState, setSaveState] = useState<SaveState>("loading");
   const [saveError, setSaveError] = useState("");
   const latest = useRef(store);
-  const edited = useRef(false);
+  // The copy this browser started from: an account copy newer than it wins, even over a change made while it loaded.
+  const startedAt = useRef(store.updatedAt);
+  const readDone = useRef(false);
+  const pending = useRef(false);
   const timer = useRef<number | null>(null);
+
+  const upload = useCallback(() => {
+    timer.current = null;
+    pending.current = false;
+    setSaveState("saving");
+    writeRemoteBoards(latest.current).then(() => { if (!pending.current) setSaveState("saved"); setSaveError(""); })
+      .catch((err: any) => { setSaveState("error"); setSaveError(err?.message || "Couldn't save to your account."); });
+  }, []);
+  const schedule = useCallback(() => {
+    pending.current = true;
+    setSaveState("saving");
+    // Nothing goes up before the account copy has been read, so an old browser copy never overwrites a newer one.
+    if (!readDone.current) return;
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(upload, 1200);
+  }, [upload]);
 
   useEffect(() => {
     let live = true;
     readRemoteBoards().then(remote => {
       if (!live) return;
-      if (remote && !edited.current && remote.updatedAt > latest.current.updatedAt) {
+      readDone.current = true;
+      if (remote && remote.updatedAt > startedAt.current) {
+        // Newer on the account (another device): take it. A change made in the moment before it arrived is dropped.
+        pending.current = false;
         latest.current = remote; setState(remote); writeLocalBoards(remote);
-      }
-      setSaveState("saved");
-    }).catch(() => { if (live) setSaveState("local"); });
+        setSaveState("saved");
+      } else if (pending.current || (latest.current.updatedAt > 0 && (!remote || latest.current.updatedAt > remote.updatedAt))) {
+        // This browser holds changes the account hasn't got (edited just now, or a save that never went up last time).
+        schedule();
+      } else setSaveState("saved");
+    }).catch(() => { if (live) { readDone.current = true; setSaveState("local"); } });
     return () => { live = false; };
-  }, []);
+  }, [schedule]);
 
-  const upload = useCallback(() => {
-    timer.current = null;
-    setSaveState("saving");
-    writeRemoteBoards(latest.current).then(() => { setSaveState("saved"); setSaveError(""); })
-      .catch((err: any) => { setSaveState("error"); setSaveError(err?.message || "Couldn't save to your account."); });
-  }, []);
-  const schedule = useCallback(() => {
-    if (timer.current) window.clearTimeout(timer.current);
-    setSaveState("saving");
-    timer.current = window.setTimeout(upload, 1200);
-  }, [upload]);
   const setStore = useCallback((next: BoardStore) => {
-    edited.current = true;
     latest.current = next;
     setState(next);
     writeLocalBoards(next);
     schedule();
   }, [schedule]);
-  // Leaving the Overview with a save still waiting sends it straight away.
-  useEffect(() => () => { if (timer.current) { window.clearTimeout(timer.current); writeRemoteBoards(latest.current).catch(() => {}); } }, []);
+  // Leaving the Overview, or closing the tab, with a save still waiting sends it straight away. If that fails, the
+  // browser copy is newer than the account's next time, and the read above sends it up then.
+  useEffect(() => {
+    const flush = () => {
+      if (!timer.current) return;
+      window.clearTimeout(timer.current); timer.current = null;
+      writeRemoteBoards(latest.current).catch(() => {});
+    };
+    window.addEventListener("pagehide", flush);
+    return () => { window.removeEventListener("pagehide", flush); flush(); };
+  }, []);
   return { store, setStore, saveState, saveError, retrySave: upload };
 }
 
@@ -116,9 +138,9 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     setStore({ ...next, updatedAt: Date.now() });
   }, [future, store, setStore]);
 
-  // The Undo on a toast must undo the latest step, not the one current when the toast was made.
-  const undoRef = useRef(undo);
-  undoRef.current = undo;
+  // A toast's action runs later, so it reaches the board as it is then, not as it was when the toast was made.
+  const commitRef = useRef(commit);
+  commitRef.current = commit;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -145,13 +167,20 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
 
   const add = (type: WidgetType, config?: WidgetConfig) => {
     const { board: next, id } = addWidget(board, type, config);
-    if (!id) { const existing = board.bands.flatMap(b => b.widgets).find(w => w.type === type); if (existing) setFlash(existing.id); return; }
+    if (!id) {
+      // Already on the board (a single-copy widget): open its topic and unfold it so "Show it" really shows it.
+      const existing = board.bands.flatMap(b => b.widgets).find(w => w.type === type);
+      if (existing) { commit(b => revealWidget(b, existing.id)); setFlash(existing.id); }
+      return;
+    }
     commit(() => next);
     setFlash(id);
   };
   const remove = (w: BoardWidget) => {
+    const index = findWidget(board, w.id)?.band.widgets.findIndex(x => x.id === w.id) ?? 0;
     commit(b => removeWidget(b, w.id));
-    say(`Removed “${widgetTitle(w)}” from the board`, { actionLabel: "Undo", onAction: () => undoRef.current() });
+    // This Undo brings back this widget only, whatever was changed after it.
+    say(`Removed “${widgetTitle(w)}” from the board`, { actionLabel: "Undo", onAction: () => commitRef.current(b => restoreWidget(b, w, index)) });
   };
   const rename = async (w: BoardWidget) => {
     const name = await prompt({ title: "Rename this widget", label: "Name (leave empty for the usual name)", defaultValue: w.title || "", confirmLabel: "Rename" });

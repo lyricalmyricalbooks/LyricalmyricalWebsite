@@ -74,7 +74,7 @@ export const WIDGETS: WidgetMeta[] = [
   { type: "needs", band: "today", title: "Needs you", blurb: "Orders to ship, requests, reprints, reviews and messages waiting for you", size: "m" },
   { type: "changes", band: "today", title: "What changed", blurb: "The biggest moves against the period before", size: "m" },
   { type: "newest", band: "today", title: "Newest orders", blurb: "The latest real sales and their status", size: "m" },
-  { type: "readiness", band: "today", title: "Ready to sell?", blurb: "Launch checks still open (hidden once all pass)", size: "m" },
+  { type: "readiness", band: "today", title: "Ready to sell?", blurb: "Launch checks still open, or a tick once all pass", size: "m" },
 
   { type: "story", band: "sales", title: "Headline", blurb: "The period in one sentence, with this month's pace", size: "m" },
   { type: "chart", band: "sales", title: "Trend chart", blurb: "Revenue, orders, books, average order, visitors or conversion over time — add as many as you like", size: "l", multi: true, config: { metric: "revenue", grain: "auto", compare: true } },
@@ -289,6 +289,27 @@ export function addWidget(b: Board, type: WidgetType, config?: WidgetConfig): { 
 }
 
 export const removeWidget = (b: Board, wid: string): Board => mapBands(b, x => ({ ...x, widgets: x.widgets.filter(w => w.id !== wid) }));
+
+/** Put a removed widget back where it was (its own topic, same place); nothing happens if it is already back. */
+export function restoreWidget(b: Board, widget: BoardWidget, index: number): Board {
+  if (findWidget(b, widget.id) || !canAdd(b, widget.type)) return b;
+  const band = widgetMeta(widget.type).band;
+  return mapBands(b, x => {
+    if (x.id !== band) return x;
+    const at = Math.max(0, Math.min(index, x.widgets.length));
+    return { ...x, hidden: false, collapsed: false, widgets: [...x.widgets.slice(0, at), widget, ...x.widgets.slice(at)] };
+  });
+}
+
+/** Make a widget visible: its topic shown and open, the widget itself unfolded. */
+export function revealWidget(b: Board, wid: string): Board {
+  const found = findWidget(b, wid);
+  if (!found) return b;
+  if (!found.band.hidden && !found.band.collapsed && !found.widget.collapsed) return b;
+  return mapBands(b, x => (x.id !== found.band.id ? x : {
+    ...x, hidden: false, collapsed: false, widgets: x.widgets.map(w => (w.id === wid ? { ...w, collapsed: false } : w)),
+  }));
+}
 
 export const updateWidget = (b: Board, wid: string, patch: Partial<Omit<BoardWidget, "id" | "type">>): Board =>
   mapBands(b, x => (x.widgets.some(w => w.id === wid) ? { ...x, widgets: x.widgets.map(w => (w.id === wid ? { ...w, ...patch } : w)) } : x));

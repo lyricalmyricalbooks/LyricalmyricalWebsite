@@ -27,7 +27,8 @@ import { Figure, ReadinessStrip, RunRow, ROW, Trend, money, percent } from "./Ov
 import { readinessSummary } from "./launchReadiness";
 import { leadStory } from "./overviewStory";
 import { OverviewSales } from "./OverviewSales";
-import { OverviewMarketing, type GaState } from "./OverviewMarketing";
+import { GOOGLE_PARTS, OverviewMarketing, type GaState } from "./OverviewMarketing";
+import { FoundOnGoogleCard } from "./OverviewMarketingExtras";
 import { OverviewCustomers } from "./OverviewCustomers";
 import { OverviewStock } from "./OverviewStock";
 import { OverviewTitles } from "./OverviewTitles";
@@ -107,6 +108,9 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     googleAnalyticsApi.lastReset().then(setLastReset).catch(() => setLastReset(null));
     adminApi.getFirstAnalyticsDay().then(setFirstTrafficDay).catch(() => setFirstTrafficDay(null));
   }, [reloadKey]);
+
+  // The shared reads (carts, sign-ups, Search Console) last one visit: coming back to the Overview reads them again.
+  useEffect(() => () => clearShared(), []);
 
   const refresh = () => {
     setAllOrders({ orders: null, error: false }); setStock({ books: null, error: false });
@@ -267,13 +271,17 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     allOrders.error ? <ErrorState title="Figures unavailable" description="Orders could not be loaded, so this can't be calculated." onRetry={refresh} />
       : !insights || !periods ? <LoadingState label="Calculating…" /> : content()
   );
-  const marketing = (only: string) => ordersGate(() => (
+  const marketing = (only: string) => (only in GOOGLE_PARTS
+    // Search Console needs neither orders nor the shop's traffic, so a failure there never holds these up.
+    ? <FoundOnGoogleCard range={{ startDate: range.startKey, endDate: range.endKey, prevStartDate: range.prevStartKey, prevEndDate: range.prevEndKey }}
+        setActiveTab={setActiveTab} part={GOOGLE_PARTS[only]} />
+    : ordersGate(() => (
     trafficFailed && ga.status !== "loading" && !only.startsWith("google") ? <ErrorState title="Traffic unavailable" description="Visits, searches and sources could not be loaded." onRetry={loadDaily} />
       : !traffic ? <LoadingState label="Loading traffic…" />
       : <OverviewMarketing only={only} ga={ga} traffic={traffic} dailyCurrent={dailyCurrent} dailyAll={daily.rows || []} current={periods!.current} paidAll={periods!.paid} books={books}
           range={{ startDate: range.startKey, endDate: range.endKey, prevStartDate: range.prevStartKey, prevEndDate: range.prevEndKey }}
           lastReset={lastReset} firstDay={firstTrafficDay} onReset={resetTraffic} setActiveTab={setActiveTab} />
-  ));
+  )));
 
   const runSheet = (
     <aside className="rp-ov-run" aria-label="Needs you">

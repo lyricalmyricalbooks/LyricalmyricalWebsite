@@ -16,7 +16,7 @@ const num = (v: unknown) => Number(v) || 0;
 
 /** Panels that only exist when Google Analytics is connected. */
 export const GA_PANELS = ["channels", "gaSources", "landing", "gaPages", "gaCountries", "gaDevices"];
-const GOOGLE_PARTS: Record<string, "totals" | "queries" | "pages"> = { google: "totals", googleQueries: "queries", googlePages: "pages" };
+export const GOOGLE_PARTS: Record<string, "totals" | "queries" | "pages"> = { google: "totals", googleQueries: "queries", googlePages: "pages" };
 
 export type GaState = { status: "loading" | "off" | "error" | "connected"; answer?: Ga4Answer; message?: string };
 type Row = Record<string, any>;

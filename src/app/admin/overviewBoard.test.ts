@@ -4,7 +4,7 @@ import { join } from "node:path";
 import {
   BANDS, TEMPLATES, WIDGETS, MAX_BOARDS, addBoard, addWidget, canAdd, collapseBandWidgets, collapseEverything, copyBoard, countOf,
   defaultStore, deleteBoard, duplicateWidget, findWidget, moveBand, moveWidget, moveWidgetTo, newerStore, normalizeBoard, normalizeStore,
-  removeWidget, renameBoard, renameWidget, resetBoard, searchCatalog, selectBoard, setWidgetConfig, templateBoard, updateWidget,
+  removeWidget, restoreWidget, revealWidget, renameBoard, renameWidget, resetBoard, searchCatalog, selectBoard, setWidgetConfig, templateBoard, updateWidget,
   visibleBands, widgetMeta, widgetTitle, activeBoard, type Board,
 } from "./overviewBoard";
 
@@ -102,6 +102,31 @@ describe("overview board edits", () => {
     expect(findWidget(b, w.id)!.widget.title).toBeUndefined();
     b = removeWidget(b, w.id);
     expect(findWidget(b, w.id)).toBeNull();
+  });
+
+  it("puts a removed widget back in its place, even after other changes", () => {
+    const b = base();
+    const sales = b.bands.find(x => x.id === "sales")!.widgets;
+    const gone = sales[2];
+    let next = removeWidget(b, gone.id);
+    next = updateWidget(next, sales[0].id, { size: "xl" });
+    next = restoreWidget(next, gone, 2);
+    expect(ids(next, "sales")).toEqual(sales.map(w => w.type));
+    expect(findWidget(next, sales[0].id)!.widget.size).toBe("xl");
+    expect(restoreWidget(next, gone, 2)).toBe(next);
+  });
+
+  it("reveals a widget hidden in a folded or hidden topic", () => {
+    const b = base();
+    const w = b.bands.find(x => x.id === "stock")!.widgets[0];
+    let hidden = { ...b, bands: b.bands.map(x => (x.id === "stock" ? { ...x, hidden: true, collapsed: true } : x)) };
+    hidden = updateWidget(hidden, w.id, { collapsed: true });
+    const shown = revealWidget(hidden, w.id);
+    const band = shown.bands.find(x => x.id === "stock")!;
+    expect(band.hidden).toBe(false);
+    expect(band.collapsed).toBe(false);
+    expect(findWidget(shown, w.id)!.widget.collapsed).toBe(false);
+    expect(revealWidget(shown, w.id)).toBe(shown);
   });
 
   it("names charts after what they draw", () => {
@@ -221,6 +246,21 @@ describe("overview board storage", () => {
     expect(newerStore(b, a)).toBe(b);
     expect(newerStore(null, a)).toBe(a);
     expect(newerStore(a, null)).toBe(a);
+  });
+});
+
+describe("shared reads", () => {
+  it("shares one read until cleared, and never keeps a failed one", async () => {
+    const { sharedLoad, clearShared } = await import("./overviewShared");
+    let n = 0;
+    const load = () => Promise.resolve(++n);
+    expect(await sharedLoad("k", load)).toBe(1);
+    expect(await sharedLoad("k", load)).toBe(1);
+    clearShared();
+    expect(await sharedLoad("k", load)).toBe(2);
+    await sharedLoad("bad", () => Promise.reject(new Error("x"))).catch(() => {});
+    await Promise.resolve();
+    expect(await sharedLoad("bad", load)).toBe(3);
   });
 });
 
