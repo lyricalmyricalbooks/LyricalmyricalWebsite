@@ -1,9 +1,14 @@
-import { Fragment, useMemo } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { EmptyState, GhostButton, SectionCard, StatusBadge } from "./riso/components";
 import { bestSellers, formatMix, topCountries, totals, unitsById, type Book, type Order } from "./overviewInsights";
 import { categoryBreakdown, categoryNames, weekdayMix, type Daily } from "./overviewTraffic";
 import { discountPerformance } from "./discountPerformance";
 import { hourHeatmap, operations } from "./overviewCohorts";
+import { OrdersDrill } from "./OverviewDrill";
+import {
+  copiesOf, discountedOrders, ordersInCategory, giftCardOrders, hoursToShip, ordersInCurrency, ordersOnWeekday, ordersPaidBy, ordersToCountry, ordersWithBook,
+  ordersWithCode, ordersWithFormat, refundedOrders, shipTimeText, shippedSlowestFirst,
+} from "./overviewDrill";
 import { BarRow, ROW, SPLIT, StatRow, money, percent } from "./OverviewParts";
 
 /** Overview › Dig deeper › Sales: what is selling, in which format, where, when and at what discount. */
@@ -36,7 +41,8 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
               const before = prevUnits.get(b.id) || 0;
               const diff = b.units - before;
               return (
-                <li key={b.id} style={ROW}>
+                <BestRow key={b.id} drill={<OrdersDrill label={b.title} books={false} orders={ordersWithBook(current, b.id)} extra={o => `${copiesOf(o, b.id)} cop${copiesOf(o, b.id) === 1 ? "y" : "ies"} of this title`} />}>
+                  <div style={ROW}>
                   <div style={{ minWidth: 0 }}>
                     <span className="rp-mono">{i + 1}. </span>
                     <GhostButton size="sm" onClick={() => onEditBook(b.id)} disabled={fetchingBookId === b.id}
@@ -51,7 +57,8 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
                     </StatusBadge>
                     <span className="rp-mono" style={{ whiteSpace: "nowrap" }}>{money(b.revenue)}</span>
                   </span>
-                </li>
+                  </div>
+                </BestRow>
               );
             })}
           </ul>
@@ -61,13 +68,13 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
       {show("money") && <SectionCard flush title="Where the money goes" description="What customers paid, broken down">
         {cur.orders === 0 ? <EmptyState title="No sales in this period" description="The breakdown appears once paid orders arrive." /> : (
           <ul className="rp-list" aria-label="Revenue breakdown">
-            <StatRow label="Books" hint="before discounts" value={money(cur.subtotal)} />
-            <StatRow label="Discounts" hint={`${percent(cur.discountRate)} of list price`} value={`− ${money(cur.discounts)}`} />
+            <StatRow label="Books" hint="before discounts" value={money(cur.subtotal)} details={<OrdersDrill label="Orders in this period" orders={current} />} />
+            <StatRow label="Discounts" hint={`${percent(cur.discountRate)} of list price`} value={`− ${money(cur.discounts)}`} details={<OrdersDrill label="Orders with a discount" orders={discountedOrders(current)} extra={discountName} empty="No order had a discount in this period." />} />
             <StatRow label="Shipping charged" value={money(cur.shipping)} />
             <StatRow label="Sales tax collected" hint="owed to the tax office; included in what customers paid" value={money(cur.tax)} />
-            {cur.giftCards > 0 && <StatRow label="Paid with gift cards" hint="not in the card/PayPal total below" value={`− ${money(cur.giftCards)}`} />}
+            {cur.giftCards > 0 && <StatRow label="Paid with gift cards" hint="not in the card/PayPal total below" value={`− ${money(cur.giftCards)}`} details={<OrdersDrill label="Orders paid with gift cards" orders={giftCardOrders(current)} extra={o => `${money(Number(o.giftCardAmount) || 0)} on gift cards`} />} />}
             <StatRow label="Paid by customers" hint="card, PayPal and other payments, with tax and shipping" value={money(cur.revenue)} />
-            <StatRow label="Refunded" hint="partial refunds" value={cur.refunded > 0 ? `− ${money(cur.refunded)}` : money(0)} tone={cur.refunded > 0 ? "danger" : "muted"} />
+            <StatRow label="Refunded" hint="partial refunds" value={cur.refunded > 0 ? `− ${money(cur.refunded)}` : money(0)} tone={cur.refunded > 0 ? "danger" : "muted"} details={cur.refunded > 0 ? <OrdersDrill label="Partly refunded orders" orders={refundedOrders(current)} /> : undefined} />
             <StatRow label="Net received" hint="after refunds; the revenue figures on this page" value={<strong>{money(cur.net)}</strong>} />
             <StatRow label="Net received without sales tax" hint="approximate: refunds are not split into tax" value={money(Math.max(0, cur.net - cur.tax))} />
             {cur.giftCardsSold > 0 && <StatRow label="Gift cards sold" hint="counted above, but not earned until the card is spent" value={money(cur.giftCardsSold)} tone="muted" />}
@@ -80,7 +87,8 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
         {formats.formats.length === 0 ? <EmptyState title="No sales in this period" description="Print vs digital revenue shows here once books sell." /> : (
           <ul className="rp-list" aria-label="Revenue by format">
             {formats.formats.map(f => (
-              <BarRow key={f.format} label={f.format} value={`${money(f.revenue)} · ${f.units} sold`} share={formats.total ? (f.revenue / formats.total) * 100 : 0} />
+              <BarRow key={f.format} label={f.format} value={`${money(f.revenue)} · ${f.units} sold`} share={formats.total ? (f.revenue / formats.total) * 100 : 0}
+                details={<OrdersDrill label={`${f.format} orders`} orders={ordersWithFormat(current, books, f.format)} />} />
             ))}
           </ul>
         )}
@@ -91,7 +99,8 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
           <ul className="rp-list" aria-label="Top countries">
             {countries.map(c => (
               <BarRow key={c.country} label={c.country} value={`${money(c.revenue)} · ${c.orders} order${c.orders === 1 ? "" : "s"}`}
-                share={cur.revenue > 0 ? (c.revenue / cur.revenue) * 100 : 0} color="var(--rp-info)" />
+                share={cur.revenue > 0 ? (c.revenue / cur.revenue) * 100 : 0} color="var(--rp-info)"
+                details={<OrdersDrill label={`Orders to ${c.country}`} orders={ordersToCountry(current, c.country)} />} />
             ))}
           </ul>
         )}
@@ -101,13 +110,9 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
         {categories.every(c => c.sold === 0 && c.views === 0) ? <EmptyState title="Nothing in this period" description="Categories with visits or sales will be listed here." /> : (
           <ul className="rp-list" aria-label="Categories">
             {categories.map(cat => (
-              <li key={cat.name} style={ROW}>
-                <div><strong>{cat.name}</strong><div className="rp-hint rp-mono">{cat.views.toLocaleString()} visits</div></div>
-                <div style={{ textAlign: "right" }}>
-                  <div className="rp-mono">{money(cat.revenue)}</div>
-                  <div className="rp-hint rp-mono">{cat.sold} sold</div>
-                </div>
-              </li>
+              <StatRow key={cat.name} label={cat.name} hint={`${cat.views.toLocaleString()} visits`}
+                value={<span style={{ display: "block", textAlign: "right" }}>{money(cat.revenue)}<span className="rp-hint" style={{ display: "block" }}>{cat.sold} sold</span></span>}
+                details={cat.sold > 0 ? <OrdersDrill label={`${cat.name} orders`} orders={ordersInCategory(current, books, cat.name)} /> : undefined} />
             ))}
           </ul>
         )}
@@ -116,7 +121,8 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
       {show("weekdays") && <SectionCard flush title="Busiest days" description="Orders by day of the week (Toronto time)">
         {cur.orders === 0 ? <EmptyState title="No orders in this period" description="Weekdays fill in as orders arrive." /> : (
           <ul className="rp-list" aria-label="Orders by weekday">
-            {weekdays.map(d => <BarRow key={d.day} label={d.day} value={`${d.orders} order${d.orders === 1 ? "" : "s"} · ${money(d.revenue)}`} share={(d.orders / maxDay) * 100} color="var(--rp-info)" />)}
+            {weekdays.map(d => <BarRow key={d.day} label={d.day} value={`${d.orders} order${d.orders === 1 ? "" : "s"} · ${money(d.revenue)}`} share={(d.orders / maxDay) * 100} color="var(--rp-info)"
+              details={d.orders > 0 ? <OrdersDrill label={`${d.day} orders`} orders={ordersOnWeekday(current, d.day)} /> : undefined} />)}
           </ul>
         )}
       </SectionCard>}
@@ -144,11 +150,12 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
       {show("fulfilment") && <SectionCard flush title="Fulfilment & payments" description="How fast paid orders ship, and how customers pay">
         {cur.orders === 0 ? <EmptyState title="No orders in this period" description="Shipping speed and payment methods appear once orders arrive." /> : (
           <ul className="rp-list" aria-label="Fulfilment and payments">
-            <StatRow label="Typical time to ship" hint={ops.shipped ? `median from payment to dispatch, ${ops.shipped} shipped order${ops.shipped === 1 ? "" : "s"}` : "no order shipped yet in this period"} value={hoursText(ops.medianHoursToShip)} />
+            <StatRow label="Typical time to ship" hint={ops.shipped ? `median from payment to dispatch, ${ops.shipped} shipped order${ops.shipped === 1 ? "" : "s"}` : "no order shipped yet in this period"} value={hoursText(ops.medianHoursToShip)}
+              details={ops.shipped ? <OrdersDrill label="Shipped orders, slowest first" books={false} orders={shippedSlowestFirst(current)} extra={o => shipTimeText(hoursToShip(o) as number)} /> : undefined} />
             <StatRow label="Shipped within 2 days" value={ops.within2DaysRate === null ? "—" : percent(ops.within2DaysRate, 0)} />
-            {ops.payments.map(p => <StatRow key={p.key} label={`Paid by ${p.key}`} hint={`${p.orders} order${p.orders === 1 ? "" : "s"}`} value={money(p.revenue)} />)}
-            {ops.currencies.length > 1 && ops.currencies.map(c => <StatRow key={c.key} label={`Checked out in ${c.key}`} hint={`${c.orders} order${c.orders === 1 ? "" : "s"} · shown in CA$`} value={money(c.revenue)} tone="muted" />)}
-            {ops.partlyRefunded > 0 && <StatRow label="Partly refunded orders" value={ops.partlyRefunded} tone="danger" />}
+            {ops.payments.map(p => <StatRow key={p.key} label={`Paid by ${p.key}`} hint={`${p.orders} order${p.orders === 1 ? "" : "s"}`} value={money(p.revenue)} details={<OrdersDrill label={`Paid by ${p.key}`} orders={ordersPaidBy(current, p.key)} />} />)}
+            {ops.currencies.length > 1 && ops.currencies.map(c => <StatRow key={c.key} label={`Checked out in ${c.key}`} hint={`${c.orders} order${c.orders === 1 ? "" : "s"} · shown in CA$`} value={money(c.revenue)} tone="muted" details={<OrdersDrill label={`Checked out in ${c.key}`} orders={ordersInCurrency(current, c.key)} />} />)}
+            {ops.partlyRefunded > 0 && <StatRow label="Partly refunded orders" value={ops.partlyRefunded} tone="danger" details={<OrdersDrill label="Partly refunded orders" orders={current.filter(o => Number(o.refundedAmountMinor) > 0)} />} />}
           </ul>
         )}
       </SectionCard>}
@@ -158,7 +165,8 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
           <ul className="rp-list" aria-label="Discount code results">
             {codes.map(([code, p]) => (
               <StatRow key={code} label={code.startsWith("#") ? <span>{p.label}</span> : <span className="rp-mono">{p.label}</span>}
-                hint={`${p.orders} order${p.orders === 1 ? "" : "s"} · avg ${money(p.avgOrder)} · ${money(p.discountGiven)} given away`} value={money(p.revenue)} />
+                hint={`${p.orders} order${p.orders === 1 ? "" : "s"} · avg ${money(p.avgOrder)} · ${money(p.discountGiven)} given away`} value={money(p.revenue)}
+                details={<OrdersDrill label={`Orders with ${p.label}`} orders={ordersWithCode(current, code)} />} />
             ))}
           </ul>
         )}
@@ -166,3 +174,22 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
     </div>
   );
 }
+
+/** A best-seller line whose orders open underneath (its title stays the Edit book button). */
+function BestRow({ children, drill }: { children: ReactNode; drill: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <li>
+      {children}
+      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-expanded={open} onClick={() => setOpen(v => !v)} style={{ marginTop: 6, paddingLeft: 0 }}>
+        <span aria-hidden="true" className="rp-ov-drill-mark">{open ? "▾" : "▸"}</span>{open ? "Hide orders" : "Show orders"}
+      </button>
+      {open && <div className="rp-ov-drill-body">{drill}</div>}
+    </li>
+  );
+}
+
+const discountName = (o: { appliedDiscount?: any }) => {
+  const a = o.appliedDiscount || {};
+  return a.automatic ? String(a.title || "automatic offer") : a.code ? `code ${String(a.code).toUpperCase()}` : undefined;
+};

@@ -1042,3 +1042,17 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 @media (pointer: coarse) { .rp-wb-seg button, .rp-wb-select, .rp-wb-editbtn { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .rp-wb-editbtn { transition: none; } }
 @media print { .rp-wb-head-controls, .rp-wb-hint-links { display: none !important; } }
+
+/* Overview drill-downs: a figure row that opens to list the records behind it. */
+.rp-ov-drill { display: block; width: 100%; padding: 0; margin: 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.rp-ov-drill[style] { display: flex; }
+.rp-ov-drill:hover .rp-ov-drill-mark, .rp-ov-drill[aria-expanded="true"] .rp-ov-drill-mark { color: var(--rp-text); }
+.rp-ov-drill:focus-visible { outline: 2px solid var(--rp-focus, var(--rp-text)); outline-offset: 4px; }
+.rp-ov-drill-mark { display: inline-block; width: 1.2em; color: var(--rp-text-muted); }
+.rp-ov-drill-body { margin-top: 12px; padding: 10px 12px; background: var(--rp-surface-inset); border: 1px solid var(--rp-border); }
+.rp-ov-drill-list { list-style: none; margin: 0 0 8px; padding: 0; }
+.rp-ov-drill-list > li { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--rp-divider); font-size: 14px; }
+.rp-ov-drill-list > li:last-child { border-bottom: 0; }
+.rp-ov-drill-list a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.rp-ov-drill-list .rp-hint { white-space: pre-line; }
+.rp-ov-drill-switch { display: flex; gap: 6px; margin-bottom: 6px; }

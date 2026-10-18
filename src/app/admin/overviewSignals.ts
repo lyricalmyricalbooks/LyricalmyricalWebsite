@@ -103,15 +103,23 @@ function firstOrderIds(paidAll: Order[]): Set<string> {
  * campaign name, when connected) fills the visits column for tagged campaigns; the shop's own counter fills it for
  * plain sources. Orders saved before 18 October 2026 only have the source name.
  */
+/** Which campaign row an order belongs to (CampaignsCard's grouping): its key and the parts it is named from. */
+export function campaignOf(o: Order) {
+  const a = cleanAcquisition(o.acquisition);
+  const source = (a?.source || String(o.referralSource || "direct")).toLowerCase().trim() || "direct";
+  const medium = a?.medium || (source === "direct" ? "(none)" : "");
+  const campaign = a?.campaign || "";
+  return { source, medium, campaign, key: campaign ? `c:${campaign.toLowerCase()}` : `s:${source}|${medium}` };
+}
+
+/** The landing page an order's visit started on, as landingPerformance groups it. */
+export const landingOf = (o: Order) => cleanAcquisition(o.acquisition)?.landingPage || "";
+
 export function campaignPerformance(current: Order[], paidAll: Order[], opts: { visitsBySource?: Record<string, number>; gaVisits?: Record<string, number> } = {}): CampaignRow[] {
   const firsts = firstOrderIds(paidAll);
   const rows = new Map<string, CampaignRow>();
   current.filter(isRealPaidOrder).forEach(o => {
-    const a = cleanAcquisition(o.acquisition);
-    const source = (a?.source || String(o.referralSource || "direct")).toLowerCase().trim() || "direct";
-    const medium = a?.medium || (source === "direct" ? "(none)" : "");
-    const campaign = a?.campaign || "";
-    const key = campaign ? `c:${campaign.toLowerCase()}` : `s:${source}|${medium}`;
+    const { source, medium, campaign, key } = campaignOf(o);
     let r = rows.get(key);
     if (!r) {
       const how = MEDIUM_WORDS[medium] || medium;

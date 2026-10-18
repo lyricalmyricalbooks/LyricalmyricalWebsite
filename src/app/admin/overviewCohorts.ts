@@ -78,7 +78,7 @@ const median = (xs: number[]) => {
   return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
 };
 
-const methodOf = (o: Order) => {
+export const methodOf = (o: Order) => {
   const m = String(o.paymentMethod || "").toLowerCase();
   if (o.paypalOrderId || /paypal/.test(m)) return "PayPal";
   if (num(o.total) === 0) return "Free / gift card";

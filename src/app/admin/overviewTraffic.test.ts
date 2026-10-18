@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  bookInterest, buildSeries, cartRecovery, categoryBreakdown, categoryNames, cleanSearchTerm, conversionRate, dailyWindow,
+  bookInterest, buildSeries, cartRecovery, cartRows, categoryBreakdown, categoryNames, cleanSearchTerm, conversionRate, dailyWindow,
   deviceOf, funnelRates, funnelTotals, rankMap, recordedSince, sourcePerformance, stockDemand, sumMap, weekdayMix,
 } from "./overviewTraffic";
 
@@ -165,5 +165,35 @@ describe("tracking helpers", () => {
     expect(cleanSearchTerm("a")).toBeNull();
     expect(cleanSearchTerm("x".repeat(80))).toHaveLength(40);
     expect(cleanSearchTerm(null)).toBeNull();
+  });
+});
+
+describe("cartRows", () => {
+  const start = Date.parse("2026-10-01T00:00:00Z");
+  const carts = [
+    { id: "old", email: "a@x.ca", createdAt: "2026-09-20T10:00:00Z", subtotal: 9 },
+    { id: "c1", email: "Reader@X.ca", createdAt: "2026-10-02T10:00:00Z", subtotal: 40, customer: { name: "Ada Reader", address: { city: "Toronto", country: "Canada" } },
+      items: [{ title: "Poems", variantName: "Signed", quantity: 2, price: 20 }], notified: true, notifiedAt: "2026-10-02T11:00:00Z", recovered: true, recoveredAt: "2026-10-03T09:00:00Z" },
+    { id: "c2", email: "b@x.ca", createdAt: "2026-10-05T10:00:00Z", subtotal: 15, notified: true, notifySkipped: "throttled", items: [{ title: "Zine", quantity: 1, price: 15 }] },
+    { id: "c3", email: "c@x.ca", createdAt: "2026-10-06T10:00:00Z", subtotal: 30, recovered: true, recoveredAt: "2026-10-06T12:00:00Z" },
+  ];
+  const orders = [
+    { id: "ORD1", cartId: "c1", createdAt: "2026-10-03T09:00:00Z", customer: { email: "reader@x.ca" } },
+    { id: "ORD-EARLY", createdAt: "2026-10-01T09:00:00Z", customer: { email: "c@x.ca" } },
+    { id: "ORD3", createdAt: "2026-10-06T11:59:00Z", customer: { email: "c@x.ca" } },
+  ] as any[];
+  const rows = cartRows(carts, start, orders);
+
+  it("lists only carts started in the period, newest first", () => {
+    expect(rows.map(r => r.id)).toEqual(["c3", "c2", "c1"]);
+  });
+  it("keeps who, where, which books, the reminder and the outcome", () => {
+    const c1 = rows.find(r => r.id === "c1")!;
+    expect(c1).toMatchObject({ email: "reader@x.ca", name: "Ada Reader", place: "Toronto, Canada", value: 40, reminder: "sent", recovered: true, orderId: "ORD1" });
+    expect(c1.books).toEqual([{ title: "Poems", edition: "Signed", quantity: 2, price: 20 }]);
+    expect(rows.find(r => r.id === "c2")).toMatchObject({ reminder: "skipped", recovered: false, orderId: null });
+  });
+  it("links a came-back cart without a cartId to that email's first order after the cart", () => {
+    expect(rows.find(r => r.id === "c3")!.orderId).toBe("ORD3");
   });
 });

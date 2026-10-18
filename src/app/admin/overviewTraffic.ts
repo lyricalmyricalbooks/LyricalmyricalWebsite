@@ -79,7 +79,7 @@ export function funnelRates(f: ReturnType<typeof funnelTotals>) {
 }
 
 // Stored under the same key the storefront used for the visit ("duckduckgo.com" -> "duckduckgo com"), so a source's visits and orders join.
-const sourceOf = (o: Order) => analyticsKey(String(o.referralSource || "direct").trim().toLowerCase()) || "direct";
+export const sourceOf = (o: Order) => analyticsKey(String(o.referralSource || "direct").trim().toLowerCase()) || "direct";
 
 export interface SourceRow { source: string; visits: number; orders: number; revenue: number; conversion: number | null }
 
@@ -159,6 +159,44 @@ export function cartRecovery(carts: Array<Record<string, any>>, startMs: number)
     recoveryRate: inPeriod.length ? (recovered.length / inPeriod.length) * 100 : 0,
     openValue: sum(open), recoveredValue: sum(recovered),
   };
+}
+
+export interface CartRow {
+  id: string; email: string; name: string; place: string; value: number; leftAt: string; updatedAt: string;
+  books: Array<{ title: string; edition: string; quantity: number; price: number }>;
+  /** "sent" = a reminder email went out; "skipped" = the reminder was held back (already sent to that address). */
+  reminder: "sent" | "skipped" | "none"; remindedAt: string;
+  recovered: boolean; recoveredAt: string; orderId: string | null;
+}
+
+/**
+ * The carts behind `cartRecovery`'s figures, newest first: who, which books, the bag's value, the reminder and whether
+ * they came back. A came-back cart is linked to its order by the order's `cartId`, else the same email's first order
+ * placed after the cart was started.
+ */
+export function cartRows(carts: Array<Record<string, any>>, startMs: number, orders: Order[] = []): CartRow[] {
+  const ms = (v: unknown) => { const t = new Date(v as any).getTime(); return Number.isNaN(t) ? 0 : t; };
+  return carts.filter(c => { const t = ms(c.createdAt || c.updatedAt); return t > 0 && t >= startMs; }).map(c => {
+    const id = String(c.id || c.cartKey || "");
+    const email = String(c.email || "").toLowerCase();
+    const started = ms(c.createdAt || c.updatedAt);
+    let orderId: string | null = null;
+    if (c.recovered === true) {
+      const byCart = orders.find(o => (o as any).cartId && ((o as any).cartId === id || (o as any).cartId === c.cartKey));
+      const byEmail = orders.filter(o => String((o as any).customer?.email || "").toLowerCase() === email && ms(o.createdAt) >= started)
+        .sort((a, b) => ms(a.createdAt) - ms(b.createdAt))[0];
+      orderId = (byCart || byEmail)?.id || null;
+    }
+    const name = String(c.customer?.name || "").trim();
+    const a = c.customer?.address || {};
+    const place = [a.city, a.state, a.country].map((v: unknown) => String(v || "").trim()).filter(Boolean).join(", ");
+    return {
+      id, email, name, place, value: num(c.subtotal), leftAt: String(c.createdAt || c.updatedAt || ""), updatedAt: String(c.updatedAt || ""),
+      books: (Array.isArray(c.items) ? c.items : []).map((i: any) => ({ title: String(i?.title || "Untitled"), edition: String(i?.variantName || ""), quantity: num(i?.quantity) || 1, price: num(i?.price) })),
+      reminder: (c.notified === true ? (c.notifySkipped ? "skipped" : "sent") : "none") as CartRow["reminder"], remindedAt: String(c.notifiedAt || ""),
+      recovered: c.recovered === true, recoveredAt: String(c.recoveredAt || ""), orderId,
+    };
+  }).sort((a, b) => ms(b.leftAt) - ms(a.leftAt));
 }
 
 export interface DemandRow { bookId: string; title: string; edition: string; waiting: number; stock: number | null }
