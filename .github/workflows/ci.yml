@@ -39,6 +39,12 @@ jobs:
       - run: npm ci
         working-directory: functions
 
+      # The Firebase deploy loads functions/index.js before it uploads anything; tests mock firebase-admin, so a
+      # package update that breaks that load (firebase-admin 14 removed admin.firestore()) only failed after merge.
+      - name: Cloud Functions load like the deploy
+        working-directory: functions
+        run: node -e "const n = Object.keys(require('./index.js')).length; if (!n) throw new Error('functions/index.js exports no functions'); console.log(n + ' functions load')"
+
       - name: Tests
         run: pnpm test
 
