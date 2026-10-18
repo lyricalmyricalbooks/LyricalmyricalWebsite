@@ -510,13 +510,16 @@ export function Dashboard() {
             activeChildId={navChild}
             onSelect={(id) => { if (id.startsWith(SETTINGS_ITEM_PREFIX)) void openSettingsPage(id.slice(SETTINGS_ITEM_PREFIX.length)); else void goTo(id); }}
             onSelectChild={goToChild}
-            brand={<>
-              <span className="rp-brand-mark"><BookOpen size={20} aria-hidden /></span>
-              <div>
-                <span className="rp-wordmark">Lyrical<em>myrical</em></span>
-                <span className="rp-wordmark-sub">Publishing House</span>
-              </div>
-            </>}
+            brand={
+              <a className="rp-brand-link" href="#overview" aria-label="Lyricalmyrical Publishing House: go to Overview"
+                onClick={(e) => { e.preventDefault(); setSidebarOpen(false); void goTo("overview"); }}>
+                <span className="rp-brand-mark"><BookOpen size={20} aria-hidden /></span>
+                <span className="rp-brand-text">
+                  <span className="rp-wordmark">Lyrical<em>myrical</em></span>
+                  <span className="rp-wordmark-sub">Publishing House</span>
+                </span>
+              </a>
+            }
             footer={
               <>
               <WhatsNew appearance={appearance} onHistoryOpen={() => setSidebarOpen(false)} onNavigate={async (link) => { if (link.studio) { window.location.hash = link.studio; return; } if (!(await goTo(link.tab))) return; if (link.settingsTab) setSettingsTab(link.settingsTab); }} />
