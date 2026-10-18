@@ -805,7 +805,8 @@ draft in `themes/workspace`, both written only through `admin/themeStore.ts`.
   rebuilds the old Pages redirect until the cleanup step); its `canonicalHost` plugin inlines `scripts/canonicalHost.mjs` after
   `<meta charset>` so `*.firebaseapp.com`/`*.web.app` visitors move to `SITE_URL`'s host. `scripts/hosting-smoke.mjs` checks
   statuses, redirects, bodies and headers in the Hosting emulator (CI and `build-hosting`) and on the live site after each
-  deploy. `ALLOWED_ORIGINS` includes web.app (not firebaseapp.com) and, for tabs opened before the move, github.io (remove in the
+  deploy; live runs try failing checks again for about 3 minutes (`scripts/retryChecks.mjs`, `LIVE_RETRY_WAITS_MS`) because
+  the CDN can serve the previous release for a while (run 804 failed 3 s after release); the emulator run never retries. `ALLOWED_ORIGINS` includes web.app (not firebaseapp.com) and, for tabs opened before the move, github.io (remove in the
   cleanup step); it already lists lyricalmyricalbooks.com/www for the shop's own domain later (`docs/FIREBASE_HOSTING.md`).
 - **Old Big Cartel addresses (15 October 2026):** `firebase.json` `redirects` lists each old `/product/<name>`, `/category/<name>`
   and page address as an exact 301 to an absolute `https://lyricalmyricalbooks.com/...` page (one hop). No `/product/**` or
