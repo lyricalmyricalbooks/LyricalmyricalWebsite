@@ -1,15 +1,40 @@
 import { useEffect, useMemo, useState } from "react";
 import { DataTable, EmptyState, ErrorState, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge, type Column } from "./riso/components";
 import type { Order } from "./overviewInsights";
-import { cartRecovery } from "./overviewTraffic";
+import { cartRecovery, cartRows, type CartRow } from "./overviewTraffic";
 import { buildCustomers, customerStats, SEGMENT_LABELS } from "./customerInsights";
 import { cohortRetention, newVsReturningRevenue, repeatTiming } from "./overviewCohorts";
 import { shopDayKey } from "../lib/shopDay";
 import { abandonedCartApi } from "../lib/commerce";
-import { BarRow, SPLIT, StatRow, money, percent } from "./OverviewParts";
+import { BarRow, DrillList, SPLIT, StatRow, money, orderHref, percent, shopWhen, type DrillItem } from "./OverviewParts";
 import { newsletterWeeks, reminderResults } from "./overviewSignals";
 import { SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
 import { sharedLoad } from "./overviewShared";
+
+/** One abandoned cart as a drill-down line: who, what, when, the reminder and what happened. */
+function cartItem(c: CartRow): DrillItem {
+  const books = c.books.map(b => `${b.quantity > 1 ? `${b.quantity} × ` : ""}${b.title}${b.edition ? ` (${b.edition})` : ""}`).join("; ") || "No books listed";
+  const reminder = c.reminder === "sent" ? `reminded ${shopWhen(c.remindedAt)}` : c.reminder === "skipped" ? "no reminder (this address already had one)" : "not reminded yet";
+  const outcome = c.recovered ? `came back ${shopWhen(c.recoveredAt)}${c.orderId ? "" : " (order not found)"}` : "still waiting";
+  return {
+    key: c.id || `${c.email}-${c.leftAt}`,
+    title: <>{c.name ? `${c.name} · ` : ""}{c.email || "No email"}</>,
+    sub: <>{books}<br />{`left ${shopWhen(c.leftAt)}${c.place ? ` · ${c.place}` : ""} · ${reminder} · ${outcome}`}{c.orderId && <> · <a href={orderHref(c.orderId)}>open order</a></>}</>,
+    value: money(c.value), tone: c.recovered ? "success" : "danger",
+  };
+}
+
+/** Titles across the period's carts, most money left first. */
+function bookTotals(carts: CartRow[]) {
+  const m = new Map<string, { title: string; carts: number; copies: number; value: number; came: number }>();
+  carts.forEach(c => new Set(c.books.map(b => b.title)).forEach(t => {
+    const lines = c.books.filter(b => b.title === t);
+    const r = m.get(t) || { title: t, carts: 0, copies: 0, value: 0, came: 0 };
+    r.carts += 1; r.copies += lines.reduce((s, b) => s + b.quantity, 0); r.value += lines.reduce((s, b) => s + b.quantity * b.price, 0);
+    if (c.recovered) r.came += 1; m.set(t, r);
+  }));
+  return [...m.values()].sort((a, b) => b.value - a.value || b.carts - a.carts);
+}
 
 type Mix = { total: number; returning: number; fresh: number; returningRate: number };
 type Reviews = { pending: number; approved: number; average: number | null } | null;
@@ -40,6 +65,10 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
   const stats = useMemo(() => customerStats(customers), [customers]);
   const top = useMemo(() => [...customers].sort((a, b) => b.totalSpent - a.totalSpent).slice(0, 5), [customers]);
   const recovery = useMemo(() => (carts.rows ? cartRecovery(carts.rows, startMs) : null), [carts.rows, startMs]);
+  const cartList = useMemo(() => (carts.rows ? cartRows(carts.rows, startMs, paid) : []), [carts.rows, startMs, paid]);
+  // Reminders count by when the email went out, so their carts may have been started before the period.
+  const remindedCarts = useMemo(() => (carts.rows ? cartRows(carts.rows, 0, paid).filter(c => c.reminder === "sent" && Date.parse(c.remindedAt) >= startMs) : []), [carts.rows, startMs, paid]);
+  const leftBooks = useMemo(() => bookTotals(cartList), [cartList]);
   const reminders = useMemo(() => (carts.rows ? reminderResults(carts.rows, startMs) : null), [carts.rows, startMs]);
   const weeks = useMemo(() => (newsletter ? newsletterWeeks(newsletter.subscribers, newsletter.pending) : null), [newsletter]);
   const weekTop = Math.max(1, ...(weeks || []).map(w => w.confirmed + w.waiting));
@@ -101,9 +130,16 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
             : recovery.total === 0 ? <EmptyState icon="✓" title="No abandoned carts" description="Carts shoppers leave behind (after typing an email) are tracked here." />
             : (
               <ul className="rp-list" aria-label="Abandoned carts">
-                <StatRow label="Carts left behind" hint={`${recovery.reminded} reminded by email`} value={recovery.total} />
-                <StatRow label="Came back and bought" hint={`${percent(recovery.recoveryRate, 0)} of carts`} value={`${recovery.recovered} · ${money(recovery.recoveredValue)}`} />
-                <StatRow label="Still waiting" hint="value of books left in bags" value={money(recovery.openValue)} tone={recovery.openValue > 0 ? "danger" : "muted"} />
+                <StatRow label="Carts left behind" hint={`${recovery.reminded} reminded by email`} value={recovery.total}
+                  details={<DrillList label="Carts left behind" items={cartList.map(cartItem)} />} />
+                <StatRow label="Came back and bought" hint={`${percent(recovery.recoveryRate, 0)} of carts`} value={`${recovery.recovered} · ${money(recovery.recoveredValue)}`}
+                  details={<DrillList label="Carts that came back" empty="No cart has come back yet in this period." items={cartList.filter(c => c.recovered).map(cartItem)} />} />
+                <StatRow label="Still waiting" hint="value of books left in bags" value={money(recovery.openValue)} tone={recovery.openValue > 0 ? "danger" : "muted"}
+                  details={<DrillList label="Carts still waiting" empty="Every cart from this period came back." items={cartList.filter(c => !c.recovered).map(cartItem)} />} />
+                {leftBooks.length > 0 && (
+                  <StatRow label="Books left in bags" hint="which titles people put down most" value={`${leftBooks.length} title${leftBooks.length === 1 ? "" : "s"}`}
+                    details={<DrillList label="Books left in bags" items={leftBooks.map(b => ({ key: b.title, title: b.title, sub: `in ${b.carts} cart${b.carts === 1 ? "" : "s"} · ${b.copies} cop${b.copies === 1 ? "y" : "ies"}${b.came ? ` · ${b.came} came back` : ""}`, value: money(b.value) }))} />} />
+                )}
               </ul>
             )}
         </SectionCard>}
@@ -114,8 +150,10 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
             : reminders.sent === 0 ? <EmptyState title="No reminders sent in this period" description="A reminder goes out about an hour after a shopper leaves a cart with their email (Settings › Notifications › Abandoned cart)." />
             : (
               <ul className="rp-list" aria-label="Reminder emails">
-                <StatRow label="Reminders sent" value={reminders.sent} />
-                <StatRow label="Bought after the reminder" hint={reminders.rate === null ? undefined : `${percent(reminders.rate, 0)} of reminders`} value={reminders.bought} />
+                <StatRow label="Reminders sent" value={reminders.sent}
+                  details={<DrillList label="Reminders sent" items={remindedCarts.map(cartItem)} />} />
+                <StatRow label="Bought after the reminder" hint={reminders.rate === null ? undefined : `${percent(reminders.rate, 0)} of reminders`} value={reminders.bought}
+                  details={<DrillList label="Bought after the reminder" empty="Nobody has bought after a reminder in this period yet." items={remindedCarts.filter(c => c.recovered && Date.parse(c.recoveredAt) >= Date.parse(c.remindedAt)).map(cartItem)} />} />
                 <StatRow label="Sales after a reminder" hint="the bag's value when it was left" value={money(reminders.value)} />
               </ul>
             )}

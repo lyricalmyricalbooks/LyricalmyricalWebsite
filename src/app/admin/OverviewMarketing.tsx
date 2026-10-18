@@ -2,10 +2,13 @@ import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { DataTable, EmptyState, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge, useConfirm, type Column } from "./riso/components";
 import type { Book, Order } from "./overviewInsights";
-import { bookInterest, rankMap, recordedSince, sourcePerformance, sumMap, type Daily, type SourceRow } from "./overviewTraffic";
+import { bookInterest, rankMap, recordedSince, sourceOf, sourcePerformance, sumMap, type Daily, type SourceRow } from "./overviewTraffic";
+import { isRealPaidOrder } from "./overviewInsights";
+import { OrdersDrill } from "./OverviewDrill";
+import { countsByDay, copiesOf, ordersWithBook } from "./overviewDrill";
 import { funnelSteps, type TrafficFigures } from "./overviewSources";
 import type { Ga4Answer } from "./googleAnalytics";
-import { BarRow, SPLIT, StatRow, Trend, money, percent } from "./OverviewParts";
+import { BarRow, DrillList, SPLIT, StatRow, Trend, money, percent } from "./OverviewParts";
 import { CampaignsCard, CheckoutJourneyCard, FoundOnGoogleCard, LandingSalesCard, PageSpeedCard } from "./OverviewMarketingExtras";
 import type { Ga4Range } from "./googleAnalytics";
 
@@ -30,6 +33,7 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
 }) {
   const [confirm, confirmNode] = useConfirm();
   const [resetting, setResetting] = useState(false);
+  const [pickedSource, setPickedSource] = useState<string | null>(null);
   const funnel = useMemo(() => funnelSteps(traffic.funnel), [traffic.funnel]);
   const visitsBySource = useMemo(() => sumMap(dailyCurrent, "sources"), [dailyCurrent]);
   const sources = useMemo(() => sourcePerformance(visitsBySource, current), [visitsBySource, current]);
@@ -42,7 +46,10 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
   const deviceTotal = devices.reduce((s, d) => s + d.count, 0);
   const maxFunnel = Math.max(1, ...funnel.map(s => s.count));
   const sourceColumns: Column<SourceRow>[] = [
-    { key: "src", header: "Source", lead: true, render: r => r.source },
+    { key: "src", header: "Source", lead: true, render: r => r.orders > 0
+      ? <button type="button" className="rp-ov-drill" aria-expanded={pickedSource === r.source} onClick={() => setPickedSource(p => (p === r.source ? null : r.source))}>
+          <span aria-hidden="true" className="rp-ov-drill-mark">{pickedSource === r.source ? "▾" : "▸"}</span>{r.source}</button>
+      : r.source },
     { key: "visits", header: "Visits", numeric: true, render: r => (r.visits ? r.visits.toLocaleString() : "—") },
     { key: "orders", header: "Orders", numeric: true, render: r => r.orders },
     { key: "rev", header: "Revenue", numeric: true, render: r => money(r.revenue) },
@@ -151,7 +158,9 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
             <ol className="rp-list" style={{ margin: -20 }} aria-label="Shopping funnel">
               {funnel.map(step => (
                 <BarRow key={step.key} label={step.label} color="var(--rp-info)" share={(step.count / maxFunnel) * 100}
-                  value={<>{step.count.toLocaleString()}{step.ofPrevious !== null && <span style={{ color: "var(--rp-text-muted)" }}> · {percent(step.ofPrevious, 0)} of previous</span>}</>} />
+                  value={<>{step.count.toLocaleString()}{step.ofPrevious !== null && <span style={{ color: "var(--rp-text-muted)" }}> · {percent(step.ofPrevious, 0)} of previous</span>}</>}
+                  details={step.key === "purchase" ? <OrdersDrill label="Orders in this period" orders={current.filter(isRealPaidOrder)} />
+                    : traffic.source !== "google" && step.count > 0 ? <DrillList label={`${step.label} by day`} items={countsByDay(dailyCurrent, "funnel", step.key)} /> : undefined} />
               ))}
             </ol>
           )}
@@ -163,7 +172,14 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
           description={recordedSince(dailyAll, "sources") ? `Visits per source beside the paid orders that came from it · shop counter since ${since(recordedSince(dailyAll, "sources"))}` : "Visits per source beside the paid orders that came from it"}>
           {sources.length === 0
             ? (recordedSince(dailyAll, "sources") ? <EmptyState title="No visits in this period" description="Sources appear when shoppers arrive." /> : NOT_YET("Traffic sources"))
-            : <DataTable caption="Sources that sell" columns={sourceColumns} rows={sources} rowKey={r => r.source} />}
+            : <DataTable caption="Sources that sell" columns={sourceColumns} rows={sources} rowKey={r => r.source}
+                onRowClick={r => { if (r.orders > 0) setPickedSource(p => (p === r.source ? null : r.source)); }} />}
+          {pickedSource && sources.some(r => r.source === pickedSource) && (
+            <div className="rp-ov-drill-body" style={{ margin: "12px 20px 0" }}>
+              <strong style={{ display: "block", marginBottom: 6 }}>Orders from {pickedSource}</strong>
+              <OrdersDrill label={`Orders from ${pickedSource}`} orders={current.filter(o => isRealPaidOrder(o) && sourceOf(o) === pickedSource)} />
+            </div>
+          )}
           <p className="rp-hint" style={{ padding: "12px 20px 16px" }}>Share a link ending in <span className="rp-mono">?ref=name</span> and it shows up here under that name. Visits with no referrer count as direct.</p>
         </SectionCard>}
 
@@ -176,7 +192,8 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
             {devices.length === 0 ? NOT_YET("Devices") : (
               <ul className="rp-list" aria-label="Visits by device">
                 {devices.map(d => <BarRow key={d.key} label={d.key[0].toUpperCase() + d.key.slice(1)} value={`${d.count.toLocaleString()} · ${percent(deviceTotal ? (d.count / deviceTotal) * 100 : 0, 0)}`}
-                  share={deviceTotal ? (d.count / deviceTotal) * 100 : 0} color="var(--rp-info)" />)}
+                  share={deviceTotal ? (d.count / deviceTotal) * 100 : 0} color="var(--rp-info)"
+                  details={<DrillList label={`${d.key} visits by day`} items={countsByDay(dailyCurrent, "devices", d.key, "visit")} />} />)}
               </ul>
             )}
           </SectionCard>
@@ -185,7 +202,8 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
         {show("searches") && <SectionCard flush title="What people search for" description="Most common searches that found books">
           {searches.length === 0 ? NOT_YET("Search terms") : (
             <ul className="rp-list" aria-label="Top searches">
-              {searches.map(s => <StatRow key={s.key} label={s.key} value={`${s.count}×`} />)}
+              {searches.map(s => <StatRow key={s.key} label={s.key} value={`${s.count}×`}
+                details={<DrillList label={`Searches for ${s.key} by day`} items={countsByDay(dailyCurrent, "searches", s.key, "search")} />} />)}
             </ul>
           )}
         </SectionCard>}
@@ -197,7 +215,8 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
                 : NOT_YET("Empty searches"))
             : (
               <ul className="rp-list" aria-label="Searches with no results">
-                {missed.map(s => <StatRow key={s.key} label={s.key} value={<StatusBadge tone="warning">{s.count}×</StatusBadge>} />)}
+                {missed.map(s => <StatRow key={s.key} label={s.key} value={<StatusBadge tone="warning">{s.count}×</StatusBadge>}
+                  details={<DrillList label={`Empty searches for ${s.key} by day`} items={countsByDay(dailyCurrent, "noResults", s.key, "search")} />} />)}
               </ul>
             )}
         </SectionCard>}
@@ -208,7 +227,14 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
               {interest.rows.slice(0, 8).map(r => (
                 <StatRow key={r.id} label={r.title}
                   hint={`${r.views.toLocaleString()} views · ${r.sold} sold${r.viewToSale !== null ? ` · ${percent(r.viewToSale)} of viewers bought` : ""}`}
-                  value={interest.watch.some(w => w.id === r.id) ? <StatusBadge tone="warning">looked at, not bought</StatusBadge> : <StatusBadge tone={r.sold > 0 ? "success" : "neutral"}>{r.sold > 0 ? "selling" : "quiet"}</StatusBadge>} />
+                  value={interest.watch.some(w => w.id === r.id) ? <StatusBadge tone="warning">looked at, not bought</StatusBadge> : <StatusBadge tone={r.sold > 0 ? "success" : "neutral"}>{r.sold > 0 ? "selling" : "quiet"}</StatusBadge>}
+                  details={<>
+                    <strong style={{ display: "block", marginBottom: 6 }}>Views by day</strong>
+                    <DrillList label={`Views of ${r.title} by day`} items={countsByDay(dailyCurrent, "bookViews", r.id, "view")} />
+                    <strong style={{ display: "block", margin: "12px 0 6px" }}>Orders with this book</strong>
+                    <OrdersDrill label={`Orders with ${r.title}`} books={false} orders={ordersWithBook(current, r.id)} empty="Nobody bought it in this period."
+                      extra={o => `${copiesOf(o, r.id)} cop${copiesOf(o, r.id) === 1 ? "y" : "ies"} of this title`} />
+                  </>} />
               ))}
             </ul>
           )}

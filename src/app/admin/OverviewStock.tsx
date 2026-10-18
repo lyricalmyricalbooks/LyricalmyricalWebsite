@@ -5,7 +5,8 @@ import { recordedSince, stockDemand, type Daily } from "./overviewTraffic";
 import { wantedButUnavailable } from "./overviewSignals";
 import { adminApi } from "./api";
 import { isSoldOut, stockRowLabel, trackedStockRows } from "./stockRules";
-import { ROW, SPLIT, StatRow, money } from "./OverviewParts";
+import { DrillList, ROW, SPLIT, StatRow, money, shopWhen, type DrillItem } from "./OverviewParts";
+import { countsByDay } from "./overviewDrill";
 import { sharedLoad } from "./overviewShared";
 
 export const LOW_STOCK = 5;
@@ -82,7 +83,15 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
                 {wanted.slice(0, 8).map(r => (
                   <StatRow key={r.id} label={r.title}
                     hint={[r.views && `${r.views} ${r.views === 1 ? "view" : "views"} while unavailable`, r.saves && `${r.saves} wishlist ${r.saves === 1 ? "save" : "saves"}`, r.waiting && `${r.waiting} waiting for an email`].filter(Boolean).join(" · ")}
-                    value={<StatusBadge tone={STATE_TONE[r.state]}>{r.state}</StatusBadge>} />
+                    value={<StatusBadge tone={STATE_TONE[r.state]}>{r.state}</StatusBadge>}
+                    details={<>
+                      {r.views > 0 && <><strong style={{ display: "block", marginBottom: 6 }}>Views while it couldn't be bought</strong>
+                        <DrillList label={`Views of ${r.title} while unavailable`} items={countsByDay(dailyCurrent, "unbuyableViews", r.id, "view")} /></>}
+                      {r.saves > 0 && <><strong style={{ display: "block", margin: "12px 0 6px" }}>Wishlist saves</strong>
+                        <DrillList label={`Wishlist saves of ${r.title}`} items={countsByDay(dailyCurrent, "wishlistAdds", r.id, "save")} /></>}
+                      {r.waiting > 0 && <><strong style={{ display: "block", margin: "12px 0 6px" }}>Waiting for an email</strong>
+                        <DrillList label={`Waiting for ${r.title}`} items={waitingFor(alerts.rows || [], r.id)} /></>}
+                    </>} />
                 ))}
               </ul>
             )}
@@ -97,7 +106,8 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
                 {demand.slice(0, 8).map(d => (
                   <StatRow key={`${d.bookId}-${d.edition}`} label={d.title}
                     hint={`${d.edition ? `${d.edition} · ` : ""}${d.stock === null ? "no longer in catalog" : d.stock > 0 ? `${d.stock} in stock now` : "sold out"}`}
-                    value={<StatusBadge tone={d.stock === 0 ? "danger" : "warning"}>{d.waiting} waiting</StatusBadge>} />
+                    value={<StatusBadge tone={d.stock === 0 ? "danger" : "warning"}>{d.waiting} waiting</StatusBadge>}
+                    details={<DrillList label={`Waiting for ${d.title}`} items={waitingFor(alerts.rows || [], d.bookId, d.edition)} />} />
                 ))}
               </ul>
             )}
@@ -135,4 +145,11 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
       </div>}
     </>
   );
+}
+
+/** The readers behind a "waiting" count: who asked, for which edition and when (newest first). */
+function waitingFor(alerts: any[], bookId: string, edition?: string): DrillItem[] {
+  return alerts.filter(a => a.status === "waiting" && a.bookId === bookId && (edition === undefined || String(a.variantName || "") === edition))
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+    .map(a => ({ key: String(a.id || `${a.email}-${a.variantId}`), title: String(a.email || "No email"), sub: [a.variantName, a.createdAt && `asked ${shopWhen(a.createdAt)}`].filter(Boolean).join(" · ") }));
 }

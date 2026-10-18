@@ -3,11 +3,14 @@ import { DataTable, EmptyState, ErrorState, LoadingState, SecondaryButton, Secti
 import type { Order } from "./overviewInsights";
 import type { Daily } from "./overviewTraffic";
 import {
-  acquisitionCoverage, campaignPerformance, checkoutJourney, gaCampaignVisits, landingPerformance, pageSpeedSummary,
+  acquisitionCoverage, campaignOf, campaignPerformance, checkoutJourney, landingOf, gaCampaignVisits, landingPerformance, pageSpeedSummary,
   PASS_SHARE, VITAL_WORDS, type CampaignRow, type LandingRow, type VitalSummary,
 } from "./overviewSignals";
 import { googleAnalyticsApi, type Ga4Range, type SearchConsoleAnswer, type SearchRow } from "./googleAnalytics";
-import { BarRow, StatRow, Trend, money, percent } from "./OverviewParts";
+import { BarRow, DrillList, StatRow, Trend, money, percent } from "./OverviewParts";
+import { OrdersDrill } from "./OverviewDrill";
+import { countsByDay } from "./overviewDrill";
+import { isRealPaidOrder } from "./overviewInsights";
 import { sharedLoad } from "./overviewShared";
 
 // Overview › Marketing & traffic, the 18 October 2026 panels: where checkout loses people, campaigns and links that
@@ -27,7 +30,8 @@ export function CheckoutJourneyCard({ dailyCurrent }: { dailyCurrent: Daily[] })
           <ol className="rp-list" style={{ margin: -20 }} aria-label="Checkout steps">
             {j.steps.map(s => (
               <BarRow key={s.key} label={s.label} color="var(--rp-info)" share={(s.count / top) * 100}
-                value={<>{s.count.toLocaleString()}{s.ofPrevious !== null && <span style={{ color: "var(--rp-text-muted)" }}> · {percent(s.ofPrevious, 0)}</span>}</>} />
+                value={<>{s.count.toLocaleString()}{s.ofPrevious !== null && <span style={{ color: "var(--rp-text-muted)" }}> · {percent(s.ofPrevious, 0)}</span>}</>}
+                details={s.count > 0 ? <DrillList label={`${s.label} by day`} items={countsByDay(dailyCurrent, s.key === "start" ? "funnel" : s.key === "bought" ? "funnel" : "checkout", s.key === "start" ? "checkout_start" : s.key === "bought" ? "purchase" : s.key)} /> : undefined} />
             ))}
           </ol>
           {j.biggestDrop && <p className="rp-hint" style={{ margin: "28px 0 0" }}>{j.biggestDrop}</p>}
@@ -51,8 +55,16 @@ export function CampaignsCard({ current, paidAll, dailyCurrent, gaCampaigns }: {
   }, [dailyCurrent]);
   const rows = useMemo(() => campaignPerformance(current, paidAll, { visitsBySource, gaVisits: gaCampaignVisits(gaCampaigns) }), [current, paidAll, visitsBySource, gaCampaigns]);
   const coverage = useMemo(() => acquisitionCoverage(current, paidAll), [current, paidAll]);
+  const [picked, setPicked] = useState<string | null>(null);
+  const toggle = (key: string) => setPicked(p => (p === key ? null : key));
+  const pickedRow = rows.find(r => r.key === picked);
   const columns: Column<CampaignRow>[] = [
-    { key: "name", header: "Campaign or source", lead: true, render: r => <div><strong style={{ overflowWrap: "anywhere" }}>{r.label}</strong>{r.detail && <div className="rp-hint">{r.detail}</div>}</div> },
+    { key: "name", header: "Campaign or source", lead: true, render: r => (
+      <button type="button" className="rp-ov-drill" aria-expanded={picked === r.key} onClick={() => toggle(r.key)} style={{ display: "flex" }}>
+        <span aria-hidden="true" className="rp-ov-drill-mark">{picked === r.key ? "▾" : "▸"}</span>
+        <div><strong style={{ overflowWrap: "anywhere" }}>{r.label}</strong>{r.detail && <div className="rp-hint">{r.detail}</div>}</div>
+      </button>
+    ) },
     { key: "orders", header: "Orders", numeric: true, render: r => r.orders },
     { key: "rev", header: "Revenue", numeric: true, render: r => money(r.revenue) },
     { key: "aov", header: "Per order", numeric: true, render: r => money(r.aov) },
@@ -64,7 +76,13 @@ export function CampaignsCard({ current, paidAll, dailyCurrent, gaCampaigns }: {
     <SectionCard flush title="Campaigns and links that sell"
       description="Paid orders by what brought the shopper: a tagged campaign, a ?ref= link, Instagram, Google, a newsletter, or typed in directly">
       {rows.length === 0 ? <EmptyState title="No sales in this period" description="Campaigns appear here as soon as they bring an order." />
-        : <DataTable caption="Campaigns and links that sell" columns={columns} rows={rows} rowKey={r => r.key} />}
+        : <DataTable caption="Campaigns and links that sell" columns={columns} rows={rows} rowKey={r => r.key} onRowClick={r => toggle(r.key)} />}
+      {pickedRow && (
+        <div className="rp-ov-drill-body" style={{ margin: "12px 20px 0" }}>
+          <strong style={{ display: "block", marginBottom: 6 }}>Orders from {pickedRow.label}</strong>
+          <OrdersDrill label={`Orders from ${pickedRow.label}`} orders={current.filter(o => isRealPaidOrder(o) && campaignOf(o).key === pickedRow.key)} />
+        </div>
+      )}
       <p className="rp-hint" style={{ padding: "12px 20px 16px", margin: 0 }}>
         {coverage.orders > 0 && `${coverage.recorded} of ${coverage.orders} orders in this period carry the full record${coverage.since ? ` (saved since ${day(coverage.since)})` : ""}; older orders only know the site they came from. `}
         Tag a link with <span className="rp-mono">?utm_campaign=autumn-launch&amp;utm_source=instagram</span> (or simply <span className="rp-mono">?ref=name</span>) and its sales show up here under that name.
@@ -83,7 +101,8 @@ export function LandingSalesCard({ current }: { current: Order[] }) {
         <ul className="rp-list" aria-label="Pages that start sales">
           {rows.slice(0, 10).map((r: LandingRow) => (
             <BarRow key={r.page} label={<span className="rp-mono" style={{ fontWeight: 500 }}>{r.page}</span>} share={(r.revenue / top) * 100} color="var(--rp-success)"
-              value={`${money(r.revenue)} · ${r.orders} ${r.orders === 1 ? "order" : "orders"}`} />
+              value={`${money(r.revenue)} · ${r.orders} ${r.orders === 1 ? "order" : "orders"}`}
+              details={<OrdersDrill label={`Orders that started on ${r.page}`} orders={current.filter(o => isRealPaidOrder(o) && landingOf(o) === r.page)} />} />
           ))}
         </ul>
       )}

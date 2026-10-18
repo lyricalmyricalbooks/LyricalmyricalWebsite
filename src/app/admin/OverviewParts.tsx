@@ -1,12 +1,20 @@
 import { useState, type ReactNode } from "react";
 import { SecondaryButton, SectionCard, StatusBadge, GhostButton, ErrorState, type BadgeTone } from "./riso/components";
 import { change } from "./overviewInsights";
+import { SHOP_TZ } from "../lib/shopDay";
 import { readinessProgress, readinessSummary, type ReadinessItem } from "./launchReadiness";
 
 // Small pieces shared by the Overview shell and its four detail tabs.
 
 export const money = (n: number) => `CA$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 export const percent = (n: number, digits = 1) => `${Number(n || 0).toFixed(digits)}%`;
+/** A moment in the shop's own time, e.g. "Oct 17, 3:42 PM"; "" when unknown. */
+export const shopWhen = (v: unknown) => {
+  const t = new Date(v as any).getTime();
+  return Number.isNaN(t) || !v ? "" : new Date(t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: SHOP_TZ });
+};
+/** The admin address of one order (opens Orders on it). */
+export const orderHref = (id: string) => `#orders/${encodeURIComponent(id)}`;
 export const SPLIT = { gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" } as const;
 export const ROW = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 } as const;
 
@@ -29,13 +37,46 @@ export function Meter({ share, color = "var(--rp-primary)", label, valueText }: 
   );
 }
 
-/** A bar row: label + value, with a proportional bar underneath. */
-export function BarRow({ label, value, share, color }: { label: ReactNode; value: ReactNode; share: number; color?: string }) {
+/** A bar row: label + value, with a proportional bar underneath. With `details`, the row opens to show what's behind it. */
+export function BarRow({ label, value, share, color, details }: { label: ReactNode; value: ReactNode; share: number; color?: string; details?: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const head = <div style={ROW}><strong style={{ minWidth: 0, overflowWrap: "anywhere" }}>{details ? <Chevron open={open} /> : null}{label}</strong><span className="rp-mono" style={{ whiteSpace: "nowrap" }}>{value}</span></div>;
   return (
     <li>
-      <div style={ROW}><strong style={{ minWidth: 0, overflowWrap: "anywhere" }}>{label}</strong><span className="rp-mono" style={{ whiteSpace: "nowrap" }}>{value}</span></div>
-      <Meter share={share} color={color} />
+      {details ? <button type="button" className="rp-ov-drill" aria-expanded={open} onClick={() => setOpen(v => !v)}>{head}<Meter share={share} color={color} /></button>
+        : <>{head}<Meter share={share} color={color} /></>}
+      {details && open && <div className="rp-ov-drill-body">{details}</div>}
     </li>
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return <span aria-hidden="true" className="rp-ov-drill-mark">{open ? "▾" : "▸"}</span>;
+}
+
+/** One record behind a figure: what it is, a line of facts, and its own value; `href` opens it in the admin. */
+export interface DrillItem { key: string; title: ReactNode; sub?: ReactNode; value?: ReactNode; href?: string; tone?: "danger" | "success" | "muted" }
+
+/** The records behind a figure, shown when a row opens: the first `limit`, then "Show all". */
+export function DrillList({ items, empty = "Nothing to show for this period.", limit = 8, label }: { items: DrillItem[]; empty?: ReactNode; limit?: number; label: string }) {
+  const [all, setAll] = useState(false);
+  if (!items.length) return <p className="rp-hint" style={{ margin: 0 }}>{empty}</p>;
+  const shown = all ? items : items.slice(0, limit);
+  return (
+    <>
+      <ul className="rp-ov-drill-list" aria-label={label}>
+        {shown.map(it => (
+          <li key={it.key}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 600, overflowWrap: "anywhere" }}>{it.href ? <a href={it.href}>{it.title}</a> : it.title}</div>
+              {it.sub && <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{it.sub}</div>}
+            </div>
+            {it.value !== undefined && <span className="rp-mono" style={{ whiteSpace: "nowrap", color: it.tone === "danger" ? "var(--rp-danger)" : it.tone === "success" ? "var(--rp-success)" : it.tone === "muted" ? "var(--rp-text-muted)" : undefined }}>{it.value}</span>}
+          </li>
+        ))}
+      </ul>
+      {items.length > limit && <GhostButton size="sm" onClick={() => setAll(v => !v)}>{all ? "Show fewer" : `Show all ${items.length}`}</GhostButton>}
+    </>
   );
 }
 
@@ -67,15 +108,23 @@ export function Figure({ label, value, foot, tone }: { label: string; value: Rea
   );
 }
 
-/** A "label … value" line inside an `rp-list`, with an optional hint underneath. */
-export function StatRow({ label, hint, value, tone }: { label: ReactNode; hint?: ReactNode; value: ReactNode; tone?: "danger" | "muted" }) {
-  return (
-    <li style={ROW}>
+/** A "label … value" line inside an `rp-list`, with an optional hint underneath. With `details`, it opens to show the records behind it. */
+export function StatRow({ label, hint, value, tone, details }: { label: ReactNode; hint?: ReactNode; value: ReactNode; tone?: "danger" | "muted"; details?: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const head = (
+    <>
       <div style={{ minWidth: 0 }}>
-        <span style={{ fontWeight: 600, overflowWrap: "anywhere", color: tone === "muted" ? "var(--rp-text-muted)" : undefined }}>{label}</span>
+        <span style={{ fontWeight: 600, overflowWrap: "anywhere", color: tone === "muted" ? "var(--rp-text-muted)" : undefined }}>{details ? <Chevron open={open} /> : null}{label}</span>
         {hint && <div className="rp-hint rp-mono">{hint}</div>}
       </div>
       <span className="rp-mono" style={{ whiteSpace: "nowrap", color: tone === "danger" ? "var(--rp-danger)" : undefined }}>{value}</span>
+    </>
+  );
+  if (!details) return <li style={ROW}>{head}</li>;
+  return (
+    <li>
+      <button type="button" className="rp-ov-drill" aria-expanded={open} onClick={() => setOpen(v => !v)} style={ROW}>{head}</button>
+      {open && <div className="rp-ov-drill-body">{details}</div>}
     </li>
   );
 }
