@@ -1313,6 +1313,12 @@ on the order). Both checks run in `fetchValidDiscount` / both checkout paths; to
 
 **Creators and share image (12 October 2026):** the editor's "Author / contributors" box is `book.subtitle`; `bookCreators` (`lib/bookSeo.ts`) reads it (else legacy `authorName`), splits lists and drops group credits ("Various artists", "AA.VV.", "A x B"). Book JSON-LD `author` lists those Persons (a legacy `authorName` still wins), `autoBookSeo` uses them, and a book with no `metaTitle` gets `defaultBookTitle` — Text & labels › Site & sharing › `seoBookTitleByline` ("{title} by {author}") while that is ≤ 50 characters, else the plain title (BookDetail and the Search (SEO) pane preview agree). Home/collection `useSEO` images are `design.shareImageUrl`, else the first published book's cover — never `settings.assets.profileUrl` (the default settings' 100px stock photo). PDP thumbnail `<img>`s carry the same `bookPhotoAlt` fallback as the main photo (their buttons keep their aria-label).
 
+**Artist links (18 October 2026):** Books › edit › Search (SEO) › **Artist links** saves `book.creatorLinks` (`[{ name, url }]`, public,
+http(s) only, ≤10, cleaned by `creatorLinks` in `lib/bookSeo.ts`). `creatorPeople` gives each credited creator (`bookCreators`, else
+`authorName`) `url`/`sameAs` from links with the same name (case-insensitive); links naming nobody in the credit become `contributor`.
+The Details tab lists them as followed links (Style › Book page · photos & layout › `showPdpArtistLinks`, label Text & labels ›
+Product page › `specArtistLinks`). `seoChecks` adds `creator` (listing names the artist) and `creatorLink` for books with a named creator.
+
 **Rich results (October 2026):** pages emit one JSON-LD `@graph` — home BookStore+WebSite, book Product/Book + breadcrumb + star rating from approved reviews only (`reviewsApi.listApproved`, shared with the reviews section), collection CollectionPage/ItemList, page breadcrumbs (`lib/bookSeo.ts`, `docs/SEO_CRAWLABILITY.md`). The sitemap lists book photos as `image:image`.
 
 Production builds render the public sitemap into real HTML route documents via

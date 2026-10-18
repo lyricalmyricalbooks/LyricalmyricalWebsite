@@ -516,6 +516,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     title: "Book page · photos & layout",
     fields: [
       { key: "showPdpEditionDetails", label: "Show edition details", kind: "toggle", defaultValue: true },
+      { key: "showPdpArtistLinks", label: "Show artist website links in Details (Books › edit › Search (SEO) › Artist links)", kind: "toggle", defaultValue: true },
       { key: "lowStockProductThreshold", label: "Show “only N left” on the product page at or below", kind: "number", min: 1, max: 100, step: 1 },
       { key: "recentlyViewedCount", label: "Recently viewed: how many books", kind: "number", min: 1, max: 12, step: 1 },
       { key: "productImageLayout", label: "Image layout", kind: "select", options: [{ value: "slider", label: "Slider" }, { value: "grid", label: "Grid" }] },

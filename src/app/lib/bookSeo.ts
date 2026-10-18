@@ -68,6 +68,44 @@ export function bookCreators(book: Partial<Book> & Record<string, any>): string[
   return [...new Set(credit.split(/\s*(?:,|;|&|\s\+\s|\sand\s)\s*/i).map(name => name.trim()).filter(name => name.length > 1))].slice(0, 10);
 }
 
+export type CreatorLink = { name: string; url: string };
+
+/** Books › edit › Search (SEO) › Artist links: the official website (or other profile) of each person credited.
+ *  Only http(s) addresses with a name are kept, at most 10. */
+export function creatorLinks(book: Partial<Book> & Record<string, any>): CreatorLink[] {
+  const raw = Array.isArray(book?.creatorLinks) ? book.creatorLinks : [];
+  const out: CreatorLink[] = [];
+  for (const item of raw) {
+    const name = searchText(item?.name);
+    const href = typeof item?.url === 'string' ? item.url.trim() : '';
+    if (!name || !/^https?:\/\/[^\s/]+\.[^\s]+$/i.test(href)) continue;
+    try { out.push({ name, url: new URL(href).href }); } catch { /* not an address */ }
+    if (out.length >= 10) break;
+  }
+  return out;
+}
+
+const sameName = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' }) === 0;
+
+/** Schema.org people for a book: each credited creator, with their own website as `url`/`sameAs` so Google can
+ *  tie the book to the person it already knows. Links naming nobody in the credit become contributors. */
+export function creatorPeople(book: Partial<Book> & Record<string, any>) {
+  const links = creatorLinks(book);
+  const names = searchText(book.authorName) ? [searchText(book.authorName)] : bookCreators(book);
+  const person = (name: string) => {
+    const urls = [...new Set(links.filter(l => sameName(l.name, name)).map(l => l.url))];
+    return { '@type': 'Person', name, ...(urls.length ? { url: urls[0], sameAs: urls } : {}) };
+  };
+  const others = [...new Set(links.filter(l => !names.some(n => sameName(n, l.name))).map(l => l.name))];
+  return { authors: names.map(person), contributors: others.map(person) };
+}
+
+/** Does this text name the person, ignoring case and accents? */
+export function namesCreator(text: string, name: string): boolean {
+  const plain = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ');
+  return !!name && plain(text).includes(plain(name));
+}
+
 /** The tab/search title a book gets when the owner wrote none: "Title by Author" while that stays short
  *  (`byline` is Text & labels › Site & sharing › Book page title with author), else just the title. */
 export function defaultBookTitle(book: Partial<Book> & Record<string, any>, byline: (title: string, author: string) => string, max = 50): string {
@@ -227,6 +265,15 @@ export function siteStructuredData(options: { name: string; url: string; descrip
   ];
 }
 
+function creatorProps(book: Book & Record<string, any>) {
+  const { authors, contributors } = creatorPeople(book);
+  // A single legacy `authorName` stays one object, as before; the Author / contributors box gives a list.
+  return {
+    ...(authors.length ? { author: searchText(book.authorName) ? authors[0] : authors } : {}),
+    ...(contributors.length ? { contributor: contributors } : {}),
+  };
+}
+
 export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; ratingSummary?: { count: number; average: number } | null; seller?: string }) {
   const variants = book.variants || [];
   const backorder = book.onBackorder || (variants.length > 0 && variants.every((v: any) => v.onBackorder));
@@ -248,11 +295,7 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
     ...bookFacts(book),
     ...(book.sku ? { sku: book.sku } : {}),
     ...(book.language ? { inLanguage: book.language } : {}),
-    ...(book.authorName
-      ? { author: { '@type': 'Person', name: book.authorName } }
-      : bookCreators(book).length
-        ? { author: bookCreators(book).map(name => ({ '@type': 'Person', name })) }
-        : {}),
+    ...creatorProps(book),
     ...(book.publisher ? { publisher: { '@type': 'Organization', name: book.publisher } } : {}),
     offers: {
       '@type': 'Offer', url: options.url,
@@ -275,7 +318,19 @@ export function seoChecks(book: Partial<Book>, listingTitle = bookMetadata(book)
     { id: 'content', ok: searchText(descriptionPlainText(book.description)).length >= 100, label: 'Describe this book’s subject, creator and edition in the book description.' },
     { id: 'cover', ok: !!book.photos?.[0]?.url, label: 'Add a cover photo so product results can include an image.' },
     { id: 'alt', ok: !!book.photos?.length && book.photos.every(p => !!describedAlt(p.altText)), label: 'Describe each book photo in Images (a file name like "IMG_1234" doesn\'t count). Describe with AI can write them.' },
+    ...creatorChecks(book, listingTitle, meta.description),
     { id: 'isbn', ok: !!book.isbn?.trim(), label: 'Add the ISBN when this edition has one; do not invent an identifier.' },
     { id: 'published', ok: book.status === 'published', label: 'Publish the book to make its public page available to search engines.' },
+  ];
+}
+
+/** Searches for an artist's name match pages that say it: the listing should name them, and their own website
+ *  linked from the book (Artist links) tells Google which person is meant. Books with no named creator skip both. */
+function creatorChecks(book: Partial<Book> & Record<string, any>, listingTitle: string, description: string) {
+  const names = searchText(book.authorName) ? [searchText(book.authorName)] : bookCreators(book);
+  if (!names.length) return [];
+  return [
+    { id: 'creator', ok: names.some(name => namesCreator(`${listingTitle} ${description}`, name)), label: `Name the artist (${names[0]}) in the search title or description, so searches for their name can find this book.` },
+    { id: 'creatorLink', ok: creatorLinks(book).length > 0, label: 'Add the artist’s official website under Artist links, so Google can connect this book to them.' },
   ];
 }

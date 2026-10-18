@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoBookSeo, bookCreators, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, seoTopicList, siteStructuredData, snippet } from './bookSeo';
+import { autoBookSeo, bookCreators, creatorLinks, creatorPeople, namesCreator, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, seoTopicList, siteStructuredData, snippet } from './bookSeo';
 const book = { id: 'one', title: 'Photo book', description: '<p>Art &amp; photography.</p>', retailPrice: 24, stockLevel: 0, status: 'published', slug: 'photo-book', metaTitle: 'An artist’s photo book', metaDescription: 'A unique collection of photographs.', seoImage: 'https://example.com/share.jpg' };
 describe('book search metadata', () => {
   it('uses saved search fields and sharing image', () => {
@@ -155,5 +155,33 @@ describe('book creators from Author / contributors', () => {
   });
   it('auto-fill uses the contributors box too', () => {
     expect(autoBookSeo({ title: 'The Hound', subtitle: 'Ian Willms' }, 'Lyricalmyrical Books').metaTitle).toBe('The Hound by Ian Willms — Lyricalmyrical Books');
+  });
+});
+
+describe('artist links', () => {
+  const hound: any = { id: 'h', title: 'The Hound', subtitle: 'Ian Willms', retailPrice: 60, stockLevel: 3, status: 'published',
+    creatorLinks: [{ name: 'ian willms', url: 'https://www.ianwillms.com' }, { name: '', url: 'https://x.com' }, { name: 'Bad', url: 'javascript:alert(1)' }, { name: 'Panos', url: 'https://www.panos.co.uk/' }] };
+  it('keeps only named http(s) links', () => {
+    expect(creatorLinks(hound)).toEqual([{ name: 'ian willms', url: 'https://www.ianwillms.com/' }, { name: 'Panos', url: 'https://www.panos.co.uk/' }]);
+    expect(creatorLinks({ creatorLinks: 'nope' } as any)).toEqual([]);
+  });
+  it('gives the credited artist their website and other links as contributors', () => {
+    const people = creatorPeople(hound);
+    expect(people.authors).toEqual([{ '@type': 'Person', name: 'Ian Willms', url: 'https://www.ianwillms.com/', sameAs: ['https://www.ianwillms.com/'] }]);
+    expect(people.contributors.map(p => p.name)).toEqual(['Panos']);
+    const data: any = bookStructuredData(hound, { currency: 'CAD', price: 60, url: 'https://example.com/books/the-hound' });
+    expect(data.author[0].sameAs).toEqual(['https://www.ianwillms.com/']);
+    expect(data.contributor[0].url).toBe('https://www.panos.co.uk/');
+    expect(bookStructuredData({ ...hound, creatorLinks: [] }, { currency: 'CAD', price: 60, url: 'https://e.com/b' }).author).toEqual([{ '@type': 'Person', name: 'Ian Willms' }]);
+  });
+  it('checks the listing names the artist and has their website', () => {
+    expect(namesCreator('Oltre il Tempo by Isabella Tortolà', 'Isabella Tortola')).toBe(true);
+    const checks = seoChecks({ ...hound, metaTitle: 'The Hound', metaDescription: 'A photobook about a bus.', creatorLinks: [] });
+    expect(checks.find(c => c.id === 'creator')?.ok).toBe(false);
+    expect(checks.find(c => c.id === 'creatorLink')?.ok).toBe(false);
+    const done = seoChecks({ ...hound, metaTitle: 'The Hound by Ian Willms' });
+    expect(done.find(c => c.id === 'creator')?.ok).toBe(true);
+    expect(done.find(c => c.id === 'creatorLink')?.ok).toBe(true);
+    expect(seoChecks({ ...hound, subtitle: 'Various artists' }).some(c => c.id === 'creator')).toBe(false);
   });
 });
