@@ -23,7 +23,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
   if (items.length === 0 || (settings?.design as any)?.showRecentlyViewed === false) return null;
 
   return (
-    <section {...regionProps("recentRow")} className="border-t border-white/[0.06]">
+    <section {...regionProps("recentRow")} data-ga-list="Recently viewed" className="border-t border-white/[0.06]">
       <div className="mx-auto px-6 py-14" style={{ maxWidth: contentMaxWidth({ ...(settings?.design || {}), ...((settings?.design as any)?.storefront || {}) }) }}>
         <div {...regionProps("recentHeading")} className="flex items-center gap-6 mb-8">
           <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">

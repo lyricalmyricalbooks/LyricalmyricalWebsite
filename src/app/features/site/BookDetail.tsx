@@ -1572,7 +1572,7 @@ export default function BookDetail() {
 
         {/* ── Related books ── */}
         {showRelatedProducts && otherBooks.length > 0 && (
-          <section data-section="products" {...regionProps("relatedBooks")} className="relative z-10 mt-16 border-t border-white/[0.06]">
+          <section data-section="products" {...regionProps("relatedBooks")} data-ga-list="Related books" className="relative z-10 mt-16 border-t border-white/[0.06]">
             <div className="mx-auto px-6 py-20" style={{ maxWidth: pageMaxWidth }}>
               <div {...regionProps("relatedHeading")} className="flex items-center gap-6 mb-12">
                 <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">

@@ -1160,14 +1160,16 @@ export function Checkout() {
   useSEO({ title: c("seoCheckoutTitle"), description: c("seoCheckoutDescription") });
 
   // Track funnel + abandoned cart on email entry
+  // Google Analytics checkout steps share one shape: the bag's CAD value and its books (CartContext prices are CAD).
+  const ga4Bag = () => ({
+    currency: "CAD",
+    value: Math.round(cartRef.current.reduce((s: number, i: any) => s + (Number(i.price) || 0) * (Number(i.quantity) || 0), 0) * 100) / 100,
+    items: ga4Items(cartRef.current),
+  });
+  const ga4Day = () => new Date().toISOString().slice(0, 10);
   useEffect(() => {
     funnelApi.trackCheckoutStart();
-    if (cartRef.current.length) {
-      ga4Once(`begin_checkout_${new Date().toISOString().slice(0, 10)}`, "begin_checkout", {
-        currency: "CAD", value: Math.round(cartRef.current.reduce((s: number, i: any) => s + (Number(i.price) || 0) * (Number(i.quantity) || 0), 0) * 100) / 100,
-        items: ga4Items(cartRef.current),
-      });
-    }
+    if (cartRef.current.length) ga4Once(`begin_checkout_${ga4Day()}`, "begin_checkout", ga4Bag());
     if (typeof window !== "undefined" && window.location.search.includes("preview=true")) {
       window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
     }
@@ -1276,9 +1278,15 @@ export function Checkout() {
   useEffect(() => { if (cart.length > 0 && emailTyped) void funnelApi.trackCheckoutStep("email"); }, [emailTyped, cart.length]);
   useEffect(() => { if (cart.length > 0 && detailProblems.length === 0) void funnelApi.trackCheckoutStep("address"); }, [detailProblems.length, cart.length]);
   useEffect(() => { if (deliveryPriceShown) void funnelApi.trackCheckoutStep("delivery"); }, [deliveryPriceShown]);
+  // Google Analytics "add_shipping_info": the address is complete and a way to get the books is picked (once a day).
+  useEffect(() => {
+    if (!deliveryPriceShown || !cartRef.current.length || (!digitalOnly && !fulfillmentSelection.optionId)) return;
+    ga4Once(`add_shipping_info_${ga4Day()}`, "add_shipping_info", { ...ga4Bag(), shipping_tier: digitalOnly ? "digital" : fulfillmentSelection.method });
+  }, [deliveryPriceShown, digitalOnly, fulfillmentSelection.optionId, fulfillmentSelection.method]);
 
   const completePurchase = async () => {
     void funnelApi.trackCheckoutStep("pay");
+    if (cartRef.current.length) ga4Once(`add_payment_info_${ga4Day()}`, "add_payment_info", { ...ga4Bag(), payment_type: String(selectedPaymentMethod || "").slice(0, 40) });
     if (catalogState !== "ready") {
       setNotice({ tone: "error", text: c(catalogState === "failed" ? "coCatalogFailed" : "coCatalogLoading") });
       return;
