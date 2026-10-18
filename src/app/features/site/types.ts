@@ -69,7 +69,7 @@ export type SiteSettings = {
   /** Most copies one shopper can have set aside at checkout (functions/stockHolds.js). */
   stockHolds?: { perBook: number; units: number; orders: number };
   domain?: { subdomain: string; custom: string };
-  info?: { name: string; description: string; website: string };
+  info?: { name: string; description: string; website: string; email?: string };
   inventory?: { tracking: boolean; overselling: boolean };
   checkout?: { requirePhone: boolean };
   assets?: { profileUrl: string; faviconUrl: string };

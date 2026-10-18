@@ -1325,6 +1325,12 @@ Inspection API, same metadata token; URLs must sit inside the property, `inSite`
 (Request indexing exists only in Search Console's own UI). The Merchant feed titles add "by <artists>" and `g:product_detail` Author rows
 (`creatorNames` in `merchantFeed.mjs`, kept equal to `bookCreators` by `merchantFeed.test.ts`).
 
+**Press profile + llms.txt (18 October 2026):** `bookStructuredData` takes `shopUrl`: the offer's seller, and a `publisher` that
+names the shop (`namesShop`), become the home page's `#organization` @id (`shopRef`); other publishers stay plain names. The home
+BookStore adds `email`, a town-only `address` (never the street) and `sameAs` = Style social links + Text & labels › Site & sharing ›
+`seoProfiles` (`profileLinks`, https only). `scripts/llmsTxt.mjs` (written by `generate-sitemap.mjs`, checked by `hosting-smoke.mjs`)
+publishes `/llms.txt`: shop summary, live indexable books with artist/format/pages/language/ISBN (no prices), published pages, policies.
+
 **Rich results (October 2026):** pages emit one JSON-LD `@graph` — home BookStore+WebSite, book Product/Book + breadcrumb + star rating from approved reviews only (`reviewsApi.listApproved`, shared with the reviews section), collection CollectionPage/ItemList, page breadcrumbs (`lib/bookSeo.ts`, `docs/SEO_CRAWLABILITY.md`). The sitemap lists book photos as `image:image`.
 
 Production builds render the public sitemap into real HTML route documents via
