@@ -30,6 +30,7 @@ const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
 const { labelRatesFor, isPurchasableRate, isSoldRate: isSoldRateName, isCanadaPostRate: isCanadaPostRateName, soldName } = require("./labelRates");
 const { needsCustoms, customsItems, customsDeclaration } = require("./customs");
+const { FALLBACK_COPY_GRAMS, lineCopyGrams, parcelGrams } = require("./parcelWeight");
 const { addressMissing } = require("./addressRules");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
@@ -993,9 +994,9 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
       const liveQuote = shippoToken ? await (async () => {
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.data() || {};
-      const totalWeightLb = physicalItems.reduce((sum, item) => {
+      const totalWeightG = physicalItems.reduce((sum, item) => {
         const grams = Number(item.weightGrams);
-        return sum + ((Number.isFinite(grams) && grams > 0 ? grams / 453.592 : 1.5) * (item.quantity || 1));
+        return sum + ((Number.isFinite(grams) && grams > 0 ? grams : FALLBACK_COPY_GRAMS) * (item.quantity || 1));
       }, 0);
       const shipment = await callShippo("shipments/", "POST", {
         address_from: originAddress(settings),
@@ -1008,7 +1009,7 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
           zip: address.zip,
           country: destinationCountry,
         },
-        parcels: [{ length: "10", width: "8", height: "2", distance_unit: "in", weight: Math.max(0.1, totalWeightLb).toFixed(1), mass_unit: "lb" }],
+        parcels: [{ length: "10", width: "8", height: "2", distance_unit: "in", weight: parcelGrams(totalWeightG), mass_unit: "g" }],
         async: false,
       }, shippoToken);
       const carrierQuotes = (shipment.rates || []).map(rate => ({
@@ -5200,7 +5201,7 @@ exports.getShippoRates = onBrowserRequest(
 
       // Same parcel weight as the charge path (resolveShipping): physical items only,
       // catalog weights read as grams ("450 g", "0.5 kg", bare numbers = grams).
-      let totalWeightLb = 0;
+      let totalWeightG = 0;
       for (const [index, item] of items.entries()) {
         const bookDoc = bookDocs[index];
         if (!bookDoc.exists) continue;
@@ -5222,9 +5223,9 @@ exports.getShippoRates = onBrowserRequest(
           });
           if (partWeights.every(w => w != null)) grams = partWeights.reduce((sum, w, i) => sum + w * parts[i].quantity, 0);
         }
-        totalWeightLb += (Number.isFinite(grams) && grams > 0 ? grams / 453.592 : 1.5) * qty;
+        totalWeightG += (Number.isFinite(grams) && grams > 0 ? grams : FALLBACK_COPY_GRAMS) * qty;
       }
-      if (totalWeightLb === 0) {
+      if (totalWeightG === 0) {
         res.status(200).json({ rates: [], useRegularRates: true });
         return;
       }
@@ -5234,8 +5235,8 @@ exports.getShippoRates = onBrowserRequest(
         width: "8",
         height: "2",
         distance_unit: "in",
-        weight: Math.max(0.1, totalWeightLb).toFixed(1),
-        mass_unit: "lb"
+        weight: parcelGrams(totalWeightG),
+        mass_unit: "g"
       };
 
       const shipment = await callShippo("shipments/", "POST", {
@@ -5761,8 +5762,8 @@ exports.createShippingLabel = onBrowserRequest(
               quantity: qty,
               total_price: ((item.price || 0) * qty).toFixed(2),
               currency,
-              weight: (1.5 * qty).toFixed(2),
-              weight_unit: "lb",
+              weight: String(Math.round(lineCopyGrams(item) * qty)),
+              weight_unit: "g",
               sku: String(item.id || item.sku || "")
             };
           }),
@@ -5775,8 +5776,8 @@ exports.createShippingLabel = onBrowserRequest(
           total_price: (order.total || 0).toFixed(2),
           total_tax: (order.tax || 0).toFixed(2),
           currency,
-          weight: (1.5 * Math.max(1, orderQty)).toFixed(2),
-          weight_unit: "lb"
+          weight: parcelGrams(orderItems.reduce((sum, item) => sum + lineCopyGrams(item) * (item.quantity || 1), 0)),
+          weight_unit: "g"
         };
       };
       const addressKey = JSON.stringify(order.customer.address);
@@ -5846,8 +5847,9 @@ exports.createShippingLabel = onBrowserRequest(
         width: customParcel.width ? String(customParcel.width) : "8",
         height: customParcel.height ? String(customParcel.height) : "2",
         distance_unit: customParcel.distance_unit || "in",
-        weight: customParcel.weight ? String(customParcel.weight) : (1.5 * totalQty).toFixed(1),
-        mass_unit: customParcel.mass_unit || "lb"
+        weight: customParcel.weight ? String(customParcel.weight) : String(Math.round(FALLBACK_COPY_GRAMS * totalQty)),
+        // The label dialog sends grams; an older open admin tab may still send "lb".
+        mass_unit: ["g", "kg", "oz", "lb"].includes(customParcel.mass_unit) ? customParcel.mass_unit : (customParcel.weight ? "lb" : "g")
       };
 
       // 3b. Customs paperwork for a parcel that crosses a border (item description, tariff number,

@@ -73,7 +73,7 @@ import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from ".
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
 import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
 import { DescriptionText } from "../features/site/DescriptionText";
-import { editorDirty, fillEmpty, isbnWarning, lookupIsbn, needsPublishReview, slugClash, slugFollowsTitle, slugLocked, slugifyTitle } from "./bookEditorState";
+import { editorDirty, fillEmpty, isbnWarning, lookupIsbn, needsPublishReview, slugClash, slugFollowsTitle, slugLocked, slugifyTitle, withMetricWeights } from "./bookEditorState";
 import { LOW_STOCK } from "./catalogList";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { isStockLinked, type InventoryLinks } from "./inventoryLink";
@@ -570,7 +570,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     // Review when the book goes live, or when a live book gains a problem it didn't have when opened.
     if (!reviewed && needsPublishReview(formData, book ? initialData : null)) { setPublishReview(true); return; }
     // Gift cards are digital and untracked; box sets take stock from the books inside (productExtras).
-    const toSave = productForSave(formData);
+    const toSave = withMetricWeights(productForSave(formData));
     // Edits typed while the save is in flight are kept (and stay unsaved), never replaced by the saved copy.
     const snapshot = formData;
     setLoading(true);

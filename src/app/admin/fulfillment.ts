@@ -156,15 +156,15 @@ export function daysInTransit(o: any, now: number = Date.now()): number | null {
 }
 export const isOverdueInTransit = (o: any, now?: number) => (daysInTransit(o, now) ?? 0) >= OVERDUE_TRANSIT_DAYS;
 // Default parcel weight for the label dialog: catalog weights saved on the order
-// (grams per copy) plus packaging. Copies without a weight count as 1.5 lb (680 g).
+// (grams per copy) plus packaging, in whole grams. Copies without a weight count as 680 g.
 export const PACKAGING_GRAMS = 150;
-export function suggestedParcelWeightLb(o: any): string {
+export function suggestedParcelWeightGrams(o: any): string {
  const grams = physicalItems(o).reduce((sum: number, item: any) => {
   const each = Number(item.weightGrams);
   return sum + (Number.isFinite(each) && each > 0 ? each : 680) * Math.max(1, Number(item.quantity || 1));
  }, 0);
- if (!grams) return "1.5";
- return Math.max(0.1, (grams + PACKAGING_GRAMS) / 453.592).toFixed(1);
+ if (!grams) return "680";
+ return String(Math.max(1, Math.round(grams + PACKAGING_GRAMS)));
 }
 // Copies to pull from the shelves for these orders. A box set counts the books inside it
 // (each set × each book's quantity), so the pick list matches what actually goes in the parcel.
