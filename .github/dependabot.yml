@@ -1,0 +1,26 @@
+# Security updates only (version update PRs stay off: open-pull-requests-limit 0).
+# Ignore rules still apply to security updates: a major jump of these broke main twice
+# (vitest 5 fails to start in CI; firebase-admin 14 removes the admin.firestore() API the
+# Functions use). Patched 4.x / 13.x releases are still offered.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitest/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: npm
+    directory: "/functions"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "firebase-admin"
+        update-types: ["version-update:semver-major"]
