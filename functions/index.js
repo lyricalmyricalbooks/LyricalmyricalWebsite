@@ -77,6 +77,7 @@ setGlobalOptions({ maxInstances: 10 });
 
 admin.initializeApp();
 const db = admin.firestore();
+const { settlePayment } = require("./settlePayment").createSettlement({ db, increment: n => admin.firestore.FieldValue.increment(n) });
 
 const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 
@@ -1454,26 +1455,6 @@ async function reserveCheckout(orderId, items, order, giftCardRedemptions, testM
   }
 }
 
-// Inside a payment transaction, after every read: takes the order's gift-card amounts off the
-// cards once. Returns false (and records giftCardConflict) when a card can no longer pay its part:
-// the order is then not marked paid, exactly like a stock conflict.
-function settleGiftCards(transaction, orderRef, orderId, order, cards, provider, now) {
-  const redemptions = chargedRedemptions(order);
-  if (!redemptions.length || order.giftCardsDebitedAt) return true;
-  const short = debitShortfall(redemptions, cards);
-  if (short) {
-    transaction.update(orderRef, {
-      giftCardConflict: { provider, reason: "balance", cardId: short, at: now },
-      activity: [...(order.activity || []), { type: "event", message: `${provider} confirmed payment, but a gift card on this order no longer had enough balance. The order was not marked paid; refund or reconcile the payment and contact the customer.`, createdAt: now }],
-      updatedAt: now,
-    });
-    return false;
-  }
-  writeGiftCardChange(transaction, db, orderId, redemptions, cards, -1, now);
-  transaction.update(orderRef, { giftCardsDebitedAt: now });
-  return true;
-}
-
 async function reserveForConfirmedPayment(orderId, provider, paymentId) {
   const ref = db.collection("orders").doc(orderId);
   const snap = await ref.get();
@@ -1496,84 +1477,47 @@ async function reserveForConfirmedPayment(orderId, provider, paymentId) {
 }
 
 async function markOrderPaidFromPayPal(orderId, paypalData) {
-  const orderRef = db.collection("orders").doc(orderId);
-  let paidTotal = null;
-  const initialOrder = await orderRef.get();
+  const initialOrder = await db.collection("orders").doc(orderId).get();
   if (initialOrder.exists && initialOrder.data().paypalMode !== "test"
       && !await reserveForConfirmedPayment(orderId, "PayPal", paypalData.captureId)) return false;
-  await db.runTransaction(async transaction => {
-    paidTotal = null; // a retried attempt must not keep the last attempt's value
-    const orderDoc = await transaction.get(orderRef);
-    if (!orderDoc.exists) throw new Error("Order not found.");
-    const order = orderDoc.data();
-    if (order.paymentStatus === "paid") return;
-    if (order.paypalOrderId !== paypalData.paypalOrderId) throw new Error("PayPal order does not match checkout order.");
-    if (order.status === "cancelled") {
-      if (order.paymentMismatch?.paidAfterCancel) return;
-      const at = new Date().toISOString();
-      transaction.update(orderRef, {
-        paypalCaptureId: paypalData.captureId || null,
-        paymentMismatch: { paidAfterCancel: true, provider: "paypal", captureId: paypalData.captureId || null, at },
-        activity: [...(order.activity || []), { type: "event", message: "PayPal payment arrived after this order was cancelled. Not marked paid — refund it in PayPal.", createdAt: at }],
-        updatedAt: at,
-      });
-      return;
-    }
-    const amountCheck = paidAmountCheck(order, toMinor(paypalData.capture?.amount?.value), paypalData.capture?.amount?.currency_code);
-    if (!amountCheck.ok) {
-      const at = new Date().toISOString();
-      transaction.update(orderRef, {
-        paymentMismatch: { ...amountCheck, provider: "paypal", captureId: paypalData.captureId || null, at },
-        activity: [...(order.activity || []), { type: "event", message: `PayPal capture did not match the order total (expected ${amountCheck.expected.minor} ${amountCheck.expected.currency}, got ${amountCheck.paid.minor} ${amountCheck.paid.currency}). Not marked paid — review in PayPal.`, createdAt: at }],
-        updatedAt: at,
-      });
-      console.error(`PayPal amount mismatch on order ${orderId}`, amountCheck);
-      return;
-    }
-
+  const result = await settlePayment(orderId, {
+    provider: "PayPal",
+    message: "Payment completed (verified PayPal capture)",
     // PayPal sandbox capture: a rehearsal — test order, no stock, discount or revenue.
-    const sandbox = order.paypalMode === "test";
-    const books = sandbox ? new Map() : await readBooks(transaction, db, order.items);
-    let discountRef = null;
-    let discountDoc = null;
-    if (order.appliedDiscount?.id && !sandbox) {
-      discountRef = db.collection("discounts").doc(order.appliedDiscount.id);
-      discountDoc = await transaction.get(discountRef);
-    }
-    const giftCards = sandbox ? new Map() : await readGiftCards(transaction, db, chargedRedemptions(order));
-    const now = new Date().toISOString();
-    if (!sandbox && !settleGiftCards(transaction, orderRef, orderId, order, giftCards, "PayPal", now)) {
-      transaction.update(orderRef, { paypalCaptureId: paypalData.captureId || null });
-      return;
-    }
-    transaction.update(orderRef, {
-      paymentStatus: "paid", fulfillmentStatus: "paid", status: "open",
-      ...(sandbox ? { isTest: true, sandboxPayment: true } : {}),
-      paidAt: now, updatedAt: now, downloadToken: crypto.randomBytes(32).toString("hex"),
+    sandbox: order => order.paypalMode === "test",
+    receipt: {
       paypalCaptureId: paypalData.captureId || null,
       paypalPayerId: paypalData.payerId || null,
       paypalTransactionId: paypalData.transactionId || paypalData.captureId || null,
       paypalCaptureStatus: paypalData.captureStatus || "COMPLETED",
       paypalCapture: paypalData.capture || null,
-      activity: [...(order.activity || []), { type: "event", message: "Payment completed (verified PayPal capture)", createdAt: now }],
-    });
-    if (!sandbox && writeStock(transaction, db, order.items, books, -1, now)) transaction.update(orderRef, { oversold: true });
-    if (discountRef && discountDoc?.exists) {
-      transaction.update(discountRef, { usageCount: (discountDoc.data().usageCount || 0) + 1, updatedAt: now });
-      if (discountUsedUp(discountDoc.data())) transaction.update(orderRef, { discountOverLimit: true });
-    }
-    paidTotal = sandbox ? null : Number(order.total) || 0;
+    },
+    verify: (order, at) => {
+      if (order.paymentStatus === "paid") return { reason: "already-paid" };
+      if (order.paypalOrderId !== paypalData.paypalOrderId) throw new Error("PayPal order does not match checkout order.");
+      if (order.status === "cancelled") {
+        if (order.paymentMismatch?.paidAfterCancel) return { reason: "cancelled" };
+        return { reason: "cancelled", update: {
+          paypalCaptureId: paypalData.captureId || null,
+          paymentMismatch: { paidAfterCancel: true, provider: "paypal", captureId: paypalData.captureId || null, at },
+          activity: [...(order.activity || []), { type: "event", message: "PayPal payment arrived after this order was cancelled. Not marked paid — refund it in PayPal.", createdAt: at }],
+          updatedAt: at,
+        } };
+      }
+      const amountCheck = paidAmountCheck(order, toMinor(paypalData.capture?.amount?.value), paypalData.capture?.amount?.currency_code);
+      if (!amountCheck.ok) {
+        console.error(`PayPal amount mismatch on order ${orderId}`, amountCheck);
+        return { reason: "amount-mismatch", update: {
+          paymentMismatch: { ...amountCheck, provider: "paypal", captureId: paypalData.captureId || null, at },
+          activity: [...(order.activity || []), { type: "event", message: `PayPal capture did not match the order total (expected ${amountCheck.expected.minor} ${amountCheck.expected.currency}, got ${amountCheck.paid.minor} ${amountCheck.paid.currency}). Not marked paid — review in PayPal.`, createdAt: at }],
+          updatedAt: at,
+        } };
+      }
+      return null;
+    },
   });
-  await releaseStockForOrder(db, orderId);
-  if (paidTotal !== null) {
-    const today = new Date().toISOString().split("T")[0];
-    await db.collection("analytics").doc(today).set({
-      date: today,
-      orders: admin.firestore.FieldValue.increment(1),
-      revenue: admin.firestore.FieldValue.increment(paidTotal),
-    }, { merge: true });
-  }
-  return paidTotal !== null || (await orderRef.get()).data()?.paymentStatus === "paid";
+  if (result.reason === "missing") throw new Error("Order not found.");
+  return result.paid || result.reason === "already-paid";
 }
 
 exports.createPayPalOrder = onBrowserRequest(
@@ -2510,11 +2454,8 @@ async function handleRegisterPaymentDomain(req, res) {
 const STRIPE_WEBHOOK_AUTHORITY = Symbol("verified Stripe webhook");
 async function markStripeOrderPaid(orderId, session, opts = {}) {
     if (opts.authority !== STRIPE_WEBHOOK_AUTHORITY) throw new Error("Stripe orders require a verified webhook.");
-    const orderRef = db.collection("orders").doc(orderId);
-    let paidTotal = null;
-    let markedPaid = false;
     let duplicateAlert = null;
-    const initialOrder = await orderRef.get();
+    const initialOrder = await db.collection("orders").doc(orderId).get();
     if (initialOrder.exists) {
       const initial = initialOrder.data();
       const amountCheck = paidAmountCheck(initial, session.amount_total, session.currency);
@@ -2523,138 +2464,65 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
           && !await reserveForConfirmedPayment(orderId, "Stripe", typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id)) return false;
     }
 
-    await db.runTransaction(async transaction => {
-      paidTotal = null; // a retried attempt must not keep the last attempt's value
-      markedPaid = false;
-      duplicateAlert = null;
-      // Firestore transactions require ALL reads before any writes.
-      const orderDoc = await transaction.get(orderRef);
-      if (!orderDoc.exists) return;
-      const order = orderDoc.data();
-      const now = new Date().toISOString();
-      const paymentIntentId = typeof session.payment_intent === "string"
-        ? session.payment_intent
-        : session.payment_intent?.id || null;
-      const stripeTransaction = {
-        stripeCheckoutSessionId: session.id,
-        stripePaymentIntentId: paymentIntentId,
-        stripeAccountId: opts.account || null,
-        stripeMode: session.livemode ? "live" : "test",
-        stripeAmountTotal: session.amount_total,
-        stripeCurrency: session.currency,
-        updatedAt: now,
-      };
-
-      if (order.paymentStatus === "paid") {
-        const samePayment = !order.stripePaymentIntentId || !paymentIntentId || order.stripePaymentIntentId === paymentIntentId;
-        if (samePayment) {
-          transaction.update(orderRef, stripeTransaction);
-          return;
-        }
-        // A second, separate Stripe payment for an order that is already paid (two tabs, a retry):
-        // keep the original ids so refunds and disputes still find the first charge, and flag it.
-        if ((order.duplicatePayments || []).some(p => p.paymentIntentId === paymentIntentId)) return;
-        transaction.update(orderRef, {
-          duplicatePayments: [...(order.duplicatePayments || []), { provider: "stripe", paymentIntentId, sessionId: session.id, amountMinor: session.amount_total, currency: session.currency, at: now }],
-          paymentMismatch: { duplicate: true, provider: "stripe", paymentIntentId, at: now },
-          updatedAt: now,
-          activity: [...(order.activity || []), { type: "event", message: `A second Stripe payment (${paymentIntentId || session.id}) arrived for this already-paid order. Refund it in the Stripe Dashboard.`, createdAt: now }],
-        });
-        duplicateAlert = { orderId, paymentIntentId, amount: session.amount_total, currency: session.currency };
-        return;
-      }
-
-      // Money arrived for an order the shop had already cancelled: don't revive it (stock, emails,
-      // fulfillment). Record the payment and leave it in Needs attention so the admin refunds it.
-      if (order.status === "cancelled") {
-        if (order.paymentMismatch?.paidAfterCancel && order.paymentMismatch.paymentIntentId === paymentIntentId) return;
-        transaction.update(orderRef, {
-          ...stripeTransaction,
-          paymentMismatch: { paidAfterCancel: true, provider: "stripe", paymentIntentId, at: now },
-          activity: [...(order.activity || []), { type: "event", message: `Stripe payment ${paymentIntentId || session.id} arrived after this order was cancelled. Not marked paid — refund it in the Stripe Dashboard or reopen the order with the customer.`, createdAt: now }],
-        });
-        return;
-      }
-
-      const amountCheck = paidAmountCheck(order, session.amount_total, session.currency);
-      if (!amountCheck.ok) {
-        transaction.update(orderRef, {
-          ...stripeTransaction,
-          paymentMismatch: { ...amountCheck, provider: "stripe", paymentIntentId, at: now },
-          activity: [...(order.activity || []), { type: "event", message: `Stripe payment did not match the order total (expected ${amountCheck.expected.minor} ${amountCheck.expected.currency}, got ${amountCheck.paid.minor} ${amountCheck.paid.currency}). Not marked paid — refund or review in Stripe.`, createdAt: now }],
-        });
-        console.error(`Stripe amount mismatch on order ${orderId}`, amountCheck);
-        return;
-      }
-
+    const paymentIntentId = typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : session.payment_intent?.id || null;
+    const receipt = at => ({
+      stripeCheckoutSessionId: session.id,
+      stripePaymentIntentId: paymentIntentId,
+      stripeAccountId: opts.account || null,
+      stripeMode: session.livemode ? "live" : "test",
+      stripeAmountTotal: session.amount_total,
+      stripeCurrency: session.currency,
+      updatedAt: at,
+    });
+    const result = await settlePayment(orderId, {
+      provider: "Stripe",
+      message: opts.message,
+      receipt: receipt(new Date().toISOString()),
       // A sandbox (test-mode) payment is a rehearsal: flag the order as a test order
       // (kept out of fulfillment, revenue and launch readiness) and never touch
       // real stock or discount usage.
-      const sandbox = session.livemode === false || order.stripeMode === "test";
-      const itemList = order.items || [];
-      const books = sandbox ? new Map() : await readBooks(transaction, db, itemList);
-
-      let discountRef = null;
-      let discountDoc = null;
-      if (order.appliedDiscount?.id && !sandbox) {
-        discountRef = db.collection("discounts").doc(order.appliedDiscount.id);
-        discountDoc = await transaction.get(discountRef);
-      }
-      const giftCards = sandbox ? new Map() : await readGiftCards(transaction, db, chargedRedemptions(order));
-      // A gift card that can no longer pay its part keeps the order unpaid (like a stock conflict).
-      if (!sandbox && !settleGiftCards(transaction, orderRef, orderId, order, giftCards, "Stripe", now)) {
-        transaction.update(orderRef, stripeTransaction);
-        return;
-      }
-
-      // Single-use token securing digital download links in emails.
-      const downloadToken = crypto.randomBytes(32).toString("hex");
-
-      transaction.update(orderRef, {
-        ...stripeTransaction,
-        paymentStatus: "paid",
-        reconciliationPending: null,
-        ...(sandbox ? { isTest: true, sandboxPayment: true } : {}),
-        fulfillmentStatus: "paid",
-        status: "open",
-        downloadToken,
-        stripePaymentIntentId: session.payment_intent || null,
-        paidAt: now,
-        updatedAt: now,
-        activity: [
-          ...(order.activity || []),
-          { type: "event", message: opts.message, createdAt: now }
-        ]
-      });
-
-      // Atomic stock decrement, one write per book (two editions of a book both count).
-      if (!sandbox && writeStock(transaction, db, itemList, books, -1, now)) transaction.update(orderRef, { oversold: true });
-
-      // Count discount redemptions so usage limits are enforceable.
-      if (discountRef && discountDoc?.exists) {
-        transaction.update(discountRef, {
-          usageCount: (discountDoc.data().usageCount || 0) + 1,
-          updatedAt: new Date().toISOString()
-        });
-        // Two shoppers can pass the limit check at once; the paid order is flagged for the admin.
-        if (discountUsedUp(discountDoc.data())) transaction.update(orderRef, { discountOverLimit: true });
-      }
-
-      // Sandbox payments are not revenue.
-      paidTotal = sandbox ? null : Number(order.total) || 0;
-      markedPaid = true;
+      sandbox: order => session.livemode === false || order.stripeMode === "test",
+      verify: (order, now) => {
+        duplicateAlert = null; // a retried attempt must not keep the last attempt's value
+        if (order.paymentStatus === "paid") {
+          const samePayment = !order.stripePaymentIntentId || !paymentIntentId || order.stripePaymentIntentId === paymentIntentId;
+          if (samePayment) return { reason: "already-paid", update: receipt(now) };
+          // A second, separate Stripe payment for an order that is already paid (two tabs, a retry):
+          // keep the original ids so refunds and disputes still find the first charge, and flag it.
+          if ((order.duplicatePayments || []).some(p => p.paymentIntentId === paymentIntentId)) return { reason: "duplicate" };
+          duplicateAlert = { orderId, paymentIntentId, amount: session.amount_total, currency: session.currency };
+          return { reason: "duplicate", update: {
+            duplicatePayments: [...(order.duplicatePayments || []), { provider: "stripe", paymentIntentId, sessionId: session.id, amountMinor: session.amount_total, currency: session.currency, at: now }],
+            paymentMismatch: { duplicate: true, provider: "stripe", paymentIntentId, at: now },
+            updatedAt: now,
+            activity: [...(order.activity || []), { type: "event", message: `A second Stripe payment (${paymentIntentId || session.id}) arrived for this already-paid order. Refund it in the Stripe Dashboard.`, createdAt: now }],
+          } };
+        }
+        // Money arrived for an order the shop had already cancelled: don't revive it (stock, emails,
+        // fulfillment). Record the payment and leave it in Needs attention so the admin refunds it.
+        if (order.status === "cancelled") {
+          if (order.paymentMismatch?.paidAfterCancel && order.paymentMismatch.paymentIntentId === paymentIntentId) return { reason: "cancelled" };
+          return { reason: "cancelled", update: {
+            ...receipt(now),
+            paymentMismatch: { paidAfterCancel: true, provider: "stripe", paymentIntentId, at: now },
+            activity: [...(order.activity || []), { type: "event", message: `Stripe payment ${paymentIntentId || session.id} arrived after this order was cancelled. Not marked paid — refund it in the Stripe Dashboard or reopen the order with the customer.`, createdAt: now }],
+          } };
+        }
+        const amountCheck = paidAmountCheck(order, session.amount_total, session.currency);
+        if (!amountCheck.ok) {
+          console.error(`Stripe amount mismatch on order ${orderId}`, amountCheck);
+          return { reason: "amount-mismatch", update: {
+            ...receipt(now),
+            paymentMismatch: { ...amountCheck, provider: "stripe", paymentIntentId, at: now },
+            activity: [...(order.activity || []), { type: "event", message: `Stripe payment did not match the order total (expected ${amountCheck.expected.minor} ${amountCheck.expected.currency}, got ${amountCheck.paid.minor} ${amountCheck.paid.currency}). Not marked paid — refund or review in Stripe.`, createdAt: now }],
+          } };
+        }
+        return null;
+      },
     });
 
-    // Revenue/order analytics are recorded here — at payment time —
-    // never client-side at order creation.
-    if (paidTotal !== null) {
-      const today = new Date().toISOString().split("T")[0];
-      await db.collection("analytics").doc(today).set({
-        date: today,
-        orders: admin.firestore.FieldValue.increment(1),
-        revenue: admin.firestore.FieldValue.increment(paidTotal),
-      }, { merge: true });
-    }
     if (duplicateAlert) {
       await sendEmail({
         queue: "paidTwiceAlert",
@@ -2664,9 +2532,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
         html: `<p>Stripe took a second payment (${escapeHtml(duplicateAlert.paymentIntentId || "")}, ${(Number(duplicateAlert.amount) / 100).toFixed(2)} ${escapeHtml(String(duplicateAlert.currency || "").toUpperCase())}) for order <strong>${escapeHtml(duplicateAlert.orderId)}</strong>, which was already paid.</p><p>Refund the second payment in the Stripe Dashboard. The order keeps its first payment.</p>`,
       }).catch(err => console.warn("duplicate payment alert failed:", err.message));
     }
-    // The stock is now taken for real; the checkout hold has done its job.
-    if (markedPaid) await releaseStockForOrder(db, orderId);
-  return markedPaid;
+  return result.paid;
 }
 
 // Records a refund on an order, whoever made it (admin, Stripe/PayPal dashboard, a lost
@@ -6957,71 +6823,17 @@ exports.onBookUpdated = onDocumentUpdated(
 // Marks an order paid when no card or PayPal payment is involved (manual payment confirmed
 // by the admin, or a $0 order): stock out once, discount use counted once, revenue recorded.
 async function completeOrderWithoutCard(orderId, message, { reserve = true, req = null } = {}) {
-  const orderRef = db.collection("orders").doc(orderId);
-  let paidTotal = null;
-  const initial = await orderRef.get();
+  const initial = await db.collection("orders").doc(orderId).get();
   // A free order checks the 30-minute stock hold like any checkout. A manual payment the owner
   // confirms days later is money already received: it is recorded even if the books have
-  // since sold (the stock write below flags oversold for the owner).
+  // since sold (settlePayment flags oversold for the owner).
   if (reserve && initial.exists && initial.data().paymentStatus !== "paid") {
     const pending = initial.data();
     await reserveCheckout(orderId, pending.items || [], pending, pending.giftCardRedemptions, (await shopTestMode()), req);
   }
-
-  await db.runTransaction(async transaction => {
-    paidTotal = null; // a retried attempt must not keep the last attempt's value
-    const orderDoc = await transaction.get(orderRef);
-    if (!orderDoc.exists) return;
-    const order = orderDoc.data();
-    if (order.paymentStatus === "paid") return; // idempotent
-
-    const itemList = order.items || [];
-    const books = await readBooks(transaction, db, itemList);
-    // Manual payments count toward a discount code's usage limit like card payments do.
-    const discountRef = order.appliedDiscount?.id && order.discountUsageCountedAt == null
-      ? db.collection("discounts").doc(order.appliedDiscount.id) : null;
-    const discountDoc = discountRef ? await transaction.get(discountRef) : null;
-    const giftCards = await readGiftCards(transaction, db, chargedRedemptions(order));
-    if (!settleGiftCards(transaction, orderRef, orderId, order, giftCards, "Checkout", new Date().toISOString())) return;
-
-    const downloadToken = crypto.randomBytes(32).toString("hex");
-
-    transaction.update(orderRef, {
-      paymentStatus: "paid",
-      fulfillmentStatus: "paid",
-      status: "open",
-      downloadToken,
-      paidAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      activity: [
-        ...(order.activity || []),
-        { type: "event", message, createdAt: new Date().toISOString() }
-      ]
-    });
-
-    // Stock comes out here once; recording it stops onOrderUpdated taking it out again.
-    const now = new Date().toISOString();
-    const oversold = order.inventoryDecrementedAt == null && writeStock(transaction, db, itemList, books, -1, now);
-    transaction.update(orderRef, { inventoryDecrementedAt: order.inventoryDecrementedAt || now, ...(oversold ? { oversold: true } : {}) });
-    if (discountRef && discountDoc?.exists) {
-      transaction.update(discountRef, { usageCount: (Number(discountDoc.data().usageCount) || 0) + 1, updatedAt: now });
-      transaction.update(orderRef, { discountUsageCountedAt: now, ...(discountUsedUp(discountDoc.data()) ? { discountOverLimit: true } : {}) });
-    }
-
-    paidTotal = Number(order.total) || 0;
-  });
-  await releaseStockForOrder(db, orderId);
-
-  if (paidTotal !== null) {
-    const today = new Date().toISOString().split("T")[0];
-    await db.collection("analytics").doc(today).set({
-      date: today,
-      orders: admin.firestore.FieldValue.increment(1),
-      revenue: admin.firestore.FieldValue.increment(paidTotal),
-    }, { merge: true });
-  }
   // false when nothing was marked paid (a gift card could no longer cover its part).
-  return paidTotal !== null || (await orderRef.get()).data()?.paymentStatus === "paid";
+  const result = await settlePayment(orderId, { provider: "Checkout", message });
+  return result.paid || result.reason === "already-paid";
 }
 
 exports.markOrderPaid = onBrowserRequest(
