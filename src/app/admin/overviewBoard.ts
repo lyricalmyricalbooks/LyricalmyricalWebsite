@@ -53,18 +53,23 @@ const FIGURE_IDS = FIGURES.map(f => f.id) as string[];
 export const DEFAULT_FIGURES: FigureId[] = ["revenue", "orders", "aov", "visitors", "conversion", "cartStep", "profit", "returning"];
 
 export type ChartGrain = "auto" | "day" | "week" | "month";
-export type WidgetConfig = { metric?: ChartMetric; grain?: ChartGrain; compare?: boolean; bars?: boolean; figures?: FigureId[] };
+export type WidgetConfig = {
+  metric?: ChartMetric; grain?: ChartGrain; compare?: boolean; bars?: boolean; figures?: FigureId[];
+  /** Month goal: the month's net revenue target in CA$. */ goal?: number;
+  /** Sold-out countdown: a reprint's usual wait in days. */ leadDays?: number;
+};
 /** A period a board opens on ("Save these figures as a view"): the preset, the comparison and, for Custom, the dates. */
 export type BoardView = { preset: Preset; compare: CompareMode; from?: string; to?: string };
 
 export type WidgetType =
-  | "needs" | "changes" | "newest" | "readiness"
+  | "needs" | "changes" | "newest" | "readiness" | "live"
   | "story" | "chart" | "figures" | "best" | "money" | "formats" | "countries" | "categories" | "weekdays" | "hours" | "fulfilment" | "codes"
-  | "titles" | "viewed"
+  | "calendar" | "goal" | "notes" | "shipDays"
+  | "titles" | "viewed" | "launches" | "bookOfWeek" | "preorders" | "signed"
   | "gaKpis" | "channels" | "gaSources" | "landing" | "gaPages" | "gaCountries" | "gaDevices" | "funnel" | "checkout" | "sources" | "campaigns" | "landingSales" | "devices"
   | "searches" | "missed" | "google" | "googleQueries" | "googlePages" | "speed" | "counter"
-  | "custKpis" | "retention" | "top" | "carts" | "reminders" | "newsletter" | "reviews"
-  | "stockKpis" | "reprint" | "wanted" | "backInStock" | "slow" | "low";
+  | "custKpis" | "retention" | "top" | "carts" | "reminders" | "newsletter" | "reviews" | "map" | "giftOwed"
+  | "stockKpis" | "reprint" | "wanted" | "backInStock" | "slow" | "low" | "soldOut";
 
 export type WidgetMeta = {
   type: WidgetType; band: BandId; title: string; blurb: string; size: WidgetSize;
@@ -78,6 +83,7 @@ export const WIDGETS: WidgetMeta[] = [
   { type: "changes", band: "today", title: "What changed", blurb: "The biggest moves against the period before", size: "m" },
   { type: "newest", band: "today", title: "Newest orders", blurb: "The latest real sales and their status", size: "m" },
   { type: "readiness", band: "today", title: "Ready to sell?", blurb: "Launch checks still open, or a tick once all pass", size: "m" },
+  { type: "live", band: "today", title: "On the site right now", blurb: "People on the site, bags, checkouts and sales in the last hour", size: "m" },
 
   { type: "story", band: "sales", title: "Headline", blurb: "The period in one sentence, with this month's pace", size: "m" },
   { type: "chart", band: "sales", title: "Trend chart", blurb: "Revenue, orders, books, average order, visitors or conversion over time — add as many as you like", size: "l", multi: true, config: { metric: "revenue", grain: "auto", compare: true } },
@@ -91,9 +97,16 @@ export const WIDGETS: WidgetMeta[] = [
   { type: "hours", band: "sales", title: "Busiest hours", blurb: "Orders by weekday and hour — when to post or launch", size: "l" },
   { type: "fulfilment", band: "sales", title: "Fulfilment & payments", blurb: "How fast orders ship and how customers pay", size: "m" },
   { type: "codes", band: "sales", title: "Discount codes", blurb: "Codes used, what they brought in and gave away", size: "m" },
+  { type: "calendar", band: "sales", title: "Sales calendar", blurb: "Every day of the past year, shaded by sales — launches and fairs show up as bursts", size: "xl" },
+  { type: "goal", band: "sales", title: "Month goal", blurb: "This month's sales against a goal you set", size: "m", config: {} },
+  { type: "notes", band: "sales", title: "Sales with your notes", blurb: "Mark a post, newsletter or fair on the sales line and see what it sold", size: "xl" },
+  { type: "shipDays", band: "sales", title: "Days to ship", blurb: "How fast parcels go out, week by week", size: "m" },
 
   { type: "titles", band: "titles", title: "Every title", blurb: "Sortable, searchable table of every title with CSV download", size: "xl" },
   { type: "viewed", band: "titles", title: "Most viewed books", blurb: "Product-page views beside copies sold", size: "m" },
+  { type: "launches", band: "titles", title: "Launch curves", blurb: "Your newest books' first 30 days side by side", size: "l" },
+  { type: "bookOfWeek", band: "titles", title: "Book of the week", blurb: "The book with the best last 7 days", size: "s" },
+  { type: "signed", band: "titles", title: "Signed or not", blurb: "How much of each book sells signed, and what readers pay for it", size: "m" },
 
   { type: "gaKpis", band: "traffic", title: "Google Analytics at a glance", blurb: "On the site now, visitors, sessions, engagement", size: "xl", google: true },
   { type: "channels", band: "traffic", title: "How people find you", blurb: "Search, social, email, links or typed in (Google Analytics)", size: "m", google: true },
@@ -124,13 +137,17 @@ export const WIDGETS: WidgetMeta[] = [
   { type: "reminders", band: "customers", title: "Did the reminder emails work?", blurb: "Reminders sent and who bought after one", size: "s" },
   { type: "newsletter", band: "customers", title: "Newsletter sign-ups by week", blurb: "Confirmed and waiting sign-ups, last 8 weeks", size: "m" },
   { type: "reviews", band: "customers", title: "Reader reviews", blurb: "Average rating and reviews waiting", size: "s" },
+  { type: "map", band: "customers", title: "Order map", blurb: "Which cities order most", size: "l" },
+  { type: "giftOwed", band: "customers", title: "Gift card money owed", blurb: "Gift card balances still waiting to be spent", size: "s" },
 
   { type: "stockKpis", band: "stock", title: "Stock figures", blurb: "Shelf value, print titles, reprints and readers waiting", size: "xl" },
   { type: "reprint", band: "stock", title: "Reprint watch", blurb: "Selling fast, under 30 days of stock", size: "m" },
   { type: "wanted", band: "stock", title: "Wanted but can't be bought", blurb: "Sold-out or coming-soon books people looked for", size: "m" },
   { type: "backInStock", band: "stock", title: "Back-in-stock demand", blurb: "Readers waiting to be emailed", size: "m" },
   { type: "slow", band: "stock", title: "Slow-moving stock", blurb: "In stock with no recent sale", size: "m" },
-  { type: "low", band: "stock", title: "Running low", blurb: "Five copies or fewer", size: "m" },
+  { type: "low", band: "stock", title: "Running low", blurb: "Five copies or fewer, with the days each has left", size: "m" },
+  { type: "preorders", band: "stock", title: "Pre-order tracker", blurb: "Copies promised before each release, against the print run", size: "m" },
+  { type: "soldOut", band: "stock", title: "Sold-out countdown", blurb: "When each book runs out at today's pace, against a reprint's wait", size: "xl", config: { leadDays: 35 } },
 ];
 const META = new Map(WIDGETS.map(w => [w.type, w]));
 export const widgetMeta = (type: WidgetType) => META.get(type)!;
@@ -216,6 +233,8 @@ function cleanConfig(type: WidgetType, raw: any): WidgetConfig | undefined {
     if (typeof raw?.compare === "boolean") out.compare = raw.compare;
     if (typeof raw?.bars === "boolean") out.bars = raw.bars;
   }
+  if (type === "goal" && Number.isFinite(Number(raw?.goal)) && Number(raw.goal) > 0) out.goal = Math.min(10_000_000, Math.round(Number(raw.goal)));
+  if (type === "soldOut" && Number.isFinite(Number(raw?.leadDays)) && Number(raw.leadDays) >= 1) out.leadDays = Math.min(365, Math.round(Number(raw.leadDays)));
   if (type === "figures" && Array.isArray(raw?.figures)) {
     const picked = FIGURE_IDS.filter(id => raw.figures.includes(id)) as FigureId[];
     if (picked.length) out.figures = picked;
