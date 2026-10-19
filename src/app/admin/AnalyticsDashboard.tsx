@@ -7,10 +7,10 @@ import { salesReportCsv } from "./salesReport";
 import { launchReadiness } from "./launchReadiness";
 import toast from "react-hot-toast";
 import {
-  DataTable, EmptyState, ErrorState, LoadingState, SecondaryButton, SectionCard, StatusBadge, type BadgeTone, type Column,
+  EmptyState, ErrorState, LoadingState, SecondaryButton, SectionCard, StatusBadge, type BadgeTone,
 } from "./riso/components";
 import {
-  bestSellers, customerMix, dormantStock, newestSales, newsletterSummary, orderStatusWords, orderTodos, reprintWatch, reviewSummary,
+  bestSellers, customerMix, dormantStock, newestSales, newsletterSummary, orderTodos, reprintWatch, reviewSummary,
   splitRange, stockValue, titleStock, toFulfil, totals, REORDER_COVER_DAYS,
 } from "./overviewInsights";
 import { recordedSince, sumMap } from "./overviewTraffic";
@@ -33,6 +33,9 @@ import { OverviewCustomers } from "./OverviewCustomers";
 import { OverviewStock } from "./OverviewStock";
 import { OverviewTitles } from "./OverviewTitles";
 import { OverviewChart } from "./OverviewChart";
+import { OverviewNewSales, type NewSalesWidget } from "./OverviewNewSales";
+import { figureSeries, figureSpark, NewestOrdersList } from "./OverviewFiguresViz";
+import { OverviewNewLive } from "./OverviewNewLive";
 import { OverviewBoard, useBoardStore, type BoardHeader, type RenderWidget } from "./OverviewBoard";
 import { DEFAULT_FIGURES, FIGURES, widgetMeta, type BoardView, type FigureId } from "./overviewBoard";
 import { clearShared } from "./overviewShared";
@@ -210,6 +213,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const trafficFailed = !gaReport && daily.error;
   const dailyCurrent = useMemo(() => shopRowsIn(daily.rows || [], range.startKey, range.endKey, shift), [daily.rows, range, shift]);
   const visits = traffic ? traffic.visitors : { cur: 0, prev: 0 };
+  const lines = useMemo(() => (periods ? figureSeries(periods.paid, range, traffic?.visitsOn) : null), [periods, range, traffic]);
   const conv = insights && trafficReady ? { cur: visits.cur > 0 ? (insights.cur.orders / visits.cur) * 100 : 0, prev: visits.prev > 0 ? (insights.prev.orders / visits.prev) * 100 : 0 } : null;
   const funnel = traffic?.funnel;
   const sourceName = traffic?.source === "google" ? "Google Analytics" : "shop counter";
@@ -242,12 +246,6 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
 
   // Real sales only: abandoned/unpaid card attempts and test orders are not orders to look at here.
   const recentOrders = useMemo(() => newestSales(allOrders.orders || []), [allOrders.orders]);
-  const recentColumns: Column<any>[] = [
-    { key: "id", header: "Order", lead: true, render: o => <a className="rp-mono" href={`#orders/${encodeURIComponent(o.id)}`} aria-label={`Open order ${o.orderId || o.id}`}>{o.orderId || o.id}</a> },
-    { key: "cust", header: "Customer", render: o => o.customer?.name || o.customer?.email || "—" },
-    { key: "total", header: "Total", numeric: true, render: o => money(o.total) },
-    { key: "pay", header: "Status", render: o => { const w = orderStatusWords(o); return <StatusBadge tone={w === "Refunded" || w === "Needs attention" ? "warning" : w === "Paid · to send" ? "info" : "success"}>{w}</StatusBadge>; } },
-  ];
 
   const downloadReport = () => {
     if (!periods) return;
@@ -287,12 +285,12 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const figure = (id: FigureId) => {
     const wait = { value: "…", foot: KPI_WAIT };
     switch (id) {
-      case "revenue": return insights ? { value: money(insights.cur.net), foot: <><Trend now={insights.cur.net} before={insights.prev.net} /> after refunds</> } : wait;
-      case "orders": return insights ? { value: insights.cur.orders.toLocaleString(), foot: <><Trend now={insights.cur.orders} before={insights.prev.orders} /> paid orders</> } : wait;
-      case "units": return insights ? { value: insights.cur.units.toLocaleString(), foot: <><Trend now={insights.cur.units} before={insights.prev.units} /> copies</> } : wait;
-      case "aov": return insights ? { value: money(insights.cur.aov), foot: <><Trend now={insights.cur.aov} before={insights.prev.aov} /> per paid order</> } : wait;
-      case "visitors": return trafficReady ? { value: visits.cur.toLocaleString(), foot: <><Trend now={visits.cur} before={visits.prev} /> {sourceName}</> } : { value: trafficFailed ? "—" : "…", foot: trafficFooter(KPI_WAIT) };
-      case "conversion": return conv ? { value: percent(conv.cur), foot: <><Trend now={conv.cur} before={conv.prev} /> paid orders ÷ visitors</> } : { value: trafficFailed ? "—" : "…", foot: trafficFooter(KPI_WAIT) };
+      case "revenue": return insights ? { spark: figureSpark(lines?.revenue, insights.cur.net, insights.prev.net), value: money(insights.cur.net), foot: <><Trend now={insights.cur.net} before={insights.prev.net} /> after refunds</> } : wait;
+      case "orders": return insights ? { spark: figureSpark(lines?.orders, insights.cur.orders, insights.prev.orders), value: insights.cur.orders.toLocaleString(), foot: <><Trend now={insights.cur.orders} before={insights.prev.orders} /> paid orders</> } : wait;
+      case "units": return insights ? { spark: figureSpark(lines?.units, insights.cur.units, insights.prev.units), value: insights.cur.units.toLocaleString(), foot: <><Trend now={insights.cur.units} before={insights.prev.units} /> copies</> } : wait;
+      case "aov": return insights ? { spark: figureSpark(lines?.aov, insights.cur.aov, insights.prev.aov), value: money(insights.cur.aov), foot: <><Trend now={insights.cur.aov} before={insights.prev.aov} /> per paid order</> } : wait;
+      case "visitors": return trafficReady ? { spark: figureSpark(lines?.visitors, visits.cur, visits.prev), value: visits.cur.toLocaleString(), foot: <><Trend now={visits.cur} before={visits.prev} /> {sourceName}</> } : { value: trafficFailed ? "—" : "…", foot: trafficFooter(KPI_WAIT) };
+      case "conversion": return conv ? { spark: figureSpark(lines?.conversion, conv.cur, conv.prev), value: percent(conv.cur), foot: <><Trend now={conv.cur} before={conv.prev} /> paid orders ÷ visitors</> } : { value: trafficFailed ? "—" : "…", foot: trafficFooter(KPI_WAIT) };
       case "cartStep": return trafficReady
         ? { value: cartStep !== null ? percent(cartStep, 0) : "—", foot: funnel && funnel.add_to_cart > 0 ? `${funnel.checkout_start.toLocaleString()} checkouts from ${funnel.add_to_cart.toLocaleString()} bag adds` : "no bag adds recorded yet" }
         : { value: "…", foot: trafficFooter(KPI_WAIT) };
@@ -394,8 +392,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <SectionCard flush title="Newest orders" description="The latest real sales" actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("orders")}>All orders</SecondaryButton>}>
             {allOrders.error ? <ErrorState title="Orders unavailable" description="Recent orders could not be loaded." />
               : !allOrders.orders ? <LoadingState label="Loading orders…" />
-              : <DataTable caption="Newest orders" columns={recentColumns} rows={full ? newestSales(allOrders.orders, 25) : recentOrders} rowKey={o => o.id}
-                  empty={<EmptyState title="No orders yet" description="New orders appear here as soon as customers check out." />} />}
+              : recentOrders.length === 0 ? <EmptyState title="No orders yet" description="New orders appear here as soon as customers check out." />
+              : <NewestOrdersList orders={full ? newestSales(allOrders.orders, 25) : recentOrders} books={books} />}
           </SectionCard>
         );
       case "story":
@@ -427,7 +425,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         const ids = (w.config?.figures?.length ? w.config.figures : DEFAULT_FIGURES) as FigureId[];
         return (
           <section className="rp-ov-figures" aria-label="Key figures">
-            {ids.map(id => { const f = figure(id); return <Figure key={id} label={FIGURES.find(x => x.id === id)!.label} value={f.value} foot={f.foot} tone={(f as any).tone} />; })}
+            {ids.map(id => { const f = figure(id); return <Figure key={id} label={FIGURES.find(x => x.id === id)!.label} value={f.value} foot={f.foot} tone={(f as any).tone} spark={(f as any).spark} />; })}
           </section>
         );
       }
@@ -437,6 +435,16 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             costsKnown={!!profit && profit.costedUnits > 0} onEditBook={handleEditClick} fetchingBookId={fetchingBookId} />
         ));
       case "viewed": return marketing("viewed");
+      case "calendar": case "goal": case "shipDays": case "launches": case "bookOfWeek": case "signed":
+        return ordersGate(() => (
+          <OverviewNewSales only={w.type as NewSalesWidget} paid={periods!.paid} current={periods!.current} previous={periods!.previous} books={books} range={range}
+            config={w.config || {}} onConfig={setConfig} full={full} onEditBook={handleEditClick} />
+        ));
+      case "live": case "notes": case "preorders": case "map": case "giftOwed": case "soldOut":
+        return ordersGate(() => (
+          <OverviewNewLive only={w.type} paid={periods!.paid} allOrders={allOrders.orders || []} current={periods!.current} books={books} range={range}
+            activeNow={gaReport ? gaReport.activeNow ?? null : null} config={w.config || {}} onConfig={setConfig} full={full} setActiveTab={setActiveTab} />
+        ));
       default: break;
     }
     if (band === "sales") {
@@ -456,7 +464,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     if (band === "stock") {
       return stock.error ? <ErrorState title="Stock unavailable" description="Books could not be loaded." onRetry={refresh} />
         : !insights ? (allOrders.error ? <ErrorState title="Stock insights unavailable" description="Orders could not be loaded, so sales pace can't be calculated." onRetry={refresh} /> : <LoadingState label="Calculating…" />)
-        : <OverviewStock key={reloadKey} only={w.type === "stockKpis" ? "kpis" : w.type} books={books} shelf={insights.shelf} reprint={insights.reprint} dormant={insights.dormant} setActiveTab={setActiveTab}
+        : <OverviewStock key={reloadKey} only={w.type === "stockKpis" ? "kpis" : w.type} books={books} paid={periods?.paid} shelf={insights.shelf} reprint={insights.reprint} dormant={insights.dormant} setActiveTab={setActiveTab}
             dailyCurrent={dailyCurrent} dailyAll={daily.rows || []} />;
     }
     return null;

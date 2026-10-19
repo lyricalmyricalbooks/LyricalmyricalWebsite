@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { EmptyState, ErrorState, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
-import { DORMANT_DAYS, REORDER_COVER_DAYS, type Book, type TitleStock } from "./overviewInsights";
+import { DORMANT_DAYS, REORDER_COVER_DAYS, type Book, type Order, type TitleStock } from "./overviewInsights";
+import { DaysLeft } from "./OverviewViz";
+import { daysLeft, soldInWindow } from "./overviewDaysLeft";
+import { smallPhotoUrl } from "../features/site/photoSources";
 import { recordedSince, stockDemand, type Daily } from "./overviewTraffic";
 import { wantedButUnavailable } from "./overviewSignals";
 import { adminApi } from "./api";
@@ -12,8 +15,12 @@ import { sharedLoad } from "./overviewShared";
 export const LOW_STOCK = 5;
 
 /** Overview › Dig deeper › Stock: what to reprint, what is gathering dust, what is running low, who is waiting. */
-export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, dailyCurrent = [], dailyAll = [], only }: {
+export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, dailyCurrent = [], dailyAll = [], only, paid, leadDays = 35 }: {
   books: Book[];
+  /** Real paid orders: with them, Running low shows days until sold out at the last 30 days' pace. */
+  paid?: Order[];
+  /** A reprint's usual wait in days, marked on the days-left bars. */
+  leadDays?: number;
   /** Show just one panel (an Overview board widget): kpis, reprint, wanted, backInStock, slow or low. */
   only?: string;
   /** The period's daily traffic docs (views of books that couldn't be bought, wishlist saves). */
@@ -39,6 +46,7 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
       .sort((a, b) => a.stock - b.stock).slice(0, 6),
     [books],
   );
+  const bookById = useMemo(() => new Map(books.map(b => [b.id, b])), [books]);
   const demand = useMemo(() => (alerts.rows ? stockDemand(alerts.rows, books) : null), [alerts.rows, books]);
   const waitingTotal = demand ? demand.reduce((s, d) => s + d.waiting, 0) : null;
   const wanted = useMemo(() => (alerts.rows || alerts.error ? wantedButUnavailable(dailyCurrent, books, alerts.rows) : null), [dailyCurrent, books, alerts.rows, alerts.error]);
@@ -132,6 +140,18 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
         {show("low") && <SectionCard flush title="Running low" description={`${LOW_STOCK} units or fewer`}
           actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("catalog")}>Manage books</SecondaryButton>}>
           {lowStock.length === 0 ? <EmptyState icon="✓" title="Stock looks healthy" description="No published titles are at or below the low-stock threshold." /> : (
+            paid ? (
+              <DaysLeft label="Low stock titles, days until sold out" leadDays={leadDays} rows={lowStock.map(r => {
+                const sold = soldInWindow(paid, r);
+                const book = bookById.get(r.bookId);
+                return {
+                  key: `${r.bookId}-${r.variantId || ""}`, label: stockRowLabel(r), coverText: r.title,
+                  cover: smallPhotoUrl(book?.photos?.[0], 52) || null,
+                  days: isSoldOut(r) ? 0 : r.stock <= 0 ? null : daysLeft(r.stock, sold),
+                  sub: isSoldOut(r) ? "Sold out" : r.stock <= 0 ? "0 left · backorders on" : `${r.stock} left · ${sold} sold in 30 days`,
+                };
+              })} />
+            ) : (
             <ul className="rp-list" aria-label="Low stock titles">
               {lowStock.map(r => (
                 <li key={`${r.bookId}-${r.variantId || ""}`} style={ROW}>
@@ -140,6 +160,7 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
                 </li>
               ))}
             </ul>
+            )
           )}
         </SectionCard>}
       </div>}
