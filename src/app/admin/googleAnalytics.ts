@@ -25,6 +25,22 @@ export interface Ga4Report {
   campaigns?: Row[];
   events: { current: Record<string, number>; previous: Record<string, number> };
   activeNow: number | null;
+  // Visitor widgets (19 October 2026, 4th batch + realtime). Missing on reports from an older server; a report that
+  // Google refused leaves its key missing too (the rest of the Overview still loads).
+  /** Per page: views, people and summed engagement seconds (÷ views = time per view). */
+  pageTime?: Array<{ pagePath: string; screenPageViews: number; activeUsers: number; userEngagementDuration: number }>;
+  /** Visitors by weekday ("0" = Sunday … "6") × hour ("00"…"23"), in the GA property's time zone. */
+  when?: Array<{ dayOfWeek: string; hour: string; activeUsers: number; sessions: number }>;
+  /** What visitors do (scroll, click, search…), both windows. */
+  actions?: { current: Record<string, { eventCount: number; activeUsers: number }>; previous: Record<string, { eventCount: number; activeUsers: number }> };
+  /** scroll / add_to_cart / view_item counts per page. */
+  pageActions?: Array<{ pagePath: string; eventName: string; eventCount: number }>;
+  /** Outbound link clicks per domain. */
+  outbound?: Array<{ linkDomain: string; eventCount: number; activeUsers: number }>;
+  /** Realtime (last 30 minutes): pages open, by page title; null when that call failed. */
+  realtimePages?: Array<{ unifiedScreenName: string; activeUsers: number; screenPageViews: number }> | null;
+  /** Realtime: people per minute, minutesAgo 0..29 ascending, missing minutes = 0; null when that call failed. */
+  realtimeMinutes?: Array<{ minutesAgo: number; activeUsers: number }> | null;
 }
 export interface Ga4Answer {
   connected: boolean; code?: string; error?: string; serviceAccount?: string; propertyId?: string; enableApiUrl?: string;

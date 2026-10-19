@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  cityMap, cleanLeadDays, cleanNotes, countryCode, dailyRevenue, giftOwed, isOpenCheckout, liveNow, noteEffect, preorderRows, project, soldOutCountdown, MAX_NOTES,
+  cityMap, cleanLeadDays, cleanNotes, countryCode, dailyRevenue, giftOwed, isOpenCheckout, liveNow, noteEffect, preorderRows, project, readLeadDays, reprintState, REPRINT_WORDS, soldOutCountdown, MAX_NOTES,
 } from "./overviewNewLive";
 
 const NOW = Date.parse("2026-10-18T16:00:00Z"); // noon in Toronto
@@ -26,6 +26,11 @@ describe("liveNow", () => {
       paid({ createdAt: minsAgo(5), customer: { email: "lyricalmyricalbooks@gmail.com" } }),
     ];
     expect(liveNow(orders, carts, NOW)).toEqual({ bags: 1, checkout: 1, bought: 1, boughtTotal: 30, lastBag: "Paper Moons" });
+  });
+  it("can count sales over the same 30 minutes as the rest", () => {
+    const orders = [paid({ createdAt: minsAgo(20), total: 30 }), paid({ createdAt: minsAgo(45), total: 10 })];
+    expect(liveNow(orders, [], NOW, 30)).toMatchObject({ bought: 1, boughtTotal: 30 });
+    expect(liveNow(orders, [], NOW)).toMatchObject({ bought: 2 });
   });
   it("copes with no carts", () => {
     expect(liveNow([], null, NOW)).toMatchObject({ bags: 0, lastBag: null });
@@ -155,5 +160,20 @@ describe("soldOutCountdown", () => {
     expect(cleanLeadDays("21")).toBe(21);
     expect(cleanLeadDays(0)).toBe(35);
     expect(cleanLeadDays("x")).toBe(35);
+  });
+  it("typed lead days say what's wrong instead of snapping back", () => {
+    expect(readLeadDays("21")).toEqual({ days: 21 });
+    expect(readLeadDays(" 7 ")).toEqual({ days: 7 });
+    expect(readLeadDays("0")).toHaveProperty("error");
+    expect(readLeadDays("abc")).toHaveProperty("error");
+    expect(readLeadDays("400")).toHaveProperty("error");
+  });
+  it("one set of reprint words for both stock widgets", () => {
+    expect(reprintState(20, 35)).toBe("now");
+    expect(reprintState(50, 35)).toBe("soon");
+    expect(reprintState(60, 35)).toBe("fine");
+    expect(reprintState(null, 35)).toBe("none");
+    expect(reprintState(Infinity, 35)).toBe("none");
+    expect(REPRINT_WORDS.now.word).toBe("Reprint now");
   });
 });

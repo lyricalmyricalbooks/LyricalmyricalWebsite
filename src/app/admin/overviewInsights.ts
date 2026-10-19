@@ -144,26 +144,42 @@ export function topCountries(orders: Order[], limit = 5) {
 
 export const isDigitalBook = (b?: Book) => !!b && DIGITAL_FORMATS.includes(b.format);
 
+/** Format words that mean an e-book or audiobook (the same words the fulfilment desk treats as never shipped). */
+const DIGITAL_FORMAT_RE = /digital|e-book|ebook|epub|pdf|audiobook|audio book/i;
+
+/**
+ * The one rule for "is this sold line digital?": the line's own flag when it says so, else the format of the edition
+ * sold (line format, then the book's), else the book's format list. Format mix's header and its bar both use it, so
+ * they can never disagree (an "E-book" slice under a "0% digital" heading).
+ */
+export function lineFormat(i: any, book?: Book): { format: string; digital: boolean } {
+  const format = String(i?.format || book?.format || "Unspecified");
+  const flag = i?.digital ?? i?.isDigital;
+  const digital = flag === true || DIGITAL_FORMAT_RE.test(format) || (flag == null && !i?.format && isDigitalBook(book));
+  return { format, digital };
+}
+
 /** Revenue and units split by format family (print vs digital) and by exact format. */
 export function formatMix(orders: Order[], books: Book[]) {
   const byId = new Map(books.map(b => [b.id, b]));
-  const byFormat = new Map<string, { format: string; units: number; revenue: number }>();
-  let print = 0, digital = 0;
+  const byFormat = new Map<string, { format: string; units: number; revenue: number; digital: boolean; digitalRevenue: number }>();
   orders.forEach(o => (o.items || []).forEach((i: any) => {
-    const book = byId.get(i.id);
     // The edition actually sold (recalculateOrder stores its format/digital on the line).
-    const format = i.format || book?.format || "Unspecified";
+    const { format, digital } = lineFormat(i, byId.get(i.id));
     const rev = (Number(i.quantity) || 0) * (Number(i.price) || 0);
-    const row = byFormat.get(format) || { format, units: 0, revenue: 0 };
+    const row = byFormat.get(format) || { format, units: 0, revenue: 0, digital: false, digitalRevenue: 0 };
     row.units += Number(i.quantity) || 0; row.revenue += rev;
+    if (digital) row.digitalRevenue += rev;
+    row.digital = row.digitalRevenue * 2 > row.revenue || (row.revenue === 0 && digital);
     byFormat.set(format, row);
-    const lineDigital = i.digital ?? i.isDigital;
-    if (lineDigital === true || (lineDigital == null && isDigitalBook(book))) digital += rev; else print += rev;
   }));
-  const total = print + digital;
+  // Print vs digital is read off the same rows the bar draws, so the heading always matches the bar.
+  const formats = [...byFormat.values()].sort((a, b) => b.revenue - a.revenue).map(({ digitalRevenue, ...f }) => f);
+  const digital = formats.reduce((s, f) => s + (f.digital ? f.revenue : 0), 0);
+  const total = formats.reduce((s, f) => s + f.revenue, 0);
   return {
-    formats: [...byFormat.values()].sort((a, b) => b.revenue - a.revenue),
-    printShare: total ? (print / total) * 100 : 0,
+    formats,
+    printShare: total ? ((total - digital) / total) * 100 : 0,
     digitalShare: total ? (digital / total) * 100 : 0,
     total,
   };

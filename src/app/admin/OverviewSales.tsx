@@ -140,7 +140,7 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
               key: d.day, label: d.day, value: d.orders, prev: prevWeekdays.find(p => p.day === d.day)?.orders || 0,
               title: `${d.day}: ${d.orders} order${d.orders === 1 ? "" : "s"} · ${money(d.revenue)}`,
             }))} />
-            <p className="rp-hint" style={{ margin: "0 20px 12px" }}>Red = this period (the busiest day darkest). Hatched = the period before.</p>
+            <p className="rp-hint" style={{ margin: "0 20px 12px" }}>Solid = this period (the busiest day darkest) · hatched = the period before.</p>
             <Fold label="orders by day">
               <ul className="rp-list" aria-label="Orders by weekday">
                 {weekdays.map(d => <StatRow key={d.day} label={d.day} hint={money(d.revenue)} value={`${d.orders} order${d.orders === 1 ? "" : "s"}`}
@@ -206,16 +206,16 @@ function Fold({ label, children }: { label: string; children: ReactNode }) {
 /**
  * Where the money goes as steps: books at list price, less codes, plus shipping and tax, less gift cards (= what
  * customers paid by card/PayPal), less refunds = net received. Anything the order totals don't explain (rounding,
- * older orders saved without a breakdown) is its own "Other" step, so the last column always equals the net figure.
+ * older orders saved without a breakdown) is its own "Rounding & adjustments" step, so the last column always equals the net figure.
  */
 export function moneySteps(cur: { subtotal: number; discounts: number; shipping: number; tax: number; giftCards: number; revenue: number; refunded: number; net: number }): FallStep[] {
   const steps: FallStep[] = [{ key: "books", label: "Books", hint: "list price", value: cur.subtotal, kind: "total" }];
   if (cur.discounts > 0) steps.push({ key: "codes", label: "Codes", hint: "discounts", value: cur.discounts, kind: "minus" });
-  if (cur.shipping > 0) steps.push({ key: "ship", label: "Shipping", hint: "charged", value: cur.shipping, kind: "plus" });
-  if (cur.tax > 0) steps.push({ key: "tax", label: "Tax", hint: "owed on", value: cur.tax, kind: "plus" });
-  if (cur.giftCards > 0) steps.push({ key: "gift", label: "Gift cards", hint: "paid with", value: cur.giftCards, kind: "minus" });
+  if (cur.shipping > 0) steps.push({ key: "ship", label: "Shipping", hint: "postage charged", value: cur.shipping, kind: "plus", passThrough: true });
+  if (cur.tax > 0) steps.push({ key: "tax", label: "Tax", hint: "sales tax collected", value: cur.tax, kind: "plus", passThrough: true });
+  if (cur.giftCards > 0) steps.push({ key: "gift", label: "Gift cards", hint: "paid by gift card", value: cur.giftCards, kind: "minus" });
   const other = Math.round((cur.revenue - (cur.subtotal - cur.discounts + cur.shipping + cur.tax - cur.giftCards)) * 100) / 100;
-  if (Math.abs(other) >= 0.01) steps.push({ key: "other", label: "Other", hint: "not itemised", value: Math.abs(other), kind: other > 0 ? "plus" : "minus" });
+  if (Math.abs(other) >= 0.01) steps.push({ key: "other", label: "Rounding & adjustments", hint: "cents, older orders", value: Math.abs(other), kind: other > 0 ? "plus" : "minus" });
   if (cur.refunded > 0) steps.push({ key: "refunds", label: "Refunds", hint: "partial", value: cur.refunded, kind: "minus" });
   steps.push({ key: "net", label: "Received", hint: "after refunds", value: cur.net, kind: "total" });
   return steps;

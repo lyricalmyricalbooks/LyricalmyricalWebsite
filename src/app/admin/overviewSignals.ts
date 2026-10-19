@@ -69,6 +69,38 @@ export function titleFlag(r: { views: number | null; adds: number | null; units:
   return null;
 }
 
+/** At most this many titles are flagged at once, so a flag stays worth reading. */
+export const MAX_TITLE_FLAGS = 3;
+
+/**
+ * Flags measured against the shop's own rates instead of fixed ones (a quiet shop where every title is "rarely
+ * bought" says nothing about one title). A title is flagged when its rate is below half the shop's:
+ * - "browsed": 20+ views, nothing sold, added to the bag less than half as often as the shop's titles on average;
+ * - "abandoned": 10+ bag adds, bought less than half as often per add as the shop's titles on average.
+ * Only the `limit` titles with the most missed sales (expected at the shop's rate minus what happened) keep a flag.
+ * Returns id → flag for flagged titles only.
+ */
+export function titleFlags(rows: Array<{ id: string; views: number | null; adds: number | null; units: number }>, limit = MAX_TITLE_FLAGS): Map<string, Exclude<TitleFlag, null>> {
+  const withAdds = rows.filter(r => r.adds !== null);
+  const viewed = withAdds.filter(r => r.views !== null && r.views > 0);
+  const views = viewed.reduce((s, r) => s + (r.views as number), 0);
+  const addRate = views > 0 ? viewed.reduce((s, r) => s + (r.adds as number), 0) / views : 0;
+  const added = withAdds.filter(r => (r.adds as number) > 0);
+  const adds = added.reduce((s, r) => s + (r.adds as number), 0);
+  const buyRate = adds > 0 ? added.reduce((s, r) => s + Math.min(r.units, r.adds as number), 0) / adds : 0;
+  const found: Array<{ id: string; flag: Exclude<TitleFlag, null>; missed: number }> = [];
+  for (const r of withAdds) {
+    const a = r.adds as number;
+    if (addRate > 0 && r.views !== null && r.views >= 20 && r.units === 0 && a / r.views < addRate / 2) {
+      found.push({ id: r.id, flag: "browsed", missed: r.views * addRate - a });
+    } else if (buyRate > 0 && a >= 10 && r.units / a < buyRate / 2) {
+      found.push({ id: r.id, flag: "abandoned", missed: a * buyRate - r.units });
+    }
+  }
+  found.sort((x, y) => y.missed - x.missed);
+  return new Map(found.slice(0, Math.max(0, limit)).map(f => [f.id, f.flag]));
+}
+
 export const TITLE_FLAG_WORDS: Record<Exclude<TitleFlag, null>, { badge: string; hint: string }> = {
   browsed: { badge: "Looked at, not bagged", hint: "Many views but almost nobody adds it to the bag: check the price, photos and description." },
   abandoned: { badge: "Bagged, not bought", hint: "Often added to the bag but rarely bought: check the delivery price and checkout." },

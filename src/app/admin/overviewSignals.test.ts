@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   acquisitionCoverage, campaignPerformance, checkoutJourney, gaCampaignVisits, landingPerformance, newsletterWeeks,
-  pageSpeedSummary, reminderResults, titleFlag, wantedButUnavailable,
+  pageSpeedSummary, reminderResults, titleFlag, titleFlags, MAX_TITLE_FLAGS, wantedButUnavailable,
 } from "./overviewSignals";
 import { titlePerformance, titlesCsv } from "./overviewProfit";
 import { applyOwnerDeviceLink, isOwnOrder, isOwnerDevice, looksAutomated, markOwnerDeviceOnSignIn, ownerDeviceChoice, setOwnerDevice } from "../lib/ownerDevice";
@@ -85,6 +85,28 @@ describe("titles", () => {
     expect(titleFlag({ views: 40, adds: null, units: 0 })).toBeNull();
     expect(titleFlag({ views: 40, adds: 8, units: 1 })).toBe("abandoned");
     expect(titleFlag({ views: 40, adds: 8, units: 4 })).toBeNull();
+  });
+
+  it("flags titles only against the shop's own rates, and at most three", () => {
+    // A quiet shop: every title is bagged ~10% of views and bought ~30% of adds. Nobody stands out, so no flags.
+    const even = Array.from({ length: 8 }, (_, i) => ({ id: `b${i}`, views: 100, adds: 10, units: 3 }));
+    expect(titleFlags(even).size).toBe(0);
+    const rows = [
+      ...even,
+      { id: "looked", views: 120, adds: 1, units: 0 },   // bagged far below the shop's 10%
+      { id: "bagged", views: 100, adds: 20, units: 1 },  // bought far below the shop's ~30% of adds
+      { id: "few", views: 100, adds: 6, units: 0 },      // too few adds to judge
+      { id: "noadds", views: 300, adds: null, units: 0 }, // bag adds not recorded for it
+    ];
+    const flags = titleFlags(rows);
+    expect(flags.get("looked")).toBe("browsed");
+    expect(flags.get("bagged")).toBe("abandoned");
+    expect(flags.has("few")).toBe(false);
+    expect(flags.has("noadds")).toBe(false);
+    const many = [...even, ...Array.from({ length: 6 }, (_, i) => ({ id: `q${i}`, views: 100 + i * 10, adds: 0, units: 0 }))];
+    const top = titleFlags(many);
+    expect(top.size).toBe(MAX_TITLE_FLAGS);
+    expect([...top.keys()]).toEqual(["q5", "q4", "q3"]);
   });
 
   it("adds the bag column to the table and its CSV", () => {

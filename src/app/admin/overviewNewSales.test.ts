@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  bookOfTheWeek, calendarLevel, daysToShip, hasSignedEdition, isSignedLine, launchCurves, monthGoal, parseGoal, salesCalendar, shipHeadline, shipWeeks, signedMix, weekdayOf,
+  bookOfTheWeek, calendarLegend, calendarLevel, calendarMonths, daysToShip, goalGap, niceTicks, hasSignedEdition, isSignedLine, launchCurves, monthGoal, parseGoal, salesCalendar, shipHeadline, shipWeeks, signedMix, weekdayOf,
 } from "./overviewNewSales";
 
 const order = (day: string, total: number, items: any[] = [], extra: any = {}) => ({ createdAt: `${day}T16:00:00Z`, total, items, ...extra });
@@ -39,6 +39,27 @@ describe("salesCalendar", () => {
     expect(calendarLevel(80, 80)).toBe(4);
     expect(calendarLevel(41, 80)).toBe(3);
   });
+
+  it("says what each shade means in money", () => {
+    expect(calendarLegend(80)).toEqual([{ level: 1, upTo: 20 }, { level: 2, upTo: 40 }, { level: 3, upTo: 60 }, { level: 4, upTo: 80 }]);
+    expect(calendarLegend(0)).toEqual([]);
+  });
+
+  it("totals each month and names the best one", () => {
+    const m = calendarMonths(cal);
+    expect(m.months.find(x => x.month === "2026-10")).toMatchObject({ revenue: 160, orders: 4 });
+    expect(m.best).toEqual({ month: "2026-10", revenue: 160 });
+    expect(calendarMonths(salesCalendar([], "2026-10-18")).best).toBeNull();
+  });
+});
+
+describe("niceTicks", () => {
+  it("steps in round numbers up to at least the top", () => {
+    expect(niceTicks(7)).toEqual([0, 5, 10]);
+    expect(niceTicks(30)).toEqual([0, 10, 20, 30]);
+    expect(niceTicks(1)).toEqual([0, 0.5, 1]);
+    expect(niceTicks(0)).toEqual([0, 1]);
+  });
 });
 
 describe("monthGoal", () => {
@@ -50,6 +71,15 @@ describe("monthGoal", () => {
     expect(g.ahead).toBe(true);
     expect(g.needPerDay).toBeCloseTo(800 / 13);
     expect(g.month).toMatch(/October 2026/);
+  });
+  it("says how much is left to go and how far off an even pace", () => {
+    const g = monthGoal([order("2026-10-02", 600)], "2026-10-18", 2000);
+    const gap = goalGap(g);
+    expect(gap.toGo).toBe(1400);
+    expect(gap.daysLeft).toBe(13);
+    expect(gap.perDay).toBeCloseTo(1400 / 13);
+    expect(gap.paceGap).toBeCloseTo(600 - 2000 * (18 / 31));
+    expect(goalGap(monthGoal([order("2026-10-02", 2500)], "2026-10-18", 2000))).toMatchObject({ toGo: 0, perDay: null });
   });
   it("reads typed goals", () => {
     expect(parseGoal("$2,000")).toBe(2000);

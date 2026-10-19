@@ -10,7 +10,7 @@ import { funnelSteps, type TrafficFigures } from "./overviewSources";
 import type { Ga4Answer } from "./googleAnalytics";
 import { BarRow, DrillList, SPLIT, StatRow, Trend, money, percent } from "./OverviewParts";
 import { Funnel, RankBars, Stack } from "./OverviewViz";
-import { CampaignsCard, CheckoutJourneyCard, FoundOnGoogleCard, LandingSalesCard, PageSpeedCard } from "./OverviewMarketingExtras";
+import { CampaignsCard, CheckoutJourneyCard, FoundOnGoogleCard, LandingSalesCard, PageSpeedCard, SetUpLine, useFirstOfKind } from "./OverviewMarketingExtras";
 import type { Ga4Range } from "./googleAnalytics";
 
 const since = (key: string | null) => (key ? new Date(`${key}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : null);
@@ -76,6 +76,8 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
   const show = (id: string) => !only || only === id;
   const gaPanel = !!only && GA_PANELS.includes(only);
   const gaAsked = !only || only === "gaKpis" || gaPanel;
+  // On the board only the first Google Analytics widget explains the connection; the others say so in one line.
+  const gaPitch = useFirstOfKind("googleAnalytics", !!only && gaAsked && ga.status === "off");
   const t = report?.totals;
   const engagedRate = num(t?.current?.engagementRate) * 100;
   const visitorType = (key: string) => num(report?.visitorType?.find(r => r.newVsReturning === key)?.activeUsers);
@@ -136,10 +138,13 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
           </div>}
         </>
       )}
-      {gaAsked && ga.status === "off" && (
+      {gaAsked && ga.status === "off" && !gaPitch && (
+        <SectionCard title="Google Analytics"><SetUpLine needs="Google Analytics" onSetUp={setActiveTab ? () => setActiveTab("general") : undefined} /></SectionCard>
+      )}
+      {gaAsked && ga.status === "off" && gaPitch && (
         <SectionCard title="Connect Google Analytics" description="See where visitors come from (search, social, email, other sites), which pages they land on, how long they stay, their countries and devices — and how many are on the site right now."
           actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("general")}>Set up Google Analytics</SecondaryButton>}>
-          <p className="rp-hint" style={{ margin: 0 }}>Until it is connected, the figures below come from the shop's own simple counter. Setup is in Settings › General › Google Analytics and takes about five minutes.</p>
+          <p className="rp-hint" style={{ margin: 0 }}>Until it is connected, visit figures come from the shop's own simple counter. Setup is in Settings › General › Google Analytics and takes about five minutes.</p>
         </SectionCard>
       )}
       {gaAsked && ga.status === "error" && (

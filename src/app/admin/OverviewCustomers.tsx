@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { EmptyState, ErrorState, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { CardInWidget, EmptyState, ErrorState, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
 import type { Order } from "./overviewInsights";
 import { cartRecovery, cartRows, type CartRow } from "./overviewTraffic";
 import { buildCustomers, customerStats, SEGMENT_LABELS } from "./customerInsights";
@@ -61,6 +61,9 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
   const retry = () => load(true);
   useEffect(() => load(), []);
   const show = (id: string) => !only || only === id;
+  // Inside a board widget the button sits under the list, so the widget's top stays one line.
+  const inWidget = useContext(CardInWidget);
+  const allCustomers = setActiveTab ? <SecondaryButton size="sm" onClick={() => setActiveTab("customers")}>All customers</SecondaryButton> : undefined;
 
   const customers = useMemo(() => buildCustomers(paid), [paid]);
   const stats = useMemo(() => customerStats(customers), [customers]);
@@ -94,14 +97,14 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
       </div>}
 
       {(!only || only !== "kpis") && <div className="rp-split" style={SPLIT}>
-        {show("retention") && <SectionCard flush title="Do customers come back?" description="Each row is the customers whose first order was in that month; the cells show the share who bought again 1–6 months later — deeper red = more came back (· = not yet)">
+        {show("retention") && <SectionCard flush title="Do customers come back?" description="Each row is the customers whose first order was in that month; the cells show the share who bought again 1–6 months later — deeper red = more came back; a dotted empty cell = that month hasn't happened yet">
           {cohorts.length === 0 ? <EmptyState title="No customers yet" description="Cohorts appear after the first paid orders." />
             : <ShadeGrid label="Repeat purchases by first-order month" head={Array.from({ length: 6 }, (_, k) => `+${k + 1} mo`)}
                 rows={cohorts.map(r => ({ key: r.month, label: monthName(r.month), sub: `${r.customers} ${r.customers === 1 ? "person" : "people"} · ${money(r.revenue)}`, cells: r.cells }))} />}
         </SectionCard>}
 
         {show("top") && <SectionCard flush title="Top customers" description="By total spend, all time"
-          actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("customers")}>All customers</SecondaryButton>}>
+          actions={inWidget ? undefined : allCustomers}>
           {top.length === 0 ? <EmptyState title="No customers yet" description="Customers appear after their first paid order." /> : (
             <ul className="rp-list" aria-label="Top customers">
               {top.map(c => (
@@ -111,6 +114,7 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
               ))}
             </ul>
           )}
+          {inWidget && allCustomers && <div style={{ padding: "10px 20px 14px", borderTop: "1px solid var(--rp-divider)" }}>{allCustomers}</div>}
         </SectionCard>}
 
         {show("carts") && <SectionCard flush title="Abandoned carts" description="Carts left with an email address, started in this period">
@@ -171,7 +175,7 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
             <ul className="rp-list" aria-label="Reviews">
               <StatRow label="Average rating" hint={`${reviews.approved} approved review${reviews.approved === 1 ? "" : "s"}`}
                 value={reviews.average !== null ? `${reviews.average.toFixed(1)} / 5` : "None yet"} />
-              <StatRow label="Waiting for moderation" value={reviews.pending > 0 ? <StatusBadge tone="warning">{reviews.pending}</StatusBadge> : <StatusBadge tone="success">✓ None</StatusBadge>} />
+              <StatRow label="Waiting for moderation" value={reviews.pending > 0 ? <StatusBadge tone="warning">{reviews.pending}</StatusBadge> : <StatusBadge tone="success">None</StatusBadge>} />
             </ul>
           )}
         </SectionCard>}

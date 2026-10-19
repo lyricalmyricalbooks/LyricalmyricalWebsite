@@ -909,15 +909,20 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 /* ── Overview widget board (OverviewBoard.tsx): topic bands of widgets on a 12-column grid ── */
 .rp-wb { --wb-gap: 20px; --wb-pad: 16px; }
 .rp-wb[data-density="compact"] { --wb-gap: 12px; --wb-pad: 10px; }
-.rp-wb-toolbar { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--rp-surface); border: var(--rp-stroke) solid var(--rp-border-strong); box-shadow: var(--rp-shadow-sm); }
+/* The board bar: no frame of its own, so it reads as part of the header rather than a second header (ux1 #4). */
+.rp-wb-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 0; background: transparent; border: 0; box-shadow: none; }
 .rp-wb-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
-.rp-wb-toolbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rp-wb-toolbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.rp-wb-toolbar .rp-wb-edit-hint { flex: 1 1 100%; }
+.rp-wb-undo { display: inline-flex; gap: 4px; }
+.rp-wb-addbtn { position: relative; }
+.rp-wb-newdot { position: absolute; top: -4px; right: -4px; width: 10px; height: 10px; background: var(--rp-primary); border: 2px solid var(--rp-surface); border-radius: 50%; }
 .rp-wb-toolbar-actions .rp-ov-switch button { white-space: nowrap; }
 .rp-wb-jump { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--rp-text-sm); font-weight: 700; }
 .rp-wb-jump a { color: var(--rp-text); text-decoration: none; border-bottom: 2px solid transparent; padding: 2px 0; }
 .rp-wb-jump a:hover, .rp-wb-jump a:focus-visible { border-bottom-color: var(--rp-primary); }
 .rp-wb-jump .rp-mono { color: var(--rp-text-subtle); }
-.rp-wb-save { display: inline-flex; align-items: center; gap: 8px; font-family: var(--rp-font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--rp-text-subtle); margin-left: auto; }
+.rp-wb-save { display: inline-flex; align-items: center; gap: 8px; font-family: var(--rp-font-body); font-size: 12px; color: var(--rp-text-subtle); }
 .rp-wb-save[data-state="error"] { color: var(--rp-danger); }
 .rp-wb-save[data-state="local"] { color: var(--rp-warning); }
 .rp-wb-link { padding: 0; border: 0; background: none; color: var(--rp-text); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
@@ -927,7 +932,9 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-wb-band-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; padding-top: 10px; border-top: 4px double var(--rp-border-strong); }
 .rp-wb-band-title { display: flex; align-items: baseline; gap: 10px; margin: 0; font-family: var(--rp-font-display); font-weight: 400; font-size: clamp(24px, 2.6vw, 32px); line-height: 1; text-transform: uppercase; letter-spacing: 0.01em; }
 .rp-wb-band-title button { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; text-align: left; }
-.rp-wb-band-count { font-family: var(--rp-font-mono); font-size: 12px; letter-spacing: 0.08em; color: var(--rp-text-subtle); }
+.rp-wb-band-count { font-family: var(--rp-font-body); font-size: 12px; letter-spacing: 0.02em; text-transform: none; color: var(--rp-text-subtle); }
+.rp-wb-band-edit { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.rp-wb-band-more { display: none; }
 .rp-wb-band-blurb { margin: 4px 0 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
 .rp-wb-band-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; }
 .rp-wb-band[data-folded] .rp-wb-band-head { padding-bottom: 0; }
@@ -937,31 +944,51 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-wb-fold svg { transition: transform .15s; }
 .rp-wb-fold:focus-visible, .rp-wb-title button:focus-visible, .rp-wb-band-title button:focus-visible, .rp-wb-link:focus-visible, .rp-wb-jump a:focus-visible, .rp-wb-crumb:focus-visible, .rp-wb-dropzone:focus-visible, .rp-wb-sizes button:focus-visible, .rp-wb-chips button:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
 
-.rp-wb-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--wb-gap); }
+.rp-wb-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--wb-gap); align-items: start; }
 .rp-wb-widget { grid-column: span 6; min-width: 0; display: flex; flex-direction: column; background: var(--rp-surface); border: var(--rp-stroke) solid var(--rp-border-strong); box-shadow: var(--rp-shadow-sm); }
 .rp-wb-widget[data-size="s"] { grid-column: span 4; }
 .rp-wb-widget[data-size="m"] { grid-column: span 6; }
 .rp-wb-widget[data-size="l"] { grid-column: span 8; }
 .rp-wb-widget[data-size="xl"] { grid-column: span 12; }
-.rp-wb-bar { display: flex; align-items: center; gap: 4px; min-height: 44px; padding: 4px 6px 4px 4px; border-bottom: var(--rp-hair) solid var(--rp-divider); }
+.rp-wb-bar { display: flex; align-items: center; gap: 4px; min-height: 44px; padding: 4px 6px 4px 4px; border-bottom: var(--rp-hair) solid var(--rp-divider); position: relative; z-index: 3; }
+/* The widget whose ⋯ menu is open sits above its neighbours, so the menu is never covered by the next widget. */
+.rp-wb-widget:has(.rp-menu) { position: relative; z-index: 4; }
+.rp-wb-band-head:has(.rp-menu), .rp-wb-toolbar:has(.rp-menu), .rp-wb-head:has(.rp-menu) { position: relative; z-index: 6; }
 .rp-wb-widget[data-folded] .rp-wb-bar { border-bottom: 0; }
 .rp-wb-title { flex: 1 1 auto; min-width: 0; margin: 0; font-size: var(--rp-text-sm); font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
-.rp-wb-title button { max-width: 100%; padding: 4px 2px; border: 0; background: none; color: var(--rp-text); font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rp-wb-title button:hover { text-decoration: underline; }
+.rp-wb-title { padding: 4px 2px; color: var(--rp-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-wb-bar > .rp-wb-title:first-child { padding-left: 10px; }
-.rp-wb-tag { flex: none; padding: 1px 5px; border: 1px solid var(--rp-border-strong); font-family: var(--rp-font-mono); font-size: 10px; }
+.rp-wb-tag { flex: none; padding: 1px 6px; border: 1px solid var(--rp-border); font-family: var(--rp-font-body); font-size: 11px; font-weight: 700; color: var(--rp-text-muted); white-space: nowrap; }
 .rp-wb-tools { flex: none; display: flex; align-items: center; gap: 2px; }
 .rp-wb-grip { flex: none; display: inline-grid; place-items: center; width: 28px; height: 32px; color: var(--rp-text-subtle); cursor: grab; touch-action: none; }
 .rp-wb-grip:active { cursor: grabbing; }
-.rp-wb-sizes { display: inline-flex; gap: 1px; margin: 0 4px; padding: 2px; background: var(--rp-inverse); }
-.rp-wb-sizes button { min-width: 28px; min-height: 26px; padding: 0 6px; border: 0; background: transparent; color: var(--rp-on-inverse); font: 800 10px/1 var(--rp-font-mono); cursor: pointer; }
-.rp-wb-sizes button[aria-pressed="true"] { background: var(--rp-on-inverse); color: var(--rp-inverse); }
+.rp-wb-sizes { display: inline-flex; gap: 0; margin: 0 4px; border: var(--rp-hair) solid var(--rp-border); background: var(--rp-surface); }
+.rp-wb-sizes button { min-width: 28px; min-height: 26px; padding: 0 6px; border: 0; border-right: var(--rp-hair) solid var(--rp-divider); background: transparent; color: var(--rp-text-muted); font: 800 10px/1 var(--rp-font-mono); cursor: pointer; }
+.rp-wb-sizes button:last-child { border-right: 0; }
+.rp-wb-sizes button:hover { color: var(--rp-text); background: var(--rp-surface-2); }
+.rp-wb-sizes button[aria-pressed="true"] { background: var(--rp-primary-tint); color: var(--rp-text); box-shadow: inset 0 -2px 0 var(--rp-primary); }
+.rp-wb-move { display: inline-flex; }
+/* Widget tools show on hover or keyboard focus with a mouse; always while editing and on touch screens (ux1 #10). */
+@media (hover: hover) and (pointer: fine) {
+  .rp-wb:not([data-editing]) .rp-wb-widget[data-live] .rp-wb-tools { opacity: 0; }
+  .rp-wb-widget[data-live]:hover .rp-wb-tools, .rp-wb-widget[data-live]:focus-within .rp-wb-tools, .rp-wb-widget[data-live] .rp-wb-tools:has([aria-expanded="true"]) { opacity: 1 !important; }
+}
 .rp-wb-body { min-width: 0; padding: var(--wb-pad); content-visibility: auto; contain-intrinsic-size: auto 320px; }
 .rp-wb-widget[data-height="short"] .rp-wb-body { max-height: 340px; overflow: auto; }
 .rp-wb-widget[data-height="tall"] .rp-wb-body { max-height: 680px; overflow: auto; }
 /* A panel's own card sits flush inside the widget frame: the widget bar is its title. */
 .rp-wb-body .rp-card { background: transparent; border: 0; box-shadow: none; border-radius: 0; }
 .rp-wb-body .rp-card-head { padding: 0 0 10px; border-bottom: 0; }
+/* The widget bar already names the panel: no second title or fold inside it; its subtitle is one muted line (ux2 #2). */
+.rp-wb-body .rp-card-title, .rp-wb-body .rp-card-fold, .rp-wb-full-body .rp-card-title, .rp-wb-full-body .rp-card-fold { display: none; }
+.rp-wb-body .rp-card-desc { margin: 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+/* Panels drawn as cards of their own sit flat inside the widget (ux1 #8). */
+.rp-wb-body .rp-ov-run, .rp-wb-body .rp-ov-lead, .rp-wb-full-body .rp-ov-run, .rp-wb-full-body .rp-ov-lead { box-shadow: none; border: 0; }
+.rp-wb-body .rp-ov-figures, .rp-wb-full-body .rp-ov-figures { box-shadow: none; border: var(--rp-hair) solid var(--rp-divider); }
+.rp[data-rp-appearance="dark"] .rp-wb .rp-ov-lead { background: var(--rp-primary-tint); color: var(--rp-text); border-left: 4px solid var(--rp-primary); }
+.rp[data-rp-appearance="dark"] .rp-wb .rp-ov-lead .rp-ov-switch button:focus-visible { outline-color: var(--rp-text); }
+.rp-wb-body .rp-ov-switch { max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+.rp-wb-failed { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px; border: var(--rp-hair) solid var(--rp-border); background: var(--rp-surface-inset, var(--rp-surface-2)); font-size: var(--rp-text-sm); }
 .rp-wb-body .rp-card-body { padding: 0; }
 .rp-wb-body .rp-split { grid-template-columns: minmax(0, 1fr) !important; gap: var(--wb-gap); }
 .rp-wb-body .rp-stack { gap: var(--wb-gap); }
@@ -989,6 +1016,15 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-wb-tray-head { margin: 8px 0 6px; font-size: var(--rp-text-2xs); font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--rp-text-subtle); }
 .rp-wb-tray { list-style: none; margin: 0; padding: 0; border: var(--rp-hair) solid var(--rp-border); }
 .rp-wb-tray li { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-top: var(--rp-hair) solid var(--rp-divider); }
+.rp-wb-tray-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 700; }
+.rp-wb-newtag { padding: 1px 6px; background: var(--rp-primary); color: var(--rp-on-primary); font: 800 10px/1.4 var(--rp-font-body); letter-spacing: 0.08em; text-transform: uppercase; }
+.rp-wb-tray-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.rp-wb-tray-badges:empty { display: none; }
+.rp-wb-tray-actions { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.rp-wb-nomatch { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: var(--rp-hair) dashed var(--rp-border); }
+.rp-wb-added { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; padding: 8px 10px; background: var(--rp-primary-tint); border-left: 4px solid var(--rp-primary); font-size: var(--rp-text-sm); }
+.rp-wb-hidden { margin: 0; padding-top: 10px; border-top: var(--rp-hair) solid var(--rp-divider); font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-wb-esc { margin-left: auto; }
 .rp-wb-tray li:first-child { border-top: 0; }
 .rp-wb-templates { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; border: 0; }
 .rp-wb-templates label { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: var(--rp-hair) solid var(--rp-border); cursor: pointer; }
@@ -1001,20 +1037,48 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   .rp-wb-widget[data-size="s"], .rp-wb-widget[data-size="m"] { grid-column: span 6; }
   .rp-wb-widget[data-size="l"], .rp-wb-widget[data-size="xl"] { grid-column: span 12; }
 }
+/* The last widget of a row that does not add up to 12 columns grows to fill it (ux1 #3); not while editing. */
+@media (min-width: 1024px) { .rp-wb-widget[data-fill-d] { grid-column: var(--wb-fill-d); } }
+@media (min-width: 768px) and (max-width: 1023px) { .rp-wb-widget[data-fill-t] { grid-column: var(--wb-fill-t); } }
 @media (max-width: 767px) {
   .rp-wb-widget[data-size] { grid-column: span 12; }
-  .rp-wb-save { margin-left: 0; }
-  .rp-wb-full-body { padding: 14px; }
+  .rp-wb { --wb-pad: 12px; --wb-gap: 14px; }
+  .rp-wb-full-body { padding: 12px; }
+  .rp-wb-full-head { padding: 14px 12px; }
+  /* The jump links are one row that scrolls sideways. */
+  .rp-wb-toolbar { flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
+  .rp-wb-jump { min-width: 0; }
+  .rp-wb-jump { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .rp-wb-jump a { flex: none; white-space: nowrap; }
+  .rp-wb-toolbar-actions { margin-left: 0; }
+  /* Editing on a phone: moving and width live in each widget's ⋯ and Settings…; topic moves in the topic's ⋯ (ux1 #20). */
+  .rp-wb[data-editing] .rp-wb-sizes, .rp-wb[data-editing] .rp-wb-move { display: none; }
+  .rp-wb-band-edit { display: none; }
+  .rp-wb-band-more { display: inline-flex; }
+  .rp-wb-bar { flex-wrap: wrap; }
+  .rp-wb-title { flex-basis: 0; }
+  .rp-wb-tag { display: none; }
+  .rp-wb-esc { display: none; }
 }
-@media (pointer: coarse) { .rp-wb-sizes button, .rp-wb-chips button { min-height: 44px; } .rp-wb-fold { width: 44px; height: 44px; } }
+/* Touch screens: 44px targets for everything the board draws (ux1 #25); dragging needs a mouse, so no grip. */
+@media (pointer: coarse) {
+  .rp-wb-sizes button, .rp-wb-chips button { min-height: 44px; }
+  .rp-wb-fold { width: 44px; height: 44px; }
+  .rp-wb-grip { display: none; }
+  .rp-wb-a, .rp-wb-link, .rp-wb-crumb, .rp-wb-boardtoggle { min-height: 44px; display: inline-flex; align-items: center; }
+  .rp-wb-jump a { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; }
+  .rp-wb-body .rp-ov-switch button, .rp-wb-full-body .rp-ov-switch button { min-height: 44px; }
+  .rp-wb-body summary, .rp-wb-full-body summary { padding-block: 12px; }
+  .rp-wb-body .rp-ov-drill-list a, .rp-wb-body .rp-hint a { display: inline-flex; align-items: center; min-height: 44px; }
+}
 @media (prefers-reduced-motion: reduce) { .rp-wb-widget[data-flash] { animation: none; } .rp-wb-fold svg { transition: none; } }
 @media print { .rp-wb-toolbar, .rp-wb-tools, .rp-wb-fold, .rp-wb-band-actions, .rp-wb-dropzone { display: none !important; } .rp-wb-widget { break-inside: avoid; box-shadow: none; } .rp-wb-body { max-height: none !important; overflow: visible !important; content-visibility: visible; } }
 
 /* Overview header (design B4): title, freshness, period buttons, layout, Edit board and the hint line */
 .rp-wb-lbl { font-family: var(--rp-font-body); font-size: 9px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--rp-text-subtle); }
 .rp-wb-lbl b { color: var(--rp-text); }
-.rp-wb-a { padding: 0; border: 0; background: none; color: var(--rp-primary-text); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
-.rp-wb-a:hover { color: var(--rp-text); }
+.rp-wb-a { padding: 0; border: 0; background: none; color: var(--rp-text); font: inherit; font-weight: 700; text-decoration: underline; text-decoration-color: var(--rp-primary); text-decoration-thickness: 2px; text-underline-offset: 3px; cursor: pointer; }
+.rp-wb-a:hover { text-decoration-color: currentColor; }
 .rp-wb-a:disabled { color: var(--rp-text-faint); cursor: not-allowed; }
 .rp-wb-big { font-family: var(--rp-font-mono); font-size: 28px; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--rp-text); }
 
@@ -1022,7 +1086,18 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-wb-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding-bottom: 12px; border-bottom: var(--rp-stroke) solid var(--rp-border-strong); }
 .rp-wb-head-title { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; min-width: 0; }
 .rp-wb-h1 { margin: 0; font-family: var(--rp-font-display); font-weight: 400; font-size: 36px; line-height: 1; text-transform: uppercase; letter-spacing: 0.01em; color: var(--rp-text); }
-.rp-wb-head-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.rp-wb-head-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; max-width: 100%; }
+.rp-wb-updated { display: inline-flex; align-items: center; gap: 2px; }
+.rp-wb-refresh { width: 32px; height: 32px; }
+.rp-wb-refresh svg[data-spin] { animation: rp-wb-spin 1s linear infinite; }
+@keyframes rp-wb-spin { to { transform: rotate(360deg); } }
+/* Period, custom dates and "vs" read as one control (ux3 #16). */
+.rp-wb-period { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; max-width: 100%; }
+.rp-wb-boardctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.rp-wb-boardpick { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.rp-wb-boardtoggle { display: none; align-items: center; gap: 6px; min-height: 34px; padding: 6px 10px; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); color: var(--rp-text); font: 400 13px/1.2 var(--rp-font-body); cursor: pointer; }
+.rp-wb-boardtoggle b { font-weight: 700; }
+.rp-wb-boardtoggle:focus-visible { outline: 2px solid var(--rp-primary); outline-offset: 2px; }
 .rp-wb-divider { width: 1px; height: 24px; margin: 0 4px; background: var(--rp-border-strong); opacity: 0.3; }
 .rp-wb-seg { display: inline-flex; flex-wrap: wrap; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); }
 .rp-wb-seg button { min-height: 32px; padding: 6px 10px; border: 0; border-right: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); font: 700 11px/1 var(--rp-font-body); cursor: pointer; white-space: nowrap; }
@@ -1038,10 +1113,20 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-wb-hint-links { white-space: nowrap; }
 .rp-wb-editbtn[aria-pressed="true"] { background: var(--rp-primary); color: var(--rp-on-primary); }
 .rp-wb-a:focus-visible, .rp-wb-seg button:focus-visible, .rp-wb-select:focus-visible, .rp-wb-editbtn:focus-visible { outline: 2px solid var(--rp-primary); outline-offset: 2px; }
-@media (max-width: 767px) { .rp-wb-h1 { font-size: 30px; } .rp-wb-divider { display: none; } .rp-wb-hint-links { white-space: normal; } }
-@media (pointer: coarse) { .rp-wb-seg button, .rp-wb-select, .rp-wb-editbtn { min-height: 44px; } }
-@media (prefers-reduced-motion: reduce) { .rp-wb-editbtn { transition: none; } }
-@media print { .rp-wb-head-controls, .rp-wb-hint-links { display: none !important; } }
+@media (max-width: 767px) {
+  .rp-wb-h1 { font-size: 30px; } .rp-wb-divider { display: none; } .rp-wb-hint-links { white-space: normal; }
+  /* Phones: the period strip scrolls sideways; the board picker, its ⋯ and Edit board fold behind "Board ▾" (ux1 #7, ux3 #23). */
+  .rp-wb-head-controls, .rp-wb-period { width: 100%; }
+  .rp-wb-seg { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+  .rp-wb-seg button { flex: none; }
+  .rp-wb-boardtoggle { display: inline-flex; }
+  .rp-wb-boardctl:not([data-open]) { display: none; }
+  .rp-wb-boardctl { width: 100%; }
+  .rp-wb-boardctl .rp-wb-lbl { display: none; }
+}
+@media (pointer: coarse) { .rp-wb-seg button, .rp-wb-select, .rp-wb-editbtn { min-height: 44px; } .rp-wb-refresh { width: 44px; height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .rp-wb-editbtn { transition: none; } .rp-wb-refresh svg[data-spin] { animation: none; } }
+@media print { .rp-wb-head-controls, .rp-wb-hint-links, .rp-wb-refresh, .rp-wb-hidden { display: none !important; } }
 
 /* Overview drill-downs: a figure row that opens to list the records behind it. */
 .rp-ov-drill { display: block; width: 100%; padding: 0; margin: 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }

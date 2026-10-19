@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { EmptyState, ErrorState, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
+import { useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { CardInWidget, EmptyState, ErrorState, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
 import { DORMANT_DAYS, REORDER_COVER_DAYS, type Book, type Order, type TitleStock } from "./overviewInsights";
 import { DaysLeft } from "./OverviewViz";
 import { daysLeft, soldInWindow } from "./overviewDaysLeft";
@@ -11,15 +11,16 @@ import { isSoldOut, stockRowLabel, trackedStockRows } from "./stockRules";
 import { DrillList, ROW, SPLIT, StatRow, money, shopWhen, type DrillItem } from "./OverviewParts";
 import { countsByDay } from "./overviewDrill";
 import { sharedLoad } from "./overviewShared";
+import { useSharedLeadDays } from "./OverviewNewLive";
 
 export const LOW_STOCK = 5;
 
 /** Overview › Dig deeper › Stock: what to reprint, what is gathering dust, what is running low, who is waiting. */
-export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, dailyCurrent = [], dailyAll = [], only, paid, leadDays = 35 }: {
+export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, dailyCurrent = [], dailyAll = [], only, paid, leadDays: leadProp }: {
   books: Book[];
   /** Real paid orders: with them, Running low shows days until sold out at the last 30 days' pace. */
   paid?: Order[];
-  /** A reprint's usual wait in days, marked on the days-left bars. */
+  /** A reprint's usual wait in days, marked on the days-left bars (default: the one typed in Sold-out countdown, else 35). */
   leadDays?: number;
   /** Show just one panel (an Overview board widget): kpis, reprint, wanted, backInStock, slow or low. */
   only?: string;
@@ -39,6 +40,14 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
   };
   useEffect(() => load(), []);
   const show = (id: string) => !only || only === id;
+  // The same reprint wait as Sold-out countdown, so both widgets say the same thing about the same book.
+  const shared = useSharedLeadDays();
+  const leadDays = leadProp ?? shared;
+  // Inside a board widget the button moves under the list, so the widget's top stays one line.
+  const inWidget = useContext(CardInWidget);
+  const act = (label: string, tab: string) => (setActiveTab ? <SecondaryButton size="sm" onClick={() => setActiveTab(tab)}>{label}</SecondaryButton> : undefined);
+  const head = (node: ReactNode) => (inWidget ? undefined : node);
+  const foot = (node: ReactNode) => (inWidget && node ? <div className="rp-ov-card-foot" style={{ padding: "10px 20px 14px", borderTop: "1px solid var(--rp-divider)" }}>{node}</div> : null);
 
   const lowStock = useMemo(
     // Tracked print books/editions only (stockRules): never digital, untracked, gift cards, box sets or archived.
@@ -64,7 +73,7 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
       </div>}
       {only !== "kpis" && <div className="rp-split" style={SPLIT}>
         {show("reprint") && <SectionCard flush title="Reprint watch" description={`Selling fast, under ${REORDER_COVER_DAYS} days of stock`}
-          actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("inventory")}>Open inventory</SecondaryButton>}>
+          actions={head(act("Open inventory", "inventory"))}>
           {reprint.length === 0 ? <EmptyState icon="✓" title="No reprints urgent" description="No title is on course to sell out within a month." /> : (
             <ul className="rp-list" aria-label="Titles to reprint">
               {reprint.slice(0, 6).map(r => (
@@ -78,10 +87,11 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
               ))}
             </ul>
           )}
+          {foot(act("Open inventory", "inventory"))}
         </SectionCard>}
 
         {show("wanted") && <SectionCard flush title="Wanted but can't be bought" description="Books people looked at while sold out or coming soon, saved to their wishlist, or asked to hear about, in this period"
-          actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("catalog")}>Open books</SecondaryButton>}>
+          actions={head(act("Open books", "catalog"))}>
           {!wanted ? <LoadingState label="Loading…" />
             : wanted.length === 0 ? (wantedRecorded || (alerts.rows && alerts.rows.length)
               ? <EmptyState icon="✓" title="Nothing waiting" description="No one looked for a book they couldn't buy in this period." />
@@ -103,6 +113,7 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
                 ))}
               </ul>
             )}
+          {foot(act("Open books", "catalog"))}
         </SectionCard>}
 
         {show("backInStock") && <SectionCard flush title="Back-in-stock demand" description="Readers who asked to be emailed when a title returns">
@@ -137,8 +148,8 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
           )}
         </SectionCard>}
 
-        {show("low") && <SectionCard flush title="Running low" description={`${LOW_STOCK} units or fewer`}
-          actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("catalog")}>Manage books</SecondaryButton>}>
+        {show("low") && <SectionCard flush title="Running low" description={`${LOW_STOCK} copies or fewer left`}
+          actions={head(act("Manage books", "catalog"))}>
           {lowStock.length === 0 ? <EmptyState icon="✓" title="Stock looks healthy" description="No published titles are at or below the low-stock threshold." /> : (
             paid ? (
               <DaysLeft label="Low stock titles, days until sold out" leadDays={leadDays} rows={lowStock.map(r => {
@@ -162,6 +173,7 @@ export function OverviewStock({ books, shelf, reprint, dormant, setActiveTab, da
             </ul>
             )
           )}
+          {foot(act("Manage books", "catalog"))}
         </SectionCard>}
       </div>}
     </>

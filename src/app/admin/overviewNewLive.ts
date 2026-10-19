@@ -31,14 +31,14 @@ export interface LiveNow { bags: number; checkout: number; bought: number; bough
 /**
  * What is happening on the shop now. Bags = saved carts (with an email) changed in the last 30 minutes and not yet
  * bought; checkout = card/PayPal checkouts started in the last 30 minutes and not paid; bought = real paid orders in
- * the last hour.
+ * the last `boughtMinutes` (an hour unless the caller asks for the same 30 minutes as the rest).
  */
-export function liveNow(allOrders: Order[], carts: Array<Record<string, any>> | null, now = Date.now()): LiveNow {
+export function liveNow(allOrders: Order[], carts: Array<Record<string, any>> | null, now = Date.now(), boughtMinutes = 60): LiveNow {
   const recentCarts = (carts || []).filter(c => c && c.recovered !== true && now - ts(c.updatedAt || c.createdAt) <= 30 * MIN && ts(c.updatedAt || c.createdAt) <= now + MIN);
   recentCarts.sort((a, b) => ts(b.updatedAt || b.createdAt) - ts(a.updatedAt || a.createdAt));
   const firstItem = recentCarts[0]?.items?.[0];
   const checkout = (allOrders || []).filter(o => isOpenCheckout(o) && now - ts(o.createdAt) <= 30 * MIN).length;
-  const bought = (allOrders || []).filter(o => isRealPaidOrder(o) && !isOwnOrder(o) && now - ts(o.paidAt || o.createdAt) <= 60 * MIN);
+  const bought = (allOrders || []).filter(o => isRealPaidOrder(o) && !isOwnOrder(o) && now - ts(o.paidAt || o.createdAt) <= boughtMinutes * MIN);
   return {
     bags: recentCarts.length, checkout, bought: bought.length,
     boughtTotal: bought.reduce((s, o) => s + net(o), 0),
@@ -270,6 +270,25 @@ export function soldOutCountdown(paid: Order[], books: Book[], leadDays = DEFAUL
     .filter(r => r.sold30 > 0)
     .sort((a, b) => a.days - b.days || b.sold30 - a.sold30)
     .slice(0, limit);
+}
+
+/**
+ * One set of words for "when should I reprint?", shared by Sold-out countdown and Running low: within a reprint's
+ * wait = reprint now; within 1.5× the wait = plan one; later = fine; no recent sales = can't tell.
+ */
+export type ReprintState = "now" | "soon" | "fine" | "none";
+export const reprintState = (days: number | null, leadDays: number): ReprintState =>
+  days === null || !Number.isFinite(days) ? "none" : days <= leadDays ? "now" : days <= leadDays * 1.5 ? "soon" : "fine";
+export const REPRINT_WORDS: Record<ReprintState, { glyph: string; word: string }> = {
+  now: { glyph: "!", word: "Reprint now" }, soon: { glyph: "◐", word: "Plan a reprint" }, fine: { glyph: "✓", word: "Fine" }, none: { glyph: "–", word: "No recent sales" },
+};
+
+/** A typed number of reprint days: the number, or a sentence saying what's wrong (never silently clamped). */
+export function readLeadDays(text: string): { days: number } | { error: string } {
+  const t = String(text).trim();
+  if (!/^\d+$/.test(t)) return { error: "Type a number of days from 1 to 365." };
+  const n = Number(t);
+  return n >= 1 && n <= 365 ? { days: n } : { error: "Type a number of days from 1 to 365." };
 }
 
 /** "Nov 23" for a shop day key. */

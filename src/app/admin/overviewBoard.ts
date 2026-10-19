@@ -57,6 +57,8 @@ export type WidgetConfig = {
   metric?: ChartMetric; grain?: ChartGrain; compare?: boolean; bars?: boolean; figures?: FigureId[];
   /** Month goal: the month's net revenue target in CA$. */ goal?: number;
   /** Sold-out countdown: a reprint's usual wait in days. */ leadDays?: number;
+  /** Pages people actually read: sort by time per view or by views. */ sort?: "time" | "views";
+  /** Looked at but not added: the fewest page views a book needs to be listed. */ minViews?: number;
 };
 /** A period a board opens on ("Save these figures as a view"): the preset, the comparison and, for Custom, the dates. */
 export type BoardView = { preset: Preset; compare: CompareMode; from?: string; to?: string };
@@ -67,6 +69,7 @@ export type WidgetType =
   | "calendar" | "goal" | "notes" | "shipDays"
   | "titles" | "viewed" | "launches" | "bookOfWeek" | "preorders" | "signed"
   | "gaKpis" | "channels" | "gaSources" | "landing" | "gaPages" | "gaCountries" | "gaDevices" | "funnel" | "checkout" | "sources" | "campaigns" | "landingSales" | "devices"
+  | "livePages" | "pageTime" | "visitHours" | "actions" | "outbound" | "newReturning" | "dropOff" | "lookNoBuy"
   | "searches" | "missed" | "google" | "googleQueries" | "googlePages" | "speed" | "counter"
   | "custKpis" | "retention" | "top" | "carts" | "reminders" | "newsletter" | "reviews" | "map" | "giftOwed"
   | "stockKpis" | "reprint" | "wanted" | "backInStock" | "slow" | "low" | "soldOut";
@@ -106,6 +109,7 @@ export const WIDGETS: WidgetMeta[] = [
   { type: "viewed", band: "titles", title: "Most viewed books", blurb: "Product-page views beside copies sold", size: "m" },
   { type: "launches", band: "titles", title: "Launch curves", blurb: "Your newest books' first 30 days side by side", size: "l" },
   { type: "bookOfWeek", band: "titles", title: "Book of the week", blurb: "The book with the best last 7 days", size: "s" },
+  { type: "lookNoBuy", band: "titles", title: "Looked at but not added", blurb: "Books people open often but rarely put in the bag", size: "m", config: {} },
   { type: "signed", band: "titles", title: "Signed or not", blurb: "How much of each book sells signed, and what readers pay for it", size: "m" },
 
   { type: "gaKpis", band: "traffic", title: "Google Analytics at a glance", blurb: "On the site now, visitors, sessions, engagement", size: "xl", google: true },
@@ -115,6 +119,13 @@ export const WIDGETS: WidgetMeta[] = [
   { type: "gaPages", band: "traffic", title: "Most viewed pages", blurb: "Page views in this period (Google Analytics)", size: "m", google: true },
   { type: "gaCountries", band: "traffic", title: "Where visitors are", blurb: "Visitors by country (Google Analytics)", size: "s", google: true },
   { type: "gaDevices", band: "traffic", title: "Visitor devices", blurb: "Phones, computers and tablets (Google Analytics)", size: "s", google: true },
+  { type: "livePages", band: "traffic", title: "Being read right now", blurb: "Pages open this minute and visitors over the last 30 minutes (Google Analytics)", size: "m", google: true },
+  { type: "pageTime", band: "traffic", title: "Pages people actually read", blurb: "Time spent on each page and how many read to the end (Google Analytics)", size: "m", google: true, config: {} },
+  { type: "visitHours", band: "traffic", title: "When visitors come", blurb: "Visitors by weekday and hour (Google Analytics)", size: "l", google: true },
+  { type: "actions", band: "traffic", title: "What visitors do", blurb: "Scrolls, books opened, wishlist saves, searches, bag adds and links out", size: "m" },
+  { type: "outbound", band: "traffic", title: "Links visitors follow away", blurb: "Sites people leave to from the shop (Google Analytics)", size: "s", google: true },
+  { type: "newReturning", band: "traffic", title: "New and returning visitors", blurb: "First-time visitors beside people who came back (Google Analytics)", size: "s", google: true },
+  { type: "dropOff", band: "traffic", title: "Where visitors drop off", blurb: "One path from visit to purchase, with the biggest leak marked", size: "l" },
   { type: "funnel", band: "traffic", title: "Shopping funnel", blurb: "Book views → bag → checkout → purchase", size: "m" },
   { type: "checkout", band: "traffic", title: "Where checkout loses people", blurb: "Each checkout step and where shoppers stop", size: "m" },
   { type: "sources", band: "traffic", title: "Sources that sell", blurb: "Visits per source beside the orders it brought", size: "l" },
@@ -159,7 +170,7 @@ export type Board = { id: string; name: string; template: TemplateId; density: D
 export type BoardStore = { v: 1; activeId: string; boards: Board[]; updatedAt: number };
 
 type Spec = WidgetType | [WidgetType, WidgetSize?, WidgetConfig?];
-export type TemplateId = "desk" | "everything" | "money" | "marketing" | "stock" | "launch";
+export type TemplateId = "desk" | "everything" | "money" | "marketing" | "stock" | "launch" | "visitors";
 export const TEMPLATES: Array<{ id: TemplateId; name: string; blurb: string; order?: BandId[]; widgets: Spec[] }> = [
   {
     id: "desk", name: "Daily desk", blurb: "What needs you, the main figures and one widget per topic",
@@ -179,6 +190,12 @@ export const TEMPLATES: Array<{ id: TemplateId; name: string; blurb: string; ord
     order: ["traffic", "search", "sales", "titles", "customers", "today", "stock"],
     widgets: [["chart", "m", { metric: "visitors" }], ["chart", "m", { metric: "conversion" }], "gaKpis", "sources", ["funnel", "s"], "campaigns", ["landingSales", "s"],
       "checkout", "channels", "landing", "google", "googleQueries", "searches", "missed", "speed", "viewed", "newsletter", "reminders"],
+  },
+  {
+    id: "visitors", name: "Visitors", blurb: "Who is on the site, what they read and do, and where they leave",
+    order: ["traffic", "titles", "search", "sales", "customers", "today", "stock"],
+    widgets: ["livePages", ["newReturning", "s"], ["outbound", "s"], ["visitHours", "xl"], "pageTime", "actions", ["dropOff", "xl"],
+      ["chart", "l", { metric: "visitors" }], ["gaCountries", "s"], "landing", "gaPages", "lookNoBuy", "viewed", "searches", "missed"],
   },
   {
     id: "stock", name: "Stock", blurb: "Reprints, low stock, what people wait for and what isn't moving",
@@ -235,6 +252,8 @@ function cleanConfig(type: WidgetType, raw: any): WidgetConfig | undefined {
   }
   if (type === "goal" && Number.isFinite(Number(raw?.goal)) && Number(raw.goal) > 0) out.goal = Math.min(10_000_000, Math.round(Number(raw.goal)));
   if (type === "soldOut" && Number.isFinite(Number(raw?.leadDays)) && Number(raw.leadDays) >= 1) out.leadDays = Math.min(365, Math.round(Number(raw.leadDays)));
+  if (type === "pageTime" && (raw?.sort === "time" || raw?.sort === "views")) out.sort = raw.sort;
+  if (type === "lookNoBuy" && Number.isFinite(Number(raw?.minViews)) && Number(raw.minViews) >= 1) out.minViews = Math.min(1000, Math.round(Number(raw.minViews)));
   if (type === "figures" && Array.isArray(raw?.figures)) {
     const picked = FIGURE_IDS.filter(id => raw.figures.includes(id)) as FigureId[];
     if (picked.length) out.figures = picked;

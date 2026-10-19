@@ -23,7 +23,7 @@ import { profitSummary, titlePerformance } from "./overviewProfit";
 import { googleAnalyticsApi } from "./googleAnalytics";
 import { shopDayKey } from "../lib/shopDay";
 import { isOwnOrder } from "../lib/ownerDevice";
-import { Figure, ReadinessStrip, RunRow, ROW, Trend, money, percent } from "./OverviewParts";
+import { Figure, ReadinessStrip, RunList, RunRow, ROW, Trend, money, moneyFigure, percent } from "./OverviewParts";
 import { readinessSummary } from "./launchReadiness";
 import { leadStory } from "./overviewStory";
 import { OverviewSales } from "./OverviewSales";
@@ -39,6 +39,8 @@ import { OverviewNewLive, type NewLiveWidget } from "./OverviewNewLive";
 import { OverviewBoard, useBoardStore, type BoardHeader, type RenderWidget } from "./OverviewBoard";
 import { DEFAULT_FIGURES, FIGURES, widgetMeta, type BoardView, type FigureId } from "./overviewBoard";
 import { clearShared } from "./overviewShared";
+import { OverviewVisitors, type VisitorWidget } from "./OverviewVisitors";
+import { OverviewVisitorPath, type PathWidget } from "./OverviewVisitorPath";
 
 const PREFS_KEY = "lm:overview-view";
 type Prefs = { preset?: Preset; compare?: CompareMode; from?: string; to?: string };
@@ -212,6 +214,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const trafficReady = ga.status !== "loading" && traffic !== null;
   const trafficFailed = !gaReport && daily.error;
   const dailyCurrent = useMemo(() => shopRowsIn(daily.rows || [], range.startKey, range.endKey, shift), [daily.rows, range, shift]);
+  const dailyPrevious = useMemo(() => shopRowsIn(daily.rows || [], range.prevStartKey, range.prevEndKey, shift), [daily.rows, range, shift]);
   const visits = traffic ? traffic.visitors : { cur: 0, prev: 0 };
   const lines = useMemo(() => (periods ? figureSeries(periods.paid, range, traffic?.visitsOn) : null), [periods, range, traffic]);
   const conv = insights && trafficReady ? { cur: visits.cur > 0 ? (insights.cur.orders / visits.cur) * 100 : 0, prev: visits.prev > 0 ? (insights.prev.orders / visits.prev) * 100 : 0 } : null;
@@ -285,21 +288,21 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const figure = (id: FigureId) => {
     const wait = { value: "…", foot: KPI_WAIT };
     switch (id) {
-      case "revenue": return insights ? { spark: figureSpark(lines?.revenue, insights.cur.net, insights.prev.net), value: money(insights.cur.net), foot: <><Trend now={insights.cur.net} before={insights.prev.net} /> after refunds</> } : wait;
+      case "revenue": return insights ? { spark: figureSpark(lines?.revenue, insights.cur.net, insights.prev.net), value: moneyFigure(insights.cur.net), foot: <><Trend now={insights.cur.net} before={insights.prev.net} /> after refunds</> } : wait;
       case "orders": return insights ? { spark: figureSpark(lines?.orders, insights.cur.orders, insights.prev.orders), value: insights.cur.orders.toLocaleString(), foot: <><Trend now={insights.cur.orders} before={insights.prev.orders} /> paid orders</> } : wait;
       case "units": return insights ? { spark: figureSpark(lines?.units, insights.cur.units, insights.prev.units), value: insights.cur.units.toLocaleString(), foot: <><Trend now={insights.cur.units} before={insights.prev.units} /> copies</> } : wait;
-      case "aov": return insights ? { spark: figureSpark(lines?.aov, insights.cur.aov, insights.prev.aov), value: money(insights.cur.aov), foot: <><Trend now={insights.cur.aov} before={insights.prev.aov} /> per paid order</> } : wait;
+      case "aov": return insights ? { spark: figureSpark(lines?.aov, insights.cur.aov, insights.prev.aov), value: moneyFigure(insights.cur.aov), foot: <><Trend now={insights.cur.aov} before={insights.prev.aov} /> per paid order</> } : wait;
       case "visitors": return trafficReady ? { spark: figureSpark(lines?.visitors, visits.cur, visits.prev), value: visits.cur.toLocaleString(), foot: <><Trend now={visits.cur} before={visits.prev} /> {sourceName}</> } : { value: trafficFailed ? "—" : "…", foot: trafficFooter(KPI_WAIT) };
       case "conversion": return conv ? { spark: figureSpark(lines?.conversion, conv.cur, conv.prev), value: percent(conv.cur), foot: <><Trend now={conv.cur} before={conv.prev} /> paid orders ÷ visitors</> } : { value: trafficFailed ? "—" : "…", foot: trafficFooter(KPI_WAIT) };
       case "cartStep": return trafficReady
         ? { value: cartStep !== null ? percent(cartStep, 0) : "—", foot: funnel && funnel.add_to_cart > 0 ? `${funnel.checkout_start.toLocaleString()} checkouts from ${funnel.add_to_cart.toLocaleString()} bag adds` : "no bag adds recorded yet" }
         : { value: "…", foot: trafficFooter(KPI_WAIT) };
       case "profit": return profit
-        ? { value: profit.costedUnits > 0 ? money(profit.profit) : "—", foot: profit.costedUnits > 0 ? `${profit.margin === null ? "—" : percent(profit.margin, 0)} margin · cost known for ${percent(profit.coverage, 0)} of copies` : "add cost prices in Inventory to see profit" }
+        ? { value: profit.costedUnits > 0 ? moneyFigure(profit.profit) : "—", foot: profit.costedUnits > 0 ? `${profit.margin === null ? "—" : percent(profit.margin, 0)} margin · cost known for ${percent(profit.coverage, 0)} of copies` : "add cost prices in Inventory to see profit" }
         : wait;
       case "returning": return insights ? { value: percent(insights.mix.returningRate, 0), foot: `${insights.mix.returning} returning · ${insights.mix.fresh} new` } : wait;
-      case "refunds": return insights ? { value: money(insights.cur.refunded + insights.cur.discounts), foot: `${money(insights.cur.refunded)} refunded · ${money(insights.cur.discounts)} in codes`, tone: insights.cur.refunded > 0 ? "warn" as const : undefined } : wait;
-      case "shipping": return insights ? { value: money(insights.cur.shipping), foot: <><Trend now={insights.cur.shipping} before={insights.prev.shipping} /> charged to customers</> } : wait;
+      case "refunds": return insights ? { value: moneyFigure(insights.cur.refunded + insights.cur.discounts), foot: `${money(insights.cur.refunded)} refunded · ${money(insights.cur.discounts)} in codes`, tone: insights.cur.refunded > 0 ? "warn" as const : undefined } : wait;
+      case "shipping": return insights ? { value: moneyFigure(insights.cur.shipping), foot: <><Trend now={insights.cur.shipping} before={insights.prev.shipping} goodWhen="neutral" /> charged to customers</> } : wait;
       case "discounts": return insights ? { value: percent(discountRate), foot: `${percent(prevDiscountRate)} before · share of list price given in codes` } : wait;
     }
   };
@@ -328,7 +331,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       {gaReport && gaReport.activeNow !== null && (
         <p className="rp-ov-run-sub"><strong style={{ color: "var(--rp-primary-hover)" }}>{gaReport.activeNow}</strong> {gaReport.activeNow === 1 ? "person is" : "people are"} on the site now (Google Analytics)</p>
       )}
-      <ul className="rp-list" aria-label="Things that need attention">
+      <RunList>
         <RunRow label="paid orders waiting to ship" count={insights ? insights.fulfil.length : null} loading={ordersLoading}
           detail={insights && insights.fulfil[0] ? `Oldest has waited ${insights.fulfil[0].ageDays} day${insights.fulfil[0].ageDays === 1 ? "" : "s"}` : ""}
           onOpen={() => { openFirstActionQueue(); setActiveTab?.("orders"); }} openLabel="Ship orders" />
@@ -348,7 +351,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           detail="From the contact form on your website" onOpen={() => setActiveTab?.("messages")} openLabel="Read messages" />
         <RunRow label="privacy requests" count={counts ? counts.openPrivacyRequests : null} loading={!counts}
           detail="Customers asked for a copy or deletion of their data" onOpen={() => setActiveTab?.("general")} openLabel="Open privacy requests" />
-      </ul>
+      </RunList>
       {(allOrders.error || audience.error || stock.error) && (
         <p className="rp-ov-run-sub">
           {[allOrders.error && "orders", audience.error && "reviews", stock.error && "books"].filter(Boolean).join(", ")} could not be loaded, so some counts are missing.
@@ -380,7 +383,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
                         <div style={{ fontWeight: 700, overflowWrap: "anywhere" }}>{c.title}</div>
                         <div className="rp-hint">{c.detail}</div>
                       </div>
-                      <StatusBadge tone={CHANGE_BADGE[c.tone].tone}>{CHANGE_BADGE[c.tone].text}</StatusBadge>
+                      <StatusBadge tone={CHANGE_BADGE[c.tone].tone} glyph={false}>{CHANGE_BADGE[c.tone].text}</StatusBadge>
                     </li>
                   ))}
                 </ul>
@@ -445,6 +448,12 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <OverviewNewLive only={w.type as NewLiveWidget} paid={periods!.paid} allOrders={allOrders.orders || []} current={periods!.current} books={books} range={range}
             activeNow={gaReport ? gaReport.activeNow ?? null : null} config={w.config || {}} onConfig={setConfig} full={full} setActiveTab={setActiveTab} />
         ));
+      case "livePages": case "pageTime": case "visitHours": case "actions": case "outbound": case "newReturning":
+        return <OverviewVisitors only={w.type as VisitorWidget} ga={ga} books={books} dailyCurrent={dailyCurrent} dailyPrevious={dailyPrevious}
+          config={w.config || {}} onConfig={setConfig} full={full} setActiveTab={setActiveTab} periodLabel={range.phrase} />;
+      case "dropOff": case "lookNoBuy":
+        return <OverviewVisitorPath only={w.type as PathWidget} dailyCurrent={dailyCurrent} dailyPrevious={dailyPrevious} dailyAll={daily.rows || []}
+          books={books} config={w.config || {}} onConfig={setConfig} onEditBook={handleEditClick} phrase={range.phrase} />;
       default: break;
     }
     if (band === "sales") {

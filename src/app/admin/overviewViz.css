@@ -11,9 +11,11 @@
 .rp-viz-spark-fill { fill: color-mix(in srgb, var(--rp-primary) 16%, transparent); stroke: none; }
 .rp-viz-spark[data-tone="down"] .rp-viz-spark-line { stroke: var(--rp-danger); }
 .rp-viz-spark[data-tone="down"] .rp-viz-spark-fill { fill: color-mix(in srgb, var(--rp-danger) 12%, transparent); }
-.rp-viz-spark[data-tone="flat"] .rp-viz-spark-line { stroke: var(--rp-text-muted); }
 .rp-viz-spark[data-tone="flat"] .rp-viz-spark-fill { fill: color-mix(in srgb, var(--rp-text) 8%, transparent); }
-.rp-viz-spark-prev { fill: none; stroke: var(--rp-text-subtle); stroke-width: 1.25; stroke-dasharray: 3 3; }
+.rp-viz-spark-prev { fill: color-mix(in srgb, var(--rp-text) 9%, transparent); stroke: none; }
+.rp-viz-spark-dot { stroke: var(--rp-primary); stroke-width: 6; stroke-linecap: round; }
+.rp-viz-spark[data-tone="down"] .rp-viz-spark-dot { stroke: var(--rp-danger); }
+.rp-viz-spark[data-tone="flat"] .rp-viz-spark-line, .rp-viz-spark[data-tone="flat"] .rp-viz-spark-dot { stroke: var(--rp-text); }
 
 /* Rank movement */
 .rp-viz-move { font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); font-weight: 600; white-space: nowrap; min-width: 34px; text-align: right; color: var(--rp-text-subtle); flex-shrink: 0; }
@@ -45,6 +47,7 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
 .rp-viz-bar { top: 2px; bottom: 2px; background: var(--rp-primary); }
 .rp-viz-bar[data-tone="info"] { background: var(--rp-info); }
 .rp-viz-bar[data-tone="ink"] { background: var(--rp-text); }
+.rp-viz-bar-tick { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--rp-text); }
 
 /* 100% stacked bar */
 .rp-viz-stack { margin: 0; padding: 14px 20px 16px; }
@@ -61,17 +64,37 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
 .rp-viz-legend-value { margin-left: auto; font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); white-space: nowrap; }
 .rp-viz-swatch { width: 12px; height: 12px; flex-shrink: 0; border: var(--rp-hair) solid var(--rp-border-strong); }
 
-/* Waterfall */
-.rp-viz-fall { margin: 0; padding: 16px 20px; overflow-x: auto; }
-.rp-viz-fall-cols { display: grid; gap: 6px; min-width: 420px; align-items: start; }
+/* Waterfall: columns when wide, horizontal bars when the widget is narrow (container query, so an S widget on a computer
+   gets the bars too). Totals flare, added = ink outline + light ink, taken off = danger tint, passed on = dashed outline. */
+.rp-viz-fall { margin: 0; padding: 16px 20px; container-type: inline-size; }
+.rp-viz-fall-cols { display: grid; gap: 6px; align-items: start; }
 .rp-viz-fall-col { display: flex; flex-direction: column; min-width: 0; }
 .rp-viz-fall-plot { position: relative; height: 170px; border-bottom: var(--rp-stroke) solid var(--rp-border-strong); }
-.rp-viz-fall-bar { position: absolute; left: 10%; right: 10%; background: var(--rp-primary); }
-.rp-viz-fall-bar[data-kind="minus"] { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--rp-text) 50%, transparent) 0 2px, transparent 2px 5px); outline: 1px solid var(--rp-text-muted); }
-.rp-viz-fall-bar[data-kind="plus"] { background: var(--rp-info); }
+.rp-viz-fall-bar { position: absolute; display: block; background: var(--rp-primary); box-sizing: border-box; }
+.rp-viz-fall-plot .rp-viz-fall-bar { left: 10%; right: 10%; }
+.rp-viz-fall-bar[data-kind="plus"], .rp-viz-swatch[data-kind="plus"] { background: color-mix(in srgb, var(--rp-text) 14%, var(--rp-surface)); border: 2px solid var(--rp-text); }
+.rp-viz-fall-bar[data-kind="minus"], .rp-viz-swatch[data-kind="minus"] { background: color-mix(in srgb, var(--rp-danger) 55%, var(--rp-surface)); border: 1px solid var(--rp-danger); }
+.rp-viz-fall-bar[data-pass], .rp-viz-swatch[data-kind="pass"] { background: transparent; border: 2px dashed var(--rp-text); }
+.rp-viz-swatch[data-kind="total"] { background: var(--rp-primary); }
 .rp-viz-fall-num { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); padding-bottom: 3px; font-family: var(--rp-font-mono); font-size: var(--rp-text-2xs); white-space: nowrap; color: var(--rp-text); }
+.rp-viz-fall-link { position: absolute; left: 90%; width: calc(20% + 6px); border-top: 1px dashed var(--rp-text-muted); pointer-events: none; }
 .rp-viz-fall-label { font-size: var(--rp-text-xs); font-weight: 700; margin-top: 6px; overflow-wrap: anywhere; }
-.rp-viz-fall-hint { font-size: var(--rp-text-2xs); color: var(--rp-text-subtle); overflow-wrap: anywhere; }
+.rp-viz-fall-hint { display: block; font-size: var(--rp-text-2xs); font-weight: 400; color: var(--rp-text-subtle); overflow-wrap: anywhere; }
+.rp-viz-fall-rows { display: none; list-style: none; margin: 0; padding: 0; }
+.rp-viz-fall-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "label num" "track track"; gap: 4px 10px; align-items: baseline; padding: 8px 0; border-bottom: var(--rp-hair) solid var(--rp-divider); }
+.rp-viz-fall-row-label { grid-area: label; } .rp-viz-fall-row-num { grid-area: num; } .rp-viz-fall-row-track { grid-area: track; }
+.rp-viz-fall-row[data-last] { border-bottom: 0; border-top: var(--rp-stroke) solid var(--rp-border-strong); font-weight: 700; }
+.rp-viz-fall-row-label { font-size: var(--rp-text-sm); font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.rp-viz-fall-row-track { position: relative; height: 14px; }
+.rp-viz-fall-row-track .rp-viz-fall-bar { top: 0; bottom: 0; }
+.rp-viz-fall-row-num { font-family: var(--rp-font-mono); font-variant-numeric: tabular-nums; font-size: var(--rp-text-sm); white-space: nowrap; text-align: right; }
+.rp-viz-fall-row[data-last] .rp-viz-fall-row-num { font-size: var(--rp-text-base); }
+.rp-viz-fall-key { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
+.rp-viz-fall-key span, .rp-viz-key span { display: inline-flex; align-items: center; gap: 6px; }
+@container (max-width: 520px) {
+  .rp-viz-fall-cols { display: none; }
+  .rp-viz-fall-rows { display: block; }
+}
 
 /* Funnel */
 .rp-viz-funnel { list-style: none; margin: 0; padding: 14px 20px 16px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
@@ -85,13 +108,16 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
 .rp-viz-funnel-step .rp-ov-drill-body { width: 100%; }
 .rp-viz-funnel-gap { font-family: var(--rp-font-mono); font-size: var(--rp-text-2xs); color: var(--rp-text-subtle); padding: 1px 0; }
 .rp-viz-funnel-gap[data-worst] { color: var(--rp-danger); font-weight: 600; }
+.rp-viz-funnel-wrap .rp-viz-note { margin: -6px 20px 14px; text-align: center; }
 
 /* Heat grid */
 .rp-viz-heat { margin: 0; padding: 4px 20px 16px; overflow-x: auto; }
 .rp-viz-heat-grid { display: grid; grid-template-columns: 34px repeat(24, minmax(12px, 1fr)); gap: 2px; font-size: 10px; min-width: 360px; }
 .rp-viz-heat-hour { text-align: left; color: var(--rp-text-subtle); font-family: var(--rp-font-mono); white-space: nowrap; overflow: visible; }
 .rp-viz-heat-day { font-family: var(--rp-font-mono); color: var(--rp-text-muted); }
-.rp-viz-heat-cell { height: 18px; background: var(--rp-surface-inset); }
+.rp-viz-heat-cell { height: 18px; background: var(--rp-surface-inset); --rp-heat-floor: 18%; }
+.rp-viz-heat-cell[data-empty] { box-shadow: inset 0 0 0 1px var(--rp-divider); }
+.rp-viz-heat-cell:not([data-empty]) { background: color-mix(in srgb, var(--rp-primary) calc(var(--rp-heat-floor) + var(--rp-heat, 0) * (100% - var(--rp-heat-floor))), var(--rp-surface)); }
 .rp-viz-heat-cell[data-best] { outline: 2px solid var(--rp-text); outline-offset: -1px; }
 .rp-viz-heat-key { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
 .rp-viz-heat-key strong { color: var(--rp-text); }
@@ -119,7 +145,7 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
 .rp-viz-days-row { display: flex; gap: 12px; align-items: center; padding: 10px 20px; border-bottom: var(--rp-hair) solid var(--rp-divider); }
 .rp-viz-days-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .rp-viz-days-track { position: relative; height: 12px; background: var(--rp-surface-inset); }
-.rp-viz-days-bar { position: absolute; left: 0; top: 2px; bottom: 2px; background: var(--rp-success); }
+.rp-viz-days-bar { position: absolute; left: 0; top: 2px; bottom: 2px; background: color-mix(in srgb, var(--rp-text) 55%, var(--rp-surface)); }
 .rp-viz-days-row[data-state="now"] .rp-viz-days-bar { background: var(--rp-danger); }
 .rp-viz-days-row[data-state="soon"] .rp-viz-days-bar { background: var(--rp-warning); }
 .rp-viz-days-row[data-state="none"] .rp-viz-days-bar { background: color-mix(in srgb, var(--rp-text) 18%, transparent); }
@@ -128,7 +154,7 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
 .rp-viz-pill { display: inline-block; margin-left: 6px; padding: 0 6px; font-size: var(--rp-text-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid currentColor; }
 .rp-viz-pill[data-state="now"] { color: var(--rp-danger); }
 .rp-viz-pill[data-state="soon"] { color: var(--rp-warning); }
-.rp-viz-pill[data-state="fine"] { color: var(--rp-success); }
+.rp-viz-pill[data-state="fine"] { color: var(--rp-text); }
 .rp-viz-pill[data-state="none"] { color: var(--rp-text-subtle); }
 
 /* Shaded grid (cohorts) */
@@ -137,7 +163,63 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
 .rp-viz-shade th { text-align: left; font-weight: 700; white-space: nowrap; padding: 4px 6px; }
 .rp-viz-shade thead th { font-size: var(--rp-text-3xs); letter-spacing: 0.12em; text-transform: uppercase; color: var(--rp-text-subtle); }
 .rp-viz-shade td { font-family: var(--rp-font-mono); text-align: center; padding: 6px 4px; background: var(--rp-surface-inset); min-width: 40px; }
-.rp-viz-shade td[data-none] { background: transparent; color: var(--rp-text-faint); }
+.rp-viz-shade td[data-none] { background: transparent; outline: 1px dotted var(--rp-border); outline-offset: -2px; }
+.rp-viz-shade td[data-zero] { color: var(--rp-text-subtle); }
+.rp-viz-shade tbody th { position: sticky; left: 0; z-index: 1; background: var(--rp-surface); }
+
+/* Shared words around charts */
+/* One class for a widget's single hero number (a goal's amount, a countdown's days): every widget's big number looks alike.
+   Figure grids keep the smaller mono .rp-ov-figure-value. */
+.rp-viz-hero { display: block; font-family: var(--rp-font-display); font-weight: 400; font-size: clamp(32px, 2.4vw + 18px, 48px); line-height: 1;
+  letter-spacing: 0.01em; font-variant-numeric: tabular-nums; color: var(--rp-text); white-space: nowrap; margin: 0; }
+.rp-viz-hero-sub { display: block; margin-top: 4px; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-viz-takeaway { margin: 0 0 8px; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-viz-note { margin: 6px 0 0; font-size: var(--rp-text-xs); color: var(--rp-text-subtle); }
+.rp-viz-key { display: inline-flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
+.rp-viz-table { padding: 0 20px 12px; }
+.rp-viz-table-wrap { overflow-x: auto; margin-top: 8px; }
+.rp-viz-table table { border-collapse: collapse; width: 100%; font-size: var(--rp-text-xs); }
+.rp-viz-table th, .rp-viz-table td { padding: 5px 8px; border-bottom: var(--rp-hair) solid var(--rp-divider); text-align: left; white-space: nowrap; }
+.rp-viz-table td, .rp-viz-table th[data-num] { text-align: right; font-family: var(--rp-font-mono); font-variant-numeric: tabular-nums; }
+
+/* Key figures (#2): one number never splits, shrinks to fit, at most four to a row. Higher specificity than riso.css. */
+.rp-ov-figures.rp-ov-figures { grid-template-columns: repeat(auto-fit, minmax(max(140px, calc(25% - 1px)), 1fr)); }
+.rp-ov-figure .rp-ov-figure-value { overflow-wrap: normal; white-space: nowrap; font-size: clamp(18px, 1.6vw + 6px, 26px); }
+
+/* Newest orders: links readable in both modes; amount + status as a right-aligned column. */
+.rp-viz-orders a { color: var(--rp-link, var(--rp-text)); text-decoration: underline; text-decoration-color: var(--rp-primary); text-underline-offset: 2px; }
+.rp-viz-orders a:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp-viz-order-end { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.rp-viz-order-end .rp-viz-rank-value { text-align: right; min-width: 10ch; }
+.rp-viz-orders .rp-badge[data-tone="neutral"] { color: var(--rp-text); }
+
+/* Trend chart controls (#24): measure tabs in one row that scrolls sideways; grouping as a select. */
+.rp-wb-chart .rp-ov-switch[role="tablist"] { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: thin; max-width: 100%; }
+.rp-wb-chart .rp-ov-switch[role="tablist"] button { flex-shrink: 0; white-space: nowrap; }
+.rp-viz-grain { display: inline-flex; align-items: center; gap: 6px; font-size: var(--rp-text-xs); font-weight: 700; }
+.rp-viz-grain select { min-height: 34px; padding: 0 8px; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); color: var(--rp-text); font: inherit; font-weight: 600; border-radius: 0; }
+
+/* Night (#26, ux2 #19): hatching and the faint heat steps stay visible on the dark surface. */
+.rp[data-rp-appearance="dark"] .rp-viz-hatch, .rp[data-rp-appearance="dark"] .rp-viz-bar-prev, .rp[data-rp-appearance="dark"] .rp-viz-col-prev {
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--rp-text) 45%, transparent) 0 2px, transparent 2px 5px);
+}
+.rp[data-rp-appearance="dark"] .rp-viz-heat-cell { --rp-heat-floor: 32%; }
+.rp[data-rp-appearance="dark"] .rp-viz-heat-scale i:nth-child(2) { background: color-mix(in srgb, var(--rp-primary) 42%, var(--rp-surface)); }
+.rp[data-rp-appearance="dark"] .rp-viz-spark-prev { fill: color-mix(in srgb, var(--rp-text) 16%, transparent); }
+
+/* Touch (#25): chart tabs, the table toggle, order links and the folded-list buttons reach 44px. */
+@media (pointer: coarse) {
+  .rp-wb-chart .rp-ov-switch button, .rp-viz-grain select { min-height: 44px; }
+  .rp-ov-table-toggle summary { min-height: 44px; display: flex; align-items: center; }
+  .rp-viz-orders a { display: inline-flex; align-items: center; min-height: 44px; }
+}
+
+/* Ranked bars on a phone (ux2 #16): the value goes under the title so the title keeps one line. */
+@container (max-width: 480px) {
+  .rp-viz-rank-head { flex-wrap: wrap; }
+  .rp-viz-rank-head .rp-viz-rank-value { flex-basis: 100%; font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
+}
+.rp-viz-rank { container-type: inline-size; }
 
 @media (max-width: 767px) {
   .rp-viz-rank-row, .rp-viz-days-row { padding: 9px 14px; gap: 10px; }
