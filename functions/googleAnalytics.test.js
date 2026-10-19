@@ -2,7 +2,7 @@ import { createRequire } from "module";
 import { describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { cleanPropertyId, propertyIdProblem, cleanRange, buildBatches, shapeReport, gaErrorMessage, handleGa4Report } = require("./googleAnalytics");
+const { cleanPropertyId, propertyIdProblem, cleanRange, buildBatches, shapeReport, realtimePagesOf, realtimeMinutesOf, gaErrorMessage, handleGa4Report } = require("./googleAnalytics");
 const { resetConfirmed, handleTrafficReset } = require("./trafficReset");
 
 const RANGE = { startDate: "2026-10-01", endDate: "2026-10-13", prevStartDate: "2026-09-18", prevEndDate: "2026-09-30" };
@@ -92,13 +92,105 @@ describe("handleGa4Report", () => {
     expect((await handleGa4Report({ op: "report", range: { startDate: "x" } }, deps({ fetchImpl: vi.fn(async () => reply(200, {})) }))).status).toBe(400);
     expect((await handleGa4Report({ op: "report", range: RANGE }, deps({ allow: async () => false }))).status).toBe(429);
   });
-  it("report: three batches (the last one campaigns) plus realtime", async () => {
+  it("report: four batches (campaigns, then the visitor batch) plus three realtime calls", async () => {
     const d = deps({ fetchImpl: vi.fn(async () => reply(200, { reports: [] })) });
     const { body } = await handleGa4Report({ op: "report", range: RANGE }, d);
     expect(body.connected).toBe(true);
-    expect(d.fetchImpl).toHaveBeenCalledTimes(4);
+    expect(d.fetchImpl).toHaveBeenCalledTimes(7);
+    expect(d.fetchImpl.mock.calls.filter(([url]) => url.includes(":runRealtimeReport"))).toHaveLength(3);
     expect(body.report.totals.current).toEqual({});
     expect(body.report.campaigns).toEqual([]);
+    expect(body.report.pageTime).toEqual([]);
+    expect(body.report.actions).toEqual({ current: {}, previous: {} });
+    expect(body.report.realtimePages).toEqual([]);
+    expect(body.report.realtimeMinutes).toHaveLength(30);
+  });
+  const routed = (handler) => vi.fn(async (url, init) => {
+    const payload = JSON.parse(init.body);
+    return handler(url, payload);
+  });
+  const isVisitorBatch = p => (p.requests || []).some(r => (r.dimensions || []).some(dm => dm.name === "linkDomain" || dm.name === "dayOfWeek"));
+  it("report: a refused visitor batch or failed extra realtime calls never fail the report", async () => {
+    const d = deps({ fetchImpl: routed((url, p) => {
+      if (url.includes(":runRealtimeReport")) return p.dimensions ? reply(500, {}) : reply(200, report([], ["activeUsers"], [{ d: [], m: [2] }]));
+      if (isVisitorBatch(p)) return reply(403, { error: { message: "nope" } });
+      return reply(200, { reports: [] });
+    }) });
+    const { body } = await handleGa4Report({ op: "report", range: RANGE }, d);
+    expect(body.connected).toBe(true);
+    expect(body.report.activeNow).toBe(2);
+    expect(body.report.realtimePages).toBeNull();
+    expect(body.report.realtimeMinutes).toBeNull();
+    ["pageTime", "when", "actions", "pageActions", "outbound"].forEach(k => expect(body.report[k]).toBeUndefined());
+    expect(body.report.campaigns).toEqual([]);
+  });
+  it("report: a 400 on the visitor batch retries its reports one by one and keeps those Google accepts", async () => {
+    const d = deps({ fetchImpl: routed((url, p) => {
+      if (url.includes(":runRealtimeReport")) return reply(200, {});
+      if (isVisitorBatch(p) && p.requests.length > 1) return reply(400, { error: { message: "Field outbound is not valid" } });
+      if (p.requests.length === 1 && p.requests[0].dimensions?.[0]?.name === "linkDomain") return reply(400, { error: { message: "bad" } });
+      if (p.requests.length === 1 && p.requests[0].dimensions?.[0]?.name === "pagePath" && p.requests[0].dimensions.length === 1 && p.requests[0].metrics.some(m => m.name === "userEngagementDuration")) {
+        return reply(200, { reports: [report(["pagePath"], ["screenPageViews", "activeUsers", "userEngagementDuration"], [{ d: ["/"], m: [20, 9, 400] }])] });
+      }
+      return reply(200, { reports: [] });
+    }) });
+    const { body } = await handleGa4Report({ op: "report", range: RANGE }, d);
+    expect(body.connected).toBe(true);
+    expect(body.report.pageTime).toEqual([{ pagePath: "/", screenPageViews: 20, activeUsers: 9, userEngagementDuration: 400 }]);
+    expect(body.report.outbound).toBeUndefined();
+    expect(body.report.when).toEqual([]);
+  });
+  it("report: a refused core batch still fails the report", async () => {
+    const d = deps({ fetchImpl: routed((url, p) => {
+      if (url.includes(":runRealtimeReport")) return reply(200, {});
+      if ((p.requests || []).some(r => r.dimensions?.[0]?.name === "sessionCampaignName")) return reply(403, { error: { message: "User does not have sufficient permissions" } });
+      return reply(200, { reports: [] });
+    }) });
+    const { body } = await handleGa4Report({ op: "report", range: RANGE }, d);
+    expect(body).toMatchObject({ connected: false, code: "no_access" });
+  });
+});
+
+describe("GA4 visitor batch", () => {
+  it("is the 4th batch, five reports, with the visitor keys and valid filters", () => {
+    const batches = buildBatches(RANGE);
+    expect(batches).toHaveLength(4);
+    expect(batches[3].map(r => r.key)).toEqual(["pageTime", "when", "actions", "pageActions", "outbound"]);
+    const outbound = batches[3][4];
+    expect(outbound.dimensionFilter.andGroup.expressions.map(e => e.filter.fieldName)).toEqual(["eventName", "outbound"]);
+    expect(batches[3][2].dateRanges.map(r => r.name)).toEqual(["current", "previous"]);
+  });
+  it("shapes pageTime, when, actions (per window), pageActions and outbound, plus realtime", () => {
+    const batches = buildBatches(RANGE);
+    const responses = [{ reports: [] }, { reports: [] }, { reports: [] }, { reports: [
+      report(["pagePath"], ["screenPageViews", "activeUsers", "userEngagementDuration"], [{ d: ["/books/a"], m: [30, 12, 900] }]),
+      report(["dayOfWeek", "hour"], ["activeUsers", "sessions"], [{ d: ["1", "09"], m: [4, 5] }]),
+      report(["eventName", "dateRange"], ["eventCount", "activeUsers"], [{ d: ["scroll", "current"], m: [10, 6] }, { d: ["scroll", "previous"], m: [4, 3] }]),
+      report(["pagePath", "eventName"], ["eventCount"], [{ d: ["/books/a", "scroll"], m: [8] }]),
+      report(["linkDomain"], ["eventCount", "activeUsers"], [{ d: ["instagram.com"], m: [7, 5] }]),
+    ] }];
+    const pages = report(["unifiedScreenName"], ["activeUsers", "screenPageViews"], [{ d: ["Home"], m: [1, 2] }, { d: ["Book A"], m: [3, 4] }]);
+    const minutes = report(["minutesAgo"], ["activeUsers"], [{ d: ["00"], m: [2] }, { d: ["05"], m: [1] }]);
+    const shaped = shapeReport(batches.map((requests, i) => ({ requests, response: responses[i] })), null, { pages, minutes });
+    expect(shaped.pageTime).toEqual([{ pagePath: "/books/a", screenPageViews: 30, activeUsers: 12, userEngagementDuration: 900 }]);
+    expect(shaped.when).toEqual([{ dayOfWeek: "1", hour: "09", activeUsers: 4, sessions: 5 }]);
+    expect(shaped.actions).toEqual({ current: { scroll: { eventCount: 10, activeUsers: 6 } }, previous: { scroll: { eventCount: 4, activeUsers: 3 } } });
+    expect(shaped.pageActions).toEqual([{ pagePath: "/books/a", eventName: "scroll", eventCount: 8 }]);
+    expect(shaped.outbound).toEqual([{ linkDomain: "instagram.com", eventCount: 7, activeUsers: 5 }]);
+    expect(shaped.realtimePages.map(r => r.unifiedScreenName)).toEqual(["Book A", "Home"]);
+    expect(shaped.realtimeMinutes[0]).toEqual({ minutesAgo: 0, activeUsers: 2 });
+    expect(shaped.realtimeMinutes[5].activeUsers).toBe(1);
+    expect(shaped.realtimeMinutes[29]).toEqual({ minutesAgo: 29, activeUsers: 0 });
+    expect(shaped.activeNow).toBeNull();
+  });
+  it("leaves the new keys out for callers that pass no visitor data", () => {
+    const shaped = shapeReport([], null);
+    ["pageTime", "when", "actions", "pageActions", "outbound", "realtimePages", "realtimeMinutes"].forEach(k => expect(k in shaped).toBe(false));
+  });
+  it("realtime helpers give null for a failed call", () => {
+    expect(realtimePagesOf(null)).toBeNull();
+    expect(realtimeMinutesOf(null)).toBeNull();
+    expect(realtimeMinutesOf({})).toHaveLength(30);
   });
 });
 

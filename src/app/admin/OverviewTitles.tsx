@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { DataTable, EmptyState, GhostButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, type Column } from "./riso/components";
 import { sortTitles, titlesCsv, TITLE_SORTS, type TitleRow, type TitleSort } from "./overviewProfit";
-import { TITLE_FLAG_WORDS } from "./overviewSignals";
+import { TITLE_FLAG_WORDS, titleFlags } from "./overviewSignals";
 import { money, percent } from "./OverviewParts";
 
 const PAGE = 25;
@@ -26,18 +26,23 @@ export function OverviewTitles({ rows, startKey, endKey, viewsRecorded, addsReco
     URL.revokeObjectURL(url);
   };
 
+  // Flags are judged against the shop's own rates (titleFlags), and only the few clearest titles keep one.
+  const flags = useMemo(() => (addsRecorded ? titleFlags(rows) : new Map<string, "browsed" | "abandoned">()), [rows, addsRecorded]);
   const change = (r: TitleRow) => {
-    if (r.prevUnits === 0 && r.units === 0) return <StatusBadge tone="neutral">—</StatusBadge>;
-    if (r.prevUnits === 0) return <StatusBadge tone="info">new</StatusBadge>;
+    if (r.prevUnits === 0 && r.units === 0) return <StatusBadge tone="neutral" glyph={false}>—</StatusBadge>;
+    if (r.prevUnits === 0) return <StatusBadge tone="info" glyph={false}>new</StatusBadge>;
     const d = r.units - r.prevUnits;
-    return <StatusBadge tone={d > 0 ? "success" : d < 0 ? "danger" : "neutral"}>{d === 0 ? "same" : `${d > 0 ? "+" : ""}${d}`}</StatusBadge>;
+    return <StatusBadge tone={d > 0 ? "success" : d < 0 ? "danger" : "neutral"} glyph={d > 0 ? "▲" : d < 0 ? "▼" : false}>{d === 0 ? "same" : `${d > 0 ? "up " : "down "}${Math.abs(d)}`}</StatusBadge>;
   };
   const columns: Column<TitleRow>[] = [
     { key: "title", header: "Title", lead: true, render: r => (<>
       <GhostButton size="sm" onClick={() => onEditBook(r.id)} disabled={fetchingBookId === r.id} aria-label={`Edit ${r.title}`}
         style={{ padding: 0, textAlign: "left", whiteSpace: "normal", textTransform: "none", letterSpacing: 0, fontSize: "var(--rp-text-base)" }}>{r.title}</GhostButton>
-      {r.flag && <div style={{ marginTop: 4 }} title={TITLE_FLAG_WORDS[r.flag].hint}><StatusBadge tone="warning">! {TITLE_FLAG_WORDS[r.flag].badge}</StatusBadge></div>}
     </>) },
+    ...(addsRecorded && flags.size ? [{ key: "flag", header: "Worth a look", render: (r: TitleRow) => {
+      const f = flags.get(r.id);
+      return f ? <span title={TITLE_FLAG_WORDS[f].hint}><StatusBadge tone="warning" glyph="!">{TITLE_FLAG_WORDS[f].badge}</StatusBadge></span> : null;
+    } }] : []),
     { key: "units", header: "Sold", numeric: true, render: r => r.units.toLocaleString() },
     { key: "change", header: "vs before", render: change },
     { key: "revenue", header: "Net revenue", numeric: true, render: r => money(r.revenue) },
@@ -71,9 +76,10 @@ export function OverviewTitles({ rows, startKey, endKey, viewsRecorded, addsReco
       {sorted.length > shown && (
         <div style={{ padding: "12px 20px 16px" }}><SecondaryButton size="sm" onClick={() => setShown(n => n + PAGE)}>Show {Math.min(PAGE, sorted.length - shown)} more</SecondaryButton></div>
       )}
-      {addsRecorded && rows.some(r => r.flag) && (
+      {flags.size > 0 && (
         <p className="rp-hint" style={{ padding: "12px 20px 0", margin: 0 }}>
-          <strong>{TITLE_FLAG_WORDS.browsed.badge}</strong>: {TITLE_FLAG_WORDS.browsed.hint} <strong>{TITLE_FLAG_WORDS.abandoned.badge}</strong>: {TITLE_FLAG_WORDS.abandoned.hint}
+          Worth a look = the {flags.size === 1 ? "title" : `${flags.size} titles`} furthest below the shop's own rate.{" "}
+          {[...new Set(flags.values())].map(f => <span key={f}><strong>{TITLE_FLAG_WORDS[f].badge}</strong>: {TITLE_FLAG_WORDS[f].hint} </span>)}
         </p>
       )}
       {!costsKnown && (

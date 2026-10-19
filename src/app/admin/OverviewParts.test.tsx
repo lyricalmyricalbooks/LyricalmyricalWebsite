@@ -35,3 +35,52 @@ describe("drill-down rows", () => {
     expect(renderToStaticMarkup(<DrillList label="x" items={[]} empty="None here" />)).toContain("None here");
   });
 });
+
+import { money, moneyFigure, moneyShort, Trend, RunList, RunRow, ReadinessStrip } from "./OverviewParts";
+
+describe("money formats", () => {
+  it("lists always show two decimals", () => {
+    expect(money(30.6)).toBe("CA$30.60"); expect(money(200)).toBe("CA$200.00"); expect(money(0)).toBe("CA$0.00");
+  });
+  it("big figures drop cents from CA$1,000", () => {
+    expect(moneyFigure(1240.5)).toBe("CA$1,241"); expect(moneyFigure(84.5)).toBe("CA$84.50");
+  });
+  it("chart labels are short", () => {
+    expect(moneyShort(681.4)).toBe("$681"); expect(moneyShort(1200)).toBe("$1.2k"); expect(moneyShort(1000)).toBe("$1k");
+    expect(moneyShort(12400)).toBe("$12k"); expect(moneyShort(-50)).toBe("−$50");
+  });
+});
+
+describe("Trend", () => {
+  it("shows one mark and says up/down", () => {
+    const up = renderToStaticMarkup(<Trend now={110} before={100} />);
+    expect(up).toContain("▲"); expect(up).not.toContain("✓"); expect(up).toContain("up "); expect(up).toContain('data-tone="success"');
+    const down = renderToStaticMarkup(<Trend now={90} before={100} goodWhen="down" />);
+    expect(down).toContain("▼"); expect(down).toContain('data-tone="success"');
+    expect(renderToStaticMarkup(<Trend now={90} before={100} goodWhen="neutral" />)).toContain('data-tone="neutral"');
+  });
+});
+
+describe("RunList", () => {
+  it("lists only lines with something to do, then one All clear line", () => {
+    const html = renderToStaticMarkup(<RunList>
+      <RunRow label="orders to ship" detail="d" count={2} loading={false} onOpen={() => {}} openLabel="Ship" />
+      <RunRow label="reviews to moderate" detail="d" count={0} loading={false} onOpen={() => {}} openLabel="Go" />
+      <RunRow label="unread messages" detail="d" count={0} loading={false} onOpen={() => {}} openLabel="Go" />
+    </RunList>);
+    expect(html).toContain("orders to ship");
+    expect(html).toContain("No reviews to moderate, unread messages.");
+    expect(html.match(/<li/g)?.length).toBe(2);
+  });
+});
+
+describe("ReadinessStrip", () => {
+  it("shows blocking checks first and folds the rest", () => {
+    const items = [
+      ...Array.from({ length: 5 }, (_, i) => ({ id: `w${i}`, status: "warn" as const, label: `Check ${i}`, detail: "", tab: "general", action: "Open" })),
+      { id: "b", status: "block" as const, label: "Stripe keys", detail: "", tab: "payments", action: "Fix" },
+    ];
+    const html = renderToStaticMarkup(<ReadinessStrip items={items as any} onOpen={() => {}} />);
+    expect(html).toContain("Stripe keys"); expect(html).not.toContain("Check 0"); expect(html).toContain("+5 more to check");
+  });
+});

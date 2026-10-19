@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { Children, isValidElement, useId, useState, type ReactElement, type ReactNode } from "react";
+import "./overviewViz.css";
 import { SecondaryButton, SectionCard, StatusBadge, GhostButton, ErrorState, type BadgeTone } from "./riso/components";
 import { change } from "./overviewInsights";
 import { SHOP_TZ } from "../lib/shopDay";
@@ -6,7 +7,20 @@ import { readinessProgress, readinessSummary, type ReadinessItem } from "./launc
 
 // Small pieces shared by the Overview shell and its four detail tabs.
 
-export const money = (n: number) => `CA$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+/** Money in lists, tables and drill rows: always two decimals ("CA$30.60"), so amounts line up and compare. */
+export const money = (n: number) => `CA$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** A widget's single big number: whole dollars from CA$1,000 ("CA$1,240"), two decimals below ("CA$84.50"). */
+export const moneyFigure = (n: number) => {
+  const v = Number(n || 0);
+  return Math.abs(v) >= 1000 ? `CA$${Math.round(v).toLocaleString()}` : money(v);
+};
+/** Short money for chart labels and axes: "$681", "$1.2k", "$12k" (whole dollars; thousands as k). */
+export const moneyShort = (n: number) => {
+  const v = Number(n || 0), a = Math.abs(v), sign = v < 0 ? "−" : "";
+  if (a >= 10000) return `${sign}$${Math.round(a / 1000)}k`;
+  if (a >= 1000) return `${sign}$${(a / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  return `${sign}$${Math.round(a)}`;
+};
 export const percent = (n: number, digits = 1) => `${Number(n || 0).toFixed(digits)}%`;
 /** A moment in the shop's own time, e.g. "Oct 17, 3:42 PM"; "" when unknown. */
 export const shopWhen = (v: unknown) => {
@@ -18,11 +32,25 @@ export const orderHref = (id: string) => `#orders/${encodeURIComponent(id)}`;
 export const SPLIT = { gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" } as const;
 export const ROW = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 } as const;
 
-/** % change badge; "new" when there is nothing earlier to compare with. */
-export function Trend({ now, before }: { now: number; before: number }) {
+/**
+ * % change badge; "new" when there is nothing earlier to compare with. One mark only (▲ / ▼ / =), and the words "up" /
+ * "down" for screen readers. `goodWhen="down"` (refunds, days to ship) colours a fall as good; "neutral" never colours.
+ */
+export function Trend({ now, before, goodWhen = "up" }: { now: number; before: number; goodWhen?: "up" | "down" | "neutral" }) {
   const v = change(now, before);
-  const tone: BadgeTone = v === null || v > 0 ? "success" : v < 0 ? "danger" : "neutral";
-  return <StatusBadge tone={tone}>{v === null ? "new" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`}</StatusBadge>;
+  if (v === null) return <StatusBadge tone="neutral">new</StatusBadge>;
+  const dir = v > 0 ? "up" : v < 0 ? "down" : "same";
+  const tone: BadgeTone = dir === "same" || goodWhen === "neutral" ? "neutral" : dir === goodWhen ? "success" : "danger";
+  return (
+    <StatusBadge tone={tone} glyph={dir === "up" ? "▲" : dir === "down" ? "▼" : "="}>
+      <span className="rp-sr-only">{dir === "same" ? "no change, " : `${dir} `}</span>{`${v > 0 ? "+" : ""}${v.toFixed(1)}%`}
+    </StatusBadge>
+  );
+}
+
+/** One muted takeaway sentence above a chart ("Best month: March, CA$1,240"). Say what the chart shows, from its own data. */
+export function Takeaway({ children }: { children: ReactNode }) {
+  return <p className="rp-viz-takeaway">{children}</p>;
 }
 
 /** A thin proportional bar. Decorative on its own; give it `label` when it stands alone as a progress readout. */
@@ -97,11 +125,36 @@ export function RunRow({ label, detail, count, loading, onOpen, openLabel }: {
   );
 }
 
-/** One column of the Overview's ruled figures strip. */
-export function Figure({ label, value, foot, tone, spark }: { label: string; value: ReactNode; foot: ReactNode; tone?: "warn"; spark?: ReactNode }) {
+/**
+ * The Needs you list: only the lines with something to do, then one "✓ All clear: …" line naming the rest. Takes
+ * `RunRow` children (same props as before); a line still loading stays listed.
+ */
+export function RunList({ children, label = "Things that need attention" }: { children: ReactNode; label?: string }) {
+  const rows = Children.toArray(children).filter(isValidElement) as Array<ReactElement<Parameters<typeof RunRow>[0]>>;
+  const clear = rows.filter(r => !r.props.loading && r.props.count === 0);
+  const busy = rows.filter(r => !clear.includes(r));
   return (
-    <div className="rp-ov-figure" data-tone={tone}>
-      <div className="rp-ov-figure-label">{label}</div>
+    <ul className="rp-list" aria-label={label}>
+      {busy}
+      {clear.length > 0 && (
+        <li className="rp-ov-run-row rp-ov-run-clear" data-clear="">
+          <span className="rp-ov-run-count" aria-hidden="true">✓</span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="rp-ov-run-label">All clear</div>
+            <div className="rp-ov-run-detail">No {clear.map(r => r.props.label).join(", ")}.</div>
+          </div>
+        </li>
+      )}
+    </ul>
+  );
+}
+
+/** One column of the Overview's ruled figures strip. Named by its label for screen readers; the value and change follow. */
+export function Figure({ label, value, foot, tone, spark }: { label: string; value: ReactNode; foot: ReactNode; tone?: "warn"; spark?: ReactNode }) {
+  const id = useId();
+  return (
+    <div className="rp-ov-figure" data-tone={tone} role="group" aria-labelledby={id}>
+      <div className="rp-ov-figure-label" id={id}>{label}</div>
       <div className="rp-ov-figure-value">{value}</div>
       <div className="rp-ov-figure-foot">{foot}</div>
       {spark}
@@ -153,8 +206,15 @@ function ReadinessRow({ item, onOpen }: { item: ReadinessItem; onOpen: (tab: str
  */
 export function ReadinessStrip({ items, onOpen }: { items: ReadinessItem[]; onOpen: (tab: string) => void }) {
   const [showDone, setShowDone] = useState(false);
-  const { done, total, open, completed } = readinessProgress(items);
-  const blocking = open.some(i => i.status === "block");
+  const [showAll, setShowAll] = useState(false);
+  const { done, total, open: openChecks, completed } = readinessProgress(items);
+  const blocking = openChecks.some(i => i.status === "block");
+  // Blocking checks first; the rest fold behind "+N more to check" so the strip stays short.
+  const sorted = [...openChecks].sort((a, b) => Number(b.status === "block") - Number(a.status === "block"));
+  const first = sorted.filter(i => i.status === "block");
+  const lead = first.length ? first : sorted.slice(0, 3);
+  const rest = sorted.slice(lead.length);
+  const open = showAll ? sorted : lead;
   return (
     <SectionCard flush title="Ready to sell?"
       description={`${done} of ${total} launch checks are ready${blocking ? " — something is blocking sales" : ""}`}
@@ -170,6 +230,13 @@ export function ReadinessStrip({ items, onOpen }: { items: ReadinessItem[]; onOp
       <ul className="rp-list" aria-label="Launch checks still open">
         {open.map(item => <ReadinessRow key={item.id} item={item} onOpen={onOpen} />)}
       </ul>
+      {rest.length > 0 && (
+        <div style={{ padding: "4px 20px 12px" }}>
+          <GhostButton size="sm" aria-expanded={showAll} onClick={() => setShowAll(v => !v)}>
+            {showAll ? "Show fewer" : `+${rest.length} more to check`} <span aria-hidden="true">{showAll ? "▾" : "▸"}</span>
+          </GhostButton>
+        </div>
+      )}
       {showDone && (
         <ul id="overview-readiness-done" className="rp-list" aria-label="Launch checks already done" style={{ borderTop: "1px solid var(--rp-divider)" }}>
           {completed.map(item => <ReadinessRow key={item.id} item={item} onOpen={onOpen} />)}

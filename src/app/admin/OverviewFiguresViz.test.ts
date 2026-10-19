@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { figureSeries } from "./OverviewFiguresViz";
+import { figureSeries, orderPill } from "./OverviewFiguresViz";
 import { resolveRange } from "./overviewRange";
 
 const NOW = Date.parse("2026-10-18T16:00:00Z");
@@ -23,5 +23,19 @@ describe("Key figure lines", () => {
   it("uses the last 7 days for Today and weeks for long ranges", () => {
     expect(figureSeries(paid, resolveRange("today", { now: NOW })).revenue.cur).toHaveLength(7);
     expect(figureSeries(paid, resolveRange("90d", { now: NOW })).revenue.cur.length).toBeLessThanOrEqual(15);
+  });
+
+  it("groups ranges over two weeks by week", () => {
+    const n = figureSeries(paid, resolveRange("30d", { now: NOW })).revenue.cur.length;
+    expect(n).toBeGreaterThanOrEqual(5); expect(n).toBeLessThanOrEqual(6);
+  });
+});
+
+describe("Newest order pills", () => {
+  it("are glyph + word in ink, colour only when something needs looking at", () => {
+    expect(orderPill("Paid · to send")).toEqual({ tone: "neutral", glyph: "●", word: "To ship" });
+    expect(orderPill("Shipped").tone).toBe("neutral");
+    expect(orderPill("Refunded").tone).toBe("warning");
+    expect(orderPill("Something new")).toEqual({ tone: "neutral", glyph: "○", word: "Something new" });
   });
 });

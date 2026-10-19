@@ -7,19 +7,57 @@ import "./overviewViz.css";
 
 const clamp = (n: number) => Math.max(0, Math.min(100, Number.isFinite(n) ? n : 0));
 
-/** A small line of a figure over the period; the period before as a faint dashed line. Decorative (the number says it). */
-export function Spark({ values, prev, tone = "up" }: { values: Array<number | null>; prev?: Array<number | null>; tone?: "up" | "down" | "flat" }) {
+/**
+ * A small line of a figure over the period, with the period before as a faint band behind it and a dot on the latest
+ * point. Decorative (the number says it). Colour follows `goodWhen`: a move in the good direction is flare, the other way
+ * danger, and "neutral" figures stay ink. `tone` alone (older callers) keeps its old meaning: up = good.
+ */
+export function Spark({ values, prev, tone = "up", goodWhen = "up" }: {
+  values: Array<number | null>; prev?: Array<number | null>; tone?: "up" | "down" | "flat"; goodWhen?: "up" | "down" | "neutral";
+}) {
   const all = [...values, ...(prev || [])].filter((v): v is number => v !== null && Number.isFinite(v));
   if (values.length < 2 || all.length === 0) return null;
   const max = Math.max(...all), min = Math.min(0, ...all);
   const span = max - min || 1;
-  const path = (vs: Array<number | null>) => vs.map((v, i) => `${i === 0 ? "M" : "L"}${((i / (vs.length - 1)) * 100).toFixed(2)},${(28 - ((Number(v) || 0) - min) / span * 26 - 1).toFixed(2)}`).join(" ");
+  const x = (i: number, n: number) => ((i / (n - 1)) * 100).toFixed(2);
+  const y = (v: number | null) => (28 - ((Number(v) || 0) - min) / span * 26 - 1).toFixed(2);
+  const path = (vs: Array<number | null>) => vs.map((v, i) => `${i === 0 ? "M" : "L"}${x(i, vs.length)},${y(v)}`).join(" ");
+  const look = tone === "flat" || goodWhen === "neutral" ? "flat" : (tone === "up") === (goodWhen === "up") ? "up" : "down";
+  const lastY = y(values[values.length - 1]);
   return (
-    <svg className="rp-viz-spark" data-tone={tone} viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-      {prev && prev.length > 1 && <path d={path(prev)} className="rp-viz-spark-prev" vectorEffect="non-scaling-stroke" />}
+    <svg className="rp-viz-spark" data-tone={look} viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      {prev && prev.length > 1 && <path d={`${path(prev)} L100,28 L0,28 Z`} className="rp-viz-spark-prev" />}
       <path d={`${path(values)} L100,28 L0,28 Z`} className="rp-viz-spark-fill" />
       <path d={path(values)} className="rp-viz-spark-line" vectorEffect="non-scaling-stroke" />
+      <line x1="100" y1={lastY} x2="100" y2={lastY} className="rp-viz-spark-dot" vectorEffect="non-scaling-stroke" />
     </svg>
+  );
+}
+
+/** The key for every chart that draws the period before: "■ This period  ▨ Period before" as swatches (true in night mode too). */
+export function CompareKey({ now = "This period", before = "Period before" }: { now?: string; before?: string }) {
+  return (
+    <span className="rp-viz-key">
+      <span><i className="rp-viz-swatch" style={{ background: "var(--rp-primary)" }} aria-hidden="true" />{now}</span>
+      <span><i className="rp-viz-swatch rp-viz-hatch" aria-hidden="true" />{before}</span>
+    </span>
+  );
+}
+
+/** The numbers behind a drawn chart, folded under "View as a table" (for custom SVG charts that have no tooltip). */
+export function VizTable({ caption, head, rows, summary = "View as a table" }: { caption: string; head: string[]; rows: Array<{ key: string; cells: ReactNode[] }>; summary?: string }) {
+  if (!rows.length) return null;
+  return (
+    <details className="rp-ov-table-toggle rp-viz-table">
+      <summary>{summary}</summary>
+      <div className="rp-viz-table-wrap">
+        <table>
+          <caption className="rp-sr-only">{caption}</caption>
+          <thead><tr>{head.map((h, i) => <th key={h} scope="col" data-num={i > 0 ? "" : undefined}>{h}</th>)}</tr></thead>
+          <tbody>{rows.map(r => <tr key={r.key}>{r.cells.map((c, i) => i === 0 ? <th key={i} scope="row">{c}</th> : <td key={i}>{c}</td>)}</tr>)}</tbody>
+        </table>
+      </div>
+    </details>
   );
 }
 
@@ -61,6 +99,7 @@ function RankLine({ row: r, max }: { row: RankRow; max: number }) {
         <span className="rp-viz-track" aria-hidden="true">
           {r.prev !== undefined && r.prev > 0 && <span className="rp-viz-bar-prev" style={{ width: `${clamp((r.prev / max) * 100)}%` }} />}
           <span className="rp-viz-bar" data-tone={r.tone || "flare"} style={{ width: `${clamp((r.value / max) * 100)}%` }} />
+          {r.prev !== undefined && r.prev > 0 && <span className="rp-viz-bar-tick" style={{ left: `${clamp((r.prev / max) * 100)}%` }} />}
         </span>
         {r.sub && <span className="rp-viz-rank-sub">{r.sub}</span>}
       </span>
@@ -138,42 +177,75 @@ export function Stack({ parts, prev, label, unit = (n: number) => n.toLocaleStri
   );
 }
 
-export interface FallStep { key: string; label: string; hint?: string; value: number; kind: "total" | "minus" | "plus" }
+export interface FallStep {
+  key: string; label: string; hint?: string; value: number; kind: "total" | "minus" | "plus";
+  /** Money collected for someone else and passed on (sales tax): drawn with a dashed outline and named in the key. */
+  passThrough?: boolean;
+}
 
-/** Steps from one total to another: columns that start where the last one ended. */
+/**
+ * Steps from one total to another. Wide: columns that start where the last one ended, joined by thin connectors.
+ * Narrow (under ~520px of widget): one horizontal bar per step, label left and value right, the last total in bold.
+ * Totals solid flare, money added outlined in ink, money taken away in danger tint; never hatched (hatched = the
+ * period before everywhere else). Every bar is at least 6px so a small step stays visible.
+ */
 export function Waterfall({ steps, label, format }: { steps: FallStep[]; label: string; format: (n: number) => string }) {
   let running = 0;
   const bars = steps.map(s => {
-    if (s.kind === "total") { running = s.value; return { ...s, from: 0, to: s.value }; }
+    if (s.kind === "total") { running = s.value; return { ...s, from: 0, to: s.value, end: s.value }; }
     const from = running;
     running = s.kind === "minus" ? running - s.value : running + s.value;
-    return { ...s, from: Math.min(from, running), to: Math.max(from, running) };
+    return { ...s, from: Math.min(from, running), to: Math.max(from, running), end: running };
   });
   const max = Math.max(1, ...bars.map(b => b.to));
+  const sign = (b: FallStep) => (b.kind === "minus" ? "−" : b.kind === "plus" ? "+" : "");
   const words = steps.map(s => `${s.label} ${s.kind === "minus" ? "minus " : s.kind === "plus" ? "plus " : ""}${format(s.value)}`).join(", ");
+  const hasPass = steps.some(s => s.passThrough);
+  const pct = (n: number) => `${((n / max) * 100).toFixed(2)}%`;
   return (
     <figure className="rp-viz-fall" aria-label={`${label}: ${words}`}>
       <div className="rp-viz-fall-cols" aria-hidden="true" style={{ gridTemplateColumns: `repeat(${bars.length}, minmax(0, 1fr))` }}>
-        {bars.map(b => (
-          <div key={b.key} className="rp-viz-fall-col">
+        {bars.map((b, i) => (
+          <div key={b.key} className="rp-viz-fall-col" title={`${b.label}: ${sign(b)}${format(b.value)}`}>
             <div className="rp-viz-fall-plot">
-              <span className="rp-viz-fall-bar" data-kind={b.kind} style={{ bottom: `${(b.from / max) * 100}%`, height: `max(2px, ${((b.to - b.from) / max) * 100}%)` }}>
-                <span className="rp-viz-fall-num">{b.kind === "minus" ? "−" : b.kind === "plus" ? "+" : ""}{format(b.value)}</span>
+              <span className="rp-viz-fall-bar" data-kind={b.kind} data-pass={b.passThrough ? "" : undefined} style={{ bottom: pct(b.from), height: `max(6px, ${pct(b.to - b.from)})` }}>
+                <span className="rp-viz-fall-num">{sign(b)}{format(b.value)}</span>
               </span>
+              {i < bars.length - 1 && <span className="rp-viz-fall-link" style={{ bottom: pct(b.end) }} />}
             </div>
             <div className="rp-viz-fall-label">{b.label}</div>
             {b.hint && <div className="rp-viz-fall-hint">{b.hint}</div>}
           </div>
         ))}
       </div>
+      <ol className="rp-viz-fall-rows" aria-hidden="true">
+        {bars.map((b, i) => (
+          <li key={b.key} className="rp-viz-fall-row" data-kind={b.kind} data-last={i === bars.length - 1 ? "" : undefined}>
+            <span className="rp-viz-fall-row-label">{b.label}{b.hint && <span className="rp-viz-fall-hint">{b.hint}</span>}</span>
+            <span className="rp-viz-fall-row-track">
+              <span className="rp-viz-fall-bar" data-kind={b.kind} data-pass={b.passThrough ? "" : undefined} style={{ left: pct(b.from), width: `max(6px, ${pct(b.to - b.from)})` }} />
+            </span>
+            <span className="rp-viz-fall-row-num">{sign(b)}{format(b.value)}</span>
+          </li>
+        ))}
+      </ol>
+      <figcaption className="rp-viz-fall-key">
+        <span><i className="rp-viz-swatch" data-kind="total" aria-hidden="true" />Total</span>
+        {steps.some(s => s.kind === "plus" && !s.passThrough) && <span><i className="rp-viz-swatch" data-kind="plus" aria-hidden="true" />Added</span>}
+        {steps.some(s => s.kind === "minus" && !s.passThrough) && <span><i className="rp-viz-swatch" data-kind="minus" aria-hidden="true" />Taken off</span>}
+        {hasPass && <span><i className="rp-viz-swatch" data-kind="pass" aria-hidden="true" />Collected and passed on</span>}
+      </figcaption>
     </figure>
   );
 }
 
 export interface FunnelStep { key: string; label: string; count: number; details?: ReactNode }
 
-/** Narrowing bars with the share that stopped between each step. Widths use a square root so small steps stay readable. */
-export function Funnel({ steps, label }: { steps: FunnelStep[]; label: string }) {
+/**
+ * Narrowing bars with the share that stopped between each step. Widths use a square root by default so small steps
+ * stay readable, and the chart says so; `scale="linear"` draws true widths (with a small minimum).
+ */
+export function Funnel({ steps, label, scale = "sqrt" }: { steps: FunnelStep[]; label: string; scale?: "sqrt" | "linear" }) {
   const top = Math.max(1, ...steps.map(s => s.count));
   let biggest = -1, biggestAt = -1;
   steps.forEach((s, i) => {
@@ -181,7 +253,9 @@ export function Funnel({ steps, label }: { steps: FunnelStep[]; label: string })
     const stop = 1 - s.count / steps[i - 1].count;
     if (stop > biggest) { biggest = stop; biggestAt = i; }
   });
+  const width = (n: number) => Math.max(8, (scale === "linear" ? n / top : Math.sqrt(n / top)) * 100);
   return (
+    <div className="rp-viz-funnel-wrap">
     <ol className="rp-viz-funnel" aria-label={label}>
       {steps.map((s, i) => {
         const prev = i > 0 ? steps[i - 1].count : null;
@@ -189,12 +263,14 @@ export function Funnel({ steps, label }: { steps: FunnelStep[]; label: string })
         return (
           <Fragment key={s.key}>
             {stop !== null && <li className="rp-viz-funnel-gap" data-worst={i === biggestAt && biggest > 0 ? "" : undefined} aria-hidden="true">▼ {stop}% stop here{i === biggestAt && biggest > 0 ? " · biggest drop" : ""}</li>}
-            <FunnelLine step={s} width={Math.max(8, Math.sqrt(s.count / top) * 100)} last={i === steps.length - 1}
+            <FunnelLine step={s} width={width(s.count)} last={i === steps.length - 1}
               said={`${s.label}: ${s.count.toLocaleString()}${stop !== null ? `, ${stop}% stopped before this step` : ""}`} />
           </Fragment>
         );
       })}
     </ol>
+    <p className="rp-viz-note">{scale === "linear" ? "Bar widths match the counts." : "Bar widths are scaled so small steps stay visible — read the numbers and the % between steps."}</p>
+    </div>
   );
 }
 
@@ -217,6 +293,8 @@ function FunnelLine({ step, width, last, said }: { step: FunnelStep; width: numb
 export function HeatGrid({ rows, max, label, unit = "order" }: { rows: Array<{ day: string; hours: number[] }>; max: number; label: string; unit?: string }) {
   let best = { d: "", h: 0, n: 0 };
   rows.forEach(r => r.hours.forEach((n, h) => { if (n > best.n) best = { d: r.day, h, n }; }));
+  const ties = best.n ? rows.reduce((t, r) => t + r.hours.filter(n => n === best.n).length, 0) - 1 : 0;
+  const top = Math.max(1, max);
   const hourName = (h: number) => `${h % 12 || 12}${h < 12 ? "am" : "pm"}`;
   const plural = (n: number) => `${n} ${unit}${n === 1 ? "" : "s"}`;
   return (
@@ -230,15 +308,15 @@ export function HeatGrid({ rows, max, label, unit = "order" }: { rows: Array<{ d
             {r.hours.map((n, h) => (
               <span key={h} className="rp-viz-heat-cell" title={`${r.day} ${hourName(h)}: ${plural(n)}`}
                 data-best={best.n && r.day === best.d && h === best.h ? "" : undefined}
-                style={n ? { background: `color-mix(in srgb, var(--rp-primary) ${Math.round(18 + 82 * (n / Math.max(1, max)))}%, var(--rp-surface))` } : undefined} />
+                data-empty={n ? undefined : ""} style={n ? ({ "--rp-heat": (Math.min(1, n / top)).toFixed(3) } as any) : undefined} />
             ))}
           </Fragment>
         ))}
       </div>
       <figcaption className="rp-viz-heat-key">
         <span className="rp-viz-heat-scale" aria-hidden="true"><i /><i /><i /><i /><i /></span>
-        <span>Fewer → more {unit}s.</span>
-        {best.n > 0 && <strong>Busiest: {best.d} around {hourName(best.h)}.</strong>}
+        <span>Fewer → more {unit}s (0 to {plural(top)} an hour).</span>
+        {best.n > 0 && <strong>Busiest (outlined): {best.d} around {hourName(best.h)}, {plural(best.n)}{ties > 0 ? `, tied with ${ties} other time${ties === 1 ? "" : "s"}` : ""}.</strong>}
       </figcaption>
     </figure>
   );
@@ -274,7 +352,7 @@ export function DaysLeft({ rows, leadDays, label, scaleDays = 120 }: {
   leadDays: number; label: string; scaleDays?: number;
 }) {
   const id = useId();
-  const state = (d: number | null) => (d === null ? "none" : d <= leadDays ? "now" : d <= leadDays * 1.6 ? "soon" : "fine");
+  const state = (d: number | null) => (d === null ? "none" : d <= leadDays ? "now" : d <= leadDays * 1.5 ? "soon" : "fine");
   const words = { now: "! Reprint now", soon: "◐ Plan a reprint", fine: "✓ Fine", none: "– No recent sales" } as const;
   return (
     <ul className="rp-viz-days" aria-label={label} aria-describedby={`${id}-key`}>
@@ -313,9 +391,10 @@ export function ShadeGrid({ head, rows, label }: { head: string[]; rows: Array<{
             <tr key={r.key}>
               <th scope="row">{r.label}{r.sub && <span className="rp-viz-dim"> {r.sub}</span>}</th>
               {r.cells.map((c, i) => (
-                <td key={i} data-none={c === null ? "" : undefined}
+                <td key={i} data-none={c === null ? "" : undefined} data-zero={c === 0 ? "" : undefined}
+                  title={c === null ? "Not yet" : undefined}
                   style={c ? { background: `color-mix(in srgb, var(--rp-primary) ${Math.round(12 + Math.min(1, c / 40) * 78)}%, var(--rp-surface))` } : undefined}>
-                  {c === null ? "·" : `${Math.round(c)}%`}
+                  {c === null ? <span className="rp-sr-only">not yet</span> : c === 0 ? "0" : `${Math.round(c)}%`}
                 </td>
               ))}
             </tr>

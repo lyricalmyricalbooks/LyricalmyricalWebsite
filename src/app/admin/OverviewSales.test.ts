@@ -11,11 +11,16 @@ describe("moneySteps (Where the money goes)", () => {
     expect(run(steps)).toBeCloseTo(90);
     expect(steps.at(-1)!.value).toBe(90);
   });
-  it("shows what the totals don't explain as Other, never fakes it", () => {
+  it("shows what the totals don't explain as Rounding & adjustments, never fakes it", () => {
     const cur = { subtotal: 100, discounts: 0, shipping: 0, tax: 0, giftCards: 0, revenue: 97.5, refunded: 0, net: 97.5 };
     const steps = moneySteps(cur);
-    expect(steps.find(s => s.key === "other")).toMatchObject({ kind: "minus", value: 2.5 });
+    expect(steps.find(s => s.key === "other")).toMatchObject({ kind: "minus", value: 2.5, label: "Rounding & adjustments" });
+    expect(steps.find(s => s.key === "other")?.hint).toBeTruthy();
     expect(run(steps)).toBeCloseTo(97.5);
+  });
+  it("names each step in plain words", () => {
+    const steps = moneySteps({ subtotal: 100, discounts: 10, shipping: 12, tax: 13, giftCards: 0, revenue: 115, refunded: 0, net: 115 });
+    expect(steps.map(s => s.hint)).toEqual(["list price", "discounts", "postage charged", "sales tax collected", "after refunds"]);
   });
   it("leaves out empty steps", () => {
     const steps = moneySteps({ subtotal: 40, discounts: 0, shipping: 0, tax: 0, giftCards: 0, revenue: 40, refunded: 0, net: 40 });

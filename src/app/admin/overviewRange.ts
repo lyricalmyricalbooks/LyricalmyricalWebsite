@@ -108,7 +108,12 @@ export function trafficWindow(range: Range, now = Date.now()): { fromKey: string
 
 export type Grain = "day" | "week" | "month";
 /** A readable default: days up to ~6 weeks, then weeks up to ~6 months, then months. */
-export const autoGrain = (days: number): Grain => (days <= 45 ? "day" : days <= 186 ? "week" : "month");
+/**
+ * The grouping "Auto" picks for a range. With `activeDays` (days that had any sales), a 14–45 day range where fewer than
+ * half the days sold anything groups by week, so a quiet month isn't a row of spikes on a flat line.
+ */
+export const autoGrain = (days: number, activeDays?: number): Grain =>
+  days <= 45 ? (activeDays !== undefined && days >= 14 && activeDays < days / 2 ? "week" : "day") : days <= 186 ? "week" : "month";
 
 /** The bucket a day falls in: itself, its week's Monday, or its month's first day. */
 export function bucketKey(key: string, grain: Grain): string {

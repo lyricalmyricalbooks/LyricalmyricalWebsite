@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Checkbox, DataTable, ErrorState, LoadingState } from "./riso/components";
 import type { Order } from "./overviewInsights";
@@ -6,7 +6,7 @@ import { autoGrain, resolveRange, type CompareMode, type Grain, type Range } fro
 import { bucketSeries, buildRangeSeries, CHART_METRICS, metricValue, seriesSummary, type ChartMetric } from "./overviewSeries";
 import type { TrafficFigures } from "./overviewSources";
 import type { ChartGrain, WidgetConfig } from "./overviewBoard";
-import { Trend, money, percent } from "./OverviewParts";
+import { Trend, money, moneyShort, percent } from "./OverviewParts";
 
 /**
  * One trend chart on the Overview board. Each chart widget keeps its own measure, grouping and comparison
@@ -25,16 +25,24 @@ export function OverviewChart({ widgetId, paid, range, compareMode, traffic, tra
 
   // "Today" has no hourly data, so it shows the last 7 days for context.
   const chartRange = useMemo(() => (range.preset === "today" ? resolveRange("7d", { compare: compareMode }) : range), [range, compareMode]);
-  const grain: Grain = grainChoice === "auto" ? autoGrain(chartRange.days) : grainChoice;
   const meta = CHART_METRICS.find(m => m.id === metric) || CHART_METRICS[0];
+  // Days in the range with anything to chart for this measure: a quiet month groups by week under Auto.
+  const daySeries = useMemo(() => (paid ? buildRangeSeries(paid, chartRange, traffic?.visitsOn || (() => 0)) : []), [paid, chartRange, traffic]);
+  const activeDays = useMemo(() => daySeries.filter(d => (metricValue(d, metric) || 0) > 0).length, [daySeries, metric]);
+  const auto = autoGrain(chartRange.days, daySeries.length ? activeDays : undefined);
+  const grain: Grain = grainChoice === "auto" ? auto : grainChoice;
+  // Draw-in animation only the first time the chart appears (never on refresh or a measure switch), and never with
+  // reduced motion.
+  const animate = useRef(typeof window !== "undefined" && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+  useEffect(() => { const t = setTimeout(() => { animate.current = false; }, 1500); return () => clearTimeout(t); }, []);
   // Google's figures cover only the chosen range, so "Today"'s 7-day context can't chart Google visitors.
   const visitorsCharted = trafficReady && !(range.preset === "today" && traffic?.source === "google");
   const usable = !meta.needsTraffic || visitorsCharted;
-  const buckets = useMemo(() => (paid ? bucketSeries(buildRangeSeries(paid, chartRange, traffic?.visitsOn || (() => 0)), grain) : []), [paid, chartRange, traffic, grain]);
+  const buckets = useMemo(() => (paid ? bucketSeries(daySeries, grain) : []), [paid, daySeries, grain]);
   const data = useMemo(() => buckets.map(b => ({ key: b.date, label: b.label, value: metricValue(b, metric), prev: metricValue(b, metric, true) })), [buckets, metric]);
   const summary = useMemo(() => seriesSummary(buckets, metric), [buckets, metric]);
   const fmt = (v: number | null) => (v === null ? "—" : meta.kind === "money" ? money(v) : meta.kind === "percent" ? percent(v, 2) : Math.round(v).toLocaleString());
-  const axisFmt = (v: number) => (meta.kind === "money" ? (v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${Math.round(v)}`) : meta.kind === "percent" ? `${v}%` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v));
+  const axisFmt = (v: number) => (meta.kind === "money" ? moneyShort(v) : meta.kind === "percent" ? `${v}%` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v));
   const empty = data.every(d => !d.value) && data.every(d => !d.prev);
   const words = buckets.length
     ? `${meta.label} by ${grain} over ${chartRange.phrase}: ${fmt(summary.value)}${summary.previous !== null ? ` (${fmt(summary.previous)} in ${chartRange.before})` : ""}.${summary.best ? ` Best ${grain}: ${summary.best.label}, ${fmt(summary.best.value)}.` : ""}`
@@ -54,7 +62,7 @@ export function OverviewChart({ widgetId, paid, range, compareMode, traffic, tra
   const flare = "var(--rp-primary)";
   return (
     <div className="rp-wb-chart">
-      <div className="rp-ov-switch" role="tablist" aria-label="Chart measure" style={{ flexWrap: "wrap" }}>
+      <div className="rp-ov-switch" role="tablist" aria-label="Chart measure">
         {CHART_METRICS.map(m => (
           <button key={m.id} id={tabIds.current[m.id]} type="button" role="tab" aria-selected={metric === m.id}
             aria-controls={panelId} tabIndex={metric === m.id ? 0 : -1} onKeyDown={onKey} onClick={() => onConfig({ metric: m.id })}>
@@ -82,10 +90,10 @@ export function OverviewChart({ widgetId, paid, range, compareMode, traffic, tra
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={ink} strokeOpacity={0.12} />
                     <XAxis dataKey="label" axisLine={false} tickLine={false} minTickGap={24} tick={{ fontSize: 11, fill: ink }} />
                     <YAxis axisLine={false} tickLine={false} width={48} tick={{ fontSize: 11, fill: ink }} tickFormatter={axisFmt} />
-                    <Tooltip formatter={(v: any, name: any) => [fmt(v === null || v === undefined ? null : Number(v)), name]}
+                    <Tooltip itemSorter={(item: any) => (item?.dataKey === "value" ? 0 : 1)} formatter={(v: any, name: any) => [fmt(v === null || v === undefined ? null : Number(v)), name]}
                       contentStyle={{ background: "var(--rp-surface)", border: "2px solid var(--rp-border-strong)", borderRadius: 0, color: "var(--rp-text)", fontSize: 12 }} />
-                    {showCompare && <Area type="monotone" dataKey="prev" name={`${meta.label} (${chartRange.compare === "lastYear" ? "last year" : "before"})`} stroke={ink} strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 4" fill="none" connectNulls />}
-                    <Area type="monotone" dataKey="value" name={meta.label} stroke={flare} strokeWidth={3} fill={flare} fillOpacity={0.14} connectNulls />
+                    {showCompare && <Area type="linear" isAnimationActive={animate.current} dataKey="prev" name={`${meta.label} (${chartRange.compare === "lastYear" ? "last year" : "before"})`} stroke={ink} strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 4" fill="none" connectNulls />}
+                    <Area type="linear" isAnimationActive={animate.current} dataKey="value" name={meta.label} stroke={flare} strokeWidth={3} fill={flare} fillOpacity={0.14} connectNulls />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -95,13 +103,13 @@ export function OverviewChart({ widgetId, paid, range, compareMode, traffic, tra
                   {showCompare && <span><i data-line="dashed" aria-hidden="true" />{chartRange.compare === "lastYear" ? "Same days last year" : range.preset === "today" ? "Week before" : "Period before"}</span>}
                 </span>
                 <span style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                  <span className="rp-ov-switch" role="group" aria-label="Group the chart by">
-                    {(["auto", "day", "week", "month"] as const).map(g => (
-                      <button key={g} type="button" aria-pressed={grainChoice === g} onClick={() => onConfig({ grain: g })}>
-                        {g === "auto" ? `Auto (${autoGrain(chartRange.days)})` : g}
-                      </button>
-                    ))}
-                  </span>
+                  <label className="rp-viz-grain">Group by
+                    <select value={grainChoice} onChange={e => onConfig({ grain: e.target.value as ChartGrain })}>
+                      {(["auto", "day", "week", "month"] as const).map(g => (
+                        <option key={g} value={g}>{g === "auto" ? `Automatic (${auto})` : g === "day" ? "Day" : g === "week" ? "Week" : "Month"}</option>
+                      ))}
+                    </select>
+                  </label>
                   <Checkbox label="Show comparison" checked={showCompare} onChange={e => onConfig({ compare: e.target.checked })} />
                 </span>
               </div>

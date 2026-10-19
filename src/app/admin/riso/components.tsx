@@ -318,8 +318,13 @@ export function Checkbox({ label, ...rest }: { label: string } & Omit<InputHTMLA
 export type BadgeTone = "neutral" | "primary" | "info" | "success" | "warning" | "danger";
 // Status never relies on colour alone: every badge carries a glyph AND a word.
 const BADGE_GLYPH: Record<BadgeTone, string> = { neutral: "○", primary: "●", info: "●", success: "✓", warning: "⚠", danger: "✕" };
-export function StatusBadge({ tone = "neutral", children }: { tone?: BadgeTone; children: ReactNode }) {
-  return <span className="rp-badge" data-tone={tone}><span aria-hidden="true">{BADGE_GLYPH[tone]}</span>{children}</span>;
+/**
+ * A status pill: glyph + word. `glyph` replaces the tone's glyph with your own (e.g. "▲"), or `false` drops it when the
+ * words already carry their own mark (so nothing shows two glyphs). Default unchanged: the tone's glyph.
+ */
+export function StatusBadge({ tone = "neutral", glyph, children }: { tone?: BadgeTone; glyph?: string | false; children: ReactNode }) {
+  const mark = glyph === false ? null : glyph ?? BADGE_GLYPH[tone];
+  return <span className="rp-badge" data-tone={tone}>{mark ? <span aria-hidden="true">{mark}</span> : null}{children}</span>;
 }
 
 /* ── Data ────────────────────────────────────────────────────────────── */
@@ -479,7 +484,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 /* ── States ──────────────────────────────────────────────────────────── */
 
-export function EmptyState({ title, description, action, icon }: { title: string; description?: string; action?: ReactNode; icon?: ReactNode }) {
+/** `inline`: the small version for inside a card or widget — no icon, about 80px tall, left-aligned. */
+export function EmptyState({ title, description, action, icon, inline }: { title: string; description?: string; action?: ReactNode; icon?: ReactNode; inline?: boolean }) {
+  if (inline) {
+    return (
+      <div className="rp-state" data-inline="" style={{ alignItems: "flex-start", textAlign: "left", gap: 6, padding: "16px 20px", minHeight: 0 }}>
+        <p className="rp-state-title" style={{ fontSize: "var(--rp-text-base)", fontStyle: "normal", fontFamily: "var(--rp-font-body)", fontWeight: 700 }}>{title}</p>
+        {description && <p className="rp-state-desc">{description}</p>}
+        {action}
+      </div>
+    );
+  }
   return (
     <div className="rp-state">
       <div className="rp-state-icon" aria-hidden="true">{icon || "📭"}</div>

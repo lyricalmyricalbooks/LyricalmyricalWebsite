@@ -74,6 +74,39 @@ export function salesCalendar(paid: Order[], todayKey: string, days = 365): Sale
 /** 0 = no sale, 1–4 = how busy the day was against the year's best day (quarters). */
 export const calendarLevel = (revenue: number, max: number) => (revenue <= 0 || max <= 0 ? 0 : Math.min(4, Math.max(1, Math.ceil((revenue / max) * 4))));
 
+/** What each shade means in money: level 1–4 = up to a quarter, half, three quarters and all of the best day. */
+export function calendarLegend(max: number): Array<{ level: number; upTo: number }> {
+  if (max <= 0) return [];
+  return [1, 2, 3, 4].map(level => ({ level, upTo: (max * level) / 4 }));
+}
+
+/** Net revenue per calendar month in the calendar, oldest first, and the best one (null when nothing sold). */
+export function calendarMonths(cal: SalesCalendar): { months: Array<{ month: string; revenue: number; orders: number }>; best: { month: string; revenue: number } | null } {
+  const by = new Map<string, { month: string; revenue: number; orders: number }>();
+  for (const w of cal.weeks) for (const d of w) {
+    if (!d) continue;
+    const m = d.date.slice(0, 7);
+    const r = by.get(m) || { month: m, revenue: 0, orders: 0 };
+    r.revenue += d.revenue; r.orders += d.orders;
+    by.set(m, r);
+  }
+  const months = [...by.values()].sort((a, b) => (a.month < b.month ? -1 : 1));
+  const best = months.reduce<{ month: string; revenue: number } | null>((b, m) => (m.revenue > 0 && (!b || m.revenue > b.revenue) ? m : b), null);
+  return { months, best: best ? { month: best.month, revenue: best.revenue } : null };
+}
+
+/** Round axis steps (1, 2 or 5 × 10ⁿ) from 0 to at least `max`, about `count` of them. */
+export function niceTicks(max: number, count = 3): number[] {
+  if (!(max > 0)) return [0, 1];
+  const raw = max / Math.max(1, count);
+  const p = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 5, 10].map(m => m * p).find(s => s >= raw) || 10 * p;
+  const out: number[] = [];
+  for (let v = 0; v < max + step && out.length < 12; v += step) out.push(Math.round(v * 1e6) / 1e6);
+  if (out[out.length - 1] < max) out.push(out[out.length - 1] + step);
+  return out;
+}
+
 // ── Month goal ───────────────────────────────────────────────────────────────────────────────────
 
 export interface MonthGoal {
@@ -99,6 +132,16 @@ export function monthGoal(paid: Order[], todayKey: string, goal: number): MonthG
     ahead: share >= paceShare, projected: (soFar / Math.max(1, daysIn)) * daysInMonth,
     needPerDay: g > soFar && left > 0 ? (g - soFar) / left : null,
   };
+}
+
+/**
+ * The goal in plain money terms: how much is still to go, what that is a day for the days left, and how far ahead
+ * or behind an even pace the month is today (positive = ahead).
+ */
+export function goalGap(g: MonthGoal): { toGo: number; perDay: number | null; daysLeft: number; paceGap: number } {
+  const daysLeft = Math.max(0, g.daysInMonth - g.daysIn);
+  const toGo = Math.max(0, g.goal - g.soFar);
+  return { toGo, perDay: toGo > 0 && daysLeft > 0 ? toGo / daysLeft : null, daysLeft, paceGap: g.soFar - (g.goal * g.paceShare) / 100 };
 }
 
 /** A typed goal ("2,000", "$1500") as a whole number of dollars, or null when it isn't one. */

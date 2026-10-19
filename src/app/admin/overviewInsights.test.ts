@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  change, customerMix, periodKeys, refundedAmount, unitsById, dormantStock, formatMix, newsletterSummary, reprintWatch, reviewSummary,
+  change, customerMix, periodKeys, refundedAmount, unitsById, dormantStock, formatMix, lineFormat, newsletterSummary, reprintWatch, reviewSummary,
   splitPeriods, stockValue, titleStock, toFulfil, topCountries, totals,
 } from "./overviewInsights";
 
@@ -56,6 +56,23 @@ describe("overview insights", () => {
     const mix = formatMix([order({ items: [{ id: "p", quantity: 1, price: 30 }, { id: "e", quantity: 1, price: 10 }] })], books);
     expect(mix.printShare).toBe(75);
     expect(mix.digitalShare).toBe(25);
+  });
+
+  it("uses one digital rule for the heading and the bar (a line sold as 'E-book' is digital)", () => {
+    const books = [{ id: "p", format: "Paperback" }, { id: "x", format: "Paperback" }];
+    const mix = formatMix([order({ items: [
+      { id: "p", quantity: 1, price: 30 },
+      // The edition sold was the e-book: its line format says so, even though the book's own format is print.
+      { id: "x", quantity: 1, price: 10, format: "E-book" },
+      { id: "x", quantity: 1, price: 10, format: "Audiobook", digital: false },
+    ] })], books);
+    const barDigital = mix.formats.filter(f => f.digital).reduce((s, f) => s + f.revenue, 0);
+    expect(mix.formats.find(f => f.format === "E-book")?.digital).toBe(true);
+    expect(mix.digitalShare).toBe(40);
+    expect(mix.digitalShare).toBeCloseTo((barDigital / mix.total) * 100);
+    expect(lineFormat({ id: "p" }, books[0])).toEqual({ format: "Paperback", digital: false });
+    expect(lineFormat({ id: "e" }, { format: "E-book (EPUB)" }).digital).toBe(true);
+    expect(lineFormat({ id: "p", digital: true }, books[0]).digital).toBe(true);
   });
 
   it("flags reprint candidates and dormant stock", () => {

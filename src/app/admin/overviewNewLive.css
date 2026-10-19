@@ -23,9 +23,20 @@
 .rp-nl-chart-fill { fill: color-mix(in srgb, var(--rp-primary) 18%, transparent); }
 .rp-nl-chart-line { fill: none; stroke: var(--rp-primary); stroke-width: 2; }
 .rp-nl-flag { position: absolute; top: -18px; bottom: 0; width: 0; border-left: 2px dashed var(--rp-text); }
-.rp-nl-flag > span { position: absolute; top: 0; left: -1px; transform: translateX(-50%); width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
-  background: var(--rp-text); color: var(--rp-surface); font-family: var(--rp-font-mono); font-size: 11px; font-weight: 700; }
-.rp-nl-axis { display: flex; justify-content: space-between; font-family: var(--rp-font-mono); font-size: var(--rp-text-2xs); color: var(--rp-text-subtle); margin-top: 4px; }
+.rp-nl-chart-plot { cursor: crosshair; }
+.rp-nl-flag { pointer-events: none; }
+.rp-nl-flag-btn { pointer-events: auto; position: absolute; top: 0; left: -1px; transform: translateX(-50%); min-width: 22px; height: 22px; padding: 0 4px; display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 0; background: var(--rp-text); color: var(--rp-surface); font-family: var(--rp-font-mono); font-size: 11px; font-weight: 700; cursor: pointer; }
+.rp-nl-flag-btn:hover { background: var(--rp-primary); color: var(--rp-on-primary); }
+.rp-nl-flag-btn:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp-nl-chart-max { position: absolute; left: 0; right: 0; top: 8%; border-top: var(--rp-hair) dashed var(--rp-border); pointer-events: none; }
+.rp-nl-chart-max > span { position: absolute; right: 0; top: -16px; font-family: var(--rp-font-mono); font-size: var(--rp-text-2xs); color: var(--rp-text-subtle); }
+.rp-nl-undo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 10px 0 0; font-size: var(--rp-text-sm); }
+.rp-nl-chips { display: flex; gap: 6px; margin-top: 6px; }
+.rp-nl-chip { min-height: 28px; padding: 0 10px; border: var(--rp-hair) solid var(--rp-border-strong); background: var(--rp-surface); color: var(--rp-text); font: inherit; font-size: var(--rp-text-xs); font-weight: 600; cursor: pointer; border-radius: 0; }
+.rp-nl-chip[aria-pressed="true"] { background: var(--rp-text); color: var(--rp-surface); }
+.rp-nl-chip:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp-nl-axis { display: flex; justify-content: space-between; gap: 8px; font-family: var(--rp-font-mono); font-size: var(--rp-text-2xs); color: var(--rp-text-subtle); margin-top: 4px; }
 .rp-nl-notelist { list-style: none; margin: 10px 0 0; padding: 0; }
 .rp-nl-notelist li { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: var(--rp-hair) solid var(--rp-divider); flex-wrap: wrap; }
 .rp-nl-num { flex-shrink: 0; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; background: var(--rp-text); color: var(--rp-surface);
@@ -51,15 +62,19 @@
 .rp-nl-pre-head strong { min-width: 0; overflow-wrap: anywhere; }
 .rp-nl-meter { margin-top: 6px; height: 12px; background: var(--rp-surface-inset); border: var(--rp-hair) solid var(--rp-border); }
 .rp-nl-meter > span { display: block; height: 100%; background: var(--rp-primary); }
-.rp-nl-pre li[data-full] .rp-nl-meter > span { background: var(--rp-danger); }
-.rp-nl-pre-foot { padding-bottom: 0 !important; }
+.rp-nl-pre li[data-full] .rp-nl-meter > span { background: var(--rp-text); }
+.rp-nl-pre-counts { display: flex; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; margin-top: 4px; font-size: var(--rp-text-sm); }
+.rp-nl-meter-ticks { display: flex; justify-content: space-between; gap: 8px; margin-top: 2px; font-family: var(--rp-font-mono); font-size: var(--rp-text-2xs); color: var(--rp-text-subtle); }
+.rp-nl-pre-foot { padding-bottom: 0 !important; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.rp-nl-pre-foot .rp-nl-note { margin: 0; }
 
 /* Order map */
 .rp-nl-map { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; padding: 14px 18px 16px; }
 .rp-nl-map-fig { margin: 0; min-width: 0; }
 .rp-nl-map-fig svg { display: block; width: 100%; height: auto; background: var(--rp-surface-2); border: var(--rp-hair) solid var(--rp-border-strong); }
 .rp-nl-grid { stroke: var(--rp-divider); stroke-width: 0.25; }
-.rp-nl-border { fill: none; stroke: var(--rp-text-subtle); stroke-width: 0.6; stroke-dasharray: 1.5 1; }
+.rp-nl-border { fill: none; stroke: var(--rp-text-subtle); stroke-width: 0.5; }
+.rp-nl-map-take { grid-column: 1 / -1; margin: 0; }
 .rp-nl-country { font-family: var(--rp-font-display); font-size: 4px; letter-spacing: 0.15em; fill: var(--rp-text-faint, var(--rp-text-subtle)); }
 .rp-nl-dot { fill: color-mix(in srgb, var(--rp-primary) 75%, transparent); stroke: var(--rp-text); stroke-width: 0.4; }
 .rp-nl-city { font-family: var(--rp-font-body); font-size: 3.4px; font-weight: 700; fill: var(--rp-text); paint-order: stroke; stroke: var(--rp-surface-2); stroke-width: 0.8px; }
@@ -70,10 +85,11 @@
 
 /* Gift card money owed */
 .rp-nl-gift { padding: 14px 18px 16px; }
-.rp-nl-big { font-family: var(--rp-font-display); font-size: 44px; line-height: 1; color: var(--rp-text); }
 .rp-nl-stats { list-style: none; margin: 12px 0 8px; padding: 0; }
 .rp-nl-stats li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: var(--rp-hair) solid var(--rp-divider); font-size: var(--rp-text-sm); }
-.rp-nl-stats li[data-tone="warn"] { color: var(--rp-warning); font-weight: 600; }
+.rp-nl-stats li[data-tone="warn"] { color: var(--rp-text); font-weight: 700; }
+.rp-nl-glyph { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-right: 6px; background: var(--rp-warning-tint); border: var(--rp-hair) solid var(--rp-border-strong); font-family: var(--rp-font-mono); font-size: 11px; }
+.rp-nl-gift .rp-viz-hero-sub { margin-bottom: 4px; }
 
 /* Sold-out countdown */
 .rp-nl-count { padding: 12px 0 8px; }
@@ -85,15 +101,24 @@
 .rp-nl-time-tick { position: absolute; bottom: 4px; transform: translateX(-50%); font-family: var(--rp-font-mono); font-size: var(--rp-text-2xs); color: var(--rp-text-subtle); white-space: nowrap; }
 .rp-nl-time-lead { position: absolute; top: -2px; bottom: -2px; border-left: 2px dashed var(--rp-text); }
 .rp-nl-countrack { position: relative; height: 14px; margin-top: 6px; background: var(--rp-surface-inset); }
-.rp-nl-countbar { position: absolute; left: 0; top: 2px; bottom: 2px; background: var(--rp-success); }
-.rp-nl-countlist li[data-soon] .rp-nl-countbar { background: var(--rp-danger); }
+/* Bars are days, not good/bad: ink for fine, warning tint when a reprint should be planned, danger when it can't arrive in time. */
+.rp-nl-countbar { position: absolute; left: 0; top: 2px; bottom: 2px; background: color-mix(in srgb, var(--rp-text) 45%, var(--rp-surface)); }
+.rp-nl-countlist li[data-state="soon"] .rp-nl-countbar { background: color-mix(in srgb, var(--rp-warning) 55%, var(--rp-surface)); }
+.rp-nl-countlist li[data-state="now"] .rp-nl-countbar { background: var(--rp-danger); }
+.rp-nl-state { display: inline-block; margin-left: 4px; padding: 0 6px; border: var(--rp-hair) solid var(--rp-border); color: var(--rp-text); font-weight: 700; white-space: nowrap; }
+.rp-nl-state[data-state="now"] { border-color: var(--rp-danger); color: var(--rp-danger); }
+.rp-nl-state[data-state="soon"] { background: var(--rp-warning-tint); }
+.rp-nl-lead-read { font-size: var(--rp-text-sm); }
+.rp-nl-saved { font-size: var(--rp-text-xs); font-weight: 700; color: var(--rp-success); }
+.rp-nl-leadform .rp-nl-error { flex-basis: 100%; margin: 0; }
+.rp-nl-count > .rp-nl-count-take { padding: 0 18px; margin: 10px 0 0; }
 
 @media (max-width: 767px) {
   .rp-nl-map { grid-template-columns: minmax(0, 1fr); }
   .rp-nl-live, .rp-nl-notes, .rp-nl-gift, .rp-nl-map { padding-left: 14px; padding-right: 14px; }
   .rp-nl-pre, .rp-nl-countlist { padding-left: 14px; padding-right: 14px; }
   .rp-nl-time { margin-left: 14px; margin-right: 14px; }
-  .rp-nl-count > .rp-nl-bar, .rp-nl-count > .rp-nl-note { padding: 0 14px; }
+  .rp-nl-count > .rp-nl-bar, .rp-nl-count > .rp-nl-note, .rp-nl-count > .rp-nl-count-take { padding: 0 14px; }
   .rp-nl-live-num { font-size: 32px; }
   .rp-nl-time-tick[data-minor] { display: none; }
 }

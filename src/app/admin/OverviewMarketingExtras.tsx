@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
 import { DataTable, EmptyState, ErrorState, LoadingState, SecondaryButton, SectionCard, StatusBadge, type Column } from "./riso/components";
 import type { Order } from "./overviewInsights";
 import type { Daily } from "./overviewTraffic";
@@ -15,6 +15,34 @@ import { sharedLoad } from "./overviewShared";
 
 // Overview › Marketing & traffic, the 18 October 2026 panels: where checkout loses people, campaigns and links that
 // sell, pages that start sales, real page speed and Google searches (Search Console). Pure maths in overviewSignals.ts.
+
+// ─── "Connect Google" once per board ──────────────────────────────────────────────────────────────────────────────
+// Several widgets need the same Google connection. The first one on screen (the first to mount) explains it in full;
+// the rest say so in one line with a Set up link. When the first one goes (folded, removed) the next takes over.
+const claims = new Map<string, string[]>();
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach(l => l());
+const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; };
+/** True for the first mounted caller of `kind` (pass `active = false` to stay out of the queue). */
+export function useFirstOfKind(kind: string, active = true): boolean {
+  const id = useId();
+  useEffect(() => {
+    if (!active) return;
+    claims.set(kind, [...(claims.get(kind) || []), id]);
+    notify();
+    return () => { claims.set(kind, (claims.get(kind) || []).filter(x => x !== id)); notify(); };
+  }, [kind, id, active]);
+  return useSyncExternalStore(subscribe, () => !active || (claims.get(kind) || [id])[0] === id, () => true);
+}
+
+/** The one-line form of a "not connected" card: what it needs and a link to set it up. */
+export function SetUpLine({ needs, onSetUp }: { needs: string; onSetUp?: () => void }) {
+  return (
+    <p className="rp-hint" style={{ margin: 0 }}>
+      Needs {needs}.{onSetUp && <> <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={onSetUp} style={{ padding: "0 4px", minHeight: 0 }}>Set up →</button></>}
+    </p>
+  );
+}
 
 const NOT_YET = (what: string) => <EmptyState icon="⏳" title="Not recorded yet" description={`${what} start counting once shoppers use the updated storefront. Until then there is nothing to show — not even zero.`} />;
 const day = (key: string | null) => (key ? new Date(`${key}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
@@ -111,7 +139,7 @@ export function LandingSalesCard({ current }: { current: Order[] }) {
 }
 
 const vitalBadge = (v: VitalSummary) => (v.goodShare === null ? <StatusBadge tone="neutral">not measured</StatusBadge>
-  : <StatusBadge tone={v.passes ? "success" : v.goodShare >= 50 ? "warning" : "danger"}>{v.passes ? "✓" : "!"} {percent(v.goodShare, 0)} good</StatusBadge>);
+  : <StatusBadge tone={v.passes ? "success" : v.goodShare >= 50 ? "warning" : "danger"} glyph={v.passes ? "✓" : "!"}>{percent(v.goodShare, 0)} good</StatusBadge>);
 
 /** Google's three speed measures from shoppers' own visits, phones and computers apart. */
 export function PageSpeedCard({ dailyCurrent }: { dailyCurrent: Daily[] }) {
@@ -174,12 +202,7 @@ export function FoundOnGoogleCard({ range, setActiveTab, part }: {
   if (state.status === "error") return <SectionCard title={cardTitle}><ErrorState title="Search Console couldn't be read" description={state.message} onRetry={() => setAttempt(a => a + 1)} /></SectionCard>;
   const a = state.answer;
   if (!a.connected || !a.report) {
-    return (
-      <SectionCard title={cardTitle} description="What people typed into Google before they saw or clicked the shop"
-        actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("general")}>Set up Search Console</SecondaryButton>}>
-        <p className="rp-hint" style={{ margin: 0 }}>{a.code === "no_token" ? a.error : `Not connected yet. ${a.error || ""}`} Setup is in Settings › General › Google Search Console.</p>
-      </SectionCard>
-    );
+    return <SearchConsoleOff title={cardTitle} part={part} message={a.code === "no_token" ? a.error : `Not connected yet. ${a.error || ""}`} setActiveTab={setActiveTab} />;
   }
   const { totals, queries, pages } = a.report;
   return (
@@ -201,5 +224,24 @@ export function FoundOnGoogleCard({ range, setActiveTab, part }: {
           : <DataTable caption="Pages Google showed" columns={columns("Page")} rows={pages} rowKey={r => r.key} />}
       </SectionCard>}
     </>
+  );
+}
+
+const SC_WORDS: Record<"totals" | "queries" | "pages", string> = {
+  totals: "How often the shop was seen and clicked in Google results",
+  queries: "What people typed into Google before they saw or clicked the shop",
+  pages: "Which shop pages Google showed in its results, most clicked first",
+};
+
+/** Search Console isn't connected: the first such widget explains it, the others say so in one line. */
+function SearchConsoleOff({ title, part, message, setActiveTab }: { title: string; part?: "totals" | "queries" | "pages"; message: string; setActiveTab?: (tab: string) => void }) {
+  const first = useFirstOfKind("searchConsole", !!part);
+  const setUp = setActiveTab ? () => setActiveTab("general") : undefined;
+  if (!first) return <SectionCard title={title}><SetUpLine needs="Google Search Console" onSetUp={setUp} /></SectionCard>;
+  return (
+    <SectionCard title={title} description={SC_WORDS[part || "totals"]}
+      actions={setUp ? <SecondaryButton size="sm" onClick={setUp}>Set up Search Console</SecondaryButton> : undefined}>
+      <p className="rp-hint" style={{ margin: 0 }}>{message} Setup is in Settings › General › Google Search Console.</p>
+    </SectionCard>
   );
 }

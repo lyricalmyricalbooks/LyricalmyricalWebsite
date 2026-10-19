@@ -2123,6 +2123,11 @@ it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badg
   Functions' metadata token with scope `webmasters.readonly` (`metadataCredentials(fetch, scope)`); property in admin-only
   `adminSecrets/googleAnalytics.searchConsoleSite` (else the shop's domain, else the only one). Owner setup: add the service account
   as a Restricted user in Search Console and enable the Search Console API. Settings › General › **Google Search Console**.
+- **Visitor widgets (19 October 2026):** traffic band `livePages`, `pageTime`, `visitHours`, `actions`, `outbound`, `newReturning`
+  (`OverviewVisitors.tsx`, maths `overviewVisitors.ts`) read GA4 batch 4 (`pageTime`, `when`, `actions`, `pageActions`, `outbound`) and the
+  realtime `realtimePages`/`realtimeMinutes` in `functions/googleAnalytics.js`; batch 4 fails soft (keys undefined → "Needs the latest server
+  update"; a 400 retries its reports one at a time). `dropOff` (traffic) and `lookNoBuy` (titles) use the shop counters
+  (`OverviewVisitorPath.tsx`, `overviewVisitorPath.ts`). Starter board `visitors`. No new storefront tracking or rules.
 - **Monday summary:** `exports.weeklySummary` (Mondays 08:00 Toronto) → `functions/weeklySummary.js` (pure): last Mon–Sun vs the week
   before, real paid non-owner orders, visits from `analytics/<UTC day>`. Switch `settings/notifications.shopAlerts.weeklySummary`
   (missing = on), Settings › Email sender › Shop alerts, with **Send me last week's summary now** (`sendTestEmail` `weeklySummaryNow`).
