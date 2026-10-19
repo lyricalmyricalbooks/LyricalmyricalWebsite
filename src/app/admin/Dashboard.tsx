@@ -19,9 +19,9 @@ import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
 import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
-  IconButton, Dialog, ToastProvider, Toggle, SyncChip, useOnline, LoadingState, useConfirm, type NavEntry,
+  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, useConfirm, type NavEntry,
 } from "./riso/components";
-import { GlobalSearch, ActivityLogDialog } from "./riso/shellParts";
+import { GlobalSearch, ActivityLogDialog, ShopStatusMenu } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, sidebarItems } from "./riso/nav";
@@ -431,7 +431,6 @@ export function Dashboard() {
   }
   // General › Store status writes maintenance.enabled; maintenanceMode is an older key kept as a fallback.
   const maintenanceOn = !!(originalSettings?.maintenance?.enabled || settings?.maintenanceMode);
-  const shopClosed = !!(settings?.design?.showUnderConstruction || maintenanceOn);
   const initial = (user.displayName?.[0] || user.email?.[0] || "A").toUpperCase();
 
   const avatar = (
@@ -532,8 +531,8 @@ export function Dashboard() {
                   </div>
                 </div>
                 <div className="rp-account-actions">
-                  <SecondaryButton size="sm" icon={<Globe size={14} aria-hidden />} onClick={openSite}>View Site</SecondaryButton>
-                  <SecondaryButton size="sm" icon={<LogOut size={14} aria-hidden />} onClick={handleLogout} disabled={loggingOut} aria-busy={loggingOut}>{loggingOut ? "Logging out…" : "Log Out"}</SecondaryButton>
+                  <SecondaryButton size="sm" icon={<Globe size={14} aria-hidden />} onClick={openSite}>View site</SecondaryButton>
+                  <SecondaryButton size="sm" icon={<LogOut size={14} aria-hidden />} onClick={handleLogout} disabled={loggingOut} aria-busy={loggingOut}>{loggingOut ? "Logging out…" : "Log out"}</SecondaryButton>
                 </div>
               </div>
               </>
@@ -549,22 +548,20 @@ export function Dashboard() {
               onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
               onOpenCustomer={(q) => { setSearchCustomerQuery(q); goTo("customers"); }} />
             <div className="rp-topbar-actions">
-              <span className="rp-status-pill rp-hide-md" role="status" data-tone={shopClosed ? "warning" : undefined}>
-                <span className="rp-status-dot" aria-hidden />
-                {settings?.design?.showUnderConstruction ? "Shop behind construction wall" : maintenanceOn ? "Checkout paused (maintenance)" : "Storefront live"}
-              </span>
-              <Toggle
-                label={settings?.design?.showUnderConstruction ? "Under construction: ON" : "Under construction"}
-                checked={!!settings?.design?.showUnderConstruction}
-                disabled={!settings || ucSaving}
-                onChange={toggleUnderConstruction}
+              <ShopStatusMenu
+                wallOn={!!settings?.design?.showUnderConstruction}
+                checkoutPaused={maintenanceOn}
+                busy={ucSaving}
+                disabled={!settings}
+                onSetWall={(on) => { void toggleUnderConstruction(on); }}
+                onOpenSettings={() => { void openSettingsPage("general"); }}
               />
-              <SecondaryButton className="rp-hide-sm" icon={<Globe size={16} aria-hidden />} onClick={openSite}>View Site</SecondaryButton>
-              <PrimaryButton icon={<Plus size={16} aria-hidden />} aria-label="Add Book" onClick={handleAddBook}>
-                <span className="rp-btn-label">Add Book</span>
+              <SecondaryButton className="rp-hide-md" icon={<Globe size={16} aria-hidden />} onClick={openSite}>View site</SecondaryButton>
+              <PrimaryButton icon={<Plus size={16} aria-hidden />} aria-label="Add book" onClick={handleAddBook}>
+                <span className="rp-btn-label">Add book</span>
               </PrimaryButton>
-              <IconButton label="Help" onClick={() => setHelpOpen(true)}><HelpCircle size={20} aria-hidden /></IconButton>
-              <IconButton label={`Switch to ${adminTheme === "light" ? "dark" : "light"} appearance`} onClick={toggleTheme}>
+              <IconButton label="Help & shortcuts" className="rp-hide-sm" onClick={() => setHelpOpen(true)}><HelpCircle size={20} aria-hidden /></IconButton>
+              <IconButton label={`Switch to ${adminTheme === "light" ? "dark" : "light"} appearance`} className="rp-hide-sm" onClick={toggleTheme}>
                 {adminTheme === "light" ? <Moon size={20} aria-hidden /> : <Sun size={20} aria-hidden />}
               </IconButton>
               <div className="rp-menu-wrap" ref={userMenuRef}
@@ -577,7 +574,7 @@ export function Dashboard() {
                   else if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
                   else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
                 }}>
-                <button ref={userMenuBtn} type="button" className="rp-icon-btn" style={{ width: "auto", padding: "0 6px", gap: 4 }}
+                <button ref={userMenuBtn} type="button" className="rp-icon-btn rp-avatar-btn"
                   aria-label="Administrator menu" aria-haspopup="menu" aria-expanded={userMenuOpen}
                   onClick={() => setUserMenuOpen((v) => !v)}>
                   {avatar}<ChevronDown size={14} aria-hidden />
@@ -591,6 +588,12 @@ export function Dashboard() {
                     <button role="menuitem" className="rp-menu-item" onClick={() => { setUserMenuOpen(false); openSite(); }}>
                       <Globe size={16} aria-hidden /> View site
                     </button>
+                    <button role="menuitem" className="rp-menu-item" onClick={() => { setUserMenuOpen(false); setHelpOpen(true); }}>
+                      <HelpCircle size={16} aria-hidden /> Help &amp; shortcuts
+                    </button>
+                    <button role="menuitem" className="rp-menu-item" onClick={() => { setUserMenuOpen(false); toggleTheme(); }}>
+                      {adminTheme === "light" ? <Moon size={16} aria-hidden /> : <Sun size={16} aria-hidden />} {adminTheme === "light" ? "Dark appearance" : "Light appearance"}
+                    </button>
                     <button role="menuitem" data-tone="danger" className="rp-menu-item" onClick={handleLogout} disabled={loggingOut} aria-busy={loggingOut}>
                       <LogOut size={16} aria-hidden /> {loggingOut ? "Logging out…" : "Log out"}
                     </button>
@@ -603,7 +606,7 @@ export function Dashboard() {
       >
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}
         {!((activeTab === "overview" || activeTab === "analytics") && !selectedOrder) && <PageHeader
-          breadcrumbs={<Breadcrumbs trail={trail} />}
+          breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}
           title={selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
           description={selectedOrder && activeTab !== "orders" ? "Payment, fulfillment, and tracking for this order." : copy.description}
         />}
@@ -634,14 +637,23 @@ export function Dashboard() {
 
       <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Help & shortcuts" appearance={appearance}
         footer={<PrimaryButton onClick={() => setHelpOpen(false)}>Got it</PrimaryButton>}>
-        <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
-          <li><strong>Search</strong> (top bar, or press <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd>): jump to any admin page, open a book (title, author, ISBN, SKU), an order (number with or without #, customer email or name) or a customer.</li>
-          <li><strong>Payments:</strong> card (Stripe) and PayPal orders are marked paid automatically once the payment is confirmed. Cash and e-Transfer orders wait as pending: open the order › <strong>More order actions</strong> › <strong>Payment received — mark paid</strong> once the money has arrived.</li>
-          <li><strong>Orders desk:</strong> <kbd>J</kbd>/<kbd>K</kbd> move to the next/previous order, <kbd>/</kbd> jumps to the search box, <kbd>Esc</kbd> clears it.</li>
-          <li><strong>Design studio:</strong> changes are saved as a draft first; Publish when you're ready. Inside the studio, <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>K</kbd> opens Find anything and <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> saves.</li>
-          <li>Press <kbd>Escape</kbd> to close any dialog; focus returns to where you were.</li>
-          <li>The address bar keeps your place, so links can be bookmarked or shared: <code>#orders/&lt;id&gt;</code>, <code>#customers?q=&lt;email&gt;</code>, <code>#settings/payments</code>, <code>#gift-cards</code>, <code>#designer</code>. Reload and Back/Forward return to the same page.</li>
-        </ul>
+        <div className="rp-help">
+          <h3 className="rp-help-head">Keyboard shortcuts</h3>
+          <dl className="rp-help-keys">
+            <dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd></dt><dd>Search: jump to any admin page, or open a book (title, author, ISBN, SKU), an order (number with or without #, customer email or name) or a customer.</dd>
+            <dt><kbd>J</kbd> / <kbd>K</kbd></dt><dd>Orders: next / previous order.</dd>
+            <dt><kbd>/</kbd></dt><dd>Orders: jump to the search box (<kbd>Esc</kbd> clears it).</dd>
+            <dt><kbd>Esc</kbd></dt><dd>Close any dialog; you go back to where you were.</dd>
+            <dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>S</kbd></dt><dd>Design studio: save the draft (<kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd> opens Find anything there).</dd>
+          </dl>
+          <h3 className="rp-help-head">How things work</h3>
+          <ul className="rp-help-list">
+            <li><strong>Payments:</strong> card (Stripe) and PayPal orders are marked paid automatically once the payment is confirmed. Cash and e-Transfer orders wait as pending: open the order › <strong>More order actions</strong> › <strong>Payment received — mark paid</strong> once the money has arrived.</li>
+            <li><strong>Shop status</strong> (top bar): shows whether shoppers can buy. Open it to close the shop behind the “under construction” wall, or to open it again.</li>
+            <li><strong>Design studio:</strong> changes are saved as a draft first; Publish when you're ready.</li>
+            <li><strong>Bookmarks:</strong> the address bar keeps your place, so pages can be bookmarked or shared: <code>#orders/&lt;id&gt;</code>, <code>#customers?q=&lt;email&gt;</code>, <code>#settings/payments</code>, <code>#gift-cards</code>, <code>#designer</code>. Reload and Back/Forward return to the same page.</li>
+          </ul>
+        </div>
       </Dialog>
 
       {confirmNode}

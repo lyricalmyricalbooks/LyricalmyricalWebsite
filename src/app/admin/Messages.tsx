@@ -6,8 +6,9 @@ import {
 import { Archive, ArchiveRestore, Mail, MailOpen, Send, Trash2 } from "lucide-react";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
+import { plainError } from "./plainError";
 import {
-  Checkbox, ConfirmDialog, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, MetricCard, PrimaryButton,
+  Checkbox, ConfirmDialog, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PrimaryButton,
   SearchField, SecondaryButton, SectionCard, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast,
 } from "./riso/components";
 
@@ -163,7 +164,7 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
       loadTotals();
     } catch (e: any) {
       // The server may have sent it before the answer was lost: keep the draft and say so, so it isn't sent twice blindly.
-      toast(`${e?.message ? `${e.message} ` : ""}The reply may not have been sent — check the thread before sending again.`, { tone: "err" });
+      toast(`${plainError(e, "The reply may not have been sent")} Open the message and check its replies before sending again.`, { tone: "err" });
     }
     finally { setSending(null); }
   };
@@ -199,11 +200,6 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
 
   return (
     <div className="rp-stack">
-      <div className="rp-kpi-grid">
-        <MetricCard label="Unread" value={unread} tone={unread ? "warn" : undefined} footer="Not opened here yet" />
-        <MetricCard label="Last 7 days" value={last7} footer="Messages received" />
-        <MetricCard label="All time" value={totals?.all ?? messages.length} footer={`${tabCounts.archived} archived`} />
-      </div>
       <div className="rp-filter-bar">
         <Tabs<Filter> label="Message folder" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
           tabs={([["inbox", "Inbox"], ["unread", "Unread"], ["replied", "Replied"], ["archived", "Archived"]] as const).map(([id, label]) => ({ id, label, count: tabCounts[id] }))} />
@@ -212,12 +208,19 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
         <div className="rp-grow"><SearchField label="Search messages" placeholder="Search name, email or text…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       </FilterBar>
 
-      <SectionCard flush title="Messages" description={`${list.length} message${list.length === 1 ? "" : "s"} in this view${hasMore ? " (older messages not loaded yet)" : ""}`}>
+      <SectionCard flush title="Messages"
+        description={`${list.length} in this view${hasMore ? " (older messages not loaded yet)" : ""} · ${last7} received in the last 7 days · ${totals?.all ?? messages.length} all time`}
+        actions={unread ? <StatusBadge tone="warning">{unread} unread</StatusBadge> : <StatusBadge tone="success">All read</StatusBadge>}>
         {loading ? <LoadingState label="Loading messages…" />
           : error ? <ErrorState description="Messages could not be loaded." onRetry={load} />
           : list.length === 0 ? (
-            <EmptyState title={filter === "archived" ? "Nothing archived" : filter === "replied" ? "No replies yet" : "No messages yet"}
-              description="Messages sent from the Contact Form section on your website appear here (and in your email)." />
+            q.trim() ? (
+              <EmptyState title="No messages match" description={`Nothing in this folder mentions “${q.trim()}”.`}
+                action={<SecondaryButton onClick={() => setQ("")}>Clear search</SecondaryButton>} />
+            ) : (
+              <EmptyState title={filter === "archived" ? "Nothing archived" : filter === "replied" ? "No replies yet" : filter === "unread" ? "All caught up" : "No messages yet"}
+                description={filter === "unread" ? "Every message has been opened." : filter === "archived" ? "Archived messages land here. Nothing is deleted when you archive." : "Messages sent from the Contact Form section on your website appear here (and in your email)."} />
+            )
           ) : (
             <>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", padding: "12px 16px", borderBottom: "1px solid var(--rp-border)" }}>
@@ -228,7 +231,7 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
                   {filter === "archived"
                     ? <SecondaryButton size="sm" onClick={async () => { if (await setStatuses(chosen, restoredStatus)) setSelected(new Set()); }}>Move to inbox</SecondaryButton>
                     : <SecondaryButton size="sm" onClick={() => archive(chosen)}>Archive</SecondaryButton>}
-                  <SecondaryButton size="sm" onClick={() => setDeleting(chosen)}>Delete…</SecondaryButton>
+                  <GhostButton size="sm" onClick={() => setDeleting(chosen)}>Delete…</GhostButton>
                 </>}
               </div>
               <ul className="rp-list" aria-label="Messages">
@@ -245,9 +248,9 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
                             checked={selected.has(m.id)} onChange={(e) => setSelected((s) => { const n = new Set(s); if (e.target.checked) n.add(m.id); else n.delete(m.id); return n; })} />
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div className="rp-row-meta" style={{ marginBottom: 6 }}>
-                              {isUnread(m) && <StatusBadge tone="warning">new</StatusBadge>}
-                              {hasReplied(m) && <StatusBadge tone="success">replied</StatusBadge>}
-                              {m.status === "archived" && <StatusBadge tone="neutral">archived</StatusBadge>}
+                              {isUnread(m) && <StatusBadge tone="warning">New</StatusBadge>}
+                              {hasReplied(m) && <StatusBadge tone="success">Replied</StatusBadge>}
+                              {m.status === "archived" && <StatusBadge tone="neutral">Archived</StatusBadge>}
                               {when && <time dateTime={when.toISOString()}>{when.toLocaleString()}</time>}
                             </div>
                             <h3 style={{ margin: "0 0 4px", fontSize: "var(--rp-text-base)", fontWeight: isUnread(m) ? 700 : 600 }}>
@@ -264,7 +267,10 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
                             </p>
                           </div>
                         </div>
-                        <div style={{ display: "flex", gap: 4 }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                          <SecondaryButton size="sm" aria-expanded={expanded} aria-controls={panelId} onClick={() => toggleOpen(m)}>
+                            {expanded ? "Close" : hasReplied(m) ? "Open" : "Read & reply"}
+                          </SecondaryButton>
                           {!isUnread(m) && m.status !== "archived" && (
                             <IconButton label={`Mark message from ${m.name} unread`} onClick={() => setStatuses([m], "new")}><MailOpen size={18} aria-hidden /></IconButton>)}
                           {m.status === "archived"

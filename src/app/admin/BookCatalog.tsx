@@ -1,7 +1,8 @@
 import { CatalogReviewDialog } from "./CatalogReviewDialog";
 import { catalogPublishIssues } from "./catalogPublishReview";
 import { useState, useEffect, useMemo } from "react";
-import { ArrowDown, ArrowUp, GripVertical, Plus, Upload } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical, Plus, SlidersHorizontal, Upload, X } from "lucide-react";
+import "./books.css";
 import { EditionStockDialog } from "./EditionStockDialog";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { type InventoryLinks } from "./inventoryLink";
@@ -15,7 +16,7 @@ import { inventoryApi } from "./inventoryApi";
 import { liveStockOf } from "./inventoryInsights";
 import toast from "react-hot-toast";
 import {
-  ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, Pagination,
+  ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, GhostButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, Pagination,
   PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, type Column,
 } from "./riso/components";
 import { preorderActive, releaseDateOf } from "../features/site/preorder";
@@ -84,6 +85,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [dragId, setDragId] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const [confirm, setConfirm] = useState<null | { kind: "bulk"; } | { kind: "one"; book: any }>(null);
+  // Phones: the four filter drop-downs and the sort fold behind one "Filters & sort" button.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => { loadBooks(); }, [refreshTrigger]);
   useEffect(() => {
@@ -381,40 +384,77 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     style: dragId === b.id ? { opacity: 0.4 } : undefined,
   };
 
+  const coverOf = (b: any, w = 36) => {
+    const box = { flexShrink: 0, width: w, height: Math.round(w * 1.4) };
+    return b.photoUrl || b.photos?.[0]?.url
+      ? <img src={b.photoUrl || b.photos?.[0]?.url} alt="" width={box.width} height={box.height} loading="lazy" decoding="async" className="bk-card-cover" style={box} />
+      : <span aria-hidden="true" className="bk-card-cover" style={box} />;
+  };
+  const titleOf = (b: any) => (
+    <div style={{ minWidth: 0 }}>
+      <button type="button" className="bk-title-link" onClick={() => onEdit(b)} aria-label={`Edit ${b.title}`}>{b.title || "Untitled"}</button>
+      <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{bookAuthor(b, authors) || "No author"}</div>
+    </div>
+  );
+  const badgesOf = (b: any) => { const s = publicationBadge(b); return <span className="bk-card-badges"><StatusBadge tone={s.tone}>{s.text}</StatusBadge>{(b.isFeatured ?? b.featured) && <StatusBadge tone="primary">Featured</StatusBadge>}{b.comingSoon === true && <StatusBadge tone="info">Coming soon</StatusBadge>}{preorderActive(b) && <StatusBadge tone="info">{releaseDateOf(b) ? `Pre-order · ${releaseDateOf(b)}` : "Pre-order"}</StatusBadge>}</span>; };
+  const stockCell = (b: any) => { const s = stockOf(b); return inlineCell(b, "stockLevel", <StatusBadge tone={s.tone}>{s.text}</StatusBadge>); };
+  const priceCell = (b: any) => {
+    const p = priceInfo(b);
+    return inlineCell(b, "retailPrice", <span>{p.was !== undefined && <s className="rp-hint" style={{ marginRight: 6 }}>CA${p.was.toFixed(2)}</s>}{p.text}</span>);
+  };
+  const actionsOf = (b: any) => (
+    <ActionMenu label={`Actions for ${b.title}`} actions={[
+      { label: "Edit", onSelect: () => onEdit(b) },
+      { label: "Duplicate", onSelect: () => duplicate(b) },
+      { label: "View listing", onSelect: () => window.open(listingUrl(b), "_blank", "noopener") },
+      { label: "Delete", tone: "danger", onSelect: () => setConfirm({ kind: "one", book: b }) },
+    ]} />
+  );
+
   const columns: Column<any>[] = [
     ...(sort === "shop" ? [arrangeColumn] : []),
     { key: "sel", header: "Select", render: b => <Checkbox label="" aria-label={`Select ${b.title}`} checked={selected.includes(b.id)} onChange={() => toggle(b.id)} /> },
     { key: "title", header: "Title", lead: true, render: b => (
-      <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 220 }}>
-        {b.photoUrl || b.photos?.[0]?.url
-          ? <img src={b.photoUrl || b.photos?.[0]?.url} alt="" width={36} height={50} loading="lazy" decoding="async" style={{ flexShrink: 0, objectFit: "cover", border: "1px solid var(--rp-border-strong)" }} />
-          : <span aria-hidden="true" style={{ flexShrink: 0, width: 36, height: 50, border: "1px solid var(--rp-border)", background: "var(--rp-surface-inset)" }} />}
-        <div style={{ minWidth: 0 }}>
-          <button type="button" onClick={() => onEdit(b)} aria-label={`Edit ${b.title}`}
-            style={{ all: "unset", cursor: "pointer", fontWeight: 600, overflowWrap: "anywhere", textDecoration: "underline", textUnderlineOffset: 3 }}>
-            {b.title || "Untitled"}
-          </button>
-          <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{bookAuthor(b, authors) || "No author"}</div>
-        </div>
-      </div>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 220 }}>{coverOf(b)}{titleOf(b)}</div>
     ) },
-    { key: "status", header: "Status", render: b => { const s = publicationBadge(b); return <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}><StatusBadge tone={s.tone}>{s.text}</StatusBadge>{(b.isFeatured ?? b.featured) && <StatusBadge tone="primary">Featured</StatusBadge>}{b.comingSoon === true && <StatusBadge tone="info">Coming soon</StatusBadge>}{preorderActive(b) && <StatusBadge tone="info">{releaseDateOf(b) ? `Pre-order · ${releaseDateOf(b)}` : "Pre-order"}</StatusBadge>}</span>; } },
+    { key: "status", header: "Status", render: badgesOf },
     { key: "format", header: "Format", render: b => b.format || "—" },
     { key: "isbn", header: "ISBN / SKU", render: b => <span className="rp-mono">{b.isbn || b.sku || "—"}</span> },
-    { key: "stock", header: "Inventory", render: b => { const s = stockOf(b); return inlineCell(b, "stockLevel", <StatusBadge tone={s.tone}>{s.text}</StatusBadge>); } },
-    { key: "price", header: "Price", numeric: true, render: b => {
-      const p = priceInfo(b);
-      return inlineCell(b, "retailPrice", <span>{p.was !== undefined && <s className="rp-hint" style={{ marginRight: 6 }}>CA${p.was.toFixed(2)}</s>}{p.text}</span>);
-    } },
-    { key: "actions", header: "Actions", render: b => (
-      <ActionMenu label={`Actions for ${b.title}`} actions={[
-        { label: "Edit", onSelect: () => onEdit(b) },
-        { label: "Duplicate", onSelect: () => duplicate(b) },
-        { label: "View listing", onSelect: () => window.open(listingUrl(b), "_blank", "noopener") },
-        { label: "Delete", tone: "danger", onSelect: () => setConfirm({ kind: "one", book: b }) },
-      ]} />
-    ) },
+    { key: "stock", header: "Inventory", render: stockCell },
+    { key: "price", header: "Price", numeric: true, render: priceCell },
+    { key: "actions", header: "Actions", render: actionsOf },
   ];
+
+  // Phones: the same rows as cards (the table would scroll sideways).
+  const phoneCards = (
+    <ul className="bk-cards" aria-label="Books">
+      {pageRows.map(b => {
+        const at = rows.findIndex(x => x.id === b.id);
+        return (
+          <li key={b.id} className="bk-card">
+            <Checkbox label="" aria-label={`Select ${b.title}`} checked={selected.includes(b.id)} onChange={() => toggle(b.id)} />
+            {coverOf(b, 52)}
+            <div className="bk-card-body">
+              {titleOf(b)}
+              {badgesOf(b)}
+              <div className="bk-card-foot">
+                {stockCell(b)}
+                <strong>{priceCell(b)}</strong>
+                {sort === "shop" && (
+                  <span className="bk-card-order">
+                    <span className="rp-mono">#{at + 1}</span>
+                    <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-label={`Move ${b.title} up`} disabled={!canArrange || at <= 0} onClick={() => moveBook(b.id, at - 1)}><ArrowUp size={14} aria-hidden /></button>
+                    <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-label={`Move ${b.title} down`} disabled={!canArrange || at >= rows.length - 1} onClick={() => moveBook(b.id, at + 1)}><ArrowDown size={14} aria-hidden /></button>
+                  </span>
+                )}
+                {actionsOf(b)}
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
 
   if (loading) return <LoadingState label="Loading books…" />;
   if (failed) return <ErrorState description="Your books could not be loaded." onRetry={() => { setLoading(true); loadBooks(); }} />;
@@ -433,60 +473,88 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   }
 
   const resetFilters = () => { setSearch(""); setStatusFilter("All"); setStockFilter("All"); setCategoryFilter("All"); setFormatFilter("All"); };
+  const activeFilters = [statusFilter, stockFilter, categoryFilter, formatFilter].filter(v => v !== "All").length;
 
   return (
     <div className="rp-stack">
+      <div className="bk-toolbar">
+        <p className="bk-count" role="status">
+          {filtering ? `Showing ${rows.length} of ${books.length} title${books.length === 1 ? "" : "s"}` : `${books.length} title${books.length === 1 ? "" : "s"}`}
+        </p>
+        <div className="bk-toolbar-actions">
+          <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>Add book</PrimaryButton>
+          <ActionMenu label="More catalog actions" actions={[
+            { label: "Import CSV…", onSelect: () => setImportOpen(true) },
+            { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
+            { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
+            { label: "Google indexing", onSelect: () => setIndexOpen(true) },
+          ]} />
+        </div>
+      </div>
+      <div className="bk-filters" data-open={filtersOpen}>
       <FilterBar>
         <div className="rp-grow"><SearchField label="Search books" placeholder="Search title, author, ISBN or SKU…" value={search} onChange={e => setSearch(e.target.value)} /></div>
-        <SelectField label="Publication status" hideLabel value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          {[...STATUS_FILTERS, "Pre-order", "Coming soon"].map(v => <option key={v} value={v}>{v === "All" ? "All statuses" : v}</option>)}
-        </SelectField>
-        <SelectField label="Stock" hideLabel value={stockFilter} onChange={e => setStockFilter(e.target.value)}>
-          {STOCK_FILTERS.map(v => <option key={v} value={v}>{v === "All" ? "All stock" : v}</option>)}
-          <option value="Needs review">Needs publish review</option>
-        </SelectField>
-        <SelectField label="Category" hideLabel value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
-          {categories.map(v => <option key={v} value={v}>{v === "All" ? "All categories" : v}</option>)}
-        </SelectField>
-        <SelectField label="Format" hideLabel value={formatFilter} onChange={e => setFormatFilter(e.target.value)}>
-          {formats.map(v => <option key={v} value={v}>{v === "All" ? "All formats" : v}</option>)}
-        </SelectField>
-        <SelectField label="Sort books" hideLabel value={sort} onChange={e => setSort(e.target.value as SortKey)}>
-          <option value="shop">Shop order (drag to arrange)</option>
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-          <option value="title">Title A–Z</option>
-          <option value="price-asc">Price: low to high</option>
-          <option value="price-desc">Price: high to low</option>
-          <option value="stock-asc">Stock: low to high</option>
-          <option value="stock-desc">Stock: high to low</option>
-        </SelectField>
-        <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>Add book</PrimaryButton>
-        <ActionMenu label="More catalog actions" actions={[
-          { label: "Import CSV…", onSelect: () => setImportOpen(true) },
-          { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
-          { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
-          { label: "Google indexing", onSelect: () => setIndexOpen(true) },
-        ]} />
+        <SecondaryButton className="bk-filter-toggle" icon={<SlidersHorizontal size={16} aria-hidden />} aria-expanded={filtersOpen} onClick={() => setFiltersOpen(o => !o)}>
+          {filtersOpen ? "Hide filters" : `Filters & sort${activeFilters ? ` (${activeFilters})` : ""}`}
+        </SecondaryButton>
+        <div className="bk-filter-extra">
+          <SelectField label="Publication status" hideLabel value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            {[...STATUS_FILTERS, "Pre-order", "Coming soon"].map(v => <option key={v} value={v}>{v === "All" ? "All statuses" : v}</option>)}
+          </SelectField>
+        </div>
+        <div className="bk-filter-extra">
+          <SelectField label="Stock" hideLabel value={stockFilter} onChange={e => setStockFilter(e.target.value)}>
+            {STOCK_FILTERS.map(v => <option key={v} value={v}>{v === "All" ? "All stock" : v}</option>)}
+            <option value="Needs review">Needs publish review</option>
+          </SelectField>
+        </div>
+        <div className="bk-filter-extra">
+          <SelectField label="Category" hideLabel value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+            {categories.map(v => <option key={v} value={v}>{v === "All" ? "All categories" : v}</option>)}
+          </SelectField>
+        </div>
+        <div className="bk-filter-extra">
+          <SelectField label="Format" hideLabel value={formatFilter} onChange={e => setFormatFilter(e.target.value)}>
+            {formats.map(v => <option key={v} value={v}>{v === "All" ? "All formats" : v}</option>)}
+          </SelectField>
+        </div>
+        <div className="bk-filter-extra">
+          <SelectField label="Sort books" hideLabel value={sort} onChange={e => setSort(e.target.value as SortKey)}>
+            <option value="shop">Shop order (drag to arrange)</option>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="title">Title A–Z</option>
+            <option value="price-asc">Price: low to high</option>
+            <option value="price-desc">Price: high to low</option>
+            <option value="stock-asc">Stock: low to high</option>
+            <option value="stock-desc">Stock: high to low</option>
+          </SelectField>
+        </div>
+        {filtering && <GhostButton size="sm" icon={<X size={14} aria-hidden />} onClick={resetFilters}>Clear filters</GhostButton>}
       </FilterBar>
+      </div>
 
       {selected.length > 0 && (
-        <div role="region" aria-label="Bulk actions" style={{ position: "sticky", top: 0, zIndex: 5, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", padding: 10, background: "var(--rp-surface)", border: "2px solid var(--rp-border-strong)" }}>
-          <strong>{selected.length} selected</strong>
-          {selected.length < rows.length && <SecondaryButton size="sm" onClick={() => setSelected(rows.map(b => b.id))}>Select all {rows.length} matching</SecondaryButton>}
-          <SecondaryButton size="sm" onClick={() => setSelected([])}>Clear</SecondaryButton>
-          <SecondaryButton size="sm" onClick={() => setReview("publish")}>Publish</SecondaryButton>
-          <SecondaryButton size="sm" onClick={() => setReview("draft")}>Move to draft</SecondaryButton>
-          <SecondaryButton size="sm" onClick={() => setPriceOpen(true)}>Change price</SecondaryButton>
+        <div role="region" aria-label="Bulk actions" className="bk-bulk">
+          <strong className="bk-bulk-count">{selected.length} selected</strong>
+          {selected.length < rows.length && <GhostButton size="sm" onClick={() => setSelected(rows.map(b => b.id))}>Select all {rows.length} matching</GhostButton>}
+          <GhostButton size="sm" onClick={() => setSelected([])}>Clear selection</GhostButton>
+          <span className="bk-bulk-sep" aria-hidden="true" />
+          <SecondaryButton size="sm" onClick={() => setReview("publish")}>Publish…</SecondaryButton>
+          <SecondaryButton size="sm" onClick={() => setReview("draft")}>Move to draft…</SecondaryButton>
+          <SecondaryButton size="sm" onClick={() => setPriceOpen(true)}>Change price…</SecondaryButton>
           <SecondaryButton size="sm" onClick={openBulk}>Bulk edit…</SecondaryButton>
-          <SecondaryButton size="sm" onClick={() => bulkFeature(true)}>Feature</SecondaryButton>
-          <SecondaryButton size="sm" onClick={() => bulkFeature(false)}>Unfeature</SecondaryButton>
-          <DestructiveButton size="sm" onClick={() => setConfirm({ kind: "bulk" })}>Delete</DestructiveButton>
+          <ActionMenu label="More actions for the selected books" actions={[
+            { label: "Feature on the homepage", onSelect: () => bulkFeature(true) },
+            { label: "Stop featuring", onSelect: () => bulkFeature(false) },
+            { label: `Export ${selected.length} selected…`, onSelect: () => { setExportScope("selected"); setExportOpen(true); } },
+          ]} />
+          <DestructiveButton size="sm" onClick={() => setConfirm({ kind: "bulk" })}>Delete…</DestructiveButton>
         </div>
       )}
 
-      <SectionCard flush title="Catalog" description={`${rows.length} of ${books.length} title${books.length === 1 ? "" : "s"}`}
-        actions={<Checkbox label="Select page" checked={allSelected} onChange={togglePage} />}>
+      <SectionCard flush title="Catalog" collapsible={false}
+        actions={pageRows.length > 0 ? <Checkbox label={sort === "shop" ? "Select all" : "Select page"} checked={allSelected} onChange={togglePage} /> : undefined}>
         {sort === "shop" && (
           <p className="rp-hint" role="status" style={{ padding: "8px 16px", margin: 0 }}>
             {filtering
@@ -494,9 +562,15 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
               : savingOrder ? "Saving the new order…" : "Drag a row by its grip, or use the arrows, to set the order books appear in your shop (the shop's “Featured” sort)."}
           </p>
         )}
-        <DataTable caption="Books" columns={columns} rows={pageRows} rowKey={b => b.id} rowProps={dragRow}
-          empty={<EmptyState title="No books match" description="Try clearing the search or filters."
-            action={<SecondaryButton onClick={resetFilters}>Reset filters</SecondaryButton>} />} />
+        {pageRows.length === 0 ? (
+          <EmptyState title="No books match" description="Nothing fits this search and these filters. Clear them to see every book."
+            action={<SecondaryButton onClick={resetFilters}>Clear filters</SecondaryButton>} />
+        ) : (
+          <>
+            <div className="bk-table"><DataTable caption="Books" columns={columns} rows={pageRows} rowKey={b => b.id} rowProps={dragRow} /></div>
+            {phoneCards}
+          </>
+        )}
         {rows.length > pageSize && <Pagination page={cur} pageCount={pageCount} onPage={setPage} />}
       </SectionCard>
 

@@ -7,6 +7,12 @@ import { APP_UPDATES, type AppUpdate } from "./appUpdates";
 type UpdateLink = AppUpdate["links"][number];
 const SEEN_KEY = "lm:whats-new-seen";
 
+/** "2026-10-19" → "19 Oct 2026" (the reader's own date style); anything else is shown as written. */
+function friendlyDate(date: string): string {
+  const d = new Date(`${date}T12:00:00`);
+  return isNaN(d.getTime()) ? date : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
 function seenId(): string {
   try { return localStorage.getItem(SEEN_KEY) || ""; } catch { return ""; }
 }
@@ -23,9 +29,10 @@ export function WhatsNew({ onNavigate, onHistoryOpen, appearance }: { onNavigate
     setUnread(false);
     try { if (latest) localStorage.setItem(SEEN_KEY, latest.id); } catch { /* private window: the dot just comes back */ }
   };
-  const entry = (update: AppUpdate) => (
+  const entry = (update: AppUpdate, index: number) => (
     <article className="rp-update-entry" key={update.id}>
-      <time dateTime={update.date}>{update.date}</time>
+      <time dateTime={update.date}>{friendlyDate(update.date)}</time>
+      {index === 0 && <span className="rp-update-new">Latest</span>}
       <h3>{update.title}</h3>
       <p>{update.summary}</p>
       <div className="rp-update-links">
@@ -43,7 +50,7 @@ export function WhatsNew({ onNavigate, onHistoryOpen, appearance }: { onNavigate
       </span>
       <ChevronRight size={14} aria-hidden />
     </button>
-    {createPortal(<Dialog appearance={appearance} open={open} onClose={() => setOpen(false)} title="What's new" description="App changes and shortcuts to try them.">
+    {createPortal(<Dialog appearance={appearance} open={open} onClose={() => setOpen(false)} title="What's new" description="What changed in your admin, newest first. Each note has a shortcut to try it.">
       {APP_UPDATES.map(entry)}
     </Dialog>, document.body)}
   </>;

@@ -39,7 +39,7 @@ import {
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { POLICY_KEYS, POLICY_TITLES, policySlug, type PolicyKey } from "../features/site/policyPages";
-import { Checkbox, ConfirmDialog, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, MetricCard, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SectionHead, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
+import { Checkbox, ConfirmDialog, LoadingState, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, MetricCard, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SectionHead, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
 import { motion, AnimatePresence } from "motion/react";
 import { NotificationEditor } from "./NotificationEditor";
 import { COUNTRIES, CONTINENTS, describeZoneGeography } from "../features/site/shippingZones";
@@ -61,10 +61,9 @@ import { saveSectionsInOrder } from "./settingsSave";
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
 import { useSettingsDirty } from "./settingsDirty";
+import { HowTo, SettingsAnchor, SettingsContents, SettingsGroup, friendlyError, type ContentsGroup } from "./settingsLayout";
 import { testSaleSteps } from "./testSaleWalkthrough";
 import { studioHash } from "../lib/studioLocation";
-
-const PURPLE = "#A855F7";
 
 export function ShopSettings({ 
   activeTab, 
@@ -114,12 +113,7 @@ export function ShopSettings({
     return JSON.stringify(settings[section]) !== JSON.stringify(originalSettings[section]);
   };
 
-  if (settingsLoading) return (
-    <div className="h-96 flex flex-col items-center justify-center gap-6">
-      <div className="w-12 h-12 border-2 border-violet-500/10 border-t-violet-500 rounded-full animate-spin" />
-      <p className="text-[10px] tracking-[0.4em] text-slate-500 font-black uppercase">Retrieving System Config</p>
-    </div>
-  );
+  if (settingsLoading) return <LoadingState label="Loading your shop settings…" />;
 
   if (!settings) return <ErrorState title="Settings unavailable" description="Store settings could not be loaded. Check your connection, then reload this page." />;
 
@@ -184,133 +178,170 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const maintenanceOn = !!settings.maintenance?.enabled;
   const name = settings.info?.name || "";
   const desc = settings.info?.description || "";
+  const statusWord = settings.design?.showUnderConstruction ? "construction wall" : maintenanceOn ? "checkout paused" : "open";
+  const contents: ContentsGroup[] = [
+    { id: "gs-store", title: "Shop status & checkout", items: [
+      { id: "gs-status", label: "Store status", unsaved: hasChanges("maintenance"), note: statusWord },
+      { id: "gs-holds", label: "Checkout stock holds", unsaved: hasChanges("stockHolds") },
+    ] },
+    { id: "gs-details", title: "Shop details", items: [
+      { id: "gs-identity", label: "Store identity", unsaved: hasChanges("info") },
+      { id: "gs-location", label: "Location", unsaved: hasChanges("location") },
+      { id: "gs-policies", label: "Store policies", unsaved: hasChanges("policies") },
+      { id: "gs-domain", label: "Domain & visibility", unsaved: hasChanges("domain") },
+    ] },
+    { id: "gs-visitors", title: "Visitors & Google", items: [
+      { id: "gs-own-visits", label: "Your own visits" },
+      { id: "gs-analytics", label: "Google Analytics" },
+      { id: "gs-search-console", label: "Google Search Console" },
+      { id: "gs-redirects", label: "URL redirects" },
+    ] },
+    { id: "gs-tools", title: "Tools & records", items: [
+      { id: "gs-ai", label: "AI writing assistant" },
+      { id: "gs-privacy", label: "Privacy requests" },
+      { id: "gs-backups", label: "Backups & export" },
+    ] },
+  ];
 
   return (
     <div className="rp-stack">
-      <SectionCard title="Store status" description="What shoppers can do right now. One choice covers both ways of closing the shop.">
-        {(() => {
-          const wall = !!settings.design?.showUnderConstruction;
-          const status = wall ? "construction" : maintenanceOn ? "maintenance" : "open";
-          const choose = async (next: string) => {
-            if (next === status) return;
-            // The wall is published straight away (same switch as the top bar); maintenance waits for Save.
-            if (next === "construction") { await onUnderConstruction?.(true); return; }
-            // `false` = the owner cancelled taking the wall down; stop without touching maintenance.
-            if (wall && (await onUnderConstruction?.(false)) === false) return;
-            if (next === "maintenance") setConfirmMaintenance(true);
-            else set("maintenance", { enabled: false });
-          };
-          const options = [
-            { id: "open", label: "Open", hint: "Shoppers can browse and buy." },
-            { id: "maintenance", label: "Maintenance — checkout paused", hint: "Shoppers can browse, but the server refuses new checkouts and the storefront shows your message. Applies when you save." },
-            { id: "construction", label: "Under construction wall", hint: "Shoppers see the “under construction” page instead of the shop. Applies straight away (same as the top-bar switch)." },
-          ];
-          return (
-            <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-              <legend className="rp-sr-only">Store status</legend>
-              <div style={{ marginBottom: 12 }}>
-                <StatusBadge tone={status === "open" ? "success" : "warning"}>{status === "open" ? "Storefront live" : status === "maintenance" ? "Checkout paused" : "Behind construction wall"}</StatusBadge>
-                {settings.domain?.custom && <span className="rp-hint" style={{ marginLeft: 12 }}>Domain: {settings.domain.custom}</span>}
+      <SettingsContents groups={contents} />
+
+      <SettingsGroup id="gs-store" title="Shop status & checkout" subcopy="Whether shoppers can buy right now, and how many copies one person can hold while paying.">
+        <SettingsAnchor id="gs-status">
+          <SectionCard title="Store status" description="What shoppers can do right now. One choice covers both ways of closing the shop.">
+            {(() => {
+              const wall = !!settings.design?.showUnderConstruction;
+              const status = wall ? "construction" : maintenanceOn ? "maintenance" : "open";
+              const choose = async (next: string) => {
+                if (next === status) return;
+                // The wall is published straight away (same switch as the top bar); maintenance waits for Save.
+                if (next === "construction") { await onUnderConstruction?.(true); return; }
+                // `false` = the owner cancelled taking the wall down; stop without touching maintenance.
+                if (wall && (await onUnderConstruction?.(false)) === false) return;
+                if (next === "maintenance") setConfirmMaintenance(true);
+                else set("maintenance", { enabled: false });
+              };
+              const options = [
+                { id: "open", label: "Open", hint: "Shoppers can browse and buy." },
+                { id: "maintenance", label: "Maintenance — checkout paused", hint: "Shoppers can browse, but the server refuses new checkouts and the storefront shows your message. Applies when you save." },
+                { id: "construction", label: "Under construction wall", hint: "Shoppers see the “under construction” page instead of the shop. Applies straight away (same as the top-bar switch)." },
+              ];
+              return (
+                <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+                  <legend className="rp-sr-only">Store status</legend>
+                  <div style={{ marginBottom: 12 }}>
+                    <StatusBadge tone={status === "open" ? "success" : "warning"}>{status === "open" ? "Storefront live" : status === "maintenance" ? "Checkout paused" : "Behind construction wall"}</StatusBadge>
+                    {settings.domain?.custom && <span className="rp-hint" style={{ marginLeft: 12 }}>Domain: {settings.domain.custom}</span>}
+                  </div>
+                  <div className="rp-stack" style={{ gap: 8 }}>
+                    {options.map((o) => (
+                      <label key={o.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
+                        <input type="radio" name="store-status" value={o.id} checked={status === o.id} onChange={() => void choose(o.id)} style={{ marginTop: 4, accentColor: "var(--rp-primary)" }} />
+                        <span><strong>{o.label}</strong><span className="rp-hint" style={{ display: "block" }}>{o.hint}</span></span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              );
+            })()}
+            {maintenanceOn && (
+              <div style={{ marginTop: 16 }}>
+                <TextField label="Maintenance message" value={settings.maintenance?.message || ""}
+                  placeholder="We are updating our archive. Please check back soon." onChange={(e) => set("maintenance", { message: e.target.value })} />
               </div>
-              <div className="rp-stack" style={{ gap: 8 }}>
-                {options.map((o) => (
-                  <label key={o.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
-                    <input type="radio" name="store-status" value={o.id} checked={status === o.id} onChange={() => void choose(o.id)} style={{ marginTop: 4, accentColor: "var(--rp-primary)" }} />
-                    <span><strong>{o.label}</strong><span className="rp-hint" style={{ display: "block" }}>{o.hint}</span></span>
-                  </label>
-                ))}
+            )}
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="gs-holds">
+          <SectionCard title="Checkout stock holds" description="While someone checks out, their copies are set aside for 30 minutes. These limits stop one person from tying up your whole catalogue. Raise them for a school, library or bookshop that orders in bulk.">
+            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+              {([
+                { key: "perBook", label: "Most copies of one book", hint: "Per shopper, across their open checkouts. Default 10.", max: 99, placeholder: "10" },
+                { key: "units", label: "Most copies in total", hint: "All books together. Default 50.", max: 2000, placeholder: "50" },
+                { key: "orders", label: "Most open checkouts", hint: "Unpaid orders one shopper can have at once. Default 3.", max: 50, placeholder: "3" },
+              ] as const).map((f) => (
+                <TextField key={f.key} label={f.label} type="number" min={1} max={f.max} hint={f.hint} placeholder={`${f.placeholder} (default)`}
+                  value={String(settings.stockHolds?.[f.key] ?? "")}
+                  onChange={(e) => set("stockHolds", { [f.key]: e.target.value === "" ? "" : Math.max(0, Math.floor(Number(e.target.value))) })} />
+              ))}
+            </div>
+            <p className="rp-hint" style={{ marginTop: 12 }}>Shoppers over these limits see a warning in their bag before they pay. Copies of e-books and books you sell without tracking stock never count. A shared connection (a school or office) may hold about twice as many in total.</p>
+          </SectionCard>
+        </SettingsAnchor>
+      </SettingsGroup>
+
+      <SettingsGroup id="gs-details" title="Shop details" subcopy="Your name, contact details, address and the policies linked from the shop footer.">
+        <SettingsAnchor id="gs-identity">
+          <SectionCard title="Store identity" description="Your publisher name, description and contact details.">
+            <div className="rp-stack" style={{ gap: 20 }}>
+              <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+                <TextField label="Publisher name" value={name} maxLength={100} hint={`${name.length} / 100 characters`} onChange={(e) => set("info", { name: e.target.value })} />
+                <TextField label="Contact email" type="email" value={settings.info?.email || ""} placeholder="hello@lyricalmyricalbooks.com" onChange={(e) => set("info", { email: e.target.value })} />
               </div>
-            </fieldset>
-          );
-        })()}
-        {maintenanceOn && (
-          <div style={{ marginTop: 16 }}>
-            <TextField label="Maintenance message" value={settings.maintenance?.message || ""}
-              placeholder="We are updating our archive. Please check back soon." onChange={(e) => set("maintenance", { message: e.target.value })} />
-          </div>
-        )}
-      </SectionCard>
-
-      <SectionCard title="Checkout stock holds" description="While someone checks out, their copies are set aside for 30 minutes. These limits stop one person from tying up your whole catalogue. Raise them for a school, library or bookshop that orders in bulk.">
-        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-          {([
-            { key: "perBook", label: "Most copies of one book", hint: "Per shopper, across their open checkouts. Default 10.", max: 99 },
-            { key: "units", label: "Most copies in total", hint: "All books together. Default 50.", max: 2000 },
-            { key: "orders", label: "Most open checkouts", hint: "Unpaid orders one shopper can have at once. Default 3.", max: 50 },
-          ] as const).map((f) => (
-            <TextField key={f.key} label={f.label} type="number" min={1} max={f.max} hint={f.hint}
-              value={String(settings.stockHolds?.[f.key] ?? "")}
-              onChange={(e) => set("stockHolds", { [f.key]: e.target.value === "" ? "" : Math.max(0, Math.floor(Number(e.target.value))) })} />
-          ))}
-        </div>
-        <p className="rp-hint" style={{ marginTop: 12 }}>Shoppers over these limits see a warning in their bag before they pay. Copies of e-books and books you sell without tracking stock never count. A shared connection (a school or office) may hold about twice as many in total.</p>
-      </SectionCard>
-
-      <SectionCard title="Store identity" description="Your publisher name, description and contact details.">
-        <div className="rp-stack" style={{ gap: 20 }}>
-          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-            <TextField label="Publisher name" value={name} maxLength={100} hint={`${name.length} / 100 characters`} onChange={(e) => set("info", { name: e.target.value })} />
-            <TextField label="Contact email" type="email" value={settings.info?.email || ""} placeholder="hello@lyricalmyricalbooks.com" onChange={(e) => set("info", { email: e.target.value })} />
-          </div>
-          <TextArea label="Publisher description" rows={4} value={desc} maxLength={150} hint={`${desc.length} / 150 characters — shown in search results and social previews`} onChange={(e) => set("info", { description: e.target.value })} />
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Domain & visibility" description="Where customers find the store.">
-        <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="lyricalmyricalbooks.com"
-          hint="A label for your records only — typing here doesn't move the shop. The switch is done by connecting the domain in Firebase Hosting and setting the SITE_URL repository variable (step-by-step guide: docs/CUSTOM_DOMAIN.md). The shop's checkout code already accepts lyricalmyricalbooks.com and www.lyricalmyricalbooks.com."
-          onChange={(e) => set("domain", { custom: e.target.value })} />
-      </SectionCard>
-
-      <SectionCard title="Location" description="Main office and shipping origin.">
-        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-          <div style={{ gridColumn: "1 / -1" }}>
-            <TextField label="Street address" value={settings.location?.street || ""} placeholder="456 Montrose Avenue" onChange={(e) => set("location", { street: e.target.value })} />
-          </div>
-          <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
-          <TextField label="State / province" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
-          <TextField label="Postal code" value={settings.location?.zip || ""} placeholder="M6G 3H1" autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />
-          <SelectField label="Country" value={settings.location?.country || "Canada"} onChange={(e) => set("location", { country: e.target.value })}>
-            {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
-          </SelectField>
-          <TextField label="Phone" type="tel" value={settings.location?.phone || ""} placeholder="647 409 6863" autoComplete="tel"
-            hint="Printed on shipping labels; carriers call it about delivery problems." onChange={(e) => set("location", { phone: e.target.value })} />
-        </div>
-        <p className="rp-hint" style={{ margin: "12px 0 0" }}>Shipping labels and live carrier rates use this as the “from” address. Blank fields keep the original Toronto address.</p>
-      </SectionCard>
-
-      <SectionCard title="Store policies" description="Shown in the storefront footer as links to public pages. A policy with no text is hidden. Card networks expect shipping and returns terms.">
-        <div className="rp-stack" style={{ gap: 20 }}>
-          {POLICY_KEYS.map((k) => {
-            const text: string = settings.policies?.[k] || "";
-            return (
-              <div key={k}>
-                <TextArea label={POLICY_TITLES[k]} rows={5} maxLength={20000} value={text}
-                  hint={text.trim() ? `Public at /page/${policySlug(k)} · blank line = new paragraph` : "Not published yet. Leave blank to hide the footer link."}
-                  onChange={(e) => set("policies", { [k]: e.target.value })} />
-                {!text.trim() && (
-                  <SecondaryButton size="sm" onClick={() => set("policies", { [k]: POLICY_STARTERS[k] })}>Insert starter text</SecondaryButton>
-                )}
+              <TextArea label="Publisher description" rows={4} value={desc} maxLength={150} hint={`${desc.length} / 150 characters — shown in search results and social previews`} onChange={(e) => set("info", { description: e.target.value })} />
+            </div>
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="gs-location">
+          <SectionCard title="Location" description="Main office and shipping origin.">
+            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <TextField label="Street address" value={settings.location?.street || ""} placeholder="456 Montrose Avenue" onChange={(e) => set("location", { street: e.target.value })} />
               </div>
-            );
-          })}
-          <p className="rp-hint" style={{ margin: 0 }}>Starter text is a plain-language outline, not legal advice — edit it to match how you actually operate.</p>
-        </div>
-      </SectionCard>
+              <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
+              <TextField label="State / province" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
+              <TextField label="Postal code" value={settings.location?.zip || ""} placeholder="M6G 3H1" autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />
+              <SelectField label="Country" value={settings.location?.country || "Canada"} onChange={(e) => set("location", { country: e.target.value })}>
+                {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
+              </SelectField>
+              <TextField label="Phone" type="tel" value={settings.location?.phone || ""} placeholder="647 409 6863" autoComplete="tel"
+                hint="Printed on shipping labels; carriers call it about delivery problems." onChange={(e) => set("location", { phone: e.target.value })} />
+            </div>
+            <p className="rp-hint" style={{ margin: "12px 0 0" }}>Shipping labels and live carrier rates use this as the “from” address. Blank fields keep the original Toronto address.</p>
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="gs-policies">
+          <SectionCard title="Store policies" description="Shown in the storefront footer as links to public pages. A policy with no text is hidden. Card networks expect shipping and returns terms.">
+            <div className="rp-stack" style={{ gap: 20 }}>
+              {POLICY_KEYS.map((k) => {
+                const text: string = settings.policies?.[k] || "";
+                return (
+                  <div key={k}>
+                    <TextArea label={POLICY_TITLES[k]} rows={5} maxLength={20000} value={text}
+                      hint={text.trim() ? `Public at /page/${policySlug(k)} · blank line = new paragraph` : "Not published yet. Leave blank to hide the footer link."}
+                      onChange={(e) => set("policies", { [k]: e.target.value })} />
+                    {!text.trim() && (
+                      <SecondaryButton size="sm" onClick={() => set("policies", { [k]: POLICY_STARTERS[k] })}>Insert starter text</SecondaryButton>
+                    )}
+                  </div>
+                );
+              })}
+              <p className="rp-hint" style={{ margin: 0 }}>Starter text is a plain-language outline, not legal advice — edit it to match how you actually operate.</p>
+            </div>
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="gs-domain">
+          <SectionCard title="Domain & visibility" description="Where customers find the store.">
+            <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="lyricalmyricalbooks.com"
+              hint="A note for your records only: typing here doesn't move the shop. Moving the shop to your own domain is a one-time technical step done outside this page (step-by-step guide: docs/CUSTOM_DOMAIN.md in the shop's code). Checkout already accepts lyricalmyricalbooks.com and www.lyricalmyricalbooks.com."
+              onChange={(e) => set("domain", { custom: e.target.value })} />
+          </SectionCard>
+        </SettingsAnchor>
+      </SettingsGroup>
 
-      <RedirectsCard />
+      <SettingsGroup id="gs-visitors" title="Visitors & Google" subcopy="Who is counted, Google Analytics and Search Console, and sending old web addresses to new ones.">
+        <SettingsAnchor id="gs-own-visits"><OwnVisitsCard /></SettingsAnchor>
+        <SettingsAnchor id="gs-analytics"><GoogleAnalyticsCard /></SettingsAnchor>
+        <SettingsAnchor id="gs-search-console"><SearchConsoleCard /></SettingsAnchor>
+        <SettingsAnchor id="gs-redirects"><RedirectsCard /></SettingsAnchor>
+      </SettingsGroup>
 
-      <OwnVisitsCard />
-
-      <GoogleAnalyticsCard />
-
-      <SearchConsoleCard />
-
-      <AiWriterCard />
-
-      <PrivacyRequestsCard />
-
-      <BackupsExportCard />
+      <SettingsGroup id="gs-tools" title="Tools & records" subcopy="Writing help, customers' privacy requests, and backups of everything in the shop.">
+        <SettingsAnchor id="gs-ai"><AiWriterCard /></SettingsAnchor>
+        <SettingsAnchor id="gs-privacy"><PrivacyRequestsCard /></SettingsAnchor>
+        <SettingsAnchor id="gs-backups"><BackupsExportCard /></SettingsAnchor>
+      </SettingsGroup>
 
       <SaveBar dirty={dirty.length > 0} saving={!!savingSection} onSave={saveAll} onDiscard={discard}
         message={`Unsaved changes in ${dirty.map((k) => GENERAL_SECTION_TITLES[k] || k).join(", ")}.`} />
@@ -440,7 +471,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
     try {
       setShippoConfig(await adminApi.getShippoConfig());
     } catch (err: any) {
-      setShippoMessage({ type: "error", text: err.message || "Could not load Shippo settings." });
+      setShippoMessage({ type: "error", text: friendlyError(err, "load the Shippo settings") });
     } finally {
       setShippoLoading(false);
     }
@@ -463,7 +494,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
       setShowShippoApiKey(false);
       setShippoMessage({ type: "success", text: `Shippo accepted the key. Saved as a ${config?.mode === "test" ? "TEST" : "LIVE"} key.` });
     } catch (err: any) {
-      setShippoMessage({ type: "error", text: err.message || "Could not save the Shippo API key." });
+      setShippoMessage({ type: "error", text: friendlyError(err, "save the Shippo API key") });
     } finally {
       setShippoSaving(false);
     }
@@ -497,7 +528,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
       refreshProfiles();
       handleSelectProfile(newProf);
     } catch {
-      toast.error("Error creating shipping profile");
+      toast.error("Couldn't create the shipping profile. Check your connection and try again.");
     } finally {
       setCreatingProfile(false);
     }
@@ -516,7 +547,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
       setSelectedProfileId(null);
       setEditingProfile(null);
     } catch {
-      toast.error("Error deleting shipping profile");
+      toast.error("Couldn't delete the shipping profile. Nothing was changed; try again.");
     }
   };
 
@@ -567,7 +598,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
       refreshProfiles();
       setIsProductModalOpen(false);
     } catch {
-      toast.error("Error updating product assignments");
+      toast.error("Couldn't save which books use this profile. Nothing was changed; try again.");
     } finally {
       setSavingProducts(false);
     }
@@ -869,7 +900,8 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
 
   // An open profile with unsaved zone/rate edits blocks leaving Settings (settingsDirty.ts).
   const savedProfile = editingProfile ? profiles.find((p: any) => p.id === editingProfile.id) : null;
-  useSettingsDirty("shipping-profile", !!(savedProfile && editingProfile && JSON.stringify(savedProfile) !== JSON.stringify(editingProfile)));
+  const profileDirty = !!(savedProfile && editingProfile && JSON.stringify(savedProfile) !== JSON.stringify(editingProfile));
+  useSettingsDirty("shipping-profile", profileDirty);
 
   // ─── Profiles list ──────────────────────────────────────────────────────────
   if (selectedProfileId === null || !editingProfile) {
@@ -945,7 +977,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
                     setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
                     toast.success(enabled ? "Dynamic shipping rates enabled" : "Dynamic shipping rates disabled");
                   } catch (err: any) {
-                    toast.error(err.message || "Failed to update Shippo settings");
+                    toast.error(friendlyError(err, "change live carrier rates"));
                   }
                 }} />
               {shippoConfig?.dynamicRatesEnabled && (
@@ -975,7 +1007,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
                           } catch (err: any) {
                             liveCountriesRef.current = current;
                             setShippoConfig((prev: any) => ({ ...prev, dynamicRateCountries: current }));
-                            toast.error(err.message || "Failed to update live-rate countries");
+                            toast.error(friendlyError(err, `update live rates for ${country.name}`));
                           }
                         }} />
                       );
@@ -1129,7 +1161,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
             </span>
           }>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }} aria-label={`Countries in ${z.name}`}>
-            {z.countries.map((c: string) => <StatusBadge key={c}>{c}</StatusBadge>)}
+            {z.countries.map((c: string) => <StatusBadge key={c}>{countryName(c)}</StatusBadge>)}
           </div>
           <div className="rp-sect">Rates</div>
           {(!z.rates || z.rates.length === 0) ? (
@@ -1164,6 +1196,9 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
           <div className="rp-card-actions"><span /><SecondaryButton size="sm" onClick={() => openRateModal(z.id)}>+ Add rate</SecondaryButton></div>
         </SectionCard>
       ))}
+
+      <SaveBar dirty={profileDirty} saving={savingProfile} message={`Unsaved changes to “${editingProfile.name || "this profile"}”.`}
+        onSave={handleSaveProfile} onDiscard={() => { if (savedProfile) setEditingProfile(JSON.parse(JSON.stringify(savedProfile))); }} />
 
       {dialogs}
       {confirmNode}
@@ -1200,9 +1235,9 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications }: an
       {failed.length > 0 && <p role="alert" className="rp-hint" style={{ marginTop: 0, color: "var(--rp-danger)" }}>Couldn't read the {failed.join(", ")} — steps that depend on {failed.length === 1 ? "it" : "them"} are unknown, not necessarily undone. Press Check again.</p>}
       <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }} aria-label="Test sale steps">
         {steps.map((st, i) => (
-          <li key={st.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 0", borderTop: i ? "1px solid var(--rp-divider)" : undefined }}>
-            <StatusBadge tone={st.done ? "success" : "neutral"}>{st.done ? "✓ Done" : `Step ${i + 1}`}</StatusBadge>
-            <span style={{ flex: 1, minWidth: 0 }}><strong>{st.label}</strong><span className="rp-hint" style={{ display: "block" }}>{st.howTo}</span></span>
+          <li key={st.id} style={{ display: "flex", flexWrap: "wrap", gap: "8px 12px", alignItems: "flex-start", padding: "8px 0", borderTop: i ? "1px solid var(--rp-divider)" : undefined }}>
+            <StatusBadge tone={st.done ? "success" : "neutral"}>{st.done ? "Done" : `Step ${i + 1}`}</StatusBadge>
+            <span style={{ flex: "1 1 220px", minWidth: 0 }}><strong>{st.label}</strong><span className="rp-hint" style={{ display: "block" }}>{st.howTo}</span></span>
             {!st.done && <SecondaryButton size="sm" onClick={() => go(st.link)}>{st.link === "orders" ? "Open Orders" : st.link === "notifications" ? "Open Email sender" : st.link === "storefront" ? "Open shop ↗" : "Show me"}</SecondaryButton>}
           </li>
         ))}
@@ -1244,7 +1279,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
       setSecretFieldsKey((k) => k + 1);
       toast.success(`Stored ${mode} secret key removed`);
     } catch (err: any) {
-      toast.error(err.message || "Couldn't remove the key");
+      toast.error(friendlyError(err, "remove the key"));
     } finally {
       setRemovingKey(null);
     }
@@ -1264,7 +1299,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
       setSecretFieldsKey((k) => k + 1);
       toast.success(`Stored ${mode} PayPal secret removed`);
     } catch (err: any) {
-      toast.error(err.message || "Couldn't remove the secret");
+      toast.error(friendlyError(err, "remove the secret"));
     } finally {
       setRemovingPaypal(null);
     }
@@ -1392,6 +1427,24 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
   const secretStored = !!(stripe.secretKey || stripe.testSecretKey || stripe.secretKeyStored || stripe.testSecretKeyStored);
   const paymentIssues = useMemo(() => paymentHealth(settings.payments), [settings.payments]);
 
+  const blockingCount = paymentIssues.filter((i) => i.severity === "blocking").length;
+  const contents: ContentsGroup[] = [
+    { id: "pay-status", title: "Ready to take payments?", items: [
+      { id: "pay-overview", label: "Payment overview", note: blockingCount ? `${blockingCount} to fix` : testMode ? "test mode" : "live" },
+      { id: "pay-test", label: "Test sale walkthrough" },
+    ] },
+    { id: "pay-methods", title: "Ways to pay", items: [
+      { id: "pay-stripe", label: "Stripe (cards, Apple Pay, Google Pay)", note: stripeLive ? "on" : "off" },
+      { id: "pay-paypal", label: "PayPal", note: paypalLive ? "on" : "off" },
+      { id: "pay-manual", label: "Manual payment methods", note: `${enabledManual.length} on` },
+    ] },
+    { id: "pay-more", title: "On the shop & related settings", items: [
+      { id: "pay-icons", label: "Footer payment icons" },
+      { id: "pay-currency", label: "Currency" },
+      { id: "pay-shippo", label: "Shippo (shipping labels)" },
+    ] },
+  ];
+
   const removeMethod = async (m: any) => {
     if (!(await askConfirm({ title: "Delete this payment method?", message: `“${m.name}” will no longer be offered at checkout once you save.`, confirmLabel: "Delete method" }))) return;
     handleDeleteMethod(m.id);
@@ -1399,178 +1452,197 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
 
   return (
     <div className="rp-stack" id="payments-top">
-      <SectionCard title="Payment overview" description="What customers can pay with right now.">
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          <StatusBadge tone={testMode ? "warning" : "success"}>{testMode ? "Test mode — no real charges" : "Live mode"}</StatusBadge>
-          <StatusBadge tone={stripeLive ? "success" : "neutral"}>Stripe {stripeLive ? "on" : "off"}</StatusBadge>
-          <StatusBadge tone={paypalLive ? "success" : "neutral"}>PayPal {paypalLive ? "on" : "off"}</StatusBadge>
-          <StatusBadge tone={enabledManual.length ? "info" : "neutral"}>{enabledManual.length} manual method{enabledManual.length === 1 ? "" : "s"}</StatusBadge>
-          {!stripeLive && !paypalLive && enabledManual.length === 0 && <StatusBadge tone="danger">No way to pay is enabled</StatusBadge>}
-        </div>
-        <p className="rp-hint" style={{ margin: "12px 0 0" }}>
-          The amount charged is always calculated by the payment server, never in the browser. Orders are created unpaid and are marked paid only when the Stripe webhook confirms the payment.
-        </p>
-        {paymentIssues.length === 0 ? (
-          <p role="status" style={{ padding: 12, background: "var(--rp-success-tint)", color: "var(--rp-success)", border: "1px solid var(--rp-success)" }}><strong>✓ Payment configuration is launch-ready.</strong></p>
-        ) : (
-          <ul className="rp-list" aria-label="Payment readiness issues" style={{ marginTop: 16, border: "1px solid var(--rp-border)" }}>
-            {paymentIssues.map((issue) => <li key={issue.id} style={{ padding: 12 }}><StatusBadge tone={issue.severity === "blocking" ? "danger" : "warning"}>{issue.severity}</StatusBadge> <strong style={{ marginLeft: 8 }}>{issue.label}</strong><span className="rp-hint" style={{ display: "block", marginTop: 4 }}>{issue.detail}</span></li>)}
-          </ul>
-        )}
-        <div className="rp-card-actions">
-          <Toggle label="Test (sandbox) mode" checked={!!testMode} onChange={updateTestMode} />
-          <span className="rp-hint">In test mode Stripe and PayPal process test charges and orders are flagged as test orders.</span>
-        </div>
-      </SectionCard>
+      <SettingsContents groups={contents} />
 
-      <TestSaleWalkthrough payments={originalSettings?.payments} onOpenOrders={onOpenOrders} onOpenNotifications={onOpenNotifications} />
+      <SettingsGroup id="pay-status" title="Ready to take payments?" subcopy="What shoppers can pay with now, anything blocking checkout, and a rehearsal of one complete sale.">
+        <SettingsAnchor id="pay-overview">
+          <SectionCard title="Payment overview" description="What customers can pay with right now.">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <StatusBadge tone={testMode ? "warning" : "success"}>{testMode ? "Test mode — no real charges" : "Live mode"}</StatusBadge>
+              <StatusBadge tone={stripeLive ? "success" : "neutral"}>Stripe {stripeLive ? "on" : "off"}</StatusBadge>
+              <StatusBadge tone={paypalLive ? "success" : "neutral"}>PayPal {paypalLive ? "on" : "off"}</StatusBadge>
+              <StatusBadge tone={enabledManual.length ? "info" : "neutral"}>{enabledManual.length} manual method{enabledManual.length === 1 ? "" : "s"}</StatusBadge>
+              {!stripeLive && !paypalLive && enabledManual.length === 0 && <StatusBadge tone="danger">No way to pay is enabled</StatusBadge>}
+            </div>
+            <p className="rp-hint" style={{ margin: "12px 0 0" }}>
+              The amount charged is always calculated by the payment server, never in the browser. Orders are created unpaid and are marked paid only when the Stripe webhook confirms the payment.
+            </p>
+            {paymentIssues.length === 0 ? (
+              <p role="status" style={{ padding: 12, background: "var(--rp-success-tint)", color: "var(--rp-success)", border: "1px solid var(--rp-success)" }}><strong>✓ Payment configuration is launch-ready.</strong></p>
+            ) : (
+              <ul className="rp-list" aria-label="Payment readiness issues" style={{ marginTop: 16, border: "1px solid var(--rp-border)" }}>
+                {paymentIssues.map((issue) => <li key={issue.id} style={{ padding: 12 }}><StatusBadge tone={issue.severity === "blocking" ? "danger" : "warning"}>{issue.severity === "blocking" ? "Must fix" : "Worth checking"}</StatusBadge> <strong style={{ marginLeft: 8 }}>{issue.label}</strong><span className="rp-hint" style={{ display: "block", marginTop: 4 }}>{issue.detail}</span></li>)}
+              </ul>
+            )}
+            <div className="rp-card-actions">
+              <Toggle label="Test (sandbox) mode" checked={!!testMode} onChange={updateTestMode} />
+              <span className="rp-hint">In test mode Stripe and PayPal process test charges and orders are flagged as test orders.</span>
+            </div>
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="pay-test">
+          <TestSaleWalkthrough payments={originalSettings?.payments} onOpenOrders={onOpenOrders} onOpenNotifications={onOpenNotifications} />
+        </SettingsAnchor>
+      </SettingsGroup>
 
-      <SectionCard title="Stripe" description="Accept credit and debit cards, Apple Pay and Google Pay."
-        actions={<SecondaryButton size="sm" onClick={() => window.open("https://dashboard.stripe.com", "_blank", "noopener")}>Stripe dashboard ↗</SecondaryButton>}>
-        <div className="rp-stack" style={{ gap: 20 }}>
-          <Toggle label="Stripe checkout" checked={!!stripe.connected} onChange={(v) => updateStripe({ connected: v })} />
-          {stripe.connected && (
-            <>
-              {secretStored && (
-                <div style={{ padding: 16, background: "var(--rp-warning-tint)", border: "2px solid var(--rp-border-strong)" }}>
-                  <strong>🔒 Secret key stored privately.</strong>{" "}
-                  Secret keys are kept in an admin-only store the storefront cannot read.
-                  {stripe.keysWerePublic && " A key was once saved where the storefront could read it and has since been moved — rotate it in the Stripe Dashboard to be safe."}
+      <SettingsGroup id="pay-methods" title="Ways to pay" subcopy="Cards and wallets through Stripe, PayPal, and payments you collect yourself (e-Transfer, cash).">
+        <SettingsAnchor id="pay-stripe">
+          <SectionCard title="Stripe" description="Accept credit and debit cards, Apple Pay and Google Pay."
+            actions={<SecondaryButton size="sm" onClick={() => window.open("https://dashboard.stripe.com", "_blank", "noopener")}>Stripe dashboard ↗</SecondaryButton>}>
+            <div className="rp-stack" style={{ gap: 20 }}>
+              <Toggle label="Stripe checkout" checked={!!stripe.connected} onChange={(v) => updateStripe({ connected: v })} />
+              {stripe.connected && (
+                <>
+                  {secretStored && (
+                    <div style={{ padding: 16, background: "var(--rp-warning-tint)", border: "2px solid var(--rp-border-strong)" }}>
+                      <strong>🔒 Secret key stored privately.</strong>{" "}
+                      Secret keys are kept in an admin-only store the storefront cannot read.
+                      {stripe.keysWerePublic && " A key was once saved where the storefront could read it and has since been moved — rotate it in the Stripe Dashboard to be safe."}
+                    </div>
+                  )}
+                  <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+                    <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 0.75 : 1 }}>
+                      <div className="rp-sect">Live keys {!testMode && "· in use"}</div>
+                      <div className="rp-stack" style={{ gap: 12 }}>
+                        <TextField label="Publishable key" placeholder="pk_live_…" spellCheck={false} value={stripe.publicKey || ""} onChange={(e) => updateStripe({ publicKey: e.target.value })} />
+                        <SecretField key={`live-${secretFieldsKey}`} label="Secret key" placeholder="sk_live_…" stored={!!stripe.secretKeyStored}
+                          validate={(v) => stripeSecretKeyProblem(v, "live")} onCommit={(v) => updateStripe({ secretKey: v })}
+                          onRemove={stripe.secretKeyStored ? () => removeStoredKey("live") : undefined} removing={removingKey === "live"} />
+                      </div>
+                    </div>
+                    <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 1 : 0.75 }}>
+                      <div className="rp-sect">Test keys {testMode && "· in use"}</div>
+                      <div className="rp-stack" style={{ gap: 12 }}>
+                        <TextField label="Test publishable key" placeholder="pk_test_…" spellCheck={false} value={stripe.testPublicKey || ""} onChange={(e) => updateStripe({ testPublicKey: e.target.value })} />
+                        <SecretField key={`test-${secretFieldsKey}`} label="Test secret key" placeholder="sk_test_…" stored={!!stripe.testSecretKeyStored}
+                          validate={(v) => stripeSecretKeyProblem(v, "test")} onCommit={(v) => updateStripe({ testSecretKey: v })}
+                          onRemove={stripe.testSecretKeyStored ? () => removeStoredKey("test") : undefined} removing={removingKey === "test"} />
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gap: 4 }}>
+                    <Toggle label="Apple Pay" checked={!!stripe.applePay} onChange={(v) => updateStripe({ applePay: v })} />
+                    <Toggle label="Google Pay" checked={!!stripe.googlePay} onChange={(v) => updateStripe({ googlePay: v })} />
+                  </div>
+                  <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
+                    <div className="rp-sect">Apple Pay &amp; Google Pay</div>
+                    <p className="rp-hint" style={{ marginTop: 0 }}>
+                      Wallet buttons only show in the card form once this site's address is registered with Stripe. Save your Stripe keys first.
+                    </p>
+                    <SecondaryButton size="sm" disabled={registeringDomain} onClick={async () => {
+                      if (registeringDomain) return;
+                      setRegisteringDomain(true);
+                      try {
+                        const r = await adminApi.registerStripePaymentDomain(window.location.origin);
+                        toast.success(`${r.domain}: Apple Pay ${r.applePay}, Google Pay ${r.googlePay}`);
+                      } catch (err: any) {
+                        toast.error(friendlyError(err, "register this site with Stripe"));
+                      } finally {
+                        setRegisteringDomain(false);
+                      }
+                    }}>{registeringDomain ? "Registering…" : "Register this site with Stripe"}</SecondaryButton>
+                  </div>
+                  <StripeWebhookHealth unsaved={dirty} />
+                </>
+              )}
+            </div>
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="pay-paypal">
+          <SectionCard title="PayPal" description="Let customers pay with PayPal.">
+            <div className="rp-stack" style={{ gap: 20 }}>
+              <Toggle label="PayPal checkout" checked={!!paypal.connected} onChange={(v) => updatePaypal({ connected: v })} />
+              {paypal.connected && (
+                <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+                  <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 0.75 : 1 }}>
+                    <div className="rp-sect">Live credentials {!testMode && "· in use"}</div>
+                    <div className="rp-stack" style={{ gap: 12 }}>
+                      <TextField label="Live client ID" placeholder="Client ID…" spellCheck={false} value={paypal.clientId || ""} onChange={(e) => updatePaypal({ clientId: e.target.value })} />
+                      <SecretField key={`pp-live-${secretFieldsKey}`} label="Live client secret" placeholder="Client secret…" stored={!!paypal.clientSecretStored}
+                        onCommit={(v) => updatePaypal({ clientSecret: v })}
+                        onRemove={paypal.clientSecretStored ? () => removePaypalSecret("live") : undefined} removing={removingPaypal === "live"} />
+                      <p className="rp-hint" style={{ margin: 0 }}>Live PayPal uses the ID and secret saved here. If either is blank it uses the PayPal credentials set in Firebase Functions.</p>
+                    </div>
+                  </div>
+                  <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 1 : 0.75 }}>
+                    <div className="rp-sect">Test (sandbox) credentials {testMode && "· in use"}</div>
+                    <div className="rp-stack" style={{ gap: 12 }}>
+                      <TextField label="Test client ID" placeholder="Sandbox client ID…" spellCheck={false} value={paypal.testClientId || ""} onChange={(e) => updatePaypal({ testClientId: e.target.value })} />
+                      <SecretField key={`pp-test-${secretFieldsKey}`} label="Test client secret" placeholder="Sandbox client secret…" stored={!!paypal.testClientSecretStored}
+                        onCommit={(v) => updatePaypal({ testClientSecret: v })}
+                        onRemove={paypal.testClientSecretStored ? () => removePaypalSecret("test") : undefined} removing={removingPaypal === "test"} />
+                      <p className="rp-hint" style={{ margin: 0 }}>Test mode never uses live PayPal credentials. Without both sandbox values, PayPal checkout is refused while test mode is on.</p>
+                    </div>
+                  </div>
                 </div>
               )}
-              <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-                <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 0.75 : 1 }}>
-                  <div className="rp-sect">Live keys {!testMode && "· in use"}</div>
-                  <div className="rp-stack" style={{ gap: 12 }}>
-                    <TextField label="Publishable key" placeholder="pk_live_…" spellCheck={false} value={stripe.publicKey || ""} onChange={(e) => updateStripe({ publicKey: e.target.value })} />
-                    <SecretField key={`live-${secretFieldsKey}`} label="Secret key" placeholder="sk_live_…" stored={!!stripe.secretKeyStored}
-                      validate={(v) => stripeSecretKeyProblem(v, "live")} onCommit={(v) => updateStripe({ secretKey: v })}
-                      onRemove={stripe.secretKeyStored ? () => removeStoredKey("live") : undefined} removing={removingKey === "live"} />
-                  </div>
-                </div>
-                <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 1 : 0.75 }}>
-                  <div className="rp-sect">Test keys {testMode && "· in use"}</div>
-                  <div className="rp-stack" style={{ gap: 12 }}>
-                    <TextField label="Test publishable key" placeholder="pk_test_…" spellCheck={false} value={stripe.testPublicKey || ""} onChange={(e) => updateStripe({ testPublicKey: e.target.value })} />
-                    <SecretField key={`test-${secretFieldsKey}`} label="Test secret key" placeholder="sk_test_…" stored={!!stripe.testSecretKeyStored}
-                      validate={(v) => stripeSecretKeyProblem(v, "test")} onCommit={(v) => updateStripe({ testSecretKey: v })}
-                      onRemove={stripe.testSecretKeyStored ? () => removeStoredKey("test") : undefined} removing={removingKey === "test"} />
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: "grid", gap: 4 }}>
-                <Toggle label="Apple Pay" checked={!!stripe.applePay} onChange={(v) => updateStripe({ applePay: v })} />
-                <Toggle label="Google Pay" checked={!!stripe.googlePay} onChange={(v) => updateStripe({ googlePay: v })} />
-              </div>
-              <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
-                <div className="rp-sect">Apple Pay &amp; Google Pay</div>
-                <p className="rp-hint" style={{ marginTop: 0 }}>
-                  Wallet buttons only show in the card form once this site's address is registered with Stripe. Save your Stripe keys first.
-                </p>
-                <SecondaryButton size="sm" disabled={registeringDomain} onClick={async () => {
-                  if (registeringDomain) return;
-                  setRegisteringDomain(true);
-                  try {
-                    const r = await adminApi.registerStripePaymentDomain(window.location.origin);
-                    toast.success(`${r.domain}: Apple Pay ${r.applePay}, Google Pay ${r.googlePay}`);
-                  } catch (err: any) {
-                    toast.error(err.message || "Couldn't register this site with Stripe");
-                  } finally {
-                    setRegisteringDomain(false);
-                  }
-                }}>{registeringDomain ? "Registering…" : "Register this site with Stripe"}</SecondaryButton>
-              </div>
-              <StripeWebhookHealth unsaved={dirty} />
-            </>
-          )}
-        </div>
-      </SectionCard>
-
-      <SectionCard title="PayPal" description="Let customers pay with PayPal.">
-        <div className="rp-stack" style={{ gap: 20 }}>
-          <Toggle label="PayPal checkout" checked={!!paypal.connected} onChange={(v) => updatePaypal({ connected: v })} />
-          {paypal.connected && (
-            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-              <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 0.75 : 1 }}>
-                <div className="rp-sect">Live credentials {!testMode && "· in use"}</div>
-                <div className="rp-stack" style={{ gap: 12 }}>
-                  <TextField label="Live client ID" placeholder="Client ID…" spellCheck={false} value={paypal.clientId || ""} onChange={(e) => updatePaypal({ clientId: e.target.value })} />
-                  <SecretField key={`pp-live-${secretFieldsKey}`} label="Live client secret" placeholder="Client secret…" stored={!!paypal.clientSecretStored}
-                    onCommit={(v) => updatePaypal({ clientSecret: v })}
-                    onRemove={paypal.clientSecretStored ? () => removePaypalSecret("live") : undefined} removing={removingPaypal === "live"} />
-                  <p className="rp-hint" style={{ margin: 0 }}>Live PayPal uses the ID and secret saved here. If either is blank it uses the PayPal credentials set in Firebase Functions.</p>
-                </div>
-              </div>
-              <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 1 : 0.75 }}>
-                <div className="rp-sect">Test (sandbox) credentials {testMode && "· in use"}</div>
-                <div className="rp-stack" style={{ gap: 12 }}>
-                  <TextField label="Test client ID" placeholder="Sandbox client ID…" spellCheck={false} value={paypal.testClientId || ""} onChange={(e) => updatePaypal({ testClientId: e.target.value })} />
-                  <SecretField key={`pp-test-${secretFieldsKey}`} label="Test client secret" placeholder="Sandbox client secret…" stored={!!paypal.testClientSecretStored}
-                    onCommit={(v) => updatePaypal({ testClientSecret: v })}
-                    onRemove={paypal.testClientSecretStored ? () => removePaypalSecret("test") : undefined} removing={removingPaypal === "test"} />
-                  <p className="rp-hint" style={{ margin: 0 }}>Test mode never uses live PayPal credentials. Without both sandbox values, PayPal checkout is refused while test mode is on.</p>
-                </div>
-              </div>
             </div>
-          )}
-        </div>
-      </SectionCard>
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="pay-manual">
+          <SectionCard title="Manual payment methods" description="Bank e-Transfer, cash on delivery or your own instructions."
+            actions={
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                <SecondaryButton size="sm" onClick={() => openAddMethod("bank")}>+ e-Transfer</SecondaryButton>
+                <SecondaryButton size="sm" onClick={() => openAddMethod("cod")}>+ Cash on delivery</SecondaryButton>
+                <SecondaryButton size="sm" onClick={() => openAddMethod("custom")}>+ Custom</SecondaryButton>
+              </div>
+            }>
+            {manualMethods.length === 0 ? (
+              <EmptyState icon="💳" title="No manual methods" description="Add an e-Transfer or cash-on-delivery option for customers who don't pay by card." />
+            ) : (
+              <ul className="rp-list" style={{ margin: -20 }} aria-label="Manual payment methods">
+                {manualMethods.map((method: any) => (
+                  <li key={method.id} style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ minWidth: 0, flex: "1 1 260px" }}>
+                      <strong>{method.name}</strong> <StatusBadge tone={method.enabled ? "success" : "neutral"}>{method.enabled ? "Enabled" : "Off"}</StatusBadge>
+                      <p className="rp-hint" style={{ margin: "4px 0 0", overflowWrap: "anywhere" }}>{method.instructions}</p>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <Toggle label={`${method.name} enabled`} checked={!!method.enabled} onChange={(v) => handleToggleMethodStatus(method.id, v)} />
+                      <SecondaryButton size="sm" onClick={() => openEditMethod(method)} aria-label={`Edit ${method.name}`}>Edit</SecondaryButton>
+                      <DestructiveButton size="sm" onClick={() => removeMethod(method)} aria-label={`Delete ${method.name}`}>Delete</DestructiveButton>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+        </SettingsAnchor>
+      </SettingsGroup>
 
-      <SectionCard title="Shippo" description="Address checks, live carrier rates and shipping labels are set up with your shipping rules."
-        actions={<SecondaryButton size="sm" onClick={() => onOpenShipping?.()}>Open Shipping › Carrier &amp; labels</SecondaryButton>}>
-        <p className="rp-hint" style={{ margin: 0 }}>The Shippo key and the countries that use live rates live in one place, so live rates can't be switched on without choosing countries.</p>
-      </SectionCard>
-
-      <SectionCard title="Manual payment methods" description="Bank e-Transfer, cash on delivery or your own instructions."
-        actions={
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <SecondaryButton size="sm" onClick={() => openAddMethod("bank")}>+ e-Transfer</SecondaryButton>
-            <SecondaryButton size="sm" onClick={() => openAddMethod("cod")}>+ Cash on delivery</SecondaryButton>
-            <SecondaryButton size="sm" onClick={() => openAddMethod("custom")}>+ Custom</SecondaryButton>
-          </div>
-        }>
-        {manualMethods.length === 0 ? (
-          <EmptyState icon="💳" title="No manual methods" description="Add an e-Transfer or cash-on-delivery option for customers who don't pay by card." />
-        ) : (
-          <ul className="rp-list" style={{ margin: -20 }} aria-label="Manual payment methods">
-            {manualMethods.map((method: any) => (
-              <li key={method.id} style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ minWidth: 0, flex: "1 1 260px" }}>
-                  <strong>{method.name}</strong> <StatusBadge tone={method.enabled ? "success" : "neutral"}>{method.enabled ? "Enabled" : "Off"}</StatusBadge>
-                  <p className="rp-hint" style={{ margin: "4px 0 0", overflowWrap: "anywhere" }}>{method.instructions}</p>
-                </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <Toggle label={`${method.name} enabled`} checked={!!method.enabled} onChange={(v) => handleToggleMethodStatus(method.id, v)} />
-                  <SecondaryButton size="sm" onClick={() => openEditMethod(method)} aria-label={`Edit ${method.name}`}>Edit</SecondaryButton>
-                  <DestructiveButton size="sm" onClick={() => removeMethod(method)} aria-label={`Delete ${method.name}`}>Delete</DestructiveButton>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </SectionCard>
-
-      <SectionCard title="Footer payment icons" description="Default icons for the storefront footer. Studio › Theme settings › Payment icons overrides this list once you change it there."
-        actions={<SecondaryButton size="sm" onClick={() => { window.location.hash = studioHash({ leftTab: "style" }); }}>Open Studio</SecondaryButton>}>
-        <div style={{ display: "grid", gap: 4, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
-          {[
-            { id: "visa", label: "Visa" }, { id: "mastercard", label: "Mastercard" }, { id: "amex", label: "American Express" },
-            { id: "paypal", label: "PayPal" }, { id: "applepay", label: "Apple Pay" }, { id: "googlepay", label: "Google Pay" },
-            // Afterpay / Klarna aren't offered at checkout; shown only if an older save picked them.
-            ...[{ id: "afterpay", label: "Afterpay" }, { id: "klarna", label: "Klarna" }].filter((b) => footerBadges.includes(b.id)),
-          ].map((badge) => (
-            <Checkbox key={badge.id} label={badge.label} checked={footerBadges.includes(badge.id)}
-              onChange={() => {
-                const next = footerBadges.includes(badge.id) ? footerBadges.filter((b: string) => b !== badge.id) : [...footerBadges, badge.id];
-                setSettings({ ...settings, payments: { ...settings.payments, footerBadges: next } });
-              }} />
-          ))}
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Currency" description="How prices are shown and charged.">
-        <p className="rp-hint" style={{ margin: 0 }}>Prices are set and charged in your store currency (CA$). Any currency selector on the storefront is a display convenience; the amount charged is always calculated by the payment server.</p>
-      </SectionCard>
+      <SettingsGroup id="pay-more" title="On the shop & related settings" subcopy="Payment icons in the footer, the shop currency, and where shipping labels are set up.">
+        <SettingsAnchor id="pay-icons">
+          <SectionCard title="Footer payment icons" description="Default icons for the storefront footer. Studio › Theme settings › Payment icons overrides this list once you change it there."
+            actions={<SecondaryButton size="sm" onClick={() => { window.location.hash = studioHash({ leftTab: "style" }); }}>Open Studio</SecondaryButton>}>
+            <div style={{ display: "grid", gap: 4, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
+              {[
+                { id: "visa", label: "Visa" }, { id: "mastercard", label: "Mastercard" }, { id: "amex", label: "American Express" },
+                { id: "paypal", label: "PayPal" }, { id: "applepay", label: "Apple Pay" }, { id: "googlepay", label: "Google Pay" },
+                // Afterpay / Klarna aren't offered at checkout; shown only if an older save picked them.
+                ...[{ id: "afterpay", label: "Afterpay" }, { id: "klarna", label: "Klarna" }].filter((b) => footerBadges.includes(b.id)),
+              ].map((badge) => (
+                <Checkbox key={badge.id} label={badge.label} checked={footerBadges.includes(badge.id)}
+                  onChange={() => {
+                    const next = footerBadges.includes(badge.id) ? footerBadges.filter((b: string) => b !== badge.id) : [...footerBadges, badge.id];
+                    setSettings({ ...settings, payments: { ...settings.payments, footerBadges: next } });
+                  }} />
+              ))}
+            </div>
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="pay-currency">
+          <SectionCard title="Currency" description="How prices are shown and charged.">
+            <p className="rp-hint" style={{ margin: 0 }}>Prices are set and charged in your store currency (CA$). Any currency selector on the storefront is a display convenience; the amount charged is always calculated by the payment server.</p>
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="pay-shippo">
+          <SectionCard title="Shippo" description="Address checks, live carrier rates and shipping labels are set up with your shipping rules."
+            actions={<SecondaryButton size="sm" onClick={() => onOpenShipping?.()}>Open Shipping › Carrier &amp; labels</SecondaryButton>}>
+            <p className="rp-hint" style={{ margin: 0 }}>The Shippo key and the countries that use live rates live in one place, so live rates can't be switched on without choosing countries.</p>
+          </SectionCard>
+        </SettingsAnchor>
+      </SettingsGroup>
 
       <SaveBar dirty={dirty} saving={savingSection === "payments"} message="You have unsaved payment settings."
         onSave={async () => { if (await saveSection("payments", { payments: settings.payments })) { setSecretFieldsKey((k) => k + 1); toast.success("Payment settings saved"); } }}

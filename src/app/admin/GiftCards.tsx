@@ -2,12 +2,12 @@
 // Cards are read straight from Firestore (admin-only); every change (issue, disable, adjust,
 // resend) goes through the server's giftCardAdmin action, which keeps balances and history right.
 import { useEffect, useMemo, useState } from "react";
-import { Copy, Plus } from "lucide-react";
+import { Copy, Download, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { copyText } from "./clipboard";
 import {
-  ActionMenu, DataTable, Dialog, Drawer, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, PrimaryButton, SearchField,
+  DataTable, DestructiveButton, Dialog, Drawer, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, PrimaryButton, SearchField,
   SecondaryButton, SectionCard, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column,
 } from "./riso/components";
 import {
@@ -249,10 +249,10 @@ function CardDrawer({ card, onClose, onChanged }: { card: any; onClose: () => vo
   return (
     <>
       <Drawer open onClose={onClose} title={`Gift card ${maskedCode(card)}`} description={card.isTest ? "Test card — only works while payments are in test mode." : undefined}
+        footerStart={card.enabled === false
+          ? <SecondaryButton disabled={busy} onClick={() => setEnabled(true)}>Enable</SecondaryButton>
+          : <DestructiveButton disabled={busy} onClick={() => setEnabled(false)}>Disable</DestructiveButton>}
         footer={<>
-          {card.enabled === false
-            ? <SecondaryButton disabled={busy} onClick={() => setEnabled(true)}>Enable</SecondaryButton>
-            : <SecondaryButton disabled={busy} onClick={() => setEnabled(false)}>Disable</SecondaryButton>}
           <SecondaryButton disabled={busy} onClick={() => setSub("expiry")}>Change expiry</SecondaryButton>
           <SecondaryButton disabled={busy} onClick={() => setSub("resend")}>Resend email</SecondaryButton>
           <PrimaryButton disabled={busy} onClick={() => setSub("adjust")}>Adjust balance</PrimaryButton>
@@ -314,6 +314,7 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
   const [selectedId, setSelectedId] = useState<string | null>(openId || null);
   const [issuing, setIssuing] = useState(false);
   const [ask, confirmNode] = useConfirm();
+  const [exporting, setExporting] = useState(false);
 
   const load = async () => {
     setFailed(false);
@@ -346,14 +347,14 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
 
   const columns: Column<{ card: any; status: GiftCardStatus }>[] = [
     { key: "code", header: "Card", lead: true, render: ({ card }) => (
-      <button type="button" className="rp-mono" style={{ ...LINK, background: "none", border: 0, padding: 0, cursor: "pointer", fontSize: "var(--rp-text-base)" }}
+      <button type="button" className="rp-mono" style={{ ...LINK, background: "none", border: 0, padding: 0, cursor: "pointer", fontSize: "var(--rp-text-base)", whiteSpace: "nowrap" }}
         onClick={() => setSelectedId(card.id)} aria-label={`Open gift card ending ${card.last4}`}>{maskedCode(card)}</button>
     ) },
-    { key: "balance", header: "Balance / initial", numeric: true, render: ({ card }) => <span>{formatMinor(card.balanceMinor)} <span className="rp-hint">/ {formatMinor(card.initialMinor)}</span></span> },
-    { key: "recipient", header: "Recipient", render: ({ card }) => <span style={{ overflowWrap: "anywhere" }}>{card.recipientName || card.recipientEmail ? [card.recipientName, card.recipientEmail].filter(Boolean).join(" · ") : "—"}</span> },
+    { key: "status", header: "Status", render: ({ status }) => <span style={{ whiteSpace: "nowrap" }}><StatusBadge tone={status.tone}>{status.label}</StatusBadge></span> },
+    { key: "balance", header: "Balance / initial", numeric: true, render: ({ card }) => <span style={{ whiteSpace: "nowrap" }}>{formatMinor(card.balanceMinor)} <span className="rp-hint">/ {formatMinor(card.initialMinor)}</span></span> },
+    { key: "recipient", header: "Recipient", render: ({ card }) => <span style={{ overflowWrap: "anywhere", display: "inline-block", minWidth: 140 }}>{card.recipientName || card.recipientEmail ? [card.recipientName, card.recipientEmail].filter(Boolean).join(" · ") : "—"}</span> },
     { key: "source", header: "Source", render: ({ card }) => <Source card={card} /> },
-    { key: "status", header: "Status", render: ({ status }) => <StatusBadge tone={status.tone}>{status.label}</StatusBadge> },
-    { key: "created", header: "Created", render: ({ card }) => when(createdTime(card)) },
+    { key: "created", header: "Created", render: ({ card }) => <span style={{ whiteSpace: "nowrap" }}>{when(createdTime(card))}</span> },
   ];
 
   if (loading) return <LoadingState label="Loading gift cards…" />;
@@ -396,13 +397,10 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
           ]} />
           <FilterBar>
             <div className="rp-grow"><SearchField label="Search gift cards" placeholder="Search by code, last 4 characters or email…" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-            <ActionMenu label="Export CSV" actions={[
-              { label: "Export CSV (codes hidden)", onSelect: () => { void exportCsv(false); } },
-              { label: "Export CSV with full codes…", onSelect: () => { void exportCsv(true); } },
-            ]} />
+            <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExporting(true)}>Export CSV</SecondaryButton>
             {issueButton}
           </FilterBar>
-          <SectionCard flush title="Gift cards" description={`${rows.length} of ${cards.length}`}>
+          <SectionCard flush collapsible={false} title="Gift cards" description={`Showing ${rows.length} of ${cards.length}. Open a card to see its code and history, change its balance or expiry, resend its email, or disable it.`}>
             <DataTable caption="Gift cards" columns={columns} rows={rows} rowKey={(r) => r.card.id} onRowClick={(r) => setSelectedId(r.card.id)}
               empty={<EmptyState title="No gift cards match" description="Try a different status or search."
                 action={<SecondaryButton onClick={() => { setFilter("all"); setSearch(""); }}>Reset filters</SecondaryButton>} />} />
@@ -413,6 +411,16 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
       {selectedId && !selected && !loading && (
         <Dialog open onClose={() => setSelectedId(null)} title="Gift card not found" footer={<PrimaryButton onClick={() => setSelectedId(null)}>Close</PrimaryButton>}>
           <p className="rp-card-desc" style={{ margin: 0 }}>That gift card isn't in the list. It may still be being created — reload in a moment.</p>
+        </Dialog>
+      )}
+      {exporting && (
+        <Dialog open onClose={() => setExporting(false)} title="Export gift cards"
+          description={`${rows.length} card${rows.length === 1 ? "" : "s"} in the current view.`}
+          footer={<>
+            <SecondaryButton onClick={() => { setExporting(false); void exportCsv(true); }}>With full codes…</SecondaryButton>
+            <PrimaryButton icon={<Download size={16} aria-hidden />} onClick={() => { setExporting(false); void exportCsv(false); }}>Download (codes hidden)</PrimaryButton>
+          </>}>
+          <p className="rp-card-desc" style={{ margin: 0 }}>The usual file hides each code except its last 4 characters, which is enough for bookkeeping. Choose full codes only if you need to hand the cards out yourself: anyone with that file can spend them.</p>
         </Dialog>
       )}
       {issuing && <IssueDialog onClose={() => setIssuing(false)} onIssued={load} />}

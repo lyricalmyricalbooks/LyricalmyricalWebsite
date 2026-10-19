@@ -1,6 +1,7 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { isOwnerDevice, looksAutomated, OWNER_DEVICE_PARAM, SHOP_OWNER_EMAIL, setOwnerDevice } from "../lib/ownerDevice";
+import { HowTo } from "./settingsLayout";
 import { SecondaryButton, SectionCard, StatusBadge, Toggle } from "./riso/components";
 
 // Settings › General › Your own visits: keeps the owner's browsing and test orders out of the shop's numbers
@@ -32,13 +33,17 @@ export function OwnVisitsCard() {
         <span className="rp-mono" style={{ userSelect: "all", overflowWrap: "anywhere" }}>{link}</span>
         <SecondaryButton size="sm" onClick={copy}>Copy link</SecondaryButton>
       </div>
-      <ul className="rp-hint" style={{ margin: "12px 0 0", paddingLeft: 20, lineHeight: 1.6 }}>
+      <div style={{ marginTop: 12 }}>
+      <HowTo summary="What else is left out, and good to know">
+      <ul className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "disc" }}>
         <li>Orders placed with <span className="rp-mono">{SHOP_OWNER_EMAIL}</span> stay in Orders but don't count as sales on the Overview. An order you place for a customer with their email counts as normal, on any browser.</li>
         <li>Keep the link to yourself: anyone who opens it stops being counted on that browser.</li>
         <li>Search-engine robots, speed testers and automated browsers are never counted{looksAutomated() ? " (this browser looks automated, so it isn't counted either)" : ""}.</li>
         <li>Visits already counted before today can't be taken back. Overview › Marketing & traffic › <strong>Start traffic counts again</strong> clears the shop's own counter; Google Analytics keeps its history.</li>
         <li>Clearing this browser's data (cookies and site data) forgets the setting: sign in to the admin or open the link again.</li>
       </ul>
+      </HowTo>
+      </div>
     </SectionCard>
   );
 }

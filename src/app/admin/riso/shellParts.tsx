@@ -1,16 +1,17 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ChevronDown, Construction, DoorOpen, Search, SlidersHorizontal, X } from "lucide-react";
 import { adminApi } from "../api";
 import { getOrdersCached } from "../ordersCache";
 import { matchCustomers, matchOrders } from "../globalSearch";
 import {
-  Dialog, EmptyState, ErrorState, LoadingState, SearchField, SecondaryButton, StatusBadge, Tabs,
+  Dialog, EmptyState, ErrorState, IconButton, LoadingState, SearchField, SecondaryButton, StatusBadge, Tabs,
   type BadgeTone,
 } from "./components";
 
 /* ── Global search ───────────────────────────────────────────────────── */
 
 let catalogCache: Promise<any[]> | null = null;
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || "");
 
 export type SearchTarget = { key: string; label: string; kind: string; run: () => void };
 
@@ -33,7 +34,9 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
   // "error" lets the next focus try the catalog read again instead of showing "No matches" forever.
   const [booksState, setBooksState] = useState<"idle" | "loading" | "error" | "ready">("idle");
   const [orders, setOrders] = useState<any[] | null>(null);
+  const [phoneOpen, setPhoneOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
   const listId = useId();
 
   // The whole catalog (cached for the session) and every order (shared orders cache), loaded on first focus.
@@ -56,7 +59,9 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
         // Never reach behind an open dialog (book editor, confirm, etc.).
         if (document.querySelector('[aria-modal="true"]')) return;
         e.preventDefault();
-        boxRef.current?.querySelector("input")?.focus();
+        setPhoneOpen(true);
+        setOpen(true);
+        requestAnimationFrame(() => boxRef.current?.querySelector<HTMLInputElement>("input[type='search']")?.focus());
       }
     };
     window.addEventListener("keydown", onKey);
@@ -85,44 +90,68 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
 
   useEffect(() => setActive(0), [q]);
   useEffect(() => {
-    const away = (e: MouseEvent) => { if (!boxRef.current?.contains(e.target as Node)) setOpen(false); };
+    const away = (e: MouseEvent) => { if (!boxRef.current?.contains(e.target as Node)) { setOpen(false); setPhoneOpen(false); } };
     document.addEventListener("mousedown", away);
     return () => document.removeEventListener("mousedown", away);
   }, []);
 
-  const choose = (t?: SearchTarget) => { if (!t) return; t.run(); setQ(""); setOpen(false); };
+  const input = () => boxRef.current?.querySelector<HTMLInputElement>("input[type='search']");
+  const choose = (t?: SearchTarget) => { if (!t) return; t.run(); setQ(""); setOpen(false); setPhoneOpen(false); };
+  const close = () => { setOpen(false); setPhoneOpen(false); };
   const showList = open && q.trim().length > 0;
+  // Phones show a search button; it opens the box across the whole top bar.
+  const openOnPhone = () => { setPhoneOpen(true); setOpen(true); ensureData(); requestAnimationFrame(() => input()?.focus()); };
 
   return (
-    <div className="rp-topbar-search" ref={boxRef}
+    <div className="rp-topbar-search" ref={boxRef} data-open={phoneOpen || undefined}
       onKeyDown={(e) => {
-        if (e.key === "Escape") setOpen(false);
+        if (e.key === "Escape") { const wasPhone = phoneOpen; close(); if (wasPhone) requestAnimationFrame(() => toggleRef.current?.focus()); }
         else if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, results.length - 1)); }
         else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
         else if (e.key === "Enter") { e.preventDefault(); if (showList) choose(results[active]); }
       }}>
-      <SearchField label="Search books, orders, customers and admin screens" placeholder="Search books, orders, customers… (Ctrl+K)" value={q}
-        role="combobox" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list" aria-keyshortcuts="Control+K Meta+K"
-        aria-activedescendant={showList && results[active] ? `${listId}-${active}` : undefined}
-        onFocus={() => { setOpen(true); ensureData(); }}
-        onChange={(e) => { setQ(e.target.value); setOpen(true); if (booksState === "error") ensureData(); }} />
+      <IconButton ref={toggleRef} label="Search books, orders, customers and admin pages" className="rp-search-toggle"
+        aria-expanded={phoneOpen} onClick={openOnPhone}>
+        <Search size={20} aria-hidden />
+      </IconButton>
+      <div className="rp-search-box">
+        <SearchField label="Search books, orders, customers and admin screens" placeholder="Search books, orders, customers…" value={q}
+          role="combobox" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list" aria-keyshortcuts="Control+K Meta+K"
+          aria-activedescendant={showList && results[active] ? `${listId}-${active}` : undefined}
+          onFocus={() => { setOpen(true); ensureData(); }}
+          onChange={(e) => { setQ(e.target.value); setOpen(true); if (booksState === "error") ensureData(); }} />
+        {!q && shortcut && <kbd className="rp-search-kbd" aria-hidden="true">{IS_MAC ? "⌘ K" : "Ctrl K"}</kbd>}
+        <IconButton label="Close search" className="rp-search-close" onClick={() => { close(); requestAnimationFrame(() => toggleRef.current?.focus()); }}>
+          <X size={18} aria-hidden />
+        </IconButton>
+      </div>
+      {open && !q.trim() && (
+        <div className="rp-search-results rp-search-tip" role="note">
+          Type a book title, author or ISBN, an order number (with or without #), a customer's name or email, or a page such as <em>Shipping</em>.
+        </div>
+      )}
       {showList && (
         <ul id={listId} role="listbox" className="rp-search-results" aria-label="Search results">
           {results.length === 0
             ? <li role="option" aria-selected="false" aria-disabled="true"><Search size={14} aria-hidden />{" "}
               {booksState === "loading" || booksState === "idle" ? "Loading…"
-                : booksState === "error" ? "Couldn't load books — try again" : "No matches"}</li>
+                : booksState === "error" ? "Couldn't load books — keep typing to try again" : `Nothing matches “${q.trim()}”`}</li>
             : results.map((r, i) => (
-              <li key={r.key} id={`${listId}-${i}`} role="option" aria-selected={i === active}
-                onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); choose(r); }}>
-                {r.label}<span className="rp-hint">{r.kind}</span>
-              </li>
+              <Fragment key={r.key}>
+                {r.kind !== results[i - 1]?.kind && <li role="presentation" className="rp-search-group">{GROUP_LABEL[r.kind] || r.kind}</li>}
+                <li id={`${listId}-${i}`} role="option" aria-selected={i === active}
+                  onMouseEnter={() => setActive(i)} onMouseDown={(e) => { e.preventDefault(); choose(r); }}>
+                  <span className="rp-search-label">{r.label}</span><span className="rp-hint">{r.kind}</span>
+                </li>
+              </Fragment>
             ))}
         </ul>
       )}
     </div>
   );
 }
+
+const GROUP_LABEL: Record<string, string> = { "Go to": "Admin pages", Book: "Books", Order: "Orders", Customer: "Customers" };
 
 /* ── Activity logs ───────────────────────────────────────────────────── */
 
@@ -150,17 +179,19 @@ export function ActivityLogDialog({ open, onClose, appearance }: { open: boolean
 
   return (
     <Dialog open={open} onClose={onClose} size="lg" appearance={appearance}
-      title="Activity logs" description="Recorded actions and changes. Visible to administrators only."
-      footer={<SecondaryButton onClick={load} disabled={loading}>Refresh logs</SecondaryButton>}>
+      title="Activity logs" description="The latest 100 changes made in the admin, newest first. Only you can see this."
+      footer={<SecondaryButton onClick={load} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</SecondaryButton>}>
       <div className="rp-filter-bar">
         <div className="rp-grow"><SearchField label="Search activity" placeholder="Search activity…" value={term} onChange={(e) => setTerm(e.target.value)} /></div>
       </div>
       <Tabs<(typeof CATEGORIES)[number]> label="Log category" value={category} onChange={setCategory}
         tabs={CATEGORIES.map((c) => ({ id: c, label: c[0].toUpperCase() + c.slice(1) }))} />
       <div style={{ marginTop: 16 }}>
-        {loading ? <LoadingState label="Retrieving logs…" />
-          : error ? <ErrorState description="The activity log could not be loaded." onRetry={load} />
-          : shown.length === 0 ? <EmptyState title="No matching activity" description="Try a different category or search term." />
+        {loading ? <LoadingState label="Loading activity…" />
+          : error ? <ErrorState title="Couldn't load the activity log" description="Check your connection, then try again." onRetry={load} />
+          : shown.length === 0 ? (logs.length === 0
+            ? <EmptyState title="Nothing recorded yet" description="Changes to books, shipping, discounts, settings and stock appear here as you make them." />
+            : <EmptyState title="No matching activity" description="Try another category or search word." />)
           : (
             <ul className="rp-list" aria-label="Activity entries">
               {shown.map((log) => {
@@ -171,8 +202,9 @@ export function ActivityLogDialog({ open, onClose, appearance }: { open: boolean
                     <div className="rp-row-meta" style={{ marginBottom: 6 }}>
                       <StatusBadge tone={LOG_TONES[log.type] || "neutral"}>{log.type}</StatusBadge>
                       <time className="rp-mono" dateTime={valid ? d.toISOString() : undefined}>
-                        {valid ? d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "medium" }) : String(log.createdAt)}
+                        {valid ? d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : String(log.createdAt)}
                       </time>
+                      {log.actor && <span>by {String(log.actor)}</span>}
                     </div>
                     <p style={{ margin: 0, fontSize: "var(--rp-text-base)", lineHeight: 1.5, overflowWrap: "anywhere" }}>{log.message}</p>
                   </li>
@@ -182,5 +214,73 @@ export function ActivityLogDialog({ open, onClose, appearance }: { open: boolean
           )}
       </div>
     </Dialog>
+  );
+}
+
+/* ── Shop status (top bar) ───────────────────────────────────────────── */
+
+/**
+ * One top-bar control for "is the shop open?": a status word with a glyph, opening a small menu
+ * that closes or opens the shop (the under-construction wall; the caller asks to confirm) and
+ * links to Settings › General › Store status.
+ */
+export function ShopStatusMenu({ wallOn, checkoutPaused, busy, disabled, onSetWall, onOpenSettings }: {
+  wallOn: boolean; checkoutPaused: boolean; busy?: boolean; disabled?: boolean;
+  onSetWall: (on: boolean) => void; onOpenSettings: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+  useEffect(() => {
+    if (!open) return;
+    wrap.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
+    const away = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
+  const state = wallOn ? "closed" : checkoutPaused ? "paused" : "open";
+  const word = { closed: "Shop closed", paused: "Checkout paused", open: "Shop open" }[state];
+  const glyph = { closed: "⚠", paused: "⚠", open: "●" }[state];
+  const detail = {
+    closed: "Shoppers see the “under construction” wall instead of your books.",
+    paused: "Shoppers can browse, but checkout is closed for maintenance.",
+    open: "Shoppers can browse and buy.",
+  }[state];
+  const pick = (fn: () => void) => { setOpen(false); btn.current?.focus(); fn(); };
+  return (
+    <div className="rp-menu-wrap" ref={wrap}
+      onKeyDown={(e) => {
+        if (!open) return;
+        const items = Array.from(wrap.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') || []);
+        const i = items.indexOf(document.activeElement as HTMLElement);
+        if (e.key === "Escape") { setOpen(false); btn.current?.focus(); }
+        else if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+        else if (e.key === "Tab") setOpen(false);
+      }}>
+      <button ref={btn} type="button" className="rp-status-pill rp-status-btn" data-tone={state === "open" ? undefined : "warning"}
+        aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined} disabled={disabled}
+        aria-label={`${word}. Change shop status`} onClick={() => setOpen((v) => !v)}>
+        <span aria-hidden="true" className="rp-status-glyph">{glyph}</span>
+        <span className="rp-status-word">{busy ? "Saving…" : word}</span>
+        <ChevronDown size={14} aria-hidden />
+      </button>
+      {open && (
+        <div className="rp-menu rp-status-menu" role="menu" id={menuId} aria-label="Shop status">
+          <div className="rp-menu-label"><strong>{word}.</strong> {detail}</div>
+          {wallOn
+            ? <button type="button" role="menuitem" className="rp-menu-item" disabled={busy} onClick={() => pick(() => onSetWall(false))}>
+              <DoorOpen size={16} aria-hidden /> Open the shop
+            </button>
+            : <button type="button" role="menuitem" className="rp-menu-item" data-tone="danger" disabled={busy} onClick={() => pick(() => onSetWall(true))}>
+              <Construction size={16} aria-hidden /> Close the shop (under construction)
+            </button>}
+          <button type="button" role="menuitem" className="rp-menu-item" onClick={() => pick(onOpenSettings)}>
+            <SlidersHorizontal size={16} aria-hidden /> Store status settings
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { isDigitalItem } from "./fulfillment";
 import { chargedOf, formatMinor, parseMoneyToMinor, refundableMinor, returnStepLabel, returnedValueMinor } from "./orderLines";
-import { SectionCard, TextArea, TextField, SelectField, PrimaryButton, SecondaryButton, ConfirmDialog } from "./riso/components";
+import { SectionCard, TextArea, TextField, SelectField, PrimaryButton, SecondaryButton, GhostButton, ConfirmDialog } from "./riso/components";
 
 type Row = { quantity: string; condition: string; restockQuantity?: string };
 // An empty box means "not entered yet", never zero.
@@ -68,14 +68,17 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
 
   return <SectionCard title="Customer return" description={returnStepLabel(state)}>
     <div className="rp-stack">
-      {order.customerRequest?.message && <blockquote className="fw-summary">{order.customerRequest.message}</blockquote>}
+      {order.customerRequest?.message && <div className="fw-notice" style={{ margin: 0 }}><div><span className="rp-label">Customer wrote</span><p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{order.customerRequest.message}</p></div></div>}
       <p className="rp-hint">When every book comes back, the whole order is refunded (shipping, tax and digital items too). When only some come back, you refund what they're worth — you can change the amount. Only inspected, resellable printed copies go back to stock.</p>
       {state === "requested" && <>
-        <TextArea label="Customer-visible instructions or decision" hint="Include the return address, packing instructions, deadline and who pays postage. These appear on the secure order tracking page." maxLength={3000} value={instructions} onChange={event => setInstructions(event.target.value)} />
-        <PrimaryButton disabled={busy || !instructions.trim() || !lines.length} onClick={() => run("approved")}>Approve and publish instructions</PrimaryButton>
-        <SecondaryButton disabled={busy || !instructions.trim()} onClick={() => setConfirmDecline(true)}>Decline with explanation</SecondaryButton>
+        <TextArea label="Instructions for the customer, or why you are declining" hint="Include the return address, packing instructions, deadline and who pays postage. These appear on the secure order tracking page." maxLength={3000} value={instructions} onChange={event => setInstructions(event.target.value)} />
         {!lines.length && <p className="rp-hint">This order has no printed books to send back. Refund it from More order actions if you agree, then close the request.</p>}
-        <SecondaryButton disabled={busy} onClick={() => setConfirmClose(true)}>Close request without a return</SecondaryButton>
+        <div className="fw-actions" style={{ marginTop: 0 }}>
+          <PrimaryButton disabled={busy || !instructions.trim() || !lines.length} onClick={() => run("approved")}>Approve and publish instructions</PrimaryButton>
+          <SecondaryButton disabled={busy || !instructions.trim()} onClick={() => setConfirmDecline(true)}>Decline with explanation</SecondaryButton>
+        </div>
+        {!instructions.trim() && lines.length > 0 && <p className="rp-hint" style={{ margin: 0 }}>Write the instructions (or your reason for declining) first.</p>}
+        <div><GhostButton size="sm" disabled={busy} onClick={() => setConfirmClose(true)}>Close request without a return</GhostButton></div>
       </>}
       {saved?.instructions && state !== "requested" && <p style={{ whiteSpace: "pre-wrap" }}>{saved.instructions}</p>}
       {state === "approved" && <PrimaryButton disabled={busy} onClick={() => run("received")}>Record parcel received</PrimaryButton>}
@@ -102,7 +105,7 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
             hint={`Suggested from the returned books' prices: ${formatMinor(suggested, currency)}. Up to ${formatMinor(refundableMinor(order), currency)} can be refunded.`} />
           <PrimaryButton disabled={busy || !!amountError} onClick={() => setConfirmRefund(true)}>Refund returned books and restock eligible copies</PrimaryButton>
         </>)}
-      {["approved", "received", "inspected"].includes(state) && <SecondaryButton disabled={busy} onClick={() => setConfirmCloseApproved(true)}>Close return without a refund</SecondaryButton>}
+      {["approved", "received", "inspected"].includes(state) && <div><GhostButton size="sm" disabled={busy} onClick={() => setConfirmCloseApproved(true)}>Close return without a refund</GhostButton></div>}
       {state === "closed" && <p role="status">Closed without a refund. Nothing was restocked.</p>}
       {state === "refund_pending" && <p role="status">The provider is processing the refund. Inventory has already been handled; do not refund again.</p>}
       {state === "completed" && <p role="status">Refund completed. Returned inventory has been handled once.</p>}

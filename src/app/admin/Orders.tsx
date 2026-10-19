@@ -526,7 +526,7 @@ export function Orders({
               setSelected(new Set());
             }}
           >
-            <option value="production">Production orders</option>
+            <option value="production">Real orders (no tests)</option>
             <option value="test">Test orders</option>
             <option value="all">All orders</option>
           </SelectField>
@@ -822,7 +822,7 @@ export function Orders({
               setSelected(new Set());
             }}
           >
-            <option value="production">Production orders</option>
+            <option value="production">Real orders (no tests)</option>
             <option value="test">Test orders</option>
             <option value="all">All orders</option>
           </SelectField>

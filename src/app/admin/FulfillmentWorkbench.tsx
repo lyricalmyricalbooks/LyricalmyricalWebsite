@@ -434,7 +434,9 @@ export function FulfillmentWorkbench({
                     ? "Closed"
                     : order.labelUrl
                       ? "Label purchased · awaiting dispatch"
-                      : "After packing"}
+                      : shippingActive
+                        ? "Now · parcel, label, then mark shipped"
+                        : "After packing"}
               </span>
             </div>
           </div>

@@ -150,10 +150,18 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   if (layout === "table") {
     return (
       <div className="rp-stack" style={{ gap: 12 }}>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <SecondaryButton size="sm" onClick={() => pickLayout("grid")}>← All orders</SecondaryButton>
-          <SecondaryButton size="sm" onClick={() => pickLayout("desk")}>Ship station</SecondaryButton>
-        </div>
+        <style>{DESK_CSS}</style>
+        <header className="od-head">
+          <div>
+            <p className="rp-label" style={{ margin: 0 }}>Orders</p>
+            <h2 className="od-title">Orders table</h2>
+            <p className="rp-hint" style={{ margin: "4px 0 0" }}>Tick orders to pack them together, print pick lists, or export a spreadsheet (CSV).</p>
+          </div>
+          <div className="od-head-actions">
+            <SecondaryButton onClick={() => pickLayout("grid")}>← All orders</SecondaryButton>
+            <SecondaryButton onClick={() => pickLayout("desk")}>Ship station</SecondaryButton>
+          </div>
+        </header>
         <Orders onSelectOrder={(order) => openInStation(order.id)} />
       </div>
     );
@@ -219,8 +227,9 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
                     <span className="od-card-cover" aria-hidden="true">{cover ? <img src={cover} alt="" loading="lazy" decoding="async" /> : <span className="od-card-blank">{titles || "No books"}</span>}</span>
                     <span className="od-card-body">
                       <span className="od-row-top"><strong className="rp-mono">{o.orderId || o.id}</strong><span className="rp-hint rp-mono">{listDate(o.paidAt || o.createdAt)}</span></span>
-                      <span className="od-card-who"><strong>{o.customer?.name || "—"}</strong> · {itemCount(o)} · <span className="rp-mono od-row-amount" title={m.paid ? `Paid ${m.paid}` : undefined}>{m.text}</span></span>
-                      {titles ? <span className="od-row-title" title={titles}>{titles}</span> : null}
+                      <span className="od-card-who"><span><strong>{o.customer?.name || "—"}</strong> · {itemCount(o)}</span><span className="rp-mono od-row-amount" title={m.paid ? `Paid ${m.paid}` : undefined}>{m.text}</span></span>
+                      {/* Without a cover the titles are already written in the cover box. */}
+                      {titles && cover ? <span className="od-row-title" title={titles}>{titles}</span> : null}
                       <span className="od-card-chips"><StatusBadge tone={s.tone}>{badgeText(s.text)}</StatusBadge><StatusBadge tone={pay.tone}>{pay.text}</StatusBadge>{o.isTest ? <StatusBadge tone="danger">Test</StatusBadge> : null}</span>
                     </span>
                   </button>
@@ -280,13 +289,18 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
       ))}
       <div className="od-list-foot">
         <p className="rp-label" style={{ margin: 0 }}>Not in this queue</p>
-        <button type="button" className="od-link" onClick={() => showOnly("Awaiting release")}>{outside.preorders} pre-order{outside.preorders === 1 ? "" : "s"} waiting for release</button>
-        <button type="button" className="od-link" onClick={() => showOnly("Unpaid")}>{outside.waitingPayment} waiting on an e-Transfer or cash payment</button>
-        <button type="button" className="od-link" onClick={() => showOnly("In transit")}>{outside.inTransit} on the way</button>
+        {/* A list with nothing in it isn't a link: it reads as plain text so the ones with orders stand out. */}
+        {([
+          ["Awaiting release", outside.preorders, `pre-order${outside.preorders === 1 ? "" : "s"} waiting for release`],
+          ["Unpaid", outside.waitingPayment, "waiting on an e-Transfer or cash payment"],
+          ["In transit", outside.inTransit, "on the way"],
+        ] as const).map(([key, n, words]) => n > 0
+          ? <button key={key} type="button" className="od-link" onClick={() => showOnly(key)}>{n} {words}</button>
+          : <span key={key} className="rp-hint">{n} {words}</span>)}
         {testToggle}
-        <p className="rp-hint" style={{ margin: 0 }} aria-label="Keyboard shortcuts">
+        {narrow ? null : <p className="rp-hint" style={{ margin: 0 }} aria-label="Keyboard shortcuts">
           Shortcuts: <kbd>J</kbd> / <kbd>K</kbd> next · previous order, <kbd>/</kbd> search, <kbd>Esc</kbd> clear search
-        </p>
+        </p>}
       </div>
     </aside>
   );
@@ -386,11 +400,24 @@ const DESK_CSS = `
 .od-card-cover img{display:block;width:100%;height:100%;object-fit:cover}
 .od-card-blank{display:flex;height:100%;align-items:center;justify-content:center;padding:12px;text-align:center;font:400 18px/1.1 var(--rp-font-display);text-transform:uppercase;color:var(--rp-text-subtle)}
 .od-card-body{display:flex;flex-direction:column;gap:7px;padding:12px 14px 14px;min-width:0}
-.od-card-who{font-size:13px;color:var(--rp-text-muted)}
+.od-card-who{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px;color:var(--rp-text-muted)}
+.od-card-who>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.od-card-who .od-row-amount{flex:none;color:var(--rp-text)}
 .od-card-who strong{color:var(--rp-text)}
 .od-card-chips{display:flex;flex-wrap:wrap;gap:6px}
 .od-card.is-refunded{background:var(--rp-danger-tint)}
 .od-card.is-refunded-full .od-row-amount{text-decoration:line-through;color:var(--rp-danger)}
 .od-card.is-refunded .od-card-cover{opacity:.55}
+@media (max-width:640px){
+.od-grid-tools{width:100%}
+.od-grid-tools>*{flex:1 1 140px}
+.od-grid-tools>:first-child,.od-grid-tools>[role=group]{flex:1 1 100%}
+.od-card-chips .rp-badge{height:auto;min-height:24px;padding:3px 8px;white-space:normal;line-height:1.2;max-width:100%}
+.od-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.od-card-cover{height:110px}
+.od-card-blank{font-size:14px;padding:8px}
+.od-card-body{padding:10px 10px 12px;gap:6px}
+.od-card-who{flex-direction:column;gap:2px}
+}
 .od-grid-foot{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;border-top:1px solid var(--rp-border);padding-top:14px}
 `;

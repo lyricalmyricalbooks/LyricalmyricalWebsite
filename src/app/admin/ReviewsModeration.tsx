@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, MessageSquare, Pin, PinOff, Star, Trash2, X } from "lucide-react";
+import { Check, Mail, MessageSquare, Pin, PinOff, Star, Trash2, X } from "lucide-react";
 import { adminApi } from "./api";
 import { getOrdersCached } from "./ordersCache";
 import { filterReviews, isVerifiedPurchase, moderationOutcome, purchaseIndex, reviewStats } from "./reviewInsights";
@@ -8,12 +8,13 @@ import { db } from "../../lib/firebase";
 import { reviewsApi, type Review } from "../lib/reviews";
 import { loadMorePending, loadReviewQueue, PENDING_PAGE, type QueueDoc } from "./reviewQueue";
 import {
-  Checkbox, ConfirmDialog, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState, MetricCard, PrimaryButton,
+  ActionMenu, Checkbox, ConfirmButton, ConfirmDialog, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState, MetricCard, PrimaryButton,
   SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast, type BadgeTone,
 } from "./riso/components";
 
 type Filter = "pending" | "approved" | "rejected" | "all";
 const TONE: Record<Review["status"], BadgeTone> = { approved: "success", rejected: "danger", pending: "warning" };
+const STATUS_WORD: Record<Review["status"], string> = { approved: "Approved", rejected: "Rejected", pending: "Pending" };
 
 function Stars({ rating }: { rating: number }) {
   return (
@@ -81,7 +82,7 @@ function Queue() {
     try {
       const found = await reviewsApi.contactsFor([r]);
       setEmails((current) => ({ ...current, [r.id]: found[r.id] || "(no email left)" }));
-    } catch { toast("Could not load the reviewer's email. Try Show email again.", { tone: "err" }); }
+    } catch { toast("Could not load the reviewer's email. Choose More › Show email again.", { tone: "err" }); }
   }
   useEffect(() => { load(); }, []);
   // Book titles are a nicety: if they fail to load, fall back to the raw book ID.
@@ -135,7 +136,7 @@ function Queue() {
     if (!deleting) return;
     const id = deleting.id;
     setDeleting(null);
-    try { await reviewsApi.remove(id); toast("Review deleted"); } catch { toast("Could not delete the review."); }
+    try { await reviewsApi.remove(id); toast("Review deleted"); } catch { toast("The review wasn't deleted. Try again.", { tone: "err" }); }
     load();
   };
 
@@ -158,7 +159,7 @@ function Queue() {
     try {
       await reviewsApi.setFeatured(r.id, !r.featured);
       toast(r.featured ? "Review unpinned" : "Review pinned to the top of the book page");
-    } catch { toast("Could not change the pin."); }
+    } catch { toast("The pin wasn't changed. Try again.", { tone: "err" }); }
     load();
   };
 
@@ -173,25 +174,6 @@ function Queue() {
         <MetricCard label="Low-rated pending" value={stats.lowPending} tone={stats.lowPending ? "warn" : undefined} footer="1–2 stars awaiting a decision" />
         <MetricCard label="Awaiting a reply" value={stats.unanswered} footer="Approved with no owner reply" />
       </div>
-      {stats.total > 0 && (
-        <SectionCard title="Rating spread" description={capped ? "Newest 200 reviews plus the pending ones loaded" : "All reviews"}>
-          <ul aria-label="Reviews by star rating" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
-            {[5, 4, 3, 2, 1].map((n) => {
-              const count = stats.distribution[n - 1] || 0;
-              const max = Math.max(1, ...stats.distribution);
-              return (
-                <li key={n} style={{ display: "grid", gridTemplateColumns: "56px 1fr 40px", gap: 8, alignItems: "center" }}>
-                  <span className="rp-hint">{n} star{n === 1 ? "" : "s"}</span>
-                  <span aria-hidden style={{ height: 10, border: "1px solid var(--rp-border)", background: "var(--rp-surface, transparent)" }}>
-                    <span style={{ display: "block", height: "100%", width: `${(count / max) * 100}%`, background: "var(--rp-warning)" }} />
-                  </span>
-                  <span className="rp-mono" style={{ textAlign: "right" }}>{count}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </SectionCard>
-      )}
       <div className="rp-filter-bar">
         <Tabs<Filter> label="Review status" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
           tabs={(["pending", "approved", "rejected", "all"] as const).map((f) => {
@@ -214,15 +196,20 @@ function Queue() {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <Checkbox label="Select all" checked={allSelected}
               onChange={(e) => setSelected(e.target.checked ? new Set(list.map((r) => r.id)) : new Set())} />
-            <SecondaryButton size="sm" disabled={!bulk.length} onClick={() => moderate(bulk, "approved")}>Approve selected</SecondaryButton>
-            <SecondaryButton size="sm" disabled={!bulk.length} onClick={() => moderate(bulk, "rejected")}>Reject selected</SecondaryButton>
+            <SecondaryButton size="sm" disabled={!bulk.length} onClick={() => moderate(bulk, "approved")}>{bulk.length ? `Approve ${bulk.length} selected` : "Approve selected"}</SecondaryButton>
+            <SecondaryButton size="sm" disabled={!bulk.length} onClick={() => moderate(bulk, "rejected")}>{bulk.length ? `Reject ${bulk.length} selected` : "Reject selected"}</SecondaryButton>
           </div>
         )}>
         {loading ? <LoadingState label="Loading reviews…" />
           : error ? <ErrorState description="Reviews could not be loaded." onRetry={load} />
           : list.length === 0 ? (
-            <EmptyState title={filter === "pending" ? "Queue is clear" : "No reviews here"}
-              description={filter === "pending" ? "New customer reviews will appear here for approval." : "Nothing matches this status yet."} />
+            (q.trim() || rating !== "all") ? (
+              <EmptyState title="No reviews match" description="Nothing in this tab matches your search or star filter."
+                action={<SecondaryButton onClick={() => { setQ(""); setRating("all"); }}>Clear search and filter</SecondaryButton>} />
+            ) : (
+              <EmptyState title={filter === "pending" ? "All caught up" : "No reviews here"}
+                description={filter === "pending" ? "New customer reviews wait here until you approve them. Nothing shows on the shop before that." : "Nothing has this status yet."} />
+            )
           ) : (
             <ul className="rp-list" aria-label="Reviews">
               {list.map((r) => (
@@ -234,24 +221,27 @@ function Queue() {
                       <div style={{ minWidth: 0 }}>
                         <div className="rp-row-meta" style={{ marginBottom: 8 }}>
                           <Stars rating={r.rating} />
-                          <StatusBadge tone={TONE[r.status]}>{r.status}</StatusBadge>
+                          <StatusBadge tone={TONE[r.status]}>{STATUS_WORD[r.status] || r.status}</StatusBadge>
                           {verified(r) && <StatusBadge tone="success">✓ Verified purchase</StatusBadge>}
-                          {r.featured && <StatusBadge tone="info">📌 Pinned</StatusBadge>}
+                          {r.featured && <StatusBadge tone="info">Pinned to top</StatusBadge>}
                           <time dateTime={r.createdAt}>{new Date(r.createdAt).toLocaleString()}</time>
                         </div>
                         {r.title && <h3 style={{ margin: "0 0 4px", fontSize: "var(--rp-text-base)", fontWeight: 600 }}>{r.title}</h3>}
                         <p style={{ margin: "0 0 8px", lineHeight: 1.55, overflowWrap: "anywhere" }}>{r.body}</p>
-                        <p className="rp-hint" style={{ margin: 0 }}>{r.authorName}{emails[r.id] ? ` · ${emails[r.id]}` : ""} · Book <a href={bookUrl(r.bookId)} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>{titles[r.bookId] || r.bookId}</a></p>
+                        <p className="rp-hint" style={{ margin: 0 }}>{r.authorName}{emails[r.id] ? ` · ${emails[r.id]}` : ""} · on <a href={bookUrl(r.bookId)} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>{titles[r.bookId] || r.bookId}</a></p>
                         {r.reply?.body && <p className="rp-hint" style={{ margin: "8px 0 0", borderLeft: "2px solid var(--rp-border-strong)", paddingLeft: 8 }}>Your reply: {r.reply.body}</p>}
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      {!emails[r.id] && <SecondaryButton size="sm" onClick={() => showEmail(r)}>Show email</SecondaryButton>}
+                    {/* The decision first (worded buttons), then Reply, then the rarely used actions under More. */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                      {r.status !== "approved" && <ConfirmButton size="sm" icon={<Check size={16} aria-hidden />} aria-label={`Approve review by ${r.authorName}`} onClick={() => moderate([r.id], "approved")}>Approve</ConfirmButton>}
+                      {r.status !== "rejected" && <SecondaryButton size="sm" icon={<X size={16} aria-hidden />} aria-label={`Reject review by ${r.authorName}`} onClick={() => moderate([r.id], "rejected")}>Reject</SecondaryButton>}
                       <IconButton label={`${r.reply?.body ? "Edit reply to" : "Reply to"} review by ${r.authorName}`} onClick={() => { setReplying(r); setReplyText(r.reply?.body || ""); }}><MessageSquare size={18} aria-hidden /></IconButton>
-                      <IconButton label={`${r.featured ? "Unpin" : "Pin to top"} review by ${r.authorName}`} onClick={() => toggleFeatured(r)}>{r.featured ? <PinOff size={18} aria-hidden /> : <Pin size={18} aria-hidden />}</IconButton>
-                      {r.status !== "approved" && <IconButton tone="success" label={`Approve review by ${r.authorName}`} onClick={() => moderate([r.id], "approved")}><Check size={18} aria-hidden /></IconButton>}
-                      {r.status !== "rejected" && <IconButton tone="danger" label={`Reject review by ${r.authorName}`} onClick={() => moderate([r.id], "rejected")}><X size={18} aria-hidden /></IconButton>}
-                      <IconButton tone="danger" label={`Delete review by ${r.authorName}`} onClick={() => setDeleting(r)}><Trash2 size={18} aria-hidden /></IconButton>
+                      <ActionMenu label={`More actions for review by ${r.authorName}`} actions={[
+                        ...(!emails[r.id] ? [{ label: "Show email", icon: <Mail size={16} aria-hidden />, onSelect: () => { void showEmail(r); } }] : []),
+                        { label: r.featured ? "Unpin from top of book page" : "Pin to top of book page", icon: r.featured ? <PinOff size={16} aria-hidden /> : <Pin size={16} aria-hidden />, onSelect: () => { void toggleFeatured(r); } },
+                        { label: "Delete review…", tone: "danger" as const, icon: <Trash2 size={16} aria-hidden />, onSelect: () => setDeleting(r) },
+                      ]} />
                     </div>
                   </div>
                 </li>
@@ -267,6 +257,25 @@ function Queue() {
         )}
       </SectionCard>
 
+      {stats.total > 0 && (
+        <SectionCard title="Rating spread" description={capped ? "Newest 200 reviews plus the pending ones loaded" : "All reviews"}>
+          <ul aria-label="Reviews by star rating" style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
+            {[5, 4, 3, 2, 1].map((n) => {
+              const count = stats.distribution[n - 1] || 0;
+              const max = Math.max(1, ...stats.distribution);
+              return (
+                <li key={n} style={{ display: "grid", gridTemplateColumns: "56px 1fr 40px", gap: 8, alignItems: "center" }}>
+                  <span className="rp-hint">{n} star{n === 1 ? "" : "s"}</span>
+                  <span aria-hidden style={{ height: 10, border: "1px solid var(--rp-border)", background: "var(--rp-surface, transparent)" }}>
+                    <span style={{ display: "block", height: "100%", width: `${(count / max) * 100}%`, background: "var(--rp-warning)" }} />
+                  </span>
+                  <span className="rp-mono" style={{ textAlign: "right" }}>{count}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </SectionCard>
+      )}
       <Dialog open={!!replying} onClose={() => setReplying(null)} title="Reply publicly" description="Shown under the review on the book page once the review is approved. Leave empty to remove your reply."
         footer={<>
           <SecondaryButton onClick={() => setReplying(null)}>Cancel</SecondaryButton>

@@ -56,7 +56,8 @@ import { useCurrency } from "../CurrencyContext";
 import { BookCustomFields } from "./BookCustomFields";
 import { BookTemplatePicker } from "./BookTemplatePicker";
 import { BUILTIN_DETAILS, builtinDetailValue, editorDetailRows, type DetailRow } from "../features/site/detailRows";
-import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
+import { ActionMenu, ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs, useConfirm } from "./riso/components";
+import "./books.css";
 import { uploadBookPhoto } from "./bookPhotoUpload";
 import { BOOK_VIDEO_ACCEPT, MAX_BOOK_VIDEOS, MAX_BOOK_VIDEO_BYTES, formatMegabytes, isVideoFile, uploadBookVideo, videoProblem } from "./bookVideoUpload";
 import { isVideoItem } from "../features/site/bookVideo";
@@ -227,7 +228,8 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [slugUnlocked, setSlugUnlocked] = useState(false);
   const [confirmSlug, setConfirmSlug] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  // Each problem names the tab that fixes it, so the summary can jump there.
+  const [validationErrors, setValidationErrors] = useState<Array<{ text: string; tab: BookTab }>>([]);
   const [uploading, setUploading] = useState(false);
   // Books › edit › Images › Crop & edit (PhotoCropDialog); the design gives the shop's frame shapes.
   const [cropId, setCropId] = useState<string | null>(null);
@@ -546,32 +548,34 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     if (e) e.preventDefault();
     if (loading) return;
 
-    // Collect every problem so the editor can list them together (not one toast at a time).
-    const problems: string[] = [];
+    // Collect every problem so the editor can list them together (not one toast at a time), with the tab that fixes it.
+    const found: Array<{ text: string; tab: BookTab }> = [];
+    const add = (tab: BookTab, ...texts: string[]) => texts.forEach((text) => found.push({ text, tab }));
     if (formData.seoImage?.trim()) {
       try {
-        if (new URL(formData.seoImage.trim()).protocol !== "https:") problems.push("Sharing image must use an HTTPS URL.");
-      } catch { problems.push("Sharing image must be a valid HTTPS URL."); }
+        if (new URL(formData.seoImage.trim()).protocol !== "https:") add("seo", "Sharing image must use an HTTPS URL.");
+      } catch { add("seo", "Sharing image must be a valid HTTPS URL."); }
     }
-    if (!formData.title.trim()) problems.push("Book title is required.");
-    if (formData.retailPrice < 0) problems.push("Retail price cannot be negative.");
+    if (!formData.title.trim()) add("details", "Book title is required.");
+    if (formData.retailPrice < 0) add("pricing", "Retail price cannot be negative.");
     // An edition saved with a blank price would sell for $0.
     (formData.variants || []).forEach((v: any, i: number) => {
       const p = v?.price;
-      if (p === "" || p == null || !Number.isFinite(Number(p)) || Number(p) < 0) problems.push(`Edition ${v?.name || i + 1} needs a price (0 or more).`);
+      if (p === "" || p == null || !Number.isFinite(Number(p)) || Number(p) < 0) add("editions", `Edition ${v?.name || i + 1} needs a price (0 or more).`);
     });
     const giftCard = isGiftCardProduct(formData);
     const boxSet = !giftCard && isBoxSet(formData);
-    if (formData.isOnSale && !giftCard) { const sale = saleWindowProblem(formData); if (sale) problems.push(sale); }
-    if (giftCard) problems.push(...giftCardProblems(formData));
-    else if (boxSet) problems.push(...bundleProblems({ ...formData, id: book?.id }, (id) => recommendationCatalog.find((b: any) => b.id === id)));
-    else problems.push(...addOnProblems(formData.addOns || []));
+    if (formData.isOnSale && !giftCard) { const sale = saleWindowProblem(formData); if (sale) add("pricing", sale); }
+    if (giftCard) add("editions", ...giftCardProblems(formData));
+    else if (boxSet) add("boxset", ...bundleProblems({ ...formData, id: book?.id }, (id) => recommendationCatalog.find((b: any) => b.id === id)));
+    else add("boxset", ...addOnProblems(formData.addOns || []));
     if (formData.manualCurrencyOverrides) {
-      if (formData.usdPrice < 0 || formData.eurPrice < 0) problems.push("Override prices cannot be negative.");
-      if (formData.costPrice < 0 || formData.usdCostPrice < 0 || formData.eurCostPrice < 0) problems.push("Cost prices cannot be negative.");
-      if (formData.isOnSale && (formData.usdSalePrice < 0 || formData.eurSalePrice < 0)) problems.push("Sale prices cannot be negative.");
+      if (formData.usdPrice < 0 || formData.eurPrice < 0) add("pricing", "Override prices cannot be negative.");
+      if (formData.costPrice < 0 || formData.usdCostPrice < 0 || formData.eurCostPrice < 0) add("pricing", "Cost prices cannot be negative.");
+      if (formData.isOnSale && (formData.usdSalePrice < 0 || formData.eurSalePrice < 0)) add("pricing", "Sale prices cannot be negative.");
     }
-    setValidationErrors(problems);
+    setValidationErrors(found);
+    const problems = found.map((p) => p.text);
     if (problems.length) {
       toast.error(problems.length === 1 ? problems[0] : `${problems.length} problems need fixing before this can be saved.`);
       return;
@@ -606,7 +610,8 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
       onSave({ stayOpen: !close });
     } catch (err: any) {
       console.error("Save error details:", err);
-      toast.error(`Error saving book: ${err.message || 'Unknown error'}`);
+      // Plain words (never the raw error): the edits stay in the editor, so a retry loses nothing.
+      toast.error("Couldn't save the book. Check your internet connection and press Save again — your edits are still here.");
     } finally {
       setLoading(false);
     }
@@ -1089,6 +1094,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   // Tabs with their own state (More details, Search) stay mounted once opened, so switching tabs keeps it.
   if (!visited.has(shownTab)) setVisited(new Set([...visited, shownTab]));
   const statusTone = formData.status === "published" ? "success" : formData.status === "archived" ? "neutral" : "warning";
+  const STATUS_WORDS: Record<string, string> = { published: "Published", draft: "Draft", archived: "Archived" };
 
   const money = (label: string, name: string, symbol: string, opts: { disabled?: boolean; hint?: string } = {}) => (
     <div className="be-money">
@@ -1103,34 +1109,29 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   return (
     <div className="book-editor-riso w-full h-full flex flex-col relative overflow-hidden">
       <header className="rp-dialog-head be-head shrink-0">
-        <div className="flex items-center gap-4">
+        <div className="be-head-main">
           <button type="button" onClick={handleClose} className="rp-icon-btn" aria-label="Close book editor"><ArrowLeft size={18} aria-hidden /></button>
           <div className="be-title-block">
-            <h2 className="rp-dialog-title">{formData.title?.trim() || (book ? "Edit book" : "New book")}</h2>
+            <h2 className="rp-dialog-title" title={formData.title?.trim() || undefined}>{formData.title?.trim() || (book ? "Edit book" : "New book")}</h2>
             <span className="be-id">
-              {book ? `Product ID: ${book.id}` : "New book"} · <StatusBadge tone={statusTone as any}>{formData.status}</StatusBadge>
-              {isDirty && <span className="be-dirty"> · Unsaved changes</span>}
+              <StatusBadge tone={statusTone as any}>{STATUS_WORDS[formData.status] || formData.status}</StatusBadge>
+              {isDirty
+                ? <span className="be-dirty" role="status"><span aria-hidden>●</span> Unsaved changes</span>
+                : book ? <span className="be-saved" role="status"><span aria-hidden>✓</span> All changes saved</span> : null}
+              {book && <span className="be-book-id">Book ID {book.id}</span>}
             </span>
           </div>
         </div>
         <div className="be-actions">
-          {book && (book.slug || formData.slug) && (
-            <a
-              href={`${import.meta.env.BASE_URL}books/${encodeURIComponent(book.id)}?preview=true`}
-              target="_blank"
-              rel="noreferrer"
-              title={book.slug && book.slug !== formData.slug ? "Opens with the last-saved slug. Save to update the live URL." : "Opens the public page in a new tab. Edits broadcast live."}
-              className="rp-btn rp-btn-secondary rp-btn-sm"
-            >
-              <ExternalLink size={14} aria-hidden /> Preview page
-            </a>
-          )}
-          {book?.slug && book.status === "published" && (
-            <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={isDirty}
-              title={isDirty ? "Save the book first, then design its page in the Design studio." : "Open the Design studio on this book's page"}
-              onClick={() => { window.location.hash = studioHash({ templateId: "productPage", productSlug: book.slug }); }}>
-              <Palette size={14} aria-hidden /> Design this page
-            </button>
+          {book && (
+            <ActionMenu label="More for this book" actions={[
+              ...((book.slug || formData.slug) ? [{ label: "Preview page (new tab)", icon: <ExternalLink size={14} aria-hidden />, onSelect: () => { window.open(`${import.meta.env.BASE_URL}books/${encodeURIComponent(book.id)}?preview=true`, "_blank", "noreferrer"); } }] : []),
+              ...(book.slug ? [{ label: "Copy link to this book", icon: <Copy size={14} aria-hidden />, onSelect: () => void copyBookLink() }] : []),
+              ...(book.slug && book.status === "published" ? [{ label: "Design this page", icon: <Palette size={14} aria-hidden />, onSelect: () => {
+                if (isDirty) { toast.error("Save the book first, then design its page in the Design studio."); return; }
+                window.location.hash = studioHash({ templateId: "productPage", productSlug: book.slug });
+              } }] : []),
+            ]} />
           )}
           <button type="button" onClick={handleClose} className="rp-btn rp-btn-ghost rp-btn-sm">Cancel</button>
           <button type="button" onClick={() => handleSave(undefined, false, false)} disabled={loading} className="rp-btn rp-btn-secondary rp-btn-sm" title="Save and keep editing (Ctrl/⌘ + S)">
@@ -1144,15 +1145,26 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
 
       {metadataError && (
         <div role="alert" className="be-alert">
-          <strong>⚠ Couldn't load authors, shipping profiles and categories.</strong> Those lists are empty until they load.{" "}
+          <strong>⚠ Couldn't load authors, shipping profiles and categories.</strong> Those lists stay empty until they load.{" "}
           <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => void loadMetadata()}><RefreshCw size={13} aria-hidden /> Try again</button>
         </div>
       )}
       {confirmNode}
       {validationErrors.length > 0 && (
         <div role="alert" className="be-alert">
-          <strong>⚠ Fix {validationErrors.length === 1 ? "this" : "these"} before saving:</strong>
-          <ul className="mt-2 list-disc pl-5">{validationErrors.map((m) => <li key={m}>{m}</li>)}</ul>
+          <strong>⚠ Fix {validationErrors.length === 1 ? "this" : `these ${validationErrors.length} things`} before saving:</strong>
+          <ul className="be-problems">
+            {validationErrors.map((m) => (
+              <li key={m.text}>
+                <span>{m.text}</span>
+                {tabs.some((t) => t.id === m.tab) && m.tab !== shownTab && (
+                  <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => setTab(m.tab)}>
+                    Go to {tabs.find((t) => t.id === m.tab)?.label} <ChevronRight size={13} aria-hidden />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
       <ConfirmDialog open={confirmSlug} appearance="light" title="Change this book's web address?" confirmLabel="Change web address"
@@ -1163,14 +1175,21 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
         onConfirm={() => { setConfirmDiscard(false); onClose(); }} onCancel={() => setConfirmDiscard(false)} />
 
       <div className="be-tabbar shrink-0">
-        <Tabs label="Book editor sections" tabs={tabs} value={shownTab} onChange={setTab} />
+        <div className="be-tabs-wide"><Tabs label="Book editor sections" tabs={tabs} value={shownTab} onChange={setTab} /></div>
+        {/* Phones: one drop-down instead of four rows of tabs. */}
+        <div className="be-tabs-narrow">
+          <SelectField label="Section" value={shownTab} onChange={(e) => setTab(e.target.value as BookTab)}>
+            {tabs.map((t) => <option key={t.id} value={t.id}>{t.label}{t.count ? ` (${t.count})` : ""}</option>)}
+          </SelectField>
+        </div>
       </div>
 
       <div className="be-body custom-scrollbar flex-1">
         <form className="be-main" noValidate onSubmit={(e) => { e.preventDefault(); handleSave(undefined, false, false); }}>
           {shownTab === "details" && (
             <>
-              <ProductTypeCard form={formData} onChange={setProductType} />
+              {/* A new product chooses its type first; an existing one rarely changes it, so it moves to the end. */}
+              {!book && <ProductTypeCard form={formData} onChange={setProductType} />}
               <SectionCard title="Book details" description="The essentials shoppers see first.">
                 <div className="be-grid">
                   <div className="be-span-2"><TextField label="Book title" name="title" value={formData.title} onChange={handleChange} placeholder="e.g. Find Still Catches Me Shifted" required /></div>
@@ -1247,8 +1266,19 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                   {!giftCard && <TextField label="Dimensions" name="dimensions" value={formData.dimensions || ""} onChange={handleChange} placeholder="6 x 9 in" />}
                   {!giftCard && <WeightField label="Weight" value={formData.weight || ""} onChange={(w) => set("weight", w)} hint={boxSetOn ? "Used for weight-based shipping. Leave blank to use the books inside added together." : "Used for weight-based shipping."} />}
                 </div>
-                {!giftCard && !isDigital && (
-                  <div className="be-grid" style={{ marginTop: 12 }}>
+                {isbnResult && (
+                  <div role="status" className="be-note">
+                    {isbnResult.text}
+                    {isbnResult.cover && <> Suggested cover (not added): <a href={isbnResult.cover} target="_blank" rel="noopener noreferrer">view</a>{" "}
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { setPhotoInput(isbnResult.cover!); setTab("media"); }}>Put in “Add image from URL”</button>
+                      {" "}Only use it if you have the right to.</>}
+                  </div>
+                )}
+              </SectionCard>
+              {!giftCard && !isDigital && (
+                <SectionCard title="International parcels (customs)" foldKey="book-editor-customs"
+                  description="Only used on customs forms for parcels leaving the country. Blank boxes use the defaults shown.">
+                  <div className="be-grid">
                     <TextField label="Customs description" name="customsDescription" value={formData.customsDescription || ""} onChange={handleChange} placeholder={DEFAULT_CUSTOMS_DESCRIPTION} hint="Printed on the customs form of international labels. Blank = “Printed books”." />
                     <TextField label="Tariff (HS) code" name="hsTariffNumber" value={formData.hsTariffNumber || ""} onChange={handleChange} placeholder={DEFAULT_HS_CODE}
                       error={formData.hsTariffNumber && !validHsCode(formData.hsTariffNumber) ? "Use 4 to 10 digits, like 4901.99." : undefined}
@@ -1256,11 +1286,11 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                     <TextField label="Country of origin" name="customsOriginCountry" value={formData.customsOriginCountry || ""} onChange={handleChange} placeholder="CA" maxLength={2}
                       hint="Where the book was printed (2-letter code). Blank = your shipping-from country." />
                   </div>
-                )}
-                <div style={{ marginTop: 16 }}>
-                  <p className="be-note" style={{ margin: "0 0 8px" }}>
-                    <strong>Details tab rows</strong> — every row of the book page's Details tab, in the order shown there. Change any label or value, hide a row, move rows with ↑ / ↓, or add your own (Paper, Printing, Design…). A blank value on a standard row uses the field above.
-                  </p>
+                </SectionCard>
+              )}
+              <SectionCard title="Rows on the book page's Details tab" foldKey="book-editor-detail-rows"
+                description="Every row of the book page's Details tab, in the order shown there. Change any label or value, hide a row, move rows with ↑ / ↓, or add your own (Paper, Printing, Design…). A blank value on a standard row uses the matching field in Publishing details.">
+                <div>
                   {(() => {
                     const rows = editorDetailRows(formData);
                     const put = (next: DetailRow[]) => setFormData((prev: any) => ({ ...prev, detailRows: next, extraDetails: [] }));
@@ -1271,15 +1301,15 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                           const fieldValue = builtin ? builtinDetailValue(formData, row.key) : "";
                           const name = builtin ? builtin.name : `Row ${i + 1}`;
                           return (
-                            <div key={row.key} className="be-grid" style={{ alignItems: "end", marginBottom: 8, opacity: row.hidden ? 0.55 : 1 }}>
+                            <div key={row.key} className="be-detail-row" data-hidden={row.hidden || undefined}>
                               <TextField label={builtin ? `${name} · label` : `${name} · label`} value={row.label || ""} maxLength={60}
                                 placeholder={builtin ? name : "Paper"}
                                 onChange={(e) => put(rows.map((r, j) => (j === i ? { ...r, label: e.target.value } : r)))} />
                               <TextArea label={`${name} · value`} value={row.value || ""} rows={2} maxLength={500}
-                                placeholder={builtin ? (fieldValue || "Empty — fill the field above or type here") : "Mohawk Digital 80lb"}
-                                hint={builtin && !row.value ? (fieldValue ? "Using the field above. Type here to show something else or add to it." : "Empty rows don't show.") : undefined}
+                                placeholder={builtin ? (fieldValue || "Empty — fill it in Publishing details, or type here") : "Mohawk Digital 80lb"}
+                                hint={builtin && !row.value ? (fieldValue ? "Using what Publishing details says. Type here to show something else." : "Empty rows don't show.") : undefined}
                                 onChange={(e) => put(rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)))} />
-                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                              <div className="be-detail-row-tools">
                                 <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" disabled={i === 0} aria-label={`Move ${name} up`}
                                   onClick={() => { const n = [...rows]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; put(n); }}>↑</button>
                                 <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" disabled={i === rows.length - 1} aria-label={`Move ${name} down`}
@@ -1299,15 +1329,8 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                     );
                   })()}
                 </div>
-                {isbnResult && (
-                  <div role="status" className="be-note">
-                    {isbnResult.text}
-                    {isbnResult.cover && <> Suggested cover (not added): <a href={isbnResult.cover} target="_blank" rel="noopener noreferrer">view</a>{" "}
-                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { setPhotoInput(isbnResult.cover!); setTab("media"); }}>Put in “Add image from URL”</button>
-                      {" "}Only use it if you have the right to.</>}
-                  </div>
-                )}
               </SectionCard>
+              {book && <ProductTypeCard form={formData} onChange={setProductType} />}
             </>
           )}
 
@@ -1366,8 +1389,11 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
               <input type="file" ref={fileInputRef} multiple onChange={(e) => uploadFiles(e.target.files)} accept="image/*" className="hidden" />
               <input type="file" ref={videoInputRef} multiple onChange={(e) => uploadVideos(Array.from(e.target.files || []))} accept={BOOK_VIDEO_ACCEPT} className="hidden" />
               {videoStatus && <p className="be-note" role="status">{videoStatus}</p>}
-              <p className="be-note">{formData.photos.length}/{MAX_BOOK_PHOTOS} images and videos. Add alt text so the cover is described to screen readers and search engines.</p>
-              <p className="be-note">Videos: up to {MAX_BOOK_VIDEOS} per book, {formatMegabytes(MAX_BOOK_VIDEO_BYTES)} each, MP4 works everywhere (WebM and MOV in most browsers). They play on the book page and in the enlarged viewer; shop cards show a still from the video. Each play downloads the file from your Firebase storage, so short clips (under a minute, 720p or 1080p) keep the shop inside its free monthly allowance.</p>
+              <p className="be-note">{formData.photos.length} of {MAX_BOOK_PHOTOS} images and videos. Describe each photo in the box under it, so screen readers and search engines know what it shows.</p>
+              <details className="be-more-info">
+                <summary>About videos</summary>
+                <p className="be-note">Videos: up to {MAX_BOOK_VIDEOS} per book, {formatMegabytes(MAX_BOOK_VIDEO_BYTES)} each, MP4 works everywhere (WebM and MOV in most browsers). They play on the book page and in the enlarged viewer; shop cards show a still from the video. Each play downloads the file from your Firebase storage, so short clips (under a minute, 720p or 1080p) keep the shop inside its free monthly allowance.</p>
+              </details>
               <div className="be-url-row">
                 <TextField label="Add image from URL" value={photoInput} onChange={(e) => setPhotoInput(e.target.value)} placeholder="https://…/cover.jpg"
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPhoto(); } }} />
@@ -1502,7 +1528,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                   </>
                 )}
               </SectionCard>}
-              {!giftCard && <SectionCard title="Shipping" description="Status, schedule and Featured are in the summary panel on the right.">
+              {!giftCard && <SectionCard title="Shipping" description="Which shipping rates apply to this book. Status, schedule and Featured are in the Summary panel (beside the form, or below it on a phone).">
                 <div className="be-grid">
                   <SelectField label="Shipping profile" name="shippingProfileId" value={formData.shippingProfileId} onChange={handleChange}>
                     {shippingProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -1703,7 +1729,10 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
         {publishReview && <CatalogReviewDialog books={[{ ...formData, id: book?.id || "new" }]} action="publish" onClose={() => setPublishReview(false)} onConfirm={async () => { setPublishReview(false); await handleSave(undefined, true); }} />}
         <aside className="be-rail" aria-label="Book summary">
           <div className="be-rail-card">
+            <p className="be-rail-head">Summary</p>
+            <div className="be-rail-summary">
             <div className="be-rail-cover">{cover ? <img src={cover} alt={formData.photos?.[0]?.altText || ""} /> : <span>No cover yet</span>}</div>
+            <div className="be-rail-facts">
             <p className="be-rail-title">{formData.title?.trim() || "Untitled book"}</p>
             <p className="be-rail-sub">{formData.subtitle || "—"}</p>
             <div className="be-rail-price">
@@ -1717,6 +1746,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
             </div>
             <div className="be-rail-row"><span>Format</span><b>{formData.format}</b></div>
             <div className="be-rail-row"><span>{giftCard ? "Type" : "Stock"}</span><b>{giftCard ? "Gift card" : boxSetOn ? "From the books inside" : formData.trackInventory ? num(formData.stockLevel) : "Not tracked"}</b></div>
+            </div>
+            </div>
+            <div className="be-rail-publish">
             <SelectField label="Status" name="status" value={formData.status} onChange={handleChange} hint="Only Published books appear in the shop.">
               <option value="draft">Draft</option>
               <option value="published">Published</option>
@@ -1724,6 +1756,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
             </SelectField>
             <TextField label="Schedule publish date" type="date" name="scheduleDate" value={formData.scheduleDate || ""} onChange={handleChange} hint="Optional. Blank = live when published." />
             <Toggle label="Featured on the homepage" checked={!!formData.isFeatured} onChange={(v) => set("isFeatured", v)} />
+            </div>
           </div>
           <div className="be-rail-card">
             <p className="be-rail-head">Ready to publish · {doneCount}/{checklist.length}</p>

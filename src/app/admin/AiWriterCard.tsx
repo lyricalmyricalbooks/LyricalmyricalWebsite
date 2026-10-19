@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { deleteField, doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { db } from "../../lib/firebase";
+import { HowTo, friendlyError } from "./settingsLayout";
 import { DEFAULT_OPENROUTER_MODEL, aiKeyProblem, checkAiKey, openRouterKeyProblem, openRouterModelProblem, type AiProvider } from "./aiWriter";
 import { GhostButton, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField, useConfirm } from "./riso/components";
 
@@ -53,7 +54,7 @@ export function AiWriterCard() {
       toast.success(done);
       return true;
     } catch (err: any) {
-      toast.error(`Could not save: ${err?.message || err}`);
+      toast.error(friendlyError(err, "save the AI settings"));
       return false;
     } finally {
       setSaving(false);
@@ -192,7 +193,9 @@ function KeySlot({ which, stored, saving, problem, placeholder, steps, onSave }:
   return (
     <section aria-label={`${name} key`} style={{ marginTop: 20 }}>
       <h3 className="rp-kicker" style={{ margin: "0 0 8px" }}>{name}</h3>
-      <ol className="rp-hint" style={{ margin: "0 0 12px", paddingLeft: 20, lineHeight: 1.6 }}>{steps}</ol>
+      <HowTo summary={`How to get ${which === "openrouter" ? "an" : "a"} ${name} key`} open={stored === false}>
+        <ol className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "decimal" }}>{steps}</ol>
+      </HowTo>
       <TextField label={`${name} API key`} type="password" value={draft} autoComplete="off"
         placeholder={stored ? "Stored — enter a new key to replace it" : placeholder}
         hint={stored === null ? "Checking…" : stored ? "✓ A key is stored. It is never shown here." : "No key yet."}

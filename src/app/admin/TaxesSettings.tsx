@@ -8,6 +8,7 @@ import {
 } from "./riso/components";
 import { cleanTaxRate, taxRateProblem, type TaxRate } from "./taxRatesEdit";
 import { useSettingsDirty } from "./settingsDirty";
+import { SettingsAnchor, jumpTo } from "./settingsLayout";
 
 // Settings › Taxes. Edits settings.taxes.rates in place (same shape the server matches on);
 // nothing is live until Save. settings.taxes.collect === false switches all tax off (server + checkout).
@@ -62,26 +63,32 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
         </div>
       </SectionCard>
 
-      <SectionCard title="Tax rates" description={`Charged at checkout on books (gift cards are never taxed). A province/state rate wins over a country-wide one. Use 0% for places you don't collect in.${collecting ? "" : " Not charged while tax collection is off."}`}>
-        {rates.length === 0
-          ? <EmptyState icon="%" title="No tax rates yet" description="Without a rate, checkout charges no tax. Add one below." />
-          : <DataTable caption="Tax rates" rows={rates.map((r, index) => ({ ...r, index }))} rowKey={(r) => `${r.index}`} columns={columns} />}
-      </SectionCard>
-
       {gaps.length > 0 && (
         <SectionCard title="Places with no tax rate" description="Shoppers here would be charged no tax. Add a rate for each, or one country-wide rate.">
           <ul className="rp-list" style={{ margin: 0 }}>
             {gaps.map((g) => (
               <li key={g.country} style={{ padding: "8px 0" }}>
                 <strong>{g.country}:</strong> <span className="rp-hint">{g.regions.join(", ")}</span>{" "}
-                <SecondaryButton size="sm" onClick={() => { setCountry(g.country); setRegion(regionsFor(g.country)?.find(([, n]) => n === g.regions[0])?.[1] || ""); }}>Fill in {g.regions[0]}</SecondaryButton>
+                <SecondaryButton size="sm" onClick={() => {
+                  setCountry(g.country); setRegion(regionsFor(g.country)?.find(([, n]) => n === g.regions[0])?.[1] || "");
+                  // Take the owner to the form with the place filled in, ready for the rate.
+                  requestAnimationFrame(() => { jumpTo("tax-add"); document.querySelector<HTMLInputElement>("[data-tax-rate]")?.focus({ preventScroll: true }); });
+                }}>Add a rate for {g.regions[0]}</SecondaryButton>
               </li>
             ))}
           </ul>
         </SectionCard>
       )}
 
-      <SectionCard title="Add a tax rate">
+      <SectionCard title="Tax rates" description={`Charged at checkout on books (gift cards are never taxed). A province/state rate wins over a country-wide one. Use 0% for places you don't collect in.${collecting ? "" : " Not charged while tax collection is off."}`}>
+        {rates.length === 0
+          ? <EmptyState icon="%" title="No tax rates yet" description="Without a rate, checkout charges no tax. Add one below." />
+          : <DataTable caption="Tax rates" rows={rates.map((r, index) => ({ ...r, index }))} rowKey={(r) => `${r.index}`} columns={columns} />}
+      </SectionCard>
+
+
+      <SettingsAnchor id="tax-add">
+      <SectionCard title="Add a tax rate" description="Pick the place, type its rate, then choose Add rate. Nothing is charged until you save.">
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", alignItems: "end" }}>
           <SelectField label="Country" value={country} onChange={(e) => { setCountry(e.target.value); setRegion(""); }}>
             {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
@@ -94,12 +101,13 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
           ) : (
             <TextField label="Region (optional)" value={region} placeholder="Blank = whole country" onChange={(e) => setRegion(e.target.value)} />
           )}
-          <TextField label="Rate (%)" inputMode="decimal" value={rate} placeholder="13" error={tried && problem ? problem : undefined}
+          <TextField label="Rate (%)" inputMode="decimal" data-tax-rate value={rate} placeholder="13" error={tried && problem ? problem : undefined}
             onChange={(e) => setRate(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
           <PrimaryButton onClick={add}>Add rate</PrimaryButton>
         </div>
         <p className="rp-hint" style={{ margin: "12px 0 0" }}>Added rates apply once you choose Save. Check your rates with your accountant — this is not tax advice.</p>
       </SectionCard>
+      </SettingsAnchor>
 
       <SaveBar dirty={dirty} saving={savingSection === "taxes"} message="You have unsaved tax settings."
         onSave={async () => { if (await saveSection("taxes", { taxes: settings.taxes })) toast.success("Tax settings saved"); }}

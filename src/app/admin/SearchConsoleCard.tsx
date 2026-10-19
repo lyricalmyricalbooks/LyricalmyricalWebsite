@@ -1,6 +1,7 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { googleAnalyticsApi, type SearchConsoleAnswer } from "./googleAnalytics";
+import { HowTo, friendlyError } from "./settingsLayout";
 import { PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge } from "./riso/components";
 
 // Settings › General › Google Search Console. The shop's server reads Search Console with its own service account
@@ -18,7 +19,7 @@ export function SearchConsoleCard() {
       setCheck(answer);
       setPick(answer.site || answer.sites?.[0]?.siteUrl || "");
     } catch (err: any) {
-      setCheck({ connected: false, error: err?.message || "Could not check the connection." });
+      setCheck({ connected: false, error: friendlyError(err, "check the connection") });
     } finally {
       setChecking(false);
     }
@@ -26,7 +27,7 @@ export function SearchConsoleCard() {
   const save = async () => {
     setSaving(true);
     try { await googleAnalyticsApi.saveSearchConsoleSite(pick); toast.success("Search Console property saved"); await verify(); }
-    catch (err: any) { toast.error(`Could not save: ${err?.message || err}`); }
+    catch (err: any) { toast.error(friendlyError(err, "save the Search Console property")); }
     finally { setSaving(false); }
   };
 
@@ -37,11 +38,13 @@ export function SearchConsoleCard() {
     <SectionCard title="Google Search Console"
       description="Shows on the Overview (Marketing & traffic › Found on Google) what people typed into Google before they saw or clicked the shop, and which pages Google showed them."
       actions={check && <StatusBadge tone={check.connected ? "success" : "neutral"}>{check.connected ? "Connected" : "Not connected"}</StatusBadge>}>
-      <ol className="rp-hint" style={{ margin: "0 0 12px", paddingLeft: 20, lineHeight: 1.6 }}>
-        <li>At <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer">search.google.com/search-console</a> add the shop's address as a property if it isn't there yet (a <strong>Domain</strong> property for lyricalmyricalbooks.com covers every address).</li>
-        <li>Press <strong>Check connection</strong> below. It shows the one email to add in Search Console › Settings › <strong>Users and permissions</strong> › Add user, with <strong>Restricted</strong> permission, and whether Google's Search Console API needs switching on.</li>
-        <li>Check again. Google's search figures run two to three days behind.</li>
-      </ol>
+      <HowTo summary="How to connect Search Console (3 steps)" open={!check?.connected}>
+        <ol className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "decimal" }}>
+          <li>At <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer">search.google.com/search-console</a> add the shop's address as a property if it isn't there yet (a <strong>Domain</strong> property for lyricalmyricalbooks.com covers every address).</li>
+          <li>Press <strong>Check connection</strong> below. It shows the one email to add in Search Console › Settings › <strong>Users and permissions</strong> › Add user, with <strong>Restricted</strong> permission, and whether Google's Search Console API needs switching on.</li>
+          <li>Check again. Google's search figures run two to three days behind.</li>
+        </ol>
+      </HowTo>
       <SecondaryButton disabled={checking} onClick={verify}>{checking ? "Checking…" : "Check connection"}</SecondaryButton>
       {check && (
         <div role="status" className="rp-hint" style={{ margin: "12px 0 0", padding: 12, border: `1px solid var(${tone(check.connected)})`, color: `var(${tone(check.connected)})`, background: `var(${tone(check.connected)}-tint)` }}>

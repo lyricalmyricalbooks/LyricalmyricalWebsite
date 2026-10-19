@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, History, Minus, Plus } from "lucide-react";
+import { Download, History, Minus, PackagePlus, Plus } from "lucide-react";
 import { adminApi } from "./api";
 import { getOrdersCached } from "./ordersCache";
 import { inventoryApi, type InventoryLogEntry } from "./inventoryApi";
@@ -301,7 +301,7 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
 
   const columns: Column<InventoryRow>[] = [
     { key: "title", header: "Title", lead: true, render: (r) => (
-      <div style={{ overflowWrap: "anywhere" }}>
+      <div style={{ overflowWrap: "anywhere", minWidth: 150 }}>
         {onEditBook
           ? <button type="button" className="rp-link" style={{ fontWeight: 600, background: "none", border: 0, padding: 0, cursor: "pointer", textAlign: "left", color: "inherit", textDecoration: "underline" }}
               onClick={() => onEditBook(r.book)} aria-label={`Edit ${r.title} in Books`}>{r.title}</button>
@@ -313,8 +313,8 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
         </div>
       </div>
     ) },
-    { key: "status", header: "Status", render: (r) => <StatusBadge tone={TONE[r.status]}>{STATUS_LABELS[r.status]}</StatusBadge> },
     { key: "stock", header: "On hand", render: stockCell },
+    { key: "status", header: "Status", render: (r) => <span style={{ whiteSpace: "nowrap" }}><StatusBadge tone={TONE[r.status]}>{STATUS_LABELS[r.status]}</StatusBadge></span> },
     ...(receiving ? [
       { key: "receive", header: "Receive", render: (r: InventoryRow) => linked(r) ? <span className="rp-hint">Receive it in the inventory app</span> : r.editable ? (
         <div>
@@ -361,29 +361,39 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
           { id: "ok", label: "In stock", count: counts.ok }, { id: "digital", label: "Digital", count: counts.digital },
           { id: "untracked", label: "Not tracked", count: counts.untracked }, { id: "other", label: "Box sets & gift cards", count: counts.other },
         ]} />
+      <div className="rp-hint" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", margin: 0 }}>
+        <label htmlFor="inv-low-stock-line">Show “Low stock” at or below</label>
+        <input id="inv-low-stock-line" className="rp-input rp-mono" type="number" min={0} inputMode="numeric" style={{ width: 72, textAlign: "right" }}
+          value={thresholdDraft} aria-describedby="inv-low-stock-help"
+          onChange={(e) => setThresholdDraft(e.target.value)} onBlur={saveThreshold} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+        <span id="inv-low-stock-help">copies. Saved for the whole shop.</span>
+      </div>
       <FilterBar>
         <div className="rp-grow"><SearchField label="Search titles" placeholder="Search titles or shelf…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <TextField label="Low-stock at or below" type="number" min={0} value={thresholdDraft} hint="Saved for the whole shop"
-          onChange={(e) => setThresholdDraft(e.target.value)} onBlur={saveThreshold} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
-        <SelectField label="Reason for changes" value={reason} onChange={(e) => setReason(e.target.value as AdjustReason)}>
-          {ADJUST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-        </SelectField>
+        <Checkbox label={`Show drafts & archived (${hiddenCount})`} checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
         <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={exportCsv}>Export CSV</SecondaryButton>
       </FilterBar>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
-        <Checkbox label={`Show drafts & archived (${hiddenCount})`} checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
-        {receiving
-          ? <GhostButton onClick={() => { setReceiving(false); setReceive({}); setCostDrafts({}); setResults({}); }}>Leave receive mode</GhostButton>
-          : <SecondaryButton onClick={() => { setReceiving(true); setResults({}); }}>Receive stock</SecondaryButton>}
-      </div>
-      <SectionCard flush title={receiving ? "Receive stock" : "Inventory"}
+      <SectionCard flush collapsible={false} title={receiving ? "Receive stock" : "Inventory"}
         description={receiving
-          ? "Type copies received for each edition (+12 adds, -3 removes, =40 sets the count) and optional cost prices, then press Save all. Each row is saved on its own against the live count, with the reason chosen above."
+          ? "Type copies received for each edition (+12 adds, -3 removes, =40 sets the count) and optional cost prices, then press Save all. Each row is saved on its own against the live count, with the reason chosen here."
           : "Edit a count and press Enter, or use − / +. Sales reduce stock automatically after payment; edits here are for receipts, reprints and corrections, and each one is kept in the title's history. Books matched to the inventory app are counted there and follow it."}
-        actions={receiving ? <PrimaryButton disabled={bulkSaving || (!pendingReceive.length && !pendingCosts.length)} onClick={saveReceiving}>
-          {bulkSaving ? "Saving…" : `Save all (${pendingReceive.length + pendingCosts.length})`}</PrimaryButton> : undefined}>
+        actions={
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
+            <SelectField label="Reason for changes" value={reason} onChange={(e) => setReason(e.target.value as AdjustReason)}>
+              {ADJUST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+            </SelectField>
+            {receiving ? (
+              <>
+                <GhostButton disabled={bulkSaving} onClick={() => { setReceiving(false); setReceive({}); setCostDrafts({}); setResults({}); }}>Leave receive mode</GhostButton>
+                <PrimaryButton disabled={bulkSaving || (!pendingReceive.length && !pendingCosts.length)} onClick={saveReceiving}>
+                  {bulkSaving ? "Saving…" : `Save all (${pendingReceive.length + pendingCosts.length})`}</PrimaryButton>
+              </>
+            ) : <PrimaryButton icon={<PackagePlus size={16} aria-hidden />} onClick={() => { setReceiving(true); setResults({}); }}>Receive stock</PrimaryButton>}
+          </div>
+        }>
         <DataTable caption="Inventory" columns={columns} rows={pageRows} rowKey={(r) => r.id}
-          empty={<EmptyState title="No titles match" description="Try another status tab or search." />} />
+          empty={<EmptyState title="No titles match" description={q.trim() ? `Nothing in this tab matches “${q.trim()}”.` : "Nothing is in this tab right now."}
+            action={tab !== "all" || q.trim() ? <SecondaryButton onClick={() => { setTab("all"); setQ(""); }}>Show every title</SecondaryButton> : undefined} />} />
         {!receiving && rows.length > PAGE_SIZE && <Pagination page={Math.min(page, pageCount)} pageCount={pageCount} onPage={setPage} />}
       </SectionCard>
       <details className="rp-card" style={{ padding: 16 }} open={!Object.keys(links).length}>

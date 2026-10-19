@@ -14,7 +14,7 @@ import { MAX_BATCH, batchCodes, cleanPrefix, codesCsv, randomCode } from "./disc
 import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState,
   MetricCard, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField,
-  Tabs, Toggle, type BadgeTone, type Column,
+  Tabs, Toggle, useConfirm, type Column,
 } from "./riso/components";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -44,28 +44,6 @@ const EMPTY: any = {
   method: "code", title: "", giftBookId: "", giftVariantId: "",
 };
 
-function valueLabel(d: any, books: any[] = []) {
-  switch (d.type) {
-    case "gift": {
-      const book = books.find(b => b.id === d.giftBookId);
-      const edition = book && d.giftVariantId ? (book.variants || []).find((v: any) => v.id === d.giftVariantId)?.name : "";
-      return `Free gift: ${book ? `${book.title}${edition ? ` (${edition})` : ""}` : "a book"}`;
-    }
-    case "percentage": return `${d.value}% off`;
-    case "fixed": return `${fmt(d.value)} off`;
-    case "freeship": return "Free shipping";
-    case "bogo": return `Buy ${d.buyQuantity || 1} get ${d.getQuantity || 1} (${d.getDiscountValue ?? 100}% off)`;
-    case "tiered": return tierSummary(d.tiers) || "Tiered discount";
-    default: return String(d.type);
-  }
-}
-
-function targetLabel(d: any) {
-  if (d.appliesTo === "categories" && d.selectedCategories?.length) return d.selectedCategories.join(", ");
-  if (d.appliesTo === "products" && d.selectedProducts?.length) return `${d.selectedProducts.length} book${d.selectedProducts.length === 1 ? "" : "s"}`;
-  return "All products";
-}
-
 // ─── Create / edit dialog ─────────────────────────────────────────────────────
 
 function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClose, onSave, onSaveBatch }: { initial?: any; otherCodes?: string[]; books: any[] | null; shopCategories: any[] | null; onClose: () => void; onSave: (data: any) => Promise<void>; onSaveBatch: (data: any, codes: string[]) => Promise<void> }) {
@@ -77,6 +55,14 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
   const [bookSearch, setBookSearch] = useState("");
   // "Create several single-use codes": N codes PREFIX-XXXXXX with the same rules, one use each.
   const [batch, setBatch] = useState({ on: false, count: "10", prefix: "" });
+  // Closing with typed changes asks first, so a half-made discount isn't lost to a stray Escape or click outside.
+  const [startForm] = useState(() => JSON.stringify(form));
+  const [ask, confirmNode] = useConfirm();
+  const close = async () => {
+    const changed = JSON.stringify(form) !== startForm || batch.on;
+    if (changed && !saving && !(await ask({ title: isEdit ? "Discard your changes?" : "Discard this discount?", message: isEdit ? "Your changes to this discount aren't saved yet." : "This discount hasn't been created yet.", confirmLabel: "Discard" }))) return;
+    onClose();
+  };
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
   const automatic = form.method === "automatic";
   const giftBook = (books || []).find(b => b.id === form.giftBookId);
@@ -137,10 +123,11 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
   const setTier = (i: number, patch: any) => set("tiers", (form.tiers || []).map((t: any, idx: number) => (idx === i ? { ...t, ...patch } : t)));
 
   return (
-    <Dialog open onClose={onClose} size="lg" badge="🏷️" title={isEdit ? "Edit discount" : "New discount"}
-      description="Discounts are re-checked by the server at checkout — this form only defines the rules."
+    <>
+    <Dialog open onClose={() => { void close(); }} size="lg" badge="🏷️" title={isEdit ? "Edit discount" : "New discount"}
+      description="Checkout checks every rule again when a shopper uses it — this form only sets the rules."
       footer={<>
-        <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
+        <SecondaryButton onClick={() => { void close(); }}>Cancel</SecondaryButton>
         <PrimaryButton onClick={handleSave} disabled={saving}>{saving ? "Saving…" : isEdit ? "Save changes" : automatic ? "Create offer" : batch.on ? `Create ${Number(batch.count) || 0} codes` : "Create code"}</PrimaryButton>
       </>}>
       <div className="rp-stack" style={{ gap: 20 }}>
@@ -326,6 +313,8 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
         </div>}
       </div>
     </Dialog>
+    {confirmNode}
+    </>
   );
 }
 
@@ -455,40 +444,41 @@ export function Discounts() {
     return counts;
   }, { active: 0, scheduled: 0, paused: 0, expired: 0, exhausted: 0 }), [discounts]);
 
+  const edit = (d: any) => { setEditing(d); setDialogOpen(true); };
+  const nowrap = { whiteSpace: "nowrap" } as const;
   const columns: Column<any>[] = [
     { key: "code", header: "Code or title", lead: true, render: d => (
-      <div style={{ minWidth: 160 }}>
-        {isAutomatic(d)
-          ? <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><strong>{d.title || "Automatic offer"}</strong><StatusBadge tone="info">Automatic</StatusBadge></span>
-          : <span style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <span className="rp-mono" style={{ fontSize: "var(--rp-text-base)", fontWeight: 600 }}>{d.code}</span>
-              <SecondaryButton size="sm" icon={<Link2 size={14} aria-hidden />} aria-label={`Share link for ${d.code}`} onClick={() => setSharing(d.code)}>Share link</SecondaryButton>
-            </span>}
-        <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{describeDiscount(d, books || [])}</div>
+      <div style={{ minWidth: 200, maxWidth: 420 }}>
+        <span style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <button type="button" onClick={() => edit(d)} aria-label={`Edit ${discountName(d)}`}
+            className={isAutomatic(d) ? undefined : "rp-mono"}
+            style={{ background: "none", border: 0, padding: 0, cursor: "pointer", color: "inherit", textAlign: "left", fontWeight: 600, fontSize: "var(--rp-text-base)", textDecoration: "underline", textUnderlineOffset: 2, overflowWrap: "anywhere" }}>
+            {discountName(d)}
+          </button>
+          {isAutomatic(d)
+            ? <StatusBadge tone="info">Automatic</StatusBadge>
+            : <SecondaryButton size="sm" icon={<Link2 size={14} aria-hidden />} aria-label={`Share link for ${d.code}`} onClick={() => setSharing(d.code)}>Share link</SecondaryButton>}
+        </span>
+        <div style={{ overflowWrap: "anywhere", marginTop: 4 }}>{describeDiscount(d, books || [])}</div>
         {d.description && <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{d.description}</div>}
       </div>
     ) },
-    { key: "value", header: "Offer", render: d => valueLabel(d, books || []) },
-    { key: "target", header: "Applies to", render: d => <span style={{ overflowWrap: "anywhere" }}>{targetLabel(d)}</span> },
-    { key: "rules", header: "Rules", render: d => (
-      <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
-        {d.minOrderAmount ? <StatusBadge>Min {fmt(d.minOrderAmount)}</StatusBadge> : null}
-        {d.maxDiscountAmount ? <StatusBadge>Max {fmt(d.maxDiscountAmount)} off</StatusBadge> : null}
-        {d.minQuantity ? <StatusBadge>Min qty {d.minQuantity}</StatusBadge> : null}
-        {d.onePerCustomer ? <StatusBadge>1× / customer</StatusBadge> : null}
-        {(d.allowedEmailDomains || d.allowedCustomerEmails) ? <StatusBadge tone="warning">Restricted emails</StatusBadge> : null}
-        {!(d.minOrderAmount || d.maxDiscountAmount || d.minQuantity || d.onePerCustomer || d.allowedEmailDomains || d.allowedCustomerEmails) && "—"}
-      </span>
-    ) },
-    { key: "used", header: "Used", numeric: true, render: d => `${d.usageCount || 0} / ${d.usageLimit ?? "∞"}` },
-    { key: "orders", header: "Orders", numeric: true, render: d => perf.get(perfKey(d))?.orders ?? 0 },
-    { key: "revenue", header: "Revenue", numeric: true, render: d => fmt(perf.get(perfKey(d))?.revenue ?? 0) },
-    { key: "given", header: "Discounted", numeric: true, render: d => fmt(perf.get(perfKey(d))?.discountGiven ?? 0) },
-    { key: "expiry", header: "Expires", render: d => d.expiryDate ? shopDay(d.expiryDate) : "Never" },
-    { key: "status", header: "Status", render: d => { const s = state(d); return <StatusBadge tone={s.tone}>{s.label}</StatusBadge>; } },
+    { key: "status", header: "Status", render: d => { const s = state(d); return <span style={nowrap}><StatusBadge tone={s.tone}>{s.label}</StatusBadge></span>; } },
+    { key: "used", header: "Used", numeric: true, render: d => <span style={nowrap}>{d.usageCount || 0} / {d.usageLimit ?? "∞"}</span> },
+    { key: "results", header: "Paid orders", numeric: true, render: d => {
+      const p = perf.get(perfKey(d));
+      return (
+        <div style={nowrap}>
+          <div>{p?.orders ?? 0} order{(p?.orders ?? 0) === 1 ? "" : "s"}</div>
+          <div className="rp-hint">{fmt(p?.revenue ?? 0)} sales</div>
+          <div className="rp-hint">{fmt(p?.discountGiven ?? 0)} off</div>
+        </div>
+      );
+    } },
+    { key: "expiry", header: "Expires", render: d => <span style={nowrap}>{d.expiryDate ? shopDay(d.expiryDate) : "Never"}</span> },
     { key: "actions", header: "Actions", render: d => (
       <ActionMenu label={`Actions for ${discountName(d)}`} actions={[
-        { label: "Edit", onSelect: () => { setEditing(d); setDialogOpen(true); } },
+        { label: "Edit", onSelect: () => edit(d) },
         { label: d.isActive ? "Pause" : "Activate", onSelect: () => handleToggle(d) },
         { label: "Duplicate", onSelect: () => { setEditing(duplicateDiscount(d, discounts.filter(x => !isAutomatic(x)).map(x => x.code))); setDialogOpen(true); } },
         ...(isAutomatic(d) ? [] : [
@@ -531,8 +521,7 @@ export function Discounts() {
             <div className="rp-grow"><SearchField label="Search discounts" placeholder="Search codes, titles or descriptions…" value={search} onChange={e => setSearch(e.target.value)} /></div>
             <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setEditing(null); setDialogOpen(true); }}>New discount</PrimaryButton>
           </FilterBar>
-          <p className="rp-hint" style={{ margin: 0 }}>{ONE_DISCOUNT_HELP}</p>
-          <SectionCard flush title="Discounts" description={`${rows.length} of ${discounts.length}`}>
+          <SectionCard flush collapsible={false} title="Discounts" description={`Showing ${rows.length} of ${discounts.length}. ${ONE_DISCOUNT_HELP}`}>
             <DataTable caption="Discounts" columns={columns} rows={rows} rowKey={d => d.id}
               empty={<EmptyState title="No codes match" description="Try a different status or search."
                 action={<SecondaryButton onClick={() => { setFilter("all"); setSearch(""); }}>Reset filters</SecondaryButton>} />} />
