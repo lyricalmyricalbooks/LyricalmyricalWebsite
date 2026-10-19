@@ -299,7 +299,37 @@ function namesShop(publisher: string, shop: string) {
   return !!p && !!core && (p === s || p === core || p.startsWith(s + ' ') || p.startsWith(core + ' '));
 }
 
-export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; ratingSummary?: { count: number; average: number } | null; seller?: string; shopUrl?: string }) {
+/** The shop's returns rule for Google's product listings (Text & labels › Site & sharing › returns window):
+ *  blank = left out, 0 = no returns, N = N days to send a book back by mail. Needs the shop's two-letter country. */
+export function returnPolicyData(days: string | undefined, countryCode: string | undefined) {
+  const text = String(days ?? '').trim();
+  const country = String(countryCode ?? '').trim().toUpperCase();
+  if (!text || !/^[A-Z]{2}$/.test(country) || !/^\d{1,3}$/.test(text)) return null;
+  const n = Number(text);
+  if (n > 365) return null;
+  return n === 0
+    ? { '@type': 'MerchantReturnPolicy', applicableCountry: country, returnPolicyCategory: 'https://schema.org/MerchantReturnNotPermitted' }
+    : { '@type': 'MerchantReturnPolicy', applicableCountry: country, returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow', merchantReturnDays: n, returnMethod: 'https://schema.org/ReturnByMail' };
+}
+
+/** What one copy costs to ship within the shop's own country, for Google's product listings: the cheapest
+ *  shipping option (not pickup) from Settings › Shipping. Its delivery estimate ("3–7", "3-7 business days",
+ *  "5") becomes the transit time when it reads as days. Null when there is no such option. */
+export function shippingDetailsData(quote: { price: number; deliveryDays?: string; type?: string } | null | undefined, countryCode: string | undefined, currency = 'CAD') {
+  const country = String(countryCode ?? '').trim().toUpperCase();
+  if (!quote || quote.type === 'pickup' || !/^[A-Z]{2}$/.test(country) || !Number.isFinite(Number(quote.price)) || Number(quote.price) < 0) return null;
+  const days = String(quote.deliveryDays || '').match(/^\s*(\d{1,2})\s*(?:[-–—]|to)?\s*(\d{1,2})?\s*(?:business\s+)?(?:days?)?\s*$/i);
+  const min = days ? Number(days[1]) : NaN;
+  const max = days ? Number(days[2] ?? days[1]) : NaN;
+  return {
+    '@type': 'OfferShippingDetails',
+    shippingRate: { '@type': 'MonetaryAmount', value: Number(Number(quote.price).toFixed(2)), currency },
+    shippingDestination: { '@type': 'DefinedRegion', addressCountry: country },
+    ...(days && max >= min ? { deliveryTime: { '@type': 'ShippingDeliveryTime', transitTime: { '@type': 'QuantitativeValue', minValue: min, maxValue: max, unitCode: 'DAY' } } } : {}),
+  };
+}
+
+export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; ratingSummary?: { count: number; average: number } | null; seller?: string; shopUrl?: string; returnPolicy?: ReturnType<typeof returnPolicyData>; shipping?: ReturnType<typeof shippingDetailsData> }) {
   const variants = book.variants || [];
   const backorder = book.onBackorder || (variants.length > 0 && variants.every((v: any) => v.onBackorder));
   // Coming soon (Books › Inventory): shown but not for sale yet, so it is honestly out of stock.
@@ -330,6 +360,8 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
       ...(release ? { availabilityStarts: release } : {}),
       itemCondition: 'https://schema.org/NewCondition',
       ...(options.seller ? { seller: shopRef(options.seller, options.shopUrl) } : {}),
+      ...(options.returnPolicy ? { hasMerchantReturnPolicy: options.returnPolicy } : {}),
+      ...(options.shipping ? { shippingDetails: options.shipping } : {}),
     },
     ...ratingData(options.reviews, options.ratingSummary),
   };

@@ -309,6 +309,10 @@ export const TEXT_BLURBS: Record<string, string> = {
  */
 type TextSub = { title: string; match: RegExp; order?: number };
 export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
+  "Site & sharing": [
+    { title: "Preview banners & checks", match: /^(themePreview|draftPreview|appVerification|googleSiteVerification)/ },
+    { title: "Shop name & search listings", match: /^(site|seo)/ },
+  ],
   "Search & filters": [
     { title: "Sorting", match: /^(sort_|filterSortAria)/ },
     { title: "Filters (stock, sale, format, price)", match: /^filter(InStock|OnSale|Format|Price|Clear|Results)/ },

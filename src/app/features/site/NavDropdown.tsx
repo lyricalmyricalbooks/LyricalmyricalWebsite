@@ -1,5 +1,5 @@
 import { ChevronDown } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FocusEvent as ReactFocusEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FocusEvent as ReactFocusEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router";
 import { getCopy } from "./storeCopy";
@@ -7,6 +7,17 @@ import { navActiveColor } from "./headerNav";
 import { elementScheme } from "./colorSchemes";
 
 export type NavDropdownEntry = { key: string; label: string; active?: boolean; to?: string; onSelect?: () => void };
+
+/**
+ * Click on an entry that is both a link and an in-page pick (the shop's categories): a plain click picks the
+ * category in place; Ctrl/⌘/Shift/middle click and crawlers follow the `/collections/<slug>` address.
+ */
+export function selectInPlace(e: ReactMouseEvent, entry: NavDropdownEntry) {
+  if (!entry.onSelect) return;
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  entry.onSelect();
+}
 
 const FOCUSABLE = "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex='-1'])";
 
@@ -117,6 +128,7 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
     if (to && !btnRef.current?.contains(to) && !panelRef.current?.contains(to)) setOpen(false);
   };
   const pick = (entry: NavDropdownEntry) => { setOpen(false); entry.onSelect?.(); };
+  const follow = (e: ReactMouseEvent, entry: NavDropdownEntry) => { setOpen(false); selectInPlace(e, entry); };
 
   // The portal sits at the end of <body>, so keyboard order is kept as if the panel followed the
   // button: arrows move between items; Tab / Shift+Tab close it and continue from the button.
@@ -186,12 +198,19 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
         <ChevronDown size="1.2em" strokeWidth={3} aria-hidden="true"
           style={{ transition: "transform .15s", transform: open ? "rotate(180deg)" : undefined }} />
       </button>
+      {/* Closed, the panel isn't drawn; its addresses stay in the page (hidden, out of the tab order) so search
+          engines reach every collection page from the header. */}
+      {!open && items.some((entry) => entry.to) && (
+        <span hidden data-nav-dropdown-links>
+          {items.filter((entry) => entry.to).map((entry) => <Link key={entry.key} to={entry.to!} tabIndex={-1}>{entry.label}</Link>)}
+        </span>
+      )}
       {open && pos && typeof document !== "undefined" && createPortal(
         <div ref={panelRef} role="menu" data-fm-store data-nav-dropdown-panel style={panelStyle}
           onMouseEnter={hoverOpen} onMouseLeave={hoverClose} onKeyDown={panelKeyDown} onBlur={onFocusOut} {...studioHooks}>
           {items.map((entry) => entry.to ? (
-            <Link key={entry.key} role="menuitem" to={entry.to} onClick={() => pick(entry)} style={itemStyle(entry.active)}
-              aria-current={entry.active ? "page" : undefined} className="transition-all hover:!opacity-100 hover-text-accent">
+            <Link key={entry.key} role="menuitem" to={entry.to} onClick={(e) => follow(e, entry)} style={itemStyle(entry.active)}
+              aria-current={entry.active ? (entry.onSelect ? "true" : "page") : undefined} className="transition-all hover:!opacity-100 hover-text-accent">
               {entry.label}
             </Link>
           ) : (
