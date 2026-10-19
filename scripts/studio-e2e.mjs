@@ -1576,7 +1576,7 @@ await check("the default shop header follows the Header menu, link colour, stick
   await openStyleCategory(page, "Navigation links");
   await styleControl(page, "navLinkColor", "input:not([type=color])").fill("#ff0000");
   await page.frames().find(f => /preview=true/.test(f.url())).waitForFunction(() => {
-    const b = document.querySelector("header [data-studio-label='Category bar'] > button");
+    const b = document.querySelector("header [data-studio-label='Category bar'] > button, header [data-studio-label='Category bar'] > a");
     return b && getComputedStyle(b).color === "rgb(255, 0, 0)";
   }, undefined, { timeout: 10000 });
   await findStyleField(page, "Nav link style", "navStyle");
