@@ -29,7 +29,11 @@ import { placeholderImage } from "./constants";
 import type { Book } from "./types";
 import { trackBookView } from "../../lib/recentlyViewed";
 import { useWishlist } from "../../lib/wishlist";
-import { bookMetadata, bookStructuredData, breadcrumbData, canonicalUrl, creatorLinks, defaultBookTitle } from "../../lib/bookSeo";
+import { bookMetadata, bookStructuredData, breadcrumbData, canonicalUrl, creatorLinks, defaultBookTitle, returnPolicyData, shippingDetailsData } from "../../lib/bookSeo";
+import { findCountry } from "./shippingZones";
+import { parseWeightGrams, quoteShipping } from "./shippingEngine";
+import { catalogFulfillmentItems } from "./checkoutFulfillment";
+import { loadShippingProfiles } from "./shippingProfilesLoad";
 import { reviewsApi } from "../../lib/reviews";
 import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
@@ -57,7 +61,7 @@ import { productPageCss, productPageFontNames, titleFitSize } from "./productPag
 import { schemeButtonColors } from "./colorSchemes";
 
 import { findProduct } from "./productRoutes";
-import { bookAddOns, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
+import { bookAddOns, bundleWeightGrams, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
 import { displayPrice, salePercentOff } from "./displayPrice";
 import { ga4Once } from "../../lib/ga4";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
@@ -340,6 +344,28 @@ export default function BookDetail() {
     return () => { cancelled = true; };
   }, [book?.id]);
   const reviewsReady = !!book && seoReviews?.bookId === book.id;
+
+  // Shipping rules (Settings › Shipping) give the search listing what one copy costs to ship within the shop's
+  // own country (Text & labels › Site & sharing › shipping on book listings). The snapshot waits for this read too.
+  const [shippingProfiles, setShippingProfiles] = useState<any[] | null | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    loadShippingProfiles().then((profiles) => { if (!cancelled) setShippingProfiles(profiles); });
+    return () => { cancelled = true; };
+  }, []);
+  const shopCountry = findCountry(String(settings?.location?.country || "Canada"))?.code;
+  const seoShipping = useMemo(() => {
+    if (!book || !shippingProfiles || !String(getCopy(settings?.design, "seoShippingOnListings")).trim()) return null;
+    const variant = selectedVariant || null;
+    const unit = catalogUnitPrice(book, variant || undefined);
+    if (!Number.isFinite(unit)) return null;
+    const line = catalogFulfillmentItems([{ id: book.id, variantId: variant?.id, price: unit, quantity: 1 }], new Map([[book.id, book]]))?.[0];
+    if (!line?.physical) return null;
+    const weightGrams = parseWeightGrams(variant?.weight) ?? parseWeightGrams((book as any).weight) ?? bundleWeightGrams(book, new Map(books.map((b: any) => [b.id, b])));
+    const quote = quoteShipping([{ price: unit, quantity: 1, shippingProfileId: (book as any).shippingProfileId || null, weightGrams }], { country: String(settings?.location?.country || "Canada") }, shippingProfiles)
+      .find((q) => q.type !== "pickup");
+    return shippingDetailsData(quote, shopCountry);
+  }, [book, selectedVariant, shippingProfiles, settings, books, shopCountry]);
   const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
 
   const bookUrl = canonicalUrl(new URL(`${import.meta.env.BASE_URL}books/${encodeURIComponent(book?.slug || book?.id || slug || "")}`, window.location.origin).href);
@@ -372,6 +398,8 @@ export default function BookDetail() {
         ratingSummary: reviewsReady ? seoReviews!.summary : null,
         seller: getCopy(settings?.design, "siteName"),
         shopUrl: siteBase,
+        returnPolicy: returnPolicyData(getCopy(settings?.design, "seoReturnDays"), shopCountry),
+        shipping: seoShipping,
       }),
       breadcrumbData([
         { name: getCopy(settings?.design, "pdpCrumbShop"), url: siteBase },
@@ -1174,7 +1202,7 @@ export default function BookDetail() {
   return (
     <div
       data-fm-store data-studio-target="style:productPage|copy:Product page|style:labels" data-studio-label="Product page"
-      data-seo-reviews={reviewsReady ? "ready" : undefined}
+      data-seo-reviews={reviewsReady && shippingProfiles !== undefined ? "ready" : undefined}
       className="min-h-screen selection:bg-white/20"
       style={{
         fontFamily: font,

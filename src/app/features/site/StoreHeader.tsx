@@ -13,7 +13,7 @@ import { catalogHeaderMaxWidth, contentMaxWidth, navLineProps, navLinkStyle, own
 import { PHONE_MAX } from "./breakpoints";
 import { isLiveBook } from "./liveBook";
 import { MobileStorefrontNav } from "./MobileStorefrontNav";
-import { NavDropdown, type NavDropdownEntry } from "./NavDropdown";
+import { NavDropdown, selectInPlace, type NavDropdownEntry } from "./NavDropdown";
 import { buildNavItems, childCategories, parentOf, referenceNavCategories, splitNavigation, usesReferenceHeader, type NavItem } from "./navItems";
 import { SearchOverlay } from "./SearchOverlay";
 import { SecondaryStorefrontNav } from "./SecondaryStorefrontNav";
@@ -30,7 +30,8 @@ import type { Book, Page } from "./types";
  * The one storefront header (Studio 2.0 · 2.1). Every public page renders it — checkout keeps its own
  * minimal header. Two modes share one implementation (announcement bar, category bar, drop-downs,
  * icons, phone menu, publisher row, search pop-over):
- *   - "shop" (MainSite: home, catalog, collections): category links pick a category in place, the logo
+ *   - "shop" (MainSite: home, catalog, collections): category links pick a category in place (they are still
+ *     real /collections/<slug> links, so crawlers and Ctrl/⌘-click open the collection page), the logo
  *     returns Home, and the catalog's header options apply (masthead layout, logo alignment, sticker pills,
  *     transparent header, scrolling announcement, wishlist count, light/dark toggle).
  *   - "page" (product, custom pages, wishlist, account, tracking, 404): category links go to
@@ -41,6 +42,8 @@ import type { Book, Page } from "./types";
  */
 
 const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+/** A category's own page (`/collections/<slug>`); shop-mode links carry it so crawlers reach every collection. */
+const collectionPath = (name: string) => `/collections/${slugify(name)}`;
 
 // ── Sticker-pill navigation (navStyle: "stickers", shop mode) ────────────────────────────────────────
 // Asymmetric radius, slight per-pill rotation, hover straighten + scale and a cycling active palette.
@@ -93,7 +96,7 @@ type Target = NavDropdownEntry & { active: boolean };
 /** One category-bar link: a route (page mode, custom pages) or an in-page category pick (shop mode). */
 function NavEntry({ target, style, className }: { target: Target; style: CSSProperties; className: string }) {
   return target.to != null ? (
-    <Link to={target.to} aria-current={target.active ? "page" : undefined} style={style} className={className}>{target.label}</Link>
+    <Link to={target.to} onClick={(e) => selectInPlace(e, target)} aria-current={target.active ? (target.onSelect ? "true" : "page") : undefined} style={style} className={className}>{target.label}</Link>
   ) : (
     <button onClick={target.onSelect} aria-current={target.active ? "true" : undefined} style={style} className={className}>{target.label}</button>
   );
@@ -509,8 +512,8 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
       line={line}
       stickers={stickers}
       pageTarget={(item) => ({ key: item.key, label: item.label, to: `/page/${item.page.slug}`, active: location.pathname.endsWith(`/page/${item.page.slug}`) })}
-      categoryTarget={(item) => ({ key: item.key, label: item.label, active: activeName === item.label, onSelect: () => pick(item.category) })}
-      childTarget={(k) => ({ key: `cat:${k.id}`, label: k.name, active: activeName === k.name, onSelect: () => pick(categories.find((c: any) => c.id === k.id) || k) })}
+      categoryTarget={(item) => ({ key: item.key, label: item.label, to: collectionPath(item.label), active: activeName === item.label, onSelect: () => pick(item.category) })}
+      childTarget={(k) => ({ key: `cat:${k.id}`, label: k.name, to: collectionPath(k.name), active: activeName === k.name, onSelect: () => pick(categories.find((c: any) => c.id === k.id) || k) })}
     />
   );
   const logo = (
@@ -578,16 +581,15 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
                       label={catName}
                       linkStyle={{ color: headerTextColor, fontSize: "inherit", fontWeight: "inherit", opacity: branchActive ? 1 : 0.7, ...ownNavLinkStyle(sf, branchActive), ...(stickers ? stickerPillStyle(sf, index, branchActive) : {}) }}
                       className={`hover:!opacity-100${stickers ? " fm-sticker-pill" : ""}`}
-                      all={{ key: `${catName}:all`, label: catName, active: isActive, onSelect: () => pick(cat) }}
-                      entries={subs.map((k: any) => ({ key: `cat:${k.id}`, label: k.name, active: activeName === k.name, onSelect: () => pick(categories.find((c: any) => c.id === k.id) || k) }))}
+                      all={{ key: `${catName}:all`, label: catName, to: collectionPath(catName), active: isActive, onSelect: () => pick(cat) }}
+                      entries={subs.map((k: any) => ({ key: `cat:${k.id}`, label: k.name, to: collectionPath(k.name), active: activeName === k.name, onSelect: () => pick(categories.find((c: any) => c.id === k.id) || k) }))}
                     />
                   );
                 }
                 return (
-                  <button key={catName} onClick={() => pick(cat)} className={`${isActive ? "opacity-100" : "opacity-70 hover:opacity-100"}${stickers ? " fm-sticker-pill" : ""}`}
-                    style={{ ...ownNavLinkStyle(sf, isActive), ...(stickers ? stickerPillStyle(sf, index, isActive) : {}) }}>
-                    {catName}
-                  </button>
+                  <NavEntry key={catName} target={{ key: catName, label: catName, to: collectionPath(catName), active: isActive, onSelect: () => pick(cat) }}
+                    className={`${isActive ? "opacity-100" : "opacity-70 hover:opacity-100"}${stickers ? " fm-sticker-pill" : ""}`}
+                    style={{ ...ownNavLinkStyle(sf, isActive), ...(stickers ? stickerPillStyle(sf, index, isActive) : {}) }} />
                 );
               })}
               {splitNavigation(navItems, sf).primary.filter(item => item.kind === "page").map((item: any) => item.page).map((page: any) => (

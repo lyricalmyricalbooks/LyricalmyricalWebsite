@@ -38,7 +38,7 @@ import { useWishlist, liveWishlistCount } from "../lib/wishlist";
 import { isLiveBook } from "../features/site/liveBook";
 import { displayPrice as cardDisplayPrice, showsSale, salePercentOff } from "../features/site/displayPrice";
 import { useSEO } from "../lib/seo";
-import { breadcrumbData, collectionStructuredData, profileLinks, seoTopicList, siteStructuredData } from "../lib/bookSeo";
+import { breadcrumbData, collectionStructuredData, leadSentences, profileLinks, seoTopicList, siteStructuredData } from "../lib/bookSeo";
 import { CatalogControls, applyCatalogControls, appliedFilters, filterView, EMPTY_FILTERS, type CatalogFilterState, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { StoreHeader } from "../features/site/StoreHeader";
@@ -553,7 +553,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       : getFilteredItems(books, routeCategory, new Date().toISOString(), categories).length === 0)),
     url: onCollectionRoute && routeCategory ? new URL(`${import.meta.env.BASE_URL}collections/${collectionSlug === "all" ? "all" : routeCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`, window.location.origin).href : undefined,
     title: onCollectionRoute ? getCopy(activeDesign, "seoCollectionTitle", { category: routeCategoryName }) : catalogOpen ? (getCopy(settings?.design, "seoArchiveTitle") || undefined) : undefined,
-    description: onCollectionRoute ? routeCategory?.description || getCopy(activeDesign, "seoCollectionDescription", { category: routeCategoryName.toLowerCase() }) : settings?.info?.description,
+    // The category's own description, else the intro the page shows (Text & labels › Collection & wishlist
+    // pages), else the generic Site & sharing sentence — so each collection has its own search snippet.
+    description: onCollectionRoute ? routeCategory?.description || leadSentences(collectionIntro(activeDesign, collectionSlug, routeCategory)) || getCopy(activeDesign, "seoCollectionDescription", { category: routeCategoryName.toLowerCase() }) : settings?.info?.description,
     // Style › Logo & wordmark › Share image, else the first book's cover. Never `assets.profileUrl`: the shop's
     // default settings ship a 100px stock photo there, which became every shared/search preview of the home page.
     image: settings?.design?.shareImageUrl || publishedBooks.find((book: any) => book?.photos?.[0]?.url)?.photos?.[0]?.url || undefined,

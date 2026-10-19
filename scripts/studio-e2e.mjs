@@ -1567,12 +1567,12 @@ await check("the default shop header follows the Header menu, link colour, stick
   await bar.locator("nav a").first().waitFor({ timeout: 10000 });
   // Shop categories says how many the Reference header shows.
   await page.locator("[data-reference-limit='1']").waitFor({ timeout: 5000 });
-  const before = await bar.locator(":scope > button").count();
+  const before = await bar.locator(":scope > button, :scope > a").count();
   await openStyleCategory(page, "Shop page masthead & covers");
   if (await styleControl(page, "catalogLayoutStyle", "select").inputValue() !== "reference") throw new Error("Layout control does not show the Reference layout the shop uses");
   await openStyleField(page, "referenceCategoryLimit");
   await styleControl(page, "referenceCategoryLimit", "input[type=range]").fill("4");
-  await bar.locator(":scope > button").nth(before).waitFor({ timeout: 10000 });
+  await bar.locator(":scope > button, :scope > a").nth(before).waitFor({ timeout: 10000 });
   await openStyleCategory(page, "Navigation links");
   await styleControl(page, "navLinkColor", "input:not([type=color])").fill("#ff0000");
   await page.frames().find(f => /preview=true/.test(f.url())).waitForFunction(() => {

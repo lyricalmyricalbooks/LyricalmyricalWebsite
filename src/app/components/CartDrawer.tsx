@@ -14,13 +14,10 @@ import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { cartDrawerCss, cartDrawerFontNames, cartDrawerWidth } from "../features/site/cartDrawerStyle";
 import { googleFontHref } from "../features/site/fonts";
 import { useFocusTrap } from "../lib/useFocusTrap";
-import { publicApi } from "../lib/publicApi";
 import { catalogFulfillmentItems } from "../features/site/checkoutFulfillment";
 import { bagFreeShipThreshold, shippableBagTotal } from "../features/site/freeShipThreshold";
 
-// Shipping rules are read once per visit (public collection) the first time the bag opens.
-let shippingProfilesLoad: Promise<any[] | null> | null = null;
-const loadShippingProfiles = () => (shippingProfilesLoad ||= publicApi.getShippingProfiles().catch(() => { shippingProfilesLoad = null; return null; }));
+import { loadShippingProfiles } from "../features/site/shippingProfilesLoad";
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
 import { smallPhotoUrl } from "../features/site/photoSources";
 import { previewSampleCart } from "../features/site/previewSampleCart";
