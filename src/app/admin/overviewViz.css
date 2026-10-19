@@ -56,8 +56,8 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
 .rp-viz-stack-part[data-ink="light"] { color: var(--rp-surface); }
 .rp-viz-stack-part > span { overflow: hidden; text-overflow: ellipsis; }
 .rp-viz-legend { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)); gap: 6px 16px; }
-.rp-viz-legend li { display: flex; align-items: center; gap: 8px; font-size: var(--rp-text-sm); min-width: 0; }
-.rp-viz-legend-label { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.rp-viz-legend li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: var(--rp-text-sm); min-width: 0; }
+.rp-viz-legend-label { font-weight: 600; flex: 1 1 auto; min-width: 8ch; }
 .rp-viz-legend-value { margin-left: auto; font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); white-space: nowrap; }
 .rp-viz-swatch { width: 12px; height: 12px; flex-shrink: 0; border: var(--rp-hair) solid var(--rp-border-strong); }
 
@@ -87,7 +87,7 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
 .rp-viz-funnel-gap[data-worst] { color: var(--rp-danger); font-weight: 600; }
 
 /* Heat grid */
-.rp-viz-heat { margin: 0; overflow-x: auto; }
+.rp-viz-heat { margin: 0; padding: 4px 20px 16px; overflow-x: auto; }
 .rp-viz-heat-grid { display: grid; grid-template-columns: 34px repeat(24, minmax(12px, 1fr)); gap: 2px; font-size: 10px; min-width: 360px; }
 .rp-viz-heat-hour { text-align: left; color: var(--rp-text-subtle); font-family: var(--rp-font-mono); white-space: nowrap; overflow: visible; }
 .rp-viz-heat-day { font-family: var(--rp-font-mono); color: var(--rp-text-muted); }
@@ -142,7 +142,7 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
 @media (max-width: 767px) {
   .rp-viz-rank-row, .rp-viz-days-row { padding: 9px 14px; gap: 10px; }
   .rp-viz-stack, .rp-viz-cols, .rp-viz-funnel, .rp-viz-fall { padding-left: 14px; padding-right: 14px; }
-  .rp-viz-shade-wrap { padding-left: 14px; padding-right: 14px; }
+  .rp-viz-shade-wrap, .rp-viz-heat { padding-left: 14px; padding-right: 14px; }
 }
 @media print {
   .rp-viz-bar, .rp-viz-stack-part, .rp-viz-fall-bar, .rp-viz-funnel-bar, .rp-viz-col-bar, .rp-viz-days-bar, .rp-viz-heat-cell { print-color-adjust: exact; -webkit-print-color-adjust: exact; }

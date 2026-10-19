@@ -69,9 +69,9 @@ export function OverviewSales({ current, previous, books, categoriesSetting, dai
       {show("money") && <SectionCard flush title="Where the money goes" description="What customers paid, broken down">
         {cur.orders === 0 ? <EmptyState title="No sales in this period" description="The breakdown appears once paid orders arrive." /> : (
           <>
-          <Waterfall label="From books sold to what you keep" format={money} steps={fall} />
+          <Waterfall label="From books sold to what you received" format={money} steps={fall} />
           <p className="rp-hint" style={{ margin: "0 20px 12px" }}>
-            Customers paid {money(cur.revenue)}{cur.refunded > 0 ? `; after ${money(cur.refunded)} refunded` : ""}, you keep <strong>{money(cur.net)}</strong>. Of that, {money(cur.tax)} is sales tax owed to the tax office and {money(cur.shipping)} pays for postage.
+            Customers paid {money(cur.revenue)}{cur.refunded > 0 ? `; after ${money(cur.refunded)} refunded` : ""}, so you received <strong>{money(cur.net)}</strong>. Of that, {money(cur.tax)} is sales tax owed to the tax office and {money(cur.shipping)} pays for postage.
           </p>
           <Fold label="the lines">
           <ul className="rp-list" aria-label="Revenue breakdown">
@@ -217,6 +217,6 @@ export function moneySteps(cur: { subtotal: number; discounts: number; shipping:
   const other = Math.round((cur.revenue - (cur.subtotal - cur.discounts + cur.shipping + cur.tax - cur.giftCards)) * 100) / 100;
   if (Math.abs(other) >= 0.01) steps.push({ key: "other", label: "Other", hint: "not itemised", value: Math.abs(other), kind: other > 0 ? "plus" : "minus" });
   if (cur.refunded > 0) steps.push({ key: "refunds", label: "Refunds", hint: "partial", value: cur.refunded, kind: "minus" });
-  steps.push({ key: "net", label: "You keep", hint: "net received", value: cur.net, kind: "total" });
+  steps.push({ key: "net", label: "Received", hint: "after refunds", value: cur.net, kind: "total" });
   return steps;
 }

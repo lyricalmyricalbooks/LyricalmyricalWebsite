@@ -35,7 +35,7 @@ import { OverviewTitles } from "./OverviewTitles";
 import { OverviewChart } from "./OverviewChart";
 import { OverviewNewSales, type NewSalesWidget } from "./OverviewNewSales";
 import { figureSeries, figureSpark, NewestOrdersList } from "./OverviewFiguresViz";
-import { OverviewNewLive } from "./OverviewNewLive";
+import { OverviewNewLive, type NewLiveWidget } from "./OverviewNewLive";
 import { OverviewBoard, useBoardStore, type BoardHeader, type RenderWidget } from "./OverviewBoard";
 import { DEFAULT_FIGURES, FIGURES, widgetMeta, type BoardView, type FigureId } from "./overviewBoard";
 import { clearShared } from "./overviewShared";
@@ -442,7 +442,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         ));
       case "live": case "notes": case "preorders": case "map": case "giftOwed": case "soldOut":
         return ordersGate(() => (
-          <OverviewNewLive only={w.type} paid={periods!.paid} allOrders={allOrders.orders || []} current={periods!.current} books={books} range={range}
+          <OverviewNewLive only={w.type as NewLiveWidget} paid={periods!.paid} allOrders={allOrders.orders || []} current={periods!.current} books={books} range={range}
             activeNow={gaReport ? gaReport.activeNow ?? null : null} config={w.config || {}} onConfig={setConfig} full={full} setActiveTab={setActiveTab} />
         ));
       default: break;
