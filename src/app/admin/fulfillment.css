@@ -441,3 +441,57 @@ ul.fw-problems {
   cursor: pointer;
 }
 .ss-rate.is-on { border: 2px solid var(--rp-border-strong); background: var(--rp-primary-tint); }
+
+/* The order page sizes itself to the space it gets, not the window: inside the Ship station it sits beside
+   the queue (≈550–900px), where two columns crushed the workbench (step strip and book titles broke letter
+   by letter). Below 960px of its own width the summary cards move under the workbench, side by side. */
+.fw-detail {
+  container: fw-detail / inline-size;
+}
+@container fw-detail (max-width: 960px) {
+  .fw-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .fw-aside .fw-aside-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    align-items: start;
+    gap: 20px;
+  }
+}
+@container fw-detail (max-width: 520px) {
+  .fw-strip {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 14px 18px;
+  }
+  .fw-panel-head,
+  .fw-step {
+    padding: 18px;
+  }
+  .fw-items li {
+    flex-wrap: wrap;
+  }
+  .fw-items li > .fw-quantity {
+    margin-left: auto;
+  }
+  .ss-dims {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ss-rate {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .ss-rate > .rp-mono {
+    grid-column: 2;
+  }
+}
+/* Toolbar: Back on the left, the order's own actions together on the right; prev/next sits between. */
+.fw-toolbar > .fw-toolbar-actions:last-child {
+  margin-left: auto;
+}
+.fw-panel-head {
+  flex-wrap: wrap;
+}
+.ss-rate > .rp-mono {
+  font-size: var(--rp-text-md);
+}

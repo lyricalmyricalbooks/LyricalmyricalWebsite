@@ -8,6 +8,7 @@ import { catalogToCsv } from "./bulkPricing";
 import { buildCustomers, customersToCsv } from "./customerInsights";
 import { exportOrdersCsv } from "./orderCsv";
 import { describeBackup, describeBackupDay, type BackupDay, type BackupRecord } from "./backupStatus";
+import { friendlyError } from "./settingsLayout";
 import { DataTable, GhostButton, PrimaryButton, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
 
 const IAM_URL = "https://console.cloud.google.com/iam-admin/iam?project=lyricalmyrical-web-v2";
@@ -53,7 +54,7 @@ export function BackupsExportCard() {
   const [daysError, setDaysError] = useState("");
   const loadDays = () => listBackups()
     .then((r) => { setDays(r.backups || []); setDaysError(""); })
-    .catch((err: any) => setDaysError(err?.message || "Couldn't read the backups."));
+    .catch((err: any) => setDaysError(friendlyError(err, "read the daily backups")));
   useEffect(() => { load(); loadDays(); }, []);
 
   const downloadDay = async (day: string) => {
@@ -64,7 +65,7 @@ export function BackupsExportCard() {
       const a = document.createElement("a");
       a.href = url; a.rel = "noopener"; a.click();
     } catch (err: any) {
-      toast.error(err?.message || "Couldn't prepare the download.");
+      toast.error(friendlyError(err, "prepare the download"));
     } finally { setBusy(""); }
   };
 
@@ -75,7 +76,7 @@ export function BackupsExportCard() {
       if (result.ok) toast.success("Backup finished.");
       else toast.error(result.error || "The backup didn't finish.");
     } catch (err: any) {
-      toast.error(err?.message || "The backup didn't finish.");
+      toast.error(friendlyError(err, "finish the backup"));
     } finally {
       await Promise.all([load(), loadDays()]);
       setBusy("");
@@ -90,7 +91,7 @@ export function BackupsExportCard() {
       download(...file);
       toast.success("Download ready.");
     } catch (err: any) {
-      toast.error(err?.message || "Export failed.");
+      toast.error(friendlyError(err, "make the export"));
     } finally { setBusy(""); }
   };
   const realOrders = async () => (await adminApi.getAllOrders()).filter((o: any) => o.isTest !== true);
@@ -121,7 +122,7 @@ export function BackupsExportCard() {
       <h3 className="rp-label" style={{ margin: "0 0 8px" }}>Daily backups</h3>
       <p className="rp-hint" style={{ margin: "0 0 8px" }}>One backup a day, kept for 30 days. Download saves that day's whole database as one .json file.</p>
       {daysError ? (
-        <p style={{ margin: "0 0 16px" }}><StatusBadge tone="warning">Couldn't load the list</StatusBadge> <span className="rp-hint">{daysError}</span> <GhostButton size="sm" onClick={loadDays}>Try again</GhostButton></p>
+        <p style={{ margin: "0 0 16px" }}><StatusBadge tone="warning">List unavailable</StatusBadge> <span className="rp-hint">{daysError}</span> <GhostButton size="sm" onClick={loadDays}>Try again</GhostButton></p>
       ) : days === null ? (
         <p className="rp-hint" style={{ margin: "0 0 16px" }}>Loading the daily backups…</p>
       ) : (

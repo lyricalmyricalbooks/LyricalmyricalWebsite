@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
+import { friendlyError } from "./settingsLayout";
 import { DestructiveButton, EmptyState, ErrorState, SecondaryButton, SectionCard, SelectField, StatusBadge, TextField, useConfirm } from "./riso/components";
 
 /**
@@ -39,7 +40,7 @@ export function PrivacyRequestsCard() {
       toast.success("Data file downloaded. Send it to the customer from your email.");
       await load();
     } catch (err: any) {
-      toast.error(err?.message || "Export failed.");
+      toast.error(friendlyError(err, "download their data"));
     } finally { setBusy(""); }
   };
 
@@ -58,7 +59,7 @@ export function PrivacyRequestsCard() {
       toast.success(`Deleted. ${kept ? `${kept} paid order${kept === 1 ? "" : "s"} kept for tax records.` : "No paid orders on file."}${cleared ? ` ${cleared} unpaid order${cleared === 1 ? "" : "s"} cleared of customer details.` : ""}${result.incompleteScan?.length ? ` Some old records may remain in: ${result.incompleteScan.join(", ")}; run it again.` : ""}`);
       await load();
     } catch (err: any) {
-      toast.error(err?.message || "Delete failed.");
+      toast.error(friendlyError(err, "delete their data"));
     } finally { setBusy(""); }
   };
 
@@ -75,7 +76,7 @@ export function PrivacyRequestsCard() {
       toast.success("Request closed.");
       await load();
     } catch (err: any) {
-      toast.error(err?.message || "Couldn't close the request. Nothing was changed.");
+      toast.error(`${friendlyError(err, "close the request")} Nothing was changed.`);
     } finally { setBusy(""); }
   };
 

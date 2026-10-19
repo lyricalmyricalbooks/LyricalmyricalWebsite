@@ -12,8 +12,9 @@ import { useSettingsDirty } from "./settingsDirty";
 import { resendKeyProblem } from "./privateKeys";
 import { senderOf, senderProblems, withSender, type Sender } from "./senderSettings";
 import { emailFunction, lastGmailProblem } from "./notificationApi";
+import { plainError } from "./plainError";
 import {
-  DataTable, ErrorState, GhostButton, LoadingState, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm,
+  DataTable, ErrorState, GhostButton, PrimaryButton, LoadingState, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
 
 type EmailLogEntry = {
@@ -283,8 +284,8 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
       console.warn("Could not load email delivery log:", err);
       setDeliveries([]);
       setDeliveriesError(err?.code === "permission-denied"
-        ? "The delivery log needs the latest Firestore rules deployed."
-        : "Could not load recent deliveries.");
+        ? "The delivery list isn't switched on for this shop yet (its security rules need updating). Emails still send."
+        : "The delivery list couldn't be loaded. Choose Refresh to try again.");
     }
   }
 
@@ -308,7 +309,7 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
       if (result.status === "sent") toast.success(`Sent to ${entry.to}.`);
       else toast.error(`Still not sent: ${result.error || "the sender refused it"}${result.status === "queued" ? " It will be tried again automatically." : ""}`);
     } catch (err: any) {
-      toast.error(err?.message || "Could not retry this email.");
+      toast.error(plainError(err, "Couldn't retry this email"));
     } finally {
       setQueueBusy("");
       loadQueue();
@@ -324,7 +325,7 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
       await emailFunction({ action: "cancelEmail", id: entry.id });
       toast.success("Removed from the queue.");
     } catch (err: any) {
-      toast.error(err?.message || "Could not stop this email.");
+      toast.error(plainError(err, "Couldn't stop this email"));
     } finally {
       setQueueBusy("");
       loadQueue();
@@ -391,7 +392,7 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
     } catch (err) {
       console.error("Failed to load notifications settings:", err);
       setLoadFailed(true);
-      toast.error("Failed to load email notification settings.");
+      toast.error("Your email templates couldn't be loaded.");
     } finally {
       setLoading(false);
     }
@@ -407,7 +408,7 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
       toast.success("Notification templates saved");
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Failed to save templates.");
+      toast.error(plainError(err, "Your email changes weren't saved. They are still on screen"));
     } finally {
       setSaving(false);
     }
@@ -460,9 +461,7 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
       toast.success(`Test email sent to ${testEmail}!`);
     } catch (err: any) {
       console.error("Test Email error:", err);
-      const message = err?.name === "TypeError"
-        ? "Could not reach the email service. Check your connection, or that the sendTestEmail function is deployed."
-        : (err.message || "Failed to dispatch test notification.");
+      const message = plainError(err, "The test email wasn't sent");
       setTestResult({ ok: false, message });
       toast.error("Test email was not sent.");
     } finally {
@@ -535,8 +534,8 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
     { key: "error", header: "Last problem", render: (r: QueuedEmail) => <span style={{ whiteSpace: "normal" }}>{r.lastError || "—"}</span> },
     { key: "actions", header: "Actions", render: (r: QueuedEmail) => (
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <SecondaryButton size="sm" disabled={!!queueBusy} onClick={() => retryQueued(r)}>{queueBusy === r.id ? "Sending…" : "Retry now"}</SecondaryButton>
-        <SecondaryButton size="sm" disabled={!!queueBusy} onClick={() => stopQueued(r)}>Stop</SecondaryButton>
+        <SecondaryButton size="sm" disabled={!!queueBusy} onClick={() => retryQueued(r)} aria-label={`Retry now: ${r.subject || "email"} to ${r.to}`}>{queueBusy === r.id ? "Sending…" : "Retry now"}</SecondaryButton>
+        <GhostButton size="sm" disabled={!!queueBusy} onClick={() => stopQueued(r)} aria-label={`Stop sending ${r.subject || "email"} to ${r.to}`}>Stop sending</GhostButton>
       </div>
     ) },
   ];
@@ -559,7 +558,7 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
       setComms(next); setSender(saved); setSenderSaved(saved); setSenderError("");
       toast.success("Email sender saved");
     } catch (err: any) {
-      toast.error(err?.message || "Couldn't save the email sender.");
+      toast.error(plainError(err, "The email sender wasn't saved"));
     } finally {
       setSavingSender(false);
     }
@@ -576,18 +575,61 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
       setResendDraft("");
       toast.success("Stored Resend key removed");
     } catch (err: any) {
-      toast.error(err?.message || "Couldn't remove the key");
+      toast.error(plainError(err, "The key wasn't removed"));
     } finally {
       setRemovingResend(false);
     }
   }
   const resendStored = !!(data.brand?.resendApiKey || data.brand?.resendApiKeyStored);
 
+  const jumpTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const waitingCount = queue.filter((q) => q.status === "pending").length;
+  const gaveUpCount = queue.length - waitingCount;
+  const pausedCount = TEMPLATE_IDS.filter((id) => (id === "review_request" ? data[id]?.enabled !== true : data[id]?.enabled === false)).length;
+
   return (
     <div className="rp-stack">
+      {/* At a glance: what needs the owner, plus quick jumps down this long page. */}
+      <nav aria-label="Email sender at a glance" className="rp-card" style={{ padding: "12px 16px", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", boxShadow: "none" }}>
+        {queueError ? <StatusBadge tone="warning">Couldn't check the send queue</StatusBadge>
+          : queue.length ? <StatusBadge tone={gaveUpCount ? "danger" : "warning"}>{gaveUpCount ? `${gaveUpCount} email${gaveUpCount === 1 ? "" : "s"} not sent` : `${waitingCount} email${waitingCount === 1 ? "" : "s"} waiting to send`}</StatusBadge>
+          : <StatusBadge tone="success">Nothing waiting to send</StatusBadge>}
+        {deliveries !== null && !deliveriesError && (attentionCount
+          ? <StatusBadge tone="danger">{attentionCount} delivery problem{attentionCount === 1 ? "" : "s"}</StatusBadge>
+          : <StatusBadge tone="success">Recent emails delivered</StatusBadge>)}
+        {Object.keys(allProblems).length > 0 && <StatusBadge tone="warning">{Object.keys(allProblems).length} template{Object.keys(allProblems).length === 1 ? "" : "s"} to check</StatusBadge>}
+        {pausedCount > 0 && <StatusBadge tone="neutral">{pausedCount} customer email{pausedCount === 1 ? "" : "s"} paused</StatusBadge>}
+        <span style={{ flex: "1 1 auto" }} />
+        <span style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+          {queue.length > 0 && <GhostButton size="sm" onClick={() => jumpTo("email-waiting")}>Waiting to send</GhostButton>}
+          <GhostButton size="sm" onClick={() => jumpTo("email-setup")}>Sending setup</GhostButton>
+          <GhostButton size="sm" onClick={() => { if (group === "shopAlerts") pickGroup("orders"); jumpTo("email-templates"); }}>Customer emails</GhostButton>
+          <GhostButton size="sm" onClick={() => { pickGroup("shopAlerts"); jumpTo("email-templates"); }}>Shop alerts</GhostButton>
+          <GhostButton size="sm" onClick={() => { if (attentionCount) setDeliveryFilter("attention"); jumpTo("email-deliveries"); }}>Recent deliveries</GhostButton>
+        </span>
+      </nav>
+
+      {queueError && queue.length === 0 && (
+        <SectionCard title="Waiting to send" collapsible={false}>
+          <ErrorState title="Couldn't check for emails waiting to send" description="Some emails may be waiting to be tried again. Recent deliveries below still lists every attempt." onRetry={() => { void loadQueue(); }} />
+        </SectionCard>
+      )}
+      {queue.length > 0 && (
+        <div id="email-waiting" style={{ scrollMarginTop: 16 }}>
+        <SectionCard title="Waiting to send" collapsible={false} description={`Every sender refused these emails, so they are kept and tried again automatically (up to ${MAX_TRIES} tries over about a day). Fix the sending setup below, then choose Retry now.`}
+          actions={<SecondaryButton size="sm" onClick={loadQueue}>Refresh</SecondaryButton>} flush>
+          <RowsOrCards narrow={narrow} caption="Emails waiting to be sent again" rows={queue} rowKey={(r) => r.id}
+            rowState={(r) => (r.status === "failed" ? "failed" : undefined)} columns={queueColumns} />
+        </SectionCard>
+        </div>
+      )}
+
+      <div id="email-setup" style={{ scrollMarginTop: 16 }}>
+        <SectionHead kicker="Setup" title="Sending setup" subcopy="How shop emails leave your account, who they come from and how they look. Set once, then rarely touched." />
+      </div>
       <GmailSendingCard lastProblem={lastGmailProblem(deliveries || [])} />
 
-      <div id="email-sender" />
+      <div id="email-sender" style={{ scrollMarginTop: 16 }} />
       <SectionCard title="Email sender" description="The name customers see on your emails and where their replies go.">
         <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
           <TextField label="Sender name" value={sender.fromName} placeholder="Lyricalmyrical Books" error={senderIssues.fromName}
@@ -601,7 +643,7 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
         </div>
         {senderError && <p className="rp-error-text" role="alert">{senderError}</p>}
         <div style={{ marginTop: 12 }}>
-          <SecondaryButton onClick={saveSender} disabled={savingSender || comms === null || !senderDirty || Object.keys(senderIssues).length > 0}>{savingSender ? "Saving…" : "Save email sender"}</SecondaryButton>
+          <PrimaryButton onClick={saveSender} disabled={savingSender || comms === null || !senderDirty || Object.keys(senderIssues).length > 0}>{savingSender ? "Saving…" : "Save email sender"}</PrimaryButton>
         </div>
       </SectionCard>
 
@@ -640,9 +682,9 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
               handleBrandChange("resendApiKey", resendKeyProblem(value) ? "" : value.trim());
             }} />
           {data.brand?.resendApiKeyStored && (
-            <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" style={{ marginTop: 6 }} disabled={removingResend} onClick={removeResendKey}>
+            <GhostButton size="sm" style={{ marginTop: 6 }} disabled={removingResend} onClick={removeResendKey}>
               {removingResend ? "Removing…" : "Remove stored key"}
-            </button>
+            </GhostButton>
           )}
           {resendStored && resendWasPublic && (
             <p className="rp-hint" style={{ margin: "12px 0 0", color: "var(--rp-warning)" }}>
@@ -652,8 +694,8 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
         </details>
       </SectionCard>
 
-      <div>
-        <SectionHead kicker="Templates" title="Customer & admin emails" subcopy="Pick an event, edit its copy, and check the live preview." />
+      <div id="email-templates" style={{ scrollMarginTop: 16 }}>
+        <SectionHead kicker="Templates" title="Customer & admin emails" subcopy="Pick an event, edit its words and check the live preview. Shop alerts are the emails sent to you." />
         <Tabs label="Event group" value={group} onChange={pickGroup}
           tabs={GROUP_IDS.map((g) => ({ id: g, label: `${GROUP_LABELS[g] || (g === "shopAlerts" ? "Shop alerts" : g)}${groupProblemCount(g) ? " ⚠" : ""}`, ...(groupProblemCount(g) ? { count: groupProblemCount(g) } : {}) }))} />
         {group !== "shopAlerts" && groupTabs.length > 1 && (
@@ -767,19 +809,7 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
       </div>
       )}
 
-      {queueError && queue.length === 0 && (
-        <SectionCard title="Waiting to send">
-          <ErrorState title="Couldn't check for emails waiting to send" description="Some emails may be waiting to be tried again. Recent deliveries below still lists every attempt." onRetry={() => { void loadQueue(); }} />
-        </SectionCard>
-      )}
-      {queue.length > 0 && (
-        <SectionCard title="Waiting to send" description={`Every sender refused these emails, so they are kept and tried again automatically (up to ${MAX_TRIES} tries over about a day). Fix the sending setup above, then choose Retry now.`}
-          actions={<SecondaryButton size="sm" onClick={loadQueue}>Refresh</SecondaryButton>} flush>
-          <RowsOrCards narrow={narrow} caption="Emails waiting to be sent again" rows={queue} rowKey={(r) => r.id}
-            rowState={(r) => (r.status === "failed" ? "failed" : undefined)} columns={queueColumns} />
-        </SectionCard>
-      )}
-
+      <div id="email-deliveries" style={{ scrollMarginTop: 16 }} />
       <SectionCard title="Recent deliveries" description="Every email the shop tried to send in the last 90 days, newest first. A failed row says what to fix."
         actions={<GhostButton onClick={() => { loadDeliveries(); loadQueue(); }}>Refresh</GhostButton>} flush>
         <div style={{ padding: "12px 16px 0" }}>
@@ -852,7 +882,7 @@ function WeeklySummaryNow() {
       await emailFunction({ action: "weeklySummaryNow" });
       toast.success("Last week's summary is on its way to lyricalmyricalbooks@gmail.com");
     } catch (err: any) {
-      toast.error(err?.message || "The summary couldn't be sent.");
+      toast.error(plainError(err, "The summary wasn't sent"));
     } finally {
       setSending(false);
     }

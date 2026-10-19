@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { cleanMeasurementId, cleanPropertyId, googleAnalyticsApi, type Ga4Answer } from "./googleAnalytics";
+import { HowTo, friendlyError } from "./settingsLayout";
 import { PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField } from "./riso/components";
 
 // Settings › General › Google Analytics. The measurement ID turns on Google's tag for shoppers (consent-aware,
@@ -28,7 +29,7 @@ export function GoogleAnalyticsCard() {
   const verify = async () => {
     setChecking(true); setCheck(null);
     try { setCheck(await googleAnalyticsApi.status()); }
-    catch (err: any) { setCheck({ connected: false, error: err?.message || "Could not check the connection." }); }
+    catch (err: any) { setCheck({ connected: false, error: friendlyError(err, "check the connection") }); }
     finally { setChecking(false); }
   };
 
@@ -41,7 +42,7 @@ export function GoogleAnalyticsCard() {
       toast.success("Google Analytics settings saved");
       if (next.propertyId) await verify();
     } catch (err: any) {
-      toast.error(`Could not save: ${err?.message || err}`);
+      toast.error(friendlyError(err, "save the Google Analytics settings"));
     } finally {
       setSaving(false);
     }
@@ -54,12 +55,14 @@ export function GoogleAnalyticsCard() {
     <SectionCard title="Google Analytics"
       description="Counts visitors with Google Analytics 4 and shows its traffic figures on the Overview (channels, landing pages, countries, devices, engagement, people on the site now). Visitors who decline analytics cookies, the design preview, search-engine robots and your own browsers (Settings › General › Your own visits) are never counted, and private details in page addresses (email addresses, order links, sign-in codes) are never sent to Google."
       actions={loaded && <StatusBadge tone={tracking ? "success" : "neutral"}>{tracking ? "Tracking on" : "Off"}</StatusBadge>}>
-      <ol className="rp-hint" style={{ margin: "0 0 12px", paddingLeft: 20, lineHeight: 1.6 }}>
-        <li>At <a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer">analytics.google.com</a> create a GA4 property for the shop (time zone: Toronto, currency: Canadian dollar) and a <strong>Web</strong> data stream for the shop's address.</li>
-        <li>Copy the stream's <strong>Measurement ID</strong> (G-…) into the first box and save: the shop starts sending visits straight away.</li>
-        <li>In the same web stream, open <strong>Enhanced measurement</strong> › Page views › Show advanced settings and turn off <strong>Page changes based on browser history events</strong> (the shop sends its own page views; leaving it on counts each page twice). Then under <strong>Configure tag settings › List unwanted referrals</strong> add <span className="rp-mono">paypal.com</span> and <span className="rp-mono">stripe.com</span>, so a sale isn't credited to the payment page.</li>
-        <li>For the Overview figures, copy the <strong>Property ID</strong> (Admin › Property details) into the second box, then save and press <strong>Check connection</strong>. It tells you the one email to add in Admin › Property access management as a <strong>Viewer</strong>, and whether Google's reporting API needs switching on.</li>
-      </ol>
+      <HowTo summary="How to set up Google Analytics (4 steps)" open={!!loaded && !loaded.measurementId}>
+        <ol className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "decimal" }}>
+          <li>At <a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer">analytics.google.com</a> create a GA4 property for the shop (time zone: Toronto, currency: Canadian dollar) and a <strong>Web</strong> data stream for the shop's address.</li>
+          <li>Copy the stream's <strong>Measurement ID</strong> (G-…) into the first box and save: the shop starts sending visits straight away.</li>
+          <li>In the same web stream, open <strong>Enhanced measurement</strong> › Page views › Show advanced settings and turn off <strong>Page changes based on browser history events</strong> (the shop sends its own page views; leaving it on counts each page twice). Then under <strong>Configure tag settings › List unwanted referrals</strong> add <span className="rp-mono">paypal.com</span> and <span className="rp-mono">stripe.com</span>, so a sale isn't credited to the payment page.</li>
+          <li>For the Overview figures, copy the <strong>Property ID</strong> (Admin › Property details) into the second box, then save and press <strong>Check connection</strong>. It tells you the one email to add in Admin › Property access management as a <strong>Viewer</strong>, and whether Google's reporting API needs switching on.</li>
+        </ol>
+      </HowTo>
       <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))" }}>
         <TextField label="Measurement ID" value={measurementId} placeholder="G-XXXXXXXXXX" autoComplete="off"
           hint="Public: shoppers' browsers use it to send visits." error={midProblem || undefined} onChange={(e) => setMeasurementId(e.target.value)} />

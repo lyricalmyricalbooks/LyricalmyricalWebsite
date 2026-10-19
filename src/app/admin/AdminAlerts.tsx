@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
+import { X } from "lucide-react";
+import { IconButton, PrimaryButton, SecondaryButton } from "./riso/components";
 import { alertSignature, type AdminAlert } from "./adminAlerts";
 
 const KEY = "admin-dismissed-alerts";
@@ -7,8 +8,19 @@ const readDismissed = (): string[] => {
   try { return JSON.parse(sessionStorage.getItem(KEY) || "[]"); } catch { return []; }
 };
 
+/** How many alerts show before the rest fold behind "Show N more". */
+const SHOWN = 2;
+const RANK: Record<string, number> = { danger: 0, warning: 1 };
+const GLYPH: Record<string, string> = { danger: "✕", warning: "⚠" };
+const WORD: Record<string, string> = { danger: "Urgent", warning: "Needs attention" };
+
+const ACTION_LABEL: Record<string, string> = {
+  retry: "Try again", inventory: "Open Inventory", general: "Open Backups", notifications: "Open Email sender",
+  payments: "Open Payments", webhook: "Open webhook health", order: "Open order",
+};
+
 // Alerts shown above every admin page. Dismissing hides an alert for this browser
-// session until a new order joins it.
+// session until a new order joins it. Urgent ones come first; past two the rest fold away.
 export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, onOpenNotifications, onOpenGeneral, onOpenInventory, onRetry }: {
   alerts: AdminAlert[];
   onOpenOrder: (id: string) => void;
@@ -20,7 +32,12 @@ export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, 
   onRetry?: () => void;
 }) {
   const [dismissed, setDismissed] = useState<string[]>(readDismissed);
-  const visible = alerts.filter((a) => !dismissed.includes(alertSignature(a)));
+  const [expanded, setExpanded] = useState(false);
+  const visible = alerts
+    .filter((a) => !dismissed.includes(alertSignature(a)))
+    .map((a, i) => ({ a, i }))
+    .sort((x, y) => (RANK[x.a.tone] ?? 2) - (RANK[y.a.tone] ?? 2) || x.i - y.i)
+    .map(({ a }) => a);
   if (!visible.length) return null;
 
   const dismiss = (a: AdminAlert) => {
@@ -28,27 +45,37 @@ export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, 
     setDismissed(next);
     try { sessionStorage.setItem(KEY, JSON.stringify(next)); } catch { /* private mode */ }
   };
+  const run = (a: AdminAlert) => (a.action === "retry" ? onRetry?.() : a.action === "inventory" ? onOpenInventory?.()
+    : a.action === "general" ? onOpenGeneral?.() : a.action === "notifications" ? onOpenNotifications()
+      : a.action === "webhook" || a.action === "payments" ? onOpenWebhook()
+        : a.action === "order" ? onOpenOrder(a.orderIds[0]) : onOpenOrders());
+
+  const shown = expanded ? visible : visible.slice(0, SHOWN);
+  const hidden = visible.length - shown.length;
 
   return (
-    <section aria-label="Alerts" role="region" style={{ display: "grid", gap: 8, marginBottom: 16 }}>
-      {visible.map((a) => (
-        <div key={a.id} role={a.tone === "danger" ? "alert" : "status"} className="rp-card"
-          style={{ padding: "12px 16px", boxShadow: "none", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center",
-            borderColor: a.tone === "danger" ? "var(--rp-danger)" : a.tone === "warning" ? "var(--rp-warning)" : "var(--rp-border)",
-            background: a.tone === "danger" ? "var(--rp-danger-tint)" : a.tone === "warning" ? "var(--rp-warning-tint)" : "var(--rp-surface)" }}>
-          <StatusBadge tone={a.tone}>{a.tone === "danger" ? "Urgent" : a.tone === "warning" ? "Attention" : "Reminder"}</StatusBadge>
-          <div style={{ flex: "1 1 320px", minWidth: 0 }}>
-            <strong>{a.title}</strong>
-            <span className="rp-hint" style={{ display: "block", marginTop: 2 }}>{a.detail}</span>
+    <section aria-label={`Alerts (${visible.length})`} role="region" className="rp-alerts">
+      {shown.map((a) => (
+        <div key={a.id} role={a.tone === "danger" ? "alert" : "status"} className="rp-alert" data-tone={a.tone}>
+          <span className="rp-alert-glyph" aria-hidden="true">{GLYPH[a.tone] || "●"}</span>
+          <div className="rp-alert-text">
+            <span className="rp-alert-kicker">{WORD[a.tone] || "Reminder"}</span>
+            <strong className="rp-alert-title">{a.title}</strong>
+            <span className="rp-alert-detail">{a.detail}</span>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <PrimaryButton size="sm" onClick={() => (a.action === "retry" ? onRetry?.() : a.action === "inventory" ? onOpenInventory?.() : a.action === "general" ? onOpenGeneral?.() : a.action === "notifications" ? onOpenNotifications() : a.action === "webhook" || a.action === "payments" ? onOpenWebhook() : a.action === "order" ? onOpenOrder(a.orderIds[0]) : onOpenOrders())}>
-              {a.action === "retry" ? "Try again" : a.action === "inventory" ? "Open Inventory" : a.action === "general" ? "Open Backups" : a.action === "notifications" ? "Open Email sender" : a.action === "payments" ? "Open Payments" : a.action === "webhook" ? "Open webhook health" : a.action === "order" ? "Open order" : "Review orders"}
-            </PrimaryButton>
-            <SecondaryButton size="sm" onClick={() => dismiss(a)}>Dismiss</SecondaryButton>
+          <div className="rp-alert-actions">
+            <PrimaryButton size="sm" onClick={() => run(a)}>{ACTION_LABEL[a.action] || "Review orders"}</PrimaryButton>
+            <IconButton label={`Hide “${a.title}” for now`} className="rp-alert-close" onClick={() => dismiss(a)}>
+              <X size={16} aria-hidden />
+            </IconButton>
           </div>
         </div>
       ))}
+      {(hidden > 0 || (expanded && visible.length > SHOWN)) && (
+        <SecondaryButton size="sm" className="rp-alerts-more" aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
+          {expanded ? "Show fewer alerts" : `Show ${hidden} more alert${hidden === 1 ? "" : "s"}`}
+        </SecondaryButton>
+      )}
     </section>
   );
 }

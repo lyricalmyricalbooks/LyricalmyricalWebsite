@@ -109,7 +109,7 @@ export function BookImportDialog({ books, onClose, onDone }: { books: any[]; onC
       <div className="rp-stack">
         {!results && <>
           <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18 }}>
-            <li>Easiest: <strong>Export CSV</strong>, edit it in Excel, Numbers or Google Sheets, save as CSV and import it here.</li>
+            <li>Easiest: in Books, open <strong>⋯ More catalog actions › Export…</strong>, edit the file in Excel, Numbers or Google Sheets, save as CSV and import it here.</li>
             <li>Books are matched by <strong>ID</strong>, then <strong>ISBN</strong>, then <strong>SKU</strong>. Rows that match nothing become <strong>new draft books</strong>.</li>
             <li>A blank cell keeps what the book has now. To end a sale, type 0 in Sale price. Stock numbers are only written when you choose “Set stock to the file's numbers”. Extra image URLs are separated with “|”.</li>
             <li>Import never publishes. Publish new books from the catalog afterwards; it checks each one first.</li>

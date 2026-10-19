@@ -1056,3 +1056,159 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-ov-drill-list a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .rp-ov-drill-list .rp-hint { white-space: pre-line; }
 .rp-ov-drill-switch { display: flex; gap: 6px; margin-bottom: 6px; }
+/* ── Shell & shared components: admin UX pass (19 October 2026) ─────────────
+ * Top bar (shop status, phone search), alert stack, sign-in card, help dialog and phone
+ * behaviour of shared components. Token-only; every rule is additive to the ones above. */
+.rp-topbar { position: relative; }
+.rp-topbar-search { flex: 1 1 260px; display: flex; align-items: center; }
+.rp-search-box { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
+.rp-search-box .rp-search { flex: 1; min-width: 0; }
+.rp-search-box .rp-search .rp-input { padding-right: 64px; }
+.rp-search-kbd {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none;
+  padding: 2px 6px; border: var(--rp-hair) solid var(--rp-border); background: var(--rp-surface-2);
+  font: 600 var(--rp-text-2xs)/1.4 var(--rp-font-mono); color: var(--rp-text-subtle); letter-spacing: 0.04em;
+}
+.rp .rp-search-toggle, .rp .rp-search-close { display: none; }
+.rp-search-tip { padding: 12px 14px; font-size: var(--rp-text-sm); line-height: 1.5; color: var(--rp-text-muted); }
+.rp-search-results .rp-search-group {
+  min-height: 0; padding: 10px 10px 4px; cursor: default; font-family: var(--rp-font-mono);
+  font-size: var(--rp-text-2xs); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--rp-text-subtle);
+}
+.rp-search-results .rp-search-group:first-child { padding-top: 4px; }
+.rp-search-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-search-results { max-height: min(60vh, 480px); overflow-y: auto; }
+/* Shop status: one button that says whether shoppers can buy, opening Close/Open the shop. */
+.rp-status-btn { cursor: pointer; font-family: var(--rp-font-body); border-style: solid; }
+.rp-status-btn:hover:not(:disabled) { box-shadow: var(--rp-shadow-sm); }
+.rp-status-btn:disabled { opacity: 0.55; cursor: progress; }
+.rp-status-glyph { font-size: 10px; line-height: 1; }
+.rp-status-menu { min-width: 280px; max-width: min(340px, calc(100vw - 24px)); }
+.rp-status-menu .rp-menu-label { line-height: 1.45; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
+.rp-status-menu .rp-menu-label strong { color: var(--rp-text); }
+.rp-menu-item:disabled { opacity: 0.5; cursor: progress; }
+.rp-avatar-btn { width: auto; padding: 0 6px; gap: 4px; display: inline-flex; align-items: center; }
+@media (max-width: 767px) {
+  .rp-topbar { gap: 6px; padding: 0 8px; }
+  .rp-topbar-search { flex: none; position: static; }
+  .rp .rp-search-toggle { display: inline-grid; }
+  .rp-search-box { display: none; }
+  .rp-topbar-search[data-open] .rp-search-box {
+    display: flex; gap: 6px; position: absolute; inset: 0; z-index: 60; padding: 0 8px;
+    background: var(--rp-surface); border-bottom: var(--rp-stroke) solid var(--rp-border-strong);
+  }
+  .rp-topbar-search[data-open] .rp-search-close { display: inline-grid; }
+  .rp-search-kbd { display: none; }
+  .rp-search-box .rp-search .rp-input { padding-right: 12px; }
+  .rp-topbar-search .rp-search-results { left: 8px; right: 8px; top: calc(100% + 4px); }
+  .rp-status-btn { padding: 0 10px; gap: 6px; }
+  .rp-status-btn svg { display: none; }
+  .rp-status-menu { right: auto; left: 50%; transform: translateX(-50%); position: fixed; top: calc(var(--rp-topbar-h) + 6px); }
+}
+@media (pointer: coarse) { .rp-status-btn { min-height: var(--rp-touch); } .rp-search-kbd { display: none; } }
+/* Alerts above every page: urgent first, glyph + word, close button; past two they fold. */
+.rp-alerts { display: grid; gap: 8px; margin-bottom: var(--rp-space-5); }
+.rp-alert {
+  display: flex; align-items: flex-start; gap: 12px; padding: 12px 12px 12px 14px;
+  background: var(--rp-surface); border: var(--rp-stroke) solid var(--rp-border-strong); border-left-width: 6px;
+}
+.rp-alert[data-tone="danger"] { background: var(--rp-danger-tint); border-left-color: var(--rp-danger); }
+.rp-alert[data-tone="warning"] { background: var(--rp-warning-tint); border-left-color: var(--rp-warning); }
+.rp-alert-glyph { flex: none; width: 22px; padding-top: 1px; text-align: center; font-weight: 800; color: var(--rp-text-muted); }
+.rp-alert[data-tone="danger"] .rp-alert-glyph, .rp-alert[data-tone="danger"] .rp-alert-kicker { color: var(--rp-danger); }
+.rp-alert[data-tone="warning"] .rp-alert-glyph, .rp-alert[data-tone="warning"] .rp-alert-kicker { color: var(--rp-warning); }
+.rp-alert-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.rp-alert-kicker { font-size: var(--rp-text-2xs); font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--rp-text-subtle); }
+.rp-alert-title { font-size: var(--rp-text-base); line-height: 1.35; overflow-wrap: anywhere; }
+.rp-alert-detail { font-size: var(--rp-text-sm); line-height: 1.5; color: var(--rp-text-muted); overflow-wrap: anywhere; }
+.rp-alert-actions { flex: none; display: flex; align-items: center; gap: 4px; }
+.rp-alert-close { width: 36px; height: 36px; }
+.rp-alerts-more { justify-self: start; }
+@media (max-width: 767px) {
+  .rp-alert { flex-wrap: wrap; }
+  .rp-alert-text { flex-basis: calc(100% - 34px); }
+  .rp-alert-actions { width: 100%; padding-left: 34px; justify-content: space-between; }
+}
+@media (pointer: coarse) { .rp-alert-close { width: var(--rp-touch); height: var(--rp-touch); } }
+/* Sign-in card */
+.rp-login-brand { text-align: center; margin-bottom: 24px; }
+.rp-login-mark { margin: 0 auto 16px; width: 52px; height: 52px; }
+.rp-login-title { font-size: 2.5rem; }
+.rp-login-title span { color: var(--rp-primary-text); }
+.rp-login-lede { text-align: center; margin: 0 0 20px; font-size: var(--rp-text-base); line-height: 1.5; }
+.rp-login-note { margin: 12px 0 0; text-align: center; }
+.rp-login-error {
+  margin: 16px 0 0; padding: 10px 12px; border: var(--rp-stroke) solid var(--rp-danger); border-left-width: 6px;
+  background: var(--rp-danger-tint); color: var(--rp-text); font-size: var(--rp-text-sm); line-height: 1.5;
+}
+.rp-login-error span { color: var(--rp-danger); font-weight: 800; }
+.rp-login-foot { display: grid; gap: 10px; justify-items: center; margin-top: 24px; padding-top: 16px; border-top: var(--rp-hair) solid var(--rp-divider); text-align: center; }
+.rp-login-link { color: var(--rp-primary-text); font-size: var(--rp-text-sm); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; padding: 6px 4px; }
+@media (max-width: 480px) { .rp-login-card { padding: 28px 20px; } .rp-login-title { font-size: 2rem; } }
+/* Help & shortcuts */
+.rp-help-head { margin: 0 0 10px; font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--rp-text-subtle); }
+.rp-help-head + * { margin-top: 0; }
+.rp-help-keys { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 16px; margin: 0 0 24px; font-size: var(--rp-text-sm); line-height: 1.5; }
+.rp-help-keys dt { white-space: nowrap; }
+.rp-help-keys dd { margin: 0; color: var(--rp-text-muted); }
+.rp-help-list { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: var(--rp-text-sm); line-height: 1.55; }
+.rp kbd { display: inline-block; min-width: 1.6em; padding: 1px 5px; border: var(--rp-hair) solid var(--rp-border-strong); background: var(--rp-surface-2); font: 600 0.85em/1.3 var(--rp-font-mono); text-align: center; }
+@media (max-width: 520px) { .rp-help-keys { grid-template-columns: minmax(0, 1fr); gap: 2px; } .rp-help-keys dd { margin-bottom: 10px; } }
+/* What's new: readable dates, the newest marked */
+.rp-update-entry time { font-family: var(--rp-font-mono); }
+.rp-update-new { margin-left: 8px; padding: 1px 6px; font-size: 10px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; background: var(--rp-primary); color: var(--rp-on-primary); }
+/* Buttons that are busy */
+.rp-btn-spinner { width: 14px; height: 14px; flex: none; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: rp-spin 0.8s linear infinite; }
+.rp-btn[aria-busy="true"] { cursor: progress; }
+/* Field errors carry a glyph, not colour alone */
+.rp-field .rp-error-text::before { content: "⚠ "; }
+/* Toasts never run off a phone screen */
+.rp-toast { max-width: min(440px, calc(100vw - 32px)); overflow-wrap: anywhere; }
+/* Tabs on phones: one sideways-scrolling row instead of ragged wrapped rows */
+@media (max-width: 767px) {
+  .rp-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .rp-tab { flex-shrink: 0; white-space: nowrap; }
+}
+/* Dialogs on phones: a sheet from the bottom, full width, with thumb-sized footer buttons */
+@media (max-width: 767px) {
+  .rp-dialog-root:not([data-variant="drawer"]) { place-items: end stretch; padding: 0; }
+  .rp-dialog-root:not([data-variant="drawer"]) > .rp-dialog { width: 100%; max-height: 92vh; max-height: 92dvh; border-radius: 0; border-width: var(--rp-stroke) 0 0; }
+  .rp-dialog-root:not([data-variant="drawer"]) > .rp-dialog .rp-dialog-foot { border-radius: 0; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .rp-dialog-foot .rp-btn { min-height: var(--rp-touch); }
+  .rp-dialog-head, .rp-dialog-body { padding-left: 16px; padding-right: 16px; }
+}
+/* DataTable stackOnPhone: each row becomes a card, every cell under its column name */
+@media (max-width: 767px) {
+  .rp-table-wrap[data-stack="phone"] { border: 0; box-shadow: none; background: transparent; overflow: visible; }
+  .rp-table-wrap[data-stack="phone"] thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+  .rp-table-wrap[data-stack="phone"] .rp-table, .rp-table-wrap[data-stack="phone"] tbody { display: block; }
+  .rp-table-wrap[data-stack="phone"] tr {
+    display: block; margin-bottom: 10px; padding: 6px 0; background: var(--rp-surface);
+    border: var(--rp-stroke) solid var(--rp-border-strong); box-shadow: var(--rp-shadow-sm);
+  }
+  .rp-card .rp-table-wrap[data-stack="phone"] tr { box-shadow: none; border-width: var(--rp-hair); }
+  .rp-table-wrap[data-stack="phone"] td {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 12px;
+    border: 0; text-align: right; overflow-wrap: anywhere;
+  }
+  .rp-table-wrap[data-stack="phone"] td[data-label]::before {
+    content: attr(data-label); flex: none; max-width: 45%; text-align: left;
+    font-size: var(--rp-text-3xs); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--rp-text-subtle);
+  }
+  .rp-table-wrap[data-stack="phone"] td.rp-lead { display: block; text-align: left; font-size: var(--rp-text-base); }
+  .rp-table-wrap[data-stack="phone"] td.rp-lead::before { display: block; margin-bottom: 2px; max-width: none; }
+  .rp-table-wrap[data-stack="phone"] td:empty { display: none; }
+  .rp-table-wrap[data-stack="phone"] tr[data-row-state="failed"] { border-left: 6px solid var(--rp-danger); }
+  .rp-table-wrap[data-stack="phone"] tr[data-row-state="conflict"] { border-left: 6px solid var(--rp-warning); }
+}
+/* Tables that scroll sideways say so with a soft edge shadow (scrolling shadows). */
+.rp-table-wrap:not([data-stack="phone"]) {
+  background:
+    linear-gradient(to right, var(--rp-surface) 30%, transparent) left / 24px 100% no-repeat local,
+    linear-gradient(to left, var(--rp-surface) 30%, transparent) right / 24px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(16, 15, 13, 0.18), transparent) left / 10px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(16, 15, 13, 0.18), transparent) right / 10px 100% no-repeat scroll,
+    var(--rp-surface);
+}
+/* The top bar's Add book button keeps a full tap size on phones (it is icon-only there). */
+@media (max-width: 767px) { .rp-topbar-actions .rp-btn-primary { min-height: 40px; height: 40px; } }

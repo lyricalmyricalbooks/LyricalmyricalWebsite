@@ -207,12 +207,17 @@ export function MetricCard({ label, value, footer, tone }: { label: string; valu
 
 /* ── Buttons ─────────────────────────────────────────────────────────── */
 
-type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { size?: "sm" | "md" | "lg"; icon?: ReactNode };
+type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  size?: "sm" | "md" | "lg"; icon?: ReactNode;
+  /** Work in progress: the button is disabled, says so to screen readers and shows a small spinner in place of its icon. */
+  busy?: boolean;
+};
 function makeButton(variant: string) {
-  return function RisoButton({ size = "md", icon, className, children, type = "button", ...rest }: BtnProps) {
+  return function RisoButton({ size = "md", icon, className, children, type = "button", busy, disabled, ...rest }: BtnProps) {
     return (
-      <button type={type} className={cx("rp-btn", `rp-btn-${variant}`, size === "sm" && "rp-btn-sm", size === "lg" && "rp-btn-lg", className)} {...rest}>
-        {icon}{children}
+      <button type={type} className={cx("rp-btn", `rp-btn-${variant}`, size === "sm" && "rp-btn-sm", size === "lg" && "rp-btn-lg", className)}
+        disabled={disabled || busy || undefined} aria-busy={busy || rest["aria-busy"] || undefined} {...rest}>
+        {busy ? <span className="rp-btn-spinner" aria-hidden="true" /> : icon}{children}
       </button>
     );
   };
@@ -322,9 +327,12 @@ export function StatusBadge({ tone = "neutral", children }: { tone?: BadgeTone; 
 export type Column<T> = { key: string; header: string; numeric?: boolean; lead?: boolean; render: (row: T) => ReactNode };
 export type RowState = "pending" | "failed" | "conflict";
 
-export function DataTable<T>({ columns, rows, rowKey, caption, empty, rowState, sticky, onRowClick, rowProps }: {
+export function DataTable<T>({ columns, rows, rowKey, caption, empty, rowState, sticky, onRowClick, rowProps, stackOnPhone }: {
   columns: Column<T>[]; rows: T[]; rowKey: (r: T) => string; caption: string; empty?: ReactNode;
   rowState?: (r: T) => RowState | undefined; sticky?: boolean;
+  /** On phones (≤767px) draw each row as a small card, every cell under its column name, instead of a
+   *  table that scrolls sideways. Off by default: the table scrolls inside its own box. */
+  stackOnPhone?: boolean;
   /** Pointer shortcut: clicking anywhere on a row (outside its own links/buttons). Keep a keyboard
    *  control for the same action inside the row, e.g. a button in the lead cell. */
   onRowClick?: (r: T) => void;
@@ -333,14 +341,14 @@ export function DataTable<T>({ columns, rows, rowKey, caption, empty, rowState, 
 }) {
   if (!rows.length && empty) return <>{empty}</>;
   return (
-    <div className="rp-table-wrap" data-sticky={sticky || undefined} tabIndex={0} role="region" aria-label={caption}>
+    <div className="rp-table-wrap" data-sticky={sticky || undefined} data-stack={stackOnPhone ? "phone" : undefined} tabIndex={0} role="region" aria-label={caption}>
       <table className="rp-table">
         <caption className="rp-sr-only">{caption}</caption>
         <thead><tr>{columns.map((c) => <th key={c.key} scope="col" className={c.numeric ? "rp-num" : undefined}>{c.header}</th>)}</tr></thead>
         <tbody>
           {rows.map((r) => (
             <tr key={rowKey(r)} {...rowProps?.(r)} data-row-state={rowState?.(r)} style={onRowClick ? { cursor: "pointer" } : rowProps?.(r)?.style}
-              onClick={onRowClick ? (e) => { if (!(e.target as HTMLElement).closest?.("a,button,input,select,textarea,label")) onRowClick(r); } : undefined}>{columns.map((c) => <td key={c.key} className={cx(c.numeric && "rp-num", c.lead && "rp-lead")}>{c.render(r)}</td>)}</tr>
+              onClick={onRowClick ? (e) => { if (!(e.target as HTMLElement).closest?.("a,button,input,select,textarea,label")) onRowClick(r); } : undefined}>{columns.map((c) => <td key={c.key} data-label={c.header || undefined} className={cx(c.numeric && "rp-num", c.lead && "rp-lead")}>{c.render(r)}</td>)}</tr>
           ))}
         </tbody>
       </table>

@@ -2,14 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
+import { copyText } from "./clipboard";
 import { getOrdersCached } from "./ordersCache";
 import {
   buildCustomers, consentOf, copiesOf, customerCountries, customerStats, customersToCsv, parseTags, CONSENT_LABELS, SEGMENT_LABELS,
   type Consent, type CustomerRow, type CustomerSegment,
 } from "./customerInsights";
 import {
-  DataTable, Dialog, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, Pagination, PrimaryButton, SearchField,
-  SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextArea, TextField, type BadgeTone, type Column,
+  DataTable, Dialog, EmptyState, ErrorState, FilterBar, GhostButton, LoadingState, MetricCard, Pagination, PrimaryButton, SearchField,
+  SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextArea, TextField, useConfirm, type BadgeTone, type Column,
 } from "./riso/components";
 
 const money = (n: number) => `CA$${n.toFixed(2)}`;
@@ -50,6 +51,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const [draft, setDraft] = useState<{ note: string; tags: string; loaded: boolean } | null>(null);
   const [notesState, setNotesState] = useState<"loading" | "ok" | "failed">("loading");
   const [savingNote, setSavingNote] = useState(false);
+  const [ask, confirmNode] = useConfirm();
 
   useEffect(() => { if (initialQuery !== undefined) setQ(initialQuery); }, [initialQuery]);
 
@@ -111,6 +113,9 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const pageRows = rows.slice((Math.min(page, pageCount) - 1) * PAGE_SIZE, Math.min(page, pageCount) * PAGE_SIZE);
 
+  const filtered = seg !== "all" || !!q.trim() || consentFilter !== "all" || !!tagFilter || !!country;
+  const clearFilters = () => { setSeg("all"); setQ(""); setConsentFilter("all"); setTagFilter(""); setCountry(""); };
+
   const exportCsv = () => {
     if (!rows.length) return toast.error("Nothing to export");
     const blob = new Blob([customersToCsv(rows, consentFor, (c) => noteFor(c)?.tags || [])], { type: "text/csv;charset=utf-8" });
@@ -133,6 +138,16 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
     const n = noteFor(open);
     setDraft({ note: n?.note || "", tags: (n?.tags || []).join(", "), loaded: true });
   }, [open, draft, notesState, hashes, notes]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Closing with an unsaved note asks first, so typed notes are never dropped by accident.
+  const noteChanged = () => {
+    if (!open || !draft || !draft.loaded) return false;
+    const n = noteFor(open);
+    return draft.note !== (n?.note || "") || parseTags(draft.tags).join(",") !== (n?.tags || []).join(",");
+  };
+  const closeCustomer = async () => {
+    if (noteChanged() && !(await ask({ title: "Discard your note changes?", message: "The private note or tags for this customer have changes that aren't saved.", confirmLabel: "Discard changes" }))) return;
+    setOpen(null);
+  };
   const saveNote = async () => {
     if (!open || !draft || !draft.loaded) return;
     const id = hashes.get(open.key) || await emailHash(open.key);
@@ -149,19 +164,19 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const columns: Column<CustomerRow>[] = [
     { key: "customer", header: "Customer", lead: true, render: (c) => (
       <button type="button" onClick={() => openCustomer(c)} aria-label={`View ${c.name || c.email}`}
-        style={{ background: "none", border: 0, padding: 0, textAlign: "left", cursor: "pointer", color: "var(--rp-primary-text)", overflowWrap: "anywhere" }}>
+        style={{ background: "none", border: 0, padding: 0, textAlign: "left", cursor: "pointer", color: "var(--rp-primary-text)", overflowWrap: "anywhere", minWidth: 170 }}>
         <div style={{ fontWeight: 600, textDecoration: "underline" }}>{c.name || "—"}</div>
         <div className="rp-hint">{c.email}</div>
         {(noteFor(c)?.tags || []).length > 0 && <div className="rp-hint rp-mono">{noteFor(c)!.tags.join(" · ")}</div>}
       </button>
     ) },
-    { key: "segment", header: "Segment", render: (c) => <StatusBadge tone={TONE[c.segment]}>{SEGMENT_LABELS[c.segment]}</StatusBadge> },
-    { key: "consent", header: "Marketing", render: (c) => consent ? <StatusBadge tone={CONSENT_TONE[consentFor(c)]}>{CONSENT_LABELS[consentFor(c)]}</StatusBadge> : "—" },
+    { key: "segment", header: "Segment", render: (c) => <span style={{ whiteSpace: "nowrap" }}><StatusBadge tone={TONE[c.segment]}>{SEGMENT_LABELS[c.segment]}</StatusBadge></span> },
+    { key: "consent", header: "Marketing", render: (c) => consent ? <span style={{ whiteSpace: "nowrap" }}><StatusBadge tone={CONSENT_TONE[consentFor(c)]}>{CONSENT_LABELS[consentFor(c)]}</StatusBadge></span> : "—" },
     { key: "location", header: "Location", render: (c) => [c.city, c.country].filter(Boolean).join(", ") || "—" },
     { key: "orders", header: "Orders", numeric: true, render: (c) => c.orderCount },
     { key: "spent", header: "Net spent", numeric: true, render: (c) => money(c.totalSpent) },
     { key: "aov", header: "Avg order", numeric: true, render: (c) => money(c.avgOrder) },
-    { key: "last", header: "Last order", render: (c) => c.lastOrderAt ? `${new Date(c.lastOrderAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} (${c.daysSinceLast}d ago)` : "—" },
+    { key: "last", header: "Last order", render: (c) => !c.lastOrderAt ? "—" : <span style={{ whiteSpace: "nowrap" }}>{`${new Date(c.lastOrderAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} (${c.daysSinceLast}d ago)`}</span> },
   ];
 
   if (loading) return <LoadingState label="Loading customers…" />;
@@ -211,11 +226,15 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
             {countries.map((c) => <option key={c.country} value={c.country}>{c.country} ({c.count})</option>)}
           </SelectField>
         )}
+        {filtered && <GhostButton onClick={clearFilters}>Clear filters</GhostButton>}
         <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
       </FilterBar>
-      <SectionCard flush title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · built from all ${orders.length} orders (paid, non-test; refunds taken off)`}>
-        <DataTable caption="Customers" columns={columns} rows={pageRows} rowKey={(c) => c.key}
-          empty={<EmptyState title="No customers match" description="Customers appear after their first paid order." />} />
+      <SectionCard flush collapsible={false} title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · built from all ${orders.length} orders (paid, non-test; refunds taken off). Click a customer for their orders and your private notes.`}>
+        <DataTable caption="Customers" columns={columns} rows={pageRows} rowKey={(c) => c.key} onRowClick={openCustomer}
+          empty={all.length === 0
+            ? <EmptyState title="No customers yet" description="Customers appear here after their first paid order." />
+            : <EmptyState title="No customers match" description="Try another segment, search or filter."
+                action={<SecondaryButton onClick={clearFilters}>Clear filters</SecondaryButton>} />} />
         {rows.length > PAGE_SIZE && <Pagination page={Math.min(page, pageCount)} pageCount={pageCount} onPage={setPage} />}
       </SectionCard>
 
@@ -227,7 +246,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
       </Dialog>
 
       {open && (
-        <Dialog open size="lg" title={open.name || open.email} description={`${open.email} · ${SEGMENT_LABELS[open.segment]} · Marketing: ${CONSENT_LABELS[consentFor(open)]}`} onClose={() => setOpen(null)}>
+        <Dialog open size="lg" title={open.name || open.email} description={`${open.email} · ${SEGMENT_LABELS[open.segment]} · Marketing: ${CONSENT_LABELS[consentFor(open)]}`} onClose={() => { void closeCustomer(); }}>
           <div className="rp-stack">
             <p className="rp-hint">
               {open.orderCount} paid order{open.orderCount === 1 ? "" : "s"} · {money(open.totalSpent)} lifetime after refunds{open.firstOrderAt ? ` · first order ${new Date(open.firstOrderAt).toLocaleDateString()}` : ""}
@@ -257,13 +276,15 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
                 )}
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <PrimaryButton onClick={saveNote} disabled={savingNote || !draft.loaded}>{savingNote ? "Saving…" : "Save note"}</PrimaryButton>
-                  <a className="rp-btn" data-variant="secondary" href={`mailto:${encodeURIComponent(open.email).replace(/%40/g, "@")}`}>Email customer</a>
+                  <a className="rp-btn rp-btn-secondary" href={`mailto:${encodeURIComponent(open.email).replace(/%40/g, "@")}`}>Email customer</a>
+                  <SecondaryButton onClick={() => { void copyText(open.email, "Email address"); }}>Copy email</SecondaryButton>
                 </div>
               </div>
             )}
           </div>
         </Dialog>
       )}
+      {confirmNode}
     </div>
   );
 }

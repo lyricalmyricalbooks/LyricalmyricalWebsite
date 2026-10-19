@@ -24,6 +24,14 @@ describe("OrdersDesk", () => {
     // The right side is the real order page (Stripe sync, refunds, labels).
     expect(html).toContain('data-order-detail="ABC"');
     expect(html).toContain("Shortcuts:");
+    // Empty side lists read as plain text, not links that open an empty page.
+    expect(html).toContain('<span class="rp-hint">0 on the way</span>');
+    expect(html).not.toContain('class="od-link">0 on the way');
+  });
+
+  it("never opens on the table view", () => {
+    const html = renderToStaticMarkup(<OrdersDesk selectedId={null} onSelect={() => {}} />);
+    expect(html).not.toContain("Orders table");
   });
 
   it("opens on All orders › Open, newest first, as covers, whatever was picked last time", () => {

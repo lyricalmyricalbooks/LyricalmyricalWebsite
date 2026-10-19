@@ -962,8 +962,14 @@ New panels say "Not recorded yet" until data exists — never a made-up zero.
 **Not yet rebuilt** (still legacy markup, styled by the scoped compatibility layer in
 `theme.css` under `.admin-reso[data-admin-theme="reso"]`, which maps old dark utilities
 and violet/blue accents onto Riso tokens): Taxes/Communications
-(not in the nav), the Book editor's layout (it does have a dialog for unsaved changes,
-a `beforeunload` guard and an inline validation summary), and the theme editor's panels.
+(not in the nav) and the theme editor's panels. The Book editor and catalog are Riso components plus `admin/books.css`.
+**Admin UX pass (19 October 2026):** top bar `ShopStatusMenu` (`riso/shellParts.tsx`: Shop open/closed/Checkout paused, Close/Open
+the shop through the existing confirm, Store status settings); Help and appearance are also in the avatar menu; search opens from a
+magnifier on phones. `AdminAlerts` sorts urgent first and folds after two. `DataTable` `stackOnPhone` turns rows into cards at ≤767px;
+Riso buttons take `busy`. Settings pages group cards with `admin/settingsLayout.tsx` (`SettingsContents` "On this page" panel that
+scrolls/focuses without touching the hash, `SettingsGroup`, `HowTo`, `friendlyError`); Email/Reviews/Messages errors go through
+`admin/plainError.ts`, sign-in errors through `admin/loginError.ts` — never show raw `err.message` in admin. The order page lays itself
+out by its own width (container query on `.fw-detail` in `fulfillment.css`).
 Never wrap `rp-*` chrome in `.admin-light` — its `aside button` / `input` rules override
 it. Don't add new compat rules for new work; compose the components instead.
 
@@ -1746,7 +1752,7 @@ Grouped footer navigation defaults to Explore and Participate & connect, with po
 - **PayPal:** partial refunds accumulate (`paypalRefundedTotalMinor`, `paypalRefundIds`) and a full total refunds the
   order; capture uses the order's own `paypalMode`. Order emails list download links for every non-physical line
   (`isPhysicalItem`); the shop's paid-order email escapes the address.
-- **Admin:** bulk Feature writes `isFeatured`; Approve/Reject selected acts only on visible reviews and the queue loads
+- **Admin:** bulk Feature (bulk bar ⋯ › Feature on the homepage) writes `isFeatured`; Approve/Reject selected acts only on visible reviews and the queue loads
   every pending review; Orders CSV includes partial refunds; Overview stock skips `trackInventory: false` books and the
   format mix uses each line's sold edition.
 - **Account:** email-link sign-in survives blocked storage; order rows count copies.

@@ -49,6 +49,12 @@ import {
   type BadgeTone,
 } from "./riso/components";
 
+// "Placed Oct 16, 2026, 9:24 a.m." instead of the browser's numeric date (10/16/2026 could be read either way).
+const placedAt = (value: any) => {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "" : `Placed ${d.toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" })}`;
+};
+
 export function OrderDetail({
   orderId,
   onClose,
@@ -797,7 +803,7 @@ export function OrderDetail({
       <SectionHead
         kicker="Order"
         title={order.orderId}
-        subcopy={new Date(order.createdAt).toLocaleString()}
+        subcopy={placedAt(order.createdAt)}
         actions={
           <>
             <StatusBadge tone={payTone}>
@@ -887,7 +893,7 @@ export function OrderDetail({
           onClearAppLabel={() => setConfirmClearAppLabel(true)}
           onClearLabelLock={() => setConfirmClearLabelLock(true)}
         />
-        <aside className="rp-stack" aria-label="Order summary">
+        <aside className="rp-stack fw-aside" aria-label="Order summary">
           {order.paymentMismatch && !order.paymentMismatch.resolvedAt && order.paymentStatus !== "paid" && (
             <SectionCard title={order.paymentMismatch.paidAfterCancel ? "Paid after cancelling" : "Payment doesn't match"}>
               <p className="fw-summary">
@@ -981,6 +987,8 @@ export function OrderDetail({
               </SecondaryButton>
             </SectionCard>
           )}
+          {/* Who and what was paid: side by side under the workbench when the order page is narrow. */}
+          <div className="rp-stack fw-aside-info">
           <SectionCard title="Customer">
             <strong>{order.customer?.name || "Guest customer"}</strong>
             <p className="fw-summary">
@@ -1160,6 +1168,7 @@ export function OrderDetail({
               </ul>
             </SectionCard>
           )}
+          </div>
         </aside>
       </div>
       <details className="fw-notes" data-print="hide">

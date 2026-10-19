@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { PrimaryButton, SecondaryButton, StatusBadge, useConfirm } from "./riso/components";
+import { friendlyError } from "./settingsLayout";
 import { describeKeyReport, webhookState, type Check } from "./stripeChecks";
 
 type Report = Awaited<ReturnType<typeof adminApi.stripeWebhookHealth>>;
@@ -22,7 +23,7 @@ export function StripeWebhookHealth({ unsaved = false }: { unsaved?: boolean }) 
     try {
       setKeys(describeKeyReport(await adminApi.verifyStripeKeys()));
     } catch (err: any) {
-      setKeys([{ tone: "danger", text: err.message || "Couldn't reach Stripe." }]);
+      setKeys([{ tone: "danger", text: friendlyError(err, "test the Stripe connection") }]);
     } finally {
       setBusy(null);
     }
@@ -43,7 +44,7 @@ export function StripeWebhookHealth({ unsaved = false }: { unsaved?: boolean }) 
       else if (kind !== "check") toast.success("Nothing needed fixing.");
     } catch (err: any) {
       setReport(null); // never leave an old "OK" on screen after a failed check
-      toast.error(err.message);
+      toast.error(friendlyError(err, kind === "check" ? "check the webhook" : kind === "fix" ? "fix the webhook" : "reset webhook signing"));
     } finally {
       setBusy(null);
     }

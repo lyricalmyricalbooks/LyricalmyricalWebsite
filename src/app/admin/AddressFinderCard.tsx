@@ -3,6 +3,7 @@ import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
+import { HowTo, friendlyError } from "./settingsLayout";
 import { GhostButton, PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField, useConfirm } from "./riso/components";
 
 type Check = { ok: boolean; message: string } | null;
@@ -56,7 +57,7 @@ export function AddressFinderCard() {
         ? { ok: true, message: "Google found addresses with this key. Shoppers now get complete addresses with postal codes at checkout." }
         : { ok: false, message: data.error || "Google refused the key." });
     } catch (err: any) {
-      setCheck({ ok: false, message: err?.message || "Could not check the key." });
+      setCheck({ ok: false, message: friendlyError(err, "check the key") });
     } finally {
       setChecking(false);
     }
@@ -72,7 +73,7 @@ export function AddressFinderCard() {
       toast.success(value ? "Google key saved" : "Google key removed");
       if (value) await verify();
     } catch (err: any) {
-      toast.error(`Could not save: ${err?.message || err}`);
+      toast.error(friendlyError(err, "save the Google key"));
     } finally {
       setSaving(false);
     }
@@ -93,11 +94,13 @@ export function AddressFinderCard() {
     <SectionCard title="Address finder at checkout"
       description="Suggests full addresses while shoppers type their street. Without a key it uses free OpenStreetMap data, which often has no house number or postal code (common in Canada). With a Google Maps Platform key, shoppers pick their exact address and the city, province and postal code fill in."
       actions={stored !== null && <StatusBadge tone={stored ? "success" : "warning"}>{stored ? "Google" : "Free (OpenStreetMap)"}</StatusBadge>}>
-      <ol className="rp-hint" style={{ margin: "0 0 12px", paddingLeft: 20, lineHeight: 1.6 }}>
-        <li>In Google Cloud (console.cloud.google.com), open the project <strong>lyricalmyrical-web-v2</strong> and enable <strong>Places API (New)</strong>.</li>
-        <li>APIs &amp; Services › Credentials › Create credentials › API key. Under API restrictions, allow only Places API (New). Leave Application restrictions on None: the shop's server makes the lookups, not shoppers' browsers.</li>
-        <li>Paste the key here and choose Save key. Google bills lookups beyond its monthly free allowance, so set a budget alert in Google Cloud › Billing. The shop also stops using the key after 300 lookups a day (checkout then uses the free suggestions until the next day), which keeps a month inside Google's free allowance.</li>
-      </ol>
+      <HowTo summary="How to get a Google key" open={stored === false}>
+        <ol className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "decimal" }}>
+          <li>In Google Cloud (console.cloud.google.com), open the project <strong>lyricalmyrical-web-v2</strong> and enable <strong>Places API (New)</strong>.</li>
+          <li>APIs &amp; Services › Credentials › Create credentials › API key. Under API restrictions, allow only Places API (New). Leave Application restrictions on None: the shop's server makes the lookups, not shoppers' browsers.</li>
+          <li>Paste the key here and choose Save key. Google bills lookups beyond its monthly free allowance, so set a budget alert in Google Cloud › Billing. The shop also stops using the key after 300 lookups a day (checkout then uses the free suggestions until the next day), which keeps a month inside Google's free allowance.</li>
+        </ol>
+      </HowTo>
       <TextField label="Google Maps Platform API key" type="password" value={draft} autoComplete="off"
         placeholder={stored ? "Stored — enter a new key to replace it" : "AIza…"}
         hint={readFailed ? "Couldn't check whether a key is stored." : stored === null ? "Checking…" : stored ? "✓ A key is stored. It is never shown here." : "No key yet: checkout uses the free OpenStreetMap suggestions."}

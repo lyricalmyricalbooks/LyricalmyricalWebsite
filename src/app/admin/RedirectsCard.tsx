@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
+import { friendlyError } from "./settingsLayout";
 import { DataTable, EmptyState, ErrorState, PrimaryButton, SecondaryButton, SectionCard, TextArea, TextField, useConfirm } from "./riso/components";
 import { MAX_REDIRECTS, normalizePath, normalizeTarget, parseRedirectLines, redirectProblem, type Redirect } from "../features/site/redirects";
 
@@ -27,7 +28,7 @@ export function RedirectsCard() {
   const persist = async (next: Redirect[], message: string) => {
     setBusy(true);
     try { setItems(await adminApi.saveRedirects(next)); toast.success(message); return true; }
-    catch (err: any) { toast.error(err?.message || "Couldn't save the redirects."); return false; }
+    catch (err: any) { toast.error(friendlyError(err, "save the redirects")); return false; }
     finally { setBusy(false); }
   };
 
