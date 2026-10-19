@@ -1,0 +1,75 @@
+/* Six Overview widgets added 19 October 2026 (OverviewNewSales.tsx): Sales calendar, Month goal, Days to ship,
+   Launch curves, Book of the week, Signed or not. Riso tokens only. */
+.rp-nw { padding: 14px 20px 16px; min-width: 0; }
+.rp-nw-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.rp-nw-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.rp-nw-big { font-family: var(--rp-font-mono); font-size: 26px; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rp-nw-big small { font-family: var(--rp-font-body); font-size: var(--rp-text-sm); letter-spacing: 0; color: var(--rp-text-muted); font-weight: 400; }
+.rp-nw-foot { margin: 6px 0 0; }
+.rp-nw .rp-viz-cols, .rp-nw .rp-viz-rank-row { padding-left: 0; padding-right: 0; }
+
+/* Sales calendar */
+.rp-nw-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 18px; margin: 0 0 12px; }
+.rp-nw-stats dt { font-size: var(--rp-text-3xs); font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--rp-text-subtle); }
+.rp-nw-stats dd { margin: 2px 0 0; font-family: var(--rp-font-mono); font-size: 20px; font-variant-numeric: tabular-nums; }
+.rp-nw-stats dd small { display: block; font-family: var(--rp-font-body); font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
+.rp-nw-cal { margin: 0; min-width: 0; }
+.rp-nw-cal-scroll { overflow-x: auto; max-width: 100%; padding-bottom: 4px; }
+.rp-nw-cal-scroll:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp-nw-cal-grid { display: grid; grid-auto-rows: 12px; gap: 3px; width: max-content; }
+.rp-nw-cal-month { font-family: var(--rp-font-mono); font-size: 10px; color: var(--rp-text-subtle); white-space: nowrap; overflow: visible; line-height: 12px; }
+.rp-nw-cal-day { font-family: var(--rp-font-mono); font-size: 10px; color: var(--rp-text-muted); line-height: 12px; }
+.rp-nw-cal-cell { display: block; width: 12px; height: 12px; background: var(--rp-surface-inset); border: 1px solid var(--rp-divider); box-sizing: border-box; }
+.rp-nw-cal-cell[data-empty] { background: transparent; border-color: transparent; }
+.rp-nw-cal-cell[data-level="1"] { background: color-mix(in srgb, var(--rp-primary) 30%, var(--rp-surface)); border-color: transparent; }
+.rp-nw-cal-cell[data-level="2"] { background: color-mix(in srgb, var(--rp-primary) 55%, var(--rp-surface)); border-color: transparent; }
+.rp-nw-cal-cell[data-level="3"] { background: color-mix(in srgb, var(--rp-primary) 78%, var(--rp-surface)); border-color: transparent; }
+.rp-nw-cal-cell[data-level="4"] { background: var(--rp-primary); border-color: var(--rp-border-strong); }
+.rp-nw-cal-key { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: var(--rp-text-xs); color: var(--rp-text-muted); flex-wrap: wrap; }
+.rp-nw-cal-key span { margin: 0 4px; }
+
+/* Month goal */
+.rp-nw-goal { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.rp-nw-goal-text { flex: 1 1 200px; min-width: 0; }
+.rp-nw-goalform { display: flex; flex-direction: column; gap: 10px; max-width: 360px; }
+.rp-nw-ring { width: 128px; height: 128px; flex-shrink: 0; }
+.rp-nw-ring-track { fill: none; stroke: var(--rp-surface-inset); stroke-width: 14; }
+.rp-nw-ring-fill { fill: none; stroke: var(--rp-warning); stroke-width: 14; }
+.rp-nw-ring-fill[data-ahead] { stroke: var(--rp-primary); }
+.rp-nw-ring-pace { stroke: var(--rp-text); stroke-width: 2; stroke-dasharray: 3 2; }
+.rp-nw-ring-big { font-family: var(--rp-font-display); font-size: 26px; fill: var(--rp-text); text-anchor: middle; }
+.rp-nw-ring-small { font-family: var(--rp-font-mono); font-size: 9px; fill: var(--rp-text-muted); text-anchor: middle; text-transform: uppercase; letter-spacing: 0.1em; }
+
+/* Launch curves */
+.rp-nw-launch { display: block; width: 100%; height: auto; max-height: 260px; }
+.rp-nw-grid { stroke: var(--rp-divider); stroke-width: 1; }
+.rp-nw-axis { font-family: var(--rp-font-mono); font-size: 9px; fill: var(--rp-text-subtle); }
+.rp-nw-line { fill: none; stroke-width: 1.5; stroke: var(--rp-text-subtle); stroke-linejoin: round; }
+.rp-nw-line[data-rank="0"] { stroke: var(--rp-primary); stroke-width: 3; }
+.rp-nw-line[data-rank="1"] { stroke: var(--rp-text); stroke-width: 2; }
+.rp-nw-line[data-rank="2"] { stroke: var(--rp-text-muted); stroke-dasharray: 5 3; }
+.rp-nw-line[data-rank="3"] { stroke: var(--rp-text-subtle); stroke-dasharray: 2 3; }
+.rp-nw-dot { fill: var(--rp-text-subtle); }
+.rp-nw-dot[data-rank="0"] { fill: var(--rp-primary); }
+.rp-nw-dot[data-rank="1"] { fill: var(--rp-text); }
+.rp-nw-legend { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.rp-nw-legend li { display: flex; align-items: center; gap: 8px; font-size: var(--rp-text-sm); min-width: 0; }
+.rp-nw-legend-title { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.rp-nw-legend-val { margin-left: auto; font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); white-space: nowrap; }
+.rp-nw-key { width: 18px; height: 0; flex-shrink: 0; border-top: 2px solid var(--rp-text-subtle); }
+.rp-nw-key[data-rank="0"] { border-top: 3px solid var(--rp-primary); }
+.rp-nw-key[data-rank="1"] { border-top-color: var(--rp-text); }
+.rp-nw-key[data-rank="2"] { border-top: 2px dashed var(--rp-text-muted); }
+.rp-nw-key[data-rank="3"] { border-top: 2px dotted var(--rp-text-subtle); }
+
+/* Book of the week */
+.rp-nw-bow { display: flex; gap: 14px; align-items: flex-start; }
+.rp-nw-bow .rp-viz-cover { width: 72px; height: 100px; font-size: 22px; border-width: var(--rp-stroke); box-shadow: var(--rp-shadow-sm); }
+.rp-nw-bow-title { font-family: var(--rp-font-display); font-size: 22px; line-height: 1.05; text-transform: uppercase; margin: 8px 0 4px; overflow-wrap: anywhere; }
+.rp-nw-link { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; text-transform: inherit; cursor: pointer; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.rp-nw-link:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+
+@media (max-width: 767px) {
+  .rp-nw { padding: 12px 14px 14px; }
+  .rp-nw-big { font-size: 22px; }
+}

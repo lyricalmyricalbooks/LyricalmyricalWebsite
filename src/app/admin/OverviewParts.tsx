@@ -98,12 +98,13 @@ export function RunRow({ label, detail, count, loading, onOpen, openLabel }: {
 }
 
 /** One column of the Overview's ruled figures strip. */
-export function Figure({ label, value, foot, tone }: { label: string; value: ReactNode; foot: ReactNode; tone?: "warn" }) {
+export function Figure({ label, value, foot, tone, spark }: { label: string; value: ReactNode; foot: ReactNode; tone?: "warn"; spark?: ReactNode }) {
   return (
     <div className="rp-ov-figure" data-tone={tone}>
       <div className="rp-ov-figure-label">{label}</div>
       <div className="rp-ov-figure-value">{value}</div>
       <div className="rp-ov-figure-foot">{foot}</div>
+      {spark}
     </div>
   );
 }

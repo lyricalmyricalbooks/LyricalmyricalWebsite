@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { DataTable, EmptyState, ErrorState, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge, type Column } from "./riso/components";
+import { EmptyState, ErrorState, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge } from "./riso/components";
 import type { Order } from "./overviewInsights";
 import { cartRecovery, cartRows, type CartRow } from "./overviewTraffic";
 import { buildCustomers, customerStats, SEGMENT_LABELS } from "./customerInsights";
@@ -7,6 +7,7 @@ import { cohortRetention, newVsReturningRevenue, repeatTiming } from "./overview
 import { shopDayKey } from "../lib/shopDay";
 import { abandonedCartApi } from "../lib/commerce";
 import { BarRow, DrillList, SPLIT, StatRow, money, orderHref, percent, shopWhen, type DrillItem } from "./OverviewParts";
+import { ShadeGrid } from "./OverviewViz";
 import { newsletterWeeks, reminderResults } from "./overviewSignals";
 import { SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
 import { sharedLoad } from "./overviewShared";
@@ -76,19 +77,6 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
   const timing = useMemo(() => repeatTiming(paid), [paid]);
   const split = useMemo(() => newVsReturningRevenue(paid, current, startKey), [paid, current, startKey]);
   const monthName = (m: string) => new Date(`${m}-15T12:00:00Z`).toLocaleDateString(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
-  const cohortColumns: Column<(typeof cohorts)[number]>[] = [
-    { key: "m", header: "First order", lead: true, render: r => monthName(r.month) },
-    { key: "c", header: "Customers", numeric: true, render: r => r.customers },
-    ...Array.from({ length: 6 }, (_, k) => ({
-      key: `m${k + 1}`, header: `+${k + 1} mo`, numeric: true,
-      render: (r: (typeof cohorts)[number]) => {
-        const v = r.cells[k];
-        if (v === null) return <span style={{ color: "var(--rp-text-subtle)" }}>·</span>;
-        return <span style={{ display: "inline-block", minWidth: 40, padding: "2px 4px", background: v > 0 ? `color-mix(in srgb, var(--rp-primary) ${Math.round(30 + 70 * Math.min(1, v / 50))}%, transparent)` : "transparent" }}>{v.toFixed(0)}%</span>;
-      },
-    })),
-    { key: "r", header: "Spent", numeric: true, render: r => money(r.revenue) },
-  ];
 
   return (
     <>
@@ -106,9 +94,10 @@ export function OverviewCustomers({ paid, current, startKey, mix, startMs, revie
       </div>}
 
       {(!only || only !== "kpis") && <div className="rp-split" style={SPLIT}>
-        {show("retention") && <SectionCard flush title="Do customers come back?" description="Each row is the customers whose first order was in that month; the cells show the share who bought again 1–6 months later (· = not yet)">
+        {show("retention") && <SectionCard flush title="Do customers come back?" description="Each row is the customers whose first order was in that month; the cells show the share who bought again 1–6 months later — deeper red = more came back (· = not yet)">
           {cohorts.length === 0 ? <EmptyState title="No customers yet" description="Cohorts appear after the first paid orders." />
-            : <DataTable caption="Repeat purchases by first-order month" columns={cohortColumns} rows={cohorts} rowKey={r => r.month} />}
+            : <ShadeGrid label="Repeat purchases by first-order month" head={Array.from({ length: 6 }, (_, k) => `+${k + 1} mo`)}
+                rows={cohorts.map(r => ({ key: r.month, label: monthName(r.month), sub: `${r.customers} ${r.customers === 1 ? "person" : "people"} · ${money(r.revenue)}`, cells: r.cells }))} />}
         </SectionCard>}
 
         {show("top") && <SectionCard flush title="Top customers" description="By total spend, all time"

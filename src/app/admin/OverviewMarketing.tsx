@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import toast from "react-hot-toast";
 import { DataTable, EmptyState, LoadingState, MetricCard, SecondaryButton, SectionCard, StatusBadge, useConfirm, type Column } from "./riso/components";
 import type { Book, Order } from "./overviewInsights";
@@ -9,6 +9,7 @@ import { countsByDay, copiesOf, ordersWithBook } from "./overviewDrill";
 import { funnelSteps, type TrafficFigures } from "./overviewSources";
 import type { Ga4Answer } from "./googleAnalytics";
 import { BarRow, DrillList, SPLIT, StatRow, Trend, money, percent } from "./OverviewParts";
+import { Funnel, RankBars, Stack } from "./OverviewViz";
 import { CampaignsCard, CheckoutJourneyCard, FoundOnGoogleCard, LandingSalesCard, PageSpeedCard } from "./OverviewMarketingExtras";
 import type { Ga4Range } from "./googleAnalytics";
 
@@ -44,7 +45,6 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
   const report = ga.status === "connected" ? ga.answer?.report : undefined;
 
   const deviceTotal = devices.reduce((s, d) => s + d.count, 0);
-  const maxFunnel = Math.max(1, ...funnel.map(s => s.count));
   const sourceColumns: Column<SourceRow>[] = [
     { key: "src", header: "Source", lead: true, render: r => r.orders > 0
       ? <button type="button" className="rp-ov-drill" aria-expanded={pickedSource === r.source} onClick={() => setPickedSource(p => (p === r.source ? null : r.source))}>
@@ -98,7 +98,7 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
           {(!only || gaPanel) && <div className="rp-split" style={SPLIT}>
             {show("channels") && <SectionCard flush title="How people find you" description="Google Analytics channels: search, social, email, links from other sites, or typed in directly">
               {report.channels.length === 0 ? <EmptyState title="No visits yet" description="Channels appear once Google Analytics records visits." />
-                : <DataTable caption="Channels" columns={gaColumns("Channel", r => r.sessionDefaultChannelGroup)} rows={report.channels} rowKey={r => r.sessionDefaultChannelGroup} />}
+                : <ChannelsViz rows={report.channels} table={<DataTable caption="Channels" columns={gaColumns("Channel", r => r.sessionDefaultChannelGroup)} rows={report.channels} rowKey={r => r.sessionDefaultChannelGroup} />} />}
             </SectionCard>}
             {show("gaSources") && <SectionCard flush title="Sources" description="The exact site, search engine or campaign (source / medium)">
               {report.sources.length === 0 ? <EmptyState title="No visits yet" description="Sources appear once Google Analytics records visits." />
@@ -155,14 +155,13 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
           {funnel[0].count === 0 && funnel[1].count === 0 ? (
             <EmptyState title="No shopping events recorded" description="Book views, add-to-bag, checkout and purchase events chart here once shoppers generate them." />
           ) : (
-            <ol className="rp-list" style={{ margin: -20 }} aria-label="Shopping funnel">
-              {funnel.map(step => (
-                <BarRow key={step.key} label={step.label} color="var(--rp-info)" share={(step.count / maxFunnel) * 100}
-                  value={<>{step.count.toLocaleString()}{step.ofPrevious !== null && <span style={{ color: "var(--rp-text-muted)" }}> · {percent(step.ofPrevious, 0)} of previous</span>}</>}
-                  details={step.key === "purchase" ? <OrdersDrill label="Orders in this period" orders={current.filter(isRealPaidOrder)} />
-                    : traffic.source !== "google" && step.count > 0 ? <DrillList label={`${step.label} by day`} items={countsByDay(dailyCurrent, "funnel", step.key)} /> : undefined} />
-              ))}
-            </ol>
+            <div style={{ margin: -20 }}>
+              <Funnel label="Shopping funnel" steps={funnel.map(step => ({
+                key: step.key, label: step.label, count: step.count,
+                details: step.key === "purchase" ? <OrdersDrill label="Orders in this period" orders={current.filter(isRealPaidOrder)} />
+                  : traffic.source !== "google" && step.count > 0 ? <DrillList label={`${step.label} by day`} items={countsByDay(dailyCurrent, "funnel", step.key)} /> : undefined,
+              }))} />
+            </div>
           )}
         </SectionCard>}
 
@@ -259,3 +258,28 @@ export function OverviewMarketing({ ga, traffic, dailyCurrent, dailyAll, current
   );
 }
 
+
+/** How people find you, drawn: one bar split by channel, then each channel ranked with visitors and engagement; the table folds away. */
+function ChannelsViz({ rows, table }: { rows: Row[]; table: ReactNode }) {
+  const [showTable, setShowTable] = useState(false);
+  const name = (r: Row) => String(r.sessionDefaultChannelGroup || "(other)");
+  const sorted = [...rows].sort((a, b) => num(b.sessions) - num(a.sessions));
+  const top = sorted.slice(0, 5);
+  const rest = sorted.slice(5).reduce((s, r) => s + num(r.sessions), 0);
+  const parts = [...top.map(r => ({ key: name(r), label: name(r), value: num(r.sessions) })), ...(rest > 0 ? [{ key: "__rest", label: "Everything else", value: rest }] : [])];
+  return (
+    <>
+      <Stack label="Share of visits by channel" caption="Share of visits" parts={parts} unit={n => `${n.toLocaleString()} visits`} />
+      <RankBars label="Channels by visits" rows={sorted.slice(0, 8).map(r => ({
+        key: name(r), label: name(r), value: num(r.sessions), valueText: `${num(r.sessions).toLocaleString()} visits`,
+        sub: `${num(r.activeUsers).toLocaleString()} visitors · ${percent(num(r.engagementRate) * 100, 0)} engaged`, tone: "info" as const,
+      }))} />
+      <div style={{ padding: "4px 20px 12px" }}>
+        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-expanded={showTable} onClick={() => setShowTable(v => !v)} style={{ paddingLeft: 0 }}>
+          <span aria-hidden="true" className="rp-ov-drill-mark">{showTable ? "▾" : "▸"}</span>{showTable ? "Hide the table" : "Show the table"}
+        </button>
+      </div>
+      {showTable && table}
+    </>
+  );
+}

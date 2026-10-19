@@ -170,6 +170,14 @@ await check("anon can't write the private document", assertFails(setDoc(doc(anon
   await check("admin reads the private document", assertSucceeds(getDoc(doc(admin, "books/pub/private/admin"))));
   await check("admin reads every private document (collection group)", assertSucceeds(getDocs(collectionGroup(admin, "private"))));
   await check("admin writes the private document", assertSucceeds(setDoc(doc(admin, "books/pub/private/admin"), { costPrice: 7 }, { merge: true })));
+  // Overview sales notes (admin/overviewNotesStore.ts): admin-only, same shape as the boards.
+  await check("admin saves the Overview notes", assertSucceeds(setDoc(doc(admin, "adminPrefs/overviewNotes"), { data: "[]", updatedAt: Date.now() })));
+  await check("admin reads the Overview notes", assertSucceeds(getDoc(doc(admin, "adminPrefs/overviewNotes"))));
+  await check("Overview notes refuse extra keys", assertFails(setDoc(doc(admin, "adminPrefs/overviewNotes"), { data: "[]", updatedAt: Date.now(), extra: 1 })));
+  await check("Overview notes refuse a huge payload", assertFails(setDoc(doc(admin, "adminPrefs/overviewNotes"), { data: "x".repeat(200001), updatedAt: Date.now() })));
+  await check("other admin prefs docs stay closed", assertFails(setDoc(doc(admin, "adminPrefs/somethingElse"), { data: "[]", updatedAt: Date.now() })));
+  await check("signed-in customer can't read the Overview notes", assertFails(getDoc(doc(user, "adminPrefs/overviewNotes"))));
+  await check("anon can't write the Overview notes", assertFails(setDoc(doc(anon, "adminPrefs/overviewNotes"), { data: "[]", updatedAt: 1 })));
   const unverified = env.authenticatedContext("imposter", { email: "lyricalmyricalbooks@gmail.com", email_verified: false }).firestore();
   await check("unverified admin email can't read the private document", assertFails(getDoc(doc(unverified, "books/pub/private/admin"))));
 }
