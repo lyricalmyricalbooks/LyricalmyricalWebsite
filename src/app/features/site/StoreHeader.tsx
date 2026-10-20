@@ -122,6 +122,7 @@ function CategoryBar({ navRef, items, design, copyDesign, color, line, stickers,
       aria-label={getCopy(copyDesign, "ariaMainNavigation")}
       data-studio-target="menus:header-order|menus:categories|style:navlinks"
       data-studio-label="Category bar"
+      data-ga-menu="categories"
       className={`hidden shrink-0 items-center md:flex ${line.className} ${stickers ? "gap-2" : ""}`}
       style={stickers ? { ["--nav-fit" as any]: (line.style as any)["--nav-fit"] } : line.style}
     >
@@ -565,7 +566,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
               )}
             </div>
             <div className="mt-6" style={{ borderTop: `${headerRuleWidth}px solid ${(!headerScheme && sf?.borderColor) || headerBorderColor || "#B1B1AA"}` }} />
-            <div data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className="fm-ref-catbar py-5 flex flex-wrap items-center text-base font-black" style={{ rowGap: 12 }}>
+            <div data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" data-ga-menu="categories" className="fm-ref-catbar py-5 flex flex-wrap items-center text-base font-black" style={{ rowGap: 12 }}>
               {referenceNavCategories(categories, sf).map((cat: any, index: number) => {
                 const catName = typeof cat === "string" ? cat : cat.name;
                 const isActive = activeName === catName;
