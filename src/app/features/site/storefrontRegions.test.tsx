@@ -4,8 +4,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 import { PAGE_TEMPLATES } from "../../admin/ThemeEditorExtensions";
 import { STATIC_SURFACES, STYLE_GROUPS, applyGlobalStyle } from "../../admin/studio/styleSchema";
 import { storefrontRegionCss, regionProps, REGION_GROUPS } from "./storefrontRegions";

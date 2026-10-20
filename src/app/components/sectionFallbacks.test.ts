@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { SECTION_FALLBACKS } from "./sectionFallbacks";
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 
 // Renderer fallback words must be editable: every settings-level fallback key needs a Content field
 // on that section type (block-level ones are edited through the block editor).

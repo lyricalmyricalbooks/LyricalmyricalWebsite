@@ -4,8 +4,6 @@ import { createElement as h } from "react";
 import { createRoot } from "react-dom/client";
 import { act } from "react";
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
 const { SectionBoundary } = await import("./sectionRender");

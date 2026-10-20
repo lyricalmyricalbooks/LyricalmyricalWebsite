@@ -4,8 +4,6 @@ import { createRoot } from "react-dom/client";
 import { Simulate } from "react-dom/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 const { SectionFieldEditor, BlockFieldEditor, BlockListFieldEditor, getSectionFields, getBlockFields } = await import("../ThemeEditorExtensions");
 const { StudioPickerProvider } = await import("./StudioPickers");
 

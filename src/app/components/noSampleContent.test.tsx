@@ -2,8 +2,6 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 
 // Empty sections may show "how to fill me" samples in the Studio preview, but never to shoppers.
 const SAMPLES = ["Describe your value.", "An incredible independent shop.", "Sample question?", "Use this rich text section", "Add an article", "Add columns", "Your page text appears here"];

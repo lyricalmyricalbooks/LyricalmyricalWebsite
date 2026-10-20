@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlignCenter, AlignLeft, AlignRight, ImagePlus, Images, Trash2 } from "lucide-react";
-import ReactQuill from "react-quill";
-import "react-quill/dist/quill.snow.css";
+import { QuillEditor, type QuillClass as QuillCtor, type QuillEditorHandle } from "../../components/QuillEditor";
 import { IMAGE_SIZES, pageBodyStats } from "../../features/site/pageBody";
 import { mainUrl } from "./mediaLibrary";
 import { useMediaPicker, type MediaPickerApi } from "./mediaPicker";
@@ -12,10 +11,12 @@ import { StudioAiRewrite } from "./StudioAiRewrite";
 // paste or drag-and-drop — never stored inline as data: text), the media library, picture size /
 // alignment / description tools, a divider line and video embeds. The saved HTML is what PageView renders.
 
-const QuillClass: any = (ReactQuill as any)?.Quill;
+// Quill loads on first use (QuillEditor); this is the class once it has.
+let QuillClass: any = null;
 let extrasRegistered = false;
-function registerExtras() {
-  if (extrasRegistered || !QuillClass) return;
+function registerExtras(Quill: QuillCtor) {
+  QuillClass = Quill;
+  if (extrasRegistered) return;
   extrasRegistered = true;
   const BlockEmbed = QuillClass.import("blots/block/embed");
   class Divider extends BlockEmbed {}
@@ -25,7 +26,6 @@ function registerExtras() {
   const icons = QuillClass.import("ui/icons");
   icons.divider = '<svg viewBox="0 0 18 18"><line class="ql-stroke" x1="3" x2="15" y1="9" y2="9"></line></svg>';
 }
-registerExtras();
 
 /** Uploads one picture (into the media library when it's switched on) and returns its address + saved description. */
 export async function uploadPagePicture(media: MediaPickerApi | null, file: File): Promise<{ url: string; alt: string }> {
@@ -35,6 +35,9 @@ export async function uploadPagePicture(media: MediaPickerApi | null, file: File
   }
   return { url: await uploadStudioImage(file), alt: "" };
 }
+
+/** Picture files Quill's own drop/paste hands to our uploader (everything else stays with the browser). */
+const PICTURE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/svg+xml", "image/heic", "image/heif"];
 
 type Picked = { index: number; src: string; alt: string; width: string; align: string };
 
@@ -54,11 +57,12 @@ export function PageBodyEditor({ value, onChange, onUploading, title }: {
   title?: string;
 }) {
   const media = useMediaPicker();
-  const quillRef = useRef<ReactQuill | null>(null);
+  const quillRef = useRef<QuillEditorHandle | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(0);
   const [error, setError] = useState("");
   const [picked, setPicked] = useState<Picked | null>(null);
+  const [ready, setReady] = useState(false); // Quill has loaded and the editor exists
   const editor = () => quillRef.current?.getEditor?.() as any;
   useEffect(() => { onUploading?.(uploading > 0); }, [uploading, onUploading]);
   useEffect(() => () => onUploading?.(false), [onUploading]);
@@ -127,6 +131,11 @@ export function PageBodyEditor({ value, onChange, onUploading, title }: {
       container: TOOLBAR,
       handlers: { image: () => handlers.current.image(), divider: () => handlers.current.divider() },
     },
+    // Quill 2 would put dropped/pasted pictures in the text as data: pictures; ours go to Storage instead.
+    uploader: {
+      mimetypes: PICTURE_TYPES,
+      handler: (range: { index: number } | null, files: File[]) => uploadRef.current(Array.from(files), range?.index),
+    },
   }), []);
 
   // Picture tools follow the selection: clicking a picture selects it, and the bar below edits it.
@@ -152,7 +161,8 @@ export function PageBodyEditor({ value, onChange, onUploading, title }: {
       const list = Array.from(files || []).filter((f) => f.type.startsWith("image/"));
       if (!list.length) return;
       e.preventDefault();
-      e.stopPropagation();
+      // Quill's own paste/drop handlers sit on this same element: stop them too, so a picture is added once.
+      e.stopImmediatePropagation();
       uploadRef.current(list, at);
     };
     const onPaste = (e: ClipboardEvent) => intercept(e.clipboardData?.files, e);
@@ -180,7 +190,7 @@ export function PageBodyEditor({ value, onChange, onUploading, title }: {
       q.root.removeEventListener("paste", onPaste, true);
       q.root.removeEventListener("drop", onDrop, true);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Applies a change to the picked picture, if it's still where it was. */
   const onPicked = (fn: (q: any, index: number) => void) => {
@@ -212,7 +222,8 @@ export function PageBodyEditor({ value, onChange, onUploading, title }: {
         )}
       </div>
       <div className="rp-quill">
-        <ReactQuill ref={quillRef} theme="snow" value={value || ""} onChange={onChange} modules={modules}
+        <QuillEditor ref={quillRef} theme="snow" value={value || ""} onChange={onChange} modules={modules}
+          prepare={registerExtras} onReady={() => setReady(true)}
           placeholder="Write your page content… Paste or drag pictures straight in." />
       </div>
       {error && <p role="alert" className="studio-upload-error mt-1 text-[11px]">{error}</p>}

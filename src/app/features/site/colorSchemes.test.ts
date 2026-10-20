@@ -15,8 +15,6 @@ import { cartDrawerCss } from "./cartDrawerStyle";
 import { productPageCss } from "./productPageStyle";
 import { footerStyleCss } from "./footerStyle";
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 const { SectionList } = await import("../../components/sectionRender");
 
 const design: any = (live as any).design;

@@ -2,8 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 
 const { CurrentPageContext, PageContentSection } = await import("../../components/SectionComponents");
 const { sitePageStyle } = await import("./PageView");

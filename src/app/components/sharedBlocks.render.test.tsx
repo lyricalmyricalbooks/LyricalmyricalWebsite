@@ -6,8 +6,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 // only a stub ({ id, sharedBlockId }) and the content lives in design.sharedBlocks — so every
 // block-based renderer must show the shared content, not just Flexible composition.
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 
 const { StaticRouter } = await import("react-router");
 const { CurrencyProvider } = await import("../CurrencyContext");
