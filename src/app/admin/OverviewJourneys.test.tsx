@@ -7,9 +7,10 @@ import { beforeEach, expect, it, vi } from "vitest";
 const bigQueryJourneys = vi.fn();
 vi.mock("./googleAnalytics", () => ({ googleAnalyticsApi: { bigQueryJourneys: (...a: any[]) => bigQueryJourneys(...a) } }));
 const { OverviewJourneys } = await import("./OverviewJourneys");
+const { __forgetJourneys } = await import("./bigQueryJourneys");
 
 let container: HTMLDivElement;
-beforeEach(() => { container = document.createElement("div"); document.body.replaceChildren(container); bigQueryJourneys.mockReset(); });
+beforeEach(() => { container = document.createElement("div"); document.body.replaceChildren(container); bigQueryJourneys.mockReset(); __forgetJourneys(); });
 
 const ANSWER = {
   connected: true, dataset: "p.analytics_1",
@@ -52,4 +53,13 @@ it("explains an unlinked export and opens the settings", async () => {
   const open = Array.from(container.querySelectorAll("button")).find(b => b.textContent === "Open Google Analytics settings")!;
   await act(async () => open.click());
   expect(setActiveTab).toHaveBeenCalledWith("general");
+});
+
+it("asks BigQuery once when both journey widgets open on the same range", async () => {
+  bigQueryJourneys.mockResolvedValue({ connected: true, journeys: [], exits: [], totals: { sessions: 0, onePage: 0, purchases: 0 } });
+  const range = { startKey: "2026-10-01", endKey: "2026-10-14", phrase: "these two weeks" };
+  await act(async () => {
+    createRoot(container).render(<><OverviewJourneys only="journeys" books={[]} range={range} /><OverviewJourneys only="exitPages" books={[]} range={range} /></>);
+  });
+  expect(bigQueryJourneys).toHaveBeenCalledTimes(1);
 });

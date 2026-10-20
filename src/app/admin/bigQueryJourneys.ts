@@ -49,10 +49,24 @@ export interface JourneyAnswer {
 }
 
 /** Requests through the shop's admin call (lazy, so this module stays free of Firebase for tests). */
-export async function fetchJourneys(window: { startDate: string; endDate: string }): Promise<JourneyAnswer> {
-  const { googleAnalyticsApi } = await import("./googleAnalytics");
-  return googleAnalyticsApi.bigQueryJourneys(window.startDate, window.endDate);
+// Both journey widgets ask for the same window at once: share one request (each BigQuery query is billed), and keep
+// answers for a few minutes so switching ranges back and forth doesn't run the query again.
+const answers = new Map<string, { at: number; promise: Promise<JourneyAnswer> }>();
+const KEEP_MS = 5 * 60_000;
+
+export function fetchJourneys(window: { startDate: string; endDate: string }): Promise<JourneyAnswer> {
+  const key = `${window.startDate}|${window.endDate}`;
+  const held = answers.get(key);
+  if (held && Date.now() - held.at < KEEP_MS) return held.promise;
+  const promise = import("./googleAnalytics").then(({ googleAnalyticsApi }) => googleAnalyticsApi.bigQueryJourneys(window.startDate, window.endDate));
+  answers.set(key, { at: Date.now(), promise });
+  // Only an answer with data is kept: after a setup step (linking the export, a role) the next look asks again.
+  promise.then(a => { if (!a.connected) answers.delete(key); }, () => answers.delete(key));
+  return promise;
 }
+
+/** Test hook. */
+export function __forgetJourneys() { answers.clear(); }
 
 // ------------------------------------------------------------------------------------------------- the window
 
