@@ -202,7 +202,7 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
       </div>
 
       {/* No policies written yet → no lone "Legal" heading or empty ruled strip. */}
-      {grouped && policyKeys.length > 0 && <div {...regionProps("footerLegal")} className="fm-footer-rule fm-footer-text fm-footer-bar border-t border-white/20 flex flex-wrap items-baseline gap-x-6 gap-y-3 text-[11px] text-white/70" data-studio-target="copy:Footer|style:footer|style:catalogElements" data-studio-label="Footer legal links">
+      {grouped && policyKeys.length > 0 && <div {...regionProps("footerLegal")} className="fm-footer-legal fm-footer-rule fm-footer-text fm-footer-bar border-t border-white/20 flex flex-wrap items-baseline gap-x-6 gap-y-3 text-[11px] text-white/70" data-studio-target="copy:Footer|style:footer|style:catalogElements" data-studio-label="Footer legal links">
         {d.showFooterLegalHeading !== false && <span className="fm-footer-heading text-[9px] uppercase tracking-[0.3em] text-white/55" data-studio-copy="footerLegalHeading">{getCopy(d, "footerLegalHeading")}</span>}
         {policyKeys.map(k => <Link key={k} to={"/page/" + policySlug(k)} className="hover:text-white transition-colors">{policyTitle(d, k)}</Link>)}
       </div>}

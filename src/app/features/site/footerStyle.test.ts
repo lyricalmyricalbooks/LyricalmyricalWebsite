@@ -63,4 +63,16 @@ describe("footer style controls", () => {
     expect(top).toContain("@media (min-width:768px){[data-fm-footer] .fm-footer-brand{max-width:none");
     expect(top).toContain("border-color:#ff6fae !important");
   });
+  it("gives phone footer links a 42px tap area without moving them, and keeps a larger Studio link gap", () => {
+    const css = footerStyleCss({});
+    const phone = css.slice(css.indexOf("@media(max-width:767px){[data-fm-footer] .fm-footer-main a"));
+    expect(phone).toContain("::after{content:\"\";position:absolute");
+    expect(phone).toContain("width:max(100%,42px);height:max(100%,42px)");
+    expect(phone).toContain(".fm-footer-list>*+*{margin-top:22px;}");
+    expect(phone).toContain(".fm-footer-legal{row-gap:22px;}");
+    const wide = footerStyleCss({ footerLinkGap: 30 });
+    expect(wide.slice(wide.indexOf("@media(max-width:767px){[data-fm-footer] .fm-footer-main a"))).toContain(".fm-footer-list>*+*{margin-top:30px;}");
+    // Outside the phone query the Studio gap is untouched.
+    expect(css).toContain("[data-fm-footer] .fm-footer-list>*+*{margin-top:8px;}");
+  });
 });
