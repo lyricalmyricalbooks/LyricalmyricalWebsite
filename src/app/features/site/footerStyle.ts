@@ -29,6 +29,24 @@ export function footerBrandAlign(d: any): FooterBrandAlign {
 // Studio control; the defaults below are that look.
 const RULE = "rgba(var(--fg-rgb, 255, 255, 255), 0.2)";
 
+// Phones: footer links are ~19px-tall lines of small text. Each link gets an invisible tap area of at least
+// TAP px (a centred ::after, so nothing moves), and the gap between stacked links grows to at least
+// TAP − one line so neighbouring tap areas meet instead of overlapping. A larger Studio link gap still wins.
+export const FOOTER_TAP_PX = 42;
+const LINE_PX = 19;
+function phoneTapTargetsCss(linkGap: number): string {
+  const s = FOOTER_SCOPE;
+  const stackGap = Math.max(linkGap, FOOTER_TAP_PX - LINE_PX - 1);
+  const hit = [`${s} .fm-footer-main a`, `${s} .fm-footer-legal a`, `${s} .fm-footer-icon`];
+  return `@media${DEVICE_MEDIA.mobile}{`
+    + `${hit.join(",")}{position:relative;}`
+    + `${hit.map(h => h + "::after").join(",")}{content:"";position:absolute;left:50%;top:50%;width:max(100%,${FOOTER_TAP_PX}px);height:max(100%,${FOOTER_TAP_PX}px);transform:translate(-50%,-50%);}`
+    + `${s} .fm-footer-list>*+*{margin-top:${stackGap}px;}`
+    + `${s} .fm-footer-main .space-y-3>*+*{margin-top:${stackGap}px;}`
+    + `${s} .fm-footer-legal{row-gap:${stackGap}px;}`
+    + `}`;
+}
+
 export function footerStyleCss(d: any = {}): string {
   const s = FOOTER_SCOPE;
   const padY = num(d.footerPaddingY, 32, 16, 160);
@@ -45,7 +63,8 @@ export function footerStyleCss(d: any = {}): string {
     + `${s} .fm-footer-list>*+*{margin-top:${linkGap}px;}`
     + `${s} .fm-footer-text{font-size:${size}px !important;}`
     + `${s} .fm-footer-brand>[data-empty]{display:none !important;}`
-    + `${s} .fm-footer-bar{padding-top:${barPad}px;padding-bottom:${barPad}px;}`;
+    + `${s} .fm-footer-bar{padding-top:${barPad}px;padding-bottom:${barPad}px;}`
+    + phoneTapTargetsCss(linkGap);
   const text = colour(d.footerTextColor);
   const heading = colour(d.footerHeadingColor);
   const hover = colour(d.footerLinkHoverColor);
