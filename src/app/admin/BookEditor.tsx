@@ -80,6 +80,7 @@ import { LOW_STOCK } from "./catalogList";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import { releaseArrived } from "../features/site/liveBook";
+import { DETAILS_FIELD_TAB, detailsSubTabs, shownDetailsSubTab, type DetailsSubTab } from "./bookDetailsTabs";
 import { addOnProblems, bundleProblems, giftCardProblems, isBoxSet, isGiftCardProduct, productForSave, saleStatus, saleWindowProblem } from "./productExtras";
 
 const MAX_BOOK_PHOTOS = 50;
@@ -229,7 +230,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   const [slugUnlocked, setSlugUnlocked] = useState(false);
   const [confirmSlug, setConfirmSlug] = useState(false);
   // Each problem names the tab that fixes it, so the summary can jump there.
-  const [validationErrors, setValidationErrors] = useState<Array<{ text: string; tab: BookTab }>>([]);
+  const [validationErrors, setValidationErrors] = useState<Array<{ text: string; tab: BookTab; field?: string }>>([]);
   const [uploading, setUploading] = useState(false);
   // Books › edit › Images › Crop & edit (PhotoCropDialog); the design gives the shop's frame shapes.
   const [cropId, setCropId] = useState<string | null>(null);
@@ -249,6 +250,13 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   const variantFileTarget = useRef<string>("");
   const [uploadingVariantFile, setUploadingVariantFile] = useState("");
   const [tab, setTab] = useState<BookTab>("details");
+  // Details is split into sub tabs (bookDetailsTabs.ts); jumping to a Details field opens the sub tab holding it.
+  const [detailsSub, setDetailsSub] = useState<DetailsSubTab>("bd-basics");
+  const goTo = (next: BookTab, field?: string) => {
+    setTab(next);
+    const sub = field ? DETAILS_FIELD_TAB[field] : undefined;
+    if (next === "details" && sub) setDetailsSub(sub);
+  };
   const [dragOver, setDragOver] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [newCategory, setNewCategory] = useState("");
@@ -549,14 +557,14 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     if (loading) return;
 
     // Collect every problem so the editor can list them together (not one toast at a time), with the tab that fixes it.
-    const found: Array<{ text: string; tab: BookTab }> = [];
+    const found: Array<{ text: string; tab: BookTab; field?: string }> = [];
     const add = (tab: BookTab, ...texts: string[]) => texts.forEach((text) => found.push({ text, tab }));
     if (formData.seoImage?.trim()) {
       try {
         if (new URL(formData.seoImage.trim()).protocol !== "https:") add("seo", "Sharing image must use an HTTPS URL.");
       } catch { add("seo", "Sharing image must be a valid HTTPS URL."); }
     }
-    if (!formData.title.trim()) add("details", "Book title is required.");
+    if (!formData.title.trim()) found.push({ text: "Book title is required.", tab: "details", field: "title" });
     if (formData.retailPrice < 0) add("pricing", "Retail price cannot be negative.");
     // An edition saved with a blank price would sell for $0.
     (formData.variants || []).forEach((v: any, i: number) => {
@@ -1081,17 +1089,24 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   const lowStock = formData.trackInventory && !hasVariants && num(formData.stockLevel) <= LOW_STOCK;
 
   const checklist = [
-    { label: "Title", ok: !!formData.title?.trim(), tab: "details" as BookTab },
-    { label: "Description", ok: (formData.description || "").trim().length >= 40, tab: "details" as BookTab },
+    { label: "Title", ok: !!formData.title?.trim(), tab: "details" as BookTab, field: "title" },
+    { label: "Description", ok: (formData.description || "").trim().length >= 40, tab: "details" as BookTab, field: "description" },
     { label: "Cover image", ok: (formData.photos || []).length > 0, tab: "media" as BookTab },
     { label: "Price above $0", ok: num(formData.retailPrice) > 0 || (formData.variants || []).some((v: any) => num(v.price) > 0), tab: "pricing" as BookTab },
-    { label: "ISBN or SKU", ok: !!(formData.isbn || formData.sku), tab: "details" as BookTab },
+    { label: "ISBN or SKU", ok: !!(formData.isbn || formData.sku), tab: "details" as BookTab, field: "isbn" },
     { label: "Category", ok: (formData.categories || []).length > 0, tab: "organize" as BookTab },
     { label: "Search description", ok: !!formData.metaDescription, tab: "seo" as BookTab },
   ];
   const doneCount = checklist.filter((c) => c.ok).length;
   const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, editions: 0, addons: 0, boxset: 0, organize: 0, more: 0, seo: 0 };
   checklist.filter((c) => !c.ok).forEach((c) => { tabIssues[c.tab] += 1; });
+  const detailsIssues: Partial<Record<DetailsSubTab, number>> = {};
+  checklist.forEach((c) => {
+    const sub = !c.ok && c.tab === "details" && "field" in c && c.field ? DETAILS_FIELD_TAB[c.field] : undefined;
+    if (sub) detailsIssues[sub] = (detailsIssues[sub] || 0) + 1;
+  });
+  const detailsTabs = detailsSubTabs({ customs: !giftCard && !isDigital, issues: detailsIssues });
+  const shownDetailsSub = shownDetailsSubTab(detailsSub, detailsTabs);
   const tabs: Array<{ id: BookTab; label: string; count?: number }> = [
     { id: "details", label: "Details", count: tabIssues.details || undefined },
     { id: "media", label: "Images", count: (formData.photos || []).length },
@@ -1172,7 +1187,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
               <li key={m.text}>
                 <span>{m.text}</span>
                 {tabs.some((t) => t.id === m.tab) && m.tab !== shownTab && (
-                  <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => setTab(m.tab)}>
+                  <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => goTo(m.tab, m.field)}>
                     Go to {tabs.find((t) => t.id === m.tab)?.label} <ChevronRight size={13} aria-hidden />
                   </button>
                 )}
@@ -1202,6 +1217,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
         <form className="be-main" noValidate onSubmit={(e) => { e.preventDefault(); handleSave(undefined, false, false); }}>
           {shownTab === "details" && (
             <>
+              <div className="be-subtabs"><Tabs label="Details sections" tabs={detailsTabs} value={shownDetailsSub} onChange={setDetailsSub} /></div>
+              {/* Hidden sub tabs stay mounted, so the description toolbar, ISBN lookup and row editor keep their state. */}
+              <div role="tabpanel" id="bd-panel-basics" aria-labelledby="rp-tab-bd-basics" className="be-subpanel" hidden={shownDetailsSub !== "bd-basics"}>
               {/* A new product chooses its type first; an existing one rarely changes it, so it moves to the end. */}
               {!book && <ProductTypeCard form={formData} onChange={setProductType} />}
               <SectionCard title="Book details" description="The essentials shoppers see first.">
@@ -1258,6 +1276,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                   </div>
                 </div>
               </SectionCard>
+              {book && <ProductTypeCard form={formData} onChange={setProductType} />}
+              </div>
+              <div role="tabpanel" id="bd-panel-publishing" aria-labelledby="rp-tab-bd-publishing" className="be-subpanel" hidden={shownDetailsSub !== "bd-publishing"}>
               <SectionCard title="Publishing details" description="Bibliographic data used on the product page and in search.">
                 <div className="be-grid be-grid-3">
                   <div>
@@ -1289,7 +1310,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                   </div>
                 )}
               </SectionCard>
+              </div>
               {!giftCard && !isDigital && (
+                <div role="tabpanel" id="bd-panel-customs" aria-labelledby="rp-tab-bd-customs" className="be-subpanel" hidden={shownDetailsSub !== "bd-customs"}>
                 <SectionCard title="International parcels (customs)" foldKey="book-editor-customs"
                   description="Only used on customs forms for parcels leaving the country. Blank boxes use the defaults shown.">
                   <div className="be-grid">
@@ -1301,7 +1324,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                       hint="Where the book was printed (2-letter code). Blank = your shipping-from country." />
                   </div>
                 </SectionCard>
+                </div>
               )}
+              <div role="tabpanel" id="bd-panel-rows" aria-labelledby="rp-tab-bd-rows" className="be-subpanel" hidden={shownDetailsSub !== "bd-rows"}>
               <SectionCard title="Rows on the book page's Details tab" foldKey="book-editor-detail-rows"
                 description="Every row of the book page's Details tab, in the order shown there. Change any label or value, hide a row, move rows with ↑ / ↓, or add your own (Paper, Printing, Design…). A blank value on a standard row uses the matching field in Publishing details.">
                 <div>
@@ -1344,7 +1369,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                   })()}
                 </div>
               </SectionCard>
-              {book && <ProductTypeCard form={formData} onChange={setProductType} />}
+              </div>
             </>
           )}
 
@@ -1503,7 +1528,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                     <div className="be-grid">
                       <div>
                         <p className="be-note">Shown date = <strong>{formData.publishDate || "none (just “Coming soon”)"}</strong>. Set it in Details › Publication date to show “Coming {formData.publishDate ? formatReleaseDate(releaseDateOf(formData), "en-CA") : "<date>"}”.</p>
-                        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => setTab("details")}>Go to Publication date</button>
+                        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => goTo("details", "publishDate")}>Go to Publication date</button>
                       </div>
                       <div className="be-stock-status"><StatusBadge tone="info">Coming soon · not for sale</StatusBadge></div>
                     </div>
@@ -1525,7 +1550,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                     <div className="be-grid">
                       <div>
                         <p className="be-note">Release day = <strong>{formData.publishDate || "to be announced"}</strong>. Set it in Details › Publication date (leave it empty for “date to be announced”).</p>
-                        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => setTab("details")}>Go to Publication date</button>
+                        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => goTo("details", "publishDate")}>Go to Publication date</button>
                       </div>
                       <div className="be-stock-status">
                         {preorderActive(formData)
@@ -1778,7 +1803,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
             <ul className="be-check">
               {checklist.map((c) => (
                 <li key={c.label} className={c.ok ? "is-ok" : ""}>
-                  <button type="button" onClick={() => setTab(c.tab)}><span aria-hidden>{c.ok ? "✓" : "○"}</span> {c.label}{!c.ok && <em className="rp-sr-only"> (missing)</em>}</button>
+                  <button type="button" onClick={() => goTo(c.tab, "field" in c ? c.field : undefined)}><span aria-hidden>{c.ok ? "✓" : "○"}</span> {c.label}{!c.ok && <em className="rp-sr-only"> (missing)</em>}</button>
                 </li>
               ))}
             </ul>
