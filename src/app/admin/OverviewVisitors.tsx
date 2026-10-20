@@ -77,7 +77,7 @@ export function OverviewVisitors({ only, ga, books, dailyCurrent, dailyPrevious,
 
 // --------------------------------------------------------------------------------------------- shared pieces
 
-function Frame({ headline, tools, children, foot }: { headline: ReactNode; tools?: ReactNode; children: ReactNode; foot: ReactNode }) {
+export function Frame({ headline, tools, children, foot }: { headline: ReactNode; tools?: ReactNode; children: ReactNode; foot: ReactNode }) {
   return (
     <div className="rp-vw">
       <div className="rp-vw-top">
@@ -90,12 +90,12 @@ function Frame({ headline, tools, children, foot }: { headline: ReactNode; tools
   );
 }
 
-function NotConnected({ setActiveTab }: { setActiveTab?: (tab: string) => void }) {
+export function NotConnected({ setActiveTab }: { setActiveTab?: (tab: string) => void }) {
   return <EmptyState icon="◌" title="Google Analytics isn't connected" description="Connect Google Analytics in Settings › General to see this."
     action={setActiveTab ? <SecondaryButton size="sm" onClick={() => setActiveTab("general")}>Open Google Analytics settings</SecondaryButton> : undefined} />;
 }
 const NeedsUpdate = () => <EmptyState icon="⏳" title="Needs the latest server update" description="This view needs the newest Google Analytics report from the shop's server. It appears after the next server update." />;
-const NotYet = ({ note }: { note?: string }) => <EmptyState icon="⏳" title="Not recorded yet in this period." description={note} />;
+export const NotYet = ({ note }: { note?: string }) => <EmptyState icon="⏳" title="Not recorded yet in this period." description={note} />;
 
 const more = (n: number, full: boolean, cap: number) => (!full && n > cap ? <span className="rp-vw-more">+{(n - cap).toLocaleString()} more in full view</span> : null);
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
