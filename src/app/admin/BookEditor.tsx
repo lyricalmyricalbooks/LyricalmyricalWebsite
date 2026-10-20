@@ -1186,7 +1186,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
             {validationErrors.map((m) => (
               <li key={m.text}>
                 <span>{m.text}</span>
-                {tabs.some((t) => t.id === m.tab) && m.tab !== shownTab && (
+                {tabs.some((t) => t.id === m.tab) && (m.tab !== shownTab || (!!m.field && !!DETAILS_FIELD_TAB[m.field] && DETAILS_FIELD_TAB[m.field] !== shownDetailsSub)) && (
                   <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => goTo(m.tab, m.field)}>
                     Go to {tabs.find((t) => t.id === m.tab)?.label} <ChevronRight size={13} aria-hidden />
                   </button>
