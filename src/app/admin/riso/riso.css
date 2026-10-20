@@ -1100,51 +1100,47 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-wb-a:disabled { color: var(--rp-text-faint); cursor: not-allowed; }
 .rp-wb-big { font-family: var(--rp-font-mono); font-size: 28px; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--rp-text); }
 
-/* Header: title + freshness on the left; period, comparison, layout and Edit board on the right; then the hint line */
-.rp-wb-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding-bottom: 12px; border-bottom: var(--rp-stroke) solid var(--rp-border-strong); }
+/* Header (Masthead, Oct 2026): title + freshness; dates as underlined words; one "Board ▾" menu; then the summary line */
+.rp-wb-head { display: flex; flex-direction: column; gap: 12px; padding-bottom: 12px; border-bottom: var(--rp-stroke) solid var(--rp-border-strong); }
 .rp-wb-head-title { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; min-width: 0; }
-.rp-wb-h1 { margin: 0; font-family: var(--rp-font-display); font-weight: 400; font-size: 36px; line-height: 1; text-transform: uppercase; letter-spacing: 0.01em; color: var(--rp-text); }
-.rp-wb-head-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; max-width: 100%; }
+.rp-wb-h1 { margin: 0; }
+.rp-wb-head-controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; min-width: 0; max-width: 100%; }
 .rp-wb-updated { display: inline-flex; align-items: center; gap: 2px; }
 .rp-wb-refresh { width: 32px; height: 32px; }
 .rp-wb-refresh svg[data-spin] { animation: rp-wb-spin 1s linear infinite; }
 @keyframes rp-wb-spin { to { transform: rotate(360deg); } }
-/* Period, custom dates and "vs" read as one control (ux3 #16). */
-.rp-wb-period { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; max-width: 100%; }
-.rp-wb-boardctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.rp-wb-boardpick { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
-.rp-wb-boardtoggle { display: none; align-items: center; gap: 6px; min-height: 34px; padding: 6px 10px; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); color: var(--rp-text); font: 400 13px/1.2 var(--rp-font-body); cursor: pointer; }
-.rp-wb-boardtoggle b { font-weight: 700; }
+.rp-wb-period { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; min-width: 0; max-width: 100%; }
+.rp-wb-boardwrap { position: relative; display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+.rp-wb-boardtoggle { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 4px; border: 0; background: none; color: var(--rp-text-muted); font: 600 13px/1.2 var(--rp-font-body); cursor: pointer; }
+.rp-wb-boardtoggle b { font-weight: 700; color: var(--rp-text); }
+.rp-wb-boardtoggle:hover { color: var(--rp-text); }
 .rp-wb-boardtoggle:focus-visible { outline: 2px solid var(--rp-primary); outline-offset: 2px; }
-.rp-wb-divider { width: 1px; height: 24px; margin: 0 4px; background: var(--rp-border-strong); opacity: 0.3; }
-.rp-wb-seg { display: inline-flex; flex-wrap: wrap; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); }
-.rp-wb-seg button { min-height: 32px; padding: 6px 10px; border: 0; border-right: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); font: 700 11px/1 var(--rp-font-body); cursor: pointer; white-space: nowrap; }
-.rp-wb-seg button:last-child { border-right: 0; }
-.rp-wb-seg button:hover { background: var(--rp-surface-2); }
-.rp-wb-seg button[aria-pressed="true"] { background: var(--rp-inverse); color: var(--rp-on-inverse); }
-.rp-wb-select { min-height: 32px; padding: 0 8px; border: var(--rp-stroke) solid var(--rp-border-strong); border-radius: 0; background: var(--rp-surface); color: var(--rp-text); font: 400 12px var(--rp-font-body); }
+.rp-wb-boardctl { position: absolute; top: calc(100% + 6px); right: 0; z-index: 20; display: grid; gap: 10px; width: min(340px, 86vw); padding: 14px; background: var(--rp-surface); border: var(--rp-stroke) solid var(--rp-border-strong); box-shadow: var(--rp-shadow-md, 5px 5px 0 var(--rp-border-strong)); }
+.rp-wb-boardctl[hidden] { display: none; }
+.rp-wb-boardpick { display: flex; align-items: center; gap: 8px; }
+.rp-wb-boardpick .rp-wb-select { flex: 1; min-width: 0; }
+.rp-wb-saved { font-size: 12px; color: var(--rp-text-muted); }
+/* Dates read as underlined words, like the page tabs. */
+.rp-wb-seg { display: inline-flex; flex-wrap: wrap; }
+.rp-wb-seg button { min-height: 32px; padding: 6px 8px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--rp-text-muted); font: 600 13px/1 var(--rp-font-body); cursor: pointer; white-space: nowrap; }
+.rp-wb-seg button:hover { color: var(--rp-text); }
+.rp-wb-seg button[aria-pressed="true"] { color: var(--rp-text); border-bottom-color: var(--rp-primary); }
+.rp-wb-select { min-height: 32px; padding: 0 8px; border: var(--rp-hair) solid var(--rp-border); border-radius: 0; background: var(--rp-surface); color: var(--rp-text); font: 400 12px var(--rp-font-body); }
 .rp-wb-dates { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.rp-wb-editbtn { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 8px 12px; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); color: var(--rp-text); font: 800 11px/1 var(--rp-font-body); letter-spacing: 0.09em; text-transform: uppercase; box-shadow: 2px 2px 0 var(--rp-border); cursor: pointer; transition: box-shadow var(--rp-dur-fast) var(--rp-ease); }
-.rp-wb-editbtn:hover { box-shadow: 5px 5px 0 var(--rp-border-strong); }
-.rp-wb-hint { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; font-size: 12px; color: var(--rp-text-muted); }
-.rp-wb-hint b { color: var(--rp-text); }
-.rp-wb-hint-links { white-space: nowrap; }
+.rp-wb-editbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 8px 12px; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); color: var(--rp-text); font: 800 11px/1 var(--rp-font-body); letter-spacing: 0.09em; text-transform: uppercase; cursor: pointer; }
 .rp-wb-editbtn[aria-pressed="true"] { background: var(--rp-primary); color: var(--rp-on-primary); }
+.rp-wb-hint { margin: 0; font-size: 12px; color: var(--rp-text-muted); }
+.rp-wb-hint b { color: var(--rp-text); }
+.rp-wb-toolbar .rp-wb-subtabs { padding-left: 0; border-left: 0; }
 .rp-wb-a:focus-visible, .rp-wb-seg button:focus-visible, .rp-wb-select:focus-visible, .rp-wb-editbtn:focus-visible { outline: 2px solid var(--rp-primary); outline-offset: 2px; }
 @media (max-width: 767px) {
-  .rp-wb-h1 { font-size: 30px; } .rp-wb-divider { display: none; } .rp-wb-hint-links { white-space: normal; }
-  /* Phones: the period strip scrolls sideways; the board picker, its ⋯ and Edit board fold behind "Board ▾" (ux1 #7, ux3 #23). */
   .rp-wb-head-controls, .rp-wb-period { width: 100%; }
   .rp-wb-seg { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
   .rp-wb-seg button { flex: none; }
-  .rp-wb-boardtoggle { display: inline-flex; }
-  .rp-wb-boardctl:not([data-open]) { display: none; }
-  .rp-wb-boardctl { width: 100%; }
-  .rp-wb-boardctl .rp-wb-lbl { display: none; }
 }
-@media (pointer: coarse) { .rp-wb-seg button, .rp-wb-select, .rp-wb-editbtn { min-height: 44px; } .rp-wb-refresh { width: 44px; height: 44px; } }
-@media (prefers-reduced-motion: reduce) { .rp-wb-editbtn { transition: none; } .rp-wb-refresh svg[data-spin] { animation: none; } }
-@media print { .rp-wb-head-controls, .rp-wb-hint-links, .rp-wb-refresh, .rp-wb-hidden { display: none !important; } }
+@media (pointer: coarse) { .rp-wb-seg button, .rp-wb-select, .rp-wb-editbtn, .rp-wb-boardtoggle { min-height: 44px; } .rp-wb-refresh { width: 44px; height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .rp-wb-refresh svg[data-spin] { animation: none; } }
+@media print { .rp-wb-head-controls, .rp-wb-refresh, .rp-wb-hidden { display: none !important; } }
 
 /* Overview drill-downs: a figure row that opens to list the records behind it. */
 .rp-ov-drill { display: block; width: 100%; padding: 0; margin: 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }

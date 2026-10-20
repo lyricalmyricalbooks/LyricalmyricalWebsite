@@ -267,6 +267,18 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
   // The widget (or topic) full view was opened from, to come back to it.
   const returnTo = useRef<string | null>(null);
   const periodRef = useRef<HTMLDivElement>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  // The Board menu closes on a click outside it.
+  useEffect(() => {
+    if (!boardMenuOpen) return;
+    const away = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (boardRef.current?.contains(t) || (t as Element).closest?.(".rp-menu, .rp-dialog")) return;
+      setBoardMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [boardMenuOpen]);
   const unseenNew = NEW_WIDGETS.some(t => !seen.includes(t));
   // The open sub tab: the address names it (#overview/visitors/move), else the one used last in this browser.
   const [askedTab, setAskedTab] = useState<OverviewTab>(() => tabFromHash(typeof window !== "undefined" ? window.location.hash : "") || readSavedTab() || DEFAULT_TAB);
@@ -593,14 +605,14 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     );
   };
 
-  // The header (design B4): title, freshness, period, board and Edit board, then the hint line.
+  // The header (Masthead, 20 October 2026): title and freshness, then the period and one Board menu holding
+  // the board picker, Edit board, CSV and "open on these dates"; one short line says which dates are shown.
   const viewSaved = sameView(board.view, header.view);
-  const boardOpen = boardMenuOpen || editing;
   const head = (
     <>
       <header className="rp-wb-head">
         <div className="rp-wb-head-title">
-          <h1 className="rp-wb-h1">Overview</h1>
+          <h1 className="rp-page-title rp-wb-h1">Overview</h1>
           <span className="rp-wb-updated">
             <span className="rp-wb-lbl" aria-live="polite">{header.updated}</span>
             <IconButton className="rp-wb-refresh" label={header.refreshing ? "Refreshing…" : "Refresh the figures"} onClick={header.onRefresh} disabled={header.refreshing}>
@@ -610,48 +622,48 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
         </div>
         <div className="rp-wb-head-controls">
           <div className="rp-wb-period" ref={periodRef} role="group" aria-label="Period and comparison" onKeyDown={periodKeys}>{header.period}</div>
-          <span className="rp-wb-divider" aria-hidden="true" />
-          <button type="button" className="rp-wb-boardtoggle" aria-expanded={boardOpen} aria-controls="wb-boardctl" onClick={() => setBoardMenuOpen(o => !o)}>
-            Board: <b>{board.name}</b> <ChevronDown size={14} aria-hidden style={{ transform: boardOpen ? "rotate(180deg)" : "none" }} />
-          </button>
-          <div className="rp-wb-boardctl" id="wb-boardctl" data-open={boardOpen || undefined}>
-            <span className="rp-wb-boardpick">
-              <label className="rp-wb-lbl" htmlFor="wb-layout">Board</label>
-              <select id="wb-layout" className="rp-wb-select" value={board.id} onChange={e => {
-                if (e.target.value === "__new") setNewBoardOpen(true);
-                else commitStore(selectBoard(store, e.target.value));
-              }}>
-                {store.boards.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                {store.boards.length < MAX_BOARDS && <option value="__new">+ New board…</option>}
-              </select>
-            </span>
-            <ActionMenu label="Board actions" actions={[
-              { label: "Rename this board…", onSelect: renameThisBoard },
-              ...(store.boards.length < MAX_BOARDS ? [
-                { label: "Copy this board", onSelect: () => commitStore(copyBoard(store)) },
-                { label: "New board…", onSelect: () => setNewBoardOpen(true) },
-              ] : []),
-              viewSaved ? { label: "Stop opening on these dates", onSelect: forgetView } : { label: "Open this board on these dates", onSelect: saveView },
-              { label: `Reset to the ${TEMPLATES.find(t => t.id === board.template)?.name} board…`, onSelect: resetThisBoard },
-              ...(store.boards.length > 1 ? [{ label: "Delete this board…", tone: "danger" as const, onSelect: deleteThisBoard }] : []),
-            ]} />
-            {!focus && (
-              <button type="button" className="rp-wb-editbtn" aria-pressed={editing} onClick={() => setEditing(e => !e)}>
-                {editing ? "Done editing" : <><Pencil size={14} aria-hidden /> Edit board</>}
-              </button>
+          <div className="rp-wb-boardwrap" ref={boardRef}>
+            {editing && !focus && (
+              <PrimaryButton size="sm" className="rp-wb-donebtn" onClick={() => setEditing(false)}>Done editing</PrimaryButton>
             )}
+            <button type="button" className="rp-wb-boardtoggle" aria-expanded={boardMenuOpen} aria-controls="wb-boardctl" onClick={() => setBoardMenuOpen(o => !o)}>
+              Board: <b>{board.name}</b> <ChevronDown size={14} aria-hidden style={{ transform: boardMenuOpen ? "rotate(180deg)" : "none" }} />
+            </button>
+            <div className="rp-wb-boardctl" id="wb-boardctl" hidden={!boardMenuOpen} onKeyDown={e => { if (e.key === "Escape") { setBoardMenuOpen(false); (boardRef.current?.querySelector(".rp-wb-boardtoggle") as HTMLElement | null)?.focus(); } }}>
+              <span className="rp-wb-boardpick">
+                <label className="rp-wb-lbl" htmlFor="wb-layout">Board</label>
+                <select id="wb-layout" className="rp-wb-select" value={board.id} onChange={e => {
+                  if (e.target.value === "__new") setNewBoardOpen(true);
+                  else commitStore(selectBoard(store, e.target.value));
+                }}>
+                  {store.boards.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  {store.boards.length < MAX_BOARDS && <option value="__new">+ New board…</option>}
+                </select>
+                <ActionMenu label="Board actions" actions={[
+                  { label: "Rename this board…", onSelect: renameThisBoard },
+                  ...(store.boards.length < MAX_BOARDS ? [
+                    { label: "Copy this board", onSelect: () => commitStore(copyBoard(store)) },
+                    { label: "New board…", onSelect: () => setNewBoardOpen(true) },
+                  ] : []),
+                  { label: `Reset to the ${TEMPLATES.find(t => t.id === board.template)?.name} board…`, onSelect: resetThisBoard },
+                  ...(store.boards.length > 1 ? [{ label: "Delete this board…", tone: "danger" as const, onSelect: deleteThisBoard }] : []),
+                ]} />
+              </span>
+              <span className="rp-wb-lbl">{widgetCount} widget{widgetCount === 1 ? "" : "s"} on this board</span>
+              {!focus && (
+                <button type="button" className="rp-wb-editbtn" aria-pressed={editing} onClick={() => { setEditing(e => !e); setBoardMenuOpen(false); }}>
+                  {editing ? "Done editing" : <><Pencil size={14} aria-hidden /> Edit board</>}
+                </button>
+              )}
+              <button type="button" className="rp-wb-a" onClick={header.onExport} disabled={!header.exportReady}>Download these figures (CSV)</button>
+              {viewSaved
+                ? <span className="rp-wb-saved">✓ Opens on these dates · <button type="button" className="rp-wb-a" onClick={forgetView}>Forget</button></span>
+                : <button type="button" className="rp-wb-a" onClick={saveView} title={`Open “${board.name}” on ${header.viewName} from now on`}>Always open this board on these dates</button>}
+            </div>
           </div>
         </div>
+        <p className="rp-wb-hint">{header.summary}</p>
       </header>
-      <div className="rp-wb-hint">
-        <span>{header.summary} Board: <b>{board.name}</b> · {widgetCount} widget{widgetCount === 1 ? "" : "s"}.</span>
-        <span className="rp-wb-hint-links">
-          <button type="button" className="rp-wb-a" onClick={header.onExport} disabled={!header.exportReady}>Download CSV</button>{" · "}
-          {viewSaved
-            ? <span>✓ This board opens on these dates (<button type="button" className="rp-wb-a" onClick={forgetView}>forget</button>)</span>
-            : <button type="button" className="rp-wb-a" onClick={saveView} title={`Open “${board.name}” on ${header.viewName} from now on`}>Open this board on these dates</button>}
-        </span>
-      </div>
       <p className="rp-sr-only" role="status" aria-live="polite">{announce}</p>
     </>
   );
@@ -738,12 +750,6 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
       <div className="rp-wb-tabs">
         <Tabs<TopTab> variant="page" label="Overview topics" idPrefix="overview-" value={tab.band} onChange={band => openTab({ band, sub: "all" })}
           tabs={topTabs(board, editing).map(id => ({ id, label: id === "all" ? "Everything" : bandMeta(id).title, ...(id === "all" ? {} : { count: board.bands.find(b => b.id === id)!.widgets.length }) }))} />
-        {tab.band === "traffic" && subGroups.length > 0 && (
-          <div className="rp-wb-subtabs">
-            <Tabs<VisitorGroup | "all"> label="Visitors" idPrefix="visitors-" value={tab.sub} onChange={sub => openTab({ band: "traffic", sub })}
-              tabs={[{ id: "all" as const, label: "All", count: board.bands.find(b => b.id === "traffic")!.widgets.length }, ...subGroups.map(g => ({ id: g.id, label: g.label, count: g.count }))]} />
-          </div>
-        )}
       </div>
 
       {/* The board's own bar: jump to a topic, add widgets, view options, undo and the save status. */}
@@ -758,6 +764,11 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
               }}>{bandMeta(b.id).title}<span className="rp-mono"> {b.widgets.length}</span></a>
             ))}
           </nav>
+        ) : tab.band === "traffic" && subGroups.length > 0 ? (
+          <div className="rp-wb-subtabs">
+            <Tabs<VisitorGroup | "all"> label="Visitors" idPrefix="visitors-" value={tab.sub} onChange={sub => openTab({ band: "traffic", sub })}
+              tabs={[{ id: "all" as const, label: "All", count: board.bands.find(b => b.id === "traffic")!.widgets.length }, ...subGroups.map(g => ({ id: g.id, label: g.label, count: g.count }))]} />
+          </div>
         ) : <span />}
         <div className="rp-wb-toolbar-actions">
           {(past.length > 0 || future.length > 0) && (
@@ -776,9 +787,9 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
               : { label: "Compact spacing", onSelect: () => commit(b => ({ ...b, density: "compact" })) },
             { label: allFolded ? "Unfold everything" : "Fold everything", onSelect: () => commit(b => collapseEverything(b, !allFolded)) },
           ]} />
-          <SecondaryButton size="sm" className="rp-wb-addbtn" onClick={() => openTray("all")} data-new={unseenNew || undefined}>
+          <PrimaryButton size="sm" className="rp-wb-addbtn" onClick={() => openTray("all")} data-new={unseenNew || undefined}>
             <Plus size={14} aria-hidden /> Add widgets{unseenNew && <span className="rp-wb-newdot" aria-label="(new widgets)" />}
-          </SecondaryButton>
+          </PrimaryButton>
         </div>
         {editing && (
           <p className="rp-wb-edit-hint">
