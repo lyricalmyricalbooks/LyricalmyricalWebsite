@@ -377,21 +377,23 @@ export function Pagination({ page, pageCount, onPage }: { page: number; pageCoun
   );
 }
 
-export function Tabs<T extends string>({ tabs, value, onChange, label }: {
+export function Tabs<T extends string>({ tabs, value, onChange, label, idPrefix = "" }: {
   /** `unsaved` marks a sub tab holding edits that aren't saved yet (a dot, read out as "unsaved changes"). */
   tabs: Array<{ id: T; label: string; count?: number; unsaved?: boolean }>; value: T; onChange: (id: NoInfer<T>) => void; label: string;
+  /** Keeps button ids unique when two tab rows on one page share a tab id (the Overview's "all"). */
+  idPrefix?: string;
 }) {
   const onKey = (e: React.KeyboardEvent, i: number) => {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
     e.preventDefault();
     const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
     onChange(next.id);
-    requestAnimationFrame(() => document.getElementById(`rp-tab-${next.id}`)?.focus());
+    requestAnimationFrame(() => document.getElementById(`rp-tab-${idPrefix}${next.id}`)?.focus());
   };
   return (
     <div className="rp-tabs" role="tablist" aria-label={label}>
       {tabs.map((t, i) => (
-        <button key={t.id} id={`rp-tab-${t.id}`} type="button" role="tab" className="rp-tab"
+        <button key={t.id} id={`rp-tab-${idPrefix}${t.id}`} type="button" role="tab" className="rp-tab"
           aria-selected={value === t.id} tabIndex={value === t.id ? 0 : -1}
           onClick={() => onChange(t.id)} onKeyDown={(e) => onKey(e, i)}>
           {t.label}{t.count !== undefined && <span className="rp-tab-count">{t.count}</span>}

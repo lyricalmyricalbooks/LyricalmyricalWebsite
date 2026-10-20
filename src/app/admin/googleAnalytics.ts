@@ -3,6 +3,7 @@ import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import { cleanMeasurementId } from "../lib/ga4";
 import { forgetDailyTraffic } from "./dailyTrafficCache";
+import { clearShared } from "./overviewShared";
 
 // Google Analytics 4 for the admin. The measurement ID ("G-…") is public (shoppers' browsers load it from
 // settings/website.analytics); the property ID lives in admin-only adminSecrets/googleAnalytics. Reports are read by
@@ -86,6 +87,25 @@ async function call(payload: Record<string, unknown>): Promise<any> {
   return data;
 }
 
+// The GA4 report for one range, kept for REPORT_MAX_AGE_MS: leaving the Overview and coming back, or switching
+// between two ranges, asks Google (through a Cloud Function call) only once. Overview › Refresh forgets them.
+export const REPORT_MAX_AGE_MS = 5 * 60_000;
+const reports = new Map<string, { p: Promise<Ga4Answer>; at: number }>();
+export const forgetReports = () => reports.clear();
+function cachedReport(range: Ga4Range, now = Date.now()): Promise<Ga4Answer> {
+  const key = [range.startDate, range.endDate, range.prevStartDate, range.prevEndDate].join("|");
+  const hit = reports.get(key);
+  if (hit && now - hit.at < REPORT_MAX_AGE_MS) return hit.p;
+  const entry = { p: call({ action: "ga4Report", op: "report", range }) as Promise<Ga4Answer>, at: now };
+  reports.set(key, entry);
+  // Only a connected answer is kept; "no property set", an error answer or a failure asks again next time.
+  entry.p.then(
+    (answer) => { if (!answer?.connected && reports.get(key) === entry) reports.delete(key); },
+    () => { if (reports.get(key) === entry) reports.delete(key); },
+  );
+  return entry.p;
+}
+
 export const googleAnalyticsApi = {
   /** What is saved: the public measurement ID and the private property ID. */
   load: async (): Promise<{ measurementId: string; propertyId: string }> => {
@@ -99,16 +119,21 @@ export const googleAnalyticsApi = {
   save: async (measurementId: string, propertyId: string) => {
     await setDoc(doc(db, "settings", "website"), { analytics: { ga4MeasurementId: cleanMeasurementId(measurementId) } }, { mergeFields: ["analytics.ga4MeasurementId"] });
     await setDoc(doc(db, "adminSecrets", "googleAnalytics"), { propertyId: cleanPropertyId(propertyId), updatedAt: serverTimestamp() }, { merge: true });
+    // The Overview asks Google again for the newly saved property.
+    forgetReports(); clearShared();
   },
   status: (): Promise<Ga4Answer> => call({ action: "ga4Report", op: "status" }),
-  report: (range: Ga4Range): Promise<Ga4Answer> => call({ action: "ga4Report", op: "report", range }),
+  report: (range: Ga4Range, now?: number): Promise<Ga4Answer> => cachedReport(range, now),
   searchConsoleStatus: (): Promise<SearchConsoleAnswer> => call({ action: "searchConsole", op: "status" }),
   searchConsoleReport: (range: Ga4Range): Promise<SearchConsoleAnswer> => call({ action: "searchConsole", op: "report", range }),
   /** Books › Google indexing: is each page in Google's index? (up to 30 addresses on the shop's own domain) */
   searchConsoleInspect: (urls: string[]): Promise<SearchConsoleAnswer> => call({ action: "searchConsole", op: "inspect", urls }),
   /** The Search Console property to read ("sc-domain:…" or "https://…/"), in admin-only adminSecrets/googleAnalytics. */
-  saveSearchConsoleSite: (site: string) =>
-    setDoc(doc(db, "adminSecrets", "googleAnalytics"), { searchConsoleSite: String(site || "").trim(), updatedAt: serverTimestamp() }, { merge: true }),
+  saveSearchConsoleSite: async (site: string) => {
+    await setDoc(doc(db, "adminSecrets", "googleAnalytics"), { searchConsoleSite: String(site || "").trim(), updatedAt: serverTimestamp() }, { merge: true });
+    // The Overview's Search Console widgets read the newly chosen property.
+    clearShared();
+  },
   /** Overview › Start traffic counts again: deletes the shop's own daily traffic counters (never orders). */
   resetTraffic: (): Promise<{ ok: boolean; at: string; removedDays: number }> =>
     call({ action: "resetTraffic", confirm: "RESET" }).finally(forgetDailyTraffic),

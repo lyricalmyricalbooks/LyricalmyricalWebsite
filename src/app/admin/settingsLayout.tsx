@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { TabPanel, Tabs } from "./riso/components";
 import { friendlyReason, isPlainMessage } from "./studio/friendlyError";
 
@@ -19,6 +19,16 @@ export function jumpTo(id: string) {
   if (!el) return;
   el.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "start" });
   el.focus({ preventScroll: true });
+}
+
+/**
+ * A page's open sub tab. With `onChange` the Dashboard owns it (it lives in the address bar, `adminRoute.ts`);
+ * without, the page keeps it itself. `undefined` from the Dashboard means the page's first tab.
+ */
+export function useSubTab<T extends string>(fallback: T, value?: string, onChange?: (id: string | undefined) => void): [T, (id: T) => void] {
+  const [local, setLocal] = useState<T>(fallback);
+  if (!onChange) return [local, setLocal];
+  return [(value || fallback) as T, (id: T) => onChange(id === fallback ? undefined : id)];
 }
 
 export function SettingsTabs({ tabs, value, onChange, label }: { tabs: SettingsTab[]; value: string; onChange: (id: string) => void; label: string }) {

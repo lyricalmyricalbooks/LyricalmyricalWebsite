@@ -6674,6 +6674,8 @@ const catalogChanged = (source, { publishedOnly = false } = {}) => async event =
 exports.catalogVersionBooks = onDocumentWritten("books/{bookId}", catalogChanged("books", { publishedOnly: true }));
 exports.catalogVersionPages = onDocumentWritten("pages/{pageId}", catalogChanged("pages", { publishedOnly: true }));
 exports.catalogVersionSettings = onDocumentWritten("settings/website", catalogChanged("settings"));
+// The file also carries the public shipping profiles (book pages' shipping figure, the bag's estimate and bar).
+exports.catalogVersionShipping = onDocumentWritten("shipping-profiles/{profileId}", catalogChanged("shipping-profiles"));
 
 // Storage bandwidth (October 2026): book photos still served only as their original get resized WebP copies
 // (srcset), and pictures/videos get a year-long Cache-Control header (functions/imageCopies.js). Additive:

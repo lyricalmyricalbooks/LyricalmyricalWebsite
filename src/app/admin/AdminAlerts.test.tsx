@@ -31,3 +31,17 @@ it("puts urgent alerts first, folds past two and keeps every action reachable", 
   expect(sessionStorage.getItem("admin-dismissed-alerts")).toContain("d1");
   await act(async () => root.unmount());
 });
+
+it("opens the exact page and sub tab when the Dashboard passes onOpenRoute", async () => {
+  const onOpenRoute = vi.fn(), onOpenOrders = vi.fn(), onOpenInventory = vi.fn();
+  const root = createRoot(container);
+  await act(async () => root.render(<AdminAlerts alerts={[a("l1", "danger", "inventory"), a("o1", "warning", "orders")]}
+    onOpenOrder={() => {}} onOpenOrders={onOpenOrders} onOpenWebhook={() => {}} onOpenNotifications={() => {}} onOpenInventory={onOpenInventory} onOpenRoute={onOpenRoute} />));
+  const button = (label: string) => Array.from(container.querySelectorAll("button")).find((b) => b.textContent === label)!;
+  await act(async () => button("Open Inventory app link").click());
+  expect(onOpenRoute).toHaveBeenCalledWith({ tab: "inventory", subTab: "inv-link" });
+  expect(onOpenInventory).not.toHaveBeenCalled();
+  await act(async () => button("Review orders").click());
+  expect(onOpenOrders).toHaveBeenCalled();
+  await act(async () => root.unmount());
+});

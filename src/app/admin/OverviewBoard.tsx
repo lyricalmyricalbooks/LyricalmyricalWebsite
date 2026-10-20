@@ -14,6 +14,7 @@ import {
 } from "./overviewBoard";
 import { CHART_METRICS, type ChartMetric } from "./overviewSeries";
 import { readLocalBoards, readRemoteBoards, writeLocalBoards, writeRemoteBoards } from "./overviewBoardStore";
+import { OVERVIEW_HASH_EVENT } from "./adminRoute";
 import {
   DEFAULT_TAB, groupOf, hashForTab, readSavedTab, saveTab, settleTab, tabForType, tabFromHash, topTabs, visitorGroups,
   type OverviewTab, type TopTab, type VisitorGroup,
@@ -272,6 +273,7 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     if (typeof window === "undefined" || window.location.hash === hash) return;
     const url = window.location.pathname + window.location.search + hash;
     if (how === "push") history.pushState(null, "", url); else history.replaceState(null, "", url);
+    window.dispatchEvent(new Event(OVERVIEW_HASH_EVENT));
   }, []);
 
   // Every change goes through here, so Undo/Redo cover it.
@@ -300,19 +302,34 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     setAnnounce("Redone");
   }, [future, store, setStore]);
 
-  // Back/Forward between tabs, and a link to another tab while the Overview is open.
+  // The address always names the tab on screen (also when the asked-for one isn't on this board).
+  const tabHash = hashForTab(tab);
+  const tabHashRef = useRef(tabHash);
+  tabHashRef.current = tabHash;
+  const nameTabInAddress = useCallback(() => {
+    if (!/^#overview(\/|$)/.test(window.location.hash) || window.location.hash === tabHashRef.current) return;
+    history.replaceState(null, "", window.location.pathname + window.location.search + tabHashRef.current);
+    window.dispatchEvent(new Event(OVERVIEW_HASH_EVENT));
+  }, []);
+  // Back/Forward between tabs, and a link to another tab while the Overview is open. A bare #overview (an older
+  // history entry) is renamed to the tab on screen.
   useEffect(() => {
-    const onHash = () => { const t = tabFromHash(window.location.hash); if (t) setAskedTab(t); };
+    const onHash = () => {
+      const t = tabFromHash(window.location.hash);
+      if (t) setAskedTab(t);
+      else if (window.location.hash === "#overview") nameTabInAddress();
+    };
     window.addEventListener("popstate", onHash);
     window.addEventListener("hashchange", onHash);
     return () => { window.removeEventListener("popstate", onHash); window.removeEventListener("hashchange", onHash); };
-  }, []);
-  // The address always names the tab on screen (also when the asked-for one isn't on this board).
-  const tabHash = hashForTab(tab);
+  }, [nameTabInAddress]);
+  // After Dashboard's own address write: child effects run first, so on a return to the Overview Dashboard would
+  // otherwise push a bare #overview over the tab this wrote.
   useEffect(() => {
-    if (focus || !/^#overview(\/|$)/.test(window.location.hash) || window.location.hash === tabHash) return;
-    history.replaceState(null, "", window.location.pathname + window.location.search + tabHash);
-  }, [tabHash, focus]);
+    if (focus) return;
+    const t = window.setTimeout(nameTabInAddress, 0);
+    return () => window.clearTimeout(t);
+  }, [tabHash, focus, nameTabInAddress]);
 
   // A toast's action runs later, so it reaches the board as it is then, not as it was when the toast was made.
   const commitRef = useRef(commit);
@@ -714,11 +731,11 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
 
       {/* Sub tabs: one per topic (Everything = the whole board), and a second row inside Visitors. */}
       <div className="rp-wb-tabs">
-        <Tabs<TopTab> label="Overview topics" value={tab.band} onChange={band => openTab({ band, sub: "all" })}
+        <Tabs<TopTab> label="Overview topics" idPrefix="overview-" value={tab.band} onChange={band => openTab({ band, sub: "all" })}
           tabs={topTabs(board, editing).map(id => ({ id, label: id === "all" ? "Everything" : bandMeta(id).title, ...(id === "all" ? {} : { count: board.bands.find(b => b.id === id)!.widgets.length }) }))} />
         {tab.band === "traffic" && subGroups.length > 0 && (
           <div className="rp-wb-subtabs">
-            <Tabs<VisitorGroup | "all"> label="Visitors" value={tab.sub} onChange={sub => openTab({ band: "traffic", sub })}
+            <Tabs<VisitorGroup | "all"> label="Visitors" idPrefix="visitors-" value={tab.sub} onChange={sub => openTab({ band: "traffic", sub })}
               tabs={[{ id: "all" as const, label: "All", count: board.bands.find(b => b.id === "traffic")!.widgets.length }, ...subGroups.map(g => ({ id: g.id, label: g.label, count: g.count }))]} />
           </div>
         )}

@@ -74,3 +74,34 @@ describe("the shop's saved daily rates", () => {
     expect(fails.source).toBe("live");
   });
 });
+
+describe("rates are remembered for the whole browser (cost saving)", () => {
+  test("by default the copy lives in localStorage, so another tab within the hour reads nothing", async () => {
+    const local = memory();
+    const session = memory();
+    vi.stubGlobal("localStorage", local);
+    vi.stubGlobal("sessionStorage", session);
+    try {
+      const t0 = Date.parse("2026-10-20T12:00:00Z");
+      const readShop = vi.fn(async () => ({ usd: 0.71, eur: 0.62, fetchedAt: new Date(t0).toISOString() }));
+      expect((await loadRates({ readShop, now: t0 })).source).toBe("live");
+      expect(local.getItem(RATES_CACHE_KEY)).not.toBeNull();
+      expect(session.getItem(RATES_CACHE_KEY)).toBeNull();
+      // "Another tab": a fresh call within the hour answers from the shared copy without reading the shop.
+      expect(await loadRates({ readShop, now: t0 + RATES_CACHE_MS - 1 })).toEqual({ rates: { CAD: 1, USD: 0.71, EUR: 0.62 }, source: "cached" });
+      expect(readShop).toHaveBeenCalledTimes(1);
+    } finally { vi.unstubAllGlobals(); }
+  });
+  test("a copy stamped in the future is not trusted", async () => {
+    const store = memory();
+    const t0 = Date.parse("2026-10-20T12:00:00Z");
+    store.setItem(RATES_CACHE_KEY, JSON.stringify({ at: t0 + 10 * RATES_CACHE_MS, rates: { USD: 0.5, EUR: 0.5 } }));
+    const res = await loadRates({ readShop: async () => ({ usd: 0.71, eur: 0.62, fetchedAt: new Date(t0).toISOString() }), store, now: t0 });
+    expect(res).toEqual({ rates: { CAD: 1, USD: 0.71, EUR: 0.62 }, source: "live" });
+  });
+  test("storage that throws never breaks loading", async () => {
+    const broken = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
+    const res = await loadRates({ readShop: noShop, fetchImpl: feed(0.72, 0.63) as any, store: broken as any });
+    expect(res.source).toBe("live");
+  });
+});

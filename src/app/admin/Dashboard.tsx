@@ -10,7 +10,7 @@ import { Login } from "./Login";
 import { BookCatalog } from "./BookCatalog";
 import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
 import { AdminAlerts } from "./AdminAlerts.tsx";
-import { backupAlert, buildAdminAlerts, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert } from "./adminAlerts";
+import { backupAlert, buildAdminAlerts, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { getOrdersCached, peekOrders, setOrdersLoader } from "./ordersCache";
 import { anyDirty, useBeforeUnloadWhenDirty } from "./settingsDirty";
@@ -25,7 +25,7 @@ import { GlobalSearch, ActivityLogDialog, ShopStatusMenu } from "./riso/shellPar
 import { WhatsNew } from "./WhatsNew";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, sidebarItems } from "./riso/nav";
-import { adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, settingsPageOf } from "./adminRoute";
+import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, settingsPageOf, subTabPage } from "./adminRoute";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
@@ -74,6 +74,16 @@ export function Dashboard() {
   const [selectedOrder, setSelectedOrder] = useState<any | null>(boot.orderId ? { id: boot.orderId } : null);
   const [openGiftCard, setOpenGiftCard] = useState<string | null>(boot.giftCardId || null);
   const [settingsTab, setSettingsTab] = useState(boot.settingsTab || "general");
+  // The open sub tab of a page split into sub tabs (General, Payments, Email sender, Shipping, Inventory), with the
+  // page it belongs to: any other page shows its first tab, so leaving a page and coming back starts on its first tab.
+  const [subTabState, setSubTabState] = useState<{ page: string; id?: string }>({ page: subTabPage(boot), id: boot.subTab });
+  const subPage = subTabPage({ tab: activeTab, settingsTab });
+  const subTab = subTabState.page === subPage ? subTabState.id : undefined;
+  /** Opens a sub tab (`undefined` = the first) on the page on screen, or on `page` when a link opens another page too. */
+  const openSubTab = (id: string | undefined, page: string = subPage) => setSubTabState({ page, id });
+  useEffect(() => {
+    if (subTabState.page !== subPage) setSubTabState({ page: subPage });
+  }, [subPage]);
   // The hash this page last read or wrote, so its own address changes are not applied twice.
   const lastHash = useRef(window.location.hash);
   // Back/Forward must not close the book editor or Studio underneath unsaved work.
@@ -105,23 +115,28 @@ export function Dashboard() {
       setShowEditor(false);
       setActiveTab(route.tab);
       if (route.settingsTab) setSettingsTab(route.settingsTab);
+      setSubTabState({ page: subTabPage(route), id: route.subTab });
       setSelectedOrder(route.orderId ? { id: route.orderId } : null);
       setOpenGiftCard(route.giftCardId || null);
     };
+    // The Overview names its sub tab in the address itself; remember it as seen.
+    const overviewWrote = () => { lastHash.current = window.location.hash; };
     openFromHash();
     window.addEventListener("hashchange", openFromHash);
     window.addEventListener("popstate", openFromHash);
+    window.addEventListener(OVERVIEW_HASH_EVENT, overviewWrote);
     return () => {
       window.removeEventListener("hashchange", openFromHash);
       window.removeEventListener("popstate", openFromHash);
+      window.removeEventListener(OVERVIEW_HASH_EVENT, overviewWrote);
     };
   }, [user]);
 
   // Write the page on screen back to the address bar. A new page adds a Back step; switching
-  // between orders, or tidying a link that already opened this page, replaces it.
+  // between orders or sub tabs, or tidying a link that already opened this page, replaces it.
   useEffect(() => {
     if (!user) return;
-    const next = hashForRoute({ tab: activeTab, settingsTab, orderId: activeTab === "orders" ? selectedOrder?.id : undefined });
+    const next = hashForRoute({ tab: activeTab, settingsTab, subTab, orderId: activeTab === "orders" ? selectedOrder?.id : undefined });
     const current = window.location.hash;
     // The Overview keeps its own sub tab after the page name (#overview/visitors/move).
     if (current === next || keepsSubTab(current, next)) { lastHash.current = current; return; }
@@ -132,7 +147,7 @@ export function Dashboard() {
     if (replace) history.replaceState(null, "", url);
     else history.pushState(null, "", url);
     lastHash.current = next;
-  }, [user, activeTab, settingsTab, selectedOrder?.id]);
+  }, [user, activeTab, settingsTab, subTab, selectedOrder?.id]);
 
   // Orders waiting on the publisher, shown as a badge on the Orders nav item.
   const [ordersBadge, setOrdersBadge] = useState(0);
@@ -457,7 +472,7 @@ export function Dashboard() {
         return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} />;
       case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
       case "customers": return <Customers initialQuery={searchCustomerQuery} />;
-      case "inventory": return <Inventory onEditBook={handleEditBook} />;
+      case "inventory": return <Inventory onEditBook={handleEditBook} subTab={subTab} onSubTabChange={openSubTab} />;
       case "discounts": return <Discounts />;
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
       case "reviews": return <ReviewsModeration />;
@@ -477,6 +492,8 @@ export function Dashboard() {
                 setSettingsTab(tab);
               }
             }}
+            subTab={subTab}
+            onSubTabChange={openSubTab}
             settings={settings}
             setSettings={setSettings}
             originalSettings={originalSettings}
@@ -619,6 +636,13 @@ export function Dashboard() {
           onOpenWebhook={() => { setActiveTab("settings"); setSettingsTab("payments"); setShowEditor(false); setSelectedOrder(null); }}
           onOpenGeneral={() => { setActiveTab("settings"); setSettingsTab("general"); setShowEditor(false); setSelectedOrder(null); }}
           onOpenInventory={() => { setActiveTab("inventory"); setShowEditor(false); setSelectedOrder(null); }}
+          onOpenRoute={(r: AlertRoute) => {
+            setActiveTab(r.tab);
+            if (r.settingsTab) setSettingsTab(r.settingsTab);
+            openSubTab(r.subTab, subTabPage(r));
+            setShowEditor(false);
+            setSelectedOrder(null);
+          }}
           onRetry={() => refreshAlertsRef.current()}
         />
         {/* Feature pages still use legacy utility classes; scope the compatibility layer to them only. */}
