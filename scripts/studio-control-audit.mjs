@@ -276,8 +276,8 @@ if (!only.length || only.includes("sections")) {
   const sections = registry.map((r, i) => ({ id: "audit-" + i, type: r.type, settings: JSON.parse(JSON.stringify(r.defaults)) }));
   const rank = { none: 0, "dom-only": 1, "css-only": 2, visible: 3 };
   // Section fields go one device per shard, counting from the last shard (the first ones also take the leftover controls).
-  for (const [d, dev] of ["desktop", "tablet", "mobile"].entries()) {
-    if (!inShard(shardCount - 1 - d % shardCount)) continue;
+  for (const [devNo, dev] of ["desktop", "tablet", "mobile"].entries()) {
+    if (!inShard(shardCount - 1 - devNo % shardCount)) continue;
     const list = sectionFields.filter(f => f.kind !== "date" && f.key !== "customClass"
       && (/^mobile/.test(f.key) || f.key === "hideOnMobile" ? "mobile" : f.key === "hideOnTablet" ? "tablet" : "desktop") === dev);
     if (!list.length) continue;
