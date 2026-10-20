@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildAdminAlerts, alertSignature, settingsAlerts, inventoryLinkAlerts } from "./adminAlerts";
+import { buildAdminAlerts, alertSignature, settingsAlerts, inventoryLinkAlerts, backupAlert, alertRoute } from "./adminAlerts";
+import { hashForRoute } from "./adminRoute";
 
 const now = Date.parse("2026-10-06T21:00:00Z");
 const ago = (min: number) => new Date(now - min * 60000).toISOString();
@@ -145,5 +146,27 @@ describe("inventory app link alerts", () => {
   });
   it("a healthy link is quiet", () => {
     expect(inventoryLinkAlerts({ startDay: "2026-10-01", connection: { ok: true }, lastRunAt: "2026-10-11T14:58:00Z", pendingImport: { count: 1, oldestSince: "2026-10-11T14:00:00Z" } }, now)).toEqual([]);
+  });
+});
+
+describe("alertRoute", () => {
+  const hash = (a: any) => { const r = alertRoute(a); return r ? hashForRoute(r) : null; };
+  it("opens the sub tab that holds the fix", () => {
+    expect(hash(inventoryLinkAlerts({ startDay: "2026-10-01", connection: { ok: false } }, now)[0])).toBe("#inventory/link");
+    const emails = buildAdminAlerts([], null, now, [
+      { id: "e1", status: "failed", at: ago(60) },
+      { id: "e2", status: "queued", outboxId: "q1", at: ago(30) },
+    ]);
+    expect(hash(emails.find((a) => a.id === "email-failed"))).toBe("#settings/notifications/deliveries");
+    expect(hash(emails.find((a) => a.id === "email-queued"))).toBe("#settings/notifications/deliveries");
+    expect(hash({ action: "webhook" })).toBe("#settings/payments/methods");
+    // Test mode is switched off on the first Payments tab.
+    expect(hash(settingsAlerts({ payments: { testMode: true } })[0])).toBe("#settings/payments");
+    expect(hash(backupAlert({ lastAttemptAt: "2026-10-06T07:17:00Z", ok: false, error: "x" } as any, now))).toBe("#settings/general/tools");
+  });
+  it("leaves order, orders and retry buttons to their own handlers", () => {
+    expect(alertRoute({ action: "order" })).toBeNull();
+    expect(alertRoute({ action: "orders" })).toBeNull();
+    expect(alertRoute({ action: "retry" })).toBeNull();
   });
 });

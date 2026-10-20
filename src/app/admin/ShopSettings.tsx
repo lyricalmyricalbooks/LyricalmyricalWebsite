@@ -61,7 +61,7 @@ import { saveSectionsInOrder } from "./settingsSave";
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
 import { useSettingsDirty } from "./settingsDirty";
-import { HowTo, SettingsAnchor, SettingsGroup, SettingsTabs, friendlyError, type SettingsTab } from "./settingsLayout";
+import { HowTo, SettingsAnchor, SettingsGroup, SettingsTabs, friendlyError, useSubTab, type SettingsTab } from "./settingsLayout";
 import { testSaleSteps } from "./testSaleWalkthrough";
 import { studioHash } from "../lib/studioLocation";
 
@@ -76,6 +76,8 @@ export function ShopSettings({
   saveSection,
   onUnderConstruction,
   onOpenOrders,
+  subTab,
+  onSubTabChange,
 }: any) {
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
@@ -133,13 +135,14 @@ export function ShopSettings({
           transition={{ duration: 0.2 }}
           className="space-y-12"
         >
-          {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} onUnderConstruction={onUnderConstruction} />}
-          {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} profilesError={profilesError} refreshProfiles={loadShippingProfiles} initialView={shippingStart} />}
+          {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} onUnderConstruction={onUnderConstruction} subTab={subTab} onSubTabChange={onSubTabChange} />}
+          {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} profilesError={profilesError} refreshProfiles={loadShippingProfiles} initialView={shippingStart} subTab={subTab} onSubTabChange={onSubTabChange} />}
           {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} setOriginalSettings={setOriginalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection}
-            onOpenShipping={() => { setActiveTab("shipping"); setShippingStart("carrier"); }} onOpenOrders={onOpenOrders} onOpenNotifications={() => setActiveTab("notifications")} />}
+            subTab={subTab} onSubTabChange={onSubTabChange}
+            onOpenShipping={() => { setActiveTab("shipping"); if (onSubTabChange) onSubTabChange("carrier", "shipping"); else setShippingStart("carrier"); }} onOpenOrders={onOpenOrders} onOpenNotifications={() => setActiveTab("notifications")} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {/* Communications was retired: its links open Notifications. */}
-          {(activeTab === "notifications" || activeTab === "communications") && <NotificationEditor focus={activeTab === "communications" ? "sender" : undefined} />}
+          {(activeTab === "notifications" || activeTab === "communications") && <NotificationEditor focus={activeTab === "communications" ? "sender" : undefined} subTab={subTab} onSubTabChange={onSubTabChange} />}
         </motion.div>
       </AnimatePresence>
     </div>
@@ -157,7 +160,7 @@ export const GENERAL_SECTION_TITLES: Record<string, string> = {
   maintenance: "Store status", stockHolds: "Checkout stock holds", info: "Store identity", domain: "Domain & visibility", location: "Location", policies: "Store policies",
 };
 
-function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction }: any) {
+function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction, subTab, onSubTabChange }: any) {
   const SECTIONS = ["maintenance", "stockHolds", "domain", "info", "location", "policies"] as const;
   const dirty = SECTIONS.filter((k) => hasChanges(k));
   useSettingsDirty("general", dirty.length > 0);
@@ -178,7 +181,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const maintenanceOn = !!settings.maintenance?.enabled;
   const name = settings.info?.name || "";
   const desc = settings.info?.description || "";
-  const [view, setView] = useState("gs-store");
+  const [view, setView] = useSubTab<string>("gs-store", subTab, onSubTabChange);
   const tabs: SettingsTab[] = [
     { id: "gs-store", title: "Shop status & checkout", unsaved: hasChanges("maintenance") || hasChanges("stockHolds") },
     { id: "gs-details", title: "Shop details", unsaved: ["info", "location", "policies", "domain"].some((k) => hasChanges(k)) },
@@ -398,14 +401,14 @@ function normalizeRate(r: any) {
   };
 }
 
-function ShippingSettings({ profiles, profilesError = false, refreshProfiles, initialView = "overview" }: any) {
+function ShippingSettings({ profiles, profilesError = false, refreshProfiles, initialView = "overview", subTab, onSubTabChange }: any) {
   const localFulfillmentDraft = useLocalFulfillmentDraft();
   const [askConfirm, confirmNode] = useConfirm();
   const [books, setBooks] = useState<any[]>([]);
   const [booksError, setBooksError] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [editingProfile, setEditingProfile] = useState<any | null>(null);
-  const [shippingView, setShippingView] = useState<"overview" | "profiles" | "carrier" | "local">(initialView);
+  const [shippingView, setShippingView] = useSubTab<"overview" | "profiles" | "carrier" | "local">(onSubTabChange ? "overview" : initialView, subTab, onSubTabChange);
   
   // Modals visibility
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -1257,7 +1260,7 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications, onOp
   );
 }
 
-function PaymentsSettings({ settings, setSettings, originalSettings, setOriginalSettings, hasChanges, saveSection, savingSection, onOpenShipping, onOpenOrders, onOpenNotifications }: any) {
+function PaymentsSettings({ settings, setSettings, originalSettings, setOriginalSettings, hasChanges, saveSection, savingSection, onOpenShipping, onOpenOrders, onOpenNotifications, subTab, onSubTabChange }: any) {
   const [askConfirm, confirmNode] = useConfirm();
   const stripe = settings.payments?.stripe || {};
   const paypal = settings.payments?.paypal || {};
@@ -1439,7 +1442,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
   const paymentIssues = useMemo(() => paymentHealth(settings.payments), [settings.payments]);
 
   const blockingCount = paymentIssues.filter((i) => i.severity === "blocking").length;
-  const [view, setView] = useState("pay-status");
+  const [view, setView] = useSubTab<string>("pay-status", subTab, onSubTabChange);
   const tabs: SettingsTab[] = [
     { id: "pay-status", title: "Ready to take payments?", count: blockingCount },
     { id: "pay-methods", title: "Ways to pay" },
