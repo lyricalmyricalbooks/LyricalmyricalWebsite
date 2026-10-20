@@ -106,7 +106,7 @@ export function AiWriterCard() {
       {stored?.gemini && stored?.openrouter && (
         <div style={{ marginBottom: 16 }}>
           <SelectField label="Which AI writes the drafts" value={active || "openrouter"} disabled={saving}
-            hint="Both keys are saved. The other one stays saved for later."
+            hint="Both keys are saved. When this one runs out of free allowance or credits, or is busy, the other one takes over by itself."
             onChange={(e) => saveProvider(e.target.value as AiProvider)}>
             <option value="openrouter">OpenRouter</option>
             <option value="gemini">Google Gemini</option>

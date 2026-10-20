@@ -8,7 +8,8 @@ import type { Book } from "../features/site/types";
 // Every answer is a suggestion placed in the editor; nothing is saved until the owner saves the book or page.
 
 export type AiTask = "bookSeo" | "bookDescription" | "photoAlt" | "pageSeo" | "rewrite" | "sectionDraft";
-/** Studio's section drafts carry lists (`items`) as well as words. */
+/** Studio's section drafts carry lists (`items`) as well as words. Every answer also says which AI wrote it
+ * (`provider`, `model`) and `fellBack: true` when the chosen one had run out and the other saved key answered. */
 export type AiResult = Record<string, any>;
 
 /** Same rule as functions/aiWriter.js aiKeyProblem ("" = fine or empty). */
@@ -40,10 +41,44 @@ export function openRouterModelProblem(value: string): string {
 /** An error the editor can show; `needsKey` = point the owner at Settings › General › AI writing assistant. */
 export class AiWriteError extends Error {
   needsKey: boolean;
-  constructor(message: string, needsKey = false) {
+  /** The server's answer (429 = the AI's allowance is used up, after the backup AI was tried too). */
+  status: number;
+  constructor(message: string, needsKey = false, status = 0) {
     super(message);
     this.needsKey = needsKey;
+    this.status = status;
   }
+}
+
+/** Photos Describe with AI works on at once: a run finishes several times faster, and stays under the AI's per-minute limits. */
+export const DESCRIBE_AT_ONCE = 3;
+
+/**
+ * Pure: runs `work` on every item, `limit` at a time, in order of starting. A failure doesn't stop the others,
+ * but when `stopAfter(err)` says so no new item starts (the AI ran out, or no key is saved).
+ * Resolves to how many succeeded and the first error.
+ */
+export async function runPool<T>(items: T[], limit: number, work: (item: T) => Promise<void>, stopAfter: (err: unknown) => boolean = () => false): Promise<{ done: number; failed: number; firstError: unknown }> {
+  let next = 0;
+  let done = 0;
+  let failed = 0;
+  let firstError: unknown = null;
+  let stopped = false;
+  const lane = async () => {
+    while (!stopped && next < items.length) {
+      const item = items[next++];
+      try {
+        await work(item);
+        done += 1;
+      } catch (err) {
+        failed += 1;
+        if (firstError === null) firstError = err;
+        if (stopAfter(err)) stopped = true;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, lane));
+  return { done, failed, firstError };
 }
 
 /** Pure: the public catalog facts sent for a book — never cost, stock, shelf or file fields. */
@@ -82,7 +117,7 @@ export function setAiTransport(next: AiTransport | null) { transport = next; }
 export async function askAi(task: AiTask, input: Record<string, unknown>, extra: { siteName?: string; titleSuffix?: number } = {}): Promise<AiResult> {
   if (transport) {
     const { status, data } = await transport({ action: "aiWrite", task, input, ...extra });
-    if (status !== 200 || !data?.result) throw new AiWriteError(data?.error || `The shop's server answered ${status}.`, data?.needsKey === true);
+    if (status !== 200 || !data?.result) throw new AiWriteError(data?.error || `The shop's server answered ${status}.`, data?.needsKey === true, status);
     return data.result as AiResult;
   }
   const idToken = await auth.currentUser?.getIdToken();
@@ -99,7 +134,7 @@ export async function askAi(task: AiTask, input: Record<string, unknown>, extra:
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data?.result) {
-    throw new AiWriteError(data?.error || `The shop's server answered ${res.status}. Check that Cloud Functions are deployed.`, data?.needsKey === true);
+    throw new AiWriteError(data?.error || `The shop's server answered ${res.status}. Check that Cloud Functions are deployed.`, data?.needsKey === true, res.status);
   }
   return data.result as AiResult;
 }

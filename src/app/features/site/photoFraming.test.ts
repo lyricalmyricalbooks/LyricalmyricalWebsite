@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ADJUST, photoTone, adjustStyle, adjustToSave, dragFraming, framingStyle, framingToSave, motionFraming, photoAdjust, photoFraming } from "./photoFraming";
+import { DEFAULT_ADJUST, STRAIGHTEN_COVERS, photoClarity, photoTone, straightenScale, adjustStyle, adjustToSave, dragFraming, framingStyle, framingToSave, motionFraming, photoAdjust, photoFraming } from "./photoFraming";
 import { shopFrameShapes } from "../../admin/photoCrop";
+import { PHOTO_RATIOS } from "./photoShapes";
 
 describe("photo crop & placement", () => {
   it("leaves photos without framing exactly as before", () => {
@@ -42,7 +43,7 @@ describe("quick photo edits", () => {
   it("saves nothing when nothing changed and cleans up bad values", () => {
     expect(adjustToSave({ ...DEFAULT_ADJUST })).toBeUndefined();
     expect(photoAdjust({ adjust: { brightness: 400, contrast: "20", saturation: -5, flipX: "yes" } }))
-      .toEqual({ brightness: 150, contrast: 50, saturation: 0, highlights: 0, shadows: 0, warmth: 0, tint: 0, sharpen: 0, flipX: false, flipY: false });
+      .toEqual({ brightness: 150, contrast: 50, saturation: 0, highlights: 0, shadows: 0, warmth: 0, tint: 0, sharpen: 0, clarity: 0, flipX: false, flipY: false });
   });
 
   it("draws light and colour as a CSS filter, on top of the crop", () => {
@@ -71,7 +72,63 @@ describe("quick photo edits", () => {
   });
 });
 
+describe("straighten and show whole", () => {
+  it("saves a turn and the whole-photo fit only when used, and cleans them up", () => {
+    expect(photoFraming({ framing: { x: 50, y: 50, zoom: 1, rotate: 0, fit: "cover", background: "#fff" } })).toBeNull();
+    expect(photoFraming({ framing: { rotate: "40" } })).toEqual({ x: 50, y: 50, zoom: 1, rotate: 10 });
+    expect(photoFraming({ framing: { rotate: -2.345 } })).toEqual({ x: 50, y: 50, zoom: 1, rotate: -2.3 });
+    expect(photoFraming({ framing: { fit: "contain", background: "#FFAA00" } })).toEqual({ x: 50, y: 50, zoom: 1, fit: "contain", background: "#ffaa00" });
+    expect(photoFraming({ framing: { fit: "contain", background: "red; x" } })).toEqual({ x: 50, y: 50, zoom: 1, fit: "contain" });
+    expect(framingToSave({ x: 50, y: 50, zoom: 1, background: "#000000" })).toBeUndefined();
+  });
+
+  it("turns about the frame's centre on top of the crop, enlarged to keep the frame filled", () => {
+    const s = straightenScale(3);
+    expect(framingStyle({ framing: { rotate: 3 } })).toEqual({ objectPosition: "50% 50%", transform: `rotate(3deg) scale(${s})`, transformOrigin: "50% 50%" });
+    expect(framingStyle({ framing: { x: 30, y: 50, zoom: 2, rotate: -3 } })).toEqual({
+      objectPosition: "30% 50%",
+      transform: `translate(20%, 0%) rotate(-3deg) scale(${s}) translate(-20%, 0%) scale(2)`,
+      transformOrigin: "30% 50%",
+    });
+    // Whole photo, its bars coloured: enlarged too, so the bars still fill the frame once turned.
+    expect(framingStyle({ framing: { fit: "contain", background: "#ffffff", rotate: 2 } })).toEqual({
+      objectFit: "contain", backgroundColor: "#ffffff", objectPosition: "50% 50%", transform: `rotate(2deg) scale(${straightenScale(2)})`, transformOrigin: "50% 50%",
+    });
+    expect(adjustStyle({ framing: { rotate: 2 }, adjust: { flipX: true } })).toEqual({ transform: "rotate(2deg) scale(-1, 1)" });
+  });
+
+  it("enlarges enough for every frame up to 2:1, either way up", () => {
+    for (const deg of [0.5, 3, 10]) {
+      const t = (deg * Math.PI) / 180;
+      for (const { value } of PHOTO_RATIOS) {
+        const [w, h] = value.split(":").map(Number);
+        const r = Math.max(w / h, h / w);
+        if (r > STRAIGHTEN_COVERS) continue; // panorama strips: the documented exception
+        expect(straightenScale(deg)).toBeGreaterThanOrEqual(Math.cos(t) + r * Math.sin(t) - 0.001);
+      }
+    }
+    expect(straightenScale(0)).toBe(1);
+  });
+
+  it("puts the turn in front of motion's own transform", () => {
+    const framed = motionFraming({ framing: { rotate: 4 } }, 1.1);
+    expect(framed.style).toMatchObject({ scale: 1, transformOrigin: "50% 50%" });
+    const turn = `rotate(4deg) scale(${straightenScale(4)})`;
+    expect(framed.transformTemplate!({}, "scale(1.1)")).toBe(`${turn} scale(1.1)`);
+    expect(framed.transformTemplate!({}, "none")).toBe(turn);
+    expect(motionFraming({ framing: { x: 20, y: 50, zoom: 1.5 } }).transformTemplate).toBeUndefined();
+  });
+});
+
 describe("Lightroom-style tone edits", () => {
+  it("draws clarity as its own SVG filter, sized to the photo", () => {
+    const photo = { adjust: { clarity: 50, brightness: 110 } };
+    expect(photoClarity(photoAdjust(photo))).toEqual({ id: "fm-clarity-50", k: 0.25, blur: 0.015 });
+    expect(framingStyle(photo).filter).toBe("url(#fm-clarity-50) brightness(1.1)");
+    expect(photoTone(photoAdjust(photo))).toBeNull();
+    expect(photoClarity(photoAdjust({ adjust: { sharpen: 20 } }))).toBeNull();
+  });
+
   it("draws highlights, shadows, warmth, tint and sharpen as one SVG filter the CSS filter points at", () => {
     const photo = { adjust: { warmth: 50, shadows: 40, sharpen: 50, contrast: 110 } };
     const tone = photoTone(photoAdjust(photo))!;

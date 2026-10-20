@@ -1,11 +1,11 @@
 // Books › edit › Images › Crop & edit. Drag the photo (or use the arrow keys) to choose what stays in view,
-// zoom to crop its edges, adjust light and colour or mirror it, and see it in the shop's own frame shapes. Nothing
+// zoom to crop its edges, straighten it or show it whole, adjust light, colour and detail or mirror it, and see it in the shop's own frame shapes. Nothing
 // is changed in the uploaded file: the choices are saved on the photo as `framing` and `adjust` and drawn by the
 // shop (features/site/photoFraming.ts).
 import React, { useEffect, useRef, useState } from "react";
 import { Dialog, PrimaryButton, SecondaryButton } from "./riso/components";
 import {
-  ADJUST_RANGES, DEFAULT_ADJUST, DEFAULT_FRAMING, MAX_ZOOM, MIN_ZOOM, adjustToSave, dragFraming, framingStyle, framingToSave,
+  ADJUST_RANGES, DEFAULT_ADJUST, DEFAULT_FRAMING, MAX_STRAIGHTEN, MAX_ZOOM, MIN_ZOOM, adjustToSave, dragFraming, framingStyle, framingToSave,
   isDefaultAdjust, photoAdjust, photoFraming, type AdjustLevel, type PhotoAdjust, type PhotoFraming,
 } from "../features/site/photoFraming";
 import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
@@ -21,6 +21,7 @@ export function PhotoCropDialog({ photo, label, design, onSave, onClose }: {
   const [framing, setFraming] = useState<PhotoFraming>(DEFAULT_FRAMING);
   const [adjust, setAdjust] = useState<PhotoAdjust>(DEFAULT_ADJUST);
   const [comparing, setComparing] = useState(false);
+  const [levelling, setLevelling] = useState(false);
   const shapes = shopFrameShapes(design);
   const [shapeId, setShapeId] = useState(shapes[0].id);
   const shape = shapes.find((s) => s.id === shapeId) || shapes[0];
@@ -60,6 +61,11 @@ export function PhotoCropDialog({ photo, label, design, onSave, onClose }: {
     onKeyUp: (e: React.KeyboardEvent) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); setComparing(false); } },
     onBlur: () => setComparing(false),
   };
+  const turn = (deg: number) => setFraming((f) => ({ ...f, rotate: Math.round(Math.min(MAX_STRAIGHTEN, Math.max(-MAX_STRAIGHTEN, deg)) * 10) / 10 }));
+  const rotate = framing.rotate || 0;
+  const whole = framing.fit === "contain";
+  // Bars around a photo shown whole: the frame's own colour (none saved), white, black or any colour.
+  const BARS: { label: string; value?: string }[] = [{ label: "Frame colour" }, { label: "White", value: "#ffffff" }, { label: "Black", value: "#000000" }];
   const nudge = (dx: number, dy: number) => setFraming((f) => ({
     ...f,
     x: Math.min(100, Math.max(0, Math.round((f.x + dx) * 10) / 10)),
@@ -72,7 +78,7 @@ export function PhotoCropDialog({ photo, label, design, onSave, onClose }: {
       onClose={onClose}
       size="lg"
       title={`Crop & edit · ${label}`}
-      description="Drag the photo to choose what stays in view, zoom in to crop its edges, and adjust its light, colour and detail. Your uploaded file is never changed, so you can come back and reset it any time."
+      description="Drag the photo to choose what stays in view, zoom in to crop its edges, straighten it or show it whole, and adjust its light, colour and detail. Your uploaded file is never changed, so you can come back and reset it any time."
       footerStart={<SecondaryButton size="sm" onClick={() => { setFraming(DEFAULT_FRAMING); setAdjust(DEFAULT_ADJUST); }}>Reset all</SecondaryButton>}
       footer={<>
         <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
@@ -95,7 +101,7 @@ export function PhotoCropDialog({ photo, label, design, onSave, onClose }: {
             style={{ aspectRatio: shape.aspect, width: `min(100%, calc(60vh * (${shape.aspect})))` }}
             tabIndex={0}
             role="application"
-            aria-label={`Photo position: ${Math.round(framing.x)}% across, ${Math.round(framing.y)}% down. Drag, or use the arrow keys (Shift for bigger steps).`}
+            aria-label={`Photo position: ${Math.round(framing.x)}% across, ${Math.round(framing.y)}% down. Drag, or use the arrow keys (Shift for bigger steps); [ and ] straighten.`}
             onPointerDown={(e) => {
               if (e.button !== 0) return;
               e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -115,11 +121,12 @@ export function PhotoCropDialog({ photo, label, design, onSave, onClose }: {
               if (m) { e.preventDefault(); nudge(m[0], m[1]); }
               else if (e.key === "+" || e.key === "=") { e.preventDefault(); set({ zoom: Math.min(MAX_ZOOM, Math.round((framing.zoom + 0.1) * 100) / 100) }); }
               else if (e.key === "-") { e.preventDefault(); set({ zoom: Math.max(MIN_ZOOM, Math.round((framing.zoom - 0.1) * 100) / 100) }); }
+              else if (e.key === "[" || e.key === "]") { e.preventDefault(); turn(rotate + (e.key === "]" ? 1 : -1) * (e.shiftKey ? 1 : 0.1)); }
             }}
           >
             <PhotoToneDefs photo={shown} />
             <img src={photo.url} alt={photo.altText || ""} draggable={false} style={framingStyle(shown)} />
-            <span className="be-crop-grid" aria-hidden="true" />
+            <span className={`be-crop-grid${levelling ? " be-crop-grid-fine" : ""}`} aria-hidden="true" />
             {comparing && <span className="be-crop-original">Original</span>}
           </div>
           <div className="be-crop-tools">
@@ -144,6 +151,42 @@ export function PhotoCropDialog({ photo, label, design, onSave, onClose }: {
             <span>Top ↕ bottom · {Math.round(framing.y)}%</span>
             <input type="range" min={0} max={100} step={0.5} value={framing.y} onChange={(e) => set({ y: Number(e.target.value) })} />
           </label>
+          <label className="be-crop-field">
+            {/* A fine grid shows while the slider is in use, to line the book's edges up against. */}
+            <span>Straighten · {rotate > 0 ? "+" : ""}{rotate.toFixed(1)}°</span>
+            <input type="range" min={-MAX_STRAIGHTEN} max={MAX_STRAIGHTEN} step={0.1} value={rotate}
+              onChange={(e) => turn(Number(e.target.value))}
+              onDoubleClick={() => turn(0)}
+              onPointerDown={() => setLevelling(true)} onPointerUp={() => setLevelling(false)}
+              onFocus={() => setLevelling(true)} onBlur={() => setLevelling(false)} />
+          </label>
+          <div className="be-crop-tools" role="radiogroup" aria-label="Fit in the frame">
+            {([[false, "Fill the frame"], [true, "Show whole photo"]] as const).map(([w, name]) => (
+              <button key={name} type="button" role="radio" aria-checked={whole === w}
+                className={`rp-btn rp-btn-sm ${whole === w ? "rp-btn-primary" : "rp-btn-secondary"}`}
+                onClick={() => set(w ? { fit: "contain" } : { fit: undefined, background: undefined })}>{name}</button>
+            ))}
+          </div>
+          {whole && (
+            <div className="be-crop-tools" role="radiogroup" aria-label="Colour around the photo">
+              {BARS.map((b) => (
+                <button key={b.label} type="button" role="radio" aria-checked={framing.background === b.value}
+                  className={`rp-btn rp-btn-sm ${framing.background === b.value ? "rp-btn-primary" : "rp-btn-secondary"}`}
+                  onClick={() => set({ background: b.value })}>
+                  {b.value && <span className="be-crop-swatch" style={{ background: b.value }} aria-hidden="true" />}{b.label}
+                </button>
+              ))}
+              <label className="rp-btn rp-btn-sm rp-btn-secondary be-crop-colour">
+                <input type="color" value={framing.background || "#ffffff"} onChange={(e) => set({ background: e.target.value })} />
+                Other colour
+              </label>
+            </div>
+          )}
+          <div className="be-crop-tools">
+            <button type="button" className="rp-btn rp-btn-sm rp-btn-ghost" disabled={framing.x === 50 && framing.y === 50}
+              onClick={() => set({ x: 50, y: 50 })}>Centre</button>
+            <button type="button" className="rp-btn rp-btn-sm rp-btn-ghost" onClick={() => setFraming(DEFAULT_FRAMING)}>Reset crop</button>
+          </div>
           </details>
           <details className="be-crop-group" open>
           <summary className="be-crop-heading">Light</summary>
@@ -166,6 +209,7 @@ export function PhotoCropDialog({ photo, label, design, onSave, onClose }: {
           <details className="be-crop-group">
           <summary className="be-crop-heading">Detail &amp; mirror</summary>
           {level("sharpen", "Sharpen")}
+          {level("clarity", "Clarity")}
           <div className="be-crop-tools">
             <button type="button" aria-pressed={adjust.flipX}
               className={`rp-btn rp-btn-sm ${adjust.flipX ? "rp-btn-primary" : "rp-btn-secondary"}`}
@@ -189,7 +233,7 @@ export function PhotoCropDialog({ photo, label, design, onSave, onClose }: {
               </figure>
             ))}
           </div>
-          <p className="be-note">The enlarged photo viewer on the book page shows the whole photo, with your light, colour, detail and flip edits.</p>
+          <p className="be-note">The enlarged photo viewer on the book page shows the whole photo, with your straighten, light, colour, detail and flip edits.</p>
         </div>
       </div>
     </Dialog>

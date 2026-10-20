@@ -430,7 +430,8 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   box-shadow: var(--rp-shadow-lg), var(--rp-shadow-pop); color: var(--rp-text);
 }
 .rp-dialog[data-size="lg"] { width: min(100%, 880px); }
-.rp-dialog-root[data-variant="drawer"] .rp-dialog { width: min(100%, 480px); height: 100%; max-height: none; border-radius: 0; border-width: 0 0 0 var(--rp-stroke); }
+/* Direct child only: a dialog opened inside a drawer (Crop & edit in the book editor) keeps its own size and scrolls. */
+.rp-dialog-root[data-variant="drawer"] > .rp-dialog { width: min(100%, 480px); height: 100%; max-height: none; border-radius: 0; border-width: 0 0 0 var(--rp-stroke); }
 .rp-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 22px; border-bottom: var(--rp-hair) solid var(--rp-divider); }
 .rp-dialog-title { margin: 0; font-family: var(--rp-font-display); font-style: italic; font-weight: 600; font-size: var(--rp-text-xl); line-height: 1.1; }
 .rp-dialog-body { padding: 20px 22px; overflow-y: auto; flex: 1; }
@@ -759,6 +760,10 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .be-crop-stage:focus-visible { outline: 3px solid var(--rp-focus, var(--rp-primary)); outline-offset: 2px; }
 .be-crop-stage img, .be-crop-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
 .be-crop-grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(to right, transparent calc(33.33% - .5px), rgba(255, 255, 255, .55) calc(33.33% - .5px), rgba(255, 255, 255, .55) calc(33.33% + .5px), transparent calc(33.33% + .5px), transparent calc(66.66% - .5px), rgba(255, 255, 255, .55) calc(66.66% - .5px), rgba(255, 255, 255, .55) calc(66.66% + .5px), transparent calc(66.66% + .5px)), linear-gradient(to bottom, transparent calc(33.33% - .5px), rgba(255, 255, 255, .55) calc(33.33% - .5px), rgba(255, 255, 255, .55) calc(33.33% + .5px), transparent calc(33.33% + .5px), transparent calc(66.66% - .5px), rgba(255, 255, 255, .55) calc(66.66% - .5px), rgba(255, 255, 255, .55) calc(66.66% + .5px), transparent calc(66.66% + .5px)); }
+.be-crop-grid-fine { background-image: repeating-linear-gradient(to right, transparent 0 calc(10% - .5px), rgba(255, 255, 255, .5) calc(10% - .5px) 10%), repeating-linear-gradient(to bottom, transparent 0 calc(10% - .5px), rgba(255, 255, 255, .5) calc(10% - .5px) 10%); }
+.be-crop-swatch { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border: var(--rp-hair) solid var(--rp-border-strong); vertical-align: -1px; }
+.be-crop-colour { gap: 6px; cursor: pointer; }
+.be-crop-colour input[type="color"] { width: 18px; height: 18px; padding: 0; border: var(--rp-hair) solid var(--rp-border-strong); background: none; cursor: pointer; }
 .be-crop-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .be-crop-field { display: flex; flex-direction: column; gap: 6px; font: 600 var(--rp-text-sm) var(--rp-font-body); color: var(--rp-text); }
 .be-crop-field input[type="range"] { width: 100%; accent-color: var(--rp-primary); }
