@@ -2,6 +2,7 @@ import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import { cleanMeasurementId } from "../lib/ga4";
+import { cleanBigQueryDataset, type JourneyAnswer } from "./bigQueryJourneys";
 
 // Google Analytics 4 for the admin. The measurement ID ("G-…") is public (shoppers' browsers load it from
 // settings/website.analytics); the property ID lives in admin-only adminSecrets/googleAnalytics. Reports are read by
@@ -104,11 +105,12 @@ async function call(payload: Record<string, unknown>): Promise<any> {
 
 export const googleAnalyticsApi = {
   /** What is saved: the public measurement ID and the private property ID. */
-  load: async (): Promise<{ measurementId: string; propertyId: string }> => {
+  load: async (): Promise<{ measurementId: string; propertyId: string; bigQueryDataset: string }> => {
     const [pub, priv] = await Promise.all([getDoc(doc(db, "settings", "website")), getDoc(doc(db, "adminSecrets", "googleAnalytics"))]);
     return {
       measurementId: String((pub.exists() && pub.data()?.analytics?.ga4MeasurementId) || ""),
       propertyId: String((priv.exists() && priv.data()?.propertyId) || ""),
+      bigQueryDataset: String((priv.exists() && priv.data()?.bigQueryDataset) || ""),
     };
   },
   /** Saves both IDs (an empty value switches that part off). Only `analytics.ga4MeasurementId` is touched in public settings. */
@@ -125,6 +127,13 @@ export const googleAnalyticsApi = {
   /** The Search Console property to read ("sc-domain:…" or "https://…/"), in admin-only adminSecrets/googleAnalytics. */
   saveSearchConsoleSite: (site: string) =>
     setDoc(doc(db, "adminSecrets", "googleAnalytics"), { searchConsoleSite: String(site || "").trim(), updatedAt: serverTimestamp() }, { merge: true }),
+  /** The GA4 BigQuery export dataset ("project.dataset" or "dataset"; "" = automatic analytics_<property id>), admin-only. */
+  saveBigQueryDataset: (dataset: string) =>
+    setDoc(doc(db, "adminSecrets", "googleAnalytics"), { bigQueryDataset: cleanBigQueryDataset(dataset), updatedAt: serverTimestamp() }, { merge: true }),
+  /** Dry-runs the journeys query over the last 7 days (reads nothing, costs nothing): is the export linked and readable? */
+  bigQueryStatus: (): Promise<JourneyAnswer> => call({ action: "bigQueryJourneys", op: "status" }),
+  /** Overview › Visitor journeys / Last page before leaving: at most 31 days (YYYY-MM-DD, inclusive). */
+  bigQueryJourneys: (startDate: string, endDate: string): Promise<JourneyAnswer> => call({ action: "bigQueryJourneys", op: "report", startDate, endDate }),
   /** Overview › Start traffic counts again: deletes the shop's own daily traffic counters (never orders). */
   resetTraffic: (): Promise<{ ok: boolean; at: string; removedDays: number }> => call({ action: "resetTraffic", confirm: "RESET" }),
   /** When the shop's own counters were last reset (admin-read systemStatus/trafficReset), or null. */
