@@ -623,6 +623,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "pdpMetaColor", label: "Small label colour", kind: "color" },
       { key: "pdpThumbPosition", label: "Photo thumbnails", kind: "select", options: [{ value: "side", label: "Beside the photo" }, { value: "below", label: "Under the photo" }, { value: "hidden", label: "Hidden" }] },
       { key: "pdpThumbWrap", label: "Thumbnails on several rows (instead of one line you scroll sideways) — under the photo, and on phones", kind: "toggle", defaultValue: false },
+      { key: "pdpThumbsPhone", label: "Thumbnails on phones", kind: "select", defaultValue: "", options: [{ value: "", label: "Same as computer" }, { value: "row", label: "One line you scroll sideways" }, { value: "hidden", label: "Hidden (shoppers swipe the photo)" }] },
       { key: "pdpThumbFill", label: "Stretch thumbnails to fill the width (no empty space at the right edge)", kind: "toggle", defaultValue: true },
       { key: "pdpThumbPerRow", label: "Thumbnails per row (0 = automatic, from Thumbnail size)", kind: "range", defaultValue: 0, min: 0, max: 12, step: 1 },
       { key: "pdpThumbLastRow", label: "Short last row of thumbnails", kind: "select", defaultValue: "stretch", options: [{ value: "stretch", label: "Stretch to the edges" }, { value: "left", label: "Same size, on the left" }, { value: "center", label: "Same size, centred" }] },
