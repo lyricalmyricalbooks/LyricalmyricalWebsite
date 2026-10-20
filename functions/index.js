@@ -14,14 +14,16 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onRequest } = require("firebase-functions/v2/https");
 const { setGlobalOptions } = require("firebase-functions/v2/options");
 const { defineSecret } = require("firebase-functions/params");
-const nodemailer = require("nodemailer");
 const admin = require("./adminSdk")(require("firebase-admin"));
 const crypto = require("crypto");
 const { browserRequestHandler } = require("./appCheck");
-const { Resend } = require("resend");
 const { explainEmailError } = require("./emailErrors");
 const { risoButton, risoLayout, placeItemsTable } = require("./emailTheme");
-const Stripe = require("stripe");
+// Stripe, nodemailer and Resend load on first use, so the many functions that never pay or mail start faster.
+// `new Stripe(key)` / `new Resend(key)` work unchanged (a constructor that returns an object hands that object back).
+function Stripe(...args) { return new (require("stripe"))(...args); }
+function Resend(...args) { return new (require("resend").Resend)(...args); }
+const nodemailer = { createTransport: (...args) => require("nodemailer").createTransport(...args) };
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
 const { labelProblem, addressKey: guardAddressKey, shippoTransactionOutcome, advancesTracking, shippoDefiniteRefusal, terminal: terminalOrder } = require("./fulfillmentGuard");
@@ -708,12 +710,12 @@ async function runEmailOutbox(now = Date.now(), { budgetMs = 30000 } = {}) {
   const prunedLog = await prune("emailLog", "at", daysAgoIso(LOG_RETENTION_DAYS, now), 300).catch(err => { console.warn("emailLog prune failed:", err.message); return 0; });
   const prunedOutbox = await prune("emailOutbox", "gaveUpAt", daysAgoIso(GAVE_UP_RETENTION_DAYS, now), 100).catch(err => { console.warn("emailOutbox prune failed:", err.message); return 0; });
   // Newsletter signups nobody confirmed within 30 days are strangers' addresses: drop them.
-  const prunedPending = await db.collection("newsletter").where("status", "==", "pending").limit(300).get()
+  // Only rows already past the cutoff are read (index: newsletter status + requestedAt), not every pending row each run.
+  const prunedPending = await db.collection("newsletter").where("status", "==", "pending")
+    .where("requestedAt", "<", daysAgoIso(30, now)).limit(300).get()
     .then(async snap => {
-      const cutoff = daysAgoIso(30, now);
-      const stale = snap.docs.filter(d => String(d.data().requestedAt || "") < cutoff);
-      await Promise.all(stale.map(d => d.ref.delete()));
-      return stale.length;
+      await Promise.all(snap.docs.map(d => d.ref.delete()));
+      return snap.docs.length;
     }).catch(err => { console.warn("pending newsletter prune failed:", err.message); return 0; });
   return { tried: due.docs.length, sent, prunedLog, prunedOutbox, prunedPending };
 }
@@ -4836,17 +4838,6 @@ exports.abandonedCartSweep = onSchedule(
     // Carts nobody can still be reminded about are deleted, so this collection (and every later sweep)
     // stays small however many carts visitors have written. Own try/catch: never blocks the reminders.
     try { await pruneOldCarts(db); } catch (err) { console.warn("abandonedCartSweep: cart cleanup failed:", err.message); }
-    const notificationSettings = await loadNotificationSettings();
-    // Settings › Notifications › Abandoned Cart can switch these reminders off.
-    if (notificationSettings.abandoned_cart?.enabled === false) return;
-    // Marketing email must carry the shop's postal address (Settings › General › Location);
-    // without one the footer would leave it out, so no reminders go until it is saved.
-    const websiteForAddress = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
-    if (!footerAddress(websiteForAddress.location)) {
-      console.warn("Abandoned-cart reminders skipped: no postal address saved in Settings › General › Location");
-      return;
-    }
-    const unsubscribeKey = await marketingUnsubscribeKey();
     const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     // Only the 7-day window a reminder can still be sent in, newest first, at most ABANDONED_CART_BATCH per run
     // (the same index as before: recovered + updatedAt). Older carts are not read at all.
@@ -4865,6 +4856,19 @@ exports.abandonedCartSweep = onSchedule(
     // stale or forged timestamps are skipped and each address is throttled.
     const oldest = new Date(Date.now() - ABANDONED_CART_MAX_AGE_MS).toISOString();
     const pending = snap.docs.filter(doc => doc.data().notified !== true && String(doc.data().updatedAt || "") >= oldest);
+    // Settings are read only when a cart is waiting (most hourly runs find none).
+    if (!pending.length) return;
+    const notificationSettings = await loadNotificationSettings();
+    // Settings › Notifications › Abandoned Cart can switch these reminders off.
+    if (notificationSettings.abandoned_cart?.enabled === false) return;
+    // Marketing email must carry the shop's postal address (Settings › General › Location);
+    // without one the footer would leave it out, so no reminders go until it is saved.
+    const websiteForAddress = (await db.collection("settings").doc("website").get().catch(() => null))?.data?.() || {};
+    if (!footerAddress(websiteForAddress.location)) {
+      console.warn("Abandoned-cart reminders skipped: no postal address saved in Settings › General › Location");
+      return;
+    }
+    const unsubscribeKey = await marketingUnsubscribeKey();
     const bookCache = new Map();
     const loadBook = async id => {
       if (!bookCache.has(id)) bookCache.set(id, db.collection("books").doc(id).get().then(d => (d.exists ? d.data() : null)).catch(() => null));
@@ -6676,8 +6680,9 @@ exports.catalogVersionShipping = onDocumentWritten("shipping-profiles/{profileId
 // Storage bandwidth (October 2026): book photos still served only as their original get resized WebP copies
 // (srcset), and pictures/videos get a year-long Cache-Control header (functions/imageCopies.js). Additive:
 // no file is deleted or overwritten. Once everything is done a run reads the status doc and recent books only.
+// Hourly: new uploads make their own copies, so this only catches older photos, and each run starts a 1 GiB machine.
 exports.storageImageSweep = onSchedule(
-  { schedule: "every 15 minutes", timeoutSeconds: 300, memory: "1GiB" },
+  { schedule: "every 60 minutes", timeoutSeconds: 300, memory: "1GiB" },
   async () => {
     const { runImageCopies, runCacheControl } = require("./imageCopies");
     const sharp = require("sharp");

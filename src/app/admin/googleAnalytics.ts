@@ -2,6 +2,7 @@ import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import { cleanMeasurementId } from "../lib/ga4";
+import { forgetDailyTraffic } from "./dailyTrafficCache";
 import { clearShared } from "./overviewShared";
 
 // Google Analytics 4 for the admin. The measurement ID ("G-…") is public (shoppers' browsers load it from
@@ -134,7 +135,8 @@ export const googleAnalyticsApi = {
     clearShared();
   },
   /** Overview › Start traffic counts again: deletes the shop's own daily traffic counters (never orders). */
-  resetTraffic: (): Promise<{ ok: boolean; at: string; removedDays: number }> => call({ action: "resetTraffic", confirm: "RESET" }),
+  resetTraffic: (): Promise<{ ok: boolean; at: string; removedDays: number }> =>
+    call({ action: "resetTraffic", confirm: "RESET" }).finally(forgetDailyTraffic),
   /** When the shop's own counters were last reset (admin-read systemStatus/trafficReset), or null. */
   lastReset: async (): Promise<{ at: string; removedDays: number } | null> => {
     const snap = await getDoc(doc(db, "systemStatus", "trafficReset"));

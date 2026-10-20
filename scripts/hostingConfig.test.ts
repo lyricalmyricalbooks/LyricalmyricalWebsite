@@ -124,9 +124,13 @@ describe('deploy workflows agree', () => {
     const firebaseYml = read('.github/workflows/deploy-firebase.yml');
     const paths = firebaseYml.slice(firebaseYml.indexOf('paths:'), firebaseYml.indexOf('workflow_dispatch:'))
       .split('\n').map(line => line.match(/^\s+-\s+"?([^"]+?)"?\s*$/)?.[1]).filter(Boolean) as string[];
-    const asRegex = paths.map(p => p.replace(/\./g, '\\.').replace(/\/\*\*$/, '/.*')).sort();
-    const watched = read('.github/workflows/deploy-pages.yml').match(/WATCHED='\^\(([^']+)\)\$'/)?.[1];
-    expect(watched?.split('|').sort()).toEqual(asRegex);
+    const toRegex = (p: string) => p.replace(/\./g, '\\.').replace(/\/\*\*\/\*/, '/.*').replace(/\/\*\*$/, '/.*');
+    const pagesYml = read('.github/workflows/deploy-pages.yml');
+    const watched = pagesYml.match(/WATCHED='\^\(([^']+)\)\$'/)?.[1];
+    expect(watched?.split('|').sort()).toEqual(paths.filter(p => !p.startsWith('!')).map(toRegex).sort());
+    // Files deploy-firebase.yml leaves out with `!` must be skipped by the storefront's wait too.
+    const ignored = pagesYml.match(/IGNORED='\^\(([^']+)\)\$'/)?.[1];
+    expect(ignored?.split('|').sort()).toEqual(paths.filter(p => p.startsWith('!')).map(p => toRegex(p.slice(1))).sort());
   });
 
   it('pins one firebase-tools version in every workflow that runs it', () => {
