@@ -639,7 +639,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-split { display: grid; gap: 24px; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
 @media (max-width: 1023px) { .rp-split { grid-template-columns: minmax(0, 1fr); } }
 
-/* Rich-text editor (react-quill) on Riso tokens */
+/* Rich-text editor (Quill 2, components/QuillEditor.tsx) on Riso tokens */
 .rp-quill .ql-toolbar.ql-snow { border: var(--rp-hair) solid var(--rp-border); background: var(--rp-surface-sunken); font-family: var(--rp-font-body); }
 .rp-quill .ql-container.ql-snow { border: var(--rp-hair) solid var(--rp-border); border-top: 0; font-family: var(--rp-font-body); font-size: var(--rp-text-md); background: var(--rp-input-bg); color: var(--rp-text); }
 .rp-quill .ql-editor { min-height: 320px; line-height: 1.7; }
@@ -915,6 +915,10 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-wb { --wb-gap: 20px; --wb-pad: 16px; }
 .rp-wb[data-density="compact"] { --wb-gap: 12px; --wb-pad: 10px; }
 /* The board bar: no frame of its own, so it reads as part of the header rather than a second header (ux1 #4). */
+/* Overview sub tabs (20 October 2026): one per topic, a second row inside Visitors. */
+.rp-wb-tabs { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rp-wb-subtabs { padding-left: 12px; border-left: var(--rp-stroke) solid var(--rp-border-strong); min-width: 0; }
+.rp-wb-subtabs .rp-tab { font-size: var(--rp-text-xs); }
 .rp-wb-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 0; background: transparent; border: 0; box-shadow: none; }
 .rp-wb-toolbar-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
 .rp-wb-toolbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }

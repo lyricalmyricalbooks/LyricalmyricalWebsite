@@ -123,10 +123,10 @@ export const publicApi = {
     // Same rules as every other storefront signal: not the signed-in owner, not the preview, analytics not declined.
     const { trackingAllowed } = await import("./trackingGuard");
     if (!(await trackingAllowed())) return;
-    const today = new Date().toISOString().split('T')[0];
     try {
-      const { doc, increment, setDoc, liteDb } = await lite();
-      await setDoc(doc(liteDb, "analytics", today), { date: today, visits: increment(1) }, { merge: true });
+      // Queued with the session's source/device (funnelApi.trackSession) so both land in one write.
+      const { queueVisit } = await import("./commerce");
+      await queueVisit();
     } catch (e) {
       console.warn("Analytics failed", e);
     }

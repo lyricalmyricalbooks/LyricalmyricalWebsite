@@ -10,8 +10,6 @@ import { join } from "node:path";
 // "my change doesn't show up". This renders every section type with sample books and fails when a
 // book title is shown outside an `fm-card-title` element.
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 
 const { StaticRouter } = await import("react-router");
 const { CurrencyProvider } = await import("../../CurrencyContext");

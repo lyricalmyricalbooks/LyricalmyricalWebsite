@@ -7,14 +7,14 @@ import { signalWithTimeout } from "./latestRequest";
 
 export type RateCurrency = "CAD" | "USD" | "EUR";
 export type Rates = Record<RateCurrency, number>;
-/** live = today's rates (the shop's saved copy or the feed) · cached = remembered earlier in this tab or an older
- *  saved copy while the feed is down · fallback = fixed numbers (nothing reachable). */
+/** live = today's rates (the shop's saved copy or the feed) · cached = remembered earlier in this browser (within the
+ *  hour) or an older saved copy while the feed is down · fallback = fixed numbers (nothing reachable). */
 export type RatesSource = "live" | "cached" | "fallback";
 
 export const FALLBACK_RATES: Rates = { CAD: 1.0, USD: 0.73, EUR: 0.67 };
 export const RATES_URL = "https://open.er-api.com/v6/latest/CAD";
 export const RATES_CACHE_KEY = "fm_fx_rates";
-/** A tab re-reads the rates hourly, so a shopper who keeps the shop open sees the next day's rates. */
+/** The browser re-reads the rates hourly (shared by its tabs), so a shopper who keeps the shop open sees the next day's rates. */
 export const RATES_CACHE_MS = 60 * 60 * 1000;
 /** Same as the server's FRESH_MS: a saved copy older than this is replaced by a live answer when one is reachable. */
 export const SAVED_FRESH_MS = 36 * 60 * 60 * 1000;
@@ -34,7 +34,9 @@ function sanePair(usd: unknown, eur: unknown): Pair | null {
 function readCache(store: Store | null, now: number): Rates | null {
   try {
     const saved = JSON.parse(store?.getItem(RATES_CACHE_KEY) || "null");
-    const pair = saved && now - Number(saved.at) < RATES_CACHE_MS ? sanePair(saved.rates?.USD, saved.rates?.EUR) : null;
+    // A stamp from the future (clock moved back) would otherwise pin the copy for longer than an hour.
+    const age = saved ? now - Number(saved.at) : NaN;
+    const pair = age >= 0 && age < RATES_CACHE_MS ? sanePair(saved.rates?.USD, saved.rates?.EUR) : null;
     if (pair) return { CAD: 1, ...pair };
   } catch { /* unreadable cache: fetch again */ }
   return null;
@@ -59,7 +61,9 @@ export async function loadRates(opts: {
 } = {}): Promise<{ rates: Rates; source: RatesSource }> {
   const now = opts.now ?? Date.now();
   let store: Store | null = null;
-  try { store = opts.store === undefined ? (typeof sessionStorage !== "undefined" ? sessionStorage : null) : opts.store; } catch { store = null; }
+  // Remembered for the whole browser (not per tab), so opening the shop in another tab within the hour reuses the
+  // same rates instead of reading `settings/exchangeRates` again. Same 1-hour window and sane bounds as before.
+  try { store = opts.store === undefined ? (typeof localStorage !== "undefined" ? localStorage : null) : opts.store; } catch { store = null; }
   const cached = readCache(store, now);
   if (cached) return { rates: cached, source: "cached" };
 

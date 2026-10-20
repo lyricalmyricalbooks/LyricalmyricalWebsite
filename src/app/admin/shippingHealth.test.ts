@@ -93,3 +93,29 @@ describe("rate descriptions", () => {
   });
 });
 
+import { shippingIssueTab, issuesForTab, carrierIssues, SHIPPING_ISSUE_TAB_LABELS } from "./shippingHealth";
+describe("shipping problems by sub tab", () => {
+  it("sends profile, zone, rate and missing-profile problems to Profiles", () => {
+    const summary = summarizeShipping([{ id: "general", name: "General", zones: [] }], [{ id: "orphan", shippingProfileId: "gone" }]);
+    expect(summary.issues.map(shippingIssueTab)).toEqual(["profiles", "profiles"]);
+    expect(shippingIssueTab({ id: "no-profiles" })).toBe("profiles");
+  });
+
+  it("sends carrier problems to Carrier & labels and filters per tab in order", () => {
+    const carrier = carrierIssues({ configured: true, mode: "test", dynamicRatesEnabled: true, dynamicRateCountries: [] });
+    expect(carrier.map((issue) => issue.id)).toEqual(["carrier:test-key", "carrier:live-rates-no-countries"]);
+    expect(carrier.every((issue) => shippingIssueTab(issue) === "carrier" && issue.severity === "warning")).toBe(true);
+    const all = [{ id: "no-profiles", label: "", detail: "" }, ...carrier];
+    expect(issuesForTab(all, "carrier")).toEqual(carrier);
+    expect(issuesForTab(all, "profiles").map((issue) => issue.id)).toEqual(["no-profiles"]);
+    expect(SHIPPING_ISSUE_TAB_LABELS.carrier).toBe("Carrier & labels");
+  });
+
+  it("reports no carrier problems when Shippo isn't connected or is fully set up", () => {
+    expect(carrierIssues(null)).toEqual([]);
+    expect(carrierIssues({ configured: false, mode: "test", dynamicRatesEnabled: true })).toEqual([]);
+    expect(carrierIssues({ configured: true, mode: "live", dynamicRatesEnabled: true, dynamicRateCountries: ["CA"] })).toEqual([]);
+    expect(carrierIssues({ configured: true, mode: "live", dynamicRatesEnabled: false })).toEqual([]);
+  });
+});
+

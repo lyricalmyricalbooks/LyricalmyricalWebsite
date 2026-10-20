@@ -1302,7 +1302,7 @@ export default function BookDetail() {
                           className="fm-pdp-thumb relative"
                           style={{ aspectRatio: thumbAspect }}
                         >
-                          <img src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt={mediaName(photo, i)} loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit, ...framingStyle(photo) }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
+                          <img loading="lazy" {...{ fetchpriority: "low" }} src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt={mediaName(photo, i)} decoding="async" className="w-full h-full" style={{ objectFit: productImageFit, ...framingStyle(photo) }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
                           <PhotoToneDefs photo={photo} />
                           {isVideoItem(photo) && <span className="fm-video-mark absolute inset-0 m-auto w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center pointer-events-none" aria-hidden="true"><Play size={12} fill="currentColor" /></span>}
                         </button>
@@ -1357,15 +1357,20 @@ export default function BookDetail() {
                             <>
                             <PhotoToneDefs photo={photo} />
                             <m.img
+                              // `loading` before `src`: React sets attributes in this order, and Chrome loads a new
+                              // <img> at once when its src is already in the memory cache, which a lazy photo of the
+                              // prerendered page puts there unloaded. Set after src, every gallery photo downloaded
+                              // when the app took over (lazyFirst.test.ts).
+                              // The photo shown and its neighbours load now, so a swipe never reveals an empty frame;
+                              // only the shown one goes first, the rest wait their turn behind it.
+                              loading={Math.abs(i - carouselIndex) <= 1 ? "eager" : "lazy"}
+                              {...{ fetchpriority: i === carouselIndex ? "high" : "low" }}
                               src={url}
                               {...photoSrcSet(photo, photoSizes(photo))}
                               alt={mediaName(photo, i)}
                               className={`w-full h-full select-none ${productImageFitClass}`}
                               decoding="async"
                               draggable={false}
-                              // The photo shown and its neighbours load now, so a swipe never reveals an empty frame.
-                              loading={Math.abs(i - carouselIndex) <= 1 ? "eager" : "lazy"}
-                              {...(i === 0 ? { fetchpriority: "high" } : {})}
                               // Books › edit › Images › Crop & edit: placement and quick edits as style, the zoom and
                               // flip as motion values (motion owns `transform`), so the hover zoom grows from the cropped size;
                               // a straightened photo's turn goes in front through transformTemplate.
@@ -1527,7 +1532,7 @@ export default function BookDetail() {
                     <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame fm-photo-frame-pdp overflow-hidden`} style={{ aspectRatio: frameFor(photo.url), borderRadius: `${productBorderRadius}px` }}>
                       {isVideoItem(photo)
                         ? <video src={photo.videoUrl} poster={photo.url} controls muted ref={muteVideo} playsInline preload="none" aria-label={mediaName(photo, i)} data-fm-video className={`w-full h-full bg-black ${productImageFitClass}`} />
-                        : <img onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, photoSizes(photo))} alt={mediaName(photo, i)} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} style={framingStyle(photo)} />}
+                        : <img loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} src={photo.url} {...photoSrcSet(photo, photoSizes(photo))} alt={mediaName(photo, i)} decoding="async" className={`w-full h-full ${productImageFitClass}`} style={framingStyle(photo)} />}
                       <PhotoToneDefs photo={photo} />
                       {i === 0 && isOutOfStock && (
                         <>
@@ -1637,10 +1642,10 @@ export default function BookDetail() {
                       <Link to={`/books/${relSlug}`}>
                         <div {...regionProps("relatedPhoto")} className="relative fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl" style={{ aspectRatio: productImageAspect }}>
                           <img
+                            loading="lazy"
                             src={(rel as any).photos?.[0]?.url || placeholderImage(settings?.design)}
                             {...photoSrcSet((rel as any).photos?.[0], gridPhotoSizes([{ from: 0, cols: 2 }, { from: 640, cols: 3 }, { from: 768, cols: 4 }], { photo: (rel as any).photos?.[0], frame: productImageAspect, cover: productImageFit === "cover" }))}
                             alt={rel.title}
-                            loading="lazy"
                             className="w-full h-full transition-transform duration-700 group-hover:scale-105"
                             style={{ objectFit: productImageFit, ...framingStyle((rel as any).photos?.[0]) }}
                           />

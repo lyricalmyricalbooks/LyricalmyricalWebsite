@@ -11,7 +11,7 @@ try {
   const base = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
   const data = await readStorefrontData(base, project);
   await writeFile(out, JSON.stringify(data));
-  console.log(`${STOREFRONT_DATA_FILE}: ${data.books.length} books, ${data.pages.length} pages at ${data.readTime}`);
+  console.log(`${STOREFRONT_DATA_FILE}: ${data.books.length} books, ${data.pages.length} pages, ${data.shippingProfiles ? `${data.shippingProfiles.length} shipping profiles` : 'no shipping profiles (read from Firestore)'} at ${data.readTime}`);
 } catch (error) {
   await rm(out, { force: true });
   console.warn(`::warning::${STOREFRONT_DATA_FILE} not written (${error.message}); the storefront will read Firestore.`);

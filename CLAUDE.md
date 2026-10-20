@@ -966,10 +966,17 @@ and violet/blue accents onto Riso tokens): Taxes/Communications
 **Admin UX pass (19 October 2026):** top bar `ShopStatusMenu` (`riso/shellParts.tsx`: Shop open/closed/Checkout paused, Close/Open
 the shop through the existing confirm, Store status settings); Help and appearance are also in the avatar menu; search opens from a
 magnifier on phones. `AdminAlerts` sorts urgent first and folds after two. `DataTable` `stackOnPhone` turns rows into cards at ≤767px;
-Riso buttons take `busy`. Settings pages group cards with `admin/settingsLayout.tsx` (`SettingsContents` "On this page" panel that
-scrolls/focuses without touching the hash, `SettingsGroup`, `HowTo`, `friendlyError`); Email/Reviews/Messages errors go through
+Riso buttons take `busy`. Settings pages group cards with `admin/settingsLayout.tsx` (`SettingsTabs` sub tabs, one `SettingsGroup` panel per topic,
+`HowTo`, `friendlyError`); Email/Reviews/Messages errors go through
 `admin/plainError.ts`, sign-in errors through `admin/loginError.ts` — never show raw `err.message` in admin. The order page lays itself
 out by its own width (container query on `.fw-detail` in `fulfillment.css`).
+**Sub tabs (owner's preference, 20 October 2026):** split a long admin page into sub tabs (Riso `Tabs` + `TabPanel`) rather than
+one long scroll: Settings › General / Payments (`SettingsTabs`), Email sender (Emails · Sending setup · Deliveries), Inventory
+(Stock · Inventory app link). Panels stay mounted (`hidden`), so unsaved edits survive a switch and one SaveBar covers every tab;
+mark a tab with edits with `unsaved`. Tab ids must be unique on the page (`rp-tab-<id>`). Overview and Design are out of scope.
+The open sub tab is in the address bar (`#settings/general/visitors`, `#inventory/link`; the first tab has no slug): add a page's
+tabs to `SUB_TABS` in `adminRoute.ts` and take `subTab` / `onSubTabChange` through `useSubTab` (`settingsLayout.tsx`); switching
+replaces the history entry, and an alert's button opens the tab holding its fix (`alertRoute` in `adminAlerts.ts`).
 Never wrap `rp-*` chrome in `.admin-light` — its `aside button` / `input` rules override
 it. Don't add new compat rules for new work; compose the components instead.
 
@@ -2068,7 +2075,8 @@ it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badg
   Last month, This year, 12 months, Custom (clamped to today, ≤ 731 days); compare = the equally long block before or
   `lastYear` (`yearEarlier`). Toronto day keys; `trafficShift` moves a range ending today onto the UTC-keyed traffic docs
   (same as the old rolling windows); `trafficWindow` gives the UTC days `adminApi.getDailyAnalyticsBetween` reads (the
-  whole comparison window, however long ago). Orders split with `splitRange`
+  whole comparison window, however long ago; days that can't be written any more are kept for the admin session,
+  `admin/dailyTrafficCache.ts`, cleared by Start traffic counts again). Orders split with `splitRange`
   (`overviewInsights.ts`); `splitPeriods` stays for older callers. The choice is remembered per browser (`lm:overview-view`).
 - **Chart:** `overviewSeries.ts` — `buildRangeSeries` (day points + the matching comparison day), `bucketSeries`
   (day/week/month, `autoGrain`), `metricValue` (revenue, orders, units, aov, visitors, conversion), `seriesSummary`,
@@ -2264,7 +2272,7 @@ mirrored, so the chosen point stays in view); the viewer uses `adjustStyle`. No 
 ## Storage bandwidth (15 October 2026)
 
 Storage is billed per download, so shoppers must never get an original photo where a copy will do.
-- **Copies for old photos:** the scheduled `storageImageSweep` (every 15 min, 1 GiB, `functions/imageCopies.js`, sharp) gives
+- **Copies for old photos:** the scheduled `storageImageSweep` (hourly since 20 October 2026, 1 GiB, `functions/imageCopies.js`, sharp) gives
   every book photo with no `srcset` (the 10 October import) WebP copies beside the original (`<name>-<w>w.webp`, ladder
   480/640/960/1600/2400/3200 capped at the original width, q90 up to 960 (q82 until 15 October 2026 smoothed printed grain), q95 above; a copy heavier than the original is
   replaced by the original itself) and adds `srcset`/`width`/`height` in a transaction. It never deletes, overwrites or changes
@@ -2305,6 +2313,9 @@ changed nothing shoppers see still turns the file off), and is the backstop if a
 (`RETRY_DELAYS_MS`) and must not use `retry: true`: the deploy workflow never passes `--force`, which the CLI then requires
 (`functions/catalogVersion.test.js` fails on any `retry: true` in `functions/index.js`). `firebase.json` serves root `*.json` `no-cache`. Never add a field to the file that the
 Firestore path doesn't return, and keep both paths' transforms shared.
+The file also carries `shippingProfiles` (optional; stamped by `catalogVersionShipping`; `check-published-change` compares them since
+the fingerprint doesn't): `loadShippingProfiles` and Checkout's catalog/settings/profiles use it via `currentStorefrontData` (one check
+shared for 30 s, a copy per reader; Checkout passes `fresh: true`), else Firestore.
 
 ## Book videos (15 October 2026)
 

@@ -6,8 +6,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 // show the same books in the same order, and the new sources reach the storefront renderers
 // (including the shop's categories, which SectionList passes down with the page design).
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 const { StaticRouter } = await import("react-router");
 const { CurrencyProvider } = await import("../CurrencyContext");
 const { CartProvider } = await import("../CartContext");

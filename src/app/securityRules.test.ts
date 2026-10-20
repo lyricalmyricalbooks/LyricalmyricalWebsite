@@ -67,7 +67,8 @@ describe("firestore.rules anonymous-abuse guards", () => {
     expect(analytics).toMatch(/allow update: if isAdmin\(\) \|\| \(\s*analyticsDayOk\(\)/);
     // The storefront writes the doc id it also stores as `date`.
     expect(read("src/app/lib/commerce.ts")).toMatch(/doc\(liteDb, "analytics", today\), \{ date: today/);
-    expect(read("src/app/lib/publicApi.ts")).toMatch(/doc\(liteDb, "analytics", today\), \{ date: today/);
+    // Visits go through the same combined counter writes (commerce.ts queueVisit).
+    expect(read("src/app/lib/publicApi.ts")).toMatch(/queueVisit\(\)/);
   });
 
   it("accepts a reviewer email only alongside the new pending review it belongs to", () => {

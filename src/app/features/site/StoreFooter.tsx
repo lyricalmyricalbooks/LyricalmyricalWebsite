@@ -120,9 +120,9 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
           {/* Style › Footer › Footer logo: a picture instead of (or above) the shop name; blank picture = the header logo */}
           {footerLogoSrc && (
             <img
+              loading="lazy"
               src={footerLogoSrc}
               alt={getCopy(d, "logoAlt")}
-              loading="lazy"
               decoding="async"
               className="block h-auto object-contain"
               style={{ width: footerLogoWidth, maxWidth: "100%" }}

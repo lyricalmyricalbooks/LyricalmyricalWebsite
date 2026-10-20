@@ -79,6 +79,17 @@ export function captureDocument({ template, publicUrl, localOrigin }) {
     img.classList.remove('opacity-0');
     img.classList.add('opacity-100');
   });
+  // The book page's thumbnail strip sizes its thumbnails from the width it measured in this browser (ThumbStrip:
+  // data-fill, --thumb-cols, --thumb-h). Saved, that would give a phone the build's row of 5 tall slivers until
+  // the app re-measured (3 a row there), moving everything under the photo. The saved page keeps the strip's own
+  // CSS layout instead (productPageStyle.ts), which the app's first render draws too before it measures.
+  clone.querySelectorAll('.fm-pdp-rail[data-fill]').forEach(rail => {
+    rail.removeAttribute('data-fill');
+    rail.removeAttribute('data-last-row');
+    rail.style.removeProperty('--thumb-cols');
+    rail.style.removeProperty('--thumb-h');
+    if (!rail.getAttribute('style')?.trim()) rail.removeAttribute('style');
+  });
   let canonical = clone.querySelector('link[rel="canonical"]');
   if (!canonical) { canonical = document.createElement('link'); canonical.rel = 'canonical'; clone.querySelector('head').appendChild(canonical); }
   canonical.setAttribute('href', publicUrl);

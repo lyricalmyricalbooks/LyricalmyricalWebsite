@@ -1,7 +1,7 @@
 import { appendFile, readFile } from 'node:fs/promises';
 import { readPublicStorefront, publishedFingerprint } from './publicStorefrontData.mjs';
 import { isFingerprint } from './assetManifest.mjs';
-import { STOREFRONT_DATA_FILE, markerNewerThanFile } from './storefrontDataFile.mjs';
+import { STOREFRONT_DATA_FILE, markerNewerThanFile, readShippingProfiles, shippingProfilesDiffer } from './storefrontDataFile.mjs';
 const siteUrl = (process.env.SITE_URL || 'https://lyricalmyrical-web-v2.web.app').replace(/\/$/, '');
 const fingerprint = publishedFingerprint(await readPublicStorefront());
 let previous = '';
@@ -26,6 +26,13 @@ if (!changed) {
     if (markerNewerThanFile(marker, file)) {
       changed = true;
       console.log('The catalog file is older than the last catalog change; rebuilding it.');
+    } else if (file?.shippingProfiles) {
+      // Shipping profiles aren't in the published fingerprint; compare them directly in case a marker write failed.
+      const base = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
+      if (shippingProfilesDiffer(file, await readShippingProfiles(base))) {
+        changed = true;
+        console.log("The catalog file's shipping profiles differ from Firestore's; rebuilding it.");
+      }
     }
   } catch { /* No file or marker information: the fingerprint alone decides. */ }
 }

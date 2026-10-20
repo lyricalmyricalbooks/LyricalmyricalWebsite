@@ -22,6 +22,11 @@ on:
       - firebase.json
       - "functions/**"
       - .github/workflows/deploy-firebase.yml
+      # Tests and notes are not deployed (firebase.json `functions.ignore`), so changing only them deploys nothing.
+      - "!functions/**/*.test.js"
+      - "!functions/**/*.test.ts"
+      - "!functions/**/*.fakes.mjs"
+      - "!functions/README.md"
   workflow_dispatch:
     inputs:
       skip_site_check:
@@ -103,7 +108,7 @@ jobs:
           echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
           npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" functions:artifacts:setpolicy \
-            --project lyricalmyrical-web-v2 --location us-central1 --days 30 --force --non-interactive
+            --project lyricalmyrical-web-v2 --location us-central1 --days 3 --force --non-interactive
 
       - name: Deploy to Firebase
         env:

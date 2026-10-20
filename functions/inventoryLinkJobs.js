@@ -395,11 +395,16 @@ async function applyAppShipment(deps, { id: orderId, shipment }) {
  * opts.stock: "auto" (scheduled; applies when automatic stock is on and 15 min have passed),
  * "force" (Sync now), "preview" (plan only) or "apply" (owner confirmed preview `confirmHash`).
  */
+const linkActive = state => salesOn(state) || Object.keys(state.links || {}).length > 0 || state.connection?.ok === true;
+
 async function runSweep(deps, opts = {}) {
   const { db, store } = deps;
   const ref = stateRef(db);
   const start = deps.now();
   const runId = crypto.randomUUID();
+  // Not set up: one plain read and nothing written (no lease, no status), so the 5-minute schedule costs ~nothing.
+  const before = await ref.get();
+  if (!linkActive(before.exists ? before.data() : {})) return { ran: true, inactive: true };
   const state = await db.runTransaction(async tx => {
     const snap = await tx.get(ref);
     const data = snap.exists ? snap.data() : {};
@@ -413,8 +418,7 @@ async function runSweep(deps, opts = {}) {
   const out = { ran: true };
   try {
     const t0 = (await ref.update({ "lease.startedAt": iso(start) })).writeTime;
-    const active = salesOn(state) || Object.keys(state.links || {}).length > 0 || state.connection?.ok === true;
-    if (!active) return { ...out, inactive: true };
+    if (!linkActive(state)) return { ...out, inactive: true };
 
     try {
       await store.heartbeat({ now: start });

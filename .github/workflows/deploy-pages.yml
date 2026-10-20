@@ -79,6 +79,7 @@ jobs:
           set -euo pipefail
           # Keep this list identical to `on.push.paths` in deploy-firebase.yml.
           WATCHED='^(firestore\.rules|firestore\.indexes\.json|storage\.rules|firebase\.json|functions/.*|\.github/workflows/deploy-firebase\.yml)$'
+          IGNORED='^(functions/.*\.test\.js|functions/.*\.test\.ts|functions/.*\.fakes\.mjs|functions/README\.md)$'
           if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
             echo "No previous commit to compare; treating backend files as changed."
             expect=true
@@ -87,7 +88,7 @@ jobs:
               echo "::error::Could not list the files changed by this push, so the Firebase deploy order cannot be checked. Re-run this workflow."
               exit 1
             }
-            if printf '%s\n' "$files" | grep -Eq "$WATCHED"; then expect=true; else expect=false; fi
+            if printf '%s\n' "$files" | grep -Ev "$IGNORED" | grep -Eq "$WATCHED"; then expect=true; else expect=false; fi
           fi
           if [ "$expect" != "true" ]; then
             echo "No Firebase files changed in this push; publishing the frontend straight away."

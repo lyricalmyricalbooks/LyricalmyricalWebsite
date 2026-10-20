@@ -84,8 +84,9 @@ function load(id: string) {
   w.gtag = w.gtag || function gtag() { w.dataLayer.push(arguments); };
   w.gtag("js", new Date());
   // Page views are sent by the router (single-page app), so the automatic first one is off. Google's own events
-  // (session start, engagement) read the page address from here, so they get the cleaned one too.
-  w.gtag("config", id, { send_page_view: false, page_location: cleanLocation(window.location.href) });
+  // (session start, engagement) read the page address and referrer from here, so they get the cleaned ones too.
+  const page_referrer = cleanLocation(document.referrer || "");
+  w.gtag("config", id, { send_page_view: false, page_location: cleanLocation(window.location.href), ...(page_referrer ? { page_referrer } : {}) });
   const s = document.createElement("script");
   s.async = true;
   s.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
@@ -141,11 +142,20 @@ export function ga4Once(key: string, name: string, params: Params = {}) {
   ga4Event(name, params);
 }
 
+/** The last page sent, so an in-app move carries where it came from (Overview › Where people go next). */
+let lastPage = "";
+
 export function ga4PageView() {
   if (typeof window === "undefined") return;
   // Captured now (not at send time), so a slow consent check never pairs this view with a later page.
-  ga4Event("page_view", { page_location: cleanLocation(window.location.href), page_title: document.title });
+  const page_location = cleanLocation(window.location.href);
+  // The first page names the page the visitor came from (cleaned here: gtag would otherwise send document.referrer
+  // whole, which can be one of the shop's own /track?…&key=… or payment-return addresses); later ones name the
+  // previous page, which the single-page app never reports by itself.
+  const page_referrer = lastPage ? (lastPage !== page_location ? lastPage : "") : cleanLocation(document.referrer || "");
+  lastPage = page_location;
+  ga4Event("page_view", { page_location, page_title: document.title, ...(page_referrer ? { page_referrer } : {}) });
 }
 
 /** Test hook: forget the module state between tests. */
-export function __resetGa4ForTests() { measurementId = ""; loaded = false; allowed = null; queue = []; }
+export function __resetGa4ForTests() { measurementId = ""; loaded = false; allowed = null; queue = []; lastPage = ""; }

@@ -181,7 +181,8 @@ describe("runSweep", () => {
     const store = fakeStore();
     expect(await jobs.runSweep(deps(db, store))).toMatchObject({ inactive: true });
     expect(store.heartbeats).toBe(0);
-    expect(db.docs["systemStatus/inventoryLink"].data.lease).toBeUndefined();
+    expect(db.docs["systemStatus/inventoryLink"]?.data?.lease).toBeUndefined();
+    expect(db.docs["systemStatus/inventoryLink"]).toBeUndefined(); // nothing written while the link is off
   });
   test("pushes, sends labels' answers, and applies automatic stock; releases the lease", async () => {
     const db = fakeDb({

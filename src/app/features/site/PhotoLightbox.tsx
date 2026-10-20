@@ -117,10 +117,11 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
             <>
             <PhotoToneDefs photo={photos[i].source} />
             <img
+              // `loading` before `src` (see lazyFirst.test.ts), so far photos stay lazy.
+              loading={Math.abs(i - index) <= 1 ? "eager" : "lazy"}
               src={photos[i].url}
               {...(photos[i].srcSet ? { srcSet: photos[i].srcSet, sizes: "100vw" } : {})}
               alt={photos[i].alt}
-              loading={Math.abs(i - index) <= 1 ? "eager" : "lazy"}
               decoding="async"
               className="max-w-[94vw] max-h-[88vh] w-auto h-auto object-contain select-none"
               draggable={false}

@@ -3,8 +3,6 @@ import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 const { StaticRouter } = await import("react-router");
 const { SectionList } = await import("./sectionRender");
 const { SectionPageContext } = await import("./sectionCopy");
