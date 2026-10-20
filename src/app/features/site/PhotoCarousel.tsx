@@ -7,10 +7,12 @@ import { useEffect, useRef, type ReactNode } from "react";
  * `index` is controlled: arrows, thumbnails and dots set it and the strip glides there; a swipe reports
  * the photo it settles on through `onIndex`. Slides are `snap-center`, so the strip always lands on one.
  */
-export function PhotoCarousel({ count, index, onIndex, renderSlide, className = "", slideClassName = "", label }: {
+export function PhotoCarousel({ count, index, onIndex, onSwipe, renderSlide, className = "", slideClassName = "", label }: {
   count: number;
   index: number;
   onIndex: (i: number) => void;
+  /** The shopper moved to another photo by swiping or dragging (not arrows, thumbnails or dots). */
+  onSwipe?: () => void;
   renderSlide: (i: number) => ReactNode;
   className?: string;
   slideClassName?: string;
@@ -56,7 +58,7 @@ export function PhotoCarousel({ count, index, onIndex, renderSlide, className = 
       if (Math.abs(el.scrollLeft - gliding.current * el.clientWidth) < 2) gliding.current = null;
       return;
     }
-    if (i !== reported.current) { reported.current = i; onIndex(i); }
+    if (i !== reported.current) { reported.current = i; onIndex(i); onSwipe?.(); }
   };
 
   const settle = (i: number) => {
@@ -67,7 +69,7 @@ export function PhotoCarousel({ count, index, onIndex, renderSlide, className = 
     el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
     // Snapping stays off until the glide finishes, or it would jump straight to the nearest photo.
     window.setTimeout(() => { if (!drag.current && track.current) track.current.style.scrollSnapType = ""; }, 450);
-    if (i !== index) onIndex(i);
+    if (i !== index) { onIndex(i); onSwipe?.(); }
   };
 
   return (

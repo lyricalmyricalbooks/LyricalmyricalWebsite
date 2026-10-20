@@ -75,6 +75,9 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
   // The panel lives on <body>, outside the navigation header element, so it no longer inherits the
   // header's font (Studio › Typography › Header & menu font) or `--nav-fit` (shrink to fit). Copy them from the button.
   const [inherited, setInherited] = useState<CSSProperties>({});
+  // Google Analytics names menu clicks by the region they sit in (lib/ga4Nav.ts, `data-ga-menu`); the panel is drawn
+  // outside it, so it carries the name of the bar its button is in.
+  const [gaMenu, setGaMenu] = useState<string | undefined>(undefined);
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -89,6 +92,7 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
     const r = btnRef.current?.getBoundingClientRect();
     if (r) setPos({ top: r.bottom + 10, left: Math.max(8, r.left - 12) });
     if (btnRef.current) setInherited(headerInheritance(btnRef.current, Boolean(headerScheme)));
+    setGaMenu(wrapRef.current?.closest("[data-ga-menu]")?.getAttribute("data-ga-menu") || undefined);
   };
   useLayoutEffect(() => { if (open) place(); }, [open]);
 
@@ -206,7 +210,7 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
         </span>
       )}
       {open && pos && typeof document !== "undefined" && createPortal(
-        <div ref={panelRef} role="menu" data-fm-store data-nav-dropdown-panel style={panelStyle}
+        <div ref={panelRef} role="menu" data-fm-store data-nav-dropdown-panel data-ga-menu={gaMenu} style={panelStyle}
           onMouseEnter={hoverOpen} onMouseLeave={hoverClose} onKeyDown={panelKeyDown} onBlur={onFocusOut} {...studioHooks}>
           {items.map((entry) => entry.to ? (
             <Link key={entry.key} role="menuitem" to={entry.to} onClick={(e) => follow(e, entry)} style={itemStyle(entry.active)}

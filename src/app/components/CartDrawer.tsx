@@ -22,6 +22,7 @@ import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldChec
 import { smallPhotoUrl } from "../features/site/photoSources";
 import { previewSampleCart } from "../features/site/previewSampleCart";
 import { inEditorPreview } from "../lib/trackingGuard";
+import { ga4ViewCart } from "../lib/ga4";
 
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
 // features/site/cartDrawerStyle.ts); its words are Studio › Text & labels › Cart.
@@ -57,6 +58,10 @@ export function CartDrawer() {
   // Remove acts at once; the toast's Undo puts the same line (quantity, extras, gift details) back where it was.
   const cartRef = useRef(cart);
   cartRef.current = cart;
+  // Google Analytics view_cart each time the bag opens, with the shopper's own lines (never the preview sample).
+  const shopperCartRef = useRef(shopper.cart);
+  shopperCartRef.current = shopper.cart;
+  useEffect(() => { if (isCartOpen) ga4ViewCart(shopperCartRef.current); }, [isCartOpen]);
   const removeWithUndo = (key: string, item: (typeof cart)[number], index: number) => {
     removeFromCart(key);
     if (isSample) return;

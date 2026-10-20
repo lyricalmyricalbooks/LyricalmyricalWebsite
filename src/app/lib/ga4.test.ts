@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./trackingGuard", () => ({ googleTrackingAllowed: vi.fn(async () => true) }));
 import { googleTrackingAllowed } from "./trackingGuard";
-import { __resetGa4ForTests, cleanLocation, cleanMeasurementId, configureGa4, ga4Event, ga4Items, ga4PageView, isUntrackedPath, purchaseEvent } from "./ga4";
+import { __resetGa4ForTests, cleanLocation, cleanMeasurementId, configureGa4, ga4Event, ga4FilterUse, ga4Items, ga4PageNotFound, ga4PageView, ga4PdpInteract, ga4ViewCart, isUntrackedPath, pdpTabName, priceFilterValue, purchaseEvent } from "./ga4";
 
 const flush = () => new Promise(r => setTimeout(r, 0));
 
@@ -35,6 +35,59 @@ describe("ga4 helpers", () => {
     expect(purchaseEvent("x", { ...order, isTest: true })).toBeNull();
     expect(purchaseEvent("x", { ...order, sandboxPayment: true })).toBeNull();
     expect(ga4Items([null, { title: "no id" }])).toEqual([]);
+  });
+  it("names price filters by which boxes are filled, never the amounts", () => {
+    expect(priceFilterValue("10", "")).toBe("min");
+    expect(priceFilterValue("", " 40 ")).toBe("max");
+    expect(priceFilterValue(5, 40)).toBe("both");
+    expect(priceFilterValue("", "  ")).toBe("");
+    expect(priceFilterValue(undefined, null)).toBe("");
+  });
+  it("names book page tabs as the reports read them", () => {
+    expect(pdpTabName("description")).toBe("description");
+    expect(pdpTabName("specs")).toBe("details");
+    expect(pdpTabName("reviews")).toBe("reviews");
+  });
+});
+
+describe("ga4 navigation events", () => {
+  beforeEach(() => {
+    __resetGa4ForTests();
+    const store = new Map<string, string>();
+    (globalThis as any).window = {
+      location: { pathname: "/books/nope", href: "https://shop.test/books/nope?e=a%40b.c" },
+      addEventListener: vi.fn(),
+      localStorage: { getItem: () => null },
+      sessionStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) },
+    };
+    (globalThis as any).document = { head: { appendChild: vi.fn() }, createElement: () => ({}), title: "Shop" };
+  });
+  const sent = () => ((globalThis as any).window.dataLayer || []).filter((a: any) => a[0] === "event").map((a: any) => [a[1], a[2]]);
+
+  it("sends view_cart with the bag's lines in CAD, and a bare one for an empty bag", async () => {
+    configureGa4("G-TEST1234");
+    ga4ViewCart([{ id: "b1", title: "Salt", price: 15.25, quantity: 2 }, { id: "b2", title: "Ash", price: 9.5, quantity: 1 }]);
+    ga4ViewCart([]);
+    await flush();
+    const [full, empty] = sent();
+    expect(full[0]).toBe("view_cart");
+    expect(full[1]).toMatchObject({ currency: "CAD", value: 40, items: [{ item_id: "b1", quantity: 2 }, { item_id: "b2", quantity: 1 }] });
+    expect(empty[0]).toBe("view_cart");
+    expect(empty[1].items).toBeUndefined();
+  });
+
+  it("counts a missing page once per address, and sends filter and book-page actions with fixed names", async () => {
+    configureGa4("G-TEST1234");
+    ga4PageNotFound();
+    ga4PageNotFound();
+    ga4FilterUse("category", "  Riso   prints ");
+    ga4PdpInteract("tab_open", { tab: "details" });
+    await flush();
+    const events = sent();
+    expect(events.filter((e: any) => e[0] === "page_not_found")).toHaveLength(1);
+    expect(events.find((e: any) => e[0] === "filter_use")[1]).toMatchObject({ filter: "category", value: "Riso prints" });
+    expect(events.find((e: any) => e[0] === "pdp_interact")[1]).toMatchObject({ action: "tab_open", tab: "details" });
+    expect(JSON.stringify(events)).not.toMatch(/a%40b/);
   });
 });
 

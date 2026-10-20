@@ -4,7 +4,8 @@
 // signed in), never in the prerender (it declines analytics) and never on admin pages. A later "decline" stops it at
 // once (`ga-disable-<id>`). Events: page_view per route, view_item_list / select_item (book cards, lib/ga4Lists.ts),
 // view_item, add_to_cart, add_to_wishlist, search, begin_checkout, add_shipping_info, add_payment_info, purchase,
-// newsletter_signup and back_in_stock_signup.
+// newsletter_signup and back_in_stock_signup; how visitors move: nav_click and scroll_depth (lib/ga4Nav.ts),
+// pdp_interact, page_not_found, filter_use and view_cart (the helpers below).
 // Google only ever sees `cleanLocation()`: emailed links carry addresses, signed tokens and private order keys in
 // their query string, so only `ref`/`utm_*`/click ids are kept.
 import { CONSENT_EVENT, consentAllows } from "./consent";
@@ -116,6 +117,8 @@ export function configureGa4(value: unknown) {
   measurementId = id;
   // Book-card views and clicks (lib/ga4Lists.ts), loaded only when there is a Google Analytics ID.
   void import("./ga4Lists").then(m => m.startListTracking()).catch(() => { /* best-effort */ });
+  // Menu clicks and scroll depth (lib/ga4Nav.ts), the same way.
+  void import("./ga4Nav").then(m => m.startNavTracking()).catch(() => { /* best-effort */ });
   window.addEventListener(CONSENT_EVENT, () => {
     // Declining analytics stops Google's tag immediately (Google's documented opt-out switch).
     (window as any)[`ga-disable-${id}`] = !consentAllows("analytics");
@@ -139,6 +142,41 @@ export function ga4Once(key: string, name: string, params: Params = {}) {
     // storage unavailable: send it
   }
   ga4Event(name, params);
+}
+
+/** Book page actions: swiping or enlarging photos, opening a details tab, switching edition, sharing. */
+export type PdpAction = "photo_swipe" | "photo_enlarge" | "tab_open" | "edition_switch" | "share";
+export function ga4PdpInteract(action: PdpAction, extra: Params = {}) {
+  ga4Event("pdp_interact", { ...extra, action });
+}
+
+/** The book page's tab ids, in the names the reports read. */
+export const pdpTabName = (id: string) => (id === "specs" ? "details" : id === "reviews" ? "reviews" : "description");
+
+/** A missing page was shown (call only once the shop data is fresh): once per address per session. */
+export function ga4PageNotFound() {
+  if (typeof window === "undefined") return;
+  ga4Once(`404_${window.location.pathname.slice(0, 200)}`, "page_not_found", {});
+}
+
+export type FilterName = "format" | "price" | "in_stock" | "on_sale" | "sort" | "category";
+/** A shop filter was used. `value` is a short label (format key, sort key, category name, "on"/"off"), never a price. */
+export function ga4FilterUse(filter: FilterName, value: unknown) {
+  ga4Event("filter_use", { filter, value: String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 100) });
+}
+
+/** Which price boxes are filled: "min", "max", "both", or "" when neither (the numbers themselves are never sent). */
+export function priceFilterValue(min: unknown, max: unknown): "" | "min" | "max" | "both" {
+  const has = (v: unknown) => String(v ?? "").trim() !== "";
+  return has(min) && has(max) ? "both" : has(min) ? "min" : has(max) ? "max" : "";
+}
+
+/** The bag drawer opened: GA4's view_cart, with the lines in it (CAD catalog prices, like add_to_cart). */
+export function ga4ViewCart(lines: any[]) {
+  const items = ga4Items(lines);
+  if (!items.length) { ga4Event("view_cart", {}); return; }
+  const value = Math.round(items.reduce((sum, i) => sum + i.price * i.quantity, 0) * 100) / 100;
+  ga4Event("view_cart", { currency: "CAD", value, items });
 }
 
 /** The last page sent, so an in-app move carries where it came from (Overview › Where people go next). */
