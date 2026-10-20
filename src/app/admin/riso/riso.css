@@ -538,6 +538,11 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-tab { border: 0; border-radius: 0; text-transform: uppercase; letter-spacing: 0.09em; font-size: var(--rp-text-xs); font-weight: 700; min-height: 40px; }
 .rp-tab[aria-selected="true"] { background: var(--rp-inverse); color: var(--rp-on-inverse); box-shadow: none; }
 .rp-tab[aria-selected="true"] .rp-tab-count { color: var(--rp-on-inverse-2); }
+.rp-tabs[data-variant="page"] { border: 0; border-bottom: var(--rp-hair) solid var(--rp-border); background: transparent; gap: 4px; width: 100%; }
+.rp-tabs[data-variant="page"] .rp-tab { background: transparent; color: var(--rp-text-muted); border-bottom: 3px solid transparent; margin-bottom: calc(-1 * var(--rp-hair)); padding: 0 12px; }
+.rp-tabs[data-variant="page"] .rp-tab:hover { color: var(--rp-text); }
+.rp-tabs[data-variant="page"] .rp-tab[aria-selected="true"] { background: transparent; color: var(--rp-text); border-bottom-color: var(--rp-primary); }
+.rp-tabs[data-variant="page"] .rp-tab[aria-selected="true"] .rp-tab-count { color: var(--rp-text-subtle); }
 .rp-dialog { box-shadow: var(--rp-shadow-lg); }
 .rp-savebar, .rp-toast { background: var(--rp-inverse); color: var(--rp-on-inverse); border: var(--rp-stroke) solid var(--rp-border-strong); }
 .rp-topbar, .rp-sidebar-brand { background: var(--rp-surface); }

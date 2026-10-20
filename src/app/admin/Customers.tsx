@@ -273,7 +273,7 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
   );
   return (
     <div className="rp-stack">
-      <Tabs label="Customer details" value={tab} onChange={onTab}
+      <Tabs variant="page" label="Customer details" value={tab} onChange={onTab}
         tabs={[
           { id: "cust-summary", label: "Summary" },
           { id: "cust-orders", label: "Orders", count: c.orders.length },

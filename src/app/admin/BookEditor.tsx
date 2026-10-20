@@ -1205,7 +1205,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
         onConfirm={() => { setConfirmDiscard(false); onClose(); }} onCancel={() => setConfirmDiscard(false)} />
 
       <div className="be-tabbar shrink-0">
-        <div className="be-tabs-wide"><Tabs label="Book editor sections" tabs={tabs} value={shownTab} onChange={setTab} /></div>
+        <div className="be-tabs-wide"><Tabs variant="page" label="Book editor sections" tabs={tabs} value={shownTab} onChange={setTab} /></div>
         {/* Phones: one drop-down instead of four rows of tabs. */}
         <div className="be-tabs-narrow">
           <SelectField label="Section" value={shownTab} onChange={(e) => setTab(e.target.value as BookTab)}>
@@ -1218,7 +1218,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
         <form className="be-main" noValidate onSubmit={(e) => { e.preventDefault(); handleSave(undefined, false, false); }}>
           {shownTab === "details" && (
             <>
-              <div className="be-subtabs"><Tabs label="Details sections" tabs={detailsTabs} value={shownDetailsSub} onChange={setDetailsSub} /></div>
+              <div className="be-subtabs"><Tabs variant="page" label="Details sections" tabs={detailsTabs} value={shownDetailsSub} onChange={setDetailsSub} /></div>
               {/* Hidden sub tabs stay mounted, so the description toolbar, ISBN lookup and row editor keep their state. */}
               <div role="tabpanel" id="bd-panel-basics" aria-labelledby="rp-tab-bd-basics" className="be-subpanel" hidden={shownDetailsSub !== "bd-basics"}>
               {/* A new product chooses its type first; an existing one rarely changes it, so it moves to the end. */}

@@ -619,7 +619,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
         </>}
       </nav>
 
-      <Tabs<EmailView> label="Email sender" value={view} onChange={setView} tabs={[
+      <Tabs<EmailView> variant="page" label="Email sender" value={view} onChange={setView} tabs={[
         { id: "email-templates", label: "Emails", unsaved: templatesDirty, ...(Object.keys(allProblems).length ? { count: Object.keys(allProblems).length } : {}) },
         { id: "email-setup", label: "Sending setup", unsaved: brandDirty || senderDirty },
         { id: "email-deliveries", label: "Deliveries", ...(queue.length + attentionCount ? { count: queue.length + attentionCount } : {}) },
