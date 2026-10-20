@@ -110,7 +110,7 @@ export const HEIGHT_WORDS: Record<WidgetHeight, { name: string; hint: string }> 
 const GRAIN_WORDS: Record<ChartGrain, string> = { auto: "Pick for me", day: "Each day", week: "Each week", month: "Each month" };
 
 /** Widgets added on 20 October 2026: marked "New" in Add widgets until the owner has opened it once. */
-export const NEW_WIDGETS: WidgetType[] = ["navLinks", "bookPage", "notFound", "filters", "bagPeek", "readDepth"];
+export const NEW_WIDGETS: WidgetType[] = ["navLinks", "bookPage", "notFound", "filters", "bagPeek", "readDepth", "journeys", "exitPages", "clarity"];
 const SEEN_KEY = "lm:overview-seen-widgets";
 function readSeen(): string[] { try { const v = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } }
 function writeSeen(types: string[]) { try { localStorage.setItem(SEEN_KEY, JSON.stringify(types)); } catch { /* private window: the dot just shows again */ } }
@@ -146,6 +146,8 @@ export const WIDGET_KEYWORDS: Partial<Record<WidgetType, string>> = {
   sectionClicks: "home page sections lists click rate book cards studio shop grid search related recently viewed", deviceSteps: "phone mobile computer funnel steps checkout compare",
   navLinks: "menu navigation header footer phone links clicks nav", bookPage: "product page tabs photos gallery edition share details reviews interact",
   notFound: "404 broken links missing page not found redirect old address", filters: "filter format price in stock catalog shop grid choices",
+  journeys: "journeys paths sequence flow bigquery route", exitPages: "exit leave last page bounce bigquery",
+  clarity: "clarity heatmap heatmaps recordings sessions clicks scroll microsoft",
   bagPeek: "cart bag opened peek checkout abandon", readDepth: "scroll depth read to the end halfway bottom attention",
   low: "running out low stock few copies", preorders: "pre-order promised release print run", soldOut: "reprint running out countdown sold out days",
 };

@@ -6,6 +6,7 @@ import { LazyMotion, MotionConfig } from "motion/react";
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router";
 import { ScrollToTop } from "./lib/ScrollToTop";
 import { ga4PageView } from "./lib/ga4";
+import { clarityRoute } from "./lib/clarity";
 import { ThemePreviewBanner } from "./features/site/ThemePreviewBanner";
 import { DraftPreviewBanner } from "./features/site/DraftPreviewBanner";
 import { CartProvider, useCart } from "./CartContext";
@@ -48,6 +49,8 @@ const CartDrawer = lazy(() => import("./components/CartDrawer")
 /** One Google Analytics page view per route (the page's title is set just after it renders). */
 function Ga4PageViews() {
   const location = useLocation();
+  // Microsoft Clarity stops on checkout/account/tracking pages and starts again on public ones (lib/clarity.ts).
+  useEffect(() => { clarityRoute(); }, [location.pathname]);
   useEffect(() => {
     const t = window.setTimeout(ga4PageView, 400);
     return () => window.clearTimeout(t);

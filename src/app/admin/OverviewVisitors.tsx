@@ -100,7 +100,7 @@ export function NotConnected({ setActiveTab }: { setActiveTab?: (tab: string) =>
 export const NeedsUpdate = () => <EmptyState icon="⏳" title="Needs the latest server update" description="This view needs the newest Google Analytics report from the shop's server. It appears after the next server update." />;
 /** A report key that is null: Google refused or didn't answer that one report this time (undefined = NeedsUpdate). */
 export const NotAnswered = () => <EmptyState icon="↻" title="Google didn't answer this report." description="Try Refresh." />;
-export const NotYet =({ note }: { note?: string }) => <EmptyState icon="⏳" title="Not recorded yet in this period." description={note} />;
+export const NotYet = ({ note }: { note?: string }) => <EmptyState icon="⏳" title="Not recorded yet in this period." description={note} />;
 
 const more = (n: number, full: boolean, cap: number) => (!full && n > cap ? <span className="rp-vw-more">+{(n - cap).toLocaleString()} more in full view</span> : null);
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;

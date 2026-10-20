@@ -43,6 +43,8 @@ import { OverviewVisitors, type VisitorWidget } from "./OverviewVisitors";
 import { OverviewVisitorPath, type PathWidget } from "./OverviewVisitorPath";
 import { OverviewNavigation, type NavigationWidget } from "./OverviewNavigation";
 import { OverviewVisitorEvents, type VisitorEventWidget } from "./OverviewVisitorEvents";
+import { OverviewJourneys, type JourneyWidget } from "./OverviewJourneys";
+import { OverviewClarity } from "./OverviewClarity";
 
 const PREFS_KEY = "lm:overview-view";
 type Prefs = { preset?: Preset; compare?: CompareMode; from?: string; to?: string };
@@ -465,6 +467,10 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           full={full} setActiveTab={setActiveTab} periodLabel={range.phrase} />;
       case "navLinks": case "bookPage": case "notFound": case "filters": case "bagPeek": case "readDepth":
         return <OverviewVisitorEvents only={w.type as VisitorEventWidget} ga={ga} books={books} full={full} setActiveTab={setActiveTab} periodLabel={range.phrase} />;
+      case "journeys": case "exitPages":
+        return <OverviewJourneys only={w.type as JourneyWidget} books={books} range={range} full={full} setActiveTab={setActiveTab} />;
+      case "clarity":
+        return <OverviewClarity settings={launch.parts ? launch.parts.settings : launch.error ? null : undefined} setActiveTab={setActiveTab} />;
       case "dropOff": case "lookNoBuy":
         return <OverviewVisitorPath only={w.type as PathWidget} dailyCurrent={dailyCurrent} dailyPrevious={dailyPrevious} dailyAll={daily.rows || []}
           books={books} config={w.config || {}} onConfig={setConfig} onEditBook={handleEditClick} phrase={range.phrase} />;
