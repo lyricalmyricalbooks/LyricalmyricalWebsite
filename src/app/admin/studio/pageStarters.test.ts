@@ -16,6 +16,11 @@ describe("page starters", () => {
     for (const s of PAGE_STARTERS) expect(pageFromStarter(s, []).status).toBe(s.id === "blank" ? "published" : "draft");
     expect(pageFromStarter(PAGE_STARTERS[0], [])).toMatchObject({ title: "", slug: "", body: "", showInNav: true });
   });
+  it("opens Stockists as a footer-only page", () => {
+    const stockists = PAGE_STARTERS.find(s => s.id === "stockists")!;
+    expect(pageFromStarter(stockists, [])).toMatchObject({ slug: "stockists", showInNav: false, showInFooter: true, status: "draft" });
+    expect(pageFromStarter(PAGE_STARTERS[0], []).showInFooter).toBe(false);
+  });
   it("never reuses a slug another page has", () => {
     expect(uniqueSlug("about", [{ slug: "about" }, { slug: "about-2" }])).toBe("about-3");
     expect(uniqueSlug("faq", [{ slug: "about" }])).toBe("faq");

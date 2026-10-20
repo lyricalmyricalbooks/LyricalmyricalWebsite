@@ -11,6 +11,7 @@ import { GroupedFooterNavigation } from "../../components/GroupedFooterNavigatio
 import { FooterMenu } from "../../components/StoreMenu";
 import { wordmarkSecondaryStyle } from "../../components/LogoMark";
 import { footerLinksAlign, footerStyleCss } from "./footerStyle";
+import { pageInFooter } from "./footerNavigation";
 import { elementScheme } from "./colorSchemes";
 
 // ──────────────────────────────
@@ -70,7 +71,7 @@ const PAYMENT_ICONS: Record<string, ReactNode> = {
 // wishlist, account, tracking and 404. Checkout keeps its own short policy row.
 // ──────────────────────────────
 export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }) {
-  const navPages = (pages || []).filter(p => p.showInNav && p.status === "published");
+  const navPages = (pages || []).filter(pageInFooter);
   const rawDesign = settings?.design || {};
   // Never configured → the house default; cleared on purpose in Studio → hidden.
   const social = settings?.design?.social ?? DEFAULT_SOCIAL;

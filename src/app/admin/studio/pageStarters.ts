@@ -12,6 +12,8 @@ export type PageStarter = {
   slug: string;
   body: string;
   showInNav: boolean;
+  /** Linked from the footer only (when showInNav is off). */
+  showInFooter?: boolean;
 };
 
 const h2 = (t: string) => `<h2>${t}</h2>`;
@@ -38,6 +40,11 @@ export const PAGE_STARTERS: PageStarter[] = [
     id: "contact", label: "Contact", summary: "How shoppers, authors and stores can reach you.", outline: ["Get in touch", "Wholesale & stockists", "Press"],
     title: "Contact", slug: "contact", showInNav: true,
     body: [h2("Get in touch"), p("[Your email address and when you usually reply.]"), h2("Wholesale & stockists"), p("[How bookshops can order from you.]"), h2("Press"), p("[Who to contact for review copies and interviews.]")].join(""),
+  },
+  {
+    id: "stockists", label: "Stockists", summary: "The bookshops that carry your books, linked from the footer only.", outline: ["Where to find our books", "[City]", "Stock our books"],
+    title: "Stockists", slug: "stockists", showInNav: false, showInFooter: true,
+    body: [h2("Where to find our books"), p("[One line inviting shoppers to see the books in person.]"), h2("[City]"), `<h3>[Shop name]</h3>`, p("[Street address] · [link to the shop's website]"), `<h3>[Shop name]</h3>`, p("[Street address] · [link to the shop's website]"), h2("[Another city]"), `<h3>[Shop name]</h3>`, p("[Street address] · [link to the shop's website]"), h2("Stock our books"), p("[How bookshops and libraries can order from you: email, terms, minimums.]")].join(""),
   },
   {
     id: "submissions", label: "Submissions", summary: "What you're looking for and how to send work.", outline: ["What we're looking for", "How to submit", "What happens next"],
@@ -67,6 +74,6 @@ export function pageFromStarter(starter: PageStarter, pages: { slug?: string }[]
   return {
     title: starter.title, slug: uniqueSlug(starter.slug, pages), body: starter.body,
     status: (starter.id === "blank" ? "published" : "draft") as "published" | "draft",
-    showInNav: starter.showInNav, order: pages.length, seoTitle: "", metaDescription: "", seoImage: "",
+    showInNav: starter.showInNav, showInFooter: !!starter.showInFooter, order: pages.length, seoTitle: "", metaDescription: "", seoImage: "",
   };
 }

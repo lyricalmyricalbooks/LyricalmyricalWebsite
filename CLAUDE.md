@@ -227,7 +227,9 @@ grams by the book editor (`withMetricWeights`) and CSV import (`metricWeightValu
 > that catalog workflow publishes the category immediately and synchronizes Studio's working copy.
 > Custom pages (About, Journal…) also live only in Studio › **Pages** tab
 > (`studio/StudioPages.tsx`); there is **no** separate Pages screen in the admin nav — do not
-> re-add one. New pages join the storefront header by default, and their public
+> re-add one. New pages join the storefront header by default (Studio › Pages › **Where the link shows**: Header and footer =
+> `showInNav`, Footer only = `showInFooter`, read through `pageInFooter` in `footerNavigation.ts`; a **Stockists** starter
+> opens as Footer only), and their public
 > routes render the themed storefront header. Walkthroughs must use Studio's
 > labels, not legacy legacy-editor tabs.
 
