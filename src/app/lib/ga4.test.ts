@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./trackingGuard", () => ({ googleTrackingAllowed: vi.fn(async () => true) }));
 import { googleTrackingAllowed } from "./trackingGuard";
-import { __resetGa4ForTests, cleanLocation, cleanMeasurementId, configureGa4, ga4Event, ga4Items, isUntrackedPath, purchaseEvent } from "./ga4";
+import { __resetGa4ForTests, cleanLocation, cleanMeasurementId, configureGa4, ga4Event, ga4Items, ga4PageView, isUntrackedPath, purchaseEvent } from "./ga4";
 
 const flush = () => new Promise(r => setTimeout(r, 0));
 
@@ -63,6 +63,23 @@ describe("ga4 loading", () => {
     expect(JSON.stringify(calls)).not.toMatch(/a%40b|sig|unsubscribe/);
     expect(calls.find((a: any) => a[0] === "config")[2].page_location).toBe("https://shop.test/track");
     expect(calls.find((a: any) => a[0] === "event")[2].page_location).toBe("https://shop.test/track");
+  });
+
+  it("names the previous page on in-app moves, cleaned, and leaves the first page to Google", async () => {
+    const w = (globalThis as any).window;
+    configureGa4("G-TEST1234");
+    ga4PageView();
+    w.location.href = "https://shop.test/books/salt?e=a%40b.c";
+    ga4PageView();
+    w.location.href = "https://shop.test/books/salt";
+    ga4PageView();
+    await flush();
+    const views = w.dataLayer.filter((a: any) => a[0] === "event" && a[1] === "page_view").map((a: any) => a[2]);
+    expect(views[0].page_referrer).toBeUndefined();
+    expect(views[1].page_referrer).toBe("https://shop.test/");
+    expect(views[1].page_location).toBe("https://shop.test/books/salt");
+    // The same page again (a query-only change) names no referrer.
+    expect(views[2].page_referrer).toBeUndefined();
   });
 
   it("keeps waiting events while the settings are still loading", async () => {

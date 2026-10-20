@@ -14,7 +14,7 @@ export const BANDS: Array<{ id: BandId; title: string; blurb: string }> = [
   { id: "today", title: "Today", blurb: "Live — what needs you now, not tied to the period" },
   { id: "sales", title: "Sales & money", blurb: "Revenue, orders, what customers paid and how it ships" },
   { id: "titles", title: "Titles", blurb: "Every book side by side: copies, revenue, interest and profit" },
-  { id: "traffic", title: "Traffic & marketing", blurb: "How people find the shop and where they drop off" },
+  { id: "traffic", title: "Visitors", blurb: "How people find the shop, move through it and where they leave" },
   { id: "search", title: "Search & site health", blurb: "What people search for, Google results and page speed" },
   { id: "customers", title: "Customers", blurb: "Who buys, who comes back, carts left behind and reviews" },
   { id: "stock", title: "Stock", blurb: "What to reprint, what is waiting, what is gathering dust" },
@@ -59,6 +59,7 @@ export type WidgetConfig = {
   /** Sold-out countdown: a reprint's usual wait in days. */ leadDays?: number;
   /** Pages people actually read: sort by time per view or by views. */ sort?: "time" | "views";
   /** Looked at but not added: the fewest page views a book needs to be listed. */ minViews?: number;
+  /** First page, then what: only visits from this Google channel ("Organic Social"…); none = everywhere. */ channel?: string;
 };
 /** A period a board opens on ("Save these figures as a view"): the preset, the comparison and, for Custom, the dates. */
 export type BoardView = { preset: Preset; compare: CompareMode; from?: string; to?: string };
@@ -70,6 +71,7 @@ export type WidgetType =
   | "titles" | "viewed" | "launches" | "bookOfWeek" | "preorders" | "signed"
   | "gaKpis" | "channels" | "gaSources" | "landing" | "gaPages" | "gaCountries" | "gaDevices" | "funnel" | "checkout" | "sources" | "campaigns" | "landingSales" | "devices"
   | "livePages" | "pageTime" | "visitHours" | "actions" | "outbound" | "newReturning" | "dropOff" | "lookNoBuy"
+  | "moves" | "firstPage" | "sectionClicks" | "deviceSteps"
   | "searches" | "missed" | "google" | "googleQueries" | "googlePages" | "speed" | "counter"
   | "custKpis" | "retention" | "top" | "carts" | "reminders" | "newsletter" | "reviews" | "map" | "giftOwed"
   | "stockKpis" | "reprint" | "wanted" | "backInStock" | "slow" | "low" | "soldOut";
@@ -125,6 +127,10 @@ export const WIDGETS: WidgetMeta[] = [
   { type: "actions", band: "traffic", title: "What visitors do", blurb: "Scrolls, books opened, wishlist saves, searches, bag adds and links out", size: "m" },
   { type: "outbound", band: "traffic", title: "Links visitors follow away", blurb: "Sites people leave to from the shop (Google Analytics)", size: "s", google: true },
   { type: "newReturning", band: "traffic", title: "New and returning visitors", blurb: "First-time visitors beside people who came back (Google Analytics)", size: "s", google: true },
+  { type: "moves", band: "traffic", title: "Where people go next", blurb: "The most common page-to-page moves, and where each page's visitors came from and went (Google Analytics)", size: "l", google: true },
+  { type: "firstPage", band: "traffic", title: "First page, then what", blurb: "For each first page: pages per visit, who kept going and who bought, by source (Google Analytics)", size: "l", google: true, config: {} },
+  { type: "sectionClicks", band: "traffic", title: "Sections that get clicks", blurb: "Book-card sections on your pages: books seen and the share opened (Google Analytics)", size: "m", google: true },
+  { type: "deviceSteps", band: "traffic", title: "Phones vs computers, step by step", blurb: "Visit → book → bag → checkout → bought on each device, and where phones fall behind (Google Analytics)", size: "xl", google: true },
   { type: "dropOff", band: "traffic", title: "Where visitors drop off", blurb: "One path from visit to purchase, with the biggest leak marked", size: "l" },
   { type: "funnel", band: "traffic", title: "Shopping funnel", blurb: "Book views → bag → checkout → purchase", size: "m" },
   { type: "checkout", band: "traffic", title: "Where checkout loses people", blurb: "Each checkout step and where shoppers stop", size: "m" },
@@ -195,6 +201,7 @@ export const TEMPLATES: Array<{ id: TemplateId; name: string; blurb: string; ord
     id: "visitors", name: "Visitors", blurb: "Who is on the site, what they read and do, and where they leave",
     order: ["traffic", "titles", "search", "sales", "customers", "today", "stock"],
     widgets: ["livePages", ["newReturning", "s"], ["outbound", "s"], ["visitHours", "xl"], "pageTime", "actions", ["dropOff", "xl"],
+      "moves", ["sectionClicks", "s"], "firstPage", ["deviceSteps", "xl"],
       ["chart", "l", { metric: "visitors" }], ["gaCountries", "s"], "landing", "gaPages", "lookNoBuy", "viewed", "searches", "missed"],
   },
   {
@@ -253,6 +260,7 @@ function cleanConfig(type: WidgetType, raw: any): WidgetConfig | undefined {
   if (type === "goal" && Number.isFinite(Number(raw?.goal)) && Number(raw.goal) > 0) out.goal = Math.min(10_000_000, Math.round(Number(raw.goal)));
   if (type === "soldOut" && Number.isFinite(Number(raw?.leadDays)) && Number(raw.leadDays) >= 1) out.leadDays = Math.min(365, Math.round(Number(raw.leadDays)));
   if (type === "pageTime" && (raw?.sort === "time" || raw?.sort === "views")) out.sort = raw.sort;
+  if (type === "firstPage" && typeof raw?.channel === "string" && raw.channel.trim()) out.channel = raw.channel.trim().slice(0, 60);
   if (type === "lookNoBuy" && Number.isFinite(Number(raw?.minViews)) && Number(raw.minViews) >= 1) out.minViews = Math.min(1000, Math.round(Number(raw.minViews)));
   if (type === "figures" && Array.isArray(raw?.figures)) {
     const picked = FIGURE_IDS.filter(id => raw.figures.includes(id)) as FigureId[];

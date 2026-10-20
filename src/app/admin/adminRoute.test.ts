@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_TABS, SETTINGS_TABS, adminDocumentTitle, hashForRoute, routeFromHash, sameSection, settingsPageOf } from "./adminRoute";
+import { ADMIN_TABS, SETTINGS_TABS, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, settingsPageOf } from "./adminRoute";
 
 describe("admin route ↔ hash", () => {
   it("round-trips every page", () => {
@@ -43,5 +43,11 @@ describe("admin route ↔ hash", () => {
 
   it("names the browser tab after the page", () => {
     expect(adminDocumentTitle("Orders")).toBe("Orders · Lyricalmyrical admin");
+  });
+  it("keeps the Overview's own sub tab in the address", () => {
+    expect(routeFromHash("#overview/visitors/move")).toEqual({ tab: "overview" });
+    expect(keepsSubTab("#overview/visitors/move", "#overview")).toBe(true);
+    expect(keepsSubTab("#overview", "#overview")).toBe(false);
+    expect(keepsSubTab("#overview/visitors", "#orders")).toBe(false);
   });
 });
