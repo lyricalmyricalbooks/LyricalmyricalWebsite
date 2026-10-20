@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const calls: any[] = [];
+const bookLists: Record<string, any[]> = {};
 vi.mock("../../lib/firestoreLite", () => ({ liteDb: {} }));
 vi.mock("firebase/firestore/lite", () => ({
   collection: (_db: any, name: string) => ({ name }),
@@ -14,6 +15,12 @@ vi.mock("firebase/firestore/lite", () => ({
   getDocs: async (q: any) => {
     calls.push(q);
     if (q.name === "reviews") return { docs: [] };
+    // Approved-list reads for a book answer from `bookLists` (a full page by default, so totals use the aggregate).
+    const bookId = q.parts?.find((p: any) => p?.where?.[0] === "bookId")?.where[2];
+    if (q.col?.name === "reviews" && bookId) {
+      const list = bookLists[bookId] ?? Array.from({ length: 50 }, () => ({ rating: 4 }));
+      return { docs: list.map((r, i) => ({ id: `${bookId}-${i}`, data: () => r })) };
+    }
     // The one-time legacy email move asks only for reviews that still hold a public email.
     if (q.col?.name === "reviews") return { docs: [] };
     const ids: string[] = q.parts[0].where[2];
@@ -60,6 +67,35 @@ describe("approved review totals (#146)", () => {
     await reviewsApi.summary("book-shared");
     await reviewsApi.summary("book-shared");
     expect(calls.filter(c => c?.aggregate)).toHaveLength(1);
+  });
+  it("counts a short list itself: it already holds every approved review, so no aggregation query", async () => {
+    bookLists["book-few"] = [{ rating: 5 }, { rating: 4 }, { rating: 4 }];
+    const [list, total] = await Promise.all([reviewsApi.listApproved("book-few"), reviewsApi.summary("book-few")]);
+    expect(list).toHaveLength(3);
+    expect(total).toEqual({ count: 3, average: 13 / 3 });
+    expect(calls.filter(c => c?.aggregate)).toHaveLength(0);
+    // The list was read once and shared.
+    expect(calls.filter(c => c?.col?.name === "reviews")).toHaveLength(1);
+  });
+  it("no approved reviews: count 0, average 0, no aggregation query", async () => {
+    bookLists["book-none"] = [];
+    expect(await reviewsApi.summary("book-none")).toEqual({ count: 0, average: 0 });
+    expect(calls.filter(c => c?.aggregate)).toHaveLength(0);
+  });
+  it("a full page may be cut off, so Firestore counts", async () => {
+    bookLists["book-full"] = Array.from({ length: 50 }, () => ({ rating: 1 }));
+    expect(await reviewsApi.summary("book-full")).toEqual({ count: 137, average: 4.25 });
+    expect(calls.filter(c => c?.aggregate)).toHaveLength(1);
+  });
+});
+
+describe("summaryFromCompleteList", () => {
+  it("averages numeric ratings like Firestore's average, and refuses a full page", async () => {
+    const { summaryFromCompleteList, REVIEW_PAGE } = await import("./reviews");
+    expect(summaryFromCompleteList([{ rating: 5 }, { rating: "x" as any }, { rating: 3 }])).toEqual({ count: 3, average: 4 });
+    expect(summaryFromCompleteList([{ rating: undefined as any }])).toEqual({ count: 1, average: 0 });
+    expect(summaryFromCompleteList(Array.from({ length: REVIEW_PAGE }, () => ({ rating: 5 })))).toBeNull();
+    expect(summaryFromCompleteList(null)).toBeNull();
   });
 });
 

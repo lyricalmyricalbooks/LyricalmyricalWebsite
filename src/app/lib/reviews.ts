@@ -37,6 +37,29 @@ const approvedCache = new Map<string, { at: number; promise: Promise<Review[]> }
 const summaryCache = new Map<string, { at: number; promise: Promise<{ count: number; average: number }> }>();
 const clearApprovedCache = () => { approvedCache.clear(); summaryCache.clear(); };
 
+/**
+ * Count and average of a book's approved reviews from the list `listApproved` returned, or null when the list may be
+ * cut off (a full page: there could be more). Matches Firestore's aggregate: count = every review, average = mean of
+ * the numeric ratings (0 when there are none, as the aggregate path reports).
+ */
+export function summaryFromCompleteList(list: Array<Pick<Review, "rating">> | null | undefined): { count: number; average: number } | null {
+  if (!Array.isArray(list) || list.length >= REVIEW_PAGE) return null;
+  const ratings = list.map(r => r?.rating).filter((n): n is number => typeof n === "number" && Number.isFinite(n));
+  const average = ratings.length ? ratings.reduce((sum, n) => sum + n, 0) / ratings.length : 0;
+  return { count: list.length, average };
+}
+
+/** Firestore's own count and average of a book's approved reviews (one aggregation query). */
+function aggregateSummary(bookId: string): Promise<{ count: number; average: number }> {
+  return lite().then(({ average, collection, count, getAggregate, query, where, liteDb }) => getAggregate(
+    query(collection(liteDb, "reviews"), where("bookId", "==", bookId), where("status", "==", "approved")),
+    { count: count(), average: average("rating") },
+  )).then(snap => {
+    const data = snap.data();
+    return { count: Number(data.count) || 0, average: Number(data.average) || 0 };
+  });
+}
+
 export const reviewsApi = {
   listApproved: (bookId: string): Promise<Review[]> => {
     const hit = approvedCache.get(bookId);
@@ -50,17 +73,17 @@ export const reviewsApi = {
   /**
    * The true number and average of a book's approved reviews, counted by Firestore (not from the newest page the
    * book page happens to show). Shared for 30 s with the page's other readers.
+   *
+   * The book page reads the approved list anyway (shared through listApproved's cache). When that list came back
+   * shorter than a page it already holds every approved review, so it is counted and averaged here instead of paying
+   * for a second Firestore query; a full page (or a failed list read) still asks Firestore.
    */
   summary: (bookId: string): Promise<{ count: number; average: number }> => {
     const hit = summaryCache.get(bookId);
     if (hit && Date.now() - hit.at < 30_000) return hit.promise;
-    const promise = lite().then(({ average, collection, count, getAggregate, query, where, liteDb }) => getAggregate(
-      query(collection(liteDb, "reviews"), where("bookId", "==", bookId), where("status", "==", "approved")),
-      { count: count(), average: average("rating") },
-    )).then(snap => {
-      const data = snap.data();
-      return { count: Number(data.count) || 0, average: Number(data.average) || 0 };
-    });
+    const promise = reviewsApi.listApproved(bookId)
+      .then(list => summaryFromCompleteList(list), () => null)
+      .then(fromList => fromList || aggregateSummary(bookId));
     summaryCache.set(bookId, { at: Date.now(), promise });
     promise.catch(() => summaryCache.delete(bookId));
     return promise;
