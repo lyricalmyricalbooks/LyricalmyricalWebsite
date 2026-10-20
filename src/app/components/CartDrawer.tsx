@@ -234,7 +234,7 @@ export function CartDrawer() {
                         </div>
                         <div className="flex-1 min-w-0 flex flex-col gap-1">
                           <div className="flex justify-between gap-3 items-start">
-                            <h3 className="fm-bag-name [overflow-wrap:anywhere]">{item.title}</h3>
+                            <h3 className="fm-bag-name max-md:[overflow-wrap:anywhere]">{item.title}</h3>
                             {showLineTotal && <span className="fm-bag-line" translate="no">{formatPrice(item.price * item.quantity)}</span>}
                           </div>
                           {item.variantName && <p className="fm-bag-meta">{item.variantName}</p>}
@@ -297,7 +297,7 @@ export function CartDrawer() {
                       {recommendedBook.photos?.[0]?.url && <img loading="lazy" decoding="async" src={smallPhotoUrl(recommendedBook.photos[0])} alt="" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="fm-bag-name [overflow-wrap:anywhere]">{recommendedBook.title}</h3>
+                      <h3 className="fm-bag-name max-md:[overflow-wrap:anywhere]">{recommendedBook.title}</h3>
                       <p className="fm-bag-meta mt-1 whitespace-nowrap" translate="no">{formatPrice(catalogUnitPrice(recommendedBook, recommendedChoice(recommendedBook)))}</p>
                     </div>
                     <button onClick={() => addToCart(recommendedBook, recommendedChoice(recommendedBook))} className="fm-bag-upsell-btn shrink-0 px-4 min-h-[44px] w-full md:w-auto">

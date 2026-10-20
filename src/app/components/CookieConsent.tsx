@@ -72,7 +72,7 @@ export function CookieConsent() {
   if (design?.showCookieBanner === false) return null;
   // Phones get a compact banner (smaller heading, tighter spacing, all buttons on one row when they fit) so it
   // covers about a quarter of the screen; from 768px up every class below is exactly the desktop look.
-  const btn = "max-md:min-h-11 max-md:min-w-max whitespace-nowrap border-2 border-[var(--rp-outline)] px-2.5 py-3 text-[10px] font-black uppercase tracking-[0.08em] md:px-4 md:tracking-[0.2em] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]";
+  const btn = "max-md:min-h-11 max-md:max-w-full max-md:whitespace-nowrap border-2 border-[var(--rp-outline)] px-2.5 py-3 text-[10px] font-black uppercase tracking-[0.08em] md:px-4 md:tracking-[0.2em] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]";
   const primary = `flex-1 md:min-w-[130px] ${btn} bg-[var(--btn-bg)] text-[var(--btn-text)] shadow-[3px_3px_0_var(--rp-shadow-color)] transition-transform hover:-translate-y-0.5`;
   return (
     <AnimatePresence>
@@ -149,7 +149,7 @@ export function CookieConsent() {
             ) : (
               <button
                 onClick={() => setShowDetails(true)}
-                className="max-md:min-h-11 max-md:shrink-0 whitespace-nowrap px-1.5 py-2.5 text-[10px] font-black uppercase tracking-[0.08em] text-[var(--muted)] md:px-3 md:tracking-[0.22em] underline decoration-2 underline-offset-4 transition-colors hover:text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]"
+                className="max-md:min-h-11 max-md:shrink-0 max-md:whitespace-nowrap px-1.5 py-2.5 text-[10px] font-black uppercase tracking-[0.08em] text-[var(--muted)] md:px-3 md:tracking-[0.22em] underline decoration-2 underline-offset-4 transition-colors hover:text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]"
               >
                 {c("cookieCustomize")}
               </button>

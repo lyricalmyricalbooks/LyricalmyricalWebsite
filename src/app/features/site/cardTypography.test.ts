@@ -40,7 +40,7 @@ describe("cardTypographyCss", () => {
 
   it("breaks a title word too wide for the card, without splitting words that fit", () => {
     const css = cardTypographyCss({});
-    expect(css).toContain("[data-fm-store] .fm-card-title{overflow-wrap:break-word;}");
+    expect(css).toContain("@media (max-width:767px){[data-fm-store] .fm-card-title{overflow-wrap:break-word;}}");
     expect(css).not.toContain("break-all");
     // With the phone price stack off, nothing asks for overflow-wrap:anywhere (which would split words early in flex rows).
     expect(cardTypographyCss({ cardPriceStackPhone: false })).not.toContain("anywhere");

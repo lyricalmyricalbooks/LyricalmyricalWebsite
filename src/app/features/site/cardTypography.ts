@@ -37,7 +37,7 @@ export function cardTypographyCss(design: any): string {
   // A title word wider than the card (an underscore name like "SISTEMA_NON_AUTORIZZATO") breaks instead of
   // spilling out of a two-column phone card. break-word, never anywhere/break-all: normal words still wrap
   // whole and only a word that can't fit on a line of its own is split. Titles that fit look the same.
-  let css = `${S} .fm-card-title{overflow-wrap:break-word;}`;
+  let css = `@media (max-width:767px){${S} .fm-card-title{overflow-wrap:break-word;}}`;
 
   const title: string[] = [];
   if (d.productTitleColor) title.push(`color:${clean(d.productTitleColor)} !important;`);
