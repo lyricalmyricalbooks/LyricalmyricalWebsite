@@ -32,8 +32,10 @@ type Labels = { close: string; prev: string; next: string; dialog: string; count
  * styles still apply): a transformed or animated parent on the product page would otherwise make
  * `position: fixed` relative to that parent, leaving the header on top and the photo cut off.
  */
-export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCount = true }: {
+export function PhotoLightbox({ photos, start, labels, onClose, onIndex, onSwipe, showCount = true }: {
   photos: LightboxPhoto[]; start: number; labels: Labels; onClose: () => void; onIndex?: (i: number) => void;
+  /** The shopper swiped or dragged to another photo (PhotoCarousel's onSwipe). */
+  onSwipe?: () => void;
   /** Studio › Style › Product page · buy card & details › Enlarged photo viewer › Show the photo count. */
   showCount?: boolean;
 }) {
@@ -96,6 +98,7 @@ export function PhotoLightbox({ photos, start, labels, onClose, onIndex, showCou
         count={photos.length}
         index={index}
         onIndex={(i) => { setIndex(i); onIndex?.(i); }}
+        onSwipe={onSwipe}
         className="absolute inset-0"
         label={labels.dialog}
         renderSlide={(i) => (

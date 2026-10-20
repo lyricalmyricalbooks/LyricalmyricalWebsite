@@ -1,4 +1,6 @@
+import { useRef } from "react";
 import { Search, X } from "lucide-react";
+import { ga4FilterUse, priceFilterValue } from "../../lib/ga4";
 import { getCopy } from "./storeCopy";
 import { regionProps } from "./storefrontRegions";
 import { displayPrice, showsSale } from "./displayPrice";
@@ -184,7 +186,20 @@ export function CatalogControls({
   const showFormats = !!setFilters && availableFormats.length >= 2;
   const showPriceBoxes = !!setFilters && showPrice;
   const showSale = !!setFilters && hasSale;
-  const toggleFormat = (key: FormatKey) => setFilters?.({ ...filters, formats: filters.formats.includes(key) ? filters.formats.filter(k => k !== key) : [...filters.formats, key] });
+  const toggleFormat = (key: FormatKey) => {
+    if (!filters.formats.includes(key)) ga4FilterUse("format", key);
+    setFilters?.({ ...filters, formats: filters.formats.includes(key) ? filters.formats.filter(k => k !== key) : [...filters.formats, key] });
+  };
+  // Google Analytics hears about the price boxes when the shopper leaves one with a new value, never per keystroke,
+  // and only which boxes are filled (never the amounts).
+  const sentPrice = useRef(`${filters.minPrice}|${filters.maxPrice}`);
+  const priceDone = () => {
+    const key = `${filters.minPrice}|${filters.maxPrice}`;
+    if (key === sentPrice.current) return;
+    sentPrice.current = key;
+    const which = priceFilterValue(filters.minPrice, filters.maxPrice);
+    if (which) ga4FilterUse("price", which);
+  };
   const clearAll = () => { setQuery(""); setInStockOnly(false); setFilters?.(EMPTY_FILTERS); };
   const chip = (active: boolean) => `px-4 py-3 rounded-full text-[10px] tracking-widest uppercase border transition-colors ${
     active ? "fm-active border-white" : "bg-white/[0.04] text-white/60 border-white/10 hover:border-white/30"
@@ -215,7 +230,7 @@ export function CatalogControls({
         <div className="flex items-center gap-2">
           <select {...regionProps("catalogSort")}
             value={sort}
-            onChange={e => setSort(e.target.value as SortKey)}
+            onChange={e => { setSort(e.target.value as SortKey); ga4FilterUse("sort", e.target.value); }}
             aria-label={c("filterSortAria")}
             className="bg-white/[0.04] border border-white/10 rounded-full py-3 px-5 text-[10px] tracking-widest uppercase text-white/70 outline-none focus:border-white/30 cursor-pointer"
           >
@@ -228,7 +243,7 @@ export function CatalogControls({
         <button {...regionProps("catalogStock")}
             type="button"
             aria-pressed={inStockOnly}
-            onClick={() => setInStockOnly(!inStockOnly)}
+            onClick={() => { ga4FilterUse("in_stock", inStockOnly ? "off" : "on"); setInStockOnly(!inStockOnly); }}
             className={chip(inStockOnly)}
           >
             {c("filterInStock")}
@@ -237,7 +252,7 @@ export function CatalogControls({
             <button {...regionProps("catalogSale")}
               type="button"
               aria-pressed={!!filters.onSale}
-              onClick={() => setFilters?.({ ...filters, onSale: !filters.onSale })}
+              onClick={() => { ga4FilterUse("on_sale", filters.onSale ? "off" : "on"); setFilters?.({ ...filters, onSale: !filters.onSale }); }}
               className={chip(!!filters.onSale)}
             >
               {c("filterOnSale")}
@@ -269,6 +284,7 @@ export function CatalogControls({
                   step="any"
                   value={filters[field]}
                   onChange={e => setFilters?.({ ...filters, [field]: e.target.value })}
+                  onBlur={priceDone}
                   placeholder={c(field === "minPrice" ? "filterPriceMin" : "filterPriceMax")}
                   aria-label={`${c("filterPriceLabel")} ${c(field === "minPrice" ? "filterPriceMin" : "filterPriceMax")}`}
                   className="w-24 bg-white/[0.04] border border-white/10 rounded-full py-3 px-4 text-xs text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30 transition-all"

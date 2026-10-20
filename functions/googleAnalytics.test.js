@@ -2,7 +2,10 @@ import { createRequire } from "module";
 import { describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { cleanPropertyId, propertyIdProblem, cleanRange, buildBatches, shapeReport, realtimePagesOf, realtimeMinutesOf, gaErrorMessage, handleGa4Report } = require("./googleAnalytics");
+const {
+  cleanPropertyId, propertyIdProblem, cleanRange, buildBatches, shapeReport, realtimePagesOf, realtimeMinutesOf, gaErrorMessage, handleGa4Report,
+  SHOP_EVENTS, CUSTOM_DEFINITIONS, CUSTOM_EVENT_KEYS, OPTIONAL_BATCHES,
+} = require("./googleAnalytics");
 const { resetConfirmed, handleTrafficReset } = require("./trafficReset");
 
 const RANGE = { startDate: "2026-10-01", endDate: "2026-10-13", prevStartDate: "2026-09-18", prevEndDate: "2026-09-30" };
@@ -92,11 +95,11 @@ describe("handleGa4Report", () => {
     expect((await handleGa4Report({ op: "report", range: { startDate: "x" } }, deps({ fetchImpl: vi.fn(async () => reply(200, {})) }))).status).toBe(400);
     expect((await handleGa4Report({ op: "report", range: RANGE }, deps({ allow: async () => false }))).status).toBe(429);
   });
-  it("report: five batches (campaigns, the visitor batch, the navigation batch) plus three realtime calls", async () => {
+  it("report: seven batches (campaigns, visitor, navigation, shop events, event details) plus three realtime calls", async () => {
     const d = deps({ fetchImpl: vi.fn(async () => reply(200, { reports: [] })) });
     const { body } = await handleGa4Report({ op: "report", range: RANGE }, d);
     expect(body.connected).toBe(true);
-    expect(d.fetchImpl).toHaveBeenCalledTimes(8);
+    expect(d.fetchImpl).toHaveBeenCalledTimes(10);
     expect(d.fetchImpl.mock.calls.filter(([url]) => url.includes(":runRealtimeReport"))).toHaveLength(3);
     expect(body.report.totals.current).toEqual({});
     expect(body.report.campaigns).toEqual([]);
@@ -106,6 +109,8 @@ describe("handleGa4Report", () => {
     expect(body.report.realtimeMinutes).toHaveLength(30);
     expect(body.report.moves).toEqual([]);
     expect(body.report.deviceSteps).toEqual([]);
+    expect(body.report.newEvents).toEqual([]);
+    expect(body.report.scrollDepth).toEqual([]);
   });
   const routed = (handler) => vi.fn(async (url, init) => {
     const payload = JSON.parse(init.body);
@@ -123,7 +128,7 @@ describe("handleGa4Report", () => {
     expect(body.report.activeNow).toBe(2);
     expect(body.report.realtimePages).toBeNull();
     expect(body.report.realtimeMinutes).toBeNull();
-    ["pageTime", "when", "actions", "pageActions", "outbound"].forEach(k => expect(body.report[k]).toBeUndefined());
+    ["pageTime", "when", "actions", "pageActions", "outbound"].forEach(k => expect(body.report[k]).toBeNull());
     expect(body.report.campaigns).toEqual([]);
   });
   it("report: a 400 on the visitor batch retries its reports one by one and keeps those Google accepts", async () => {
@@ -139,7 +144,7 @@ describe("handleGa4Report", () => {
     const { body } = await handleGa4Report({ op: "report", range: RANGE }, d);
     expect(body.connected).toBe(true);
     expect(body.report.pageTime).toEqual([{ pagePath: "/", screenPageViews: 20, activeUsers: 9, userEngagementDuration: 400 }]);
-    expect(body.report.outbound).toBeUndefined();
+    expect(body.report.outbound).toBeNull();
     expect(body.report.when).toEqual([]);
   });
   it("report: a refused core batch still fails the report", async () => {
@@ -159,7 +164,7 @@ describe("GA4 navigation batch", () => {
     credentials: async () => ({ accessToken: "tok", email: "sa@x.iam.gserviceaccount.com" }), fetchImpl: vi.fn(), projectId: "p", ...over,
   });
   const routed = (handler) => vi.fn(async (url, init) => handler(url, JSON.parse(init.body)));
-  const isNavBatch = p => (p.requests || []).some(r => (r.dimensions || []).some(dm => dm.name === "pageReferrer"));
+  const isNavBatch = p => (p.requests || []).some(r => (r.dimensions || []).some(dm => dm.name === "itemListName"));
   it("is the 5th batch with the navigation keys", () => {
     const batches = buildBatches(RANGE);
     expect(batches[4].map(r => r.key)).toEqual(["moves", "landingPaths", "lists", "deviceSteps"]);
@@ -179,7 +184,7 @@ describe("GA4 navigation batch", () => {
     expect(shaped.landingPaths[0]).toMatchObject({ landingPage: "/", sessionDefaultChannelGroup: "Direct", ecommercePurchases: 1 });
     expect(shaped.lists).toEqual([{ itemListName: "New books", itemsViewedInList: 100, itemsClickedInList: 7 }]);
     expect(shaped.deviceSteps).toEqual([{ deviceCategory: "mobile", eventName: "view_item", activeUsers: 12 }]);
-    expect(shaped.pageTime).toBeUndefined();
+    expect(shaped.pageTime).toBeNull();
   });
   it("a refused navigation batch never fails the report, and a 400 retries its reports one by one", async () => {
     const d = deps({ fetchImpl: routed((url, p) => {
@@ -190,16 +195,106 @@ describe("GA4 navigation batch", () => {
     }) });
     const { body } = await handleGa4Report({ op: "report", range: RANGE }, d);
     expect(body.connected).toBe(true);
-    expect(body.report.moves).toBeUndefined();
+    expect(body.report.moves).toBeNull();
+    expect(body.report.refusedReports).toEqual(["moves"]);
     expect(body.report.lists).toEqual([]);
     expect(body.report.pageTime).toEqual([]);
+  });
+  it("a navigation batch that answers 503 sets its keys to null (not missing, not empty)", async () => {
+    const d = deps({ fetchImpl: routed((url, p) => {
+      if (url.includes(":runRealtimeReport")) return reply(200, {});
+      if (isNavBatch(p)) return reply(503, { error: { message: "unavailable" } });
+      return reply(200, { reports: [] });
+    }) });
+    const { body } = await handleGa4Report({ op: "report", range: RANGE }, d);
+    expect(body.connected).toBe(true);
+    ["moves", "landingPaths", "lists", "deviceSteps"].forEach(k => { expect(k in body.report).toBe(true); expect(body.report[k]).toBeNull(); });
+    expect(body.report.refusedReports).toBeUndefined();
+    expect(body.report.pageTime).toEqual([]);
+    expect(body.report.newEvents).toEqual([]);
+  });
+});
+
+describe("GA4 shop-event batches (6: standard dimensions, 7: custom dimensions)", () => {
+  const deps = (over = {}) => ({
+    allow: async () => true, readSettings: async () => ({ propertyId: "123456789" }),
+    credentials: async () => ({ accessToken: "tok", email: "sa@x.iam.gserviceaccount.com" }), fetchImpl: vi.fn(), projectId: "p", ...over,
+  });
+  const routed = (handler) => vi.fn(async (url, init) => handler(url, JSON.parse(init.body)));
+  const dims = r => (r.dimensions || []).map(dm => dm.name);
+  const isCustom = r => dims(r).some(n => n.startsWith("customEvent:"));
+  it("batch 6 asks standard dimensions only, batch 7 the event parameters; both are optional", () => {
+    const batches = buildBatches(RANGE);
+    expect(batches[5].map(r => r.key)).toEqual(["newEvents", "notFound", "bagPeeks"]);
+    expect(batches[5].some(isCustom)).toBe(false);
+    expect(batches[5][0].dimensionFilter.filter.inListFilter.values).toEqual(SHOP_EVENTS);
+    expect(batches[5][1].dimensionFilter.filter.stringFilter.value).toBe("page_not_found");
+    expect(batches[5][2].dimensionFilter.filter.inListFilter.values).toEqual(["view_cart", "begin_checkout"]);
+    expect(batches[6].map(r => r.key)).toEqual(CUSTOM_EVENT_KEYS);
+    expect(batches[6].length).toBeLessThanOrEqual(5);
+    batches[6].forEach(r => {
+      const params = dims(r).filter(n => n.startsWith("customEvent:")).map(n => n.slice("customEvent:".length));
+      expect(params).toEqual(CUSTOM_DEFINITIONS[r.key]);
+    });
+    expect(batches[6].map(r => r.dimensionFilter.filter.stringFilter.value)).toEqual(["nav_click", "pdp_interact", "pdp_interact", "filter_use", "scroll_depth"]);
+    expect(OPTIONAL_BATCHES).toEqual(expect.arrayContaining([5, 6]));
+  });
+  it("passes the event rows through", () => {
+    const batches = buildBatches(RANGE);
+    const responses = [{ reports: [] }, { reports: [] }, { reports: [] }, null, null, { reports: [
+      report(["eventName"], ["eventCount"], [{ d: ["nav_click"], m: [14] }]),
+      report(["pagePath", "pageReferrer"], ["eventCount"], [{ d: ["/books/old", "https://www.google.com/"], m: [3] }]),
+      report(["pagePath", "eventName"], ["eventCount"], [{ d: ["/", "view_cart"], m: [6] }]),
+    ] }, { reports: [
+      report(["customEvent:menu", "customEvent:link_text"], ["eventCount"], [{ d: ["header", "About"], m: [9] }]),
+    ] }];
+    const shaped = shapeReport(batches.map((requests, i) => ({ requests, response: responses[i] })), null);
+    expect(shaped.newEvents).toEqual([{ eventName: "nav_click", eventCount: 14 }]);
+    expect(shaped.notFound).toEqual([{ pagePath: "/books/old", pageReferrer: "https://www.google.com/", eventCount: 3 }]);
+    expect(shaped.bagPeeks).toEqual([{ pagePath: "/", eventName: "view_cart", eventCount: 6 }]);
+    expect(shaped.navClicks).toEqual([{ "customEvent:menu": "header", "customEvent:link_text": "About", eventCount: 9 }]);
+    expect(shaped.moves).toBeNull();
+  });
+  it("an unregistered custom dimension leaves only its own report out", async () => {
+    // Owner registered menu, link_text and percent only: Google refuses the batch, then the action/tab/filter reports.
+    const registered = new Set(["menu", "link_text", "percent"]);
+    const refuses = r => dims(r).some(n => n.startsWith("customEvent:") && !registered.has(n.slice("customEvent:".length)));
+    const d = deps({ fetchImpl: routed((url, p) => {
+      if (url.includes(":runRealtimeReport")) return reply(200, {});
+      const reqs = p.requests || [];
+      if (reqs.some(refuses)) return reply(400, { error: { message: "Field customEvent:action is not a valid dimension." } });
+      if (reqs.length === 1 && dims(reqs[0])[0] === "customEvent:menu") {
+        return reply(200, { reports: [report(["customEvent:menu", "customEvent:link_text"], ["eventCount"], [{ d: ["footer", "Contact"], m: [2] }])] });
+      }
+      return reply(200, { reports: [] });
+    }) });
+    const { body } = await handleGa4Report({ op: "report", range: RANGE }, d);
+    expect(body.connected).toBe(true);
+    expect(body.report.navClicks).toEqual([{ "customEvent:menu": "footer", "customEvent:link_text": "Contact", eventCount: 2 }]);
+    expect(body.report.scrollDepth).toEqual([]);
+    ["pdpActions", "pdpTabs", "filters"].forEach(k => expect(body.report[k]).toBeNull());
+    // Refused with a 400 on their own: the Overview reads that as "parameters not registered yet".
+    expect(body.report.refusedReports).toEqual(["pdpActions", "pdpTabs", "filters"]);
+    expect(body.report.newEvents).toEqual([]);
+    expect(body.report.notFound).toEqual([]);
+  });
+  it("a refused event batch never fails the report", async () => {
+    const d = deps({ fetchImpl: routed((url, p) => {
+      if (url.includes(":runRealtimeReport")) return reply(200, {});
+      if ((p.requests || []).some(r => r.dimensionFilter?.filter?.inListFilter?.values?.includes("nav_click"))) return reply(500, {});
+      return reply(200, { reports: [] });
+    }) });
+    const { body } = await handleGa4Report({ op: "report", range: RANGE }, d);
+    expect(body.connected).toBe(true);
+    ["newEvents", "notFound", "bagPeeks"].forEach(k => expect(body.report[k]).toBeNull());
+    expect(body.report.navClicks).toEqual([]);
   });
 });
 
 describe("GA4 visitor batch", () => {
   it("is the 4th batch, five reports, with the visitor keys and valid filters", () => {
     const batches = buildBatches(RANGE);
-    expect(batches).toHaveLength(5);
+    expect(batches).toHaveLength(7);
     expect(batches[3].map(r => r.key)).toEqual(["pageTime", "when", "actions", "pageActions", "outbound"]);
     const outbound = batches[3][4];
     expect(outbound.dimensionFilter.andGroup.expressions.map(e => e.filter.fieldName)).toEqual(["eventName", "outbound"]);

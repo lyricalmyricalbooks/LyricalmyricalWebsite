@@ -114,13 +114,13 @@ export function landingJourneys(report: Report, books: Book[] | null | undefined
   return { rows, channels, channel: pick };
 }
 
-// ------------------------------------------------------------------------------------------- Sections that get clicks
+// ------------------------------------------------------------------------------------------- Book lists that get clicks
 
 export interface ListRow { key: string; label: string; seen: number; opened: number; rate: number | null }
 
 const MIN_LIST_VIEWS = 20;
 
-/** Book-card lists: cards seen, cards opened and the click rate (only once a list was seen 20 times). */
+/** Book-card lists (shop grid, search, related, recently viewed, Studio sections): cards seen, cards opened and the click rate (only once a list was seen 20 times). */
 export function listClicks(report: Report): ListRow[] | null {
   const raw = report?.lists;
   if (!Array.isArray(raw) || raw.length === 0) return null;

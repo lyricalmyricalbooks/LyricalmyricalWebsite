@@ -27,9 +27,9 @@ export const VISITOR_GROUP_OF: Partial<Record<WidgetType, VisitorGroup>> = {
   gaKpis: "now", livePages: "now", newReturning: "now",
   channels: "from", gaSources: "from", landing: "from", gaCountries: "from", gaDevices: "from", sources: "from", campaigns: "from",
   landingSales: "from", devices: "from", firstPage: "from",
-  moves: "move", sectionClicks: "move", pageTime: "move", gaPages: "move", visitHours: "move",
-  actions: "do",
-  dropOff: "leave", funnel: "leave", checkout: "leave", deviceSteps: "leave", outbound: "leave",
+  moves: "move", sectionClicks: "move", pageTime: "move", gaPages: "move", visitHours: "move", navLinks: "move", notFound: "move",
+  actions: "do", bookPage: "do", filters: "do", readDepth: "do",
+  dropOff: "leave", funnel: "leave", checkout: "leave", deviceSteps: "leave", outbound: "leave", bagPeek: "leave",
 };
 
 export const DEFAULT_TAB: OverviewTab = { band: "today", sub: "all" };

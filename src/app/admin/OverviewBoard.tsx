@@ -110,7 +110,7 @@ export const HEIGHT_WORDS: Record<WidgetHeight, { name: string; hint: string }> 
 const GRAIN_WORDS: Record<ChartGrain, string> = { auto: "Pick for me", day: "Each day", week: "Each week", month: "Each month" };
 
 /** Widgets added on 20 October 2026: marked "New" in Add widgets until the owner has opened it once. */
-export const NEW_WIDGETS: WidgetType[] = ["moves", "firstPage", "sectionClicks", "deviceSteps"];
+export const NEW_WIDGETS: WidgetType[] = ["navLinks", "bookPage", "notFound", "filters", "bagPeek", "readDepth"];
 const SEEN_KEY = "lm:overview-seen-widgets";
 function readSeen(): string[] { try { const v = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } }
 function writeSeen(types: string[]) { try { localStorage.setItem(SEEN_KEY, JSON.stringify(types)); } catch { /* private window: the dot just shows again */ } }
@@ -143,7 +143,10 @@ export const WIDGET_KEYWORDS: Partial<Record<WidgetType, string>> = {
   giftOwed: "gift cards balance owed liability", stockKpis: "inventory shelf value stock", reprint: "running out reprint print run",
   wanted: "sold out coming soon demand", backInStock: "waiting list notify restock", slow: "not selling dead stock old",
   moves: "path journey navigation next page flow clicks through referrer", firstPage: "landing entry first page bounce journey instagram channel",
-  sectionClicks: "home page sections click rate book cards studio", deviceSteps: "phone mobile computer funnel steps checkout compare",
+  sectionClicks: "home page sections lists click rate book cards studio shop grid search related recently viewed", deviceSteps: "phone mobile computer funnel steps checkout compare",
+  navLinks: "menu navigation header footer phone links clicks nav", bookPage: "product page tabs photos gallery edition share details reviews interact",
+  notFound: "404 broken links missing page not found redirect old address", filters: "filter format price in stock catalog shop grid choices",
+  bagPeek: "cart bag opened peek checkout abandon", readDepth: "scroll depth read to the end halfway bottom attention",
   low: "running out low stock few copies", preorders: "pre-order promised release print run", soldOut: "reprint running out countdown sold out days",
 };
 

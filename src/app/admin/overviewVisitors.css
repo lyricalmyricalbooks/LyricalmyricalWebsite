@@ -54,3 +54,11 @@
 .rp-nav-pick .rp-select { min-height: 30px; width: auto; max-width: 200px; }
 .rp-nav-devices { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 20px; padding: 0 20px 8px; }
 @media (max-width: 767px) { .rp-nav-devices { padding: 0 14px 8px; } }
+
+/* The shop's own events (OverviewVisitorEvents.tsx): what to register in Google Analytics, and missing addresses. */
+.rp-ve-register { padding: 28px 20px; gap: 8px; }
+.rp-ve-register .rp-state-title { font-size: var(--rp-text-lg); }
+.rp-ve-defs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 2px 0; padding: 0; list-style: none; }
+.rp-ve-defs code, .rp-vw-quiet code { font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); padding: 2px 8px;
+  background: var(--rp-surface); color: var(--rp-text); border: var(--rp-hair) solid var(--rp-border-strong); }
+.rp-ve-path { font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); overflow-wrap: anywhere; }

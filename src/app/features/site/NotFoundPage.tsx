@@ -8,6 +8,8 @@ import { GlobalSections, TemplateSections } from "../../components/sectionRender
 import { resolveSurfaceDesign } from "./surfaceDesign";
 import { StoreChrome } from "./StoreChrome";
 import { useMissingRedirect } from "./useMissingRedirect";
+import { useEffect } from "react";
+import { ga4PageNotFound } from "../../lib/ga4";
 
 export function NotFoundContent({ design, books = [] }: { design: any; books?: any[] }) {
   design = resolveSurfaceDesign(design, "/studio-missing-page");
@@ -23,5 +25,7 @@ export default function NotFoundPage() {
   const { settings, books } = useSiteData();
   useSEO({ title: getCopy(settings?.design, "notFoundTitle"), noindex: true });
   useMissingRedirect(true);
+  // An address no route knows: missing whatever the shop data says, so it counts at once.
+  useEffect(() => { ga4PageNotFound(); }, []);
   return <StoreChrome surface="page404"><NotFoundContent design={settings?.design} books={books} /></StoreChrome>;
 }

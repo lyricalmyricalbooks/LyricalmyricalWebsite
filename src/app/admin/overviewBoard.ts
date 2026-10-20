@@ -72,6 +72,7 @@ export type WidgetType =
   | "gaKpis" | "channels" | "gaSources" | "landing" | "gaPages" | "gaCountries" | "gaDevices" | "funnel" | "checkout" | "sources" | "campaigns" | "landingSales" | "devices"
   | "livePages" | "pageTime" | "visitHours" | "actions" | "outbound" | "newReturning" | "dropOff" | "lookNoBuy"
   | "moves" | "firstPage" | "sectionClicks" | "deviceSteps"
+  | "navLinks" | "bookPage" | "notFound" | "filters" | "bagPeek" | "readDepth"
   | "searches" | "missed" | "google" | "googleQueries" | "googlePages" | "speed" | "counter"
   | "custKpis" | "retention" | "top" | "carts" | "reminders" | "newsletter" | "reviews" | "map" | "giftOwed"
   | "stockKpis" | "reprint" | "wanted" | "backInStock" | "slow" | "low" | "soldOut";
@@ -129,8 +130,14 @@ export const WIDGETS: WidgetMeta[] = [
   { type: "newReturning", band: "traffic", title: "New and returning visitors", blurb: "First-time visitors beside people who came back (Google Analytics)", size: "s", google: true },
   { type: "moves", band: "traffic", title: "Where people go next", blurb: "The most common page-to-page moves, and where each page's visitors came from and went (Google Analytics)", size: "l", google: true },
   { type: "firstPage", band: "traffic", title: "First page, then what", blurb: "For each first page: pages per visit, who kept going and who bought, by source (Google Analytics)", size: "l", google: true, config: {} },
-  { type: "sectionClicks", band: "traffic", title: "Sections that get clicks", blurb: "Book-card sections on your pages: books seen and the share opened (Google Analytics)", size: "m", google: true },
+  { type: "sectionClicks", band: "traffic", title: "Book lists that get clicks", blurb: "Every list of book cards (shop grid, search, related, recently viewed, Studio sections): books seen and the share opened (Google Analytics)", size: "m", google: true },
   { type: "deviceSteps", band: "traffic", title: "Phones vs computers, step by step", blurb: "Visit → book → bag → checkout → bought on each device, and where phones fall behind (Google Analytics)", size: "xl", google: true },
+  { type: "navLinks", band: "traffic", title: "Menu links people use", blurb: "Clicks on header, footer and phone menu links, by menu (Google Analytics)", size: "m", google: true },
+  { type: "bookPage", band: "traffic", title: "What people do on a book page", blurb: "Tabs opened, photos looked through, editions picked, shares, and on which books (Google Analytics)", size: "m", google: true },
+  { type: "notFound", band: "traffic", title: "Missing pages people reach", blurb: "Addresses that showed “page not found”, and the sites or shop pages that sent people there (Google Analytics)", size: "m", google: true },
+  { type: "filters", band: "traffic", title: "Shop filters people use", blurb: "Format, price and in-stock filters, with the choices picked (Google Analytics)", size: "s", google: true },
+  { type: "bagPeek", band: "traffic", title: "Bag opened, then checkout?", blurb: "How often the bag is opened, on which pages, against checkouts started (Google Analytics)", size: "m", google: true },
+  { type: "readDepth", band: "traffic", title: "How far people read", blurb: "For each page, the share of visits that reach halfway, three quarters and the end (Google Analytics)", size: "l", google: true },
   { type: "dropOff", band: "traffic", title: "Where visitors drop off", blurb: "One path from visit to purchase, with the biggest leak marked", size: "l" },
   { type: "funnel", band: "traffic", title: "Shopping funnel", blurb: "Book views → bag → checkout → purchase", size: "m" },
   { type: "checkout", band: "traffic", title: "Where checkout loses people", blurb: "Each checkout step and where shoppers stop", size: "m" },
@@ -202,6 +209,7 @@ export const TEMPLATES: Array<{ id: TemplateId; name: string; blurb: string; ord
     order: ["traffic", "titles", "search", "sales", "customers", "today", "stock"],
     widgets: ["livePages", ["newReturning", "s"], ["outbound", "s"], ["visitHours", "xl"], "pageTime", "actions", ["dropOff", "xl"],
       "moves", ["sectionClicks", "s"], "firstPage", ["deviceSteps", "xl"],
+      "navLinks", "bookPage", "readDepth", ["filters", "s"], "bagPeek", "notFound",
       ["chart", "l", { metric: "visitors" }], ["gaCountries", "s"], "landing", "gaPages", "lookNoBuy", "viewed", "searches", "missed"],
   },
   {

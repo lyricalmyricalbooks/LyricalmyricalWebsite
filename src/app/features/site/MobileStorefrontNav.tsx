@@ -31,7 +31,7 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
   const here = (to: string) => pathname.endsWith(to) ? { "aria-current": "page" as const, style: { color: navActiveColor(d) } } : {};
   // Style › Header layout › "Phone navigation style": tabs across the top (default) or the drop-down menu.
   if (mobileNavStyle(d) === "tabs") return <MobileNavTabs design={design} d={d} groups={groups} showThemeToggle={showThemeToggle} pathname={pathname} slug={slug} />;
-  return <details ref={ref} className="md:hidden" data-studio-target="style:header|menus:categories|copy:Header" data-studio-label="Mobile navigation"
+  return <details ref={ref} className="md:hidden" data-ga-menu="phone" data-studio-target="style:header|menus:categories|copy:Header" data-studio-label="Mobile navigation"
     onKeyDown={e => { if (e.key === "Escape") { close(); ref.current?.querySelector("summary")?.focus(); } }}>
     <summary className="min-h-11 cursor-pointer px-6 py-3 font-semibold">{getCopy(design, "navMenu")}</summary>
     <nav aria-label={getCopy(design, "ariaMainNavigation")} className="border-t border-current/20 pb-4">
@@ -90,7 +90,7 @@ function MobileNavTabs({ design, d, groups, showThemeToggle, pathname, slug }: {
       style={on ? { color: navActiveColor(d), borderColor: "currentColor" } : undefined}>{t.label}</Link>;
   };
   const size = Number(d.mobileNavTabSize) > 0 ? Number(d.mobileNavTabSize) : 14;
-  return <nav aria-label={getCopy(design, "ariaMainNavigation")} className="md:hidden border-t border-current/20" data-studio-target="style:header|menus:categories|copy:Header" data-studio-label="Mobile navigation">
+  return <nav aria-label={getCopy(design, "ariaMainNavigation")} className="md:hidden border-t border-current/20" data-ga-menu="phone" data-studio-target="style:header|menus:categories|copy:Header" data-studio-label="Mobile navigation">
     <div ref={rowRef} className="fm-mobile-tabs flex items-stretch gap-6 overflow-x-auto whitespace-nowrap px-6" style={{ scrollbarWidth: "none", fontSize: size }}>
       {tabs.map(tab)}
       {secondary.length > 0 && <div role="group" aria-label={getCopy(design, "secondaryNavigationAria")} className="contents" data-studio-target="menus:header-order|style:header|copy:Header" data-studio-label="Publisher navigation">{secondary.map(tab)}</div>}
