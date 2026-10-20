@@ -3,7 +3,7 @@ import { Funnel, RankBars, type RankRow } from "./OverviewViz";
 import type { GaState } from "./OverviewMarketing";
 import type { Book } from "./overviewInsights";
 import type { WidgetConfig } from "./overviewBoard";
-import { Frame, NeedsUpdate, NotConnected, NotYet, OWN_HOSTS } from "./OverviewVisitors";
+import { Frame, NeedsUpdate, NotAnswered, NotConnected, NotYet, OWN_HOSTS } from "./OverviewVisitors";
 import { deviceSteps, followPage, landingJourneys, listClicks, pageMoves, type PageLink } from "./overviewNavigation";
 
 // Overview › Visitors › how visitors move (20 October 2026): four widgets from the Google Analytics report's 5th batch
@@ -24,8 +24,11 @@ export function OverviewNavigation({ only, ga, books, config, onConfig, full, se
   if (ga.status === "loading") return <LoadingState label="Reading Google Analytics…" />;
   const report = ga.status === "connected" ? ga.answer?.report : undefined;
   if (!report) return <NotConnected setActiveTab={setActiveTab} />;
-  // Reports from a server older than the navigation batch have none of its keys (a refused report leaves one out too).
+  // Reports from a server older than the navigation batch have none of its keys.
   if (report.moves === undefined && report.landingPaths === undefined && report.lists === undefined && report.deviceSteps === undefined) return <NeedsUpdate />;
+  // A report Google refused or didn't answer this time is null; the other widgets still draw.
+  const reportKey = ({ moves: "moves", firstPage: "landingPaths", sectionClicks: "lists", deviceSteps: "deviceSteps" } as const)[only];
+  if (report[reportKey] === null) return <NotAnswered />;
   const source = `Google Analytics · ${periodLabel}`;
   const isFull = !!full;
 
@@ -102,15 +105,15 @@ export function OverviewNavigation({ only, ga, books, config, onConfig, full, se
     }
     case "sectionClicks": {
       const rows = listClicks(report);
-      if (!rows) return <NotYet note="Counted for book cards in Studio sections (home page and custom pages)." />;
+      if (!rows) return <NotYet note="Counted for every list of book cards: the shop grid, search results, related books, recently viewed and Studio sections." />;
       const rated = rows.filter(r => r.rate !== null).sort((a, b) => (b.rate || 0) - (a.rate || 0));
       const headline = rated.length
         ? `${rated[0].label} gets the most clicks: ${pct(rated[0].rate!)} of the books seen there were opened.`
         : `${rows[0].label} is seen most: ${plural(rows[0].seen, "book card")} shown.`;
       const cap = isFull ? 20 : 6;
       return (
-        <Frame headline={headline} foot={`${source} · book cards in Studio sections · click rate shown once a section's cards were seen 20 times`}>
-          <RankBars label="Sections by share of books opened" rows={rows.slice(0, cap).map((r): RankRow => ({
+        <Frame headline={headline} foot={`${source} · every list of book cards · click rate shown once a list's cards were seen 20 times`}>
+          <RankBars label="Book lists by share of books opened" rows={rows.slice(0, cap).map((r): RankRow => ({
             key: r.key, label: r.label, value: r.rate === null ? 0 : r.rate * 100,
             valueText: r.rate === null ? "too few views" : `${pct(r.rate)} opened`,
             sub: `${plural(r.seen, "card")} seen · ${plural(r.opened, "book")} opened`,
