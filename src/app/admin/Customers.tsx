@@ -190,7 +190,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
 
   return (
     <div className="rp-stack">
-      <div className="rp-grid" style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
+      <div className="rp-kpi-grid">
         <MetricCard label="Customers" value={stats.total} footer="With at least one paid order" />
         <MetricCard label="Repeat rate" value={`${Math.round(stats.repeatRate * 100)}%`} footer={`${stats.repeat} bought more than once`} />
         <MetricCard label="Avg lifetime value" value={money(stats.avgLtv)} footer="Per customer, after refunds" />

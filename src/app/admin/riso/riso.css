@@ -304,7 +304,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 @media (max-width: 1199px) { .rp-hide-md { display: none !important; } }
 
 /* ── Page header ───────────────────────────────────────────────────────── */
-.rp-page-header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--rp-space-5); margin-bottom: var(--rp-space-6); }
+.rp-page-header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--rp-space-5); margin-bottom: var(--rp-space-4); }
 .rp-breadcrumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; list-style: none; margin: 0 0 10px; padding: 0; font-size: var(--rp-text-xs); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; color: var(--rp-text-subtle); }
 .rp-breadcrumbs button { background: none; border: 0; padding: 2px 0; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
 .rp-breadcrumbs button:hover { color: var(--rp-primary-text); text-decoration: underline; }
@@ -534,14 +534,16 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-card .rp-table-wrap { border: 0; box-shadow: none; }
 .rp-table td { font-size: var(--rp-text-base); }
 .rp-badge { font-size: var(--rp-text-2xs); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; border-color: currentColor; }
-.rp-tabs { background: transparent; padding: 0; gap: 0; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); }
-.rp-tab { border: 0; border-radius: 0; text-transform: uppercase; letter-spacing: 0.09em; font-size: var(--rp-text-xs); font-weight: 700; min-height: 40px; }
-.rp-tab[aria-selected="true"] { background: var(--rp-inverse); color: var(--rp-on-inverse); box-shadow: none; }
-.rp-tab[aria-selected="true"] .rp-tab-count { color: var(--rp-on-inverse-2); }
+/* Filter rows (Tabs without a variant) are small chips, so they never compete with a page's underlined sub tabs. */
+.rp-tabs { background: transparent; padding: 0; gap: 8px; border: 0; }
+.rp-tab { border: var(--rp-hair) solid var(--rp-border); border-radius: 0; background: var(--rp-surface); color: var(--rp-text-muted); text-transform: none; letter-spacing: 0; font-size: var(--rp-text-sm); font-weight: 600; min-height: var(--rp-target-compact); padding: 0 12px; gap: 6px; }
+.rp-tab:hover { color: var(--rp-text); border-color: var(--rp-border-strong); }
+.rp-tab[aria-selected="true"] { background: var(--rp-surface); color: var(--rp-text); border: var(--rp-stroke) solid var(--rp-border-strong); box-shadow: none; padding: 0 11px; }
+.rp-tab[aria-selected="true"] .rp-tab-count { color: var(--rp-text-subtle); }
 .rp-tabs[data-variant="page"] { border: 0; border-bottom: var(--rp-hair) solid var(--rp-border); background: transparent; gap: 4px; width: 100%; }
-.rp-tabs[data-variant="page"] .rp-tab { background: transparent; color: var(--rp-text-muted); border-bottom: 3px solid transparent; margin-bottom: calc(-1 * var(--rp-hair)); padding: 0 12px; }
+.rp-tabs[data-variant="page"] .rp-tab { background: transparent; color: var(--rp-text-muted); border: 0; border-bottom: 3px solid transparent; margin-bottom: calc(-1 * var(--rp-hair)); padding: 0 12px; text-transform: uppercase; letter-spacing: 0.09em; font-size: var(--rp-text-xs); font-weight: 700; min-height: var(--rp-touch); }
 .rp-tabs[data-variant="page"] .rp-tab:hover { color: var(--rp-text); }
-.rp-tabs[data-variant="page"] .rp-tab[aria-selected="true"] { background: transparent; color: var(--rp-text); border-bottom-color: var(--rp-primary); }
+.rp-tabs[data-variant="page"] .rp-tab[aria-selected="true"] { background: transparent; color: var(--rp-text); border: 0; border-bottom: 3px solid var(--rp-primary); padding: 0 12px; box-shadow: none; }
 .rp-tabs[data-variant="page"] .rp-tab[aria-selected="true"] .rp-tab-count { color: var(--rp-text-subtle); }
 .rp-dialog { box-shadow: var(--rp-shadow-lg); }
 .rp-savebar, .rp-toast { background: var(--rp-inverse); color: var(--rp-on-inverse); border: var(--rp-stroke) solid var(--rp-border-strong); }
@@ -572,7 +574,9 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-btn-primary:hover:not(:disabled) { box-shadow: var(--rp-shadow); transform: none; }
 
 /* KpiTile */
-.rp-kpi-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+/* A page's figures share one ruled strip: hairlines between cells (drawn left/top of each cell, clipped at the edge so wrapped rows stay clean). */
+.rp-kpi-grid { display: grid; gap: 0; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); overflow: hidden; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); box-shadow: var(--rp-shadow-kpi); }
+.rp-kpi-grid > .rp-metric, .rp-kpi-grid > .rp-metric:hover { border: 0; box-shadow: -1px 0 0 var(--rp-divider), 0 -1px 0 var(--rp-divider); transform: none; padding: 16px 20px; }
 .rp-metric { border-radius: 0; box-shadow: var(--rp-shadow-kpi); transition: transform 140ms var(--rp-ease), box-shadow 140ms var(--rp-ease); }
 .rp-metric:hover { transform: translateY(-1px); box-shadow: var(--rp-shadow-hover); }
 .rp-metric-label { letter-spacing: 0.18em; margin-bottom: 10px; }

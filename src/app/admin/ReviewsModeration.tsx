@@ -169,18 +169,16 @@ function Queue() {
 
   return (
     <div className="rp-stack">
+      <Tabs<Filter> variant="page" label="Review status" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
+        tabs={(["pending", "approved", "rejected", "all"] as const).map((f) => {
+          const label = f[0].toUpperCase() + f.slice(1);
+          // Only pending is complete once the newest-200 cap is hit; say so instead of a wrong total.
+          return capped && f !== "pending" ? { id: f, label: `${label} · ${counts[f]}+` } : { id: f, label, count: counts[f] };
+        })} />
       <div className="rp-kpi-grid">
         <MetricCard label="Average rating" value={stats.average ? `${stats.average.toFixed(1)} ★` : "—"} footer={`${stats.total} review${stats.total === 1 ? "" : "s"} · ${stats.approvedAverage ? stats.approvedAverage.toFixed(1) : "—"} approved only`} />
         <MetricCard label="Low-rated pending" value={stats.lowPending} tone={stats.lowPending ? "warn" : undefined} footer="1–2 stars awaiting a decision" />
         <MetricCard label="Awaiting a reply" value={stats.unanswered} footer="Approved with no owner reply" />
-      </div>
-      <div className="rp-filter-bar">
-        <Tabs<Filter> label="Review status" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
-          tabs={(["pending", "approved", "rejected", "all"] as const).map((f) => {
-            const label = f[0].toUpperCase() + f.slice(1);
-            // Only pending is complete once the newest-200 cap is hit; say so instead of a wrong total.
-            return capped && f !== "pending" ? { id: f, label: `${label} · ${counts[f]}+` } : { id: f, label, count: counts[f] };
-          })} />
       </div>
 
       <FilterBar>

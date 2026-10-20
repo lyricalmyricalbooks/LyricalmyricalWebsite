@@ -152,11 +152,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
       <div className="rp-stack" style={{ gap: 12 }}>
         <style>{DESK_CSS}</style>
         <header className="od-head">
-          <div>
-            <p className="rp-label" style={{ margin: 0 }}>Orders</p>
-            <h2 className="od-title">Orders table</h2>
-            <p className="rp-hint" style={{ margin: "4px 0 0" }}>Tick orders to pack them together, print pick lists, or export a spreadsheet (CSV).</p>
-          </div>
+          <h2 className="od-title">Table</h2>
           <div className="od-head-actions">
             <SecondaryButton onClick={() => pickLayout("grid")}>← All orders</SecondaryButton>
             <SecondaryButton onClick={() => pickLayout("desk")}>Ship station</SecondaryButton>
@@ -172,18 +168,9 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
     return (
       <div className="rp-stack od-grid-page" style={{ gap: 18 }}>
         <style>{DESK_CSS}</style>
-        <header className="od-head">
-          <div>
-            <p className="rp-label" style={{ margin: 0 }}>Orders</p>
-            <h2 className="od-title">All orders</h2>
-          </div>
-          <div className="od-head-actions">
-            <PrimaryButton onClick={() => pickLayout("desk")}>Ship station · {stats.toShip} to ship →</PrimaryButton>
-            <SecondaryButton onClick={() => pickLayout("table")}>Export orders</SecondaryButton>
-          </div>
-        </header>
         <div className="od-grid-bar">
           <Tabs
+            variant="page"
             label="Order lists"
             value={only ? "open" : tab}
             onChange={pickTab}
@@ -198,6 +185,10 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
             <div role="group" aria-label="Show as" className="od-switch od-switch-inline">
               <button type="button" aria-pressed="true" className="is-on">Covers</button>
               <button type="button" aria-pressed="false" onClick={() => pickLayout("table")}>Table</button>
+            </div>
+            <div className="od-head-actions od-grid-actions">
+              <PrimaryButton onClick={() => pickLayout("desk")}>Ship station · {stats.toShip} to ship →</PrimaryButton>
+              <SecondaryButton onClick={() => pickLayout("table")}>Export orders</SecondaryButton>
             </div>
           </div>
         </div>
@@ -323,11 +314,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
 
   const header = (
     <header className="od-head">
-      <div>
-        <p className="rp-label" style={{ margin: 0 }}>Orders · Ship station</p>
-        <h2 className="od-title">Ship today</h2>
-        <p className="rp-hint" style={{ margin: "4px 0 0" }}>One order at a time: check the address, pack, buy the label, then the next order opens.</p>
-      </div>
+      <h2 className="od-title">Ship station</h2>
       <div className="od-head-actions">
         <dl className="od-stats" aria-label="Today">
           <div><dt className="rp-label">To ship</dt><dd className="rp-mono">{orders ? stats.toShip : "–"}</dd></div>
@@ -355,8 +342,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
 
 const DESK_CSS = `
 .od-head{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between}
-.od-title{margin:4px 0 0;font:400 44px/1 var(--rp-font-display);text-transform:uppercase}
-@media (max-width:640px){.od-title{font-size:32px}}
+.od-title{margin:0;font:400 20px/1.05 var(--rp-font-display);text-transform:uppercase;letter-spacing:.01em}
 .od-head-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .od-stats{display:flex;gap:18px;margin:0;padding:8px 14px;border:2px solid var(--rp-border-strong);background:var(--rp-surface)}
 .od-stats div{display:flex;flex-direction:column}
@@ -389,7 +375,8 @@ const DESK_CSS = `
 .od-detail{min-width:0}
 .od-empty{padding:40px 0}
 .od-grid-bar{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between}
-.od-grid-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.od-grid-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;width:100%}
+.od-grid-actions{margin-left:auto}
 .od-grid-tools .rp-field{min-width:150px}
 .od-switch-inline{display:inline-grid}
 .od-only{margin:0;font-size:14px}
