@@ -63,7 +63,7 @@ import { schemeButtonColors } from "./colorSchemes";
 import { findProduct } from "./productRoutes";
 import { bookAddOns, bundleWeightGrams, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
 import { displayPrice, salePercentOff } from "./displayPrice";
-import { ga4Once } from "../../lib/ga4";
+import { ga4Once, ga4PageNotFound, ga4PdpInteract, pdpTabName } from "../../lib/ga4";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
 import { gridPhotoSizes, THUMB_PHOTO_SIZES, pdpPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
@@ -427,6 +427,12 @@ export default function BookDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book?.id]);
 
+  // Google Analytics: a swipe through the photos counts once per book per visit; a missing book only once the
+  // fresh read confirms it (the same condition as the "not found" view and its redirect).
+  const gaPhotoSwipe = () => { if (book?.id) ga4Once(`photo_swipe_${book.id}`, "pdp_interact", { action: "photo_swipe" }); };
+  const gaMissing = !book && !loading && !loadError;
+  useEffect(() => { if (gaMissing) ga4PageNotFound(); }, [gaMissing, slug]);
+
   useEffect(() => {
     window.scrollTo(0, 0);
     setActivePhoto(0);
@@ -529,6 +535,7 @@ export default function BookDetail() {
   };
 
   const handleShare = async () => {
+    ga4PdpInteract("share");
     if (navigator.share) {
       // Closing the share sheet is not an error.
       await navigator.share({ title: book?.title, url: window.location.href }).catch(() => {});
@@ -689,6 +696,7 @@ export default function BookDetail() {
     e.preventDefault();
     const n = detailTabs.length;
     const next = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + n) % n;
+    if (detailTabs[next].id !== activeTab) ga4PdpInteract("tab_open", { tab: pdpTabName(detailTabs[next].id) });
     setDetailsTab(detailTabs[next].id);
     document.getElementById(`pdp-tab-${detailTabs[next].id}`)?.focus();
   };
@@ -714,7 +722,7 @@ export default function BookDetail() {
             aria-selected={activeTab === t.id}
             aria-controls="pdp-tabpanel"
             tabIndex={activeTab === t.id ? 0 : -1}
-            onClick={() => setDetailsTab(t.id)}
+            onClick={() => { if (activeTab !== t.id) ga4PdpInteract("tab_open", { tab: pdpTabName(t.id) }); setDetailsTab(t.id); }}
             onKeyDown={(e) => onTabKey(e, i)}
             className="fm-pdp-tab"
           >
@@ -739,7 +747,7 @@ export default function BookDetail() {
             type="button"
             aria-expanded={!!openAccordions[t.id]}
             aria-controls={`pdp-acc-${t.id}`}
-            onClick={() => toggleAccordion(t.id)}
+            onClick={() => { if (!openAccordions[t.id]) ga4PdpInteract("tab_open", { tab: pdpTabName(t.id) }); toggleAccordion(t.id); }}
             className="w-full min-h-[56px] px-5 flex items-center justify-between gap-4 text-[10px] font-black tracking-[0.28em] uppercase text-left"
           >
             <span>{t.label}</span>
@@ -959,7 +967,7 @@ export default function BookDetail() {
                             aria-invalid={!!editionError}
                             aria-describedby={editionError ? "pdp-edition-error" : undefined}
                             value={selectedVariant?.id || ""}
-                            onChange={(e) => { setSelectedVariant(book.variants.find((v: any) => v.id === e.target.value) || null); setEditionError(""); }}
+                            onChange={(e) => { setSelectedVariant(book.variants.find((v: any) => v.id === e.target.value) || null); setEditionError(""); ga4PdpInteract("edition_switch"); }}
                             className="fm-pdp-select"
                           >
                             <option value="" disabled>{getCopy(settings?.design, "pdpEditionChoose")}</option>
@@ -979,7 +987,7 @@ export default function BookDetail() {
                             <button
                               key={v.id}
                               type="button"
-                              onClick={() => setSelectedVariant(v)}
+                              onClick={() => { if (selectedVariant?.id !== v.id) ga4PdpInteract("edition_switch"); setSelectedVariant(v); }}
                               aria-pressed={selectedVariant?.id === v.id}
                               data-soldout={Number(vStock) <= 0}
                               className="fm-pdp-chip"
@@ -1332,6 +1340,7 @@ export default function BookDetail() {
                         count={photos.length}
                         index={carouselIndex}
                         onIndex={(i) => pickPhoto(i)}
+                        onSwipe={gaPhotoSwipe}
                         className="absolute inset-0"
                         label={getCopy(settings?.design, "pdpPhotosAria")}
                         renderSlide={(i) => {
@@ -1405,7 +1414,7 @@ export default function BookDetail() {
                       {storefrontDesign.showPhotoLightbox !== false && activeUrl && (
                         <button
                           type="button"
-                          onClick={() => setLightboxOpen(true)}
+                          onClick={() => { setLightboxOpen(true); ga4PdpInteract("photo_enlarge"); }}
                           aria-label={getCopy(settings?.design, "ariaEnlargePhoto")}
                           aria-haspopup="dialog"
                           data-fm-enlarge
@@ -1506,6 +1515,7 @@ export default function BookDetail() {
                         }))}
                         start={Math.max(0, shownIndex)}
                         onIndex={(i) => pickPhoto(i)}
+                        onSwipe={gaPhotoSwipe}
                         onClose={() => setLightboxOpen(false)}
                         showCount={storefrontDesign.pdpViewerShowCount !== false}
                         labels={{

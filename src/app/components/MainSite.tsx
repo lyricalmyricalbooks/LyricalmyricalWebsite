@@ -38,6 +38,7 @@ import { useWishlist, liveWishlistCount } from "../lib/wishlist";
 import { isLiveBook } from "../features/site/liveBook";
 import { displayPrice as cardDisplayPrice, showsSale, salePercentOff } from "../features/site/displayPrice";
 import { useSEO } from "../lib/seo";
+import { ga4FilterUse } from "../lib/ga4";
 import { breadcrumbData, collectionStructuredData, leadSentences, profileLinks, seoTopicList, siteStructuredData } from "../lib/bookSeo";
 import { CatalogControls, applyCatalogControls, appliedFilters, filterView, EMPTY_FILTERS, type CatalogFilterState, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
@@ -772,14 +773,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       ? activeCategory === "ALL"
                       : (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === chip.name;
                     return (
-                      <button key={chip.name} type="button" onClick={() => pickCategory(chip.value)} aria-pressed={isActive}>
+                      <button key={chip.name} type="button" onClick={() => { if (!isActive) ga4FilterUse("category", chip.value === "ALL" ? "all" : chip.name); pickCategory(chip.value); }} aria-pressed={isActive}>
                         {chip.value === "ALL" ? getCopy(activeDesign, "catalogAllCategories") : chip.name}
                         {filterBarCounts && ` · ${categoryChipCounts[chip.name] ?? 0}`}
                       </button>
                     );
                   })}
                   {filterBarInStock && (
-                    <button type="button" onClick={() => setInStockOnly(!inStockOnly)} aria-pressed={inStockOnly}>
+                    <button type="button" onClick={() => { ga4FilterUse("in_stock", inStockOnly ? "off" : "on"); setInStockOnly(!inStockOnly); }} aria-pressed={inStockOnly}>
                       {getCopy(activeDesign, "filterInStock")}
                     </button>
                   )}

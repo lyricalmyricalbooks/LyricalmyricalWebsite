@@ -35,7 +35,7 @@ export function OverviewVisitors({ only, ga, books, dailyCurrent, dailyPrevious,
   if (only === "actions") {
     if (ga.status === "loading") return <LoadingState label="Reading Google Analytics…" />;
     const res = actionRows(report, dailyCurrent, dailyPrevious);
-    if (!res) return ga.status === "connected" ? <NotYet /> : <NotConnected setActiveTab={setActiveTab} />;
+    if (!res) return ga.status !== "connected" ? <NotConnected setActiveTab={setActiveTab} /> : report?.actions === null ? <NotAnswered /> : <NotYet />;
     return <Actions res={res} visitors={report ? Number(report.totals?.current?.activeUsers) || null : null}
       foot={res.source === "google" ? source : `Shop counter · ${periodLabel}${ga.status === "connected" ? "" : " · connect Google Analytics for scrolls, links and downloads"}`} full={!!full} />;
   }
@@ -47,7 +47,7 @@ export function OverviewVisitors({ only, ga, books, dailyCurrent, dailyPrevious,
     const mix = visitorMix(report);
     return mix ? <NewReturning mix={mix} foot={source} /> : <NotYet />;
   }
-  // Reports from a server older than the 4th batch have none of the new keys.
+  // Reports from a server older than the 4th batch have none of the new keys (a key Google didn't answer is null).
   if (report.pageTime === undefined) return <NeedsUpdate />;
 
   switch (only) {
@@ -58,15 +58,18 @@ export function OverviewVisitors({ only, ga, books, dailyCurrent, dailyPrevious,
       return <LivePages minutes={minutes} pages={pages} nowCount={report.activeNow ?? (minutes ? minutes[29] : null)} full={!!full} />;
     }
     case "pageTime": {
+      if (report.pageTime === null) return <NotAnswered />;
       const sort = config?.sort === "views" ? "views" : "time";
       const res = pageTimeRows(report, books, sort);
       return res ? <PageTime res={res} onSort={s => onConfig?.({ sort: s })} foot={source} full={!!full} /> : <NotYet note="Pages show here once one has at least 10 views." />;
     }
     case "visitHours": {
+      if (report.when === null) return <NotAnswered />;
       const heat = visitHeat(report);
       return heat ? <VisitHours heat={heat} foot={`${source} · hours in the Google Analytics property's time zone`} /> : <NotYet />;
     }
     case "outbound": {
+      if (report.outbound === null) return <NotAnswered />;
       const host = typeof window !== "undefined" ? window.location.hostname : "";
       const rows = outboundRows(report, [...OWN_HOSTS, host]);
       return rows ? <Outbound rows={rows} foot={source} full={!!full} /> : <NotYet />;
@@ -95,7 +98,9 @@ export function NotConnected({ setActiveTab }: { setActiveTab?: (tab: string) =>
     action={setActiveTab ? <SecondaryButton size="sm" onClick={() => setActiveTab("general")}>Open Google Analytics settings</SecondaryButton> : undefined} />;
 }
 export const NeedsUpdate = () => <EmptyState icon="⏳" title="Needs the latest server update" description="This view needs the newest Google Analytics report from the shop's server. It appears after the next server update." />;
-export const NotYet = ({ note }: { note?: string }) => <EmptyState icon="⏳" title="Not recorded yet in this period." description={note} />;
+/** A report key that is null: Google refused or didn't answer that one report this time (undefined = NeedsUpdate). */
+export const NotAnswered = () => <EmptyState icon="↻" title="Google didn't answer this report." description="Try Refresh." />;
+export const NotYet =({ note }: { note?: string }) => <EmptyState icon="⏳" title="Not recorded yet in this period." description={note} />;
 
 const more = (n: number, full: boolean, cap: number) => (!full && n > cap ? <span className="rp-vw-more">+{(n - cap).toLocaleString()} more in full view</span> : null);
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;

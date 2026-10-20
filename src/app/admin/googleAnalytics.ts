@@ -27,31 +27,48 @@ export interface Ga4Report {
   campaigns?: Row[];
   events: { current: Record<string, number>; previous: Record<string, number> };
   activeNow: number | null;
-  // Visitor widgets (19 October 2026, 4th batch + realtime). Missing on reports from an older server; a report that
-  // Google refused leaves its key missing too (the rest of the Overview still loads).
+  // Batches 4–7 below (optional): a key is missing (undefined) on a report from an older server, and null when Google
+  // refused or didn't answer that report this time (the rest of the Overview still loads; Refresh asks again).
+  // Visitor widgets (19 October 2026, 4th batch + realtime).
   /** Per page: views, people and summed engagement seconds (÷ views = time per view). */
-  pageTime?: Array<{ pagePath: string; screenPageViews: number; activeUsers: number; userEngagementDuration: number }>;
+  pageTime?: Array<{ pagePath: string; screenPageViews: number; activeUsers: number; userEngagementDuration: number }> | null;
   /** Visitors by weekday ("0" = Sunday … "6") × hour ("00"…"23"), in the GA property's time zone. */
-  when?: Array<{ dayOfWeek: string; hour: string; activeUsers: number; sessions: number }>;
+  when?: Array<{ dayOfWeek: string; hour: string; activeUsers: number; sessions: number }> | null;
   /** What visitors do (scroll, click, search…), both windows. */
-  actions?: { current: Record<string, { eventCount: number; activeUsers: number }>; previous: Record<string, { eventCount: number; activeUsers: number }> };
+  actions?: { current: Record<string, { eventCount: number; activeUsers: number }>; previous: Record<string, { eventCount: number; activeUsers: number }> } | null;
   /** scroll / add_to_cart / view_item counts per page. */
-  pageActions?: Array<{ pagePath: string; eventName: string; eventCount: number }>;
+  pageActions?: Array<{ pagePath: string; eventName: string; eventCount: number }> | null;
   /** Outbound link clicks per domain. */
-  outbound?: Array<{ linkDomain: string; eventCount: number; activeUsers: number }>;
+  outbound?: Array<{ linkDomain: string; eventCount: number; activeUsers: number }> | null;
   /** Realtime (last 30 minutes): pages open, by page title; null when that call failed. */
   realtimePages?: Array<{ unifiedScreenName: string; activeUsers: number; screenPageViews: number }> | null;
   /** Realtime: people per minute, minutesAgo 0..29 ascending, missing minutes = 0; null when that call failed. */
   realtimeMinutes?: Array<{ minutesAgo: number; activeUsers: number }> | null;
-  // How visitors move (20 October 2026, 5th batch). Missing on an older server or when Google refused that report.
+  // How visitors move (20 October 2026, 5th batch).
   /** Page views by the page they came from (full referrer URL, "" for none) and the page shown. */
-  moves?: Array<{ pageReferrer: string; pagePath: string; screenPageViews: number }>;
+  moves?: Array<{ pageReferrer: string; pagePath: string; screenPageViews: number }> | null;
   /** Visits per first page and channel: how far they went and whether they bought. */
-  landingPaths?: Array<{ landingPage: string; sessionDefaultChannelGroup: string; sessions: number; engagedSessions: number; screenPageViews: number; ecommercePurchases: number }>;
+  landingPaths?: Array<{ landingPage: string; sessionDefaultChannelGroup: string; sessions: number; engagedSessions: number; screenPageViews: number; ecommercePurchases: number }> | null;
   /** Book-card lists (Studio sections): cards seen and opened. */
-  lists?: Array<{ itemListName: string; itemsViewedInList: number; itemsClickedInList: number }>;
+  lists?: Array<{ itemListName: string; itemsViewedInList: number; itemsClickedInList: number }> | null;
   /** People per device who reached each step (session_start, view_item, add_to_cart, begin_checkout, purchase). */
-  deviceSteps?: Array<{ deviceCategory: string; eventName: string; activeUsers: number }>;
+  deviceSteps?: Array<{ deviceCategory: string; eventName: string; activeUsers: number }> | null;
+  // The shop's own events (20 October 2026). 6th batch, standard dimensions only.
+  /** How often each shop event fired (nav_click, pdp_interact, page_not_found, filter_use, view_cart, scroll_depth…). */
+  newEvents?: Array<{ eventName: string; eventCount: number }> | null;
+  /** page_not_found per address, with the page (full URL, "" for none) that sent people there. */
+  notFound?: Array<{ pagePath: string; pageReferrer: string; eventCount: number }> | null;
+  /** view_cart and begin_checkout per page. */
+  bagPeeks?: Array<{ pagePath: string; eventName: string; eventCount: number }> | null;
+  // 7th batch, the events' own parameters (custom dimensions). Google refuses a report (400) until its parameters are
+  // registered in Admin › Custom definitions: that key is null and named in `refusedReports`.
+  navClicks?: Array<{ "customEvent:menu": string; "customEvent:link_text": string; eventCount: number }> | null;
+  pdpActions?: Array<{ "customEvent:action": string; pagePath: string; eventCount: number }> | null;
+  pdpTabs?: Array<{ "customEvent:tab": string; eventCount: number }> | null;
+  filters?: Array<{ "customEvent:filter": string; "customEvent:value": string; eventCount: number }> | null;
+  scrollDepth?: Array<{ "customEvent:percent": string; pagePath: string; eventCount: number }> | null;
+  /** Report keys of batches 4–7 Google refused with a request error (400) when asked one by one. */
+  refusedReports?: string[];
 }
 export interface Ga4Answer {
   connected: boolean; code?: string; error?: string; serviceAccount?: string; propertyId?: string; enableApiUrl?: string;
