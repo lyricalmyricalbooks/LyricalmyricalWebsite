@@ -2,6 +2,7 @@ import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import { cleanMeasurementId } from "../lib/ga4";
+import { clearShared } from "./overviewShared";
 
 // Google Analytics 4 for the admin. The measurement ID ("G-…") is public (shoppers' browsers load it from
 // settings/website.analytics); the property ID lives in admin-only adminSecrets/googleAnalytics. Reports are read by
@@ -87,9 +88,9 @@ function cachedReport(range: Ga4Range, now = Date.now()): Promise<Ga4Answer> {
   if (hit && now - hit.at < REPORT_MAX_AGE_MS) return hit.p;
   const entry = { p: call({ action: "ga4Report", op: "report", range }) as Promise<Ga4Answer>, at: now };
   reports.set(key, entry);
-  // Only a connected (or "no property set") answer is kept; a failure or an error answer asks again next time.
+  // Only a connected answer is kept; "no property set", an error answer or a failure asks again next time.
   entry.p.then(
-    (answer) => { if (!(answer?.connected || answer?.code === "no_property") && reports.get(key) === entry) reports.delete(key); },
+    (answer) => { if (!answer?.connected && reports.get(key) === entry) reports.delete(key); },
     () => { if (reports.get(key) === entry) reports.delete(key); },
   );
   return entry.p;
@@ -108,6 +109,8 @@ export const googleAnalyticsApi = {
   save: async (measurementId: string, propertyId: string) => {
     await setDoc(doc(db, "settings", "website"), { analytics: { ga4MeasurementId: cleanMeasurementId(measurementId) } }, { mergeFields: ["analytics.ga4MeasurementId"] });
     await setDoc(doc(db, "adminSecrets", "googleAnalytics"), { propertyId: cleanPropertyId(propertyId), updatedAt: serverTimestamp() }, { merge: true });
+    // The Overview asks Google again for the newly saved property.
+    forgetReports(); clearShared();
   },
   status: (): Promise<Ga4Answer> => call({ action: "ga4Report", op: "status" }),
   report: (range: Ga4Range, now?: number): Promise<Ga4Answer> => cachedReport(range, now),
@@ -116,8 +119,11 @@ export const googleAnalyticsApi = {
   /** Books › Google indexing: is each page in Google's index? (up to 30 addresses on the shop's own domain) */
   searchConsoleInspect: (urls: string[]): Promise<SearchConsoleAnswer> => call({ action: "searchConsole", op: "inspect", urls }),
   /** The Search Console property to read ("sc-domain:…" or "https://…/"), in admin-only adminSecrets/googleAnalytics. */
-  saveSearchConsoleSite: (site: string) =>
-    setDoc(doc(db, "adminSecrets", "googleAnalytics"), { searchConsoleSite: String(site || "").trim(), updatedAt: serverTimestamp() }, { merge: true }),
+  saveSearchConsoleSite: async (site: string) => {
+    await setDoc(doc(db, "adminSecrets", "googleAnalytics"), { searchConsoleSite: String(site || "").trim(), updatedAt: serverTimestamp() }, { merge: true });
+    // The Overview's Search Console widgets read the newly chosen property.
+    clearShared();
+  },
   /** Overview › Start traffic counts again: deletes the shop's own daily traffic counters (never orders). */
   resetTraffic: (): Promise<{ ok: boolean; at: string; removedDays: number }> => call({ action: "resetTraffic", confirm: "RESET" }),
   /** When the shop's own counters were last reset (admin-read systemStatus/trafficReset), or null. */

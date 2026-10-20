@@ -139,7 +139,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         const shared = peekOrders();
         if (!shared || shared === seenShared.current) return null;
         seenShared.current = shared;
-        setAllOrders(a => (a.orders ? { orders: shared, error: false } : a));
+        setAllOrders(a => (a.orders ? { orders: mergeNewestPage(a.orders, shared), error: false } : a));
         setLoadedAt(new Date());
         return Promise.resolve();
       })() ?? adminApi.getOrders(50).then((page: any[]) => {

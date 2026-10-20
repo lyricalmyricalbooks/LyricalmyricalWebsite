@@ -53,6 +53,28 @@ describe("Google Analytics report memory", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
+  it("never keeps no_property, and saving settings forgets reports and shared reads", async () => {
+    const { googleAnalyticsApi, forgetReports } = await import("./googleAnalytics");
+    forgetReports(); fetchMock.mockReset();
+    fetchMock.mockResolvedValue(answer({ connected: false, code: "no_property" }));
+    await googleAnalyticsApi.report(range, 0);
+    await new Promise(r => setTimeout(r, 0));
+    await googleAnalyticsApi.report(range, 1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    fetchMock.mockResolvedValue(answer({ connected: true }));
+    await googleAnalyticsApi.report(range, 2);
+    await googleAnalyticsApi.report(range, 3);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    let n = 0;
+    await sharedLoad("sc", () => Promise.resolve(++n), false, 3);
+    await googleAnalyticsApi.save("G-ABC123", "123");
+    await googleAnalyticsApi.report(range, 4);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(await sharedLoad("sc", () => Promise.resolve(++n), false, 4)).toBe(2);
+    await googleAnalyticsApi.saveSearchConsoleSite("sc-domain:x.com");
+    expect(await sharedLoad("sc", () => Promise.resolve(++n), false, 5)).toBe(3);
+  });
+
   it("does not keep an error answer or a failed call", async () => {
     const { googleAnalyticsApi, forgetReports } = await import("./googleAnalytics");
     forgetReports(); fetchMock.mockReset();
