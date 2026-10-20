@@ -4,8 +4,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { StaticRouter } from "react-router";
 import { autoFitSection } from "../admin/studio/autoMobile";
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 
 const { SectionList } = await import("./sectionRender");
 

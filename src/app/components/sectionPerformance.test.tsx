@@ -6,8 +6,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 // Phase 4: (1) sections lower on the page are drawn only when shoppers scroll near them (CSS content-visibility),
 // never in the Studio preview or in the every-page groups; (2) no section renders an oversized DOM.
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 
 const { StaticRouter } = await import("react-router");
 const { CurrencyProvider } = await import("../CurrencyContext");

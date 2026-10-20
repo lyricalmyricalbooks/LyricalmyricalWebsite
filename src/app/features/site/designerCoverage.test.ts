@@ -7,8 +7,6 @@ import { join, relative } from "node:path";
 // storeCopy.coverage.test.ts (shopper-facing words), studioTargets.test.ts (click-to-edit),
 // admin/studio/themeLibrary.test.ts (theme presets).
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 
 const APP = join(__dirname, "..", "..");
 // Files whose job is to *define* default token values (every one is a Studio › Style control).

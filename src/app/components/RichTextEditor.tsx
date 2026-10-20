@@ -1,6 +1,5 @@
 import React, { useState, useRef, useMemo } from "react";
-import ReactQuill from "react-quill";
-import "react-quill/dist/quill.snow.css";
+import { QuillEditor, type QuillEditorHandle } from "./QuillEditor";
 import { adminApi } from "../admin/api";
 import {
   Bold,
@@ -40,7 +39,10 @@ export default function RichTextEditor({
   const [showHtml, setShowHtml] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [uploadError, setUploadError] = useState("");
-  const quillRef = useRef<ReactQuill>(null);
+  const quillRef = useRef<QuillEditorHandle>(null);
+  // The editor reads its modules once, so the upload handlers reach the latest uploader through a ref.
+  const uploadFileRef = useRef(uploadFile);
+  uploadFileRef.current = uploadFile;
 
   // Generate a unique toolbar ID to prevent collisions when multiple editors render on a single page
   const toolbarId = useMemo(
@@ -48,53 +50,55 @@ export default function RichTextEditor({
     []
   );
 
-  // Custom Image Upload Handler
-  const handleImageUpload = () => {
-    const input = document.createElement("input");
-    input.setAttribute("type", "file");
-    input.setAttribute("accept", "image/*");
-    input.click();
-
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      setUploadError("");
-
+  /** Uploads pictures to Storage and places them at `index` (or the cursor) — never as data: text. */
+  const placePictures = async (files: File[], index?: number) => {
+    setUploadError("");
+    for (const file of files) {
       try {
-        const uploadFn = uploadFile || adminApi.uploadFile;
+        const uploadFn = uploadFileRef.current || adminApi.uploadFile;
         // `assets/` is the admin-writable Storage folder (storage.rules).
         const path = `assets/editor/${Date.now()}_${file.name.replace(/[^\w.-]+/g, "-")}`;
         const url = await uploadFn(file, path);
 
         const quill = quillRef.current?.getEditor();
         if (quill) {
-          const range = quill.getSelection(true);
-          quill.insertEmbed(range.index, "image", url);
+          const at = index ?? quill.getSelection(true)?.index ?? Math.max(0, quill.getLength() - 1);
+          quill.insertEmbed(at, "image", url, "user");
+          index = at + 1;
         }
       } catch (error) {
         console.error("Quill image upload failed:", error);
         setUploadError("The picture couldn't be uploaded. Check your connection and try again.");
       }
-    };
+    }
   };
+  const placeRef = useRef(placePictures);
+  placeRef.current = placePictures;
 
-  // Quill Editor Configuration
+  // Quill Editor Configuration (read once, when the editor mounts)
   const modules = useMemo(
     () => ({
       toolbar: {
         container: `#${toolbarId}`,
         handlers: {
-          image: handleImageUpload,
+          image: () => {
+            const input = document.createElement("input");
+            input.setAttribute("type", "file");
+            input.setAttribute("accept", "image/*");
+            input.onchange = () => { const file = input.files?.[0]; if (file) placeRef.current([file]); };
+            input.click();
+          },
         },
       },
-      clipboard: {
-        matchVisual: false,
+      // Pasted or dropped picture files are uploaded too, instead of Quill 2's inline data: pictures.
+      uploader: {
+        handler: (range: { index: number } | null, files: File[]) => placeRef.current(Array.from(files), range?.index),
       },
     }),
-    [toolbarId, uploadFile]
+    [toolbarId]
   );
 
-  const formats = [
+  const formats = useMemo(() => [
     "header",
     "bold",
     "italic",
@@ -104,13 +108,12 @@ export default function RichTextEditor({
     "background",
     "align",
     "list",
-    "bullet",
     "link",
     "image",
     "video",
     "blockquote",
     "code-block",
-  ];
+  ], []);
 
   return (
     <div
@@ -258,7 +261,7 @@ export default function RichTextEditor({
 
       {/* Editor Content Area */}
       <div className="relative min-h-[180px] bg-white dark:bg-neutral-950">
-        {showHtml ? (
+        {showHtml && (
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
@@ -267,9 +270,10 @@ export default function RichTextEditor({
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
           />
-        ) : (
-          <div className="[&_.ql-container]:!border-0 [&_.ql-editor]:min-h-[220px] [&_.ql-editor]:text-xs [&_.ql-editor]:leading-relaxed dark:text-neutral-100">
-            <ReactQuill
+        )}
+        {/* Stays mounted while the HTML box is open: a remount would wire the toolbar's buttons a second time. */}
+        <div hidden={showHtml} className="[&_.ql-container]:!border-0 [&_.ql-editor]:min-h-[220px] [&_.ql-editor]:text-xs [&_.ql-editor]:leading-relaxed dark:text-neutral-100">
+            <QuillEditor
               ref={quillRef}
               theme="snow"
               value={value || ""}
@@ -280,8 +284,7 @@ export default function RichTextEditor({
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
             />
-          </div>
-        )}
+        </div>
       </div>
       {uploadError && <p role="alert" className="px-4 py-2 text-[11px] font-bold text-red-700 bg-red-50 border-t border-red-200">{uploadError}</p>}
     </div>

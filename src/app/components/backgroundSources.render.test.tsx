@@ -5,8 +5,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 // Phase 7: a section background picked from the Media library loads a screen-sized copy on phones and tablets;
 // a plain picture renders exactly as it always did.
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 
 const { StaticRouter } = await import("react-router");
 const { CurrencyProvider } = await import("../CurrencyContext");

@@ -5,8 +5,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 // Studio media library (2.4): pictures chosen from the library get srcset/sizes/width/height and lazy
 // loading; every other image (typed URLs, older uploads, existing designs) renders the same <img> as before.
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 
 const { StaticRouter } = await import("react-router");
 const { CurrencyProvider } = await import("../CurrencyContext");

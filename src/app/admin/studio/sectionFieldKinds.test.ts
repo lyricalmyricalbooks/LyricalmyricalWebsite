@@ -4,8 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 // whose key says it holds one of those must use the matching picker kind, so a new "…Url" field
 // can't quietly ship as a bare text box. Images keep their own `image` kind (upload + style).
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 const { SECTION_REGISTRY, getSectionFields, getBlockFields } = await import("../ThemeEditorExtensions");
 const { PICKER_KINDS } = await import("./StudioPickers");
 

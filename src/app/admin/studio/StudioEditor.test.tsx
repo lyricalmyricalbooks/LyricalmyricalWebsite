@@ -3,8 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement as h, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
-vi.mock("react-quill", () => ({ default: () => null }));
-vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 vi.mock("firebase/firestore", () => new Proxy({}, { get: (_t, name) => name === "then" ? undefined : vi.fn() }));
 vi.mock("firebase/auth", () => ({ signInWithPopup: vi.fn(), signOut: vi.fn(), onAuthStateChanged: vi.fn(), GoogleAuthProvider: class {}, signInWithCredential: vi.fn() }));
 vi.mock("firebase/storage", () => ({ ref: vi.fn(), uploadBytes: vi.fn(), getDownloadURL: vi.fn(), getStorage: vi.fn() }));
