@@ -151,12 +151,12 @@ export function SearchOverlay({
                   }
                 }}
                 placeholder={c("searchPlaceholder")}
-                className="flex-1 bg-transparent outline-none text-sm text-white placeholder:text-[var(--muted)]"
+                className="flex-1 min-w-0 max-md:py-3 max-md:-my-3 bg-transparent outline-none text-sm text-white placeholder:text-[var(--muted)]"
               />
               <button {...regionProps("searchClose")}
                 onClick={onClose}
                 aria-label={c("searchCloseAria")}
-                className="p-1.5 rounded-full hover:bg-white/10 text-white/50 hover:text-white"
+                className="relative p-1.5 max-md:before:absolute max-md:before:-inset-2 max-md:before:content-[''] rounded-full hover:bg-white/10 text-white/50 hover:text-white"
               >
                 <X size={14} />
               </button>
