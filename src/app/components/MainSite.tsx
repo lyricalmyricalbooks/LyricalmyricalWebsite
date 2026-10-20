@@ -82,12 +82,12 @@ function SkeletonImage({ src, srcSet, sizes, alt, className, style, frameStyle, 
       <img
         ref={imgRef}
         data-fm-fade
+        // The first row is on screen at once: fetch it straight away (the first photos first).
+        loading={priority ? "eager" : "lazy"}
         src={src}
         srcSet={srcSet}
         sizes={sizes}
         alt={alt}
-        // The first row is on screen at once: fetch it straight away (the first photos first).
-        loading={priority ? "eager" : "lazy"}
         fetchPriority={priority === "high" ? "high" : undefined}
         decoding="async"
         className={`${className} transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
@@ -836,7 +836,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               >
                 {activeCategory.imageUrl && (
                   <div {...regionProps("categoryBannerImage")} className="aspect-[21/9] w-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
-                    <img src={activeCategory.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={activeCategory.name} />
+                    <img loading="lazy" src={activeCategory.imageUrl} decoding="async" className="w-full h-full object-cover" alt={activeCategory.name} />
                   </div>
                 )}
                 <div className="max-w-3xl">

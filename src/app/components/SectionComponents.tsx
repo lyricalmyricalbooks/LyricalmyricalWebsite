@@ -1196,7 +1196,7 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
               className={`aspect-[3/4] overflow-hidden rounded-2xl bg-white/5 ${hoverEffectClassName(settings.hoverEffect)}`}
               style={hoverEffectGlowStyle(settings.hoverEffect, settings.accentColor)}
             >
-              {photo ? <><PhotoToneDefs photo={target.photos?.[0]} /><img src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} loading="lazy" decoding="async" className="w-full h-full object-cover" style={framingStyle(target.photos?.[0])} alt={target.title} /></> : null}
+              {photo ? <><PhotoToneDefs photo={target.photos?.[0]} /><img loading="lazy" src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} decoding="async" className="w-full h-full object-cover" style={framingStyle(target.photos?.[0])} alt={target.title} /></> : null}
             </div>
             <div className="space-y-5">
               <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow ?? fb("FeaturedProductSection.eyebrow")}</p>
@@ -2688,7 +2688,7 @@ export function FeaturedCollectionSection({ settings, books, onProductClick, ena
                 onKeyDown={(e: any) => { if (e.target !== e.currentTarget) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onProductClick?.(book); } }}
               >
                 <div className="fm-photo-frame relative overflow-hidden bg-white/5" style={{ aspectRatio: "3 / 4" }}>
-                  {book.photos?.[0]?.url && <><PhotoToneDefs photo={book.photos[0]} /><img src={book.photos[0].url} {...photoSrcSet(book.photos[0], gridPhotoSizes([{ from: 0, cols: mobileCols }, { from: 768, cols }], { photo: book.photos[0], frame: "3 / 4" }))} alt={book.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"  style={framingStyle(book.photos[0])} /></>}
+                  {book.photos?.[0]?.url && <><PhotoToneDefs photo={book.photos[0]} /><img loading="lazy" src={book.photos[0].url} {...photoSrcSet(book.photos[0], gridPhotoSizes([{ from: 0, cols: mobileCols }, { from: 768, cols }], { photo: book.photos[0], frame: "3 / 4" }))} alt={book.title} decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"  style={framingStyle(book.photos[0])} /></>}
                 </div>
                 <h3 className="fm-card-title mt-3 text-[15px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
                 {settings.showPrices !== false && (
@@ -2722,7 +2722,7 @@ export function BookSpotlightSection({ settings, books, onProductClick, enableAn
         <AnimationContainer enabled={enableAnimations}>
           <div className="fm-card grid md:grid-cols-2 gap-10 items-center">
             <div className={`fm-photo-frame aspect-[3/4] overflow-hidden bg-white/5 ${coverRight ? "md:order-2" : ""}`}>
-              {photo ? <><PhotoToneDefs photo={target.photos?.[0]} /><img src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} loading="lazy" decoding="async" className="w-full h-full object-cover" style={framingStyle(target.photos?.[0])} alt={target.title} /></> : null}
+              {photo ? <><PhotoToneDefs photo={target.photos?.[0]} /><img loading="lazy" src={photo} {...photoSrcSet(target.photos?.[0], FEATURE_PHOTO_SIZES)} decoding="async" className="w-full h-full object-cover" style={framingStyle(target.photos?.[0])} alt={target.title} /></> : null}
             </div>
             <div className="space-y-5">
               {eyebrow && <p className="text-[10px] font-bold tracking-[0.3em] uppercase" style={{ color: settings.accentColor || "var(--accent, #e8402a)" }} data-theme-field="eyebrow">{eyebrow}</p>}
@@ -2920,7 +2920,7 @@ export function StickyAddToBagSection({ settings }: any) {
         aria-hidden={!show || undefined}
       >
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center gap-3" data-studio-spacing="" style={spacingStyle(settings)}>
-          {photo && <img src={photo} alt="" className="h-12 w-9 object-cover" loading="lazy" decoding="async" />}
+          {photo && <img loading="lazy" src={photo} alt="" className="h-12 w-9 object-cover" decoding="async" />}
           <div className="min-w-0 flex-1">
             <p className="fm-card-title truncate text-sm font-bold" style={hStyle(settings)}>{book.title}</p>
             {settings.showPrice !== false && <p className="fm-card-price-wrap text-xs fm-muted"><span className="fm-card-price">{formatBookPrice(book)}</span></p>}
