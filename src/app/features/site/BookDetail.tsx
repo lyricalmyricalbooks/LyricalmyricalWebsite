@@ -1367,8 +1367,10 @@ export default function BookDetail() {
                               loading={Math.abs(i - carouselIndex) <= 1 ? "eager" : "lazy"}
                               {...(i === 0 ? { fetchpriority: "high" } : {})}
                               // Books › edit › Images › Crop & edit: placement and quick edits as style, the zoom and
-                              // flip as motion values (motion owns `transform`), so the hover zoom grows from the cropped size.
+                              // flip as motion values (motion owns `transform`), so the hover zoom grows from the cropped size;
+                              // a straightened photo's turn goes in front through transformTemplate.
                               style={framed.style}
+                              transformTemplate={framed.transformTemplate}
                               whileHover={framed.hover}
                               transition={{ duration: 0.45 }}
                               // A photo already in the browser cache (or loaded before the page woke up) never
