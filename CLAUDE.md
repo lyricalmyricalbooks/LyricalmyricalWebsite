@@ -984,6 +984,12 @@ it. Don't add new compat rules for new work; compose the components instead.
 
 - **CI** (`.github/workflows/ci.yml`) runs `pnpm test`, `pnpm run typecheck`, `vite build`, the Studio browser
   checks (`pnpm run test:studio`) and the Studio control check (`pnpm run test:studio-controls`) on every PR.
+  **Faster checks (20 October 2026):** the two Studio suites (~15 min each on one machine) run split across machines
+  (`STUDIO_SHARD=k/3` in `studio-e2e.mjs`: every third check; `AUDIT_SHARD=k/4` in `studio-control-audit.mjs`: every
+  fourth control, section fields one device per shard), and jobs `studio-browser` / `studio-controls` report the shards
+  under the old check names. They run on pull requests only (a push to main runs `test`), and a PR touching only
+  `functions/`, `docs/`, release notes, rules or root `*.md` passes them at once (`changes` job). Every check must stay
+  independent (its own page); a new check is placed on a shard by its position, so nothing to update.
 - **Studio fixture:** `pnpm dev` then open `/studio-fixture.html` — the real Studio with in-memory data
   (`studio/fixture/fakeStudioApi.ts`; writes are recorded in `window.__studioFixture.calls`, nothing reaches
   Firestore). `pnpm run test:studio` drives it in Chromium (`CHROMIUM_PATH` to reuse an installed browser,

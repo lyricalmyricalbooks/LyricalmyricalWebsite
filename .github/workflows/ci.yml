@@ -2,7 +2,9 @@ name: CI
 
 # Runs the full test suite, a production bundle build and the type-check ratchet on
 # every pull request and on main, so contract tests (Studio coverage, section parity,
-# copy coverage…) actually guard changes before they ship.
+# copy coverage…) actually guard changes before they ship. The two Studio browser checks
+# (about 15 minutes each on one machine) run on pull requests only, split across several
+# machines; a merge to main already passed them on its pull request.
 on:
   pull_request:
   push:
@@ -19,6 +21,31 @@ env:
   FIREBASE_TOOLS_VERSION: 15.32.1
 
 jobs:
+  # Pull requests that change only the Cloud Functions, rules or docs can't change what Studio draws, so the
+  # Studio browser checks pass at once for them (their tests still run in the test job).
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      studio: ${{ steps.files.outputs.studio }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          echo "$changed"
+          # Anything outside this list (or a diff git can't produce) runs the Studio checks.
+          if [ -n "$changed" ] && ! echo "$changed" | grep -qvE '^(functions/|docs/|src/app/admin/updates/|firestore\.rules$|firestore\.indexes\.json$|storage\.rules$|[^/]+\.md$)'; then
+            echo "studio=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "studio=true" >> "$GITHUB_OUTPUT"
+          fi
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -61,10 +88,18 @@ jobs:
       - name: Firebase Hosting routing check
         run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-lyricalmyrical "node scripts/hosting-smoke.mjs"
 
-  studio-browser:
+  studio-browser-shard:
     # Drives the real Design studio in Chromium against the local fixture (studio-fixture.html):
-    # in-memory data, no sign-in, nothing written to Firestore.
+    # in-memory data, no sign-in, nothing written to Firestore. Each machine runs every third check.
+    name: studio-browser ${{ matrix.shard }}/3
+    needs: changes
+    if: needs.changes.outputs.studio == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
 
@@ -85,20 +120,28 @@ jobs:
         run: pnpm run test:studio
         env:
           STUDIO_SHOTS: studio-shots
+          STUDIO_SHARD: ${{ matrix.shard }}/3
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: studio-screenshots
+          name: studio-screenshots-${{ matrix.shard }}
           path: studio-shots
           if-no-files-found: ignore
 
-  studio-controls:
+  studio-controls-shard:
     # Changes every Studio control in the fixture's preview of the live design and fails when one that used to
     # change the page no longer does, or a new control has no entry in scripts/studio-control-baseline.json
-    # (CLAUDE.md › Studio controls must reach the shop).
+    # (CLAUDE.md › Studio controls must reach the shop). Each machine checks every fourth control.
+    name: studio-controls ${{ matrix.shard }}/4
+    needs: changes
+    if: needs.changes.outputs.studio == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
 
@@ -119,11 +162,40 @@ jobs:
         run: node scripts/studio-control-audit.mjs
         env:
           AUDIT_CHECK: "1"
-          AUDIT_OUT: studio-control-audit.json
+          AUDIT_OUT: studio-control-audit-${{ matrix.shard }}.json
+          AUDIT_SHARD: ${{ matrix.shard }}/4
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: studio-control-audit
-          path: studio-control-audit.json
+          name: studio-control-audit-${{ matrix.shard }}
+          path: studio-control-audit-${{ matrix.shard }}.json
           if-no-files-found: ignore
+
+  # One check per suite under its old name ("studio-browser", "studio-controls"): green only when every shard passed,
+  # or when the pull request changes nothing Studio draws.
+  studio-browser:
+    needs: [changes, studio-browser-shard]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every shard passed
+        env:
+          STUDIO: ${{ needs.changes.outputs.studio }}
+          RESULT: ${{ needs.studio-browser-shard.result }}
+        run: |
+          if [ "$STUDIO" = "false" ]; then echo "Only functions, rules or docs changed: nothing for Studio to check."; exit 0; fi
+          echo "Studio browser shards: $RESULT"; [ "$RESULT" = "success" ]
+
+  studio-controls:
+    needs: [changes, studio-controls-shard]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every shard passed
+        env:
+          STUDIO: ${{ needs.changes.outputs.studio }}
+          RESULT: ${{ needs.studio-controls-shard.result }}
+        run: |
+          if [ "$STUDIO" = "false" ]; then echo "Only functions, rules or docs changed: nothing for Studio to check."; exit 0; fi
+          echo "Studio control shards: $RESULT"; [ "$RESULT" = "success" ]

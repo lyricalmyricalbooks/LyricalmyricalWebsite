@@ -10,6 +10,8 @@
 //   AUDIT_CHECK=1                                         (CI: compare with scripts/studio-control-baseline.json and
 //                                                          fail when a control that worked stops, or a new one isn't listed)
 //   AUDIT_UPDATE=1                                        (rewrite the baseline from this run, keeping its reasons)
+//   AUDIT_SHARD=2/4                                       (CI: this machine's share of the controls; each shard opens its
+//                                                          own Studio, and every control and section device is in exactly one)
 // Results: "visible" (something on the page moved or changed colour), "css-only" (the page's
 // CSS changed but nothing drawn did: a hover/focus state, or a rule another rule beats),
 // "dom-only" (markup changed, nothing drawn), "none" (nothing at all happened).
@@ -35,6 +37,9 @@ if (!base) {
 }
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const only = (process.env.AUDIT_ONLY || "").split(",").filter(Boolean);
+const [shardNo, shardCount] = (process.env.AUDIT_SHARD || "1/1").split("/").map(Number);
+if (!(shardCount >= 1 && shardNo >= 1 && shardNo <= shardCount)) throw new Error(`AUDIT_SHARD must look like 2/4, not ${process.env.AUDIT_SHARD}`);
+const inShard = (i) => i % shardCount === shardNo - 1;
 
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, reducedMotion: "reduce" });
 page.on("pageerror", e => console.warn("[studio error]", e.message));
@@ -220,7 +225,8 @@ const sectionId = (type, key, device) => `section:${type}:${key}@${device}`;
 // their desktop text/box controls; whether each region is on its page is a separate check.
 const REGION_SAMPLE = /(?:Padding|Background|Color|Size|LineHeight|LetterSpacing|Visible)$/;
 const todo = fields.filter(f => (!only.length || only.includes(f.group))
-  && (!f.key.startsWith("regions.") || (process.env.AUDIT_REGIONS && !/Mobile|Tablet/.test(f.key) && REGION_SAMPLE.test(f.key))));
+  && (!f.key.startsWith("regions.") || (process.env.AUDIT_REGIONS && !/Mobile|Tablet/.test(f.key) && REGION_SAMPLE.test(f.key))))
+  .filter((_, i) => inShard(i));
 console.log(`Auditing ${todo.length} Theme settings controls and ${sectionFields.length} section fields`);
 const t0 = Date.now();
 for (const [i, f] of todo.entries()) {
@@ -269,7 +275,9 @@ if (!only.length || only.includes("sections")) {
   }, TYPES);
   const sections = registry.map((r, i) => ({ id: "audit-" + i, type: r.type, settings: JSON.parse(JSON.stringify(r.defaults)) }));
   const rank = { none: 0, "dom-only": 1, "css-only": 2, visible: 3 };
-  for (const dev of ["desktop", "tablet", "mobile"]) {
+  // Section fields go one device per shard, counting from the last shard (the first ones also take the leftover controls).
+  for (const [d, dev] of ["desktop", "tablet", "mobile"].entries()) {
+    if (!inShard(shardCount - 1 - d % shardCount)) continue;
     const list = sectionFields.filter(f => f.kind !== "date" && f.key !== "customClass"
       && (/^mobile/.test(f.key) || f.key === "hideOnMobile" ? "mobile" : f.key === "hideOnTablet" ? "tablet" : "desktop") === dev);
     if (!list.length) continue;
