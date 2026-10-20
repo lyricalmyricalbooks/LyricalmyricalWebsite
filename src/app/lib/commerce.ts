@@ -334,6 +334,8 @@ function queueCounters(day: string, counts: Record<string, Record<string, number
       for (const [key, n] of Object.entries(keys)) { left++; queue.push({ day, field, key, n, done }); }
     }
     if (!left) { resolve(); return; }
+    // Start loading Firestore Lite now, so a flush on leaving the page doesn't wait on the import.
+    void lite().catch(() => { /* retried at flush */ });
     if (!flushOnHideInstalled && typeof window !== "undefined" && typeof window.addEventListener === "function") {
       flushOnHideInstalled = true;
       // Leaving or hiding the page sends what is waiting at once, so a quick exit doesn't lose the count.
