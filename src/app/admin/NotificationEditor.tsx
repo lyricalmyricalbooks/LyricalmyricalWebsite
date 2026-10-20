@@ -13,9 +13,12 @@ import { resendKeyProblem } from "./privateKeys";
 import { senderOf, senderProblems, withSender, type Sender } from "./senderSettings";
 import { emailFunction, lastGmailProblem } from "./notificationApi";
 import { plainError } from "./plainError";
+import { useSubTab } from "./settingsLayout";
 import {
-  DataTable, ErrorState, GhostButton, PrimaryButton, LoadingState, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm,
+  DataTable, ErrorState, GhostButton, PrimaryButton, LoadingState, SaveBar, SectionCard, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
+
+type EmailView = "email-templates" | "email-setup" | "email-deliveries";
 
 type EmailLogEntry = {
   id: string;
@@ -219,7 +222,12 @@ function compilePreviewHtml(templateId: TemplateKey, data: NotificationSettings,
   `, { logoUrl: brand.logoUrl || "", accent: brandColor, theme: brand.emailTheme });
 }
 
-export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
+export function NotificationEditor({ focus, subTab, onSubTabChange }: {
+  focus?: "sender";
+  /** The open sub tab when the Dashboard keeps it in the address bar (`#settings/notifications/deliveries`). */
+  subTab?: string;
+  onSubTabChange?: (id: string | undefined) => void;
+} = {}) {
   const [data, setData] = useState<NotificationSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   // The saved templates could not be read: showing defaults and saving them would overwrite everything.
@@ -236,6 +244,8 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
   const [senderError, setSenderError] = useState("");
   const [savingSender, setSavingSender] = useState(false);
   const [group, setGroup] = useState<string>("orders");
+  // The old Email sender address (focus "sender") opens on the tab holding the sender card.
+  const [view, setView] = useSubTab<EmailView>(focus === "sender" ? "email-setup" : "email-templates", subTab, onSubTabChange);
   // "Preview with a real order": recent orders loaded on demand, filled in the browser only.
   const [recentOrders, setRecentOrders] = useState<any[] | null>(null);
   const [previewOrderId, setPreviewOrderId] = useState("");
@@ -582,14 +592,18 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
   }
   const resendStored = !!(data.brand?.resendApiKey || data.brand?.resendApiKeyStored);
 
-  const jumpTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Sub tabs: Emails (templates and shop alerts), Sending setup, Deliveries. All stay mounted, so one Save bar covers
+  // template and branding edits whichever tab they were made on.
+  const savedData = (() => { try { return JSON.parse(original); } catch { return {}; } })();
+  const brandDirty = JSON.stringify(data.brand || {}) !== JSON.stringify(savedData.brand || {});
+  const templatesDirty = JSON.stringify({ ...data, brand: null }) !== JSON.stringify({ ...savedData, brand: null });
   const waitingCount = queue.filter((q) => q.status === "pending").length;
   const gaveUpCount = queue.length - waitingCount;
   const pausedCount = TEMPLATE_IDS.filter((id) => (id === "review_request" ? data[id]?.enabled !== true : data[id]?.enabled === false)).length;
 
   return (
     <div className="rp-stack">
-      {/* At a glance: what needs the owner, plus quick jumps down this long page. */}
+      {/* At a glance: what needs the owner, whichever sub tab is open. */}
       <nav aria-label="Email sender at a glance" className="rp-card" style={{ padding: "12px 16px", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", boxShadow: "none" }}>
         {queueError ? <StatusBadge tone="warning">Couldn't check the send queue</StatusBadge>
           : queue.length ? <StatusBadge tone={gaveUpCount ? "danger" : "warning"}>{gaveUpCount ? `${gaveUpCount} email${gaveUpCount === 1 ? "" : "s"} not sent` : `${waitingCount} email${waitingCount === 1 ? "" : "s"} waiting to send`}</StatusBadge>
@@ -599,34 +613,21 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
           : <StatusBadge tone="success">Recent emails delivered</StatusBadge>)}
         {Object.keys(allProblems).length > 0 && <StatusBadge tone="warning">{Object.keys(allProblems).length} template{Object.keys(allProblems).length === 1 ? "" : "s"} to check</StatusBadge>}
         {pausedCount > 0 && <StatusBadge tone="neutral">{pausedCount} customer email{pausedCount === 1 ? "" : "s"} paused</StatusBadge>}
-        <span style={{ flex: "1 1 auto" }} />
-        <span style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-          {queue.length > 0 && <GhostButton size="sm" onClick={() => jumpTo("email-waiting")}>Waiting to send</GhostButton>}
-          <GhostButton size="sm" onClick={() => jumpTo("email-setup")}>Sending setup</GhostButton>
-          <GhostButton size="sm" onClick={() => { if (group === "shopAlerts") pickGroup("orders"); jumpTo("email-templates"); }}>Customer emails</GhostButton>
-          <GhostButton size="sm" onClick={() => { pickGroup("shopAlerts"); jumpTo("email-templates"); }}>Shop alerts</GhostButton>
-          <GhostButton size="sm" onClick={() => { if (attentionCount) setDeliveryFilter("attention"); jumpTo("email-deliveries"); }}>Recent deliveries</GhostButton>
-        </span>
+        {(queue.length > 0 || attentionCount > 0) && <>
+          <span style={{ flex: "1 1 auto" }} />
+          <GhostButton size="sm" onClick={() => { if (attentionCount) setDeliveryFilter("attention"); setView("email-deliveries"); }}>Show deliveries</GhostButton>
+        </>}
       </nav>
 
-      {queueError && queue.length === 0 && (
-        <SectionCard title="Waiting to send" collapsible={false}>
-          <ErrorState title="Couldn't check for emails waiting to send" description="Some emails may be waiting to be tried again. Recent deliveries below still lists every attempt." onRetry={() => { void loadQueue(); }} />
-        </SectionCard>
-      )}
-      {queue.length > 0 && (
-        <div id="email-waiting" style={{ scrollMarginTop: 16 }}>
-        <SectionCard title="Waiting to send" collapsible={false} description={`Every sender refused these emails, so they are kept and tried again automatically (up to ${MAX_TRIES} tries over about a day). Fix the sending setup below, then choose Retry now.`}
-          actions={<SecondaryButton size="sm" onClick={loadQueue}>Refresh</SecondaryButton>} flush>
-          <RowsOrCards narrow={narrow} caption="Emails waiting to be sent again" rows={queue} rowKey={(r) => r.id}
-            rowState={(r) => (r.status === "failed" ? "failed" : undefined)} columns={queueColumns} />
-        </SectionCard>
-        </div>
-      )}
+      <Tabs<EmailView> label="Email sender" value={view} onChange={setView} tabs={[
+        { id: "email-templates", label: "Emails", unsaved: templatesDirty, ...(Object.keys(allProblems).length ? { count: Object.keys(allProblems).length } : {}) },
+        { id: "email-setup", label: "Sending setup", unsaved: brandDirty || senderDirty },
+        { id: "email-deliveries", label: "Deliveries", ...(queue.length + attentionCount ? { count: queue.length + attentionCount } : {}) },
+      ]} />
 
-      <div id="email-setup" style={{ scrollMarginTop: 16 }}>
-        <SectionHead kicker="Setup" title="Sending setup" subcopy="How shop emails leave your account, who they come from and how they look. Set once, then rarely touched." />
-      </div>
+      <TabPanel tabId="email-setup" active={view === "email-setup"}>
+      <div className="rp-stack">
+      <p className="rp-page-desc" style={{ margin: 0 }}>How shop emails leave your account, who they come from and how they look. Set once, then rarely touched.</p>
       <GmailSendingCard lastProblem={lastGmailProblem(deliveries || [])} />
 
       <div id="email-sender" style={{ scrollMarginTop: 16 }} />
@@ -694,8 +695,13 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
         </details>
       </SectionCard>
 
-      <div id="email-templates" style={{ scrollMarginTop: 16 }}>
-        <SectionHead kicker="Templates" title="Customer & admin emails" subcopy="Pick an event, edit its words and check the live preview. Shop alerts are the emails sent to you." />
+      </div>
+      </TabPanel>
+
+      <TabPanel tabId="email-templates" active={view === "email-templates"}>
+      <div className="rp-stack">
+      <div>
+        <p className="rp-page-desc" style={{ margin: "0 0 12px" }}>Pick an event, edit its words and check the live preview. Shop alerts are the emails sent to you.</p>
         <Tabs label="Event group" value={group} onChange={pickGroup}
           tabs={GROUP_IDS.map((g) => ({ id: g, label: `${GROUP_LABELS[g] || (g === "shopAlerts" ? "Shop alerts" : g)}${groupProblemCount(g) ? " ⚠" : ""}`, ...(groupProblemCount(g) ? { count: groupProblemCount(g) } : {}) }))} />
         {group !== "shopAlerts" && groupTabs.length > 1 && (
@@ -809,7 +815,26 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
       </div>
       )}
 
-      <div id="email-deliveries" style={{ scrollMarginTop: 16 }} />
+      </div>
+      </TabPanel>
+
+      <TabPanel tabId="email-deliveries" active={view === "email-deliveries"}>
+      <div className="rp-stack">
+      {queueError && queue.length === 0 && (
+        <SectionCard title="Waiting to send" collapsible={false}>
+          <ErrorState title="Couldn't check for emails waiting to send" description="Some emails may be waiting to be tried again. Recent deliveries below still lists every attempt." onRetry={() => { void loadQueue(); }} />
+        </SectionCard>
+      )}
+      {queue.length > 0 && (
+        <div id="email-waiting" style={{ scrollMarginTop: 16 }}>
+        <SectionCard title="Waiting to send" collapsible={false} description={`Every sender refused these emails, so they are kept and tried again automatically (up to ${MAX_TRIES} tries over about a day). Fix the problem on the Sending setup tab, then choose Retry now.`}
+          actions={<SecondaryButton size="sm" onClick={loadQueue}>Refresh</SecondaryButton>} flush>
+          <RowsOrCards narrow={narrow} caption="Emails waiting to be sent again" rows={queue} rowKey={(r) => r.id}
+            rowState={(r) => (r.status === "failed" ? "failed" : undefined)} columns={queueColumns} />
+        </SectionCard>
+        </div>
+      )}
+
       <SectionCard title="Recent deliveries" description="Every email the shop tried to send in the last 90 days, newest first. A failed row says what to fix."
         actions={<GhostButton onClick={() => { loadDeliveries(); loadQueue(); }}>Refresh</GhostButton>} flush>
         <div style={{ padding: "12px 16px 0" }}>
@@ -826,6 +851,8 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
           </div>
         )}
       </SectionCard>
+      </div>
+      </TabPanel>
 
       <SaveBar dirty={dirty} saving={saving} onSave={handleSave}
         onDiscard={() => { setData(JSON.parse(original)); setResendDraft(""); }}

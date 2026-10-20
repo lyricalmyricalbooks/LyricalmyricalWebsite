@@ -2,14 +2,15 @@
 //
 // The storefront reads its books, settings and pages from a file the site build saves on Hosting
 // (scripts/storefrontDataFile.mjs) instead of Firestore, but only while this marker is not newer than the file's
-// Firestore snapshot (features/site/storefrontDataFile.ts). Every write to books/{id}, pages/{id} or settings/website
-// sets `changedAt` to the server time of the marker write. That runs after the change committed, so it is always at
+// Firestore snapshot (features/site/storefrontDataFile.ts). Every write to books/{id}, pages/{id}, settings/website or
+// shipping-profiles/{id} sets `changedAt` to the server time of the marker write. That runs after the change committed, so it is always at
 // or after the change, and later marker writes always carry later times, so no transaction is needed (many book
 // writes at once never contend). After any change shoppers read Firestore until the next build replaces the file.
 //
 // The triggers can't use the platform's retry setting (deploying it needs `firebase deploy --force`, which the deploy
 // workflow deliberately never passes), so a failed write is retried here a few times. If every try fails, the
-// 15-minute storefront refresh still rebuilds the file, because the change also changes the published fingerprint.
+// 15-minute storefront refresh still rebuilds the file, because the change also changes the published fingerprint
+// (shipping profiles aren't in it: scripts/check-published-change.mjs compares the file's profiles directly).
 "use strict";
 
 const MARKER = ["settings", "catalogVersion"];

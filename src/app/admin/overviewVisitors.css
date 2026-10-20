@@ -47,3 +47,10 @@
   .rp-vw-heat .rp-viz-heat-grid { grid-template-columns: 28px repeat(24, minmax(0, 1fr)); gap: 1px; }
   .rp-vw-headline { font-size: var(--rp-text-base); }
 }
+
+/* How visitors move (OverviewNavigation.tsx) */
+.rp-nav-follow { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 20px; }
+.rp-nav-pick { display: inline-flex; align-items: center; gap: 0; flex: 0 0 auto; }
+.rp-nav-pick .rp-select { min-height: 30px; width: auto; max-width: 200px; }
+.rp-nav-devices { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 20px; padding: 0 20px 8px; }
+@media (max-width: 767px) { .rp-nav-devices { padding: 0 14px 8px; } }

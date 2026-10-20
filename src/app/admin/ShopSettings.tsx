@@ -43,7 +43,7 @@ import { Checkbox, ConfirmDialog, LoadingState, DataTable, DestructiveButton, Di
 import { motion, AnimatePresence } from "motion/react";
 import { NotificationEditor } from "./NotificationEditor";
 import { COUNTRIES, CONTINENTS, describeZoneGeography } from "../features/site/shippingZones";
-import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPES, starterZones } from "./shippingHealth";
+import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPES, starterZones, carrierIssues, issuesForTab, shippingIssueTab, SHIPPING_ISSUE_TAB_LABELS, type ShippingIssue, type ShippingIssueTab } from "./shippingHealth";
 import { quoteShipping } from "../features/site/shippingEngine";
 import { LocalFulfillmentSettings, useLocalFulfillmentDraft } from "./LocalFulfillmentSettings";
 import { paymentHealth } from "./paymentHealth";
@@ -61,7 +61,7 @@ import { saveSectionsInOrder } from "./settingsSave";
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
 import { useSettingsDirty } from "./settingsDirty";
-import { HowTo, SettingsAnchor, SettingsContents, SettingsGroup, friendlyError, type ContentsGroup } from "./settingsLayout";
+import { HowTo, SettingsAnchor, SettingsGroup, SettingsTabs, friendlyError, useSubTab, type SettingsTab } from "./settingsLayout";
 import { testSaleSteps } from "./testSaleWalkthrough";
 import { studioHash } from "../lib/studioLocation";
 
@@ -76,6 +76,8 @@ export function ShopSettings({
   saveSection,
   onUnderConstruction,
   onOpenOrders,
+  subTab,
+  onSubTabChange,
 }: any) {
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
@@ -133,13 +135,14 @@ export function ShopSettings({
           transition={{ duration: 0.2 }}
           className="space-y-12"
         >
-          {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} onUnderConstruction={onUnderConstruction} />}
-          {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} profilesError={profilesError} refreshProfiles={loadShippingProfiles} initialView={shippingStart} />}
+          {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} onUnderConstruction={onUnderConstruction} subTab={subTab} onSubTabChange={onSubTabChange} />}
+          {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} profilesError={profilesError} refreshProfiles={loadShippingProfiles} initialView={shippingStart} subTab={subTab} onSubTabChange={onSubTabChange} />}
           {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} setOriginalSettings={setOriginalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection}
-            onOpenShipping={() => { setActiveTab("shipping"); setShippingStart("carrier"); }} onOpenOrders={onOpenOrders} onOpenNotifications={() => setActiveTab("notifications")} />}
+            subTab={subTab} onSubTabChange={onSubTabChange}
+            onOpenShipping={() => { setActiveTab("shipping"); if (onSubTabChange) onSubTabChange("carrier", "shipping"); else setShippingStart("carrier"); }} onOpenOrders={onOpenOrders} onOpenNotifications={() => setActiveTab("notifications")} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {/* Communications was retired: its links open Notifications. */}
-          {(activeTab === "notifications" || activeTab === "communications") && <NotificationEditor focus={activeTab === "communications" ? "sender" : undefined} />}
+          {(activeTab === "notifications" || activeTab === "communications") && <NotificationEditor focus={activeTab === "communications" ? "sender" : undefined} subTab={subTab} onSubTabChange={onSubTabChange} />}
         </motion.div>
       </AnimatePresence>
     </div>
@@ -157,7 +160,7 @@ export const GENERAL_SECTION_TITLES: Record<string, string> = {
   maintenance: "Store status", stockHolds: "Checkout stock holds", info: "Store identity", domain: "Domain & visibility", location: "Location", policies: "Store policies",
 };
 
-function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction }: any) {
+function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection, onUnderConstruction, subTab, onSubTabChange }: any) {
   const SECTIONS = ["maintenance", "stockHolds", "domain", "info", "location", "policies"] as const;
   const dirty = SECTIONS.filter((k) => hasChanges(k));
   useSettingsDirty("general", dirty.length > 0);
@@ -178,36 +181,19 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const maintenanceOn = !!settings.maintenance?.enabled;
   const name = settings.info?.name || "";
   const desc = settings.info?.description || "";
-  const statusWord = settings.design?.showUnderConstruction ? "construction wall" : maintenanceOn ? "checkout paused" : "open";
-  const contents: ContentsGroup[] = [
-    { id: "gs-store", title: "Shop status & checkout", items: [
-      { id: "gs-status", label: "Store status", unsaved: hasChanges("maintenance"), note: statusWord },
-      { id: "gs-holds", label: "Checkout stock holds", unsaved: hasChanges("stockHolds") },
-    ] },
-    { id: "gs-details", title: "Shop details", items: [
-      { id: "gs-identity", label: "Store identity", unsaved: hasChanges("info") },
-      { id: "gs-location", label: "Location", unsaved: hasChanges("location") },
-      { id: "gs-policies", label: "Store policies", unsaved: hasChanges("policies") },
-      { id: "gs-domain", label: "Domain & visibility", unsaved: hasChanges("domain") },
-    ] },
-    { id: "gs-visitors", title: "Visitors & Google", items: [
-      { id: "gs-own-visits", label: "Your own visits" },
-      { id: "gs-analytics", label: "Google Analytics" },
-      { id: "gs-search-console", label: "Google Search Console" },
-      { id: "gs-redirects", label: "URL redirects" },
-    ] },
-    { id: "gs-tools", title: "Tools & records", items: [
-      { id: "gs-ai", label: "AI writing assistant" },
-      { id: "gs-privacy", label: "Privacy requests" },
-      { id: "gs-backups", label: "Backups & export" },
-    ] },
+  const [view, setView] = useSubTab<string>("gs-store", subTab, onSubTabChange);
+  const tabs: SettingsTab[] = [
+    { id: "gs-store", title: "Shop status & checkout", unsaved: hasChanges("maintenance") || hasChanges("stockHolds") },
+    { id: "gs-details", title: "Shop details", unsaved: ["info", "location", "policies", "domain"].some((k) => hasChanges(k)) },
+    { id: "gs-visitors", title: "Visitors & Google" },
+    { id: "gs-tools", title: "Tools & records" },
   ];
 
   return (
     <div className="rp-stack">
-      <SettingsContents groups={contents} />
+      <SettingsTabs label="General settings" tabs={tabs} value={view} onChange={setView} />
 
-      <SettingsGroup id="gs-store" title="Shop status & checkout" subcopy="Whether shoppers can buy right now, and how many copies one person can hold while paying.">
+      <SettingsGroup id="gs-store" active={view === "gs-store"} subcopy="Whether shoppers can buy right now, and how many copies one person can hold while paying.">
         <SettingsAnchor id="gs-status">
           <SectionCard title="Store status" description="What shoppers can do right now. One choice covers both ways of closing the shop.">
             {(() => {
@@ -271,7 +257,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="gs-details" title="Shop details" subcopy="Your name, contact details, address and the policies linked from the shop footer.">
+      <SettingsGroup id="gs-details" active={view === "gs-details"} subcopy="Your name, contact details, address and the policies linked from the shop footer.">
         <SettingsAnchor id="gs-identity">
           <SectionCard title="Store identity" description="Your publisher name, description and contact details.">
             <div className="rp-stack" style={{ gap: 20 }}>
@@ -330,14 +316,14 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="gs-visitors" title="Visitors & Google" subcopy="Who is counted, Google Analytics and Search Console, and sending old web addresses to new ones.">
+      <SettingsGroup id="gs-visitors" active={view === "gs-visitors"} subcopy="Who is counted, Google Analytics and Search Console, and sending old web addresses to new ones.">
         <SettingsAnchor id="gs-own-visits"><OwnVisitsCard /></SettingsAnchor>
         <SettingsAnchor id="gs-analytics"><GoogleAnalyticsCard /></SettingsAnchor>
         <SettingsAnchor id="gs-search-console"><SearchConsoleCard /></SettingsAnchor>
         <SettingsAnchor id="gs-redirects"><RedirectsCard /></SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="gs-tools" title="Tools & records" subcopy="Writing help, customers' privacy requests, and backups of everything in the shop.">
+      <SettingsGroup id="gs-tools" active={view === "gs-tools"} subcopy="Writing help, customers' privacy requests, and backups of everything in the shop.">
         <SettingsAnchor id="gs-ai"><AiWriterCard /></SettingsAnchor>
         <SettingsAnchor id="gs-privacy"><PrivacyRequestsCard /></SettingsAnchor>
         <SettingsAnchor id="gs-backups"><BackupsExportCard /></SettingsAnchor>
@@ -415,14 +401,14 @@ function normalizeRate(r: any) {
   };
 }
 
-function ShippingSettings({ profiles, profilesError = false, refreshProfiles, initialView = "overview" }: any) {
+function ShippingSettings({ profiles, profilesError = false, refreshProfiles, initialView = "overview", subTab, onSubTabChange }: any) {
   const localFulfillmentDraft = useLocalFulfillmentDraft();
   const [askConfirm, confirmNode] = useConfirm();
   const [books, setBooks] = useState<any[]>([]);
   const [booksError, setBooksError] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [editingProfile, setEditingProfile] = useState<any | null>(null);
-  const [shippingView, setShippingView] = useState<"overview" | "profiles" | "carrier" | "local">(initialView);
+  const [shippingView, setShippingView] = useSubTab<"overview" | "profiles" | "carrier" | "local">(onSubTabChange ? "overview" : initialView, subTab, onSubTabChange);
   
   // Modals visibility
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -748,6 +734,41 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
   const money = (n: any) => `$${Number(n || 0).toFixed(2)}`;
   const shippoConnected = !!shippoConfig?.configured;
   const shippingSummary = useMemo(() => summarizeShipping(profiles, books), [profiles, books]);
+  // Every open problem, each fixed on one sub tab (shippingIssueTab).
+  const shippingProblems = useMemo(() => [...shippingSummary.issues, ...carrierIssues(shippoConfig)], [shippingSummary, shippoConfig]);
+  const profileProblems = useMemo(() => issuesForTab(shippingProblems, "profiles"), [shippingProblems]);
+  const carrierProblems = useMemo(() => issuesForTab(shippingProblems, "carrier"), [shippingProblems]);
+  const fixProfileIssue = (issue: ShippingIssue) => {
+    const profile = profiles.find((item: any) => item.id === issue.profileId);
+    if (!profile) return;
+    // Back to profiles then lands on the Profiles tab.
+    setShippingView("profiles");
+    handleSelectProfile(profile);
+  };
+  const renderShippingProblems = (issues: ShippingIssue[], { showTab }: { showTab: boolean }) => (
+    <ul className="rp-list" style={{ margin: -20 }} aria-label="Shipping configuration issues">
+      {issues.map((issue) => {
+        const tab: ShippingIssueTab = shippingIssueTab(issue);
+        return (
+          <li key={issue.id} style={{ padding: "14px 20px", display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between", alignItems: "center" }}>
+            <span>
+              <strong>{issue.label}</strong>{issue.severity === "warning" && <>{" "}<StatusBadge tone="warning">Warning</StatusBadge></>}
+              <span className="rp-hint" style={{ display: "block", marginTop: 3 }}>{issue.detail}</span>
+            </span>
+            <span style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {issue.profileId && <SecondaryButton size="sm" onClick={() => fixProfileIssue(issue)}>Fix profile</SecondaryButton>}
+              {showTab && <SecondaryButton size="sm" onClick={() => setShippingView(tab)}>Go to {SHIPPING_ISSUE_TAB_LABELS[tab]}</SecondaryButton>}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+  const renderTabProblems = (issues: ShippingIssue[]) => issues.length === 0 ? null : (
+    <SectionCard title={`${issues.length} problem${issues.length === 1 ? "" : "s"} to fix here`} description="These come from Overview › Checkout readiness and clear as soon as they're fixed.">
+      {renderShippingProblems(issues, { showTab: false })}
+    </SectionCard>
+  );
   const countriesAssignedElsewhere = activeZone
     ? assignedCountryNames(editingProfile?.zones || [], activeZone.id)
     : new Set<string>();
@@ -909,8 +930,9 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
       <div className="rp-stack">
         <Tabs label="Shipping settings" value={shippingView} onChange={setShippingView} tabs={[
           { id: "overview", label: "Overview" },
-          { id: "profiles", label: "Profiles", count: shippingSummary.profileCount },
-          { id: "carrier", label: "Carrier & labels" },
+          // Tab counts are open problems (none = no count); the profile count is on Overview.
+          { id: "profiles", label: "Profiles", count: profileProblems.length || undefined },
+          { id: "carrier", label: "Carrier & labels", count: carrierProblems.length || undefined },
           { id: "local", label: "Pickup & local delivery" },
         ]} />
         {shippingView === "local" && <LocalFulfillmentSettings draft={localFulfillmentDraft} />}
@@ -925,27 +947,15 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
             <div className="rp-kpi-grid">
               <MetricCard label="Shipping profiles" value={shippingSummary.profileCount} footer={`${shippingSummary.assignedProductCount} assigned products`} />
               <MetricCard label="Destination coverage" value={shippingSummary.coveredCountryCount} footer={`${shippingSummary.zoneCount} zones · ${shippingSummary.rateCount} rates`} tone="gold" />
-              <MetricCard label="Configuration health" value={shippingSummary.issues.length === 0 ? "Ready" : `${shippingSummary.issues.length} issue${shippingSummary.issues.length === 1 ? "" : "s"}`} footer={shippoConnected ? "Shippo connected" : "Flat rates only"} tone={shippingSummary.issues.length === 0 ? undefined : "danger"} />
+              <MetricCard label="Configuration health" value={shippingProblems.length === 0 ? "Ready" : `${shippingProblems.length} issue${shippingProblems.length === 1 ? "" : "s"}`} footer={shippoConnected ? "Shippo connected" : "Flat rates only"} tone={shippingSummary.issues.length > 0 ? "danger" : shippingProblems.length > 0 ? "gold" : undefined} />
             </div>
-            <SectionCard title="Checkout readiness" description="Resolve configuration gaps before they prevent a customer from choosing delivery.">
-              {shippingSummary.issues.length === 0 ? (
+            <SectionCard title="Checkout readiness" description="Resolve configuration gaps before they prevent a customer from choosing delivery. Each problem's button opens the tab where it's fixed.">
+              {shippingProblems.length === 0 ? (
                 <div role="status" style={{ padding: 16, background: "var(--rp-success-tint)", border: "1px solid var(--rp-success)", color: "var(--rp-success)" }}>
                   <strong>✓ Shipping configuration is ready.</strong>
                   <p className="rp-hint" style={{ margin: "4px 0 0", color: "inherit" }}>Every profile has a zone and every zone has at least one rate.</p>
                 </div>
-              ) : (
-                <ul className="rp-list" style={{ margin: -20 }} aria-label="Shipping configuration issues">
-                  {shippingSummary.issues.map((issue) => (
-                    <li key={issue.id} style={{ padding: "14px 20px", display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between", alignItems: "center" }}>
-                      <span><strong>{issue.label}</strong><span className="rp-hint" style={{ display: "block", marginTop: 3 }}>{issue.detail}</span></span>
-                      {issue.profileId && <SecondaryButton size="sm" onClick={() => {
-                        const profile = profiles.find((item: any) => item.id === issue.profileId);
-                        if (profile) handleSelectProfile(profile);
-                      }}>Fix profile</SecondaryButton>}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              ) : renderShippingProblems(shippingProblems, { showTab: true })}
               <div className="rp-card-actions">
                 <SecondaryButton onClick={() => setShippingView("carrier")}>{shippoConnected ? "Manage Shippo" : "Connect Shippo"}</SecondaryButton>
                 <PrimaryButton onClick={() => setShippingView("profiles")}>Manage profiles</PrimaryButton>
@@ -954,6 +964,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
           </>
         )}
 
+        {shippingView === "carrier" && renderTabProblems(carrierProblems)}
         {shippingView === "carrier" && (
         <SectionCard title="Shippo connection" description="Address verification, live carrier rates and shipping labels."
           actions={!shippoLoading && <StatusBadge tone={!shippoConnected ? "warning" : shippoConfig?.mode === "test" ? "warning" : "success"}>{!shippoConnected ? "Not connected" : shippoConfig?.mode === "test" ? "Connected · TEST key" : shippoConfig?.mode === "live" ? "Connected · LIVE" : "Connected"}</StatusBadge>}>
@@ -1040,6 +1051,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
 
         {shippingView === "profiles" && (
         <>
+        {renderTabProblems(profileProblems)}
         <SectionHead kicker="Shipping" title="Profiles, zones & rates" subcopy="A profile is a set of zones and rates. Books use the General profile unless you assign them to another."
           actions={!isCreatingProfile && <PrimaryButton onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>} />
 
@@ -1206,7 +1218,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
   );
 }
 
-function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications }: any) {
+function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications, onOpenMethods }: any) {
   const [data, setData] = useState<{ orders: any[]; webhook: any; emailLog: any[] } | null>(null);
   // Reads that failed: their steps are unknown, not "not done".
   const [failed, setFailed] = useState<string[]>([]);
@@ -1222,8 +1234,10 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications }: an
   useEffect(() => { load(); }, []);
   const steps = testSaleSteps({ payments, ...(data || { orders: [], webhook: null, emailLog: [] }) });
   const doneCount = steps.filter((st) => st.done).length;
-  const go = (link: string) => {
+  const go = (link: string, id: string) => {
     if (link === "orders") onOpenOrders?.();
+    // The Stripe test key and webhook check sit on the Ways to pay sub tab; test mode is on this one.
+    else if (link === "payments" && (id === "testKey" || id === "webhook")) onOpenMethods?.();
     else if (link === "notifications") onOpenNotifications?.();
     else if (link === "storefront") window.open(`${window.location.origin}${import.meta.env.BASE_URL || "/"}`, "_blank", "noopener");
     else document.getElementById("payments-top")?.scrollIntoView({ behavior: "smooth" });
@@ -1238,7 +1252,7 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications }: an
           <li key={st.id} style={{ display: "flex", flexWrap: "wrap", gap: "8px 12px", alignItems: "flex-start", padding: "8px 0", borderTop: i ? "1px solid var(--rp-divider)" : undefined }}>
             <StatusBadge tone={st.done ? "success" : "neutral"}>{st.done ? "Done" : `Step ${i + 1}`}</StatusBadge>
             <span style={{ flex: "1 1 220px", minWidth: 0 }}><strong>{st.label}</strong><span className="rp-hint" style={{ display: "block" }}>{st.howTo}</span></span>
-            {!st.done && <SecondaryButton size="sm" onClick={() => go(st.link)}>{st.link === "orders" ? "Open Orders" : st.link === "notifications" ? "Open Email sender" : st.link === "storefront" ? "Open shop ↗" : "Show me"}</SecondaryButton>}
+            {!st.done && <SecondaryButton size="sm" onClick={() => go(st.link, st.id)}>{st.link === "orders" ? "Open Orders" : st.link === "notifications" ? "Open Email sender" : st.link === "storefront" ? "Open shop ↗" : "Show me"}</SecondaryButton>}
           </li>
         ))}
       </ol>
@@ -1246,7 +1260,7 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications }: an
   );
 }
 
-function PaymentsSettings({ settings, setSettings, originalSettings, setOriginalSettings, hasChanges, saveSection, savingSection, onOpenShipping, onOpenOrders, onOpenNotifications }: any) {
+function PaymentsSettings({ settings, setSettings, originalSettings, setOriginalSettings, hasChanges, saveSection, savingSection, onOpenShipping, onOpenOrders, onOpenNotifications, subTab, onSubTabChange }: any) {
   const [askConfirm, confirmNode] = useConfirm();
   const stripe = settings.payments?.stripe || {};
   const paypal = settings.payments?.paypal || {};
@@ -1428,21 +1442,11 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
   const paymentIssues = useMemo(() => paymentHealth(settings.payments), [settings.payments]);
 
   const blockingCount = paymentIssues.filter((i) => i.severity === "blocking").length;
-  const contents: ContentsGroup[] = [
-    { id: "pay-status", title: "Ready to take payments?", items: [
-      { id: "pay-overview", label: "Payment overview", note: blockingCount ? `${blockingCount} to fix` : testMode ? "test mode" : "live" },
-      { id: "pay-test", label: "Test sale walkthrough" },
-    ] },
-    { id: "pay-methods", title: "Ways to pay", items: [
-      { id: "pay-stripe", label: "Stripe (cards, Apple Pay, Google Pay)", note: stripeLive ? "on" : "off" },
-      { id: "pay-paypal", label: "PayPal", note: paypalLive ? "on" : "off" },
-      { id: "pay-manual", label: "Manual payment methods", note: `${enabledManual.length} on` },
-    ] },
-    { id: "pay-more", title: "On the shop & related settings", items: [
-      { id: "pay-icons", label: "Footer payment icons" },
-      { id: "pay-currency", label: "Currency" },
-      { id: "pay-shippo", label: "Shippo (shipping labels)" },
-    ] },
+  const [view, setView] = useSubTab<string>("pay-status", subTab, onSubTabChange);
+  const tabs: SettingsTab[] = [
+    { id: "pay-status", title: "Ready to take payments?", count: blockingCount },
+    { id: "pay-methods", title: "Ways to pay" },
+    { id: "pay-more", title: "On the shop & related settings" },
   ];
 
   const removeMethod = async (m: any) => {
@@ -1452,9 +1456,9 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
 
   return (
     <div className="rp-stack" id="payments-top">
-      <SettingsContents groups={contents} />
+      <SettingsTabs label="Payment settings" tabs={tabs} value={view} onChange={setView} />
 
-      <SettingsGroup id="pay-status" title="Ready to take payments?" subcopy="What shoppers can pay with now, anything blocking checkout, and a rehearsal of one complete sale.">
+      <SettingsGroup id="pay-status" active={view === "pay-status"} subcopy="What shoppers can pay with now, anything blocking checkout, and a rehearsal of one complete sale.">
         <SettingsAnchor id="pay-overview">
           <SectionCard title="Payment overview" description="What customers can pay with right now.">
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
@@ -1481,11 +1485,11 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
           </SectionCard>
         </SettingsAnchor>
         <SettingsAnchor id="pay-test">
-          <TestSaleWalkthrough payments={originalSettings?.payments} onOpenOrders={onOpenOrders} onOpenNotifications={onOpenNotifications} />
+          <TestSaleWalkthrough payments={originalSettings?.payments} onOpenOrders={onOpenOrders} onOpenNotifications={onOpenNotifications} onOpenMethods={() => setView("pay-methods")} />
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="pay-methods" title="Ways to pay" subcopy="Cards and wallets through Stripe, PayPal, and payments you collect yourself (e-Transfer, cash).">
+      <SettingsGroup id="pay-methods" active={view === "pay-methods"} subcopy="Cards and wallets through Stripe, PayPal, and payments you collect yourself (e-Transfer, cash).">
         <SettingsAnchor id="pay-stripe">
           <SectionCard title="Stripe" description="Accept credit and debit cards, Apple Pay and Google Pay."
             actions={<SecondaryButton size="sm" onClick={() => window.open("https://dashboard.stripe.com", "_blank", "noopener")}>Stripe dashboard ↗</SecondaryButton>}>
@@ -1611,7 +1615,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="pay-more" title="On the shop & related settings" subcopy="Payment icons in the footer, the shop currency, and where shipping labels are set up.">
+      <SettingsGroup id="pay-more" active={view === "pay-more"} subcopy="Payment icons in the footer, the shop currency, and where shipping labels are set up.">
         <SettingsAnchor id="pay-icons">
           <SectionCard title="Footer payment icons" description="Default icons for the storefront footer. Studio › Theme settings › Payment icons overrides this list once you change it there."
             actions={<SecondaryButton size="sm" onClick={() => { window.location.hash = studioHash({ leftTab: "style" }); }}>Open Studio</SecondaryButton>}>

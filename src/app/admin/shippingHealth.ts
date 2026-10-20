@@ -137,7 +137,40 @@ export const RATE_TYPES: { id: string; label: string; help: string }[] = [
   { id: "free", label: "Free shipping", help: "Always free. Combine with an order-total condition for a 'free over $X' option." },
 ];
 
-const usd = (n: any) => `$${Number(n || 0).toFixed(2)}`;
+/** The Settings › Shipping sub tab where a problem is fixed. */
+export type ShippingIssueTab = "profiles" | "carrier";
+
+export const SHIPPING_ISSUE_TAB_LABELS: Record<ShippingIssueTab, string> = {
+  profiles: "Profiles",
+  carrier: "Carrier & labels",
+};
+
+/** Pure: which sub tab fixes this problem. Carrier problems have ids starting with "carrier:"; everything
+ * else (profiles, zones, rates, books on a missing profile) is fixed under Profiles. */
+export function shippingIssueTab(issue: Pick<ShippingIssue, "id">): ShippingIssueTab {
+  return String(issue?.id || "").startsWith("carrier:") ? "carrier" : "profiles";
+}
+
+/** Pure: the problems that belong on one sub tab, in their original order. */
+export function issuesForTab(issues: ShippingIssue[], tab: ShippingIssueTab): ShippingIssue[] {
+  return issues.filter((issue) => shippingIssueTab(issue) === tab);
+}
+
+/** Pure: Carrier & labels problems from the saved Shippo state (as `getShippoConfig` returns it). Warnings only:
+ * checkout still works on profile rates. Not connecting Shippo at all is a choice, not a problem. */
+export function carrierIssues(config: any): ShippingIssue[] {
+  if (!config?.configured) return [];
+  const issues: ShippingIssue[] = [];
+  if (config.mode === "test") {
+    issues.push({ id: "carrier:test-key", label: "Shippo is using a TEST key", detail: "Labels bought now are sandbox labels with no real postage. Save your live key (it starts with shippo_live_) before shipping real orders.", severity: "warning" });
+  }
+  if (config.dynamicRatesEnabled && (!Array.isArray(config.dynamicRateCountries) || config.dynamicRateCountries.length === 0)) {
+    issues.push({ id: "carrier:live-rates-no-countries", label: "Live carrier rates are on, but no country uses them", detail: "Tick the countries that should get Shippo rates at checkout, or turn live rates off. Until then every country uses your profile rates.", severity: "warning" });
+  }
+  return issues;
+}
+
+const usd = (n: any) =>`$${Number(n || 0).toFixed(2)}`;
 
 /** Short plain-English price summary for the rates table. */
 export function describeRatePrice(rate: any): string {
