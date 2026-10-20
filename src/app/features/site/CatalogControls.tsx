@@ -204,7 +204,7 @@ export function CatalogControls({
           {query && (
             <button
               onClick={() => setQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-white/10"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 max-md:before:absolute max-md:before:-inset-2.5 max-md:before:content-[''] rounded-full hover:bg-white/10"
               aria-label={c("filterClearAria")}
             >
               <X size={12} className="text-white/40" />
@@ -281,7 +281,7 @@ export function CatalogControls({
       <div className="flex flex-wrap items-center gap-4">
         <p {...regionProps("catalogResults")} className="text-[10px] tracking-widest uppercase text-white/30" aria-live="polite">{c("filterResults", { count: resultCount })}</p>
         {filtersActive(filters, query, inStockOnly, { availableFormats: showFormats ? availableFormats : [], showPrice: showPriceBoxes, hasSale: showSale }) && (
-          <button {...regionProps("catalogClear")} type="button" onClick={clearAll} className="text-[10px] tracking-widest uppercase text-white/60 underline underline-offset-4 hover:text-white transition-colors">
+          <button {...regionProps("catalogClear")} type="button" onClick={clearAll} className="relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-3 max-md:before:content-[''] text-[10px] tracking-widest uppercase text-white/60 underline underline-offset-4 hover:text-white transition-colors">
             {c("filterClear")}
           </button>
         )}

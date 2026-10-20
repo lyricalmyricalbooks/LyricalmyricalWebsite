@@ -34,7 +34,10 @@ export function cardTypographyCss(design: any): string {
   // Style › Product cards & grid › "Smallest card title & price on phones" (default 14, 0 = off).
   const cardMin = Number(d.cardTitlePhoneMin ?? 14);
   const floor = Math.max(phoneMinText(d), Number.isFinite(cardMin) && cardMin > 0 ? cardMin : 0);
-  let css = "";
+  // A title word wider than the card (an underscore name like "SISTEMA_NON_AUTORIZZATO") breaks instead of
+  // spilling out of a two-column phone card. break-word, never anywhere/break-all: normal words still wrap
+  // whole and only a word that can't fit on a line of its own is split. Titles that fit look the same.
+  let css = `${S} .fm-card-title{overflow-wrap:break-word;}`;
 
   const title: string[] = [];
   if (d.productTitleColor) title.push(`color:${clean(d.productTitleColor)} !important;`);

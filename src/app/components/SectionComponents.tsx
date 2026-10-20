@@ -28,10 +28,11 @@ import { shopInstant } from "../features/site/shopTime";
 // Animation helper
 // ──────────────────────────────
 
-function AnimationContainer({ children, enabled, delay = 0 }: any) {
+function AnimationContainer({ children, enabled, delay = 0, className }: any) {
   if (!enabled) return children;
   return (
     <m.div
+      className={className}
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-100px" }}
@@ -1307,12 +1308,12 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
             const onSale = showsSale(book);
             const price = displayPrice(book);
             return (
-              <AnimationContainer key={book.id || idx} enabled={enableAnimations} delay={idx * 0.04}>
+              <AnimationContainer className="min-w-0" key={book.id || idx} enabled={enableAnimations} delay={idx * 0.04}>
                 <button
                   type="button"
                   onClick={() => onProductClick?.(book)}
                   {...blockEditAttrs({ id: book.id || productSlug(book) }, idx)}
-                  className="fm-card group block w-full text-left"
+                  className="fm-card group block w-full min-w-0 text-left"
                 >
                   <div className="relative overflow-hidden bg-white/5" style={{ aspectRatio: aspect }}>
                     {book.photos?.[0]?.url && (
@@ -1532,10 +1533,10 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
             const soldOut = !quick.inStock;
             const category = book.categories?.[0] || "";
             return (
-              <AnimationContainer key={book.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
+              <AnimationContainer className="min-w-0" key={book.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
                 <div
                   {...blockEditAttrs({ id: book.id || productSlug(book) }, idx)}
-                  className="fm-card group relative cursor-pointer"
+                  className="fm-card group relative min-w-0 cursor-pointer"
                   role="link"
                   tabIndex={0}
                   aria-label={sc("sectionViewBook", { title: book.title })}
@@ -1592,7 +1593,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                             import("react-hot-toast").then((mod) => mod.default.error(message)).catch(() => {});
                           }
                         }}
-                        className={`absolute right-3 bottom-3 w-8 h-8 rounded-full border text-base leading-none flex items-center justify-center transition-colors ${
+                        className={`absolute right-3 bottom-3 w-8 h-8 max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-[''] rounded-full border text-base leading-none flex items-center justify-center transition-colors ${
                           soldOut
                             ? "opacity-40 cursor-not-allowed border-white/20 bg-black/60 text-white/60"
                             : "border-white/30 bg-black/70 text-white hover:border-transparent"
@@ -1605,7 +1606,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                     )}
                   </div>
                   <div className="mt-2.5 flex items-baseline justify-between gap-3">
-                    <h3 className="fm-card-title text-[17px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
+                    <h3 className="fm-card-title min-w-0 text-[17px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
                     {settings.showPrices !== false && (
                       <p className="fm-card-price-wrap text-sm whitespace-nowrap fm-muted">
                         {onSale ? (
@@ -2678,9 +2679,9 @@ export function FeaturedCollectionSection({ settings, books, onProductClick, ena
         </AnimationContainer>
         <div className={`${gridId} grid gap-6`}>
           {items.map((book: any, idx: number) => (
-            <AnimationContainer key={book.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
+            <AnimationContainer className="min-w-0" key={book.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
               <div
-                className="fm-card group cursor-pointer"
+                className="fm-card group min-w-0 cursor-pointer"
                 role="link"
                 tabIndex={0}
                 aria-label={sc("sectionViewBook", { title: book.title })}

@@ -38,6 +38,14 @@ describe("cardTypographyCss", () => {
     expect(css).not.toContain("min-width");
   });
 
+  it("breaks a title word too wide for the card, without splitting words that fit", () => {
+    const css = cardTypographyCss({});
+    expect(css).toContain("[data-fm-store] .fm-card-title{overflow-wrap:break-word;}");
+    expect(css).not.toContain("break-all");
+    // With the phone price stack off, nothing asks for overflow-wrap:anywhere (which would split words early in flex rows).
+    expect(cardTypographyCss({ cardPriceStackPhone: false })).not.toContain("anywhere");
+  });
+
   it("cannot be used to break out of the rule", () => {
     const css = cardTypographyCss({ productTitleColor: "red;}body{display:none", cardTitleFont: "A';}x{" });
     expect(css).not.toContain("body{display:none");
