@@ -38,7 +38,7 @@ export function CartShippingPreview({ cart, design, formatPrice, onEstimate }: {
   const c = (key: string) => getCopy(design, key);
   return <section data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Cart shipping preview" className="fm-bag-pad fm-bag-rule border-t py-5 space-y-3">
     <h3 className="fm-bag-name">{c("cartEstimateHeading")}</h3>
-    <form className="space-y-3" onSubmit={event => { event.preventDefault(); estimate(); }}>
+    <form className="space-y-3" data-clarity-mask="true" onSubmit={event => { event.preventDefault(); estimate(); }}>
       <div><label className="block fm-bag-meta" htmlFor={`${id}-country`}>{c("cartEstimateCountry")}</label><select id={`${id}-country`} className="fm-bag-input w-full mt-2" value={country} onChange={event => setCountry(event.target.value)} autoComplete="country-name">{COUNTRIES.map(value => <option key={value.code} value={value.name}>{value.name}</option>)}</select></div>
       <div><label className="block fm-bag-meta" htmlFor={`${id}-postal`}>{c("cartEstimatePostal")}</label><input id={`${id}-postal`} className="fm-bag-input w-full mt-2" autoComplete="postal-code" maxLength={20} required value={postalCode} onChange={event => setPostalCode(event.target.value)} /></div>
       <button type="submit" className="fm-bag-upsell-btn min-h-[44px] px-4" disabled={status === "loading" || !postalCode.trim()}>{c(status === "loading" ? "cartEstimateLoading" : "cartEstimateButton")}</button>

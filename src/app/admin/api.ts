@@ -697,8 +697,9 @@ export const adminApi = {
     const docRef = doc(db, "settings", "website");
     const { publicSettings, secrets } = splitWebsiteSecrets(settings);
     await adminApi.writePrivateKeys(secrets);
-    // `analytics` (the Google Analytics measurement ID) is written only by Settings › General › Google Analytics
-    // (googleAnalyticsApi.save); a settings form holding an older copy must never put it back.
+    // `analytics` (the Google Analytics measurement ID and the Microsoft Clarity project ID) is written only by
+    // Settings › General › Google Analytics / Microsoft Clarity (googleAnalyticsApi.save, clarityApi.save); a settings
+    // form holding an older copy must never put either back.
     const { analytics: _ownedByGaCard, ...ownedHere } = publicSettings as Record<string, any>;
     const { payload, options: writeOptions } = themeWrite(ownedHere, options.publish);
     await setDoc(docRef, payload, writeOptions);
