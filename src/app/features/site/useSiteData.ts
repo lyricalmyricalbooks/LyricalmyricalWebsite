@@ -13,6 +13,7 @@ import { setSiteIdentity } from "../../lib/seo";
 import { applyFavicon } from "./favicon";
 import { applyCustomCode } from "./customCode";
 import { configureGa4 } from "../../lib/ga4";
+import { configureClarity } from "../../lib/clarity";
 import { applyBackorderPolicy } from "./backorder";
 import { withBundleStock } from "./bundleStock";
 import { resolveProductRoutes } from "./productRoutes";
@@ -253,6 +254,9 @@ export function useSiteData() {
   // Google Analytics 4 (Settings › General › Google Analytics); lib/ga4.ts decides whether this visit may be counted.
   const ga4Id = (settings as any)?.analytics?.ga4MeasurementId;
   useEffect(() => { configureGa4(ga4Id); }, [ga4Id]);
+  // Microsoft Clarity (Settings › General › Microsoft Clarity): same rule as Google, never on checkout/account/tracking.
+  const clarityId = (settings as any)?.analytics?.clarityProjectId;
+  useEffect(() => { configureClarity(clarityId); }, [clarityId]);
 
   // Shoppers only ever see live books. Drafts/scheduled books show only inside a real
   // Studio preview (the editor's snapshot is present) — "?preview=true" alone isn't enough.

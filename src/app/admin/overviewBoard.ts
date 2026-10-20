@@ -73,6 +73,7 @@ export type WidgetType =
   | "livePages" | "pageTime" | "visitHours" | "actions" | "outbound" | "newReturning" | "dropOff" | "lookNoBuy"
   | "moves" | "firstPage" | "sectionClicks" | "deviceSteps"
   | "navLinks" | "bookPage" | "notFound" | "filters" | "bagPeek" | "readDepth"
+  | "journeys" | "exitPages" | "clarity"
   | "searches" | "missed" | "google" | "googleQueries" | "googlePages" | "speed" | "counter"
   | "custKpis" | "retention" | "top" | "carts" | "reminders" | "newsletter" | "reviews" | "map" | "giftOwed"
   | "stockKpis" | "reprint" | "wanted" | "backInStock" | "slow" | "low" | "soldOut";
@@ -138,6 +139,9 @@ export const WIDGETS: WidgetMeta[] = [
   { type: "filters", band: "traffic", title: "Shop filters people use", blurb: "Format, price and in-stock filters, with the choices picked (Google Analytics)", size: "s", google: true },
   { type: "bagPeek", band: "traffic", title: "Bag opened, then checkout?", blurb: "How often the bag is opened, on which pages, against checkouts started (Google Analytics)", size: "m", google: true },
   { type: "readDepth", band: "traffic", title: "How far people read", blurb: "For each page, the share of visits that reach halfway, three quarters and the end (Google Analytics)", size: "l", google: true },
+  { type: "journeys", band: "traffic", title: "Visitor journeys", blurb: "The most common paths through the shop, page by page, and how many end in a purchase (Google Analytics BigQuery export)", size: "l", google: true },
+  { type: "exitPages", band: "traffic", title: "Last page before leaving", blurb: "Where visits end, and how many had a book in the bag (Google Analytics BigQuery export)", size: "m", google: true },
+  { type: "clarity", band: "traffic", title: "Heatmaps and recordings", blurb: "Where visitors click and scroll, and recordings of real visits (Microsoft Clarity)", size: "s" },
   { type: "dropOff", band: "traffic", title: "Where visitors drop off", blurb: "One path from visit to purchase, with the biggest leak marked", size: "l" },
   { type: "funnel", band: "traffic", title: "Shopping funnel", blurb: "Book views → bag → checkout → purchase", size: "m" },
   { type: "checkout", band: "traffic", title: "Where checkout loses people", blurb: "Each checkout step and where shoppers stop", size: "m" },
@@ -209,7 +213,7 @@ export const TEMPLATES: Array<{ id: TemplateId; name: string; blurb: string; ord
     order: ["traffic", "titles", "search", "sales", "customers", "today", "stock"],
     widgets: ["livePages", ["newReturning", "s"], ["outbound", "s"], ["visitHours", "xl"], "pageTime", "actions", ["dropOff", "xl"],
       "moves", ["sectionClicks", "s"], "firstPage", ["deviceSteps", "xl"],
-      "navLinks", "bookPage", "readDepth", ["filters", "s"], "bagPeek", "notFound",
+      "navLinks", "bookPage", "readDepth", ["filters", "s"], "bagPeek", "notFound", "journeys", "exitPages", ["clarity", "s"],
       ["chart", "l", { metric: "visitors" }], ["gaCountries", "s"], "landing", "gaPages", "lookNoBuy", "viewed", "searches", "missed"],
   },
   {

@@ -1,30 +1,44 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { cleanMeasurementId, cleanPropertyId, googleAnalyticsApi, type Ga4Answer } from "./googleAnalytics";
+import { bigQueryDatasetProblem, cleanBigQueryDataset, type JourneyAnswer } from "./bigQueryJourneys";
 import { HowTo, friendlyError } from "./settingsLayout";
 import { PrimaryButton, SecondaryButton, SectionCard, StatusBadge, TextField } from "./riso/components";
 
 // Settings › General › Google Analytics. The measurement ID turns on Google's tag for shoppers (consent-aware,
-// lib/ga4.ts); the property ID lets the Overview read Google's reports through the shop's own server.
+// lib/ga4.ts); the property ID lets the Overview read Google's reports through the shop's own server. The optional
+// BigQuery export dataset feeds Overview › Visitor journeys / Last page before leaving (functions/bigQueryJourneys.js).
 export function GoogleAnalyticsCard() {
-  const [loaded, setLoaded] = useState<{ measurementId: string; propertyId: string } | null>(null);
+  const [loaded, setLoaded] = useState<{ measurementId: string; propertyId: string; bigQueryDataset: string } | null>(null);
   const [readFailed, setReadFailed] = useState(false);
   const [measurementId, setMeasurementId] = useState("");
   const [propertyId, setPropertyId] = useState("");
   const [saving, setSaving] = useState(false);
   const [checking, setChecking] = useState(false);
   const [check, setCheck] = useState<Ga4Answer | null>(null);
+  const [dataset, setDataset] = useState("");
+  const [bqChecking, setBqChecking] = useState(false);
+  const [bqCheck, setBqCheck] = useState<JourneyAnswer | null>(null);
 
   const load = () => {
     setReadFailed(false);
-    googleAnalyticsApi.load().then((v) => { setLoaded(v); setMeasurementId(v.measurementId); setPropertyId(v.propertyId); })
+    googleAnalyticsApi.load().then((v) => { setLoaded(v); setMeasurementId(v.measurementId); setPropertyId(v.propertyId); setDataset(v.bigQueryDataset); })
       .catch(() => setReadFailed(true));
   };
   useEffect(load, []);
 
   const midProblem = measurementId.trim() && !cleanMeasurementId(measurementId) ? "A measurement ID looks like G-ABC123XYZ (Admin › Data streams › your web stream)." : "";
   const pidProblem = propertyId.trim() && !cleanPropertyId(propertyId) ? "A property ID is a number of 6–15 digits (Admin › Property details), not the G-… ID." : "";
-  const dirty = !!loaded && (cleanMeasurementId(measurementId) !== loaded.measurementId || cleanPropertyId(propertyId) !== loaded.propertyId);
+  const dsProblem = bigQueryDatasetProblem(dataset);
+  const datasetDirty = !!loaded && cleanBigQueryDataset(dataset) !== cleanBigQueryDataset(loaded.bigQueryDataset);
+  const dirty = !!loaded && (cleanMeasurementId(measurementId) !== loaded.measurementId || cleanPropertyId(propertyId) !== loaded.propertyId || datasetDirty);
+
+  const verifyBigQuery = async () => {
+    setBqChecking(true); setBqCheck(null);
+    try { setBqCheck(await googleAnalyticsApi.bigQueryStatus()); }
+    catch (err: any) { setBqCheck({ connected: false, error: friendlyError(err, "check BigQuery") }); }
+    finally { setBqChecking(false); }
+  };
 
   const verify = async () => {
     setChecking(true); setCheck(null);
@@ -37,8 +51,9 @@ export function GoogleAnalyticsCard() {
     setSaving(true);
     try {
       await googleAnalyticsApi.save(measurementId, propertyId);
-      const next = { measurementId: cleanMeasurementId(measurementId), propertyId: cleanPropertyId(propertyId) };
-      setLoaded(next); setMeasurementId(next.measurementId); setPropertyId(next.propertyId);
+      if (datasetDirty) await googleAnalyticsApi.saveBigQueryDataset(dataset);
+      const next = { measurementId: cleanMeasurementId(measurementId), propertyId: cleanPropertyId(propertyId), bigQueryDataset: cleanBigQueryDataset(dataset) };
+      setLoaded(next); setMeasurementId(next.measurementId); setPropertyId(next.propertyId); setDataset(next.bigQueryDataset);
       toast.success("Google Analytics settings saved");
       if (next.propertyId) await verify();
     } catch (err: any) {
@@ -75,7 +90,7 @@ export function GoogleAnalyticsCard() {
         </p>
       )}
       <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-        <PrimaryButton disabled={!dirty || !!midProblem || !!pidProblem || saving} onClick={save}>{saving ? "Saving…" : "Save"}</PrimaryButton>
+        <PrimaryButton disabled={!dirty || !!midProblem || !!pidProblem || !!dsProblem || saving} onClick={save}>{saving ? "Saving…" : "Save"}</PrimaryButton>
         {loaded?.propertyId && <SecondaryButton disabled={checking || saving} onClick={verify}>{checking ? "Checking…" : "Check connection"}</SecondaryButton>}
       </div>
       {check && (
@@ -93,6 +108,47 @@ export function GoogleAnalyticsCard() {
           )}
         </div>
       )}
+
+      <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--rp-border)" }}>
+        <h3 className="rp-label" style={{ margin: "0 0 4px" }}>Visitor journeys (BigQuery export, optional)</h3>
+        <p className="rp-hint" style={{ margin: "0 0 8px" }}>
+          Google Analytics can copy every visit into BigQuery once a day for free. The Overview then shows the real paths people take
+          (Visitor journeys) and the last page they saw before leaving. Each Overview read is one small query, capped at 2 GB.
+        </p>
+        <HowTo summary="How to turn on the BigQuery export (3 steps)" open={false}>
+          <ol className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "decimal" }}>
+            <li>In Google Analytics › Admin › Product links › <strong>BigQuery links</strong> › Link, choose this Firebase project (<span className="rp-mono">lyricalmyrical-web-v2</span>), tick <strong>Daily</strong> export and submit. The first day's data appears about a day later.</li>
+            <li>In <a href="https://console.cloud.google.com/iam-admin/iam?project=lyricalmyrical-web-v2" target="_blank" rel="noopener noreferrer">Google Cloud › IAM</a>, give the shop's service account (shown by <strong>Check BigQuery</strong>) the roles <strong>BigQuery Data Viewer</strong> and <strong>BigQuery Job User</strong>.</li>
+            <li>Leave the box below empty: the shop reads <span className="rp-mono">analytics_&lt;property ID&gt;</span> in this project. Only if the export lives elsewhere, write its <span className="rp-mono">project.dataset</span>. Then press <strong>Check BigQuery</strong>.</li>
+          </ol>
+        </HowTo>
+        <div style={{ marginTop: 12, maxWidth: 520 }}>
+          <TextField label="BigQuery export dataset" value={dataset} autoComplete="off"
+            placeholder={loaded?.propertyId ? `analytics_${loaded.propertyId} (automatic)` : "analytics_<property ID> (automatic)"}
+            hint="Optional. Empty = analytics_<property ID> in this Firebase project. Private: only the shop's server uses it."
+            error={dsProblem || undefined} onChange={(e) => setDataset(e.target.value)} />
+        </div>
+        {(loaded?.propertyId || loaded?.bigQueryDataset) && (
+          <div style={{ marginTop: 12 }}>
+            <SecondaryButton disabled={bqChecking || saving || datasetDirty} onClick={verifyBigQuery}>{bqChecking ? "Checking…" : "Check BigQuery"}</SecondaryButton>
+          </div>
+        )}
+        {bqCheck && (
+          <div role="status" className="rp-hint" style={{ margin: "12px 0 0", padding: 12, border: `1px solid var(${tone(bqCheck.connected)})`, color: `var(${tone(bqCheck.connected)})`, background: `var(${tone(bqCheck.connected)}-tint)` }}>
+            {bqCheck.connected
+              ? <>✓ Connected to <span className="rp-mono">{bqCheck.dataset}</span>. The Overview's Visitor journeys and Last page before leaving now read it.</>
+              : <>✕ {bqCheck.error || "Not connected yet."}</>}
+            {!bqCheck.connected && bqCheck.serviceAccount && (
+              <div style={{ marginTop: 8, color: "var(--rp-text)" }}>
+                Shop's service account (BigQuery Data Viewer + BigQuery Job User): <span className="rp-mono" style={{ userSelect: "all", overflowWrap: "anywhere" }}>{bqCheck.serviceAccount}</span>
+              </div>
+            )}
+            {bqCheck.code === "api_disabled" && bqCheck.enableApiUrl && (
+              <div style={{ marginTop: 8 }}><a href={bqCheck.enableApiUrl} target="_blank" rel="noopener noreferrer">Switch on the BigQuery API</a></div>
+            )}
+          </div>
+        )}
+      </div>
     </SectionCard>
   );
 }

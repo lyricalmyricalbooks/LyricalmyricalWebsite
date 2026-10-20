@@ -62,6 +62,7 @@ const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./a
 const { handleAiWrite } = require("./aiWriter");
 const { handleGa4Report, metadataCredentials } = require("./googleAnalytics");
 const { handleSearchConsole, SCOPE: SEARCH_CONSOLE_SCOPE } = require("./searchConsole");
+const { handleBigQueryJourneys, SCOPE: BIGQUERY_SCOPE } = require("./bigQueryJourneys");
 const { handleTrafficReset } = require("./trafficReset");
 const { publicErrorMessage } = require("./publicErrors");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
@@ -1735,6 +1736,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
     if (req.body?.action === "aiWrite") return handleAiWriteRequest(req, res);
     if (req.body?.action === "ga4Report") return handleGa4ReportRequest(req, res);
     if (req.body?.action === "searchConsole") return handleSearchConsoleRequest(req, res);
+    if (req.body?.action === "bigQueryJourneys") return handleBigQueryJourneysRequest(req, res);
     if (req.body?.action === "resetTraffic") return handleResetTrafficRequest(req, res);
     if (req.body?.action === "cancelOrder") return handleCancelOrder(req, res);
     if (req.body?.action === "resolvePaymentMismatch") return handleResolveMismatch(req, res);
@@ -7237,6 +7239,26 @@ async function handleSearchConsoleRequest(req, res) {
   } catch (err) {
     console.error("searchConsole failed:", err?.message || err);
     res.status(500).json({ error: "Search Console couldn't be read just now. Try again in a minute." });
+  }
+}
+
+// Overview › Visitor journeys / Last page before leaving (admin): one read-only query over the GA4 BigQuery export,
+// run with this function's own service account (functions/bigQueryJourneys.js).
+async function handleBigQueryJourneysRequest(req, res) {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+  try {
+    const { status, body } = await handleBigQueryJourneys(req.body || {}, {
+      readSettings: () => readAdminSecret("googleAnalytics"),
+      allow: () => hitLimit(db, "bigquery-journeys", req, LIMITS.ga4),
+      credentials: () => metadataCredentials(fetch, BIGQUERY_SCOPE),
+      fetchImpl: fetch,
+      projectId: process.env.GCLOUD_PROJECT || admin.app().options.projectId || "",
+    });
+    res.status(status).json(body);
+  } catch (err) {
+    console.error("bigQueryJourneys failed:", err?.message || err);
+    res.status(500).json({ error: "BigQuery couldn't be read just now. Try again in a minute." });
   }
 }
 
