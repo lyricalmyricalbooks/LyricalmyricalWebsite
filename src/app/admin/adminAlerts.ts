@@ -17,6 +17,20 @@ export type AdminAlert = {
   action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "inventory";
 };
 
+/** Where an alert's button opens: an admin page and, on pages split into sub tabs, the tab holding the fix. */
+export type AlertRoute = { tab: string; settingsTab?: string; subTab?: string };
+const ALERT_ROUTES: Partial<Record<AdminAlert["action"], AlertRoute>> = {
+  inventory: { tab: "inventory", subTab: "inv-link" },                                          // every inventory alert is about the app link
+  notifications: { tab: "settings", settingsTab: "notifications", subTab: "email-deliveries" }, // Waiting to send + Recent deliveries
+  webhook: { tab: "settings", settingsTab: "payments", subTab: "pay-methods" },                 // Stripe › Webhook health
+  payments: { tab: "settings", settingsTab: "payments" },                                       // the test mode switch: Ready to take payments?
+  general: { tab: "settings", settingsTab: "general", subTab: "gs-tools" },                     // Backups & export
+};
+/** The page (and sub tab) an alert's button opens; null for order, orders and retry, which aren't settings pages. */
+export function alertRoute(a: Pick<AdminAlert, "action">): AlertRoute | null {
+  return ALERT_ROUTES[a.action] || null;
+}
+
 export type WebhookStatus = { lastReceivedAt?: string | null; lastFailureAt?: string | null; lastFailure?: string | null } | null;
 
 const MIN = 60 * 1000;

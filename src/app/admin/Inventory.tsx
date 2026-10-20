@@ -4,6 +4,7 @@ import { adminApi } from "./api";
 import { getOrdersCached } from "./ordersCache";
 import { inventoryApi, type InventoryLogEntry } from "./inventoryApi";
 import { InventoryLinkPanel } from "./InventoryLinkPanel";
+import { useSubTab } from "./settingsLayout";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { isStockLinked, type InventoryLinks } from "./inventoryLink";
 import {
@@ -41,7 +42,7 @@ function useAsk() {
 
 const rowName = (r: InventoryRow) => (r.edition ? `${r.title} (${r.edition})` : r.title);
 
-function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
+function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
   const toast = useRisoToast();
   const [ask, askNode] = useAsk();
   const [books, setBooks] = useState<any[]>([]);
@@ -54,7 +55,7 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
   const [partial, setPartial] = useState<string[]>([]);
   const [tab, setTab] = useState<Tab>("all");
   // Page sub tabs: the stock list, and the link to the inventory app.
-  const [view, setView] = useState<"inv-stock" | "inv-link">("inv-stock");
+  const [view, setView] = useSubTab<"inv-stock" | "inv-link">("inv-stock", subTab, onSubTabChange);
   const [q, setQ] = useState("");
   const [threshold, setThreshold] = useState(5);
   const [thresholdDraft, setThresholdDraft] = useState("5");
@@ -434,6 +435,13 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
   );
 }
 
-export function Inventory({ onEditBook }: { onEditBook?: (book: any) => void } = {}) {
-  return <ToastProvider><InventoryPage onEditBook={onEditBook} /></ToastProvider>;
+type InventoryProps = {
+  onEditBook?: (book: any) => void;
+  /** The open sub tab when the Dashboard keeps it in the address bar (`#inventory/link`). */
+  subTab?: string;
+  onSubTabChange?: (id: string | undefined) => void;
+};
+
+export function Inventory(props: InventoryProps = {}) {
+  return <ToastProvider><InventoryPage {...props} /></ToastProvider>;
 }

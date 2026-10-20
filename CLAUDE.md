@@ -974,6 +974,9 @@ out by its own width (container query on `.fw-detail` in `fulfillment.css`).
 one long scroll: Settings › General / Payments (`SettingsTabs`), Email sender (Emails · Sending setup · Deliveries), Inventory
 (Stock · Inventory app link). Panels stay mounted (`hidden`), so unsaved edits survive a switch and one SaveBar covers every tab;
 mark a tab with edits with `unsaved`. Tab ids must be unique on the page (`rp-tab-<id>`). Overview and Design are out of scope.
+The open sub tab is in the address bar (`#settings/general/visitors`, `#inventory/link`; the first tab has no slug): add a page's
+tabs to `SUB_TABS` in `adminRoute.ts` and take `subTab` / `onSubTabChange` through `useSubTab` (`settingsLayout.tsx`); switching
+replaces the history entry, and an alert's button opens the tab holding its fix (`alertRoute` in `adminAlerts.ts`).
 Never wrap `rp-*` chrome in `.admin-light` — its `aside button` / `input` rules override
 it. Don't add new compat rules for new work; compose the components instead.
 

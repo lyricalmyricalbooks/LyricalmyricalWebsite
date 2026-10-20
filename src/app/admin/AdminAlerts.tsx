@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { IconButton, PrimaryButton, SecondaryButton } from "./riso/components";
-import { alertSignature, type AdminAlert } from "./adminAlerts";
+import { alertRoute, alertSignature, type AdminAlert, type AlertRoute } from "./adminAlerts";
 
 const KEY = "admin-dismissed-alerts";
 const readDismissed = (): string[] => {
@@ -15,13 +15,13 @@ const GLYPH: Record<string, string> = { danger: "✕", warning: "⚠" };
 const WORD: Record<string, string> = { danger: "Urgent", warning: "Needs attention" };
 
 const ACTION_LABEL: Record<string, string> = {
-  retry: "Try again", inventory: "Open Inventory", general: "Open Backups", notifications: "Open Email sender",
+  retry: "Try again", inventory: "Open Inventory app link", general: "Open Backups", notifications: "Open email deliveries",
   payments: "Open Payments", webhook: "Open webhook health", order: "Open order",
 };
 
 // Alerts shown above every admin page. Dismissing hides an alert for this browser
 // session until a new order joins it. Urgent ones come first; past two the rest fold away.
-export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, onOpenNotifications, onOpenGeneral, onOpenInventory, onRetry }: {
+export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, onOpenNotifications, onOpenGeneral, onOpenInventory, onOpenRoute, onRetry }: {
   alerts: AdminAlert[];
   onOpenOrder: (id: string) => void;
   onOpenOrders: () => void;
@@ -29,6 +29,8 @@ export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, 
   onOpenNotifications: () => void;
   onOpenGeneral?: () => void;
   onOpenInventory?: () => void;
+  /** Opens the exact page and sub tab an alert names (`alertRoute`); without it the per-page callbacks above are used. */
+  onOpenRoute?: (route: AlertRoute) => void;
   onRetry?: () => void;
 }) {
   const [dismissed, setDismissed] = useState<string[]>(readDismissed);
@@ -45,7 +47,12 @@ export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, 
     setDismissed(next);
     try { sessionStorage.setItem(KEY, JSON.stringify(next)); } catch { /* private mode */ }
   };
-  const run = (a: AdminAlert) => (a.action === "retry" ? onRetry?.() : a.action === "inventory" ? onOpenInventory?.()
+  const run = (a: AdminAlert) => {
+    const route = onOpenRoute && alertRoute(a);
+    if (route) onOpenRoute(route);
+    else runAction(a);
+  };
+  const runAction = (a: AdminAlert) => (a.action === "retry" ? onRetry?.() : a.action === "inventory" ? onOpenInventory?.()
     : a.action === "general" ? onOpenGeneral?.() : a.action === "notifications" ? onOpenNotifications()
       : a.action === "webhook" || a.action === "payments" ? onOpenWebhook()
         : a.action === "order" ? onOpenOrder(a.orderIds[0]) : onOpenOrders());

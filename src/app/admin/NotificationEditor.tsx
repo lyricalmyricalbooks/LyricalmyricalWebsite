@@ -13,6 +13,7 @@ import { resendKeyProblem } from "./privateKeys";
 import { senderOf, senderProblems, withSender, type Sender } from "./senderSettings";
 import { emailFunction, lastGmailProblem } from "./notificationApi";
 import { plainError } from "./plainError";
+import { useSubTab } from "./settingsLayout";
 import {
   DataTable, ErrorState, GhostButton, PrimaryButton, LoadingState, SaveBar, SectionCard, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm,
 } from "./riso/components";
@@ -221,7 +222,12 @@ function compilePreviewHtml(templateId: TemplateKey, data: NotificationSettings,
   `, { logoUrl: brand.logoUrl || "", accent: brandColor, theme: brand.emailTheme });
 }
 
-export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
+export function NotificationEditor({ focus, subTab, onSubTabChange }: {
+  focus?: "sender";
+  /** The open sub tab when the Dashboard keeps it in the address bar (`#settings/notifications/deliveries`). */
+  subTab?: string;
+  onSubTabChange?: (id: string | undefined) => void;
+} = {}) {
   const [data, setData] = useState<NotificationSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   // The saved templates could not be read: showing defaults and saving them would overwrite everything.
@@ -239,7 +245,7 @@ export function NotificationEditor({ focus }: { focus?: "sender" } = {}) {
   const [savingSender, setSavingSender] = useState(false);
   const [group, setGroup] = useState<string>("orders");
   // The old Email sender address (focus "sender") opens on the tab holding the sender card.
-  const [view, setView] = useState<EmailView>(focus === "sender" ? "email-setup" : "email-templates");
+  const [view, setView] = useSubTab<EmailView>(focus === "sender" ? "email-setup" : "email-templates", subTab, onSubTabChange);
   // "Preview with a real order": recent orders loaded on demand, filled in the browser only.
   const [recentOrders, setRecentOrders] = useState<any[] | null>(null);
   const [previewOrderId, setPreviewOrderId] = useState("");
