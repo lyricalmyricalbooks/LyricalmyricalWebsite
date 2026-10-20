@@ -157,9 +157,12 @@ export default function RichTextEditor({
       `}</style>
 
       {/* Custom Header Toolbar Wrapper */}
+      {/* While the HTML box is open the editor below is hidden but still mounted, so its toolbar is switched off:
+          a click would format the hidden copy and write Quill's cleaned-up HTML over what is being typed. */}
       <div
         id={toolbarId}
-        className="flex flex-wrap items-center gap-1.5 p-3 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300"
+        {...(showHtml ? { inert: "" as any, "aria-disabled": true } : {})}
+        className={`${showHtml ? "pointer-events-none opacity-40 " : ""}flex flex-wrap items-center gap-1.5 p-3 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300`}
       >
         {/* Headings */}
         <span className="ql-formats !mr-3">
