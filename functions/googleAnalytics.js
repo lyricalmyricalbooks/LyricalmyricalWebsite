@@ -45,7 +45,20 @@ const ACTION_EVENTS = ["scroll", "click", "file_download", "view_search_results"
 /** Steps for "Phones vs computers, step by step": people who did each one, per device. */
 const STEP_EVENTS = ["session_start", "view_item", "add_to_cart", "begin_checkout", "purchase"];
 
-/** The reports the Overview shows, as five batches (the API takes up to five reports per batch). */
+/** The shop's own storefront events (lib/ga4.ts, 20 October 2026) counted for Overview › Visitors. */
+const SHOP_EVENTS = ["nav_click", "pdp_interact", "page_not_found", "filter_use", "view_cart", "scroll_depth", "view_item_list", "select_item"];
+
+/**
+ * Event parameters each custom-dimension report reads. GA4 refuses `customEvent:<name>` until the owner registers the
+ * parameter (Admin › Custom definitions, event scope), so these reports sit in their own optional batch.
+ */
+const CUSTOM_DEFINITIONS = {
+  navClicks: ["menu", "link_text"], pdpActions: ["action"], pdpTabs: ["tab"], filters: ["filter", "value"], scrollDepth: ["percent"],
+};
+
+const onlyEvent = value => ({ filter: { fieldName: "eventName", stringFilter: { value } } });
+
+/** The reports the Overview shows, as seven batches (the API takes up to five reports per batch). */
 function buildBatches(range) {
   const cur = { startDate: range.startDate, endDate: range.endDate, name: "current" };
   const prev = { startDate: range.prevStartDate, endDate: range.prevEndDate, name: "previous" };
@@ -73,7 +86,7 @@ function buildBatches(range) {
       // "(direct)"/"(organic)"/"(referral)" are Google's names for untagged visits and are left out by the Overview.
       { key: "campaigns", dateRanges: [cur], dimensions: [dim("sessionCampaignName"), dim("sessionSource"), dim("sessionMedium")], metrics: engagement, limit: 50, orderBys: [{ metric: { metricName: "sessions" }, desc: true }] },
     ],
-    // Visitor widgets (19 October 2026). Optional: Google refusing this batch never fails the report (see OPTIONAL_BATCH).
+    // Visitor widgets (19 October 2026). Optional: Google refusing this batch never fails the report (see OPTIONAL_BATCHES).
     [
       // Time spent per page (engagement seconds are summed by GA; the Overview divides by views).
       { key: "pageTime", dateRanges: [cur], dimensions: [dim("pagePath")], metrics: ["screenPageViews", "activeUsers", "userEngagementDuration"].map(metric), limit: 50, orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }] },
@@ -111,13 +124,38 @@ function buildBatches(range) {
         dimensionFilter: { filter: { fieldName: "eventName", inListFilter: { values: STEP_EVENTS } } },
       },
     ],
+    // The shop's own events (20 October 2026), standard dimensions only. Optional.
+    [
+      {
+        key: "newEvents", dateRanges: [cur], dimensions: [dim("eventName")], metrics: [metric("eventCount")], limit: 20,
+        dimensionFilter: { filter: { fieldName: "eventName", inListFilter: { values: SHOP_EVENTS } } },
+      },
+      // Addresses that showed the missing page, and the page (full URL, "" for none) that sent people there.
+      { key: "notFound", dateRanges: [cur], dimensions: [dim("pagePath"), dim("pageReferrer")], metrics: [metric("eventCount")], limit: 200, dimensionFilter: onlyEvent("page_not_found"), orderBys: [{ metric: { metricName: "eventCount" }, desc: true }] },
+      {
+        key: "bagPeeks", dateRanges: [cur], dimensions: [dim("pagePath"), dim("eventName")], metrics: [metric("eventCount")], limit: 300,
+        dimensionFilter: { filter: { fieldName: "eventName", inListFilter: { values: ["view_cart", "begin_checkout"] } } },
+      },
+    ],
+    // The same events' own parameters (custom dimensions, CUSTOM_DEFINITIONS). Optional: an unregistered parameter makes
+    // Google refuse its report (400), and the one-by-one retry then leaves only that report's key out.
+    [
+      { key: "navClicks", dateRanges: [cur], dimensions: [dim("customEvent:menu"), dim("customEvent:link_text")], metrics: [metric("eventCount")], limit: 200, dimensionFilter: onlyEvent("nav_click"), orderBys: [{ metric: { metricName: "eventCount" }, desc: true }] },
+      { key: "pdpActions", dateRanges: [cur], dimensions: [dim("customEvent:action"), dim("pagePath")], metrics: [metric("eventCount")], limit: 300, dimensionFilter: onlyEvent("pdp_interact"), orderBys: [{ metric: { metricName: "eventCount" }, desc: true }] },
+      { key: "pdpTabs", dateRanges: [cur], dimensions: [dim("customEvent:tab")], metrics: [metric("eventCount")], limit: 20, dimensionFilter: onlyEvent("pdp_interact") },
+      { key: "filters", dateRanges: [cur], dimensions: [dim("customEvent:filter"), dim("customEvent:value")], metrics: [metric("eventCount")], limit: 200, dimensionFilter: onlyEvent("filter_use"), orderBys: [{ metric: { metricName: "eventCount" }, desc: true }] },
+      { key: "scrollDepth", dateRanges: [cur], dimensions: [dim("customEvent:percent"), dim("pagePath")], metrics: [metric("eventCount")], limit: 500, dimensionFilter: onlyEvent("scroll_depth"), orderBys: [{ metric: { metricName: "eventCount" }, desc: true }] },
+    ],
   ];
 }
 
-/** Batches whose failure leaves their keys out instead of failing the whole report. */
-const OPTIONAL_BATCHES = [3, 4];
+/** Batches whose failure sets their keys to null ("Google didn't answer") instead of failing the whole report. */
+const OPTIONAL_BATCHES = [3, 4, 5, 6];
 const VISITOR_KEYS = ["pageTime", "when", "actions", "pageActions", "outbound"];
 const NAVIGATION_KEYS = ["moves", "landingPaths", "lists", "deviceSteps"];
+/** Batch 6 (standard dimensions) and batch 7 (custom dimensions): passed through as plain rows. */
+const EVENT_KEYS = ["newEvents", "notFound", "bagPeeks"];
+const CUSTOM_EVENT_KEYS = Object.keys(CUSTOM_DEFINITIONS);
 
 /** One API report → plain rows: `{ <dimension>: "…", <metric>: number }`, with `dateRange` when there are two windows. */
 function rowsOf(report) {
@@ -158,19 +196,27 @@ function realtimeMinutesOf(body) {
 const eventMap = rows => Object.fromEntries(rows.map(r => [r.eventName, { eventCount: r.eventCount || 0, activeUsers: r.activeUsers || 0 }]));
 
 /**
- * The API's batch answers → the compact report the Overview draws. A batch with `response: null` (the optional one,
- * refused) leaves its keys out. `extra = { pages, minutes }` are the raw realtime bodies (or null when they failed).
+ * The API's batch answers → the compact report the Overview draws (in buildBatches order). An optional batch with
+ * `response: null` (refused or unanswered) sets its keys to null; `response: undefined` (not asked) leaves them out.
+ * `extra = { pages, minutes, refused }`: the raw realtime bodies (or null when they failed) and the report keys Google
+ * refused with a 400 on the one-by-one retry (sent as `refusedReports`).
  */
 function shapeReport(batches, realtime, extra = {}) {
+  // An optional batch Google refused or didn't answer (any status), or one of its reports refused on the one-by-one retry,
+  // comes out as `<key>: null` ("Google didn't answer"); a key that is absent means a server older than that report.
   const reports = {};
-  batches.forEach(({ requests, response }) => {
+  batches.forEach(({ requests, response }, b) => {
+    const optional = OPTIONAL_BATCHES.includes(b);
     requests.forEach((req, i) => {
-      if (response === null || response === undefined) return;
+      if (response === undefined) return;
+      if (response === null) { if (optional) reports[req.key] = null; return; }
       const one = response?.reports?.[i];
-      if (one === null) return; // a single report that failed on its own retry
+      if (one === null) { if (optional) reports[req.key] = null; return; } // a single report that failed on its own retry
       reports[req.key] = rowsOf(one);
     });
   });
+  /** `{ key: value }` for an answered report, `{ key: null }` for one Google didn't answer, `{}` when it wasn't asked. */
+  const pass = (key, shape = strip) => (key in reports ? { [key]: reports[key] === null ? null : shape(reports[key]) } : {});
   const totals = (name) => strip(inRange(reports.totals || [], name))[0] || {};
   const events = (name) => Object.fromEntries(strip(inRange(reports.events || [], name)).map(r => [r.eventName, r.eventCount]));
   const days = (name) => strip(inRange(reports.byDate || [], name)).map(r => ({ ...r, date: gaDay(r.date) })).sort((a, b) => a.date.localeCompare(b.date));
@@ -187,12 +233,15 @@ function shapeReport(batches, realtime, extra = {}) {
     campaigns: strip(reports.campaigns || []),
     events: { current: events("current"), previous: events("previous") },
     activeNow: realtime === null ? null : Number(rowsOf(realtime)[0]?.activeUsers) || 0,
-    ...(reports.pageTime ? { pageTime: strip(reports.pageTime) } : {}),
-    ...(reports.when ? { when: strip(reports.when) } : {}),
-    ...(reports.actions ? { actions: { current: eventMap(strip(inRange(reports.actions, "current"))), previous: eventMap(strip(inRange(reports.actions, "previous"))) } } : {}),
-    ...(reports.pageActions ? { pageActions: strip(reports.pageActions) } : {}),
-    ...(reports.outbound ? { outbound: strip(reports.outbound) } : {}),
-    ...Object.fromEntries(NAVIGATION_KEYS.filter(k => reports[k]).map(k => [k, strip(reports[k])])),
+    ...pass("pageTime"),
+    ...pass("when"),
+    ...pass("actions", rows => ({ current: eventMap(strip(inRange(rows, "current"))), previous: eventMap(strip(inRange(rows, "previous"))) })),
+    ...pass("pageActions"),
+    ...pass("outbound"),
+    ...Object.assign({}, ...[...NAVIGATION_KEYS, ...EVENT_KEYS, ...CUSTOM_EVENT_KEYS].map(k => pass(k))),
+    // Reports Google refused on the one-by-one retry with a request error (400): for a custom-dimension report that means
+    // its event parameters aren't registered in Admin › Custom definitions yet.
+    ...(Array.isArray(extra.refused) && extra.refused.length ? { refusedReports: [...extra.refused] } : {}),
     ...("pages" in extra ? { realtimePages: realtimePagesOf(extra.pages) } : {}),
     ...("minutes" in extra ? { realtimeMinutes: realtimeMinutesOf(extra.minutes) } : {}),
   };
@@ -282,16 +331,18 @@ async function handleGa4Report(body, deps) {
   const answers = batches.map((requests, i) => ({ requests, response: results[i].ok ? results[i].body : null }));
   // One refused report fails its whole batch: when an optional batch is refused for a request reason (not access or
   // quota, which the other batches would have hit too), ask its reports one by one and keep those Google accepts.
+  const refused = [];
   await Promise.all(OPTIONAL_BATCHES.map(async b => {
     const optional = results[b];
     if (!optional || optional.ok || optional.status !== 400) return;
     const singles = await Promise.all(batches[b].map(req => asBatch([req]).catch(() => ({ ok: false }))));
+    singles.forEach((res, i) => { if (!res.ok && res.status === 400) refused.push(batches[b][i].key); });
     answers[b] = { requests: batches[b], response: { reports: singles.map(res => (res.ok ? res.body?.reports?.[0] || {} : null)) } };
   }));
-  const extra = { pages: livePages.ok ? livePages.body : null, minutes: liveMinutes.ok ? liveMinutes.body : null };
+  const extra = { pages: livePages.ok ? livePages.body : null, minutes: liveMinutes.ok ? liveMinutes.body : null, refused };
   return { status: 200, body: { ...base, connected: true, range, report: shapeReport(answers, realtime.ok ? realtime.body : null, extra) } };
 }
 
 module.exports = {
-  cleanPropertyId, propertyIdProblem, cleanRange, buildBatches, rowsOf, shapeReport, realtimePagesOf, realtimeMinutesOf, ACTION_EVENTS, STEP_EVENTS, VISITOR_KEYS, NAVIGATION_KEYS, OPTIONAL_BATCHES, gaErrorMessage, handleGa4Report, metadataCredentials, fetchJson,
+  cleanPropertyId, propertyIdProblem, cleanRange, buildBatches, rowsOf, shapeReport, realtimePagesOf, realtimeMinutesOf, ACTION_EVENTS, STEP_EVENTS, SHOP_EVENTS, CUSTOM_DEFINITIONS, VISITOR_KEYS, NAVIGATION_KEYS, EVENT_KEYS, CUSTOM_EVENT_KEYS, OPTIONAL_BATCHES, gaErrorMessage, handleGa4Report, metadataCredentials, fetchJson,
 };
