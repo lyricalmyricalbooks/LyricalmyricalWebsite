@@ -626,7 +626,6 @@ export function Dashboard() {
         {!((activeTab === "overview" || activeTab === "analytics") && !selectedOrder) && <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}
           title={selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
-          description={selectedOrder && activeTab !== "orders" ? "Payment, fulfillment, and tracking for this order." : copy.description}
         />}
         <AdminAlerts
           alerts={[...settingsAlerts(originalSettings), ...alerts]}

@@ -16,7 +16,7 @@ beforeEach(() => {
 describe("OrdersDesk", () => {
   it("a link to one order opens the Ship station: header, numbered queue and the full order page", () => {
     const html = renderToStaticMarkup(<OrdersDesk selectedId="ABC" onSelect={() => {}} />);
-    expect(html).toContain("Ship today");
+    expect(html).toContain('class="od-title">Ship station</h2>');
     expect(html).toContain("Labels today");
     expect(html).toContain("Print pick list");
     expect(html).toContain("All orders · completed");
@@ -31,14 +31,16 @@ describe("OrdersDesk", () => {
 
   it("never opens on the table view", () => {
     const html = renderToStaticMarkup(<OrdersDesk selectedId={null} onSelect={() => {}} />);
-    expect(html).not.toContain("Orders table");
+    expect(html).not.toContain('class="od-title">Table</h2>');
   });
 
   it("opens on All orders › Open, newest first, as covers, whatever was picked last time", () => {
     store.set("orders-desk-layout", "desk");
     store.set("orders-grid-tab", "all");
     const html = renderToStaticMarkup(<OrdersDesk selectedId={null} onSelect={() => {}} />);
-    expect(html).toContain("All orders</h2>");
+    // The page title (Orders) comes from the admin shell; the desk adds no second heading.
+    expect(html).not.toContain("All orders</h2>");
+    expect(html).toContain('data-variant="page"');
     for (const label of ["Open", "Completed", "All orders", "Export orders", "Covers", "Ship station"]) expect(html).toContain(label);
     expect(html).not.toContain("data-order-detail");
     expect(html).toContain('aria-selected="true" tabindex="0">Open<');

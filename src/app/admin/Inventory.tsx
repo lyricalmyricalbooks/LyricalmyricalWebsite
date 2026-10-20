@@ -356,7 +356,7 @@ function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
       ]} />
       <TabPanel tabId="inv-stock" active={view === "inv-stock"}>
       <div className="rp-stack">
-      <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
+      <div className="rp-kpi-grid">
         <MetricCard label="Units on hand" value={sum.units} footer="Counted print editions" />
         <MetricCard label="Stock value" value={`CA$${sum.value.toFixed(0)}`}
           footer={sum.costedRows ? `At retail · CA$${sum.costValue.toFixed(0)} at cost (${sum.costedRows} of ${sum.countedRows} costed)` : "At retail price"} />
