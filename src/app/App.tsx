@@ -11,7 +11,6 @@ import { DraftPreviewBanner } from "./features/site/DraftPreviewBanner";
 import { CartProvider, useCart } from "./CartContext";
 import { CurrencyProvider } from "./CurrencyContext";
 import { ShopToaster } from "./features/site/ShopToaster";
-import { CartDrawer } from "./components/CartDrawer";
 import { CookieConsent } from "./components/CookieConsent";
 import { UnderConstructionWall } from "./components/UnderConstructionWall";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
@@ -38,6 +37,9 @@ const PageView = lazy(whenPrerenderedReady(() => import("./features/site/PageVie
 const WishlistPage = lazy(() => import("./features/site/Wishlist"));
 const AccountPage = lazy(() => import("./features/site/Account"));
 const OrderTracking = lazy(() => import("./features/site/OrderTracking"));
+// The bag drawer is closed when a page opens: its code (and the shipping estimate's country list) loads next to
+// the page instead of inside the first download. It still mounts on every page as soon as it arrives.
+const CartDrawer = lazy(() => import("./components/CartDrawer").then(m => ({ default: m.CartDrawer })));
 
 /** One Google Analytics page view per route (the page's title is set just after it renders). */
 function Ga4PageViews() {
@@ -131,7 +133,7 @@ export default function App() {
           <ScrollToTop />
           <Ga4PageViews />
           <RouteErrorBoundary>
-          <CartDrawer />
+          <Suspense fallback={null}><CartDrawer /></Suspense>
           <CookieConsent />
           <UnderConstructionWall />
           <ThemePreviewBanner />

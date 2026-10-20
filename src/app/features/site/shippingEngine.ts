@@ -14,19 +14,8 @@ const num = (v: any, d = 0): number => {
 const opt = (v: any): number | null => (v === "" || v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v));
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-// "0.5kg" | "300 g" | "1.2lb" | "8oz" | 300 -> grams (null when unparseable).
-export function parseWeightGrams(raw: any): number | null {
-  if (raw === null || raw === undefined || raw === "") return null;
-  const m = String(raw).trim().toLowerCase().match(/^([\d.]+)\s*(kg|g|lbs?|oz)?$/);
-  if (!m) return null;
-  const v = parseFloat(m[1]);
-  if (!Number.isFinite(v)) return null;
-  const unit = m[2] || "g";
-  if (unit === "kg") return v * 1000;
-  if (unit.startsWith("lb")) return v * 453.592;
-  if (unit === "oz") return v * 28.3495;
-  return v;
-}
+// "0.5kg" | "300 g" | "1.2lb" | "8oz" | 300 -> grams (null when unparseable). Defined in weightGrams.ts.
+export { parseWeightGrams } from "./weightGrams";
 
 export function rateEligible(rate: any, cart: any): boolean {
   if (rate.enabled === false) return false;
