@@ -43,7 +43,7 @@ import { Checkbox, ConfirmDialog, LoadingState, DataTable, DestructiveButton, Di
 import { motion, AnimatePresence } from "motion/react";
 import { NotificationEditor } from "./NotificationEditor";
 import { COUNTRIES, CONTINENTS, describeZoneGeography } from "../features/site/shippingZones";
-import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPES, starterZones } from "./shippingHealth";
+import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPES, starterZones, carrierIssues, issuesForTab, shippingIssueTab, SHIPPING_ISSUE_TAB_LABELS, type ShippingIssue, type ShippingIssueTab } from "./shippingHealth";
 import { quoteShipping } from "../features/site/shippingEngine";
 import { LocalFulfillmentSettings, useLocalFulfillmentDraft } from "./LocalFulfillmentSettings";
 import { paymentHealth } from "./paymentHealth";
@@ -731,6 +731,41 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
   const money = (n: any) => `$${Number(n || 0).toFixed(2)}`;
   const shippoConnected = !!shippoConfig?.configured;
   const shippingSummary = useMemo(() => summarizeShipping(profiles, books), [profiles, books]);
+  // Every open problem, each fixed on one sub tab (shippingIssueTab).
+  const shippingProblems = useMemo(() => [...shippingSummary.issues, ...carrierIssues(shippoConfig)], [shippingSummary, shippoConfig]);
+  const profileProblems = useMemo(() => issuesForTab(shippingProblems, "profiles"), [shippingProblems]);
+  const carrierProblems = useMemo(() => issuesForTab(shippingProblems, "carrier"), [shippingProblems]);
+  const fixProfileIssue = (issue: ShippingIssue) => {
+    const profile = profiles.find((item: any) => item.id === issue.profileId);
+    if (!profile) return;
+    // Back to profiles then lands on the Profiles tab.
+    setShippingView("profiles");
+    handleSelectProfile(profile);
+  };
+  const renderShippingProblems = (issues: ShippingIssue[], { showTab }: { showTab: boolean }) => (
+    <ul className="rp-list" style={{ margin: -20 }} aria-label="Shipping configuration issues">
+      {issues.map((issue) => {
+        const tab: ShippingIssueTab = shippingIssueTab(issue);
+        return (
+          <li key={issue.id} style={{ padding: "14px 20px", display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between", alignItems: "center" }}>
+            <span>
+              <strong>{issue.label}</strong>{issue.severity === "warning" && <>{" "}<StatusBadge tone="warning">Warning</StatusBadge></>}
+              <span className="rp-hint" style={{ display: "block", marginTop: 3 }}>{issue.detail}</span>
+            </span>
+            <span style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {issue.profileId && <SecondaryButton size="sm" onClick={() => fixProfileIssue(issue)}>Fix profile</SecondaryButton>}
+              {showTab && <SecondaryButton size="sm" onClick={() => setShippingView(tab)}>Go to {SHIPPING_ISSUE_TAB_LABELS[tab]}</SecondaryButton>}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+  const renderTabProblems = (issues: ShippingIssue[]) => issues.length === 0 ? null : (
+    <SectionCard title={`${issues.length} problem${issues.length === 1 ? "" : "s"} to fix here`} description="These come from Overview › Checkout readiness and clear as soon as they're fixed.">
+      {renderShippingProblems(issues, { showTab: false })}
+    </SectionCard>
+  );
   const countriesAssignedElsewhere = activeZone
     ? assignedCountryNames(editingProfile?.zones || [], activeZone.id)
     : new Set<string>();
@@ -892,8 +927,9 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
       <div className="rp-stack">
         <Tabs label="Shipping settings" value={shippingView} onChange={setShippingView} tabs={[
           { id: "overview", label: "Overview" },
-          { id: "profiles", label: "Profiles", count: shippingSummary.profileCount },
-          { id: "carrier", label: "Carrier & labels" },
+          // Tab counts are open problems (none = no count); the profile count is on Overview.
+          { id: "profiles", label: "Profiles", count: profileProblems.length || undefined },
+          { id: "carrier", label: "Carrier & labels", count: carrierProblems.length || undefined },
           { id: "local", label: "Pickup & local delivery" },
         ]} />
         {shippingView === "local" && <LocalFulfillmentSettings draft={localFulfillmentDraft} />}
@@ -908,27 +944,15 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
             <div className="rp-kpi-grid">
               <MetricCard label="Shipping profiles" value={shippingSummary.profileCount} footer={`${shippingSummary.assignedProductCount} assigned products`} />
               <MetricCard label="Destination coverage" value={shippingSummary.coveredCountryCount} footer={`${shippingSummary.zoneCount} zones · ${shippingSummary.rateCount} rates`} tone="gold" />
-              <MetricCard label="Configuration health" value={shippingSummary.issues.length === 0 ? "Ready" : `${shippingSummary.issues.length} issue${shippingSummary.issues.length === 1 ? "" : "s"}`} footer={shippoConnected ? "Shippo connected" : "Flat rates only"} tone={shippingSummary.issues.length === 0 ? undefined : "danger"} />
+              <MetricCard label="Configuration health" value={shippingProblems.length === 0 ? "Ready" : `${shippingProblems.length} issue${shippingProblems.length === 1 ? "" : "s"}`} footer={shippoConnected ? "Shippo connected" : "Flat rates only"} tone={shippingSummary.issues.length > 0 ? "danger" : shippingProblems.length > 0 ? "gold" : undefined} />
             </div>
-            <SectionCard title="Checkout readiness" description="Resolve configuration gaps before they prevent a customer from choosing delivery.">
-              {shippingSummary.issues.length === 0 ? (
+            <SectionCard title="Checkout readiness" description="Resolve configuration gaps before they prevent a customer from choosing delivery. Each problem's button opens the tab where it's fixed.">
+              {shippingProblems.length === 0 ? (
                 <div role="status" style={{ padding: 16, background: "var(--rp-success-tint)", border: "1px solid var(--rp-success)", color: "var(--rp-success)" }}>
                   <strong>✓ Shipping configuration is ready.</strong>
                   <p className="rp-hint" style={{ margin: "4px 0 0", color: "inherit" }}>Every profile has a zone and every zone has at least one rate.</p>
                 </div>
-              ) : (
-                <ul className="rp-list" style={{ margin: -20 }} aria-label="Shipping configuration issues">
-                  {shippingSummary.issues.map((issue) => (
-                    <li key={issue.id} style={{ padding: "14px 20px", display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between", alignItems: "center" }}>
-                      <span><strong>{issue.label}</strong><span className="rp-hint" style={{ display: "block", marginTop: 3 }}>{issue.detail}</span></span>
-                      {issue.profileId && <SecondaryButton size="sm" onClick={() => {
-                        const profile = profiles.find((item: any) => item.id === issue.profileId);
-                        if (profile) handleSelectProfile(profile);
-                      }}>Fix profile</SecondaryButton>}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              ) : renderShippingProblems(shippingProblems, { showTab: true })}
               <div className="rp-card-actions">
                 <SecondaryButton onClick={() => setShippingView("carrier")}>{shippoConnected ? "Manage Shippo" : "Connect Shippo"}</SecondaryButton>
                 <PrimaryButton onClick={() => setShippingView("profiles")}>Manage profiles</PrimaryButton>
@@ -937,6 +961,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
           </>
         )}
 
+        {shippingView === "carrier" && renderTabProblems(carrierProblems)}
         {shippingView === "carrier" && (
         <SectionCard title="Shippo connection" description="Address verification, live carrier rates and shipping labels."
           actions={!shippoLoading && <StatusBadge tone={!shippoConnected ? "warning" : shippoConfig?.mode === "test" ? "warning" : "success"}>{!shippoConnected ? "Not connected" : shippoConfig?.mode === "test" ? "Connected · TEST key" : shippoConfig?.mode === "live" ? "Connected · LIVE" : "Connected"}</StatusBadge>}>
@@ -1023,6 +1048,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
 
         {shippingView === "profiles" && (
         <>
+        {renderTabProblems(profileProblems)}
         <SectionHead kicker="Shipping" title="Profiles, zones & rates" subcopy="A profile is a set of zones and rates. Books use the General profile unless you assign them to another."
           actions={!isCreatingProfile && <PrimaryButton onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>} />
 
