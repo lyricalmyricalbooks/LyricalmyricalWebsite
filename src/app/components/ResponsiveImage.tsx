@@ -28,16 +28,19 @@ type Props = ImgHTMLAttributes<HTMLImageElement> & {
 export function ResponsiveImage({ src, media, sizes, alt, loading, fetchPriority, decoding, ...rest }: Props) {
   const priority = useContext(SectionPriorityContext);
   const source = responsiveSource(src, media);
+  // Plain path kept byte-identical to the old markup (ResponsiveImage.test.tsx); callers pass `loading` rarely here.
   if (!source) return <img src={src} alt={alt} loading={loading} decoding={decoding} fetchPriority={fetchPriority} {...rest} />;
   return (
     <img
+      // `loading` before `src`: React sets attributes in prop order, and a lazy picture whose src is set first
+      // loads at once when the prerendered page already listed it (features/site/lazyFirst.test.ts).
+      loading={priority ? "eager" : loading || "lazy"}
       src={src}
       srcSet={source.srcSet}
       sizes={sizes || "100vw"}
       width={source.width}
       height={source.height}
       alt={alt || source.alt}
-      loading={priority ? "eager" : loading || "lazy"}
       fetchPriority={priority ? "high" : fetchPriority}
       decoding={decoding || "async"}
       {...rest}

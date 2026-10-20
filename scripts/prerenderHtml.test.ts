@@ -69,6 +69,15 @@ describe('public HTML snapshots', () => {
     expect(html).not.toContain('data-fm-skeleton');
     expect(html).toContain('class="w-full opacity-100"');
   });
+  it('leaves out the thumbnail strip size measured in the build browser, so each screen lays it out itself', () => {
+    document.documentElement.innerHTML = '<head></head><body><div id="root"><div class="fm-pdp-media" data-thumbs="below"><div class="fm-pdp-rail" role="group" data-fill="wrap" data-last-row="stretch" style="--thumb-cols: 5; --thumb-h: 128.64px;"><button class="fm-pdp-thumb"><img src="/a.webp" alt="A"></button></div><p>A</p></div></div></body>';
+    const html = captureDocument({ template: '<html></html>', publicUrl: base + '/books/a', localOrigin: 'http://localhost' });
+    const rail = new DOMParser().parseFromString(html, 'text/html').querySelector('.fm-pdp-rail')!;
+    expect(rail.hasAttribute('data-fill')).toBe(false);
+    expect(rail.hasAttribute('data-last-row')).toBe(false);
+    expect(rail.hasAttribute('style')).toBe(false);
+    expect(rail.querySelector('img')?.getAttribute('src')).toBe('/a.webp');
+  });
   it('refuses empty shells and error pages instead of publishing them', () => {
     document.documentElement.innerHTML = '<head></head><body><div id="root"></div></body>';
     expect(() => captureDocument({ template: '<html></html>', publicUrl: base + '/', localOrigin: 'http://localhost' })).toThrow();
