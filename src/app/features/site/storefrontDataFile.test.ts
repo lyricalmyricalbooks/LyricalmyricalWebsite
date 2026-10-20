@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { currentStorefrontData, fileIsCurrent, isStorefrontDataFile, nanoTime, shippingProfilesFrom } from "./storefrontDataFile";
+import { describe, expect, it, vi } from "vitest";
+import { CHECK_DEADLINE_MS, currentStorefrontData, fileIsCurrent, isStorefrontDataFile, nanoTime, shippingProfilesFrom } from "./storefrontDataFile";
 
 const file = { v: 1, readTime: "2026-10-15T03:49:48.748909Z", settings: { info: {} }, books: [{ id: "b" }], pages: [] };
 const ts = (iso: string, nanos: number) => ({ seconds: Date.parse(iso) / 1000, nanoseconds: nanos });
@@ -56,6 +56,19 @@ describe("storefront data file", () => {
     // Other readers never share.
     await currentStorefrontData(async () => file, marker, { now: t + 30_002 });
     expect(markerReads).toBe(4);
+  });
+
+  it("gives up on a stalled file download after the deadline (null, so the caller reads Firestore)", async () => {
+    vi.useFakeTimers();
+    try {
+      const marker = async () => ({ changedAt: ts("2026-10-15T03:00:00Z", 0) });
+      const result = currentStorefrontData(() => new Promise(() => {}), marker, { fresh: true });
+      await vi.advanceTimersByTimeAsync(CHECK_DEADLINE_MS);
+      expect(await result).toBeNull();
+      const stalledMarker = currentStorefrontData(async () => file, () => new Promise(() => {}), { fresh: true });
+      await vi.advanceTimersByTimeAsync(CHECK_DEADLINE_MS);
+      expect(await stalledMarker).toBeNull();
+    } finally { vi.useRealTimers(); }
   });
 
   it("gives shipping profiles only from files that carry them", () => {

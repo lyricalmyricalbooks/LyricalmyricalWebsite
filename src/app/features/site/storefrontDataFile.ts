@@ -80,14 +80,23 @@ export function currentStorefrontData(
   return shared.result.then(file => (file ? copyOf(file) : null));
 }
 
-const copyOf = <T,>(value: T): T => (typeof structuredClone === "function" ? structuredClone(value) : JSON.parse(JSON.stringify(value)));
+export const CHECK_DEADLINE_MS = 3_000;
+function withDeadline<T>(work: Promise<T>, ms = CHECK_DEADLINE_MS): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), ms); });
+  return Promise.race([work.catch(() => null), deadline]).finally(() => clearTimeout(timer));
+}
+
+const copyOf =<T,>(value: T): T => (typeof structuredClone === "function" ? structuredClone(value) : JSON.parse(JSON.stringify(value)));
 
 async function checkStorefrontData(
   fetchFile: () => Promise<unknown>,
   readMarker: () => Promise<unknown>,
 ): Promise<StorefrontDataFile | null> {
   try {
-    const [file, marker] = await Promise.all([fetchFile().catch(() => null), readMarker().catch(() => null)]);
+    // A stalled download or marker read never holds up the page (checkout's Pay waits on this): after the deadline
+    // the answer is null and the caller reads Firestore.
+    const [file, marker] = await Promise.all([withDeadline(fetchFile()), withDeadline(readMarker())]);
     if (!isStorefrontDataFile(file) || !fileIsCurrent(file, marker)) return null;
     return file;
   } catch {
