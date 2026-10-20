@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
@@ -18,6 +18,10 @@ const TONE: Record<CustomerSegment, BadgeTone> = { vip: "primary", "vip-lapsed":
 const CONSENT_TONE: Record<Consent, BadgeTone> = { subscribed: "success", "opted-out": "danger", none: "neutral" };
 const PAGE_SIZE = 25;
 type Note = { note: string; tags: string[] };
+type Draft = { note: string; tags: string; loaded: boolean };
+/** Sub tabs of one customer's window. Ids are prefixed: `Tabs` renders `id="rp-tab-<id>"` and the segment tabs use plain ids. */
+export type CustomerTab = "cust-summary" | "cust-orders" | "cust-notes";
+const shortDate = (at: number) => new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
 /** sha256 hex of the lowercased email: the id of `customerNotes` and `marketing-optout` docs. */
 export async function emailHash(email: string): Promise<string> {
@@ -43,12 +47,13 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const [country, setCountry] = useState("");
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState<CustomerRow | null>(null);
+  const [detailTab, setDetailTab] = useState<CustomerTab>("cust-summary");
   const [exportOpen, setExportOpen] = useState(false);
   const [consent, setConsent] = useState<{ subscribed: Set<string>; optedOutHashes: Set<string> | null } | null>(null);
   const [hashes, setHashes] = useState<Map<string, string>>(new Map());
   const [notes, setNotes] = useState<Map<string, Note>>(new Map());
   // loaded: the stored note for this customer was read, so saving can't replace it with blanks.
-  const [draft, setDraft] = useState<{ note: string; tags: string; loaded: boolean } | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
   const [notesState, setNotesState] = useState<"loading" | "ok" | "failed">("loading");
   const [savingNote, setSavingNote] = useState(false);
   const [ask, confirmNode] = useConfirm();
@@ -128,6 +133,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
 
   const notesReadyFor = (c: CustomerRow) => notesState === "ok" && hashes.has(c.key);
   const openCustomer = (c: CustomerRow) => {
+    if (open?.key !== c.key) setDetailTab("cust-summary");
     setOpen(c);
     const n = noteFor(c);
     setDraft({ note: n?.note || "", tags: (n?.tags || []).join(", "), loaded: notesReadyFor(c) });
@@ -247,44 +253,89 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
 
       {open && (
         <Dialog open size="lg" title={open.name || open.email} description={`${open.email} · ${SEGMENT_LABELS[open.segment]} · Marketing: ${CONSENT_LABELS[consentFor(open)]}`} onClose={() => { void closeCustomer(); }}>
-          <div className="rp-stack">
-            <p className="rp-hint">
-              {open.orderCount} paid order{open.orderCount === 1 ? "" : "s"} · {money(open.totalSpent)} lifetime after refunds{open.firstOrderAt ? ` · first order ${new Date(open.firstOrderAt).toLocaleDateString()}` : ""}
-            </p>
-            <DataTable caption="Order history" rowKey={(o) => o.id}
-              rows={open.orders}
-              columns={[
-                { key: "id", header: "Order", render: (o: any) => <a className="rp-mono" href={`#orders/${encodeURIComponent(o.id)}`} onClick={() => setOpen(null)}>{o.orderId || o.id}</a> },
-                { key: "date", header: "Date", render: (o: any) => new Date(o.createdAt).toLocaleDateString() },
-                { key: "status", header: "Payment", render: (o: any) => o.paymentStatus === "refunded" ? <StatusBadge tone="warning">Refunded</StatusBadge> : <StatusBadge tone="success">Paid</StatusBadge> },
-                { key: "items", header: "Copies", numeric: true, render: (o: any) => copiesOf(o) },
-                { key: "total", header: "Total", numeric: true, render: (o: any) => money(Number(o.total) || 0) },
-              ]} />
-            {draft && (
-              <div className="rp-stack">
-                <TextArea label="Private note" hint="Only you can see this. Never shown to the customer." value={draft.note} maxLength={5000}
-                  onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
-                <TextField label="Tags" hint="Separate with commas, e.g. wholesale, author, festival" value={draft.tags}
-                  onChange={(e) => setDraft({ ...draft, tags: e.target.value })} />
-                {!draft.loaded && (
-                  <p className="rp-hint" role="status" style={{ margin: 0 }}>
-                    {notesState === "failed"
-                      ? <>Saved notes couldn't be loaded, so saving is off (it would replace this customer's stored note and tags).{" "}
-                          <button type="button" className="rp-link" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", textDecoration: "underline", color: "inherit", font: "inherit" }} onClick={loadNotes}>Try again</button></>
-                      : "Loading the saved note…"}
-                  </p>
-                )}
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <PrimaryButton onClick={saveNote} disabled={savingNote || !draft.loaded}>{savingNote ? "Saving…" : "Save note"}</PrimaryButton>
-                  <a className="rp-btn rp-btn-secondary" href={`mailto:${encodeURIComponent(open.email).replace(/%40/g, "@")}`}>Email customer</a>
-                  <SecondaryButton onClick={() => { void copyText(open.email, "Email address"); }}>Copy email</SecondaryButton>
-                </div>
-              </div>
-            )}
-          </div>
+          <CustomerDetail customer={open} tab={detailTab} onTab={setDetailTab} draft={draft} onDraft={setDraft}
+            notesState={notesState} onRetryNotes={loadNotes} savingNote={savingNote} onSaveNote={saveNote} onOpenOrder={() => setOpen(null)} />
         </Dialog>
       )}
       {confirmNode}
+    </div>
+  );
+}
+
+/** A sub tab's panel. Hidden panels stay mounted, so a typed note survives switching tabs. */
+function CustomerTabPanel({ id, active, children }: { id: CustomerTab; active: CustomerTab; children: React.ReactNode }) {
+  return (
+    <div role="tabpanel" id={`rp-tabpanel-${id}`} aria-labelledby={`rp-tab-${id}`} hidden={active !== id} tabIndex={0}>
+      {children}
+    </div>
+  );
+}
+
+/** One customer's window: Summary · Orders · Notes & tags. */
+export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesState, onRetryNotes, savingNote, onSaveNote, onOpenOrder }: {
+  customer: CustomerRow; tab: CustomerTab; onTab: (t: CustomerTab) => void;
+  draft: Draft | null; onDraft: (d: Draft) => void; notesState: "loading" | "ok" | "failed"; onRetryNotes: () => void;
+  savingNote: boolean; onSaveNote: () => void; onOpenOrder: () => void;
+}) {
+  const row = (label: string, value: React.ReactNode) => (
+    <div style={{ display: "contents" }}><dt className="rp-hint">{label}</dt><dd style={{ margin: 0 }}>{value}</dd></div>
+  );
+  return (
+    <div className="rp-stack">
+      <Tabs label="Customer details" value={tab} onChange={onTab}
+        tabs={[
+          { id: "cust-summary", label: "Summary" },
+          { id: "cust-orders", label: "Orders", count: c.orders.length },
+          { id: "cust-notes", label: "Notes & tags" },
+        ]} />
+      <CustomerTabPanel id="cust-summary" active={tab}>
+        <div className="rp-stack">
+          <p className="rp-hint" style={{ margin: 0 }}>
+            {c.orderCount} paid order{c.orderCount === 1 ? "" : "s"} · {money(c.totalSpent)} lifetime after refunds{c.firstOrderAt ? ` · first order ${new Date(c.firstOrderAt).toLocaleDateString()}` : ""}
+          </p>
+          <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "6px 16px", margin: 0 }}>
+            {row("Location", [c.city, c.country].filter(Boolean).join(", ") || "—")}
+            {row("Avg order", money(c.avgOrder))}
+            {row("Last order", c.lastOrderAt ? `${shortDate(c.lastOrderAt)} (${c.daysSinceLast}d ago)` : "—")}
+          </dl>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <a className="rp-btn rp-btn-secondary" href={`mailto:${encodeURIComponent(c.email).replace(/%40/g, "@")}`}>Email customer</a>
+            <SecondaryButton onClick={() => { void copyText(c.email, "Email address"); }}>Copy email</SecondaryButton>
+          </div>
+        </div>
+      </CustomerTabPanel>
+      <CustomerTabPanel id="cust-orders" active={tab}>
+        <DataTable caption="Order history" rowKey={(o) => o.id}
+          rows={c.orders}
+          columns={[
+            { key: "id", header: "Order", render: (o: any) => <a className="rp-mono" href={`#orders/${encodeURIComponent(o.id)}`} onClick={onOpenOrder}>{o.orderId || o.id}</a> },
+            { key: "date", header: "Date", render: (o: any) => new Date(o.createdAt).toLocaleDateString() },
+            { key: "status", header: "Payment", render: (o: any) => o.paymentStatus === "refunded" ? <StatusBadge tone="warning">Refunded</StatusBadge> : <StatusBadge tone="success">Paid</StatusBadge> },
+            { key: "items", header: "Copies", numeric: true, render: (o: any) => copiesOf(o) },
+            { key: "total", header: "Total", numeric: true, render: (o: any) => money(Number(o.total) || 0) },
+          ]} />
+      </CustomerTabPanel>
+      <CustomerTabPanel id="cust-notes" active={tab}>
+        {draft && (
+          <div className="rp-stack">
+            <TextArea label="Private note" hint="Only you can see this. Never shown to the customer." value={draft.note} maxLength={5000}
+              onChange={(e) => onDraft({ ...draft, note: e.target.value })} />
+            <TextField label="Tags" hint="Separate with commas, e.g. wholesale, author, festival" value={draft.tags}
+              onChange={(e) => onDraft({ ...draft, tags: e.target.value })} />
+            {!draft.loaded && (
+              <p className="rp-hint" role="status" style={{ margin: 0 }}>
+                {notesState === "failed"
+                  ? <>Saved notes couldn't be loaded, so saving is off (it would replace this customer's stored note and tags).{" "}
+                      <button type="button" className="rp-link" style={{ background: "none", border: 0, padding: 0, cursor: "pointer", textDecoration: "underline", color: "inherit", font: "inherit" }} onClick={onRetryNotes}>Try again</button></>
+                  : "Loading the saved note…"}
+              </p>
+            )}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <PrimaryButton onClick={onSaveNote} disabled={savingNote || !draft.loaded}>{savingNote ? "Saving…" : "Save note"}</PrimaryButton>
+            </div>
+          </div>
+        )}
+      </CustomerTabPanel>
     </div>
   );
 }
