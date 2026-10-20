@@ -7,10 +7,14 @@ export function footerGroup(item: MenuItem): FooterGroup {
   return item.footerGroup ?? (/submission|open[-\s]?call|contact|instagram|mailto:|\/track/i.test(`${item.value || ""} ${item.label}`) ? "connect" : "explore");
 }
 
+/** A published page linked from the footer: every page in the header menu, plus "footer only" pages
+ *  (Studio › Pages › Where the link shows, `showInFooter`). */
+export const pageInFooter = (p: any) => !!p && p.status === "published" && !!(p.showInNav || p.showInFooter);
+
 /** Build editable menu records without changing the published page collection. */
 export function automaticFooterItems(settings: any, pages: any[]): MenuItem[] {
   const d = settings?.design || {};
-  const visible = (pages || []).filter(p => p.showInNav && p.status === "published");
+  const visible = (pages || []).filter(pageInFooter);
   const items: MenuItem[] = [
     { id: "footer-shop", label: getCopy(d, "footerLinkShop"), type: "home", footerGroup: "explore" },
     { id: "footer-track", label: getCopy(d, "footerLinkTrack"), type: "url", value: "/track", footerGroup: "connect" },

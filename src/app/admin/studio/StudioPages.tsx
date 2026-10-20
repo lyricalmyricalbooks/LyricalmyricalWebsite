@@ -12,6 +12,15 @@ import type { Page } from "../../features/site/types";
 import { reconcileSavedPage } from "./studioWorkflow";
 import { askAi } from "../aiWriter";
 import { PAGE_STARTERS, pageFromStarter, type PageStarter } from "./pageStarters";
+
+// Where a page's link appears on the shop. "Header and footer" is the old "Include in the storefront header"
+// (header pages have always been in the footer too); "Footer only" sets `showInFooter` (footerNavigation `pageInFooter`).
+const LINK_PLACEMENTS = [
+  { id: "both", label: "Header and footer", hint: "(the default for new pages)", short: "In header & footer" },
+  { id: "footer", label: "Footer only", hint: "(e.g. Stockists, FAQ)", short: "Footer only" },
+  { id: "none", label: "Not linked", hint: "(reachable by its web address only)", short: "Not in menus" },
+] as const;
+const linkPlacement = (p: Partial<Page>) => (p.showInNav ?? true) ? "both" : p.showInFooter ? "footer" : "none";
 import { useConfirm } from "../riso/components";
 import { friendlyError } from "./friendlyError";
 
@@ -262,7 +271,16 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
         </div>
         <div className="space-y-2 border-t border-neutral-200 pt-3">
           <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editing.status === "published"} onChange={(e) => set({ status: e.target.checked ? "published" : "draft" })} /> Published <span className="font-normal text-neutral-500">(drafts are hidden from the shop)</span></label>
-          <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editing.showInNav ?? true} onChange={(e) => set({ showInNav: e.target.checked })} /> Include in the storefront header <span className="font-normal text-neutral-500">(on by default for new pages)</span></label>
+          <fieldset className="space-y-1">
+            <legend className="text-xs font-bold">Where the link shows</legend>
+            {LINK_PLACEMENTS.map(({ id, label, hint }) => (
+              <label key={id} className="flex items-start gap-2 text-xs">
+                <input type="radio" className="mt-0.5" name="page-link-placement" checked={linkPlacement(editing) === id}
+                  onChange={() => set({ showInNav: id === "both", showInFooter: id === "footer" })} />
+                <span><span className="font-bold">{label}</span> <span className="text-neutral-500">{hint}</span></span>
+              </label>
+            ))}
+          </fieldset>
         </div>
         <div className="space-y-2 border-t border-neutral-200 pt-3">
           <div className="flex items-center justify-between gap-2">
@@ -330,7 +348,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
       {loadError && <div role="alert" className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between gap-3"><span>Pages could not be loaded. Your existing list is preserved.</span><button className={btn} onClick={onRetryLoad}>Retry</button></div>}
       <div>
         <p className="text-sm font-bold">Pages</p>
-        <p className="text-xs text-neutral-500">Write About, Shipping or Journal pages. Blank pages and most starters are added to the storefront header (each page has its own switch). Pages save straight away and don't need Publish. Use “Design sections” to lay out a page with banners and galleries.</p>
+        <p className="text-xs text-neutral-500">Write About, Shipping or Journal pages. Blank pages and most starters are added to the storefront header and footer; each page chooses under “Where the link shows” (Header and footer, Footer only, or Not linked). Pages save straight away and don't need Publish. Use “Design sections” to lay out a page with banners and galleries.</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <button className={btnPrimary} onClick={() => setStarters(v => !v)} disabled={filling} aria-expanded={starters} aria-controls="studio-page-starters"><Plus size={14} /> New page</button>
@@ -371,7 +389,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
             <button className={iconBtn} onClick={() => remove(p)} aria-label={`Delete ${p.title}`}><Trash2 size={14} /></button>
           </div>
           <p className="text-[11px] text-neutral-600">
-            {p.status === "published" ? "✓ Published" : "○ Draft"} · {p.showInNav ? "In menu" : "Not in menu"}
+            {p.status === "published" ? "✓ Published" : "○ Draft"} · {LINK_PLACEMENTS.find(x => x.id === linkPlacement({ ...p, showInNav: !!p.showInNav }))?.short}
           </p>
         </div>
       ))}
