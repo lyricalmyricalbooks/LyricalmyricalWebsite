@@ -2344,6 +2344,9 @@ export function Checkout() {
 
             <div className="my-7 border-t border-slate-200" />
 
+            {/* Hidden in Studio, the box still appears for a code already in play (a shared discount link or an applied code), so the shopper can always see and remove it. */}
+            {(checkoutDesign.showCheckoutDiscountBox !== false || appliedDiscount || discountCode) && (
+            <div {...regionProps("checkoutDiscount")}>
             {!(checkoutDesign.alwaysShowDiscountBox || discountOpen || appliedDiscount || discountCode) ? (
               <button type="button" onClick={() => setDiscountOpen(true)} data-studio-target="copy:Checkout" data-studio-label="Discount code link"
                 className="flex items-center gap-2 text-sm font-medium text-slate-600 underline-offset-4 hover:underline">
@@ -2377,6 +2380,8 @@ export function Checkout() {
             )}
             {discountError && <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} />{discountError}</p>}
             {appliedDiscount && <p className="mt-2 flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--success)" }}><CheckCircle2 size={13} />{c("coDiscountApplied", { code: appliedDiscount.code })}</p>}
+            </div>
+            )}
             {autoBeatsCode && checkoutDesign.showCheckoutAutoDiscountHint !== false && (
               <div role="note" className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-700" data-studio-target="style:checkout|copy:Checkout" data-studio-label="Automatic offer hint">
                 <p>{c("coAutoBetter", { title: autoPick?.discount?.title || "" })}</p>

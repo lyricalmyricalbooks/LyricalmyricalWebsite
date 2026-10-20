@@ -707,6 +707,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "hideCountryFlags", label: "Hide flags in the country list", kind: "toggle" },
       { key: "checkoutSummaryOpenOnPhones", label: "Open the order summary by default on phones", kind: "toggle" },
       { key: "hidePayButtonTotal", label: "Hide the order total on the Pay button", kind: "toggle" },
+      { key: "showCheckoutDiscountBox", label: "Discount code box at checkout (still shown when a shared discount link filled in a code)", kind: "toggle", defaultValue: true },
       { key: "alwaysShowDiscountBox", label: "Always show the discount code box (instead of a link)", kind: "toggle" },
       { key: "showCheckoutGiftCardBox", label: "Gift card box at checkout", kind: "toggle", defaultValue: true },
       { key: "showCheckoutAutoDiscountHint", label: "Tell shoppers when an automatic offer beats their code", kind: "toggle", defaultValue: true },

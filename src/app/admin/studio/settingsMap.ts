@@ -211,7 +211,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Empty bag", keys: ["cartDrawerShowEmptyIcon", "cartDrawerShowEmptyButton", "cartDrawerEmptyLink"] },
   ],
   checkout: [
-    { title: "What shoppers see", keys: ["showOrderNote", "hideCheckoutAddressUnit", "hideCheckoutPaymentTotal", "hideCheckoutExpressWallets", "hideAddressSuggestions", "checkoutPinnedCountries", "hideCountryFlags", "checkoutSummaryOpenOnPhones", "hidePayButtonTotal", "alwaysShowDiscountBox", "showCheckoutGiftCardBox", "showCheckoutAutoDiscountHint", "hideCheckoutFreeShipNudge", "hideCheckoutLowStock", "hideCheckoutPolicyLinks"] },
+    { title: "What shoppers see", keys: ["showOrderNote", "hideCheckoutAddressUnit", "hideCheckoutPaymentTotal", "hideCheckoutExpressWallets", "hideAddressSuggestions", "checkoutPinnedCountries", "hideCountryFlags", "checkoutSummaryOpenOnPhones", "hidePayButtonTotal", "showCheckoutDiscountBox", "alwaysShowDiscountBox", "showCheckoutGiftCardBox", "showCheckoutAutoDiscountHint", "hideCheckoutFreeShipNudge", "hideCheckoutLowStock", "hideCheckoutPolicyLinks"] },
     { title: "Colours", keys: ["checkoutAccentColor", "checkoutBgColor"] },
     { title: "Fonts & form fields", keys: ["checkoutHeadingFont", "checkoutFont", "checkoutFieldFont", "checkoutFieldBg", "checkoutFieldText", "checkoutFieldBorder", "checkoutInputRadius"] },
     { title: "Card payment form", keys: ["stripeFormBg", "stripeFormPadding"] },

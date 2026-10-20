@@ -675,6 +675,7 @@
   "showCatalogCount": "visible",
   "showCategoryChips": "visible",
   "showCheckoutAutoDiscountHint": "none: needs a free-shipping rule or an automatic discount in the fixture's settings",
+  "showCheckoutDiscountBox": "visible",
   "showCheckoutGiftCardBox": "visible",
   "showCollectionBreadcrumbs": "none: only on a collection page (Studio › Preview collection)",
   "showCollectionMeta": "none: only on a collection page",
