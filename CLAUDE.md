@@ -966,10 +966,14 @@ and violet/blue accents onto Riso tokens): Taxes/Communications
 **Admin UX pass (19 October 2026):** top bar `ShopStatusMenu` (`riso/shellParts.tsx`: Shop open/closed/Checkout paused, Close/Open
 the shop through the existing confirm, Store status settings); Help and appearance are also in the avatar menu; search opens from a
 magnifier on phones. `AdminAlerts` sorts urgent first and folds after two. `DataTable` `stackOnPhone` turns rows into cards at ≤767px;
-Riso buttons take `busy`. Settings pages group cards with `admin/settingsLayout.tsx` (`SettingsContents` "On this page" panel that
-scrolls/focuses without touching the hash, `SettingsGroup`, `HowTo`, `friendlyError`); Email/Reviews/Messages errors go through
+Riso buttons take `busy`. Settings pages group cards with `admin/settingsLayout.tsx` (`SettingsTabs` sub tabs, one `SettingsGroup` panel per topic,
+`HowTo`, `friendlyError`); Email/Reviews/Messages errors go through
 `admin/plainError.ts`, sign-in errors through `admin/loginError.ts` — never show raw `err.message` in admin. The order page lays itself
 out by its own width (container query on `.fw-detail` in `fulfillment.css`).
+**Sub tabs (owner's preference, 20 October 2026):** split a long admin page into sub tabs (Riso `Tabs` + `TabPanel`) rather than
+one long scroll: Settings › General / Payments (`SettingsTabs`), Email sender (Emails · Sending setup · Deliveries), Inventory
+(Stock · Inventory app link). Panels stay mounted (`hidden`), so unsaved edits survive a switch and one SaveBar covers every tab;
+mark a tab with edits with `unsaved`. Tab ids must be unique on the page (`rp-tab-<id>`). Overview and Design are out of scope.
 Never wrap `rp-*` chrome in `.admin-light` — its `aside button` / `input` rules override
 it. Don't add new compat rules for new work; compose the components instead.
 

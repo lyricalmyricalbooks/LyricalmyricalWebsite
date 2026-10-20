@@ -41,6 +41,7 @@ import { DEFAULT_FIGURES, FIGURES, widgetMeta, type BoardView, type FigureId } f
 import { clearShared } from "./overviewShared";
 import { OverviewVisitors, type VisitorWidget } from "./OverviewVisitors";
 import { OverviewVisitorPath, type PathWidget } from "./OverviewVisitorPath";
+import { OverviewNavigation, type NavigationWidget } from "./OverviewNavigation";
 
 const PREFS_KEY = "lm:overview-view";
 type Prefs = { preset?: Preset; compare?: CompareMode; from?: string; to?: string };
@@ -451,6 +452,9 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       case "livePages": case "pageTime": case "visitHours": case "actions": case "outbound": case "newReturning":
         return <OverviewVisitors only={w.type as VisitorWidget} ga={ga} books={books} dailyCurrent={dailyCurrent} dailyPrevious={dailyPrevious}
           config={w.config || {}} onConfig={setConfig} full={full} setActiveTab={setActiveTab} periodLabel={range.phrase} />;
+      case "moves": case "firstPage": case "sectionClicks": case "deviceSteps":
+        return <OverviewNavigation only={w.type as NavigationWidget} ga={ga} books={books} config={w.config || {}} onConfig={setConfig}
+          full={full} setActiveTab={setActiveTab} periodLabel={range.phrase} />;
       case "dropOff": case "lookNoBuy":
         return <OverviewVisitorPath only={w.type as PathWidget} dailyCurrent={dailyCurrent} dailyPrevious={dailyPrevious} dailyAll={daily.rows || []}
           books={books} config={w.config || {}} onConfig={setConfig} onEditBook={handleEditClick} phrase={range.phrase} />;
