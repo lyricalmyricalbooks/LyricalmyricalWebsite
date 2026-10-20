@@ -225,17 +225,144 @@ export const abandonedCartApi = {
 const dayKey = () => new Date().toISOString().split("T")[0];
 const mapKey = analyticsKey;
 
-/** Adds each count to today's analytics doc (`{ funnel: { view: 1 } }` → increment(1) on funnel.view). */
+/**
+ * One counter to add: `field.key` (or the top-level `visits`, key "") on day `day`. firestore.rules decides what may
+ * share a write (see planCounterWrites).
+ */
+export type CounterBump = { day: string; field: string; key: string; n: number };
+export type CounterWrite = { day: string; counts: Record<string, Record<string, number>> };
+
+/** Maps whose keys firestore.rules lists one by one: any number of keys per write, each up by at most one. */
+const FIXED_KEY_FIELDS = new Set(["funnel", "devices", "checkout"]);
+const stepsByOne = (field: string) => field === "visits" || FIXED_KEY_FIELDS.has(field);
+/**
+ * Rough rules-engine cost of one changed field: a fixed-key map runs one `stepOk` per listed key (funnel 4, devices 3,
+ * checkout 7), a free-key map one `freeMapStepOk`, visits nothing extra. The Firestore emulator refused writes at
+ * about 16 (e.g. checkout + funnel + devices + two free maps; funnel + devices + nine free maps), so a write is kept
+ * at MAX_WRITE_RULE_COST or less. scripts/firestore-rules-emulator.mjs checks the heaviest allowed shapes.
+ */
+const RULE_COST: Record<string, number> = { visits: 0, funnel: 4, devices: 3, checkout: 7 };
+export const ruleCost = (field: string) => RULE_COST[field] ?? 1;
+export const MAX_WRITE_RULE_COST = 12;
+
+/**
+ * Packs queued counters into as few writes as firestore.rules' analytics match accepts, keeping their order:
+ * - `visits` and each fixed-key map entry (funnel, devices, checkout) rise by at most 1 per write;
+ * - a free-key map (sources, searches, noResults, bookViews, categoryViews, bookAdds, wishlistAdds, unbuyableViews,
+ *   vitals) may change ONE entry per write (repeats of that same entry are added together, which the rules allow);
+ * - each day is its own document;
+ * - a write stays inside the rules engine's budget (ruleCost, MAX_WRITE_RULE_COST).
+ * Nothing is dropped: a counter that fits no planned write starts a new one. Pure, so tests can check every plan
+ * against the rules' text.
+ */
+export function planCounterWrites(bumps: CounterBump[]): CounterWrite[] {
+  const writes: CounterWrite[] = [];
+  for (const b of bumps) {
+    if (!b.day || !b.field || !(b.n > 0)) continue;
+    // A fixed-key step of more than one (never sent today) becomes single steps.
+    const steps = stepsByOne(b.field) ? Array.from({ length: Math.max(1, Math.floor(b.n)) }, () => 1) : [b.n];
+    for (const n of steps) {
+      const fits = (w: CounterWrite) => {
+        if (w.day !== b.day) return false;
+        const have = w.counts[b.field];
+        if (!have) return Object.keys(w.counts).reduce((sum, f) => sum + ruleCost(f), 0) + ruleCost(b.field) <= MAX_WRITE_RULE_COST;
+        if (stepsByOne(b.field)) return !(b.key in have);
+        const keys = Object.keys(have);
+        return keys.length === 1 && keys[0] === b.key;
+      };
+      let w = writes.find(fits);
+      if (!w) { w = { day: b.day, counts: {} }; writes.push(w); }
+      const have = (w.counts[b.field] ||= {});
+      have[b.key] = (have[b.key] || 0) + n;
+    }
+  }
+  return writes;
+}
+
+/** How long counters wait to share a write: a page's signals (visit + source/device, book view + its categories) arrive together. */
+export const COUNTER_FLUSH_MS = 300;
+
+type Queued = CounterBump & { done: () => void };
+let queue: Queued[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let flushOnHideInstalled = false;
+
+/** One planned write: `visits` is a top-level number, the rest are maps of increment(). */
+async function writeCounters(w: CounterWrite) {
+  const { doc, increment, setDoc, liteDb } = await lite();
+  const today = w.day;
+  const patch: Record<string, unknown> = {};
+  for (const [field, keys] of Object.entries(w.counts)) {
+    patch[field] = field === "visits"
+      ? increment(keys[""] || 0)
+      : Object.fromEntries(Object.entries(keys).map(([key, n]) => [key, increment(n)]));
+  }
+  await setDoc(doc(liteDb, "analytics", today), { date: today, ...patch }, { merge: true });
+}
+
+/** Sends everything queued: one write per planned group; a group the rules refuse is retried one counter at a time. */
+export async function flushCounters(): Promise<void> {
+  if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+  const batch = queue;
+  queue = [];
+  if (!batch.length) return;
+  try {
+    await Promise.all(planCounterWrites(batch).map(async w => {
+      try {
+        await writeCounters(w);
+      } catch (e: any) {
+        // A combined write is refused as a whole (e.g. one map already at its size cap): send each counter alone so
+        // the others still count, exactly as they did before counters were combined.
+        const singles = Object.entries(w.counts).flatMap(([field, keys]) => Object.entries(keys).map(([key, n]) => ({ field, key, n })));
+        if (singles.length < 2 || e?.code !== "permission-denied") return;
+        await Promise.all(singles.map(s => writeCounters({ day: w.day, counts: { [s.field]: { [s.key]: s.n } } }).catch(() => { /* best-effort */ })));
+      }
+    }));
+  } catch {
+    // best-effort: tracking must never break browsing or checkout
+  } finally {
+    for (const q of batch) q.done();
+  }
+}
+
+/** Queues counters for `day`; settles once they were sent (or given up on). */
+function queueCounters(day: string, counts: Record<string, Record<string, number>>): Promise<void> {
+  return new Promise(resolve => {
+    let left = 0;
+    const done = () => { if (--left <= 0) resolve(); };
+    for (const [field, keys] of Object.entries(counts)) {
+      for (const [key, n] of Object.entries(keys)) { left++; queue.push({ day, field, key, n, done }); }
+    }
+    if (!left) { resolve(); return; }
+    if (!flushOnHideInstalled && typeof window !== "undefined" && typeof window.addEventListener === "function") {
+      flushOnHideInstalled = true;
+      // Leaving or hiding the page sends what is waiting at once, so a quick exit doesn't lose the count.
+      const now = () => { void flushCounters(); };
+      window.addEventListener("pagehide", now);
+      try {
+        document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") now(); });
+      } catch { /* no document */ }
+    }
+    let hidden = false;
+    try { hidden = typeof document !== "undefined" && document.visibilityState === "hidden"; } catch { hidden = false; }
+    // Counted while the page is already hidden (page speed is sent on leaving): no waiting, the tab may be closing.
+    if (hidden) { void Promise.resolve().then(flushCounters); return; }
+    if (!flushTimer) flushTimer = setTimeout(() => { void flushCounters(); }, COUNTER_FLUSH_MS);
+  });
+}
+
+/**
+ * Adds each count to today's analytics doc (`{ funnel: { view: 1 } }` → increment(1) on funnel.view). Counts from
+ * the same moment share as few writes as firestore.rules allows (planCounterWrites).
+ */
 async function bump(counts: Record<string, Record<string, number>>) {
   if (!(await trackingAllowed())) return;
-  const today = dayKey();
-  try {
-    const { doc, increment, setDoc, liteDb } = await lite();
-    const patch = Object.fromEntries(Object.entries(counts).map(([field, keys]) => [field, Object.fromEntries(Object.entries(keys).map(([key, n]) => [key, increment(n)]))]));
-    await setDoc(doc(liteDb, "analytics", today), { date: today, ...patch }, { merge: true });
-  } catch {
-    // best-effort
-  }
+  await queueCounters(dayKey(), counts);
+}
+
+/** One visit on today's counter, sharing a write with the session's source/device. Callers check trackingAllowed first. */
+export function queueVisit(): Promise<void> {
+  return queueCounters(dayKey(), { visits: { "": 1 } });
 }
 
 /** True the first time `key` is seen this browser session (so reloads and back-and-forth don't double count). */

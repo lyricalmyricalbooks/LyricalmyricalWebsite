@@ -90,6 +90,45 @@ await check("page speed +1 ok", assertSucceeds(setDoc(doc(anon, "analytics", tod
   await check("busy day: a checkout step can't go down", assertFails(setDoc(doc(anon, "analytics", busy), { date: busy, checkout: { pay: -5 } }, { merge: true })));
   await check("busy day: a sources map can't be emptied", assertFails(setDoc(doc(anon, "analytics", busy), { date: busy, sources: {} })));
 }
+// Combined counter writes (lib/commerce.ts planCounterWrites): one write may carry the visit, several maps and several
+// fixed keys, but still one entry per free-key map and +1 per fixed key.
+await check("combined: visit + source + device in one write", assertSucceeds(setDoc(doc(anon, "analytics", today), { date: today, visits: increment(1), sources: { google: increment(1) }, devices: { mobile: increment(1) } }, { merge: true })));
+await check("combined: book page view, book, unbuyable and a category in one write", assertSucceeds(setDoc(doc(anon, "analytics", today), { date: today, funnel: { view: increment(1) }, bookViews: { bk1: increment(1) }, unbuyableViews: { bk1: increment(1) }, categoryViews: { POETRY: increment(1) } }, { merge: true })));
+await check("combined: two funnel steps and two checkout steps in one write", assertSucceeds(setDoc(doc(anon, "analytics", today), { date: today, funnel: { view: increment(1), add_to_cart: increment(1) }, checkout: { email: increment(1), address: increment(1) } }, { merge: true })));
+await check("combined: repeats of one search term added together", assertSucceeds(setDoc(doc(anon, "analytics", today), { date: today, searches: { poems: increment(2) } }, { merge: true })));
+await check("combined: two categories in one write refused (planner splits them)", assertFails(setDoc(doc(anon, "analytics", today), { date: today, funnel: { view: increment(1) }, categoryViews: { A: increment(1), B: increment(1) } }, { merge: true })));
+await check("combined: two visits in one write refused (planner splits them)", assertFails(setDoc(doc(anon, "analytics", today), { date: today, visits: increment(2), sources: { google: increment(1) } }, { merge: true })));
+{
+  // The heaviest writes the planner allows (rules cost 12, commerce.ts MAX_WRITE_RULE_COST) on a busy doc must pass.
+  // One touching every map at once is refused by the engine (cost ~25), which is why the planner caps a write.
+  const busy2 = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+  const many = (prefix, n) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`${prefix}${i}`, 3]));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "analytics", busy2), {
+      date: busy2, visits: 500, funnel: { view: 40, add_to_cart: 9, checkout_start: 5, purchase: 2 }, devices: { mobile: 9, tablet: 1, desktop: 4 },
+      sources: many("s", 50), searches: many("q", 140), noResults: many("n", 140), bookViews: many("b", 290), categoryViews: many("c", 90),
+      bookAdds: many("b", 290), wishlistAdds: many("b", 290), unbuyableViews: many("b", 290),
+      checkout: { email: 5, address: 4, delivery: 4, pay: 3, fields: 1, declined: 1, failed: 1 }, vitals: many("phone_gg", 1),
+    });
+  });
+  const i = () => increment(1);
+  await check("busy day: heaviest combined write (checkout + funnel + visit + one map) counts", assertSucceeds(setDoc(doc(anon, "analytics", busy2), {
+    date: busy2, visits: i(), funnel: { view: i(), add_to_cart: i(), checkout_start: i(), purchase: i() },
+    checkout: { email: i(), address: i(), delivery: i(), pay: i(), fields: i(), declined: i(), failed: i() }, sources: { new1: i() },
+  }, { merge: true })));
+  await check("busy day: heaviest combined write (checkout + devices + visit + two maps) counts", assertSucceeds(setDoc(doc(anon, "analytics", busy2), {
+    date: busy2, visits: i(), devices: { mobile: i(), tablet: i(), desktop: i() },
+    checkout: { email: i(), address: i(), delivery: i(), pay: i(), fields: i(), declined: i(), failed: i() }, searches: { newq: i() }, bookViews: { newb: i() },
+  }, { merge: true })));
+  await check("busy day: heaviest combined write (funnel + devices + five maps) counts", assertSucceeds(setDoc(doc(anon, "analytics", busy2), {
+    date: busy2, visits: i(), funnel: { view: i(), add_to_cart: i(), checkout_start: i(), purchase: i() }, devices: { mobile: i(), tablet: i(), desktop: i() },
+    sources: { new2: i() }, noResults: { newn: i() }, categoryViews: { newc: i() }, bookAdds: { newb: i() }, unbuyableViews: { newb: i() },
+  }, { merge: true })));
+  await check("busy day: heaviest combined write (nine free maps) counts", assertSucceeds(setDoc(doc(anon, "analytics", busy2), {
+    date: busy2, visits: i(), sources: { new3: i() }, searches: { newq2: i() }, noResults: { newn2: i() }, bookViews: { newb2: i() }, categoryViews: { newc2: i() },
+    bookAdds: { newb2: i() }, wishlistAdds: { newb2: i() }, unbuyableViews: { newb2: i() }, vitals: { phone_ggg: i() },
+  }, { merge: true })));
+}
 await check("unknown analytics field refused", assertFails(setDoc(doc(anon, "analytics", today), { date: today, madeUp: { x: increment(1) } }, { merge: true })));
 
 // reviews + contacts
