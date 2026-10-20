@@ -25,7 +25,7 @@ import { GlobalSearch, ActivityLogDialog, ShopStatusMenu } from "./riso/shellPar
 import { WhatsNew } from "./WhatsNew";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, sidebarItems } from "./riso/nav";
-import { adminDocumentTitle, hashForRoute, routeFromHash, sameSection, settingsPageOf } from "./adminRoute";
+import { adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, settingsPageOf } from "./adminRoute";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
@@ -123,7 +123,8 @@ export function Dashboard() {
     if (!user) return;
     const next = hashForRoute({ tab: activeTab, settingsTab, orderId: activeTab === "orders" ? selectedOrder?.id : undefined });
     const current = window.location.hash;
-    if (current === next) { lastHash.current = next; return; }
+    // The Overview keeps its own sub tab after the page name (#overview/visitors/move).
+    if (current === next || keepsSubTab(current, next)) { lastHash.current = current; return; }
     const currentRoute = routeFromHash(current);
     const replace = !current || sameSection(current, next)
       || (currentRoute ? hashForRoute(currentRoute) === next : !parseStudioLocation(current) || next === "#designer");

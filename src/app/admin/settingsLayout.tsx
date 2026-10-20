@@ -1,15 +1,15 @@
 import type { ReactNode } from "react";
-import { StatusBadge } from "./riso/components";
+import { TabPanel, Tabs } from "./riso/components";
 import { friendlyReason, isPlainMessage } from "./studio/friendlyError";
 
 /**
- * Layout helpers for the long Settings pages (General, Payments): an "On this page" list that jumps to a topic or
- * card, topic groups with a heading, and a folded "How to set it up" box for step-by-step instructions.
- * Jumps scroll and move focus without touching the address bar (the admin's hash is its page route).
+ * Layout helpers for the long Settings pages (General, Payments): sub tabs, one per topic (a dot marks a topic with
+ * unsaved edits), and a folded "How to set it up" box for step-by-step instructions. Every topic stays mounted, so one
+ * Save bar still covers edits made on any sub tab. Jumps scroll and move focus without touching the address bar (the
+ * admin's hash is its page route).
  */
 
-export type ContentsItem = { id: string; label: string; unsaved?: boolean; note?: string };
-export type ContentsGroup = { id: string; title: string; items: ContentsItem[] };
+export type SettingsTab = { id: string; title: string; unsaved?: boolean; count?: number };
 
 const reducedMotion = () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -21,58 +21,24 @@ export function jumpTo(id: string) {
   el.focus({ preventScroll: true });
 }
 
-const buttonStyle = {
-  display: "inline-flex", alignItems: "center", flexWrap: "wrap" as const, gap: 6, minHeight: 32, padding: "2px 0", border: 0,
-  background: "none", font: "inherit", textAlign: "left" as const, cursor: "pointer",
-};
-const underline = { textDecoration: "underline", textDecorationColor: "var(--rp-border-strong, currentColor)", textUnderlineOffset: 3 };
+export function SettingsTabs({ tabs, value, onChange, label }: { tabs: SettingsTab[]; value: string; onChange: (id: string) => void; label: string }) {
+  return <Tabs label={label} value={value} onChange={onChange}
+    tabs={tabs.map((t) => ({ id: t.id, label: t.title, unsaved: t.unsaved, ...(t.count ? { count: t.count } : {}) }))} />;
+}
 
-export function SettingsContents({ groups, label = "On this page" }: { groups: ContentsGroup[]; label?: string }) {
+/** One topic of a settings page: the sub tab's panel, a line saying what it covers, then its cards. */
+export function SettingsGroup({ id, subcopy, active, children }: { id: string; subcopy?: string; active: boolean; children: ReactNode }) {
   return (
-    <nav aria-label={label} className="rp-card" style={{ padding: "16px 20px" }} data-settings-contents>
-      <div className="rp-sect" style={{ marginBottom: 12 }}>{label}</div>
-      <div style={{ display: "grid", gap: "12px 24px", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 210px), 1fr))" }}>
-        {groups.map((g) => {
-          const unsaved = g.items.filter((i) => i.unsaved).length;
-          return (
-            <div key={g.id} style={{ minWidth: 0 }}>
-              <button type="button" onClick={() => jumpTo(g.id)} className="rp-label" style={{ ...buttonStyle, fontWeight: 700, color: "var(--rp-text)" }}>
-                {g.title}
-                {unsaved > 0 && <StatusBadge tone="warning">{unsaved} unsaved</StatusBadge>}
-              </button>
-              <ul style={{ listStyle: "none", margin: "2px 0 0", padding: 0, display: "flex", flexWrap: "wrap", columnGap: 16 }}>
-                {g.items.map((item) => (
-                  <li key={item.id}>
-                    <button type="button" onClick={() => jumpTo(item.id)} className="rp-hint" style={{ ...buttonStyle, color: "var(--rp-text-muted)" }}>
-                      <span style={underline}>{item.label}</span>
-                      {item.unsaved && <><span aria-hidden="true" style={{ color: "var(--rp-warning)" }}>●</span><span className="rp-sr-only">(unsaved changes)</span></>}
-                      {item.note && <span>· {item.note}</span>}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          );
-        })}
+    <TabPanel tabId={id} active={active}>
+      <div className="rp-stack" style={{ gap: "var(--rp-space-4)" }}>
+        {subcopy && <p className="rp-page-desc" style={{ margin: 0 }}>{subcopy}</p>}
+        {children}
       </div>
-    </nav>
+    </TabPanel>
   );
 }
 
-/** One topic of a settings page: a heading the contents list jumps to, then its cards. */
-export function SettingsGroup({ id, title, subcopy, children }: { id: string; title: string; subcopy?: string; children: ReactNode }) {
-  return (
-    <section aria-labelledby={`${id}-title`} className="rp-stack" style={{ gap: "var(--rp-space-4)" }}>
-      <div id={id} tabIndex={-1} style={{ scrollMarginTop: 16, outline: "none", marginTop: "var(--rp-space-5)", paddingTop: "var(--rp-space-4)", borderTop: "2px solid var(--rp-border-strong, var(--rp-border))" }}>
-        <h2 id={`${id}-title`} className="rp-kicker" style={{ margin: 0, fontSize: "var(--rp-text-sm)" }}>{title}</h2>
-        {subcopy && <p className="rp-page-desc" style={{ margin: "6px 0 0" }}>{subcopy}</p>}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-/** A card the contents list can jump to. */
+/** A card other parts of the page can jump to. */
 export function SettingsAnchor({ id, children }: { id: string; children: ReactNode }) {
   return <div id={id} tabIndex={-1} style={{ scrollMarginTop: 16, outline: "none" }}>{children}</div>;
 }

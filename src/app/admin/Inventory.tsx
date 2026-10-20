@@ -13,7 +13,7 @@ import {
 } from "./inventoryInsights";
 import {
   Checkbox, DataTable, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, MetricCard,
-  Pagination, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextField,
+  Pagination, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextField,
   ToastProvider, useRisoToast, type BadgeTone, type Column,
 } from "./riso/components";
 
@@ -53,6 +53,8 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
   // Parts of the page that fell back to defaults because they couldn't be read (low-stock line, cost prices, inventory app links).
   const [partial, setPartial] = useState<string[]>([]);
   const [tab, setTab] = useState<Tab>("all");
+  // Page sub tabs: the stock list, and the link to the inventory app.
+  const [view, setView] = useState<"inv-stock" | "inv-link">("inv-stock");
   const [q, setQ] = useState("");
   const [threshold, setThreshold] = useState(5);
   const [thresholdDraft, setThresholdDraft] = useState("5");
@@ -347,6 +349,12 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
           <SecondaryButton size="sm" onClick={load}>Retry</SecondaryButton>
         </div>
       )}
+      <Tabs label="Inventory" value={view} onChange={setView} tabs={[
+        { id: "inv-stock", label: "Stock" },
+        { id: "inv-link", label: "Inventory app link" },
+      ]} />
+      <TabPanel tabId="inv-stock" active={view === "inv-stock"}>
+      <div className="rp-stack">
       <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
         <MetricCard label="Units on hand" value={sum.units} footer="Counted print editions" />
         <MetricCard label="Stock value" value={`CA$${sum.value.toFixed(0)}`}
@@ -396,10 +404,14 @@ function InventoryPage({ onEditBook }: { onEditBook?: (book: any) => void }) {
             action={tab !== "all" || q.trim() ? <SecondaryButton onClick={() => { setTab("all"); setQ(""); }}>Show every title</SecondaryButton> : undefined} />} />
         {!receiving && rows.length > PAGE_SIZE && <Pagination page={Math.min(page, pageCount)} pageCount={pageCount} onPage={setPage} />}
       </SectionCard>
-      <details className="rp-card" style={{ padding: 16 }} open={!Object.keys(links).length}>
-        <summary style={{ cursor: "pointer", fontWeight: 600 }}>Inventory app link: website sales and stock</summary>
-        <div style={{ marginTop: 12 }}><InventoryLinkPanel books={books} onLinksChanged={setLinks} onStockChanged={refreshBooks} /></div>
-      </details>
+      </div>
+      </TabPanel>
+      <TabPanel tabId="inv-link" active={view === "inv-link"}>
+        <div className="rp-stack">
+          <p className="rp-page-desc" style={{ margin: 0 }}>Website sales and stock shared with the inventory app, which keeps the master count for every matched edition.</p>
+          <InventoryLinkPanel books={books} onLinksChanged={setLinks} onStockChanged={refreshBooks} />
+        </div>
+      </TabPanel>
 
       <Drawer open={!!historyFor} onClose={() => setHistoryFor(null)} title={historyFor ? `Stock history · ${historyFor.title}` : "Stock history"}
         description="Every count change made on this page or by the inventory app link, newest first. Sales and refunds change stock automatically and are listed on their orders.">

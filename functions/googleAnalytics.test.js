@@ -92,11 +92,11 @@ describe("handleGa4Report", () => {
     expect((await handleGa4Report({ op: "report", range: { startDate: "x" } }, deps({ fetchImpl: vi.fn(async () => reply(200, {})) }))).status).toBe(400);
     expect((await handleGa4Report({ op: "report", range: RANGE }, deps({ allow: async () => false }))).status).toBe(429);
   });
-  it("report: four batches (campaigns, then the visitor batch) plus three realtime calls", async () => {
+  it("report: five batches (campaigns, the visitor batch, the navigation batch) plus three realtime calls", async () => {
     const d = deps({ fetchImpl: vi.fn(async () => reply(200, { reports: [] })) });
     const { body } = await handleGa4Report({ op: "report", range: RANGE }, d);
     expect(body.connected).toBe(true);
-    expect(d.fetchImpl).toHaveBeenCalledTimes(7);
+    expect(d.fetchImpl).toHaveBeenCalledTimes(8);
     expect(d.fetchImpl.mock.calls.filter(([url]) => url.includes(":runRealtimeReport"))).toHaveLength(3);
     expect(body.report.totals.current).toEqual({});
     expect(body.report.campaigns).toEqual([]);
@@ -104,6 +104,8 @@ describe("handleGa4Report", () => {
     expect(body.report.actions).toEqual({ current: {}, previous: {} });
     expect(body.report.realtimePages).toEqual([]);
     expect(body.report.realtimeMinutes).toHaveLength(30);
+    expect(body.report.moves).toEqual([]);
+    expect(body.report.deviceSteps).toEqual([]);
   });
   const routed = (handler) => vi.fn(async (url, init) => {
     const payload = JSON.parse(init.body);
@@ -151,10 +153,53 @@ describe("handleGa4Report", () => {
   });
 });
 
+describe("GA4 navigation batch", () => {
+  const deps = (over = {}) => ({
+    allow: async () => true, readSettings: async () => ({ propertyId: "123456789" }),
+    credentials: async () => ({ accessToken: "tok", email: "sa@x.iam.gserviceaccount.com" }), fetchImpl: vi.fn(), projectId: "p", ...over,
+  });
+  const routed = (handler) => vi.fn(async (url, init) => handler(url, JSON.parse(init.body)));
+  const isNavBatch = p => (p.requests || []).some(r => (r.dimensions || []).some(dm => dm.name === "pageReferrer"));
+  it("is the 5th batch with the navigation keys", () => {
+    const batches = buildBatches(RANGE);
+    expect(batches[4].map(r => r.key)).toEqual(["moves", "landingPaths", "lists", "deviceSteps"]);
+    expect(batches[4][0].dimensions.map(dm => dm.name)).toEqual(["pageReferrer", "pagePath"]);
+    expect(batches[4][3].dimensionFilter.filter.inListFilter.values).toContain("session_start");
+  });
+  it("shapes the navigation reports", () => {
+    const batches = buildBatches(RANGE);
+    const responses = [{ reports: [] }, { reports: [] }, { reports: [] }, null, { reports: [
+      report(["pageReferrer", "pagePath"], ["screenPageViews"], [{ d: ["https://shop.test/", "/books/a"], m: [9] }]),
+      report(["landingPage", "sessionDefaultChannelGroup"], ["sessions", "engagedSessions", "screenPageViews", "ecommercePurchases"], [{ d: ["/", "Direct"], m: [10, 6, 25, 1] }]),
+      report(["itemListName"], ["itemsViewedInList", "itemsClickedInList"], [{ d: ["New books"], m: [100, 7] }]),
+      report(["deviceCategory", "eventName"], ["activeUsers"], [{ d: ["mobile", "view_item"], m: [12] }]),
+    ] }];
+    const shaped = shapeReport(batches.map((requests, i) => ({ requests, response: responses[i] })), null);
+    expect(shaped.moves).toEqual([{ pageReferrer: "https://shop.test/", pagePath: "/books/a", screenPageViews: 9 }]);
+    expect(shaped.landingPaths[0]).toMatchObject({ landingPage: "/", sessionDefaultChannelGroup: "Direct", ecommercePurchases: 1 });
+    expect(shaped.lists).toEqual([{ itemListName: "New books", itemsViewedInList: 100, itemsClickedInList: 7 }]);
+    expect(shaped.deviceSteps).toEqual([{ deviceCategory: "mobile", eventName: "view_item", activeUsers: 12 }]);
+    expect(shaped.pageTime).toBeUndefined();
+  });
+  it("a refused navigation batch never fails the report, and a 400 retries its reports one by one", async () => {
+    const d = deps({ fetchImpl: routed((url, p) => {
+      if (url.includes(":runRealtimeReport")) return reply(200, {});
+      if (isNavBatch(p) && p.requests.length > 1) return reply(400, { error: { message: "bad field" } });
+      if (p.requests.length === 1 && p.requests[0].dimensions?.[0]?.name === "pageReferrer") return reply(400, { error: { message: "bad" } });
+      return reply(200, { reports: [] });
+    }) });
+    const { body } = await handleGa4Report({ op: "report", range: RANGE }, d);
+    expect(body.connected).toBe(true);
+    expect(body.report.moves).toBeUndefined();
+    expect(body.report.lists).toEqual([]);
+    expect(body.report.pageTime).toEqual([]);
+  });
+});
+
 describe("GA4 visitor batch", () => {
   it("is the 4th batch, five reports, with the visitor keys and valid filters", () => {
     const batches = buildBatches(RANGE);
-    expect(batches).toHaveLength(4);
+    expect(batches).toHaveLength(5);
     expect(batches[3].map(r => r.key)).toEqual(["pageTime", "when", "actions", "pageActions", "outbound"]);
     const outbound = batches[3][4];
     expect(outbound.dimensionFilter.andGroup.expressions.map(e => e.filter.fieldName)).toEqual(["eventName", "outbound"]);
