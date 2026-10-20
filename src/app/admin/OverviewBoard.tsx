@@ -734,7 +734,7 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
 
       {/* Sub tabs: one per topic (Everything = the whole board), and a second row inside Visitors. */}
       <div className="rp-wb-tabs">
-        <Tabs<TopTab> label="Overview topics" idPrefix="overview-" value={tab.band} onChange={band => openTab({ band, sub: "all" })}
+        <Tabs<TopTab> variant="page" label="Overview topics" idPrefix="overview-" value={tab.band} onChange={band => openTab({ band, sub: "all" })}
           tabs={topTabs(board, editing).map(id => ({ id, label: id === "all" ? "Everything" : bandMeta(id).title, ...(id === "all" ? {} : { count: board.bands.find(b => b.id === id)!.widgets.length }) }))} />
         {tab.band === "traffic" && subGroups.length > 0 && (
           <div className="rp-wb-subtabs">

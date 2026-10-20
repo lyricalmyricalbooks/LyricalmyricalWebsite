@@ -928,7 +928,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
   if (selectedProfileId === null || !editingProfile) {
     return (
       <div className="rp-stack">
-        <Tabs label="Shipping settings" value={shippingView} onChange={setShippingView} tabs={[
+        <Tabs variant="page" label="Shipping settings" value={shippingView} onChange={setShippingView} tabs={[
           { id: "overview", label: "Overview" },
           // Tab counts are open problems (none = no count); the profile count is on Overview.
           { id: "profiles", label: "Profiles", count: profileProblems.length || undefined },

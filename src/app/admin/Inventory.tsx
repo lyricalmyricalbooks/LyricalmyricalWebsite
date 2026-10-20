@@ -350,7 +350,7 @@ function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
           <SecondaryButton size="sm" onClick={load}>Retry</SecondaryButton>
         </div>
       )}
-      <Tabs label="Inventory" value={view} onChange={setView} tabs={[
+      <Tabs variant="page" label="Inventory" value={view} onChange={setView} tabs={[
         { id: "inv-stock", label: "Stock" },
         { id: "inv-link", label: "Inventory app link" },
       ]} />

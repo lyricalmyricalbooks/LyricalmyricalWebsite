@@ -32,7 +32,7 @@ export function useSubTab<T extends string>(fallback: T, value?: string, onChang
 }
 
 export function SettingsTabs({ tabs, value, onChange, label }: { tabs: SettingsTab[]; value: string; onChange: (id: string) => void; label: string }) {
-  return <Tabs label={label} value={value} onChange={onChange}
+  return <Tabs variant="page" label={label} value={value} onChange={onChange}
     tabs={tabs.map((t) => ({ id: t.id, label: t.title, unsaved: t.unsaved, ...(t.count ? { count: t.count } : {}) }))} />;
 }
 

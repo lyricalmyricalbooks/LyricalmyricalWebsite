@@ -377,11 +377,13 @@ export function Pagination({ page, pageCount, onPage }: { page: number; pageCoun
   );
 }
 
-export function Tabs<T extends string>({ tabs, value, onChange, label, idPrefix = "" }: {
+export function Tabs<T extends string>({ tabs, value, onChange, label, idPrefix = "", variant }: {
   /** `unsaved` marks a sub tab holding edits that aren't saved yet (a dot, read out as "unsaved changes"). */
   tabs: Array<{ id: T; label: string; count?: number; unsaved?: boolean }>; value: T; onChange: (id: NoInfer<T>) => void; label: string;
   /** Keeps button ids unique when two tab rows on one page share a tab id (the Overview's "all"). */
   idPrefix?: string;
+  /** "page" draws a plain underlined row for a page's own sections; filter rows keep the boxed look. */
+  variant?: "page";
 }) {
   const onKey = (e: React.KeyboardEvent, i: number) => {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
@@ -391,7 +393,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, label, idPrefix 
     requestAnimationFrame(() => document.getElementById(`rp-tab-${idPrefix}${next.id}`)?.focus());
   };
   return (
-    <div className="rp-tabs" role="tablist" aria-label={label}>
+    <div className="rp-tabs" data-variant={variant} role="tablist" aria-label={label}>
       {tabs.map((t, i) => (
         <button key={t.id} id={`rp-tab-${idPrefix}${t.id}`} type="button" role="tab" className="rp-tab"
           aria-selected={value === t.id} tabIndex={value === t.id ? 0 : -1}
