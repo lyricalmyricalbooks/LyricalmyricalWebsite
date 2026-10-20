@@ -2305,6 +2305,9 @@ changed nothing shoppers see still turns the file off), and is the backstop if a
 (`RETRY_DELAYS_MS`) and must not use `retry: true`: the deploy workflow never passes `--force`, which the CLI then requires
 (`functions/catalogVersion.test.js` fails on any `retry: true` in `functions/index.js`). `firebase.json` serves root `*.json` `no-cache`. Never add a field to the file that the
 Firestore path doesn't return, and keep both paths' transforms shared.
+The file also carries `shippingProfiles` (optional; stamped by `catalogVersionShipping`; `check-published-change` compares them since
+the fingerprint doesn't): `loadShippingProfiles` and Checkout's catalog/settings/profiles use it via `currentStorefrontData` (one check
+shared for 30 s, a copy per reader; Checkout passes `fresh: true`), else Firestore.
 
 ## Book videos (15 October 2026)
 

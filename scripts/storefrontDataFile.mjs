@@ -8,6 +8,10 @@
 // written after its snapshot (`readTime`), so shoppers see exactly what a Firestore read would show; otherwise the
 // storefront reads Firestore as before (features/site/storefrontDataFile.ts).
 //
+// It also carries the public `shipping-profiles` (book pages' search listing shows a shipping figure; the bag's
+// free-shipping bar and estimate use them). A write to a profile stamps the same marker
+// (functions/index.js catalogVersionShipping), so a changed profile is never read from an older file.
+//
 // The file holds the raw document data the browser's Firestore read returns. A value type JSON can't carry the same
 // way (timestamps, references, bytes, geo points, NaN) stops the file from being written, so the browser falls back.
 
@@ -88,7 +92,38 @@ export async function readStorefrontData(base, project, fetchImpl = fetch, pageS
   // Same shape as publicApi.getPublishedPages before sorting: id first, then the document's fields.
   const pages = (Array.isArray(pageRows) ? pageRows : []).filter(r => r && r.document).map(r => ({ id: docId(r.document), ...fieldsOf(r.document) }));
 
-  return { v: STOREFRONT_DATA_VERSION, readTime, builtAt: new Date().toISOString(), settings, books, pages };
+  // Shipping profiles are optional in the file: if they can't be read or stored exactly, the file is still written
+  // without them and the browser reads the profiles from Firestore as before.
+  let shippingProfiles;
+  try { shippingProfiles = await readShippingProfiles(base, fetchImpl, readTime); } catch { shippingProfiles = undefined; }
+
+  return { v: STOREFRONT_DATA_VERSION, readTime, builtAt: new Date().toISOString(), settings, books, pages, ...(shippingProfiles ? { shippingProfiles } : {}) };
+}
+
+/**
+ * Every public shipping profile, in the shape and order of publicApi.getShippingProfiles (`{ id, ...data }`, by
+ * document id). `readTime` reads them at the file's snapshot; without it, the current profiles.
+ */
+export async function readShippingProfiles(base, fetchImpl = fetch, readTime = undefined) {
+  const rows = await post(fetchImpl, `${base}:runQuery`, {
+    ...(readTime ? { readTime } : {}),
+    structuredQuery: { from: [{ collectionId: 'shipping-profiles' }], orderBy: [{ field: { fieldPath: '__name__' }, direction: 'ASCENDING' }] },
+  });
+  return (Array.isArray(rows) ? rows : []).filter(r => r && r.document).map(r => ({ id: docId(r.document), ...fieldsOf(r.document) }));
+}
+
+const stableJson = value => JSON.stringify(value, (_key, v) => v && typeof v === 'object' && !Array.isArray(v)
+  ? Object.fromEntries(Object.keys(v).sort().map(k => [k, v[k]])) : v);
+
+/**
+ * True when the deployed file carries shipping profiles that differ from the current ones. The marker normally
+ * reports a profile change; this is the backstop for a marker write that failed every retry, so the scheduled
+ * refresh still rebuilds the file. A file without profiles (or no file) says nothing.
+ */
+export function shippingProfilesDiffer(file, currentProfiles) {
+  if (!file || typeof file !== 'object' || file.v !== STOREFRONT_DATA_VERSION || !Array.isArray(file.shippingProfiles)) return false;
+  if (!Array.isArray(currentProfiles)) return false;
+  return stableJson(file.shippingProfiles) !== stableJson(currentProfiles);
 }
 
 /** RFC 3339 UTC time → sortable "YYYY-MM-DDTHH:MM:SS.nnnnnnnnn" (mirrors nanoTime in features/site/storefrontDataFile.ts). */

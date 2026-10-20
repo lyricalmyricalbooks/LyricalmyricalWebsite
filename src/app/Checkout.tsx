@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { m } from "motion/react";
 import { adminApi } from "./admin/api";
+import { publicApi } from "./lib/publicApi";
 import { abandonedCartApi, funnelApi } from "./lib/commerce";
 import { ga4Items, ga4Once } from "./lib/ga4";
 import { functionFetch } from "./lib/functionsBase";
@@ -54,6 +55,7 @@ import { designNumber } from "./features/site/designNumber";
 import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
 import { readSiteCache } from "./features/site/siteCache";
 import { loadCatalog } from "./features/site/loadCatalog";
+import { currentStorefrontData, fetchStorefrontDataFile, shippingProfilesFrom } from "./features/site/storefrontDataFile";
 import { quoteLocalFulfillment } from "./features/site/localFulfillment";
 import { catalogFulfillmentItems, discountedPhysicalSubtotal, bogoPercent } from "./features/site/checkoutFulfillment";
 import { bagPreorder, linePreorderNote, formatReleaseDate } from "./features/site/preorder";
@@ -420,7 +422,15 @@ export function Checkout() {
   useEffect(() => {
     async function loadFulfillmentSettings() {
       try {
-        const [profiles, siteSettings, bookList] = await Promise.all([
+        // The catalog file on Hosting when the catalog marker proves nothing changed since its snapshot (the same
+        // check the shop makes, so it equals a Firestore read now); otherwise the live Firestore reads. The server
+        // still prices every payment and checkout confirms a changed total before charging.
+        const file = await currentStorefrontData(fetchStorefrontDataFile, publicApi.getCatalogVersion, { fresh: true });
+        const [profiles, siteSettings, bookList] = file ? await Promise.all([
+          shippingProfilesFrom(file) || adminApi.getShippingProfiles(),
+          publicApi.publicSettingsFrom(file.settings as any),
+          file.books as any[],
+        ]) : await Promise.all([
           adminApi.getShippingProfiles(),
           adminApi.getPublicSettings() as Promise<any>,
           // Same ID-ordered reader as the shop, so books saved without createdAt are not missing here.
