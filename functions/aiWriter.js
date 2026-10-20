@@ -403,6 +403,7 @@ async function callGemini({ apiKey, model, body, fetchImpl }) {
 /** One task through the first model Google still serves. */
 async function generate({ apiKey, task, input, ctx = {}, models = MODELS, fetchImpl = fetch }) {
   let lastErr = null;
+  let sawQuota = false;
   for (const model of models) {
     try {
       const data = await callGemini({ apiKey, model, body: buildRequest(task, input, ctx, model), fetchImpl });
@@ -410,12 +411,16 @@ async function generate({ apiKey, task, input, ctx = {}, models = MODELS, fetchI
     } catch (err) {
       lastErr = err;
       if (err?.status === 404 || err?.googleStatus === "NOT_FOUND") continue;
+      // Free-tier allowances are counted per model, so a used-up one may leave the next model with room.
+      if (err?.status === 429 || err?.googleStatus === "RESOURCE_EXHAUSTED") { sawQuota = true; continue; }
       break;
     }
   }
+  if (sawQuota && lastErr?.status !== 429) lastErr = Object.assign(new Error("quota"), { status: 429, googleStatus: "RESOURCE_EXHAUSTED" });
   if (lastErr?.friendly) throw lastErr;
   const err = new Error(lastErr?.status === 404 ? "None of the Gemini models the shop knows are available to this key. Check the key in Google AI Studio." : aiErrorMessage(lastErr?.status || 0, lastErr?.googleStatus, lastErr?.message));
   err.status = lastErr?.status === 429 ? 429 : 502;
+  err.upstreamStatus = Number(lastErr?.status) || 0;
   throw err;
 }
 
@@ -525,6 +530,7 @@ async function generateOpenRouter({ apiKey, model, task, input, ctx = {}, fetchI
   if (lastErr?.friendly) throw lastErr;
   const err = new Error(openRouterErrorMessage(lastErr?.status || 0, lastErr?.message, lastModel));
   err.status = lastErr?.status === 429 ? 429 : 502;
+  err.upstreamStatus = Number(lastErr?.status) || 0;
   throw err;
 }
 
@@ -542,6 +548,43 @@ function pickProvider(settings) {
 const run = (provider, args) => (provider.name === "openrouter"
   ? generateOpenRouter({ ...args, apiKey: provider.apiKey, model: provider.model })
   : generate({ ...args, apiKey: provider.apiKey }));
+
+/** The other saved AI, used when the chosen one has run out of allowance or is down; null when only one key is saved. */
+function backupProvider(settings, primary) {
+  if (!primary) return null;
+  const other = pickProvider({ ...settings, provider: primary.name === "gemini" ? "openrouter" : "gemini" });
+  return other && other.name !== primary.name ? other : null;
+}
+
+/** Pure: a failure worth trying the other AI for (allowance used up, out of credits, busy or too slow), not a refusal of the request itself. */
+const worthBackup = err => [429, 402, 408, 500, 502, 503, 504].includes(Number(err?.upstreamStatus ?? err?.status));
+
+// After the chosen AI runs out, later requests on this server go straight to the backup for a while,
+// so a run of photos doesn't wait for the same refusal each time.
+const BACKUP_FOR_MS = 60 * 1000;
+const restingUntil = new Map();
+const resetProviderRest = () => restingUntil.clear();
+
+/** Runs the task on the chosen AI, and on the other saved one when the chosen one has run out. */
+async function runWithBackup(primary, backup, args, now = Date.now) {
+  const order = backup && (restingUntil.get(primary.name) || 0) > now() ? [backup, primary] : [primary, backup].filter(Boolean);
+  let firstErr = null;
+  for (const provider of order) {
+    try {
+      const result = await run(provider, args);
+      return { ...result, provider: provider.name, ...(provider !== primary ? { fellBack: true } : {}) };
+    } catch (err) {
+      if (firstErr) {
+        const name = provider.name === "openrouter" ? "OpenRouter" : "Google's AI";
+        throw Object.assign(new Error(`${firstErr.message} ${name} couldn't take over either: ${err.message}`), { status: firstErr.status });
+      }
+      firstErr = err;
+      if (!worthBackup(err) || order.length < 2) break;
+      if (provider === primary) restingUntil.set(primary.name, now() + BACKUP_FOR_MS);
+    }
+  }
+  throw firstErr;
+}
 
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const IMAGE_MAX_BYTES = 7 * 1024 * 1024;
@@ -578,7 +621,7 @@ async function fetchPhoto(url, fetchImpl) {
  * otherwise `task` is one of TASKS and `input` its facts. Deps keep it testable:
  * readSettings → { apiKey (Gemini), openrouterKey, openrouterModel, provider, voice }, allow → rate limit.
  */
-async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, siteName = "", bucket = "" }) {
+async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, siteName = "", bucket = "", now = Date.now }) {
   const settings = await readSettings();
   const wanted = body?.op === "check" && (body?.provider === "gemini" || body?.provider === "openrouter") ? body.provider : settings?.provider;
   const provider = pickProvider({ ...settings, provider: wanted });
@@ -623,11 +666,11 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
     return { status: 400, body: { error: why[task] || "Give the book a title first." } };
   }
   try {
-    const result = await run(provider, { task, input, ctx: { ...ctx, input, ...(image ? { image } : {}) }, fetchImpl });
+    const result = await runWithBackup(provider, backupProvider(settings, provider), { task, input, ctx: { ...ctx, input, ...(image ? { image } : {}) }, fetchImpl }, now);
     return { status: 200, body: { ok: true, result } };
   } catch (err) {
     return { status: err.status === 429 ? 429 : 502, body: { error: err.message } };
   }
 }
 
-module.exports = { MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
+module.exports = { backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };

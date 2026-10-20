@@ -2207,7 +2207,7 @@ OpenRouter key + optional model, which one writes, and an optional house style i
 `provider` when that key is saved, else OpenRouter, else Gemini. OpenRouter calls chat completions with the task's schema
 (`toJsonSchema`) and reads the answer through the same `parseResponse`; an owner-named model is never swapped, the default list
 (`OPENROUTER_MODELS`, first = `DEFAULT_OPENROUTER_MODEL` in `admin/aiWriter.ts`) moves on when one is retired. Key and model
-rules are mirrored client-side (`aiWriter.parity.test.ts`). **Write with AI** buttons:
+rules are mirrored client-side (`aiWriter.parity.test.ts`). **Backup AI (20 October 2026):** with both keys saved, a used-up / out-of-credits / busy answer (`worthBackup`: 429, 402, 408, 5xx; never a refusal) from the chosen AI is retried on the other (`runWithBackup`, `backupProvider`); the chosen one then rests for 60 s on that instance (`restingUntil`). Gemini 429 tries the next model first (allowances are per model). Results carry `provider` and `fellBack`. Books › edit › Images › Describe all runs `DESCRIBE_AT_ONCE` (3) photos at once through `runPool` (`admin/aiWriter.ts`) and stops starting new ones on a 429 or missing key. `LIMITS.aiWrite` is 120 per 10 min. **Write with AI** buttons:
 Books › edit › Search (SEO) (`bookSeo` → metaTitle/metaDescription), Books › edit › Details description toolbar (`bookDescription`,
 plain paragraphs, **Undo AI draft**) and Studio › Pages › Search listing (`pageSeo`; the server is told the shop-title suffix length).
 Books › edit › Images › **Describe with AI** (per photo, or every photo without a real description; task `photoAlt`: the server
