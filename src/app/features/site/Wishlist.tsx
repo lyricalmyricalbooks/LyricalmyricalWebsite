@@ -101,7 +101,7 @@ function WishlistContent() {
             const choice = quickAddChoice(book);
             const out = !choice.inStock;
             return (
-              <article key={book.id} className="fm-card group">
+              <article key={book.id} className="fm-card group min-w-0">
                 <Link to={`/books/${slug}`} className="block">
                   <div {...regionProps("wishlistPhoto")} className="relative aspect-[3/4] fm-surface rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
                     <img loading="lazy" decoding="async"
@@ -134,14 +134,14 @@ function WishlistContent() {
                   <button
                     onClick={() => { if (!addToCart(book, choice.variant)) toast.error(getCopy(settings?.design, "addToBagFailed")); }}
                     disabled={out}
-                    className="flex-1 flex items-center justify-center gap-2 fm-active py-2.5 rounded-full text-[9px] tracking-[0.3em] uppercase font-bold disabled:opacity-30 hover:bg-white/90 transition-all"
+                    className="flex-1 max-md:min-h-10 flex items-center justify-center gap-2 fm-active py-2.5 rounded-full text-[9px] tracking-[0.3em] uppercase font-bold disabled:opacity-30 hover:bg-white/90 transition-all"
                   >
                     <ShoppingBag size={11} /> {getCopy(settings?.design, choice.comingSoon ? "comingSoonBadge" : "wishlistAdd")}
                   </button>
                   <button
                     onClick={() => remove(book.id)}
                     aria-label={getCopy(settings?.design, "wishlistRemoveAria")}
-                    className="p-2.5 rounded-full border border-white/10 text-white/40 hover:text-rose-400 hover:border-rose-400/30 transition-colors"
+                    className="relative p-2.5 max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-[''] rounded-full border border-white/10 text-white/40 hover:text-rose-400 hover:border-rose-400/30 transition-colors"
                   >
                     <Trash2 size={12} />
                   </button>

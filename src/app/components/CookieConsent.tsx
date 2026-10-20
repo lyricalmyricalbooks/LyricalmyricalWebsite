@@ -70,8 +70,10 @@ export function CookieConsent() {
   };
 
   if (design?.showCookieBanner === false) return null;
-  const btn = "border-2 border-[var(--rp-outline)] px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]";
-  const primary = `min-w-[130px] flex-1 ${btn} bg-[var(--btn-bg)] text-[var(--btn-text)] shadow-[3px_3px_0_var(--rp-shadow-color)] transition-transform hover:-translate-y-0.5`;
+  // Phones get a compact banner (smaller heading, tighter spacing, all buttons on one row when they fit) so it
+  // covers about a quarter of the screen; from 768px up every class below is exactly the desktop look.
+  const btn = "max-md:min-h-11 max-md:max-w-full max-md:whitespace-nowrap border-2 border-[var(--rp-outline)] px-2.5 py-3 text-[10px] font-black uppercase tracking-[0.08em] md:px-4 md:tracking-[0.2em] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]";
+  const primary = `flex-1 md:min-w-[130px] ${btn} bg-[var(--btn-bg)] text-[var(--btn-text)] shadow-[3px_3px_0_var(--rp-shadow-color)] transition-transform hover:-translate-y-0.5`;
   return (
     <AnimatePresence>
       {!decided && (
@@ -84,21 +86,21 @@ export function CookieConsent() {
           role="dialog"
           aria-label={c("cookieAria")}
           aria-modal="false"
-          className="fixed bottom-3 left-3 right-3 z-[150] overflow-hidden border-2 border-[var(--rp-outline)] bg-[var(--bg-color)] p-5 text-[rgb(var(--fg-rgb))] shadow-[6px_6px_0_var(--rp-shadow-color)] md:bottom-7 md:left-auto md:right-8 md:max-w-[30rem] md:p-6"
+          className="fixed bottom-3 left-2 right-2 z-[150] overflow-hidden border-2 border-[var(--rp-outline)] bg-[var(--bg-color)] p-4 text-[rgb(var(--fg-rgb))] shadow-[6px_6px_0_var(--rp-shadow-color)] md:bottom-7 md:left-auto md:right-8 md:max-w-[30rem] md:p-6"
         >
           <StorefrontThemeStyle design={design} />
-          <p {...regionProps("cookieTag")} className="mb-3 inline-flex -rotate-1 border-2 border-[var(--rp-outline)] bg-[var(--warning)] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.28em] text-[var(--on-accent,#100f0d)] shadow-[3px_3px_0_var(--rp-shadow-color)]">
+          <p {...regionProps("cookieTag")} className="mb-2 inline-flex -rotate-1 border-2 border-[var(--rp-outline)] bg-[var(--warning)] px-2.5 py-1 text-[9px] md:mb-3 md:px-3 md:py-1.5 font-black uppercase tracking-[0.28em] text-[var(--on-accent,#100f0d)] shadow-[3px_3px_0_var(--rp-shadow-color)]">
             {c("cookieTag")}
           </p>
-          <h2 {...regionProps("cookieHeading")} className="mb-2 text-3xl uppercase leading-none" style={{ fontFamily: "var(--heading-font, 'Anton', Impact, sans-serif)", fontWeight: 400 }}>
+          <h2 {...regionProps("cookieHeading")} className="mb-1.5 text-2xl uppercase leading-none md:mb-2 md:text-3xl" style={{ fontFamily: "var(--heading-font, 'Anton', Impact, sans-serif)", fontWeight: 400 }}>
             {c("cookieHeading")} <span className="text-[var(--accent)]">{c("cookieHeadingAccent")}</span>
           </h2>
-          <p {...regionProps("cookieBody")} className="mb-5 max-w-md text-sm font-medium leading-relaxed text-[var(--muted)]">
+          <p {...regionProps("cookieBody")} className="mb-3 max-w-md text-[13px] font-medium leading-snug text-[var(--muted)] md:mb-5 md:text-sm md:leading-relaxed">
             {c("cookieBody")}
           </p>
 
           {showDetails && (
-            <div {...regionProps("cookieChoices")} className="mb-5 space-y-2 border-y-2 border-[var(--rp-outline)] py-4 text-xs text-[var(--muted)]">
+            <div {...regionProps("cookieChoices")} className="mb-3 space-y-2 border-y-2 border-[var(--rp-outline)] py-3 text-xs text-[var(--muted)] md:mb-5 md:py-4">
               <label className="flex items-start gap-3 opacity-60">
                 <input type="checkbox" checked disabled className="mt-0.5 accent-[var(--accent)]" />
                 <span>
@@ -130,13 +132,13 @@ export function CookieConsent() {
             </div>
           )}
 
-          <div {...regionProps("cookieActions")} className="flex flex-wrap gap-2.5">
+          <div {...regionProps("cookieActions")} className="flex flex-wrap gap-1.5 md:gap-2.5">
             <button onClick={() => decide({ analytics: true, marketing: true })} className={primary}>
               {c("cookieAcceptAll")}
             </button>
             <button
               onClick={() => decide({ analytics: false, marketing: false })}
-              className={`min-w-[120px] flex-1 ${btn} bg-[rgb(var(--fg-rgb))] text-[var(--bg-color)] transition-colors hover:bg-[var(--warning)] hover:text-[var(--on-accent,#100f0d)]`}
+              className={`flex-1 md:min-w-[120px] ${btn} bg-[rgb(var(--fg-rgb))] text-[var(--bg-color)] transition-colors hover:bg-[var(--warning)] hover:text-[var(--on-accent,#100f0d)]`}
             >
               {c("cookieReject")}
             </button>
@@ -147,7 +149,7 @@ export function CookieConsent() {
             ) : (
               <button
                 onClick={() => setShowDetails(true)}
-                className="px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.22em] text-[var(--muted)] underline decoration-2 underline-offset-4 transition-colors hover:text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]"
+                className="max-md:min-h-11 max-md:shrink-0 max-md:whitespace-nowrap px-1.5 py-2.5 text-[10px] font-black uppercase tracking-[0.08em] text-[var(--muted)] md:px-3 md:tracking-[0.22em] underline decoration-2 underline-offset-4 transition-colors hover:text-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]"
               >
                 {c("cookieCustomize")}
               </button>

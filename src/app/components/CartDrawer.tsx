@@ -239,7 +239,7 @@ export function CartDrawer() {
                         </div>
                         <div className="flex-1 min-w-0 flex flex-col gap-1">
                           <div className="flex justify-between gap-3 items-start">
-                            <h3 className="fm-bag-name">{item.title}</h3>
+                            <h3 className="fm-bag-name max-md:[overflow-wrap:anywhere]">{item.title}</h3>
                             {showLineTotal && <span className="fm-bag-line" translate="no">{formatPrice(item.price * item.quantity)}</span>}
                           </div>
                           {item.variantName && <p className="fm-bag-meta">{item.variantName}</p>}
@@ -297,15 +297,15 @@ export function CartDrawer() {
               {cart.length > 0 && showUpsell && recommendedBook && (
                 <div data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Bag suggestion" className="fm-bag-pad fm-bag-rule border-t pt-6 pb-8">
                   <p className="fm-bag-meta mb-4">{getCopy(design, "cartUpsellHeading")}</p>
-                  <div className="fm-bag-upsell flex gap-4 p-4 items-center">
+                  <div className="fm-bag-upsell flex flex-wrap md:flex-nowrap gap-4 p-4 items-center">
                     <div className="fm-bag-thumb" style={{ width: "56px" }}>
                       {recommendedBook.photos?.[0]?.url && <img loading="lazy" decoding="async" src={smallPhotoUrl(recommendedBook.photos[0])} alt="" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="fm-bag-name">{recommendedBook.title}</h3>
-                      <p className="fm-bag-meta mt-1">{formatPrice(catalogUnitPrice(recommendedBook, recommendedChoice(recommendedBook)))}</p>
+                      <h3 className="fm-bag-name max-md:[overflow-wrap:anywhere]">{recommendedBook.title}</h3>
+                      <p className="fm-bag-meta mt-1 whitespace-nowrap" translate="no">{formatPrice(catalogUnitPrice(recommendedBook, recommendedChoice(recommendedBook)))}</p>
                     </div>
-                    <button onClick={() => addToCart(recommendedBook, recommendedChoice(recommendedBook))} className="fm-bag-upsell-btn shrink-0 px-4 min-h-[44px]">
+                    <button onClick={() => addToCart(recommendedBook, recommendedChoice(recommendedBook))} className="fm-bag-upsell-btn shrink-0 px-4 min-h-[44px] w-full md:w-auto">
                       {getCopy(design, "cartUpsellAdd")}
                     </button>
                   </div>

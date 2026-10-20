@@ -933,14 +933,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     : { duration: 0 }
                   }
                   // CSS transitions skip opacity/transform, which the entrance animation drives every frame.
-                  className={`fm-card group relative transition-[translate,background-color,border-color,box-shadow] duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""} ${cardStyle === "card" ? "fm-surface border border-white/10 p-3" : ""}`}
+                  className={`fm-card group relative min-w-0 transition-[translate,background-color,border-color,box-shadow] duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""} ${cardStyle === "card" ? "fm-surface border border-white/10 p-3" : ""}`}
                   style={cardStyle === "card" ? { borderRadius: storefrontCardRadius } : undefined}
                 >
                   {showCardWishlist && (
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleWish(item.id); }}
                     aria-label={getCopy(activeDesign, wished ? "wishlistRemoveAria" : "wishlistAddAria")}
-                    className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center transition-colors ${
+                    className={`absolute top-3 right-3 z-10 w-9 h-9 max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-[''] rounded-full backdrop-blur-md flex items-center justify-center transition-colors ${
                       wished
                         ? "fm-favorite-active border"
                         : "bg-black/40 text-white/70 border border-white/10 hover:text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"

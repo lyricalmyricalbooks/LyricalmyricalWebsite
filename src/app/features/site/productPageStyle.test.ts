@@ -1,8 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { extraFieldsCss, photoViewerCss, productPageCss, productPageFontNames, signupBoxCss, titleFitSize } from "./productPageStyle";
+import { extraFieldsCss, phoneThumbsCss, photoViewerCss, productPageCss, productPageFontNames, signupBoxCss, titleFitSize } from "./productPageStyle";
 import { STYLE_GROUPS } from "../../admin/studio/styleSchema";
 
 describe("product page (catalogue card) CSS", () => {
+  it("Thumbnails on phones: same as computer by default, one line or hidden only below the phone breakpoint", () => {
+    expect(phoneThumbsCss({})).toBe("");
+    expect(phoneThumbsCss({ pdpThumbsPhone: "" })).toBe("");
+    // Unset draws exactly as before: the full CSS carries none of the phone-only thumbnail rules.
+    expect(productPageCss({ pdpThumbWrap: true })).toBe(productPageCss({ pdpThumbWrap: true, pdpThumbsPhone: "" }));
+    const row = phoneThumbsCss({ pdpThumbsPhone: "row" }, 96, 8);
+    expect(row.startsWith("@media (max-width:767px){")).toBe(true);
+    expect(row).toContain("flex-wrap:nowrap;max-height:none;overflow-x:auto;");
+    expect(row).toContain(".fm-pdp-thumb{flex:none;width:96px;}");
+    expect(row).toContain("(var(--thumb-cols) - 1) * 8px");
+    const hidden = phoneThumbsCss({ pdpThumbsPhone: "hidden" });
+    expect(hidden).toBe("@media (max-width:767px){[data-fm-store] .fm-pdp-media[data-thumbs] .fm-pdp-rail{display:none !important;}}");
+    // Comes after the several-rows grid so it wins on phones.
+    const css = productPageCss({ pdpThumbWrap: true, pdpThumbsPhone: "row", pdpThumbSize: 96, pdpThumbGap: 8 });
+    expect(css.indexOf(row)).toBeGreaterThan(css.indexOf("repeat(auto-fill"));
+    const control = STYLE_GROUPS.flatMap((g: any) => g.fields || []).find((f: any) => f.key === "pdpThumbsPhone");
+    expect(control?.defaultValue).toBe("");
+    expect(control?.options.map((o: any) => o.value)).toEqual(["", "row", "hidden"]);
+  });
+
+  it("puts Add to bag, wishlist and share on one line on phones only", () => {
+    const css = productPageCss({});
+    const at = css.indexOf("@media (max-width:767px){[data-fm-store] .fm-pdp-cta{display:grid;");
+    expect(at).toBeGreaterThan(-1);
+    expect(css).toContain('.fm-pdp-cta[data-icons="2"]{grid-template-columns:minmax(0,1fr) 52px 52px;}');
+    expect(css).toContain(".fm-pdp-cta>.fm-pdp-qty{grid-column:1/-1;justify-self:start;}");
+    // Outside the phone query nothing styles the row.
+    expect(css.slice(0, at)).not.toContain(".fm-pdp-cta");
+  });
+
   it("keeps the original edition buttons until Edition choices controls are set", () => {
     const css = productPageCss({});
     expect(css).toContain(".fm-pdp-chip{min-height:44px;padding:0 16px;background:transparent;border:2px solid rgba(var(--border-rgb), 0.6);font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}");

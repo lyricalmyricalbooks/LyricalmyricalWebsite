@@ -2001,7 +2001,7 @@ export function Checkout() {
 
       <header {...regionProps("checkoutHeader")} className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
-          <Link to="/" className="group flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900">
+          <Link to="/" className="group -my-3 flex min-h-11 items-center gap-2 text-sm font-medium text-slate-600 md:my-0 md:min-h-0 transition hover:text-slate-900">
             <ChevronLeft size={17} className="transition-transform group-hover:-translate-x-0.5" />
             {c("coReturn")}
           </Link>

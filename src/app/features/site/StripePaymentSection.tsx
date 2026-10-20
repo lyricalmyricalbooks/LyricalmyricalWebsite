@@ -19,7 +19,7 @@ export function StripePaymentSection({ design, selected, configured, canRetry, b
   return (
     <div {...regionProps("stripePaymentPanel")}>
       <div {...regionProps("stripePaymentHeader")} className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 px-4 py-4">
-        <label className="flex cursor-pointer items-center gap-3">
+        <label className="-my-3 flex min-h-11 cursor-pointer items-center gap-3 md:my-0 md:min-h-0">
           <input type="radio" name="payment-method" checked={selected} onChange={onSelect} disabled={busy} className="h-4 w-4 accent-[color:var(--accent)]" />
           <span className="text-sm font-medium">{c("coCard")}</span>
         </label>

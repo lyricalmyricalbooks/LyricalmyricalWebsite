@@ -358,6 +358,7 @@
   "pdpThumbShape": "none: the fixture's books have no photos",
   "pdpThumbSize": "css-only",
   "pdpThumbWrap": "css-only",
+  "pdpThumbsPhone": "css-only",
   "pdpTitleCase": "visible",
   "pdpTitleColor": "visible",
   "pdpTitleFont": "visible",

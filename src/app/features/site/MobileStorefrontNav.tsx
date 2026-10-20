@@ -45,7 +45,7 @@ export function MobileStorefrontNav({ design, pages, onSearch, showThemeToggle =
       {!d.hideHeaderSearch && <button className={linkClass} onClick={() => { close(); onSearch(); }}>{getCopy(design, "navSearch")}</button>}
       {!d.hideHeaderWishlist && <Link className={linkClass} onClick={close} to="/wishlist">{getCopy(design, "ariaWishlist")}</Link>}
       {!d.hideHeaderAccount && accountsEnabled(design) && <Link className={linkClass} onClick={close} to="/account">{getCopy(design, "ariaAccount")}</Link>}
-      {!d.hideCurrencySelector && <div className="px-6 py-3"><CurrencySelector label={getCopy(design, "currencyLabel")} ariaLabel={getCopy(design, "ariaCurrency")} /></div>}
+      {!d.hideCurrencySelector && <div className="px-6 py-3 [&_select]:-my-3 [&_select]:py-3"><CurrencySelector label={getCopy(design, "currencyLabel")} ariaLabel={getCopy(design, "ariaCurrency")} /></div>}
       {showThemeToggle && <div className="px-6 py-3"><ThemeToggle label={getCopy(design, "ariaThemeToggle")} /></div>}
     </nav>
   </details>;
@@ -95,7 +95,8 @@ function MobileNavTabs({ design, d, groups, showThemeToggle, pathname, slug }: {
       {tabs.map(tab)}
       {secondary.length > 0 && <div role="group" aria-label={getCopy(design, "secondaryNavigationAria")} className="contents" data-studio-target="menus:header-order|style:header|copy:Header" data-studio-label="Publisher navigation">{secondary.map(tab)}</div>}
       {extras.map(tab)}
-      {!d.hideCurrencySelector && <div className="flex shrink-0 items-center"><CurrencySelector label={getCopy(design, "currencyLabel")} ariaLabel={getCopy(design, "ariaCurrency")} /></div>}
+      {/* The currency box is a ~19px line: its select gets a 43px tap area (padding cancelled by margin, so nothing moves). */}
+      {!d.hideCurrencySelector && <div className="flex shrink-0 items-center [&_select]:-my-3 [&_select]:py-3"><CurrencySelector label={getCopy(design, "currencyLabel")} ariaLabel={getCopy(design, "ariaCurrency")} /></div>}
       {showThemeToggle && <div className="flex shrink-0 items-center"><ThemeToggle label={getCopy(design, "ariaThemeToggle")} /></div>}
     </div>
   </nav>;
