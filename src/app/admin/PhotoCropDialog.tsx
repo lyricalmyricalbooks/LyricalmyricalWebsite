@@ -9,6 +9,7 @@ import {
   isDefaultAdjust, photoAdjust, photoFraming, type AdjustLevel, type PhotoAdjust, type PhotoFraming,
 } from "../features/site/photoFraming";
 import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
+import { smallPhotoUrl } from "../features/site/photoSources";
 import { shopFrameShapes } from "./photoCrop";
 
 export function PhotoCropDialog({ photo, label, design, onSave, onClose }: {
@@ -125,7 +126,7 @@ export function PhotoCropDialog({ photo, label, design, onSave, onClose }: {
             }}
           >
             <PhotoToneDefs photo={shown} />
-            <img src={photo.url} alt={photo.altText || ""} draggable={false} style={framingStyle(shown)} />
+            <img src={smallPhotoUrl(photo, 1600)} alt={photo.altText || ""} draggable={false} style={framingStyle(shown)} />
             <span className={`be-crop-grid${levelling ? " be-crop-grid-fine" : ""}`} aria-hidden="true" />
             {comparing && <span className="be-crop-original">Original</span>}
           </div>
@@ -227,7 +228,7 @@ export function PhotoCropDialog({ photo, label, design, onSave, onClose }: {
               <figure key={s.id}>
                 <div className="be-crop-thumb" style={{ aspectRatio: s.aspect }}>
                   <PhotoToneDefs photo={shown} />
-                  <img src={photo.url} alt="" draggable={false} style={framingStyle(shown)} />
+                  <img src={smallPhotoUrl(photo, 480)} alt="" draggable={false} style={framingStyle(shown)} />
                 </div>
                 <figcaption>{s.label}</figcaption>
               </figure>
