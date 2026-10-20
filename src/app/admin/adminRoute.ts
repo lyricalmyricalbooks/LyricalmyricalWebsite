@@ -53,6 +53,12 @@ export function keepsSubTab(current: string, next: string): boolean {
   return next === "#overview" && /^#overview\/[a-z]/.test(current);
 }
 
+/**
+ * Fired after the Overview writes its own sub tab into the address (it does so without Dashboard), so Dashboard's
+ * record of the last address it saw stays current for Back/Forward and for putting the address back under an editor.
+ */
+export const OVERVIEW_HASH_EVENT = "lm:overview-hash";
+
 /** Browser-tab title for the page on screen. */
 export function adminDocumentTitle(pageTitle: string): string {
   return `${pageTitle} · Lyricalmyrical admin`;

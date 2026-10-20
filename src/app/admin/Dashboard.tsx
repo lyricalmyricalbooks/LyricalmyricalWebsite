@@ -25,7 +25,7 @@ import { GlobalSearch, ActivityLogDialog, ShopStatusMenu } from "./riso/shellPar
 import { WhatsNew } from "./WhatsNew";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, sidebarItems } from "./riso/nav";
-import { adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, settingsPageOf } from "./adminRoute";
+import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, settingsPageOf } from "./adminRoute";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
@@ -108,12 +108,16 @@ export function Dashboard() {
       setSelectedOrder(route.orderId ? { id: route.orderId } : null);
       setOpenGiftCard(route.giftCardId || null);
     };
+    // The Overview names its sub tab in the address itself; remember it as seen.
+    const overviewWrote = () => { lastHash.current = window.location.hash; };
     openFromHash();
     window.addEventListener("hashchange", openFromHash);
     window.addEventListener("popstate", openFromHash);
+    window.addEventListener(OVERVIEW_HASH_EVENT, overviewWrote);
     return () => {
       window.removeEventListener("hashchange", openFromHash);
       window.removeEventListener("popstate", openFromHash);
+      window.removeEventListener(OVERVIEW_HASH_EVENT, overviewWrote);
     };
   }, [user]);
 

@@ -65,7 +65,18 @@ describe("ga4 loading", () => {
     expect(calls.find((a: any) => a[0] === "event")[2].page_location).toBe("https://shop.test/track");
   });
 
-  it("names the previous page on in-app moves, cleaned, and leaves the first page to Google", async () => {
+  it("cleans the referrer of the first page, also in the tag's own config", async () => {
+    (globalThis as any).document.referrer = "https://shop.test/track?orderId=A1&key=secret";
+    configureGa4("G-TEST1234");
+    ga4PageView();
+    await flush();
+    const calls = (globalThis as any).window.dataLayer.map((a: any) => [...a]);
+    expect(JSON.stringify(calls)).not.toMatch(/secret|orderId/);
+    expect(calls.find((a: any) => a[0] === "config")[2].page_referrer).toBe("https://shop.test/track");
+    expect(calls.find((a: any) => a[0] === "event" && a[1] === "page_view")[2].page_referrer).toBe("https://shop.test/track");
+  });
+
+  it("names the previous page on in-app moves, cleaned, and nothing on a first page opened directly", async () => {
     const w = (globalThis as any).window;
     configureGa4("G-TEST1234");
     ga4PageView();
