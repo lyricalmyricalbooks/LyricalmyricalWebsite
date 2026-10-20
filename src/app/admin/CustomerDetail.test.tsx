@@ -17,7 +17,7 @@ const render = (tab: CustomerTab, draft: any = { note: "Signed copies please", t
     notesState="ok" onRetryNotes={() => {}} savingNote={false} onSaveNote={() => {}} onOpenOrder={() => {}} />,
 );
 
-const panel = (html: string, id: string) => html.match(new RegExp(`<div role="tabpanel" id="rp-tabpanel-${id}"[^>]*>`))?.[0] || "";
+const panel = (html: string, id: string) => html.match(new RegExp(`<div role="tabpanel" id="rp-panel-${id}"[^>]*>`))?.[0] || "";
 
 describe("Customer window sub tabs", () => {
   it("shows Summary · Orders · Notes & tags with prefixed tab ids", () => {
@@ -40,7 +40,7 @@ describe("Customer window sub tabs", () => {
 
   it("puts the private note, tags and Save note on the Notes & tags tab", () => {
     const html = render("cust-notes");
-    const notes = html.slice(html.indexOf('id="rp-tabpanel-cust-notes"'));
+    const notes = html.slice(html.indexOf('id="rp-panel-cust-notes"'));
     expect(notes).toContain("Private note");
     expect(notes).toContain("Save note");
     expect(notes).not.toContain("disabled");

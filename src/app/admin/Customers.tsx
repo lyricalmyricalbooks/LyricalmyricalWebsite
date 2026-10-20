@@ -10,7 +10,7 @@ import {
 } from "./customerInsights";
 import {
   DataTable, Dialog, EmptyState, ErrorState, FilterBar, GhostButton, LoadingState, MetricCard, Pagination, PrimaryButton, SearchField,
-  SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextArea, TextField, useConfirm, type BadgeTone, type Column,
+  SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, useConfirm, type BadgeTone, type Column,
 } from "./riso/components";
 
 const money = (n: number) => `CA$${n.toFixed(2)}`;
@@ -262,15 +262,6 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   );
 }
 
-/** A sub tab's panel. Hidden panels stay mounted, so a typed note survives switching tabs. */
-function CustomerTabPanel({ id, active, children }: { id: CustomerTab; active: CustomerTab; children: React.ReactNode }) {
-  return (
-    <div role="tabpanel" id={`rp-tabpanel-${id}`} aria-labelledby={`rp-tab-${id}`} hidden={active !== id} tabIndex={0}>
-      {children}
-    </div>
-  );
-}
-
 /** One customer's window: Summary · Orders · Notes & tags. */
 export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesState, onRetryNotes, savingNote, onSaveNote, onOpenOrder }: {
   customer: CustomerRow; tab: CustomerTab; onTab: (t: CustomerTab) => void;
@@ -288,7 +279,7 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
           { id: "cust-orders", label: "Orders", count: c.orders.length },
           { id: "cust-notes", label: "Notes & tags" },
         ]} />
-      <CustomerTabPanel id="cust-summary" active={tab}>
+      <TabPanel tabId="cust-summary" active={tab === "cust-summary"}>
         <div className="rp-stack">
           <p className="rp-hint" style={{ margin: 0 }}>
             {c.orderCount} paid order{c.orderCount === 1 ? "" : "s"} · {money(c.totalSpent)} lifetime after refunds{c.firstOrderAt ? ` · first order ${new Date(c.firstOrderAt).toLocaleDateString()}` : ""}
@@ -303,8 +294,8 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
             <SecondaryButton onClick={() => { void copyText(c.email, "Email address"); }}>Copy email</SecondaryButton>
           </div>
         </div>
-      </CustomerTabPanel>
-      <CustomerTabPanel id="cust-orders" active={tab}>
+      </TabPanel>
+      <TabPanel tabId="cust-orders" active={tab === "cust-orders"}>
         <DataTable caption="Order history" rowKey={(o) => o.id}
           rows={c.orders}
           columns={[
@@ -314,8 +305,8 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
             { key: "items", header: "Copies", numeric: true, render: (o: any) => copiesOf(o) },
             { key: "total", header: "Total", numeric: true, render: (o: any) => money(Number(o.total) || 0) },
           ]} />
-      </CustomerTabPanel>
-      <CustomerTabPanel id="cust-notes" active={tab}>
+      </TabPanel>
+      <TabPanel tabId="cust-notes" active={tab === "cust-notes"}>
         {draft && (
           <div className="rp-stack">
             <TextArea label="Private note" hint="Only you can see this. Never shown to the customer." value={draft.note} maxLength={5000}
@@ -335,7 +326,7 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
             </div>
           </div>
         )}
-      </CustomerTabPanel>
+      </TabPanel>
     </div>
   );
 }
