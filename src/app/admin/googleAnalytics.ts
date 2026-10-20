@@ -41,6 +41,15 @@ export interface Ga4Report {
   realtimePages?: Array<{ unifiedScreenName: string; activeUsers: number; screenPageViews: number }> | null;
   /** Realtime: people per minute, minutesAgo 0..29 ascending, missing minutes = 0; null when that call failed. */
   realtimeMinutes?: Array<{ minutesAgo: number; activeUsers: number }> | null;
+  // How visitors move (20 October 2026, 5th batch). Missing on an older server or when Google refused that report.
+  /** Page views by the page they came from (full referrer URL, "" for none) and the page shown. */
+  moves?: Array<{ pageReferrer: string; pagePath: string; screenPageViews: number }>;
+  /** Visits per first page and channel: how far they went and whether they bought. */
+  landingPaths?: Array<{ landingPage: string; sessionDefaultChannelGroup: string; sessions: number; engagedSessions: number; screenPageViews: number; ecommercePurchases: number }>;
+  /** Book-card lists (Studio sections): cards seen and opened. */
+  lists?: Array<{ itemListName: string; itemsViewedInList: number; itemsClickedInList: number }>;
+  /** People per device who reached each step (session_start, view_item, add_to_cart, begin_checkout, purchase). */
+  deviceSteps?: Array<{ deviceCategory: string; eventName: string; activeUsers: number }>;
 }
 export interface Ga4Answer {
   connected: boolean; code?: string; error?: string; serviceAccount?: string; propertyId?: string; enableApiUrl?: string;

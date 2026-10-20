@@ -48,6 +48,11 @@ export function sameSection(a: string, b: string): boolean {
   return orders(a) && orders(b);
 }
 
+/** The address already shows this page with a sub tab of its own (`#overview/visitors/move` for `#overview`): keep it. */
+export function keepsSubTab(current: string, next: string): boolean {
+  return next === "#overview" && /^#overview\/[a-z]/.test(current);
+}
+
 /** Browser-tab title for the page on screen. */
 export function adminDocumentTitle(pageTitle: string): string {
   return `${pageTitle} · Lyricalmyrical admin`;

@@ -42,7 +42,10 @@ const dim = name => ({ name });
 const ACTION_EVENTS = ["scroll", "click", "file_download", "view_search_results", "search", "search_no_results",
   "form_start", "form_submit", "add_to_wishlist", "select_item", "view_item", "add_to_cart", "video_start", "share"];
 
-/** The reports the Overview shows, as four batches (the API takes up to five reports per batch). */
+/** Steps for "Phones vs computers, step by step": people who did each one, per device. */
+const STEP_EVENTS = ["session_start", "view_item", "add_to_cart", "begin_checkout", "purchase"];
+
+/** The reports the Overview shows, as five batches (the API takes up to five reports per batch). */
 function buildBatches(range) {
   const cur = { startDate: range.startDate, endDate: range.endDate, name: "current" };
   const prev = { startDate: range.prevStartDate, endDate: range.prevEndDate, name: "previous" };
@@ -95,12 +98,26 @@ function buildBatches(range) {
         orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
       },
     ],
+    // How visitors move (20 October 2026). Optional like the batch before it.
+    [
+      // Page → page: the page a view came from (page_referrer; the storefront sends the previous page on in-app moves).
+      { key: "moves", dateRanges: [cur], dimensions: [dim("pageReferrer"), dim("pagePath")], metrics: [metric("screenPageViews")], limit: 1000, orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }] },
+      // First page, then what: per landing page and channel, how far visits went and whether they bought.
+      { key: "landingPaths", dateRanges: [cur], dimensions: [dim("landingPage"), dim("sessionDefaultChannelGroup")], metrics: ["sessions", "engagedSessions", "screenPageViews", "ecommercePurchases"].map(metric), limit: 300, orderBys: [{ metric: { metricName: "sessions" }, desc: true }] },
+      // Book-card lists (Studio sections, lib/ga4Lists.ts): cards seen and cards opened per list.
+      { key: "lists", dateRanges: [cur], dimensions: [dim("itemListName")], metrics: ["itemsViewedInList", "itemsClickedInList"].map(metric), limit: 50, orderBys: [{ metric: { metricName: "itemsViewedInList" }, desc: true }] },
+      {
+        key: "deviceSteps", dateRanges: [cur], dimensions: [dim("deviceCategory"), dim("eventName")], metrics: [metric("activeUsers")], limit: 50,
+        dimensionFilter: { filter: { fieldName: "eventName", inListFilter: { values: STEP_EVENTS } } },
+      },
+    ],
   ];
 }
 
-/** Index of the batch whose failure leaves its keys out instead of failing the whole report. */
-const OPTIONAL_BATCH = 3;
+/** Batches whose failure leaves their keys out instead of failing the whole report. */
+const OPTIONAL_BATCHES = [3, 4];
 const VISITOR_KEYS = ["pageTime", "when", "actions", "pageActions", "outbound"];
+const NAVIGATION_KEYS = ["moves", "landingPaths", "lists", "deviceSteps"];
 
 /** One API report → plain rows: `{ <dimension>: "…", <metric>: number }`, with `dateRange` when there are two windows. */
 function rowsOf(report) {
@@ -175,6 +192,7 @@ function shapeReport(batches, realtime, extra = {}) {
     ...(reports.actions ? { actions: { current: eventMap(strip(inRange(reports.actions, "current"))), previous: eventMap(strip(inRange(reports.actions, "previous"))) } } : {}),
     ...(reports.pageActions ? { pageActions: strip(reports.pageActions) } : {}),
     ...(reports.outbound ? { outbound: strip(reports.outbound) } : {}),
+    ...Object.fromEntries(NAVIGATION_KEYS.filter(k => reports[k]).map(k => [k, strip(reports[k])])),
     ...("pages" in extra ? { realtimePages: realtimePagesOf(extra.pages) } : {}),
     ...("minutes" in extra ? { realtimeMinutes: realtimeMinutesOf(extra.minutes) } : {}),
   };
@@ -259,20 +277,21 @@ async function handleGa4Report(body, deps) {
     post("runRealtimeReport", { dimensions: [{ name: "minutesAgo" }], metrics: [{ name: "activeUsers" }], limit: 30 }),
     ...batches.map(asBatch),
   ]);
-  const failed = results.find((res, i) => i !== OPTIONAL_BATCH && !res.ok);
+  const failed = results.find((res, i) => !OPTIONAL_BATCHES.includes(i) && !res.ok);
   if (failed) return fail(failed);
   const answers = batches.map((requests, i) => ({ requests, response: results[i].ok ? results[i].body : null }));
-  // One refused report fails its whole batch: when the visitor batch is refused for a request reason (not access or
+  // One refused report fails its whole batch: when an optional batch is refused for a request reason (not access or
   // quota, which the other batches would have hit too), ask its reports one by one and keep those Google accepts.
-  const optional = results[OPTIONAL_BATCH];
-  if (optional && !optional.ok && optional.status === 400) {
-    const singles = await Promise.all(batches[OPTIONAL_BATCH].map(req => asBatch([req]).catch(() => ({ ok: false }))));
-    answers[OPTIONAL_BATCH] = { requests: batches[OPTIONAL_BATCH], response: { reports: singles.map(res => (res.ok ? res.body?.reports?.[0] || {} : null)) } };
-  }
+  await Promise.all(OPTIONAL_BATCHES.map(async b => {
+    const optional = results[b];
+    if (!optional || optional.ok || optional.status !== 400) return;
+    const singles = await Promise.all(batches[b].map(req => asBatch([req]).catch(() => ({ ok: false }))));
+    answers[b] = { requests: batches[b], response: { reports: singles.map(res => (res.ok ? res.body?.reports?.[0] || {} : null)) } };
+  }));
   const extra = { pages: livePages.ok ? livePages.body : null, minutes: liveMinutes.ok ? liveMinutes.body : null };
   return { status: 200, body: { ...base, connected: true, range, report: shapeReport(answers, realtime.ok ? realtime.body : null, extra) } };
 }
 
 module.exports = {
-  cleanPropertyId, propertyIdProblem, cleanRange, buildBatches, rowsOf, shapeReport, realtimePagesOf, realtimeMinutesOf, ACTION_EVENTS, VISITOR_KEYS, gaErrorMessage, handleGa4Report, metadataCredentials, fetchJson,
+  cleanPropertyId, propertyIdProblem, cleanRange, buildBatches, rowsOf, shapeReport, realtimePagesOf, realtimeMinutesOf, ACTION_EVENTS, STEP_EVENTS, VISITOR_KEYS, NAVIGATION_KEYS, OPTIONAL_BATCHES, gaErrorMessage, handleGa4Report, metadataCredentials, fetchJson,
 };

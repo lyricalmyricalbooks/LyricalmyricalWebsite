@@ -2,18 +2,22 @@ import { Component, Fragment, useCallback, useEffect, useMemo, useRef, useState,
 import { ChevronDown, ChevronRight, GripVertical, Maximize2, Pencil, Plus, RefreshCw } from "lucide-react";
 import {
   ActionMenu, CardInWidget, Checkbox, Dialog, EmptyState, GhostButton, IconButton, PrimaryButton, SearchField, SecondaryButton,
-  SelectField, StatusBadge, TextField, useConfirm, usePrompt, useRisoToast, type MenuAction,
+  SelectField, StatusBadge, Tabs, TextField, useConfirm, usePrompt, useRisoToast, type MenuAction,
 } from "./riso/components";
 import {
-  BANDS, FIGURES, HEIGHTS, MAX_BOARDS, SIZES, TEMPLATES, WIDGETS, activeBoard, addBoard, addWidget, collapseBandWidgets, collapseEverything,
+  BANDS, FIGURES, HEIGHTS, MAX_BOARDS, SIZES, TEMPLATES, WIDGETS, activeBoard, addBoard, addWidget, collapseEverything,
   copyBoard, countOf, defaultStore, deleteBoard, duplicateWidget, findWidget, makeWidget, moveBand, moveWidget, moveWidgetTo, removeWidget,
   renameBoard, renameWidget, replaceBoard, resetBoard, restoreWidget, revealWidget, sameView, selectBoard, setBoardView, setWidgetConfig, updateBand, updateWidget, visibleBands,
   widgetMeta, widgetTitle, canAdd,
-  type BandId, type Board, type BoardStore, type BoardView, type BoardWidget, type ChartGrain, type FigureId, type TemplateId, type WidgetConfig,
+  type BandId, type Board, type BoardBand, type BoardStore, type BoardView, type BoardWidget, type ChartGrain, type FigureId, type TemplateId, type WidgetConfig,
   type WidgetHeight, type WidgetMeta, type WidgetSize, type WidgetType,
 } from "./overviewBoard";
 import { CHART_METRICS, type ChartMetric } from "./overviewSeries";
 import { readLocalBoards, readRemoteBoards, writeLocalBoards, writeRemoteBoards } from "./overviewBoardStore";
+import {
+  DEFAULT_TAB, groupOf, hashForTab, readSavedTab, saveTab, settleTab, tabForType, tabFromHash, topTabs, visitorGroups,
+  type OverviewTab, type TopTab, type VisitorGroup,
+} from "./overviewTabs";
 
 export type SaveState = "loading" | "saving" | "saved" | "local" | "error";
 export type RenderWidget = (w: BoardWidget, opts: { full: boolean; setConfig: (patch: WidgetConfig) => void }) => ReactNode;
@@ -104,8 +108,8 @@ export const HEIGHT_WORDS: Record<WidgetHeight, { name: string; hint: string }> 
 };
 const GRAIN_WORDS: Record<ChartGrain, string> = { auto: "Pick for me", day: "Each day", week: "Each week", month: "Each month" };
 
-/** Widgets added on 18–19 October 2026: marked "New" in Add widgets until the owner has opened it once. */
-export const NEW_WIDGETS: WidgetType[] = ["live", "calendar", "goal", "notes", "shipDays", "launches", "bookOfWeek", "signed", "map", "giftOwed", "preorders", "soldOut"];
+/** Widgets added on 20 October 2026: marked "New" in Add widgets until the owner has opened it once. */
+export const NEW_WIDGETS: WidgetType[] = ["moves", "firstPage", "sectionClicks", "deviceSteps"];
 const SEEN_KEY = "lm:overview-seen-widgets";
 function readSeen(): string[] { try { const v = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } }
 function writeSeen(types: string[]) { try { localStorage.setItem(SEEN_KEY, JSON.stringify(types)); } catch { /* private window: the dot just shows again */ } }
@@ -137,6 +141,8 @@ export const WIDGET_KEYWORDS: Partial<Record<WidgetType, string>> = {
   newsletter: "subscribers mailing list sign-ups email", reviews: "ratings stars reader reviews", map: "cities where orders come from geography",
   giftOwed: "gift cards balance owed liability", stockKpis: "inventory shelf value stock", reprint: "running out reprint print run",
   wanted: "sold out coming soon demand", backInStock: "waiting list notify restock", slow: "not selling dead stock old",
+  moves: "path journey navigation next page flow clicks through referrer", firstPage: "landing entry first page bounce journey instagram channel",
+  sectionClicks: "home page sections click rate book cards studio", deviceSteps: "phone mobile computer funnel steps checkout compare",
   low: "running out low stock few copies", preorders: "pre-order promised release print run", soldOut: "reprint running out countdown sold out days",
 };
 
@@ -256,6 +262,17 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
   const returnTo = useRef<string | null>(null);
   const periodRef = useRef<HTMLDivElement>(null);
   const unseenNew = NEW_WIDGETS.some(t => !seen.includes(t));
+  // The open sub tab: the address names it (#overview/visitors/move), else the one used last in this browser.
+  const [askedTab, setAskedTab] = useState<OverviewTab>(() => tabFromHash(typeof window !== "undefined" ? window.location.hash : "") || readSavedTab() || DEFAULT_TAB);
+  const tab = settleTab(askedTab, board, editing);
+  const openTab = useCallback((next: OverviewTab, how: "push" | "replace" = "push") => {
+    setAskedTab(next);
+    saveTab(next);
+    const hash = hashForTab(next);
+    if (typeof window === "undefined" || window.location.hash === hash) return;
+    const url = window.location.pathname + window.location.search + hash;
+    if (how === "push") history.pushState(null, "", url); else history.replaceState(null, "", url);
+  }, []);
 
   // Every change goes through here, so Undo/Redo cover it.
   const commitStore = useCallback((next: BoardStore) => {
@@ -282,6 +299,20 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     setStore({ ...next, updatedAt: Date.now() });
     setAnnounce("Redone");
   }, [future, store, setStore]);
+
+  // Back/Forward between tabs, and a link to another tab while the Overview is open.
+  useEffect(() => {
+    const onHash = () => { const t = tabFromHash(window.location.hash); if (t) setAskedTab(t); };
+    window.addEventListener("popstate", onHash);
+    window.addEventListener("hashchange", onHash);
+    return () => { window.removeEventListener("popstate", onHash); window.removeEventListener("hashchange", onHash); };
+  }, []);
+  // The address always names the tab on screen (also when the asked-for one isn't on this board).
+  const tabHash = hashForTab(tab);
+  useEffect(() => {
+    if (focus || !/^#overview(\/|$)/.test(window.location.hash) || window.location.hash === tabHash) return;
+    history.replaceState(null, "", window.location.pathname + window.location.search + tabHash);
+  }, [tabHash, focus]);
 
   // A toast's action runs later, so it reaches the board as it is then, not as it was when the toast was made.
   const commitRef = useRef(commit);
@@ -359,6 +390,13 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     setAnnounce(`Moved ${widgetTitle(w)} to ${position(next, w.id)}`);
   };
 
+  /** Shows the tab a widget of this type lives under, unless it is already on screen there (or on Everything). */
+  const goToType = (type: WidgetType) => {
+    const want = tabForType(type);
+    if (tab.band === "all" || (tab.band === want.band && (tab.sub === "all" || tab.sub === want.sub))) return;
+    openTab(want);
+  };
+
   /** Adds a widget (or, for one already on the board, shows it). From the tray it stays quiet: the tray says so itself. */
   const add = (type: WidgetType, config?: WidgetConfig, opts: { fromTray?: boolean } = {}): string | null => {
     const meta = widgetMeta(type);
@@ -366,11 +404,12 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     if (!id) {
       // Already on the board (a single-copy widget): open its topic and unfold it so "Show it" really shows it.
       const existing = board.bands.flatMap(b => b.widgets).find(w => w.type === type);
-      if (existing) { commit(b => updateBand(revealWidget(b, existing.id), meta.band, { hidden: false })); if (!opts.fromTray) setFlash(existing.id); }
+      if (existing) { commit(b => updateBand(revealWidget(b, existing.id), meta.band, { hidden: false })); if (!opts.fromTray) { goToType(type); setFlash(existing.id); } }
       return existing?.id || null;
     }
     // A widget added to a hidden topic shows that topic again, or it would vanish.
     commit(() => updateBand(added, meta.band, { hidden: false }));
+    goToType(type);
     if (opts.fromTray) return id;
     setFlash(id);
     say(`Added “${meta.title}” to ${bandMeta(meta.band).title}`, { tone: "ok" });
@@ -379,6 +418,7 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
   const showWidget = (id: string) => {
     setTray(t => ({ ...t, open: false }));
     const f = findWidget(board, id);
+    if (f) goToType(f.widget.type);
     if (f && (f.widget.collapsed || f.band.collapsed)) commit(b => revealWidget(b, id));
     setFlash(id);
   };
@@ -426,6 +466,10 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
 
   const allFolded = board.bands.every(b => b.collapsed || b.widgets.every(w => w.collapsed));
   const bands = visibleBands(board, editing);
+  const subGroups = visitorGroups(board);
+  // The bands and widgets the open tab shows. Editing shows a whole topic, so moving a widget never skips hidden ones.
+  const shownBands = tab.band === "all" ? bands : bands.filter(b => b.id === tab.band);
+  const shownWidgets = (band: BoardBand) => (band.id === "traffic" && tab.sub !== "all" && !editing ? band.widgets.filter(w => groupOf(w.type) === tab.sub) : band.widgets);
   const hiddenBands = board.bands.filter(b => b.hidden);
   const widgetCount = board.bands.reduce((n, b) => n + b.widgets.length, 0);
 
@@ -668,17 +712,31 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     <div className="rp-stack rp-ov rp-wb" data-density={board.density} data-editing={editing || undefined}>
       {head}
 
+      {/* Sub tabs: one per topic (Everything = the whole board), and a second row inside Visitors. */}
+      <div className="rp-wb-tabs">
+        <Tabs<TopTab> label="Overview topics" value={tab.band} onChange={band => openTab({ band, sub: "all" })}
+          tabs={topTabs(board, editing).map(id => ({ id, label: id === "all" ? "Everything" : bandMeta(id).title, ...(id === "all" ? {} : { count: board.bands.find(b => b.id === id)!.widgets.length }) }))} />
+        {tab.band === "traffic" && subGroups.length > 0 && (
+          <div className="rp-wb-subtabs">
+            <Tabs<VisitorGroup | "all"> label="Visitors" value={tab.sub} onChange={sub => openTab({ band: "traffic", sub })}
+              tabs={[{ id: "all" as const, label: "All", count: board.bands.find(b => b.id === "traffic")!.widgets.length }, ...subGroups.map(g => ({ id: g.id, label: g.label, count: g.count }))]} />
+          </div>
+        )}
+      </div>
+
       {/* The board's own bar: jump to a topic, add widgets, view options, undo and the save status. */}
       <div className="rp-wb-toolbar" role="toolbar" aria-label="Board">
-        <nav className="rp-wb-jump" aria-label="Jump to a topic">
-          {bands.filter(b => b.widgets.length > 0).map(b => (
-            <a key={b.id} href={`#wb-band-${b.id}`} onClick={e => {
-              e.preventDefault();
-              if (b.collapsed) commit(x => updateBand(x, b.id, { collapsed: false }));
-              document.getElementById(`wb-band-${b.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}>{bandMeta(b.id).title}<span className="rp-mono"> {b.widgets.length}</span></a>
-          ))}
-        </nav>
+        {tab.band === "all" ? (
+          <nav className="rp-wb-jump" aria-label="Jump to a topic">
+            {bands.filter(b => b.widgets.length > 0).map(b => (
+              <a key={b.id} href={`#wb-band-${b.id}`} onClick={e => {
+                e.preventDefault();
+                if (b.collapsed) commit(x => updateBand(x, b.id, { collapsed: false }));
+                document.getElementById(`wb-band-${b.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}>{bandMeta(b.id).title}<span className="rp-mono"> {b.widgets.length}</span></a>
+            ))}
+          </nav>
+        ) : <span />}
         <div className="rp-wb-toolbar-actions">
           {(past.length > 0 || future.length > 0) && (
             <span className="rp-wb-undo">
@@ -715,14 +773,16 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
           </span>} />
       )}
 
-      {bands.map((band, bi) => {
+      {shownBands.map(band => {
+        const bi = bands.indexOf(band);
         const meta = bandMeta(band.id);
         const folded = !!band.collapsed;
-        const allWidgetsFolded = band.widgets.length > 0 && band.widgets.every(w => w.collapsed);
-        const sizes = band.widgets.map(w => w.size);
+        const widgets = shownWidgets(band);
+        const allWidgetsFolded = widgets.length > 0 && widgets.every(w => w.collapsed);
+        const sizes = widgets.map(w => w.size);
         const fillD = editing ? [] : rowFills(sizes, SPAN_DESK);
         const fillT = editing ? [] : rowFills(sizes, SPAN_TABLET);
-        const n = band.widgets.length;
+        const n = widgets.length;
         return (
           <section key={band.id} id={`wb-band-${band.id}`} className="rp-wb-band" data-band={band.id} data-folded={folded || undefined} aria-labelledby={`wb-band-title-${band.id}`}>
             <div className="rp-wb-band-head">
@@ -739,7 +799,7 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
               </div>
               <span className="rp-wb-band-actions">
                 {!folded && n > 1 && (
-                  <GhostButton size="sm" onClick={() => commit(b => collapseBandWidgets(b, band.id, !allWidgetsFolded))}>{allWidgetsFolded ? "Unfold widgets" : "Fold widgets"}</GhostButton>
+                  <GhostButton size="sm" onClick={() => commit(b => widgets.reduce((x, w) => updateWidget(x, w.id, { collapsed: !allWidgetsFolded }), b))}>{allWidgetsFolded ? "Unfold widgets" : "Fold widgets"}</GhostButton>
                 )}
                 <GhostButton size="sm" onClick={() => openFocus({ kind: "band", band: band.id })}>Explore all {WIDGETS.filter(w => w.band === band.id).length}</GhostButton>
                 {editing && (
@@ -763,7 +823,7 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
             </div>
             {!folded && (
               <div id={`wb-band-body-${band.id}`} className="rp-wb-grid">
-                {band.widgets.map((w, i) => frame(w, { index: i, total: n, fill: [fillD[i] ?? null, fillT[i] ?? null] }))}
+                {widgets.map((w, i) => frame(w, { index: i, total: n, fill: [fillD[i] ?? null, fillT[i] ?? null] }))}
                 {editing && (
                   <button type="button" className="rp-wb-dropzone" data-drop={drag && drag.over === `end-${band.id}` || undefined}
                     onDragOver={e => { const d = dragRef.current; if (!d || findWidget(board, d.id)?.band.id !== band.id) return; e.preventDefault(); if (d.over !== `end-${band.id}`) setDrag({ ...d, over: `end-${band.id}` }); }}

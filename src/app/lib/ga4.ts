@@ -141,11 +141,19 @@ export function ga4Once(key: string, name: string, params: Params = {}) {
   ga4Event(name, params);
 }
 
+/** The last page sent, so an in-app move carries where it came from (Overview › Where people go next). */
+let lastPage = "";
+
 export function ga4PageView() {
   if (typeof window === "undefined") return;
   // Captured now (not at send time), so a slow consent check never pairs this view with a later page.
-  ga4Event("page_view", { page_location: cleanLocation(window.location.href), page_title: document.title });
+  const page_location = cleanLocation(window.location.href);
+  const page_referrer = lastPage && lastPage !== page_location ? lastPage : "";
+  lastPage = page_location;
+  // The first page keeps Google's own referrer (the site the visitor came from); later ones name the previous page,
+  // which the single-page app never reports by itself. Both are cleaned addresses.
+  ga4Event("page_view", { page_location, page_title: document.title, ...(page_referrer ? { page_referrer } : {}) });
 }
 
 /** Test hook: forget the module state between tests. */
-export function __resetGa4ForTests() { measurementId = ""; loaded = false; allowed = null; queue = []; }
+export function __resetGa4ForTests() { measurementId = ""; loaded = false; allowed = null; queue = []; lastPage = ""; }
