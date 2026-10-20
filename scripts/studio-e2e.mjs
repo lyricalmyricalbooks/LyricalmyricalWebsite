@@ -4,6 +4,8 @@
 //   STUDIO_URL=http://localhost:5173 node scripts/studio-e2e.mjs
 //   CHROMIUM_PATH=/path/to/chrome …        (use an already installed Chromium)
 //   STUDIO_SHOTS=dir …                     (save a screenshot per check)
+//   STUDIO_SHARD=2/3 …                     (CI: run every third check, starting with the second; the checks are
+//                                           independent, each opens its own page, so shards can run on separate machines)
 import { chromium } from "playwright";
 import { createServer } from "vite";
 import { mkdirSync } from "node:fs";
@@ -31,9 +33,14 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 }
 
 const results = [];
+const [shardNo, shardCount] = (process.env.STUDIO_SHARD || "1/1").split("/").map(Number);
+if (!(shardCount >= 1 && shardNo >= 1 && shardNo <= shardCount)) throw new Error(`STUDIO_SHARD must look like 2/3, not ${process.env.STUDIO_SHARD}`);
+let checkNo = 0;
 async function check(name, viewport, run, query = "", prepare = null) {
   // STUDIO_ONLY="words" runs only the checks whose name contains those words (local iteration).
   if (process.env.STUDIO_ONLY && !name.includes(process.env.STUDIO_ONLY)) return;
+  if (checkNo++ % shardCount !== shardNo - 1) return;
+  const started = Date.now();
   const page = await browser.newPage({ viewport });
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -47,12 +54,12 @@ async function check(name, viewport, run, query = "", prepare = null) {
     await page.waitForTimeout(100);
     const dead = await page.evaluate(() => window.__studioDeadLinks || []).catch(() => []);
     if (dead.length) throw new Error(`buttons opened nothing: ${dead.join(", ")}`);
-    results.push({ name, ok: true });
+    results.push({ name, ok: true, ms: Date.now() - started });
   } catch (error) {
     // Keep Playwright's "waiting for <locator>" line so a CI failure names the element it waited for.
     const lines = String(error?.message || error).split("\n");
     const waited = lines.find(l => /waiting for/.test(l));
-    results.push({ name, ok: false, error: [lines[0], waited?.trim()].filter(Boolean).join(" · ") });
+    results.push({ name, ok: false, ms: Date.now() - started, error: [lines[0], waited?.trim()].filter(Boolean).join(" · ") });
   } finally {
     if (shots) await page.screenshot({ path: join(shots, name.replace(/\W+/g, "-") + ".png") }).catch(() => {});
     await page.close();
@@ -1783,7 +1790,10 @@ await check("phone-sized editor loads without errors", { width: 390, height: 844
 
 await browser.close();
 await server?.close();
-for (const r of results) console.log(`${r.ok ? "✓" : "✗"} ${r.name}${r.ok ? "" : ` — ${r.error}`}`);
+for (const r of results) console.log(`${r.ok ? "✓" : "✗"} ${r.name} (${Math.round(r.ms / 1000)}s)${r.ok ? "" : ` — ${r.error}`}`);
 const failed = results.filter(r => !r.ok).length;
-console.log(`\n${results.length - failed} passed, ${failed} failed`);
+const shardNote = shardCount > 1 ? ` (shard ${shardNo} of ${shardCount}: ${results.length} of ${checkNo} checks)` : "";
+console.log(`\n${results.length - failed} passed, ${failed} failed${shardNote}`);
+// A shard that ran nothing means the split went wrong, not that everything passed.
+if (!results.length) { console.error("No Studio checks ran."); process.exit(1); }
 process.exit(failed ? 1 : 0);

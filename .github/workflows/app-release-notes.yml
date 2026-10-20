@@ -2,6 +2,10 @@ name: App release notes
 on:
   pull_request:
     branches: [main]
+# A newer push to the same pull request replaces the older check.
+concurrency:
+  group: release-note-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   release-note:
     # Dependabot's dependency bumps can't write a note; a person's follow-up PR adds one if shoppers notice.
