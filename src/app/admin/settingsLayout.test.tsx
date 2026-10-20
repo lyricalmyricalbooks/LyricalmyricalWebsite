@@ -4,28 +4,38 @@ import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { SettingsAnchor, SettingsContents, SettingsGroup, friendlyError } from "./settingsLayout";
+import { SettingsAnchor, SettingsGroup, SettingsTabs, friendlyError } from "./settingsLayout";
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); });
 
-it("jumps to a card without touching the address bar, and marks unsaved cards", async () => {
+it("shows one topic per sub tab, keeps the others mounted and marks unsaved ones", async () => {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
-  const scrolled: string[] = [];
-  Element.prototype.scrollIntoView = function (this: Element) { scrolled.push(this.id); } as any;
   window.location.hash = "#settings/general";
-  await act(async () => root.render(<>
-    <SettingsContents groups={[{ id: "g1", title: "Shop details", items: [{ id: "c1", label: "Location", unsaved: true }, { id: "c2", label: "Store policies" }] }]} />
-    <SettingsGroup id="g1" title="Shop details"><SettingsAnchor id="c1"><p>Location card</p></SettingsAnchor></SettingsGroup>
-  </>));
-  expect(container.textContent).toContain("1 unsaved");
+  function Page() {
+    const [view, setView] = React.useState("g1");
+    return <>
+      <SettingsTabs label="General settings" value={view} onChange={setView}
+        tabs={[{ id: "g1", title: "Shop status" }, { id: "g2", title: "Shop details", unsaved: true }]} />
+      <SettingsGroup id="g1" active={view === "g1"}><p>Status card</p></SettingsGroup>
+      <SettingsGroup id="g2" active={view === "g2"} subcopy="Name and address"><SettingsAnchor id="c1"><input aria-label="Name" defaultValue="" /></SettingsAnchor></SettingsGroup>
+    </>;
+  }
+  await act(async () => root.render(<Page />));
+  const panels = () => Array.from(container.querySelectorAll<HTMLElement>("[role=tabpanel]"));
+  expect(panels().map((p) => p.hidden)).toEqual([false, true]);
   expect(container.textContent).toContain("(unsaved changes)");
-  const location = Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.startsWith("Location"))!;
-  await act(async () => location.click());
-  expect(scrolled).toEqual(["c1"]);
-  expect(document.activeElement?.id).toBe("c1");
+  const name = container.querySelector<HTMLInputElement>("input")!;
+  name.value = "Lyricalmyrical";
+  const details = Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.startsWith("Shop details"))!;
+  await act(async () => details.click());
+  expect(panels().map((p) => p.hidden)).toEqual([true, false]);
+  expect(panels()[1].getAttribute("aria-labelledby")).toBe(details.id);
+  await act(async () => (Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "Shop status") as HTMLButtonElement).click());
+  // The hidden topic kept what was typed in it.
+  expect(container.querySelector<HTMLInputElement>("input")!.value).toBe("Lyricalmyrical");
   expect(window.location.hash).toBe("#settings/general");
   await act(async () => root.unmount());
 });

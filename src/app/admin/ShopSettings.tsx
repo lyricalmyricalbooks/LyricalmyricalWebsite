@@ -61,7 +61,7 @@ import { saveSectionsInOrder } from "./settingsSave";
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
 import { useSettingsDirty } from "./settingsDirty";
-import { HowTo, SettingsAnchor, SettingsContents, SettingsGroup, friendlyError, type ContentsGroup } from "./settingsLayout";
+import { HowTo, SettingsAnchor, SettingsGroup, SettingsTabs, friendlyError, type SettingsTab } from "./settingsLayout";
 import { testSaleSteps } from "./testSaleWalkthrough";
 import { studioHash } from "../lib/studioLocation";
 
@@ -178,36 +178,19 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const maintenanceOn = !!settings.maintenance?.enabled;
   const name = settings.info?.name || "";
   const desc = settings.info?.description || "";
-  const statusWord = settings.design?.showUnderConstruction ? "construction wall" : maintenanceOn ? "checkout paused" : "open";
-  const contents: ContentsGroup[] = [
-    { id: "gs-store", title: "Shop status & checkout", items: [
-      { id: "gs-status", label: "Store status", unsaved: hasChanges("maintenance"), note: statusWord },
-      { id: "gs-holds", label: "Checkout stock holds", unsaved: hasChanges("stockHolds") },
-    ] },
-    { id: "gs-details", title: "Shop details", items: [
-      { id: "gs-identity", label: "Store identity", unsaved: hasChanges("info") },
-      { id: "gs-location", label: "Location", unsaved: hasChanges("location") },
-      { id: "gs-policies", label: "Store policies", unsaved: hasChanges("policies") },
-      { id: "gs-domain", label: "Domain & visibility", unsaved: hasChanges("domain") },
-    ] },
-    { id: "gs-visitors", title: "Visitors & Google", items: [
-      { id: "gs-own-visits", label: "Your own visits" },
-      { id: "gs-analytics", label: "Google Analytics" },
-      { id: "gs-search-console", label: "Google Search Console" },
-      { id: "gs-redirects", label: "URL redirects" },
-    ] },
-    { id: "gs-tools", title: "Tools & records", items: [
-      { id: "gs-ai", label: "AI writing assistant" },
-      { id: "gs-privacy", label: "Privacy requests" },
-      { id: "gs-backups", label: "Backups & export" },
-    ] },
+  const [view, setView] = useState("gs-store");
+  const tabs: SettingsTab[] = [
+    { id: "gs-store", title: "Shop status & checkout", unsaved: hasChanges("maintenance") || hasChanges("stockHolds") },
+    { id: "gs-details", title: "Shop details", unsaved: ["info", "location", "policies", "domain"].some((k) => hasChanges(k)) },
+    { id: "gs-visitors", title: "Visitors & Google" },
+    { id: "gs-tools", title: "Tools & records" },
   ];
 
   return (
     <div className="rp-stack">
-      <SettingsContents groups={contents} />
+      <SettingsTabs label="General settings" tabs={tabs} value={view} onChange={setView} />
 
-      <SettingsGroup id="gs-store" title="Shop status & checkout" subcopy="Whether shoppers can buy right now, and how many copies one person can hold while paying.">
+      <SettingsGroup id="gs-store" active={view === "gs-store"} subcopy="Whether shoppers can buy right now, and how many copies one person can hold while paying.">
         <SettingsAnchor id="gs-status">
           <SectionCard title="Store status" description="What shoppers can do right now. One choice covers both ways of closing the shop.">
             {(() => {
@@ -271,7 +254,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="gs-details" title="Shop details" subcopy="Your name, contact details, address and the policies linked from the shop footer.">
+      <SettingsGroup id="gs-details" active={view === "gs-details"} subcopy="Your name, contact details, address and the policies linked from the shop footer.">
         <SettingsAnchor id="gs-identity">
           <SectionCard title="Store identity" description="Your publisher name, description and contact details.">
             <div className="rp-stack" style={{ gap: 20 }}>
@@ -330,14 +313,14 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="gs-visitors" title="Visitors & Google" subcopy="Who is counted, Google Analytics and Search Console, and sending old web addresses to new ones.">
+      <SettingsGroup id="gs-visitors" active={view === "gs-visitors"} subcopy="Who is counted, Google Analytics and Search Console, and sending old web addresses to new ones.">
         <SettingsAnchor id="gs-own-visits"><OwnVisitsCard /></SettingsAnchor>
         <SettingsAnchor id="gs-analytics"><GoogleAnalyticsCard /></SettingsAnchor>
         <SettingsAnchor id="gs-search-console"><SearchConsoleCard /></SettingsAnchor>
         <SettingsAnchor id="gs-redirects"><RedirectsCard /></SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="gs-tools" title="Tools & records" subcopy="Writing help, customers' privacy requests, and backups of everything in the shop.">
+      <SettingsGroup id="gs-tools" active={view === "gs-tools"} subcopy="Writing help, customers' privacy requests, and backups of everything in the shop.">
         <SettingsAnchor id="gs-ai"><AiWriterCard /></SettingsAnchor>
         <SettingsAnchor id="gs-privacy"><PrivacyRequestsCard /></SettingsAnchor>
         <SettingsAnchor id="gs-backups"><BackupsExportCard /></SettingsAnchor>
@@ -1206,7 +1189,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
   );
 }
 
-function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications }: any) {
+function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications, onOpenMethods }: any) {
   const [data, setData] = useState<{ orders: any[]; webhook: any; emailLog: any[] } | null>(null);
   // Reads that failed: their steps are unknown, not "not done".
   const [failed, setFailed] = useState<string[]>([]);
@@ -1222,8 +1205,10 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications }: an
   useEffect(() => { load(); }, []);
   const steps = testSaleSteps({ payments, ...(data || { orders: [], webhook: null, emailLog: [] }) });
   const doneCount = steps.filter((st) => st.done).length;
-  const go = (link: string) => {
+  const go = (link: string, id: string) => {
     if (link === "orders") onOpenOrders?.();
+    // The Stripe test key and webhook check sit on the Ways to pay sub tab; test mode is on this one.
+    else if (link === "payments" && (id === "testKey" || id === "webhook")) onOpenMethods?.();
     else if (link === "notifications") onOpenNotifications?.();
     else if (link === "storefront") window.open(`${window.location.origin}${import.meta.env.BASE_URL || "/"}`, "_blank", "noopener");
     else document.getElementById("payments-top")?.scrollIntoView({ behavior: "smooth" });
@@ -1238,7 +1223,7 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications }: an
           <li key={st.id} style={{ display: "flex", flexWrap: "wrap", gap: "8px 12px", alignItems: "flex-start", padding: "8px 0", borderTop: i ? "1px solid var(--rp-divider)" : undefined }}>
             <StatusBadge tone={st.done ? "success" : "neutral"}>{st.done ? "Done" : `Step ${i + 1}`}</StatusBadge>
             <span style={{ flex: "1 1 220px", minWidth: 0 }}><strong>{st.label}</strong><span className="rp-hint" style={{ display: "block" }}>{st.howTo}</span></span>
-            {!st.done && <SecondaryButton size="sm" onClick={() => go(st.link)}>{st.link === "orders" ? "Open Orders" : st.link === "notifications" ? "Open Email sender" : st.link === "storefront" ? "Open shop ↗" : "Show me"}</SecondaryButton>}
+            {!st.done && <SecondaryButton size="sm" onClick={() => go(st.link, st.id)}>{st.link === "orders" ? "Open Orders" : st.link === "notifications" ? "Open Email sender" : st.link === "storefront" ? "Open shop ↗" : "Show me"}</SecondaryButton>}
           </li>
         ))}
       </ol>
@@ -1428,21 +1413,11 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
   const paymentIssues = useMemo(() => paymentHealth(settings.payments), [settings.payments]);
 
   const blockingCount = paymentIssues.filter((i) => i.severity === "blocking").length;
-  const contents: ContentsGroup[] = [
-    { id: "pay-status", title: "Ready to take payments?", items: [
-      { id: "pay-overview", label: "Payment overview", note: blockingCount ? `${blockingCount} to fix` : testMode ? "test mode" : "live" },
-      { id: "pay-test", label: "Test sale walkthrough" },
-    ] },
-    { id: "pay-methods", title: "Ways to pay", items: [
-      { id: "pay-stripe", label: "Stripe (cards, Apple Pay, Google Pay)", note: stripeLive ? "on" : "off" },
-      { id: "pay-paypal", label: "PayPal", note: paypalLive ? "on" : "off" },
-      { id: "pay-manual", label: "Manual payment methods", note: `${enabledManual.length} on` },
-    ] },
-    { id: "pay-more", title: "On the shop & related settings", items: [
-      { id: "pay-icons", label: "Footer payment icons" },
-      { id: "pay-currency", label: "Currency" },
-      { id: "pay-shippo", label: "Shippo (shipping labels)" },
-    ] },
+  const [view, setView] = useState("pay-status");
+  const tabs: SettingsTab[] = [
+    { id: "pay-status", title: "Ready to take payments?", count: blockingCount },
+    { id: "pay-methods", title: "Ways to pay" },
+    { id: "pay-more", title: "On the shop & related settings" },
   ];
 
   const removeMethod = async (m: any) => {
@@ -1452,9 +1427,9 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
 
   return (
     <div className="rp-stack" id="payments-top">
-      <SettingsContents groups={contents} />
+      <SettingsTabs label="Payment settings" tabs={tabs} value={view} onChange={setView} />
 
-      <SettingsGroup id="pay-status" title="Ready to take payments?" subcopy="What shoppers can pay with now, anything blocking checkout, and a rehearsal of one complete sale.">
+      <SettingsGroup id="pay-status" active={view === "pay-status"} subcopy="What shoppers can pay with now, anything blocking checkout, and a rehearsal of one complete sale.">
         <SettingsAnchor id="pay-overview">
           <SectionCard title="Payment overview" description="What customers can pay with right now.">
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
@@ -1481,11 +1456,11 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
           </SectionCard>
         </SettingsAnchor>
         <SettingsAnchor id="pay-test">
-          <TestSaleWalkthrough payments={originalSettings?.payments} onOpenOrders={onOpenOrders} onOpenNotifications={onOpenNotifications} />
+          <TestSaleWalkthrough payments={originalSettings?.payments} onOpenOrders={onOpenOrders} onOpenNotifications={onOpenNotifications} onOpenMethods={() => setView("pay-methods")} />
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="pay-methods" title="Ways to pay" subcopy="Cards and wallets through Stripe, PayPal, and payments you collect yourself (e-Transfer, cash).">
+      <SettingsGroup id="pay-methods" active={view === "pay-methods"} subcopy="Cards and wallets through Stripe, PayPal, and payments you collect yourself (e-Transfer, cash).">
         <SettingsAnchor id="pay-stripe">
           <SectionCard title="Stripe" description="Accept credit and debit cards, Apple Pay and Google Pay."
             actions={<SecondaryButton size="sm" onClick={() => window.open("https://dashboard.stripe.com", "_blank", "noopener")}>Stripe dashboard ↗</SecondaryButton>}>
@@ -1611,7 +1586,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="pay-more" title="On the shop & related settings" subcopy="Payment icons in the footer, the shop currency, and where shipping labels are set up.">
+      <SettingsGroup id="pay-more" active={view === "pay-more"} subcopy="Payment icons in the footer, the shop currency, and where shipping labels are set up.">
         <SettingsAnchor id="pay-icons">
           <SectionCard title="Footer payment icons" description="Default icons for the storefront footer. Studio › Theme settings › Payment icons overrides this list once you change it there."
             actions={<SecondaryButton size="sm" onClick={() => { window.location.hash = studioHash({ leftTab: "style" }); }}>Open Studio</SecondaryButton>}>
