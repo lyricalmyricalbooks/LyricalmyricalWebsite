@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeStrict, markerNewerThanFile, nanoTime, readStorefrontData } from "./storefrontDataFile.mjs";
+import { decodeStrict, markerNewerThanFile, nanoTime, readStorefrontData, shippingProfilesDiffer } from "./storefrontDataFile.mjs";
 import { nanoTime as browserNanoTime } from "../src/app/features/site/storefrontDataFile";
 
 const base = "https://firestore.test/v1/projects/p/databases/(default)/documents";
@@ -24,6 +24,8 @@ describe("storefront data file (build side)", () => {
       else if (body.structuredQuery.from[0].collectionId === "books") {
         const page = body.structuredQuery.startAt ? [doc("books/c", { title: { stringValue: "C" } })] : [doc("books/a", { id: { stringValue: "stale" }, title: { stringValue: "A" } }), doc("books/b", { title: { stringValue: "B" } })];
         out = page.map(d => ({ document: d, readTime: body.readTime }));
+      } else if (body.structuredQuery.from[0].collectionId === "shipping-profiles") {
+        out = [{ document: doc("shipping-profiles/general-profile", { name: { stringValue: "General" }, zones: { arrayValue: {} } }), readTime: body.readTime }];
       } else out = [{ document: doc("pages/about", { id: { stringValue: "own-id" }, order: { integerValue: "2" } }), readTime: body.readTime }];
       return { ok: true, json: async () => out } as any;
     };
@@ -33,7 +35,32 @@ describe("storefront data file (build side)", () => {
     expect(data.books).toEqual([{ id: "a", title: "A" }, { id: "b", title: "B" }, { id: "c", title: "C" }]);
     // Pages keep a stored `id` field over the document id, exactly like getPublishedPages' { id, ...data }.
     expect(data.pages).toEqual([{ id: "own-id", order: 2 }]);
+    expect(data.shippingProfiles).toEqual([{ id: "general-profile", name: "General", zones: [] }]);
+    expect(calls.find(c => c.body.structuredQuery?.from[0].collectionId === "shipping-profiles").body.structuredQuery.orderBy[0].field.fieldPath).toBe("__name__");
     expect(calls.slice(1).every(c => c.body.readTime === "2026-10-15T03:49:48.748909Z")).toBe(true);
+  });
+
+  it("still writes the file without shipping profiles that can't be stored exactly", async () => {
+    const fetchImpl = async (url: string, init: any) => {
+      const body = JSON.parse(init.body);
+      let out: unknown;
+      if (url.endsWith(":batchGet")) out = [{ found: doc("settings/website", {}), readTime: "2026-10-15T03:49:48.748909Z" }];
+      else if (body.structuredQuery.from[0].collectionId === "shipping-profiles") out = [{ document: doc("shipping-profiles/p", { updatedAt: { timestampValue: "2026-10-15T00:00:00Z" } }) }];
+      else out = [];
+      return { ok: true, json: async () => out } as any;
+    };
+    const data = await readStorefrontData(base, "p", fetchImpl as any);
+    expect(data.books).toEqual([]);
+    expect("shippingProfiles" in data).toBe(false);
+  });
+
+  it("notices a file whose shipping profiles no longer match Firestore", () => {
+    const file = { v: 1, readTime: "2026-10-15T04:10:16Z", books: [], pages: [], settings: null, shippingProfiles: [{ id: "a", name: "A", zones: [{ rates: [1], countries: ["CA"] }] }] };
+    expect(shippingProfilesDiffer(file, [{ zones: [{ countries: ["CA"], rates: [1] }], name: "A", id: "a" }])).toBe(false);
+    expect(shippingProfilesDiffer(file, [{ id: "a", name: "A", zones: [{ rates: [2], countries: ["CA"] }] }])).toBe(true);
+    expect(shippingProfilesDiffer(file, [])).toBe(true);
+    expect(shippingProfilesDiffer({ ...file, shippingProfiles: undefined }, [])).toBe(false);
+    expect(shippingProfilesDiffer(null, [])).toBe(false);
   });
 
   it("stops when a read fails, so no file is written", async () => {

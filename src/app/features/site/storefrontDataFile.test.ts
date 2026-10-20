@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { currentStorefrontData, fileIsCurrent, isStorefrontDataFile, nanoTime } from "./storefrontDataFile";
+import { describe, expect, it, vi } from "vitest";
+import { CHECK_DEADLINE_MS, currentStorefrontData, fileIsCurrent, isStorefrontDataFile, nanoTime, shippingProfilesFrom } from "./storefrontDataFile";
 
 const file = { v: 1, readTime: "2026-10-15T03:49:48.748909Z", settings: { info: {} }, books: [{ id: "b" }], pages: [] };
 const ts = (iso: string, nanos: number) => ({ seconds: Date.parse(iso) / 1000, nanoseconds: nanos });
@@ -30,9 +30,53 @@ describe("storefront data file", () => {
 
   it("falls back (null) when the file, the marker or both can't be read", async () => {
     const marker = async () => ({ changedAt: ts("2026-10-15T03:00:00Z", 0) });
-    expect(await currentStorefrontData(async () => file, marker)).toBe(file);
+    expect(await currentStorefrontData(async () => file, marker)).toEqual(file);
     expect(await currentStorefrontData(async () => { throw new Error("offline"); }, marker)).toBeNull();
     expect(await currentStorefrontData(async () => file, async () => { throw new Error("denied"); })).toBeNull();
     expect(await currentStorefrontData(async () => file, async () => ({ changedAt: ts("2026-10-15T04:00:00Z", 0) }))).toBeNull();
+  });
+
+  it("shares one check between readers for 30 seconds, giving each its own copy", async () => {
+    let fileReads = 0, markerReads = 0;
+    const fetchFile = async () => { fileReads++; return file; };
+    const marker = async () => { markerReads++; return { changedAt: ts("2026-10-15T03:00:00Z", 0) }; };
+    const t = 1_000_000;
+    const a = await currentStorefrontData(fetchFile, marker, { now: t });
+    const b = await currentStorefrontData(fetchFile, marker, { now: t + 29_000 });
+    expect([fileReads, markerReads]).toEqual([1, 1]);
+    expect(a).toEqual(file);
+    expect(b).not.toBe(a);
+    (a as any).books.push({ id: "changed" });
+    expect((b as any).books).toHaveLength(1);
+    await currentStorefrontData(fetchFile, marker, { now: t + 30_000 });
+    expect(markerReads).toBe(2);
+    // Checkout always checks again.
+    await currentStorefrontData(fetchFile, marker, { now: t + 30_001, fresh: true });
+    expect(markerReads).toBe(3);
+    // Other readers never share.
+    await currentStorefrontData(async () => file, marker, { now: t + 30_002 });
+    expect(markerReads).toBe(4);
+  });
+
+  it("gives up on a stalled file download after the deadline (null, so the caller reads Firestore)", async () => {
+    vi.useFakeTimers();
+    try {
+      const marker = async () => ({ changedAt: ts("2026-10-15T03:00:00Z", 0) });
+      const result = currentStorefrontData(() => new Promise(() => {}), marker, { fresh: true });
+      await vi.advanceTimersByTimeAsync(CHECK_DEADLINE_MS);
+      expect(await result).toBeNull();
+      const stalledMarker = currentStorefrontData(async () => file, () => new Promise(() => {}), { fresh: true });
+      await vi.advanceTimersByTimeAsync(CHECK_DEADLINE_MS);
+      expect(await stalledMarker).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("gives shipping profiles only from files that carry them", () => {
+    expect(shippingProfilesFrom(file as any)).toBeNull();
+    expect(shippingProfilesFrom(null)).toBeNull();
+    expect(shippingProfilesFrom({ ...file, shippingProfiles: [] } as any)).toEqual([]);
+    expect(shippingProfilesFrom({ ...file, shippingProfiles: [{ id: "general-profile", zones: [] }] } as any)).toEqual([{ id: "general-profile", zones: [] }]);
+    expect(shippingProfilesFrom({ ...file, shippingProfiles: [{ zones: [] }] } as any)).toBeNull();
+    expect(isStorefrontDataFile({ ...file, shippingProfiles: [{ id: "x" }] })).toBe(true);
   });
 });
