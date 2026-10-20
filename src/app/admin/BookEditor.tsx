@@ -67,7 +67,7 @@ import { PhotoCropDialog } from "./PhotoCropDialog";
 import { studioHash } from "../lib/studioLocation";
 
 import { BookSeoPane } from "./BookSeoPane";
-import { askAi, bookAiInput, photoAiUrl } from "./aiWriter";
+import { askAi, bookAiInput, photoAiUrl, runPool, DESCRIBE_AT_ONCE } from "./aiWriter";
 import { describedAlt } from "../features/site/photoAlt";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/site/preorder";
 import { DEFAULT_CUSTOMS_DESCRIPTION, DEFAULT_HS_CODE, validHsCode } from "./customsFields";
@@ -933,28 +933,35 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
       setDescAiBusy(false);
     }
   };
-  // Describe with AI (Books › edit › Images): Gemini looks at the photo and writes its alt text, which screen
-  // readers and Google Images read. One photo, or every photo without a real description, one after another.
-  const [describingId, setDescribingId] = useState<string | null>(null);
+  // Describe with AI (Books › edit › Images): the AI looks at the photo and writes its alt text, which screen
+  // readers and Google Images read. One photo, or every photo without a real description, a few at a time.
+  const [describingIds, setDescribingIds] = useState<Set<string>>(() => new Set());
   const [describeAll, setDescribeAll] = useState<{ done: number; total: number } | null>(null);
+  const markDescribing = (id: string, on: boolean) => setDescribingIds((prev) => {
+    const next = new Set(prev);
+    if (on) next.add(id); else next.delete(id);
+    return next;
+  });
   const describePhoto = async (photo: any, index: number) => {
-    const { alt } = await askAi("photoAlt", { ...bookAiInput(formData), imageUrl: photoAiUrl(photo), photoNumber: index + 1 });
-    setFormData((prev: any) => ({ ...prev, photos: prev.photos.map((p: any) => (p.id === photo.id ? { ...p, altText: alt } : p)) }));
+    const out = await askAi("photoAlt", { ...bookAiInput(formData), imageUrl: photoAiUrl(photo), photoNumber: index + 1 });
+    setFormData((prev: any) => ({ ...prev, photos: prev.photos.map((p: any) => (p.id === photo.id ? { ...p, altText: out.alt } : p)) }));
+    return out;
   };
+  const backupNote = "Google's free AI allowance had run out, so OpenRouter wrote";
   const describeOne = async (id: string) => {
     if (!String(formData.title || "").trim()) { toast.error("Give the book a title first."); return; }
     const index = formData.photos.findIndex((p: any) => p.id === id);
     if (index < 0) return;
     const current = describedAlt(formData.photos[index].altText);
     if (current && !(await askConfirm({ title: "Replace this description?", message: `The AI writes a new description for this photo in place of “${current}”. Nothing is saved until you save the book.`, confirmLabel: "Replace it" }))) return;
-    setDescribingId(id);
+    markDescribing(id, true);
     try {
-      await describePhoto(formData.photos[index], index);
-      toast.success("Photo described. Check it, then save the book.");
+      const out = await describePhoto(formData.photos[index], index);
+      toast.success(out.fellBack ? `Photo described. ${backupNote} it. Check it, then save the book.` : "Photo described. Check it, then save the book.");
     } catch (err: any) {
       toast.error(err?.message || "The AI assistant couldn't answer.");
     } finally {
-      setDescribingId(null);
+      markDescribing(id, false);
     }
   };
   const photosToDescribe = (formData.photos || []).filter((p: any) => !isVideoItem(p) && !describedAlt(p.altText));
@@ -963,20 +970,27 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     const todo = photosToDescribe.map((p: any) => ({ photo: p, index: formData.photos.findIndex((x: any) => x.id === p.id) }));
     if (!todo.length) return;
     setDescribeAll({ done: 0, total: todo.length });
-    let done = 0;
-    try {
-      for (const { photo, index } of todo) {
-        setDescribingId(photo.id);
-        await describePhoto(photo, index);
-        done += 1;
-        setDescribeAll({ done, total: todo.length });
+    let finished = 0;
+    let byBackup = 0;
+    // A 429 means the AI ran out even after the backup was tried (or no key is saved): more would fail the same way.
+    const { done, failed, firstError } = await runPool(todo, DESCRIBE_AT_ONCE, async ({ photo, index }) => {
+      markDescribing(photo.id, true);
+      try {
+        const out = await describePhoto(photo, index);
+        if (out.fellBack) byBackup += 1;
+      } finally {
+        markDescribing(photo.id, false);
+        finished += 1;
+        setDescribeAll({ done: finished, total: todo.length });
       }
-      toast.success(`${done} ${done === 1 ? "photo" : "photos"} described. Check them, then save the book.`);
-    } catch (err: any) {
-      toast.error(`${done ? `${done} of ${todo.length} described, then: ` : ""}${err?.message || "The AI assistant couldn't answer."}`);
-    } finally {
-      setDescribingId(null);
-      setDescribeAll(null);
+    }, (err: any) => err?.status === 429 || err?.needsKey === true);
+    setDescribeAll(null);
+    const backup = byBackup ? ` ${backupNote} ${byBackup === done ? "them" : `${byBackup} of them`}.` : "";
+    if (!failed) {
+      toast.success(`${done} ${done === 1 ? "photo" : "photos"} described.${backup} Check them, then save the book.`);
+    } else {
+      const reason = (firstError as any)?.message || "The AI assistant couldn't answer.";
+      toast.error(`${done} of ${todo.length} described.${backup} The rest didn't work: ${reason}`);
     }
   };
   const insertDescLink = (label: string, href: string) => {
@@ -1339,9 +1353,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
               actions={<>
                 <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || formData.photos.length >= MAX_BOOK_PHOTOS}><Upload size={14} aria-hidden /> Upload images</button>
                 {photosToDescribe.length > 0 && (
-                  <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={describeAllPhotos} disabled={!!describingId || uploading}>
+                  <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={describeAllPhotos} disabled={describingIds.size > 0 || uploading}>
                     {describeAll ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Sparkles size={14} aria-hidden />}{" "}
-                    {describeAll ? `Describing ${Math.min(describeAll.done + 1, describeAll.total)} of ${describeAll.total}…` : `Describe ${photosToDescribe.length} ${photosToDescribe.length === 1 ? "photo" : "photos"} with AI`}
+                    {describeAll ? `Described ${describeAll.done} of ${describeAll.total}…` : `Describe ${photosToDescribe.length} ${photosToDescribe.length === 1 ? "photo" : "photos"} with AI`}
                   </button>
                 )}
                 <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => videoInputRef.current?.click()} disabled={uploading || formData.photos.length >= MAX_BOOK_PHOTOS || formData.photos.filter(isVideoItem).length >= MAX_BOOK_VIDEOS}><Film size={14} aria-hidden /> Add video</button>
@@ -1357,7 +1371,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                         <SortablePhoto key={photo.id} photo={photo} index={i} onRemove={removePhoto}
                           onAlt={(id, alt) => setFormData((prev: any) => ({ ...prev, photos: prev.photos.map((p: any) => (p.id === id ? { ...p, altText: alt } : p)) }))}
                           onCrop={setCropId}
-                          onDescribe={describeOne} describing={describingId === photo.id} aiLocked={!!describingId}
+                          onDescribe={describeOne} describing={describingIds.has(photo.id)} aiLocked={describingIds.size > 0}
                           onMakeCover={(id) => setFormData((prev: any) => { const p = prev.photos.find((x: any) => x.id === id); return { ...prev, photos: [p, ...prev.photos.filter((x: any) => x.id !== id)] }; })} />
                       ))}
                     </SortableContext>
