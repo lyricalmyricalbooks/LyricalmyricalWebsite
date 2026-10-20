@@ -54,6 +54,7 @@ import { RedirectsCard } from "./RedirectsCard";
 import { AddressFinderCard } from "./AddressFinderCard";
 import { AiWriterCard } from "./AiWriterCard";
 import { GoogleAnalyticsCard } from "./GoogleAnalyticsCard";
+import { ClarityCard } from "./ClarityCard";
 import { OwnVisitsCard } from "./OwnVisitsCard";
 import { SearchConsoleCard } from "./SearchConsoleCard";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
@@ -193,6 +194,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
     { id: "gs-visitors", title: "Visitors & Google", items: [
       { id: "gs-own-visits", label: "Your own visits" },
       { id: "gs-analytics", label: "Google Analytics" },
+      { id: "gs-clarity", label: "Microsoft Clarity" },
       { id: "gs-search-console", label: "Google Search Console" },
       { id: "gs-redirects", label: "URL redirects" },
     ] },
@@ -330,9 +332,10 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="gs-visitors" title="Visitors & Google" subcopy="Who is counted, Google Analytics and Search Console, and sending old web addresses to new ones.">
+      <SettingsGroup id="gs-visitors" title="Visitors & Google" subcopy="Who is counted, Google Analytics, Microsoft Clarity heatmaps and Search Console, and sending old web addresses to new ones.">
         <SettingsAnchor id="gs-own-visits"><OwnVisitsCard /></SettingsAnchor>
         <SettingsAnchor id="gs-analytics"><GoogleAnalyticsCard /></SettingsAnchor>
+        <SettingsAnchor id="gs-clarity"><ClarityCard /></SettingsAnchor>
         <SettingsAnchor id="gs-search-console"><SearchConsoleCard /></SettingsAnchor>
         <SettingsAnchor id="gs-redirects"><RedirectsCard /></SettingsAnchor>
       </SettingsGroup>
