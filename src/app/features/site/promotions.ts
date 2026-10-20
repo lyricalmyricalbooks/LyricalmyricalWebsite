@@ -3,7 +3,7 @@
 // (signed copy, inscription, gift wrap), box sets / bundles and gift-card products.
 // The server re-prices every line from the catalog; these only decide what shoppers see.
 import { shopDate } from "./preorder";
-import { parseWeightGrams } from "./shippingEngine";
+import { parseWeightGrams } from "./weightGrams";
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;

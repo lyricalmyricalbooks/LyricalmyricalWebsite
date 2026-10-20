@@ -3,7 +3,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { getCopy } from "../features/site/storeCopy";
 import { inThemePreview } from "../features/site/themePreview";
 
-import { canonicalUrl } from "./bookSeo";
+import { canonicalUrl } from "./canonicalUrl";
 
 type SEO = {
   exactTitle?: boolean;

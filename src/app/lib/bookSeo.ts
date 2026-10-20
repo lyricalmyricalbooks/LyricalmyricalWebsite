@@ -4,6 +4,7 @@ import type { Book } from '../features/site/types';
 import { formatKey } from '../features/site/CatalogControls';
 import { descriptionPlainText } from '../features/site/descriptionLinks';
 import { describedAlt } from '../features/site/photoAlt';
+import { canonicalUrl } from './canonicalUrl';
 
 /** Search descriptions are plain text, even when catalog descriptions are rich HTML. */
 export function searchText(value = ''): string {
@@ -17,15 +18,7 @@ export function searchText(value = ''): string {
     }).replace(/\s+/g, ' ').trim();
 }
 
-export function canonicalUrl(value: string): string {
-  const url = new URL(value);
-  url.search = '';
-  url.hash = '';
-  // Content routes are published slash-less (`books/<slug>.html`, sitemap, JSON-LD); a visitor who
-  // arrived on `/books/<slug>/` must still name the same canonical URL.
-  url.pathname = url.pathname.replace(/(\/(?:books|page|collections)\/[^/]+)\/+$/, '$1');
-  return url.href;
-}
+export { canonicalUrl };
 
 /** Shortens a search snippet at a word boundary (with an ellipsis) instead of mid-word. */
 export function snippet(text: string, max = 160): string {

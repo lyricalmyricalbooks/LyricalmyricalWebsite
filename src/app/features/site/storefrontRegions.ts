@@ -177,7 +177,11 @@ const safe = (value: unknown) => typeof value === "string" && !/[;{}<>]/.test(va
 /** CSS targets the same existing DOM elements in the iframe and published storefront. */
 export function storefrontRegionCss(design: any): string {
   const values = design?.regions || {};
+  // Every setting key starts with its element's id; elements with none produce no CSS. Skipping them
+  // keeps this (run on every storefront render) from building thousands of keys on a phone.
+  const keys = Object.keys(values);
   return REGION_GROUPS.flatMap(group => group.regions.map(region => {
+    if (!keys.some(key => key.startsWith(region.id))) return "";
     const selector = '[data-fm-store] [data-store-region="' + region.id + '"], [data-fm-store][data-store-region="' + region.id + '"]';
     const textSelector = selector + ',[data-fm-store] [data-store-region="' + region.id + '"] :where(h1,h2,h3,h4,h5,h6,p,span,label,input,textarea,select,button,a,dt,dd,li,code)';
     let css = "";
