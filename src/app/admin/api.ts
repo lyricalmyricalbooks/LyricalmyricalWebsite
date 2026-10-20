@@ -71,6 +71,7 @@ import { RISO_NOIR_ID, RISO_NOIR_TOKENS, withRisoNoirDefault } from "../features
 import type { Book, Page, SiteSettings } from "../features/site/types";
 import { validateLocalFulfillment } from "../features/site/localFulfillment";
 import type { LocalFulfillmentConfig } from "../features/site/types";
+import { dailyTrafficBetween } from "./dailyTrafficCache";
 
 /** books/{id}/private/admin: cost prices, shelf codes and other fields shoppers must not read (bookPrivate.ts). */
 const privateBookRef = (bookId: string) => doc(db, "books", bookId, "private", "admin");
@@ -1791,10 +1792,11 @@ export const adminApi = {
   // nothing is read twice and every figure comes from the same paid orders. 400 days covers a year plus a
   // little of the block before it.
   /** Daily traffic docs between two UTC day keys (inclusive), oldest first — however far back the window is. */
-  getDailyAnalyticsBetween: async (fromKey: string, toKey: string) => {
-    const snap = await getDocs(query(collection(db, "analytics"), where("date", ">=", fromKey), where("date", "<=", toKey), orderBy("date"), limit(1600)));
+  // Settled days are kept for the session (dailyTrafficCache.ts); only recent days are read again.
+  getDailyAnalyticsBetween: (fromKey: string, toKey: string) => dailyTrafficBetween(fromKey, toKey, async (from, to) => {
+    const snap = await getDocs(query(collection(db, "analytics"), where("date", ">=", from), where("date", "<=", to), orderBy("date"), limit(1600)));
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  },
+  }),
 
   /** The oldest daily traffic doc's day (when the shop's own counter started, or was last reset), or null. */
   getFirstAnalyticsDay: async (): Promise<string | null> => {

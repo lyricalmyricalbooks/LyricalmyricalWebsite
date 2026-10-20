@@ -37,6 +37,33 @@ try {
   browser = await chromium.launch({ headless: true });
   const captures = [];
   let publishedCache;
+  // One copy of each shop picture/video per build: every page gets a fresh context (no shared browser cache),
+  // and scrolling each page loads its photos again. Storage files never change at a given address, so
+  // later pages are answered from memory with the same bytes. Saves most of the Storage download per build.
+  const storageFiles = new Map();
+  const fromStorage = async route => {
+    const request = route.request();
+    if (request.method() !== 'GET') return route.continue();
+    const url = request.url();
+    let file = storageFiles.get(url);
+    if (!file) {
+      file = route.fetch().then(async response => {
+        const headers = { ...response.headers() };
+        delete headers['content-encoding']; // the body comes back decoded
+        delete headers['content-length'];
+        return { status: response.status(), headers, body: await response.body() };
+      });
+      storageFiles.set(url, file);
+    }
+    try {
+      const answer = await file;
+      if (answer.status !== 200) storageFiles.delete(url);
+      return route.fulfill(answer);
+    } catch {
+      storageFiles.delete(url);
+      return route.continue();
+    }
+  };
   for (const route of routes) {
     // A fresh context prevents cart, wishlist, recent-book and cookie state from
     // one page contaminating another snapshot. No authentication is performed.
@@ -47,6 +74,7 @@ try {
       // Storefront Firestore Lite writes go over REST (documents:commit / beginTransaction).
       await context.route(/firestore\.googleapis\.com\/v1\/.*documents:(commit|beginTransaction)/, request => request.abort());
       await context.route(/google-analytics\.com|googletagmanager\.com/, request => request.abort());
+      await context.route(/^https:\/\/(firebasestorage|storage)\.googleapis\.com\//, fromStorage);
       await context.addInitScript(cache => {
         localStorage.setItem('lm:cookie-consent', JSON.stringify({ necessary: true, analytics: false, marketing: false, decidedAt: new Date().toISOString() }));
         sessionStorage.setItem(`fm_visit_${new Date().toISOString().split('T')[0]}`, 'true');
@@ -104,6 +132,7 @@ try {
     await writeFile(file, capture.html);
   }
   console.log(`Wrote ${captures.length} public HTML pages; customer/admin/payment pages excluded.`);
+  console.log(`Downloaded ${storageFiles.size} shop pictures once for all pages.`);
 } finally {
   if (browser) await browser.close();
   await new Promise(resolve => server.close(resolve));
