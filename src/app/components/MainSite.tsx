@@ -31,6 +31,7 @@ import { googleFontHref } from "../features/site/fonts";
 import { useCurrency } from "../CurrencyContext";
 import { useCart } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
+import { QuickView } from "../features/site/QuickView";
 import { isEmailAddress, subscribeNewsletter } from "../features/site/newsletterSignup";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
 import { SectionPageContext } from "./sectionCopy";
@@ -628,6 +629,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
   // Studio › Style › Product cards & grid › Quick add button (off by default).
   const showQuickAdd = storefrontDesign?.showQuickAdd === true;
+  // Shopify-style quick view: off until the owner switches it on in Studio.
+  const showQuickView = storefrontDesign?.showQuickView === true;
+  const [quickViewBook, setQuickViewBook] = useState<any>(null);
   const showCardWishlist = storefrontDesign?.showCardWishlist !== false;
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
   const showSalePercent = storefrontDesign?.showSalePercent ?? false;
@@ -1086,10 +1090,23 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       </button>
                     );
                   })()}
+                  {showQuickView && (
+                    <button
+                      type="button"
+                      data-studio-target="style:products|copy:Catalog & empty states"
+                      data-studio-label="Quick view button"
+                      onClick={() => setQuickViewBook(item)}
+                      aria-haspopup="dialog"
+                      className="fm-card-quickview mt-2 w-full min-h-[44px] flex items-center justify-center text-[10px] font-bold tracking-[0.2em] uppercase border border-white/20 hover:opacity-80 transition-opacity"
+                    >
+                      {getCopy(activeDesign, "quickViewButton")}
+                    </button>
+                  )}
                 </m.article>
               );
             })}
           </div>
+          {quickViewBook && <QuickView book={quickViewBook} design={activeDesign} onClose={() => setQuickViewBook(null)} />}
         </main>
         )}
 

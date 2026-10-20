@@ -293,6 +293,10 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "catalogAllCategories", label: "All-categories chip and shop filter bar “All” button", default: "ALL" },
       { key: "catalogCountOne", label: "Title count (1)", default: "{count} title", hint: "Use {count} for the number." },
       { key: "catalogCountMany", label: "Title count (many)", default: "{count} titles", hint: "Use {count} for the number." },
+      { key: "quickViewButton", label: "Quick view button on shop cards", default: "Quick view", hint: "Shown only when Theme settings › Book cards in the shop grid › Quick view is on." },
+      { key: "quickViewAria", label: "Quick view window name (read aloud by screen readers)", default: "Quick view: {title}", hint: "Use {title} for the book title." },
+      { key: "quickViewClose", label: "Quick view close button (read aloud)", default: "Close quick view" },
+      { key: "quickViewDetails", label: "Quick view link to the full page", default: "View full details" },
     ],
   },
   {
