@@ -2,7 +2,7 @@ import { openFirstActionQueue, openOrdersQueue } from "./Orders";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { adminApi } from "./api";
 import { inventoryApi } from "./inventoryApi";
-import { getOrdersCached } from "./ordersCache";
+import { getOrdersCached, peekOrders } from "./ordersCache";
 import { salesReportCsv } from "./salesReport";
 import { launchReadiness } from "./launchReadiness";
 import toast from "react-hot-toast";
@@ -20,7 +20,7 @@ import { mergeNewestPage } from "./ordersDesk";
 import { googleTraffic, shopRowsIn, shopTraffic } from "./overviewSources";
 import { whatChanged, type Change } from "./overviewChanges";
 import { profitSummary, titlePerformance } from "./overviewProfit";
-import { googleAnalyticsApi } from "./googleAnalytics";
+import { forgetReports, googleAnalyticsApi } from "./googleAnalytics";
 import { shopDayKey } from "../lib/shopDay";
 import { isOwnOrder } from "../lib/ownerDevice";
 import { Figure, ReadinessStrip, RunList, RunRow, ROW, Trend, money, moneyFigure, percent } from "./OverviewParts";
@@ -110,7 +110,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     ]).then(([settings, shippingProfiles, emailLog]) => setLaunch({ parts: { settings, shippingProfiles, emailLog }, error: false }))
       .catch(() => setLaunch({ parts: null, error: true }));
     // The whole catalogue and every order, so 1-year and year-on-year figures are never cut off.
-    getOrdersCached({ force: reloadKey > 0 }).then((o: any[]) => { setAllOrders({ orders: o, error: false }); setLoadedAt(new Date()); })
+    getOrdersCached({ force: reloadKey > 0 }).then((o: any[]) => { seenShared.current = o; setAllOrders({ orders: o, error: false }); setLoadedAt(new Date()); })
       .catch(() => setAllOrders({ orders: null, error: true }));
     adminApi.getAllBooks().then((b: any[]) => setStock({ books: b, error: false }))
       .catch(() => setStock({ books: null, error: true }));
@@ -123,19 +123,26 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     adminApi.getFirstAnalyticsDay().then(setFirstTrafficDay).catch(() => setFirstTrafficDay(null));
   }, [reloadKey]);
 
-  // The shared reads (carts, sign-ups, Search Console) last one visit: coming back to the Overview reads them again.
-  useEffect(() => () => clearShared(), []);
-
   // Every 5 minutes while the Overview is on screen (and on coming back to the tab after that long): the newest
   // 50 orders, the to-do counts and the last two days of visits. Cheap reads only; Refresh reads everything again.
+  // The admin shell's own 5-minute check (and the Orders desk) refresh the shared orders copy: when it is newer than
+  // the one this board last took, the board takes it and reads no orders itself.
   const quiet = useRef({ busy: false, at: Date.now() });
+  const seenShared = useRef<any[] | null>(null);
   const quietRefresh = useCallback(() => {
     if (quiet.current.busy) return;
     quiet.current = { busy: true, at: Date.now() };
     const utcToday = new Date().toISOString().slice(0, 10);
     const utcYesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
     Promise.allSettled([
-      adminApi.getOrders(50).then((page: any[]) => {
+      (() => {
+        const shared = peekOrders();
+        if (!shared || shared === seenShared.current) return null;
+        seenShared.current = shared;
+        setAllOrders(a => (a.orders ? { orders: shared, error: false } : a));
+        setLoadedAt(new Date());
+        return Promise.resolve();
+      })() ?? adminApi.getOrders(50).then((page: any[]) => {
         const clean = page.map(({ _lastDoc, ...o }: any) => o);
         setAllOrders(a => (a.orders ? { orders: mergeNewestPage(a.orders, clean), error: false } : a));
         setLoadedAt(new Date());
@@ -159,7 +166,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     setAllOrders({ orders: null, error: false }); setStock({ books: null, error: false });
     setAudience({ data: null, error: false }); setLaunch({ parts: null, error: false }); setDaily({ rows: null, error: false });
     // Panels that load their own extra data (carts, stock sign-ups, Search Console) remount via their key and read again.
-    clearShared();
+    clearShared(); forgetReports();
     setReloadKey(k => k + 1);
   };
 

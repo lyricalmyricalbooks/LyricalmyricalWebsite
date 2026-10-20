@@ -76,6 +76,25 @@ async function call(payload: Record<string, unknown>): Promise<any> {
   return data;
 }
 
+// The GA4 report for one range, kept for REPORT_MAX_AGE_MS: leaving the Overview and coming back, or switching
+// between two ranges, asks Google (through a Cloud Function call) only once. Overview › Refresh forgets them.
+export const REPORT_MAX_AGE_MS = 5 * 60_000;
+const reports = new Map<string, { p: Promise<Ga4Answer>; at: number }>();
+export const forgetReports = () => reports.clear();
+function cachedReport(range: Ga4Range, now = Date.now()): Promise<Ga4Answer> {
+  const key = [range.startDate, range.endDate, range.prevStartDate, range.prevEndDate].join("|");
+  const hit = reports.get(key);
+  if (hit && now - hit.at < REPORT_MAX_AGE_MS) return hit.p;
+  const entry = { p: call({ action: "ga4Report", op: "report", range }) as Promise<Ga4Answer>, at: now };
+  reports.set(key, entry);
+  // Only a connected (or "no property set") answer is kept; a failure or an error answer asks again next time.
+  entry.p.then(
+    (answer) => { if (!(answer?.connected || answer?.code === "no_property") && reports.get(key) === entry) reports.delete(key); },
+    () => { if (reports.get(key) === entry) reports.delete(key); },
+  );
+  return entry.p;
+}
+
 export const googleAnalyticsApi = {
   /** What is saved: the public measurement ID and the private property ID. */
   load: async (): Promise<{ measurementId: string; propertyId: string }> => {
@@ -91,7 +110,7 @@ export const googleAnalyticsApi = {
     await setDoc(doc(db, "adminSecrets", "googleAnalytics"), { propertyId: cleanPropertyId(propertyId), updatedAt: serverTimestamp() }, { merge: true });
   },
   status: (): Promise<Ga4Answer> => call({ action: "ga4Report", op: "status" }),
-  report: (range: Ga4Range): Promise<Ga4Answer> => call({ action: "ga4Report", op: "report", range }),
+  report: (range: Ga4Range, now?: number): Promise<Ga4Answer> => cachedReport(range, now),
   searchConsoleStatus: (): Promise<SearchConsoleAnswer> => call({ action: "searchConsole", op: "status" }),
   searchConsoleReport: (range: Ga4Range): Promise<SearchConsoleAnswer> => call({ action: "searchConsole", op: "report", range }),
   /** Books › Google indexing: is each page in Google's index? (up to 30 addresses on the shop's own domain) */
