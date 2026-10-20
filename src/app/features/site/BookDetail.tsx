@@ -70,6 +70,7 @@ import { gridPhotoSizes, THUMB_PHOTO_SIZES, pdpPhotoSizes, photoSrcSet, smallPho
 import { adjustStyle, framingStyle, motionFraming } from "./photoFraming";
 import { PhotoToneDefs } from "./PhotoToneDefs";
 import { ThumbStrip } from "./ThumbStrip";
+import { PHONE_MAX } from "./breakpoints";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 /** The title's inline variables: Studio's "Title size" preset and the phone cap that keeps its longest word whole. */
@@ -280,6 +281,18 @@ export default function BookDetail() {
   // Studio › Style › Book page · photos & layout › Gap between thumbnails / Thumbnail shape.
   const thumbGap          = Math.min(24, Math.max(0, Number(tokenSource.pdpThumbGap ?? 10) || 0));
   const thumbAspect       = tokenSource.pdpThumbShape ? aspectRatioValue(tokenSource.pdpThumbShape, productImageAspect) : productImageAspect;
+  // Style › Thumbnails on phones (pdpThumbsPhone): "row" keeps one sideways line on phones even when
+  // "Thumbnails on several rows" is on (CSS in productPageStyle.ts `phoneThumbsCss`; ThumbStrip then sizes a line).
+  const thumbsPhoneRow    = tokenSource.pdpThumbsPhone === "row";
+  const [onPhone, setOnPhone] = useState(() => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(`(max-width:${PHONE_MAX}px)`).matches);
+  useEffect(() => {
+    if (!thumbsPhoneRow || typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia(`(max-width:${PHONE_MAX}px)`);
+    const sync = () => setOnPhone(query.matches);
+    sync();
+    query.addEventListener?.("change", sync);
+    return () => query.removeEventListener?.("change", sync);
+  }, [thumbsPhoneRow]);
   const pdpDetailsBelow   = (tokenSource.pdpDetailsPlacement || "below") === "below";
   const pdpSpecsRecord    = (tokenSource.pdpSpecsStyle || "record") === "record";
   const headingFontName   = tokenSource.headingFont || tokenSource.font || tokenSource.bodyFont;
@@ -1027,9 +1040,12 @@ export default function BookDetail() {
       case "buy": {
         return <Fragment key={block.id}>
                   {/* CTA */}
-                  <div className={`flex flex-wrap gap-2.5 w-full ${
-                    productCtaWidth === "auto" && productAlignment === "center" ? "justify-center" : "justify-start"
-                  }`}>
+                  <div
+                    className={`flex flex-wrap gap-2.5 w-full ${
+                      productCtaWidth === "auto" && productAlignment === "center" ? "justify-center" : "justify-start"
+                    }${productCtaWidth === "full" ? " fm-pdp-cta" : ""}`}
+                    data-icons={productCtaWidth === "full" ? (showPdpWishlist ? 1 : 0) + (showSocialShare ? 1 : 0) : undefined}
+                  >
                     {showQtyStepper && !isOutOfStock && !isComingSoon && (
                       <div className="fm-pdp-qty">
                         <button
@@ -1284,7 +1300,7 @@ export default function BookDetail() {
                       count={photos.length}
                       position={pdpThumbPosition}
                       fill={tokenSource.pdpThumbFill !== false}
-                      wrap={tokenSource.pdpThumbWrap === true}
+                      wrap={tokenSource.pdpThumbWrap === true && !(thumbsPhoneRow && onPhone)}
                       size={Math.min(160, Math.max(40, Number(tokenSource.pdpThumbSize) || 64))}
                       gap={thumbGap}
                       perRow={Math.min(12, Math.max(0, Number(tokenSource.pdpThumbPerRow) || 0))}
@@ -1632,7 +1648,7 @@ export default function BookDetail() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.07 }}
-                      className="fm-card group"
+                      className="fm-card group min-w-0"
                     >
                       <Link to={`/books/${relSlug}`}>
                         <div {...regionProps("relatedPhoto")} className="relative fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl" style={{ aspectRatio: productImageAspect }}>

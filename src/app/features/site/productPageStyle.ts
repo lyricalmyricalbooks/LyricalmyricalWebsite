@@ -297,6 +297,17 @@ export function productPageCss(design: any): string {
     css += `${S} .fm-pdp-media[data-thumbs="below"] .fm-pdp-rail{${grid}}${S} .fm-pdp-media[data-thumbs="below"] .fm-pdp-thumb{${cell}}`;
     css += `@media (max-width:${PHONE_MAX}px){${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-rail{${grid}}${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-thumb{${cell}}}`;
   }
+  css += phoneThumbsCss(d, thumbSize, thumbGap);
+  // Add to bag + wishlist + share on one line on phones (full-width Add to bag only, `.fm-pdp-cta`): the
+  // button shares the row with the square buttons instead of pushing Share onto a line of its own, and a
+  // quantity stepper sits on the line above. Computers keep the wrapping flex row.
+  css += `@media (max-width:${PHONE_MAX}px){`
+    + `${S} .fm-pdp-cta{display:grid;grid-template-columns:minmax(0,1fr);}`
+    + `${S} .fm-pdp-cta[data-icons="1"]{grid-template-columns:minmax(0,1fr) 52px;}`
+    + `${S} .fm-pdp-cta[data-icons="2"]{grid-template-columns:minmax(0,1fr) 52px 52px;}`
+    + `${S} .fm-pdp-cta>*{min-width:0;}`
+    + `${S} .fm-pdp-cta>.fm-pdp-qty{grid-column:1/-1;justify-self:start;}`
+    + `}`;
   // Thumbnails that fill the strip edge to edge (pdpThumbFill, on by default): ThumbStrip measures the strip
   // and sets data-fill, --thumb-cols and --thumb-h (thumbStrip.ts). Each thumbnail takes an equal share of
   // the row; every thumbnail keeps the same height, and a short last row stretches (data-last-row="stretch"),
@@ -312,6 +323,25 @@ export function productPageCss(design: any): string {
   css += `${fill}[data-last-row="left"] .fm-pdp-thumb,${fill}[data-last-row="center"] .fm-pdp-thumb{flex-grow:0;}`;
   css += `${fill}[data-last-row="center"]{justify-content:center;}`;
   return css;
+}
+
+/**
+ * Style › Book page · photos & layout › Thumbnails on phones (`pdpThumbsPhone`). "" = same as on a computer
+ * (nothing emitted); "row" = one line that scrolls sideways even when Thumbnails on several rows is on;
+ * "hidden" = no thumbnails on phones (shoppers swipe the photo). Comes after the several-rows and fill rules
+ * so it wins over both, only below the phone breakpoint.
+ */
+export function phoneThumbsCss(d: any, thumbSize = 64, thumbGap = 10): string {
+  const mode = d?.pdpThumbsPhone;
+  const rail = `${S} .fm-pdp-media[data-thumbs] .fm-pdp-rail`;
+  if (mode === "hidden") return `@media (max-width:${PHONE_MAX}px){${rail}{display:none !important;}}`;
+  if (mode !== "row") return "";
+  const share = `calc((100% - (var(--thumb-cols) - 1) * ${thumbGap}px) / var(--thumb-cols))`;
+  return `@media (max-width:${PHONE_MAX}px){`
+    + `${rail},${rail}[data-fill][data-fill]{display:flex;flex-direction:row;flex-wrap:nowrap;max-height:none;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;}`
+    + `${rail} .fm-pdp-thumb{flex:none;width:${thumbSize}px;}`
+    + `${rail}[data-fill][data-fill] .fm-pdp-thumb{flex:0 0 ${share};width:auto;max-width:none;}`
+    + `}`;
 }
 
 /** Google Fonts the product-page controls may ask for. */
