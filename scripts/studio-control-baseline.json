@@ -725,6 +725,7 @@
   "showStoreChromeOnUtilityPages": "none: only on wishlist, account, tracking and missing pages",
   "showUnderConstruction": "visible",
   "showUnderConstructionAdmin": "none: needs the under-construction wall switched on",
+  "showWishlistShare": "none: only on the wishlist page with saved books",
   "showZoom": "none: the fixture's books have no photos",
   "smallPrintCase": "visible",
   "smallPrintColor": "visible",

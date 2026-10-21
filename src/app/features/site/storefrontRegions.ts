@@ -49,6 +49,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "wishlistCount", label: "Saved-book count" }, { id: "wishlistEmpty", label: "Empty wishlist" },
     { id: "wishlistGrid", label: "Saved-book grid", grid: true }, { id: "wishlistPhoto", label: "Saved-book photo", image: true },
     { id: "wishlistActions", label: "Saved-book actions" },
+    { id: "wishlistShareBar", label: "Share wishlist / shared list bar" },
   ] },
   { id: "accountLayout", title: "Customer account · layout & elements", copy: "Customer account", files: ["features/site/Account.tsx"], regions: [
     { id: "accountLogin", label: "Sign-in panel", required: true }, { id: "accountIntro", label: "Sign-in heading & description" },
