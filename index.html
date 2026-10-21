@@ -99,6 +99,26 @@
       })();
     </script>
 
+    <!--
+      Start the shop catalog download now, beside the app script, instead of after it has run: useSiteData
+      reads this same file (features/site/storefrontDataFile.ts: same URL, CORS-anonymous, default cache mode,
+      which Hosting revalidates). Not on the admin, and not in a Studio preview (that gets its data by message).
+    -->
+    <script>
+      (function () {
+        try {
+          var p = location.pathname;
+          if (/\/admin(\/|$)/.test(p) || /[?&]preview=/.test(location.search)) return;
+          var link = document.createElement('link');
+          link.rel = 'preload';
+          link.as = 'fetch';
+          link.crossOrigin = 'anonymous';
+          link.href = '%BASE_URL%storefront-data.json';
+          document.head.appendChild(link);
+        } catch (e) {}
+      })();
+    </script>
+
     <style>
       html, body { height: 100%; margin: 0; background: #030213; }
       #root { height: 100%; }

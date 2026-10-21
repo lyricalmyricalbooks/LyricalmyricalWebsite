@@ -106,7 +106,7 @@ async function checkStorefrontData(
 
 export async function fetchStorefrontDataFile(base: string = (import.meta as any).env?.BASE_URL || "/"): Promise<unknown> {
   if (typeof fetch !== "function") return null;
-  const response = await fetch(`${base.replace(/\/?$/, "/")}${STOREFRONT_DATA_FILE}`, { cache: "no-cache", credentials: "omit" });
+  const response = await fetch(`${base.replace(/\/?$/, "/")}${STOREFRONT_DATA_FILE}`, { credentials: "same-origin" });
   if (!response.ok || !/json/.test(response.headers.get("content-type") || "")) return null;
   return response.json();
 }
