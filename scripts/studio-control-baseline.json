@@ -700,6 +700,7 @@
   "showPaymentBadges": "none: the Payment icons list is empty in the live design",
   "showPdpArtistLinks": "none: needs a book with Artist links (Books › edit › Search (SEO))",
   "showPdpEditionDetails": "none: needs a book sold in editions",
+  "showPdpPickup": "none: needs Local pickup switched on in Settings › Shipping",
   "showPdpWishlist": "visible",
   "showPhotoLightbox": "visible",
   "showPoweredBy": "visible",

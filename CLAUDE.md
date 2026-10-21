@@ -1856,6 +1856,16 @@ is a disabled label). JSON-LD says OutOfStock. Turning the switch off fires `onB
 signups get an **Out now** email for editions with stock (`releasePending` carries the wording to `backInStockSweep`); while
 it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badge and status filter. Deploy Functions with the frontend.
 
+## Pickup availability on book pages (21 October 2026)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **Pickup availability** (`showPdpPickup`, off by default)
+draws "Pickup available at <location>" under the buy buttons (`features/site/PickupAvailability.tsx`, region `productPickup`),
+with the location's estimate and a **View pickup details** disclosure (town, fee, hours, nearby-only note). Locations come from
+`settings.localFulfillment` (Settings › Shipping › Local pickup & delivery) through pure `pickupSpots` (`pickupAvailability.ts`):
+nothing while pickup is off or fails `validateLocalFulfillment`, and only for physical copies by checkout's own rule
+(`catalogFulfillmentItems`); hidden when sold out or Coming soon. Display only: checkout still decides pickup choices and prices.
+Words: Text & labels › Product page (`pdpPickup*`).
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the

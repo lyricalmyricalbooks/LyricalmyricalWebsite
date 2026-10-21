@@ -44,6 +44,8 @@ import { PhotoCarousel } from "./PhotoCarousel";
 import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 import BackInStockForm from "./BackInStockForm";
+import PickupAvailability from "./PickupAvailability";
+import { pickupSpots } from "./pickupAvailability";
 import { quickAddChoice } from "./buyable";
 import { resolveLogoDesign } from "./selectors";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "./themeTokens";
@@ -164,6 +166,7 @@ export default function BookDetail() {
   const showPdpWishlist        = storefrontDesign.showPdpWishlist        ?? true;
   const showBackInStock        = storefrontDesign.showBackInStock        ?? true;
   const showComingSoonSignup   = storefrontDesign.showComingSoonSignup   ?? true;
+  const showPdpPickup          = storefrontDesign.showPdpPickup === true;
 
   // Autonomy controls for book detail page
   const showAmbientGlow        = storefrontDesign.showAmbientGlow        ?? settings?.design?.showAmbientGlow        ?? true;
@@ -1183,6 +1186,13 @@ export default function BookDetail() {
                     >
                       {getCopy(settings?.design, "pdpBuyNow")}
                     </button>
+                  )}
+                  {showPdpPickup && !isOutOfStock && !isComingSoon && regionVisible(regionDesign, "productPickup") && (
+                    <PickupAvailability
+                      spots={pickupSpots(settings?.localFulfillment, book, selectedVariant)}
+                      design={settings?.design}
+                      formatPrice={formatPrice}
+                    />
                   )}
         </Fragment>;
       }
