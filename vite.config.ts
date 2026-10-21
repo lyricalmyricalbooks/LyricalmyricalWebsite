@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
@@ -116,4 +117,9 @@ export default defineConfig(({ command }) => ({
     },
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],
+  test: {
+    // Vitest 5 caches transformed files on disk by default, and the cache doesn't notice a new file joining an
+    // import.meta.glob (e.g. a new release note in admin/updates), so tests would read a stale list.
+    fsModuleCache: false,
+  },
 }))
