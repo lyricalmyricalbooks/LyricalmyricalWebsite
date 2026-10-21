@@ -1102,7 +1102,12 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 
 /* Header (Masthead, Oct 2026): title + freshness; dates as underlined words; one "Board ▾" menu; then the summary line */
 .rp-wb-head { display: flex; flex-direction: column; gap: 12px; padding-bottom: 12px; border-bottom: var(--rp-stroke) solid var(--rp-border-strong); }
-.rp-wb-head-title { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; min-width: 0; }
+.rp-wb-head-title { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; justify-content: space-between; min-width: 0; }
+.rp-wb-dot { width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--rp-success); }
+.rp-wb-vs { font: 500 11px/1 var(--rp-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--rp-text-subtle); }
+.rp-wb-compare { border: 0; background: transparent; padding: 0 4px; font: 600 13px var(--rp-font-body); color: var(--rp-text); cursor: pointer; }
+.rp-wb-strip { margin: 0; box-shadow: none; background: transparent; border-left: 0; border-right: 0; }
+.rp-wb-save[data-quiet] { display: none; }
 .rp-wb-h1 { margin: 0; }
 .rp-wb-head-controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; min-width: 0; max-width: 100%; }
 .rp-wb-updated { display: inline-flex; align-items: center; gap: 2px; }

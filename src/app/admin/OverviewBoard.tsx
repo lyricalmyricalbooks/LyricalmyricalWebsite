@@ -215,8 +215,10 @@ export type BoardHeader = {
   updated: ReactNode;
   /** The period buttons and the comparison select. */
   period: ReactNode;
-  /** The period in words, for the hint line. */
+  /** The period in words (a note under the strip only when something needs saying). */
   summary: ReactNode;
+  /** The headline numbers strip (revenue, orders, visitors, conversion). */
+  figures?: ReactNode;
   /** The period's name ("the last 12 months"), for "Open this board on these dates". */
   viewName: string;
   view: BoardView;
@@ -613,7 +615,7 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
       <header className="rp-wb-head">
         <div className="rp-wb-head-title">
           <h1 className="rp-page-title rp-wb-h1">Overview</h1>
-          <span className="rp-wb-updated">
+          <span className="rp-wb-updated"><span className="rp-wb-dot" aria-hidden="true" />
             <span className="rp-wb-lbl" aria-live="polite">{header.updated}</span>
             <IconButton className="rp-wb-refresh" label={header.refreshing ? "Refreshing…" : "Refresh the figures"} onClick={header.onRefresh} disabled={header.refreshing}>
               <RefreshCw size={14} aria-hidden data-spin={header.refreshing || undefined} />
@@ -662,7 +664,8 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
             </div>
           </div>
         </div>
-        <p className="rp-wb-hint">{header.summary}</p>
+        {header.figures}
+        {header.summary && <p className="rp-wb-hint">{header.summary}</p>}
       </header>
       <p className="rp-sr-only" role="status" aria-live="polite">{announce}</p>
     </>
@@ -777,7 +780,7 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
               <GhostButton size="sm" onClick={redo} disabled={!future.length} aria-keyshortcuts="Control+Shift+Z">Redo</GhostButton>
             </span>
           )}
-          <span className="rp-wb-save" role="status" aria-live="polite" data-state={saveState} title={saveState === "error" ? saveError : saveState === "local" ? "Your account copy couldn't be reached; this browser keeps your board." : undefined}>
+          <span className="rp-wb-save" role="status" aria-live="polite" data-state={saveState} data-quiet={saveState === "saved" || undefined} title={saveState === "error" ? saveError : saveState === "local" ? "Your account copy couldn't be reached; this browser keeps your board." : undefined}>
             {SAVE_WORDS[saveState]}
             {saveState === "error" && <button type="button" className="rp-wb-link" onClick={onRetrySave}>Try again</button>}
           </span>
