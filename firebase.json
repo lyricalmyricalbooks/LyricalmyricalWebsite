@@ -70,7 +70,7 @@
         ]
       },
       {
-        "regex": "^/(?:spa|404|cart)(?:\\.html)?$",
+        "regex": "^/(?:spa|404|cart|checkout|track|wishlist|(?:account|admin)(?:/.*)?)(?:\\.html)?$",
         "headers": [
           {
             "key": "X-Robots-Tag",

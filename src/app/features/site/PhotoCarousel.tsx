@@ -79,8 +79,12 @@ export function PhotoCarousel({ count, index, onIndex, onSwipe, renderSlide, cla
       aria-roledescription="carousel"
       aria-label={label}
       data-fm-carousel
+      // A strip that scrolls must be reachable from the keyboard (WCAG 2.1.1; axe scrollable-region-focusable):
+      // focused, the arrow keys scroll it photo by photo (the snap points); the viewer's own arrow handler
+      // still moves it there. The shop's focus ring is drawn inside, since the photo frame clips its overflow.
+      tabIndex={count > 1 ? 0 : undefined}
       className={`flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
-      style={{ overscrollBehaviorX: "contain", cursor: count > 1 ? "grab" : undefined }}
+      style={{ overscrollBehaviorX: "contain", cursor: count > 1 ? "grab" : undefined, outlineOffset: count > 1 ? -4 : undefined }}
       onScroll={onScroll}
       onTouchStart={() => { gliding.current = null; }}
       onWheel={() => { gliding.current = null; }}

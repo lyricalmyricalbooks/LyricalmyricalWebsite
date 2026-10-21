@@ -111,9 +111,12 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
     }
   });
 
-  it('keeps the bare app shell out of search results, and lets search engines list the shop', () => {
-    for (const path of ['/spa', '/404', '/cart']) expect(headersFor(path).find(h => h.key === 'X-Robots-Tag')?.value, path).toBe('noindex');
-    for (const path of samples.filter(p => !/^\/(spa|404|cart)$/.test(p))) {
+  // Private pages (bag, checkout, tracking, wishlist, account, admin) are served as the app shell, whose HTML says
+  // "index, follow" until the app runs; the header keeps them out of search results without JavaScript (audit 2026-10-21).
+  const privatePaths = ['/spa', '/404', '/cart', '/checkout', '/track', '/wishlist', '/account', '/account/orders', '/admin', '/admin/x'];
+  it('keeps the bare app shell and private pages out of search results, and lets search engines list the shop', () => {
+    for (const path of privatePaths) expect(headersFor(path).find(h => h.key === 'X-Robots-Tag')?.value, path).toBe('noindex');
+    for (const path of [...samples, '/accounts', '/administrator', '/page/account', '/books/checkout', '/trackers'].filter(p => !privatePaths.includes(p))) {
       expect(headersFor(path).find(h => h.key === 'X-Robots-Tag'), path).toBeUndefined();
     }
   });
