@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, type RefObject, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { Heart, Search, ShoppingCart, User as UserIcon } from "lucide-react";
 import { useCart } from "../../CartContext";
@@ -15,7 +15,8 @@ import { isLiveBook } from "./liveBook";
 import { MobileStorefrontNav } from "./MobileStorefrontNav";
 import { NavDropdown, selectInPlace, type NavDropdownEntry } from "./NavDropdown";
 import { buildNavItems, childCategories, parentOf, referenceNavCategories, splitNavigation, usesReferenceHeader, type NavItem } from "./navItems";
-import { SearchOverlay } from "./SearchOverlay";
+// Search loads the first time it opens (button, Ctrl/⌘+K or Studio's Search pop-over), not with every page.
+const SearchOverlay = lazy(() => import("./SearchOverlay").then(m => ({ default: m.SearchOverlay })));
 import { SecondaryStorefrontNav } from "./SecondaryStorefrontNav";
 import { getPublishedBooks } from "./selectors";
 import { getCopy } from "./storeCopy";
@@ -316,6 +317,9 @@ function HeaderActions({ flags, copyDesign, color, shop, onSearch, wishlistCount
 export function StoreHeader({ design, pages, books, shop }: { design: any; pages: Page[]; books: Book[]; shop?: ShopHeaderContext }) {
   const [searchOpen, setSearchOpen] = useState(false);
   useStudioOverlay("search", setSearchOpen);
+  // Stays mounted once opened, so closing still plays its exit animation.
+  const searchUsed = useRef(false);
+  if (searchOpen) searchUsed.current = true;
   const shopMode = !!shop;
   // Ctrl/⌘+K opens search on the shop pages.
   useEffect(() => {
@@ -336,7 +340,7 @@ export function StoreHeader({ design, pages, books, shop }: { design: any; pages
       {shop
         ? <ShopHeader design={design} pages={pages} books={books} shop={shop} onSearch={openSearch} />
         : <PageHeader design={design} pages={pages} onSearch={openSearch} />}
-      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={searchBooks} design={shop ? shop.surface : design} />
+      {searchUsed.current && <Suspense fallback={null}><SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={searchBooks} design={shop ? shop.surface : design} /></Suspense>}
       {/* Section groups shown on every page: under the header, and the pop-up (Studio › Page layout). */}
       <GroupSections design={design} group="headerSections" books={searchBooks} />
       <PopupSections design={design} books={searchBooks} />

@@ -88,6 +88,36 @@ jobs:
       - name: Firebase Hosting routing check
         run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-lyricalmyrical "node scripts/hosting-smoke.mjs"
 
+  storefront-smoke:
+    # Serves the production build and walks a shopper's path in Chromium against the live published catalog (home,
+    # book page, add to bag, checkout, collection, wishlist, tracking, account, admin sign-in, 404, search, phone).
+    # Fails when a page throws, so a dependency update that crashes the shop is caught before merge. Writes nothing:
+    # cookies are rejected, no email is typed and nothing is paid (scripts/storefront-smoke.mjs).
+    needs: changes
+    if: needs.changes.outputs.studio == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - run: pnpm exec vite build
+
+      - name: Shopper click-through
+        run: pnpm run test:storefront
+
   studio-browser-shard:
     # Drives the real Design studio in Chromium against the local fixture (studio-fixture.html):
     # in-memory data, no sign-in, nothing written to Firestore. Each machine runs every third check.

@@ -992,6 +992,11 @@ it. Don't add new compat rules for new work; compose the components instead.
   under the old check names. They run on pull requests only (a push to main runs `test`), and a PR touching only
   `functions/`, `docs/`, release notes, rules or root `*.md` passes them at once (`changes` job). Every check must stay
   independent (its own page); a new check is placed on a shard by its position, so nothing to update.
+- **Shopper click-through:** CI job `storefront-smoke` (same pull requests as the Studio checks) serves `vite build` and runs
+  `pnpm run test:storefront` (`scripts/storefront-smoke.mjs`): home, book page, add to bag, checkout, collection, wishlist,
+  tracking, account, admin sign-in, 404, search and phone against the live published catalog. It fails on a page error,
+  on the error panel and on a caught section/page crash ("failed to render" / "Storefront render error"), never writes
+  (cookies rejected, no email typed, nothing paid). `CHROMIUM_PATH` reuses a local browser; `SMOKE_URL` checks a running site.
 - **Studio fixture:** `pnpm dev` then open `/studio-fixture.html` — the real Studio with in-memory data
   (`studio/fixture/fakeStudioApi.ts`; writes are recorded in `window.__studioFixture.calls`, nothing reaches
   Firestore). `pnpm run test:studio` drives it in Chromium (`CHROMIUM_PATH` to reuse an installed browser,
@@ -1078,7 +1083,7 @@ Bug / edge case the change introduced · the next logical feature · draft/publi
 - Use a descriptive PR title based on the feature/fix being implemented.
 - **After a PR is merged, start the next change on a brand-new branch and open a new PR** — never push commits onto a merged branch to revive it.
 - **Merge your own PRs automatically (owner's standing instruction, 12 October 2026).** Open the PR ready for review (not
-  draft), wait for its checks (`test`, `studio-browser`, `studio-controls`, `release-note`) to finish, and merge it yourself (merge commit,
+  draft), wait for its checks (`test`, `studio-browser`, `studio-controls`, `storefront-smoke`, `release-note`) to finish, and merge it yourself (merge commit,
   pinned to the head SHA) once every check is green and GitHub reports no merge conflict. Never merge with a red, pending
   or missing check; fix the failure first (bring `main` in, re-run the tests) and push. Merging to `main` deploys the live
   shop. GitHub's own "Allow auto-merge" is off in the repository settings, so the agent does the merge.
@@ -1211,7 +1216,8 @@ entry was ~205 KB gzipped after this change.
 (`const { doc, getDoc, liteDb } = await lite()`), never a static import from `firebase/firestore/lite`,
 `lib/firestoreLite` or `lib/firebaseApp`; `functionFetch` loads App Check the same way and `authState` lives in
 `lib/authState.ts`. That keeps Firebase + App Check (~50 KB gzip) out of the entry (`index-*.js` ~176 KB gzip on Vite 6;
-Vite 8 splits it, so measure everything `dist/index.html` loads up front: ~300 KB gzip with React 19, October 2026);
+Vite 8 splits it, so measure everything `dist/index.html` loads up front: ~286 KB gzip with React 19, October 2026;
+the header's search overlay and the shop toaster are `lazy`, and the theme toggle avoids ui/button's tailwind-merge);
 `lib/shopperBundle.test.ts` fails on a static import in the shopper modules.
 
 ## Prerendered page hand-over (15 October 2026)
