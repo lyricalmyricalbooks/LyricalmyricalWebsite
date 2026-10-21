@@ -48,9 +48,17 @@ export function useWishlist() {
     write(read().filter(x => x !== id));
   }, []);
 
+  /** Adds books from a shared list to this shopper's own (skips ones already saved). */
+  const addMany = useCallback((add: string[]) => {
+    const current = read();
+    const fresh = add.filter(id => !current.includes(id));
+    if (fresh.length) write([...current, ...fresh]);
+    return fresh.length;
+  }, []);
+
   const has = useCallback((id: string) => ids.includes(id), [ids]);
 
-  return { ids, toggle, remove, has, count: ids.length };
+  return { ids, toggle, remove, addMany, has, count: ids.length };
 }
 
 /**

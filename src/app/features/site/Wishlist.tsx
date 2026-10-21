@@ -2,10 +2,10 @@ import { isLiveBook } from "./liveBook";
 import { displayPrice } from "./displayPrice";
 import { regionProps } from "./storefrontRegions";
 import { quickAddChoice } from "./buyable";
-import { useEffect } from "react";
-import { Link } from "react-router";
+import { useEffect, useMemo } from "react";
+import { Link, useLocation } from "react-router";
 import toast from "react-hot-toast";
-import { Heart, ArrowLeft, ShoppingBag, Trash2 } from "lucide-react";
+import { Heart, ArrowLeft, ShoppingBag, Trash2, Share2 } from "lucide-react";
 import { useWishlist } from "../../lib/wishlist";
 import { useSiteData } from "./useSiteData";
 import { useCart } from "../../CartContext";
@@ -20,6 +20,8 @@ import { StoreChrome, useInStoreChrome } from "./StoreChrome";
 import { gridPhotoSizes, photoSrcSet } from "./photoSources";
 import { framingStyle } from "./photoFraming";
 import { PhotoToneDefs } from "./PhotoToneDefs";
+import { layerDesign } from "./designModel";
+import { idsToMerge, sharedWishlistIds, wishlistShareUrl } from "./wishlistShare";
 
 /** The wishlist, inside the one shop header and footer (Studio 2.0 · 2.1). */
 export default function WishlistPage() {
@@ -29,10 +31,18 @@ export default function WishlistPage() {
 function WishlistContent() {
   // Under the shop header this title bar is a plain row, not a second <header>.
   const TitleBar = useInStoreChrome() ? "div" : "header";
-  const { ids, remove } = useWishlist();
+  const { ids: ownIds, remove, addMany } = useWishlist();
   const { books, settings, loading, loadError, retry } = useSiteData();
   const { addToCart } = useCart();
   const { formatBookPrice } = useCurrency();
+  const { search } = useLocation();
+  // Studio › Style › Book cards in the shop grid › Wishlist share button (off by default). While it
+  // is off a ?shared= link opens the shopper's own list, as before.
+  const surface = "wishlistPage";
+  const shareOn = layerDesign(settings?.design || {}, (settings?.design || {})[surface]).showWishlistShare === true;
+  const sharedIds = useMemo(() => (shareOn ? sharedWishlistIds(search) : null), [shareOn, search]);
+  const viewingShared = sharedIds !== null;
+  const ids = viewingShared ? sharedIds : ownIds;
 
   useSEO({
     title: getCopy(settings?.design, "seoWishlistTitle"),
@@ -47,6 +57,38 @@ function WishlistContent() {
 
   // A hearted book that was later unpublished drops off the list instead of staying buyable.
   const items = books.filter(b => ids.includes(b.id) && isLiveBook(b as any));
+  const design = settings?.design;
+
+  async function shareList() {
+    const url = wishlistShareUrl(items.map(b => b.id), window.location.origin, import.meta.env.BASE_URL || "/");
+    if (!url) return;
+    try {
+      if (navigator.share) { await navigator.share({ title: getCopy(design, "wishlistShareTitle"), url }); return; }
+    } catch (err: any) {
+      if (err?.name === "AbortError") return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(getCopy(design, "wishlistShareCopied"));
+    } catch {
+      toast.error(getCopy(design, "wishlistShareFailed"));
+    }
+  }
+
+  function addAllToBag() {
+    let added = 0;
+    for (const book of items) {
+      const choice = quickAddChoice(book);
+      if (choice.inStock && addToCart(book, choice.variant)) added += 1;
+    }
+    if (added) toast.success(getCopy(design, "wishlistAddAllDone", { count: added }));
+    else toast.error(getCopy(design, "addToBagFailed"));
+  }
+
+  function saveShared() {
+    const added = addMany(idsToMerge(ownIds, items.map(b => b.id)));
+    toast.success(getCopy(design, "wishlistSaveSharedDone", { count: added }));
+  }
 
   if (loading) {
     return (
@@ -64,9 +106,33 @@ function WishlistContent() {
         <Link to="/" className="flex items-center gap-2 text-[10px] tracking-[0.3em] text-white/50 hover:text-white uppercase">
           <ArrowLeft size={14} /> {getCopy(settings?.design, "backToCatalog")}
         </Link>
-        <span {...regionProps("wishlistTitle")} className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "wishlistTitle")}</span>
+        <span {...regionProps("wishlistTitle")} className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, viewingShared ? "wishlistSharedTitle" : "wishlistTitle")}</span>
         <span {...regionProps("wishlistCount")} className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "wishlistCount", { count: items.length })}</span>
       </TitleBar>
+
+      {shareOn && items.length > 0 && (
+        <div {...regionProps("wishlistShareBar")} className="max-w-6xl mx-auto px-6 pt-8 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[10px] tracking-[0.3em] text-white/50 uppercase">
+            {getCopy(design, viewingShared ? "wishlistSharedNote" : "wishlistShareNote")}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {viewingShared ? (
+              <>
+                <button type="button" onClick={saveShared} className="max-md:min-h-10 border border-white/20 px-5 py-2.5 rounded-full text-[9px] tracking-[0.3em] uppercase hover:bg-white/5 transition-colors">
+                  {getCopy(design, "wishlistSaveShared")}
+                </button>
+                <button type="button" onClick={addAllToBag} className="max-md:min-h-10 flex items-center gap-2 fm-active px-5 py-2.5 rounded-full text-[9px] tracking-[0.3em] uppercase font-bold hover:bg-white/90 transition-colors">
+                  <ShoppingBag size={11} /> {getCopy(design, "wishlistAddAll")}
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={shareList} className="max-md:min-h-10 flex items-center gap-2 border border-white/20 px-5 py-2.5 rounded-full text-[9px] tracking-[0.3em] uppercase hover:bg-white/5 transition-colors">
+                <Share2 size={11} /> {getCopy(design, "wishlistShare")}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {items.length === 0 && loadError && ids.length > 0 ? (
         // The catalog read failed: an error with Try again, not a false "your wishlist is empty".
@@ -138,13 +204,13 @@ function WishlistContent() {
                   >
                     <ShoppingBag size={11} /> {getCopy(settings?.design, choice.comingSoon ? "comingSoonBadge" : "wishlistAdd")}
                   </button>
-                  <button
+                  {!viewingShared && <button
                     onClick={() => remove(book.id)}
                     aria-label={getCopy(settings?.design, "wishlistRemoveAria")}
                     className="relative p-2.5 max-md:before:absolute max-md:before:-inset-1.5 max-md:before:content-[''] rounded-full border border-white/10 text-white/40 hover:text-rose-400 hover:border-rose-400/30 transition-colors"
                   >
                     <Trash2 size={12} />
-                  </button>
+                  </button>}
                 </div>
               </article>
             );
