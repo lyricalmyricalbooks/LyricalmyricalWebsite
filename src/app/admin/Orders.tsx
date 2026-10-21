@@ -1,3 +1,4 @@
+import { plainError } from "./plainError";
 import "./fulfillment.css";
 import { exportOrdersCsv } from "./orderCsv";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -242,7 +243,7 @@ export function Orders({
       setSelected(new Set());
       loadOrders();
     } catch (err: any) {
-      toast.error(err.message || "Test-order deletion failed");
+      toast.error(plainError(err, "Test-order deletion failed"));
     }
   };
 
@@ -298,7 +299,7 @@ export function Orders({
         succeeded.add(id);
         results.push(`${o?.orderId || id}: ${BATCH[kind].done}`);
       } catch (err: any) {
-        results.push(`${o?.orderId || id}: ${err.message || "Could not save"}`);
+        results.push(`${o?.orderId || id}: ${plainError(err, "Could not save")}`);
       }
     }
     setBatchResults(results);

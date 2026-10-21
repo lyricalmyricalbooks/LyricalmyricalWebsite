@@ -1,3 +1,4 @@
+import { plainError } from "./plainError";
 import { useState, useEffect, useMemo } from "react";
 import { Link2, Plus, Trash2 } from "lucide-react";
 import { adminApi } from "./api";
@@ -395,7 +396,7 @@ export function Discounts() {
       }
       setDialogOpen(false); setEditing(null); load();
     } catch (err: any) {
-      toast.error(err.message || "Save failed");
+      toast.error(plainError(err, "Save failed"));
     }
   };
 
