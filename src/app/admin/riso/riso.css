@@ -925,7 +925,9 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-wb[data-density="compact"] { --wb-gap: 12px; --wb-pad: 10px; }
 /* The board bar: no frame of its own, so it reads as part of the header rather than a second header (ux1 #4). */
 /* Overview sub tabs (20 October 2026): one per topic, a second row inside Visitors. */
-.rp-wb-tabs { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rp-wb-tabs { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1 1 320px; }
+.rp-wb-tabsrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.rp-wb-tabsrow > .rp-wb-toolbar-actions { flex: none; }
 .rp-wb-subtabs { padding-left: 12px; border-left: var(--rp-stroke) solid var(--rp-border-strong); min-width: 0; }
 .rp-wb-subtabs .rp-tab { font-size: var(--rp-text-xs); }
 .rp-wb-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 0; background: transparent; border: 0; box-shadow: none; }

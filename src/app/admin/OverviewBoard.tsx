@@ -750,24 +750,11 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
       {head}
 
       {/* Sub tabs: one per topic (Everything = the whole board), and a second row inside Visitors. */}
-      <div className="rp-wb-tabs">
+      <div className="rp-wb-tabsrow">
+        <div className="rp-wb-tabs">
         <Tabs<TopTab> variant="page" label="Overview topics" idPrefix="overview-" value={tab.band} onChange={band => openTab({ band, sub: "all" })}
           tabs={topTabs(board, editing).map(id => ({ id, label: id === "all" ? "Everything" : bandMeta(id).title, ...(id === "all" ? {} : { count: board.bands.find(b => b.id === id)!.widgets.length }) }))} />
-      </div>
-
-      {/* The board's own bar: jump to a topic, add widgets, view options, undo and the save status. */}
-      <div className="rp-wb-toolbar" role="toolbar" aria-label="Board">
-        {tab.band === "all" ? (
-          <nav className="rp-wb-jump" aria-label="Jump to a topic">
-            {bands.filter(b => b.widgets.length > 0).map(b => (
-              <a key={b.id} href={`#wb-band-${b.id}`} onClick={e => {
-                e.preventDefault();
-                if (b.collapsed) commit(x => updateBand(x, b.id, { collapsed: false }));
-                document.getElementById(`wb-band-${b.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}>{bandMeta(b.id).title}<span className="rp-mono"> {b.widgets.length}</span></a>
-            ))}
-          </nav>
-        ) : <span />}
+        </div>
         <div className="rp-wb-toolbar-actions">
           {(past.length > 0 || future.length > 0) && (
             <span className="rp-wb-undo">
@@ -789,12 +776,27 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
             <Plus size={14} aria-hidden /> Add widgets{unseenNew && <span className="rp-wb-newdot" aria-label="(new widgets)" />}
           </PrimaryButton>
         </div>
+      </div>
+
+      {/* The board's own bar: jump to a topic, add widgets, view options, undo and the save status. */}
+      {(tab.band === "all" || editing) && <div className="rp-wb-toolbar" role="toolbar" aria-label="Board">
+        {tab.band === "all" ? (
+          <nav className="rp-wb-jump" aria-label="Jump to a topic">
+            {bands.filter(b => b.widgets.length > 0).map(b => (
+              <a key={b.id} href={`#wb-band-${b.id}`} onClick={e => {
+                e.preventDefault();
+                if (b.collapsed) commit(x => updateBand(x, b.id, { collapsed: false }));
+                document.getElementById(`wb-band-${b.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}>{bandMeta(b.id).title}<span className="rp-mono"> {b.widgets.length}</span></a>
+            ))}
+          </nav>
+        ) : <span />}
         {editing && (
           <p className="rp-wb-edit-hint">
             Editing <strong>{board.name}</strong>: drag a widget by its grip or use ← → to move it within its topic, and pick its width on its bar. Undo is at the top.
           </p>
         )}
-      </div>
+      </div>}
 
       {widgetCount === 0 && (
         <EmptyState icon="▦" title="This board is empty" description="Add the figures and lists you want to watch, or start from a ready-made board. Widgets sit under their own topic, so the board stays tidy."
