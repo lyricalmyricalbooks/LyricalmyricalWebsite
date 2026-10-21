@@ -940,7 +940,7 @@ outside the legacy wrapper via its `migrated` flag — add new ones there.
 
 **Overview layout = widget board (18 October 2026)** (`AnalyticsDashboard.tsx` loads the data and owns the masthead/period
 control; `OverviewBoard.tsx` draws the board; pure model `overviewBoard.ts`, tested): seven fixed topic bands (`BANDS`: today, sales,
-titles, traffic, search, customers, stock) of widgets (`WIDGETS`, 51) on a 12-column grid (S/M/L/XL = 4/6/8/12, height auto/short/tall).
+titles, traffic, search, customers, stock) of widgets (`WIDGETS`, 84) on a 12-column grid (S/M/L/XL = 4/6/8/12, height auto/short/tall).
 A widget always lives in its own topic's band (`normalizeBoard` moves it back), so analytics stay grouped. Bands and widgets fold
 (a folded widget mounts nothing, so it loads nothing); *Fold everything*, per-band *Fold widgets*, Edit board (grip drag within the
 band, ← →, sizes, ⋯ menu, band ↑ ↓ / Hide topic, Undo/Redo), Add widgets tray, full view (`Open full view`, Esc) and *Explore all N*
