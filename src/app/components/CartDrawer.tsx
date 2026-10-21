@@ -6,6 +6,8 @@ import { useNavigate } from "react-router";
 import toast from "react-hot-toast";
 import { useCart, catalogUnitPrice, MAX_LINE_QUANTITY, repriceCart } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
+import { dailyBagSuggestion } from "../features/site/bagSuggestion";
+import { isLiveBook } from "../features/site/liveBook";
 import { useSiteData } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
 import { linePreorderNote } from "../features/site/preorder";
@@ -26,6 +28,12 @@ import { ga4ViewCart } from "../lib/ga4";
 
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
 // features/site/cartDrawerStyle.ts); its words are Studio › Text & labels › Cart.
+/** Lets a long joined-up title (SISTEMA_NON_AUTORIZZATO) break after its underscores before anywhere else. */
+function breakableTitle(title: unknown) {
+  const parts = String(title ?? "").split(/(?<=_)/);
+  return parts.map((part, i) => <span key={i}>{part}{i < parts.length - 1 && <wbr />}</span>);
+}
+
 export function CartDrawer() {
   const shopper = useCart();
   const { isCartOpen, setIsCartOpen } = shopper;
@@ -98,13 +106,14 @@ export function CartDrawer() {
   const cartIds = new Set(cart.map((i) => i.id));
   // Only books that can actually be added right now (in stock, with a usable price).
   const candidateBooks = (books || []).filter((b) => {
-    if (cartIds.has(b.id) || b.status !== "published") return false;
+    if (cartIds.has(b.id) || b.status !== "published" || !isLiveBook(b)) return false;
     const choice = quickAddChoice(b);
     return choice.inStock && Number.isFinite(catalogUnitPrice(b, choice.variant));
   });
   const recommendedChoice = (book: any) => quickAddChoice(book).variant;
   const cartCategories = new Set(cart.flatMap((i) => booksMap.get(i.id)?.categories || []));
-  const recommendedBook = candidateBooks.find((b) => b.categories?.some((cat) => cartCategories.has(cat))) || candidateBooks[0];
+  // A different book each Toronto day (the same one for every shopper that day), same category when possible.
+  const recommendedBook = dailyBagSuggestion(candidateBooks, cartCategories);
 
   // Resolve storefront design settings (flat or nested under `.storefront`).
   const rawDesign = (settings as any)?.design || {};
@@ -302,7 +311,7 @@ export function CartDrawer() {
                       {recommendedBook.photos?.[0]?.url && <img loading="lazy" decoding="async" src={smallPhotoUrl(recommendedBook.photos[0])} alt="" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="fm-bag-name max-md:[overflow-wrap:anywhere]">{recommendedBook.title}</h3>
+                      <h3 className="fm-bag-name fm-bag-upsell-name" title={recommendedBook.title}>{breakableTitle(recommendedBook.title)}</h3>
                       <p className="fm-bag-meta mt-1 whitespace-nowrap" translate="no">{formatPrice(catalogUnitPrice(recommendedBook, recommendedChoice(recommendedBook)))}</p>
                     </div>
                     <button onClick={() => addToCart(recommendedBook, recommendedChoice(recommendedBook))} className="fm-bag-upsell-btn shrink-0 px-4 min-h-[44px] w-full md:w-auto">

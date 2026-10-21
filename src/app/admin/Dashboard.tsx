@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { markOwnerDeviceOnSignIn, SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
-import { motion, AnimatePresence } from "motion/react";
+// `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
+import { m, AnimatePresence } from "motion/react";
 import {
   BookOpen, Settings, LayoutDashboard, LogOut, Plus, History, Tag, BadgePercent,
   Layers, ShoppingCart, Globe, Menu, HelpCircle, Sun, Moon, ChevronDown,
@@ -647,14 +648,14 @@ export function Dashboard() {
         {/* Feature pages still use legacy utility classes; scope the compatibility layer to them only. */}
         <div {...(migrated ? {} : legacyProps)} style={{ background: "transparent", minHeight: 480 }}>
           <AnimatePresence mode="wait">
-            <motion.div
+            <m.div
               key={activeTab + (selectedOrder ? "-detail" : "") + settingsTab}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
             >
               <Suspense fallback={<LoadingState label="Opening page…" />}>{content}</Suspense>
-            </motion.div>
+            </m.div>
           </AnimatePresence>
         </div>
       </AppShell>
@@ -688,7 +689,7 @@ export function Dashboard() {
         {showEditor && (
           <div className="rp rp-dialog-root rp-editor-root" data-variant="drawer" data-rp-appearance={appearance} style={{ background: "transparent" }}>
             <div className="rp-dialog-scrim" aria-hidden="true" />
-            <motion.div
+            <m.div
               initial={{ opacity: 0, x: 32 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 32 }}
@@ -708,7 +709,7 @@ export function Dashboard() {
                 }}
               />
               </Suspense>
-            </motion.div>
+            </m.div>
           </div>
         )}
       </AnimatePresence>
@@ -717,7 +718,7 @@ export function Dashboard() {
       <AnimatePresence>
         {activeTab === "settings" && settingsTab === "designer" && settings && (
           <div {...legacyProps} style={{ background: "transparent" }}>
-            <motion.div
+            <m.div
               initial={{ opacity: 0, scale: 1.05 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.05 }}
@@ -736,7 +737,7 @@ export function Dashboard() {
                 }
               />
               </Suspense>
-            </motion.div>
+            </m.div>
           </div>
         )}
       </AnimatePresence>

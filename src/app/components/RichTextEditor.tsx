@@ -161,7 +161,7 @@ export default function RichTextEditor({
           a click would format the hidden copy and write Quill's cleaned-up HTML over what is being typed. */}
       <div
         id={toolbarId}
-        {...(showHtml ? { inert: "" as any, "aria-disabled": true } : {})}
+        {...(showHtml ? { inert: true, "aria-disabled": true } : {})}
         className={`${showHtml ? "pointer-events-none opacity-40 " : ""}flex flex-wrap items-center gap-1.5 p-3 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300`}
       >
         {/* Headings */}

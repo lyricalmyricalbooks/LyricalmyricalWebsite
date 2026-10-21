@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
@@ -13,7 +14,7 @@ function figmaAssetResolver() {
     resolveId(id: string) {
       if (id.startsWith('figma:asset/')) {
         const filename = id.replace('figma:asset/', '')
-        return path.resolve(__dirname, 'src/assets', filename)
+        return path.resolve(import.meta.dirname, 'src/assets', filename)
       }
     },
   }
@@ -27,7 +28,7 @@ function spaFallbackBase(base: string) {
   return {
     name: 'spa-fallback-base',
     apply: 'build' as const,
-    configResolved(config: { build: { outDir: string } }) { outDir = path.resolve(__dirname, config.build.outDir) },
+    configResolved(config: { build: { outDir: string } }) { outDir = path.resolve(import.meta.dirname, config.build.outDir) },
     writeBundle() {
       const page404 = path.join(outDir, '404.html')
       const files = fallbackFiles({
@@ -67,11 +68,12 @@ function preloadShopChrome() {
     apply: 'build' as const,
     transformIndexHtml: {
       order: 'post' as const,
-      handler(_html: string, ctx: { bundle?: Record<string, any> }) {
+      handler(html: string, ctx: { bundle?: Record<string, any> }) {
         const bundle = ctx.bundle
         if (!bundle) return
         const chunks = Object.values(bundle).filter((c: any) => c.type === 'chunk')
-        const header: any = chunks.find((c: any) => c.name === 'StoreHeader')
+        // Found by the module it holds, not its name: Rolldown names a shared chunk after another of its modules.
+        const header: any = chunks.find((c: any) => (c.moduleIds || Object.keys(c.modules || {})).some((id: string) => /[\\/]features[\\/]site[\\/]StoreHeader\.tsx$/.test(id)))
         if (!header) return
         const entries = new Set(chunks.filter((c: any) => c.isEntry).map((c: any) => c.fileName))
         const seen = new Set<string>()
@@ -83,6 +85,8 @@ function preloadShopChrome() {
         walk(header.fileName)
         // The Firebase SDK chunks load on first use, after the shop data is asked for; keep them out of the early set.
         const files = [...seen].filter(f => !/(^|\/)(firebase|index\.esm|firestoreLite|firebaseApp|bloom_blob)/.test(f))
+          // Vite already preloads the entry's own static imports; name each file once.
+          .filter(f => !html.includes(`/${f}"`))
         return files.map(f => ({
           tag: 'link',
           attrs: { rel: 'modulepreload', crossorigin: '', href: SITE_BASE.replace(/\/?$/, '/') + f },
@@ -109,8 +113,13 @@ export default defineConfig(({ command }) => ({
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],
+  test: {
+    // Vitest 5 caches transformed files on disk by default, and the cache doesn't notice a new file joining an
+    // import.meta.glob (e.g. a new release note in admin/updates), so tests would read a stale list.
+    fsModuleCache: false,
+  },
 }))

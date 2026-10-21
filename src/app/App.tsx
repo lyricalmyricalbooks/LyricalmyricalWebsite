@@ -11,7 +11,6 @@ import { ThemePreviewBanner } from "./features/site/ThemePreviewBanner";
 import { DraftPreviewBanner } from "./features/site/DraftPreviewBanner";
 import { CartProvider, useCart } from "./CartContext";
 import { CurrencyProvider } from "./CurrencyContext";
-import { ShopToaster } from "./features/site/ShopToaster";
 import { CookieConsent } from "./components/CookieConsent";
 import { UnderConstructionWall } from "./components/UnderConstructionWall";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
@@ -29,6 +28,9 @@ const loadMotionFeatures = () => import("./lib/motionFeatures").then(m => m.defa
 
 // Lazy-loaded components for performance
 const NotFoundPage = lazy(() => import("./features/site/NotFoundPage"));
+// Toasts only follow a shopper's action, so react-hot-toast stays out of the first load; toasts raised before it
+// arrives wait in its store and show once the toaster mounts.
+const ShopToaster = lazy(() => import("./features/site/ShopToaster").then(m => ({ default: m.ShopToaster })));
 // Pages that can arrive as server-rendered HTML wait for the shop data on that first load (prerenderedPage.ts).
 const MainSite = lazy(whenPrerenderedReady(() => import("./components/MainSite"), preloadSiteData));
 const Dashboard = lazy(() => import("./admin/Dashboard").then(m => ({ default: m.Dashboard })));
@@ -147,7 +149,7 @@ export default function App() {
           <DraftPreviewBanner />
           <PrerenderedHandoff />
           <Suspense fallback={<PageLoading />}>
-                <ShopToaster />
+                <Suspense fallback={null}><ShopToaster /></Suspense>
                 <Routes>
                   <Route path="/" element={
                     <MainSite 

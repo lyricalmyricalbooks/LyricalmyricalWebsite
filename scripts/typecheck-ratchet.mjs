@@ -4,13 +4,15 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 
 const BASELINE = new URL("./typecheck-baseline.json", import.meta.url);
-const tsc = createRequire(import.meta.url).resolve("typescript/bin/tsc");
+// TypeScript 7 no longer exports bin/tsc as a module path; find it next to its package.json.
+const tsc = join(dirname(createRequire(import.meta.url).resolve("typescript/package.json")), "bin", "tsc");
 
 let output = "";
 try {
-  execFileSync(process.execPath, [tsc, "-p", "."], { encoding: "utf8", stdio: "pipe" });
+  execFileSync(process.execPath, [tsc, "-p", ".", "--pretty", "false"], { encoding: "utf8", stdio: "pipe" });
 } catch (error) {
   output = `${error.stdout || ""}${error.stderr || ""}`;
 }
