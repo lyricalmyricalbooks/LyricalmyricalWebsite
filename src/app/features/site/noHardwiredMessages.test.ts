@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import ts from "typescript";
+// TypeScript 7 (the compiler) has no JS API; Microsoft's @typescript/typescript6 keeps the classic parser for tools like this.
+import ts from "@typescript/typescript6";
 
 // Companion to noHardwiredCopy.test.ts. That one reads JSX; this one reads the sentences that reach
 // the shopper *indirectly* — error messages, notices, prompts, and word-fallbacks in renderers.
