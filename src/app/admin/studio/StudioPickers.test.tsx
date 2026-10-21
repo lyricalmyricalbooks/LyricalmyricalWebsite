@@ -1,8 +1,19 @@
 // @vitest-environment jsdom
 import { createElement as h, act } from "react";
 import { createRoot } from "react-dom/client";
-import { Simulate } from "react-dom/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
+// React 19 removed react-dom/test-utils' Simulate: set the value the way a browser does and fire real events.
+const Simulate = {
+  change(el: Element, init: { target: { value: string } }) {
+    const proto = Object.getPrototypeOf(el);
+    Object.getOwnPropertyDescriptor(proto, "value")!.set!.call(el, init.target.value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  },
+  keyDown(el: Element, init: KeyboardEventInit) {
+    el.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }));
+  },
+};
 
 const { SectionFieldEditor, BlockFieldEditor, BlockListFieldEditor, getSectionFields, getBlockFields } = await import("../ThemeEditorExtensions");
 const { StudioPickerProvider } = await import("./StudioPickers");

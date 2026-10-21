@@ -1326,7 +1326,7 @@ export default function BookDetail() {
                           className="fm-pdp-thumb relative"
                           style={{ aspectRatio: thumbAspect }}
                         >
-                          <img loading="lazy" {...{ fetchpriority: "low" }} src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt={mediaName(photo, i)} decoding="async" className="w-full h-full" style={{ objectFit: productImageFit, ...framingStyle(photo) }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
+                          <img loading="lazy" fetchPriority="low" src={photo.url} {...photoSrcSet(photo, THUMB_PHOTO_SIZES)} alt={mediaName(photo, i)} decoding="async" className="w-full h-full" style={{ objectFit: productImageFit, ...framingStyle(photo) }} onLoad={(e) => notePhotoSize(photo.url, e.currentTarget)} />
                           <PhotoToneDefs photo={photo} />
                           {isVideoItem(photo) && <span className="fm-video-mark absolute inset-0 m-auto w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center pointer-events-none" aria-hidden="true"><Play size={12} fill="currentColor" /></span>}
                         </button>

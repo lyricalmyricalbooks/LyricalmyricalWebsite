@@ -27,7 +27,7 @@ originally generated from a Figma design ("Artsy Website for Publisher").
 
 ## Tech stack
 
-- **React 18 + TypeScript**, built with **Vite 6**.
+- **React 19 + TypeScript**, built with **Vite 8**.
 - **React Router 7** (`react-router`) — client-side routing in `src/app/App.tsx`.
 - **Tailwind CSS v4** (via `@tailwindcss/vite`) for styling; **shadcn/ui** +
   **Radix UI** primitives in `src/app/components/ui/`.
@@ -1027,7 +1027,7 @@ it. Don't add new compat rules for new work; compose the components instead.
   entry points (index.js, inventoryLinkStore.js and the restore/migration scripts get `admin` through it; the handler
   tests' fakes pass through unchanged). CI's "Cloud Functions load like the deploy" step requires `functions/index.js`
   on every PR, so a package update that breaks loading fails before merge instead of in Deploy Firebase.
-- `@types/react` is 19 while React is 18.3: React 18 renders `inert` only from `""` (see `inertWhen` in `StudioEditor.tsx`).
+- React is 19 (react-router 8 needs ≥19.2.7): `inert` takes a boolean (`inert={true}`; an empty string now means off — see `inertWhen` in `StudioEditor.tsx`).
 - `figma:asset/...` imports resolve to `src/assets/` via a custom Vite plugin;
   `ImageWithFallback` in `components/figma/` handles broken images.
 - The site lives at the root of its Firebase Hosting address, but builds can still use a sub-path (`SITE_BASE`) — be

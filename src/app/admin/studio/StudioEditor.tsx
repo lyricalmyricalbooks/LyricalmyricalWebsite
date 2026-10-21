@@ -124,9 +124,8 @@ function designChecks(design: any) {
   return buildDesignChecks(design, { sectionFields: getSectionFields, blockFields: getBlockFields, blocksKey: getBlocksKey });
 }
 
-/** React 18 (what runs here) renders `inert` only from a string value ("" = present); `inert={true}` is
- *  dropped with a warning. The installed @types/react 19 types it as boolean, so bridge that one prop. */
-const inertWhen = (on: boolean) => (on ? { inert: "" } : {}) as { inert?: boolean };
+/** React 19 renders `inert` from a boolean (an empty string now counts as off). */
+const inertWhen = (on: boolean) => (on ? { inert: true } : {});
 
 const DEVICE_W = { desktop: "1200px", tablet: "820px", mobile: "390px" } as const;
 
