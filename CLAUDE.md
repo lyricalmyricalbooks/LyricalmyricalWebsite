@@ -1020,7 +1020,7 @@ it. Don't add new compat rules for new work; compose the components instead.
 ## Conventions & gotchas
 
 - Path alias `@` → `src/` (see `vite.config.ts`).
-- `package.json` `pnpm.overrides` pins `@grpc/grpc-js` ≥1.14.6 and `protobufjs` ≥7.6.5: every `firebase` release (to 13.0)
+- `package.json` `pnpm.overrides` pins `@grpc/grpc-js` ≥1.14.6 and `protobufjs` ≥7.6.5: every `firebase` release (to 13.1)
   still asks for `@grpc/grpc-js ~1.9`, which has a high advisory. Only Firestore's Node build loads it, never the browser.
   Keep the override until `@firebase/firestore` moves on. Functions run on firebase-admin 14, which has no
   `admin.firestore()` / `admin.auth()` namespace API: `functions/adminSdk.js` rebuilds that shape from the modular
@@ -1028,6 +1028,13 @@ it. Don't add new compat rules for new work; compose the components instead.
   tests' fakes pass through unchanged). CI's "Cloud Functions load like the deploy" step requires `functions/index.js`
   on every PR, so a package update that breaks loading fails before merge instead of in Deploy Firebase.
 - React is 19 (react-router 8 needs ≥19.2.7): `inert` takes a boolean (`inert={true}`; an empty string now means off — see `inertWhen` in `StudioEditor.tsx`).
+- **Dependency majors (21 October 2026):** Vite 8 (Rolldown) names shared chunks after any module in them, so find a
+  chunk by `moduleIds` (see `preloadShopChrome` in `vite.config.ts`), never by name. Storefront *and admin* animate with
+  `m.*` from `motion/react` under App's `LazyMotion`: one `motion.*` anywhere puts motion's layout/drag engine into the
+  shop's first load. TypeScript 7 is the native compiler with no JS API: scripts/tests that parse code import
+  `@typescript/typescript6`. react-resizable-panels 4 reads bare-number sizes as pixels (use `"24%"`). lucide-react 1
+  has no brand icons (footer ones are in `features/site/socialIcons.ts`). Vitest 5 benchmarks use the test context's
+  `bench`. React 19's `renderToStaticMarkup` adds `<link rel="preload">` before images (tests that scan markup strip it).
 - `figma:asset/...` imports resolve to `src/assets/` via a custom Vite plugin;
   `ImageWithFallback` in `components/figma/` handles broken images.
 - The site lives at the root of its Firebase Hosting address, but builds can still use a sub-path (`SITE_BASE`) — be
@@ -1057,7 +1064,7 @@ Then offer to do the top one right away.
 
 ### Constraints every suggestion must respect
 > [!IMPORTANT]
-> - **Stack:** React 18 + TypeScript + Vite single-page app; no new frameworks or servers.
+> - **Stack:** React 19 + TypeScript + Vite single-page app; no new frameworks or servers.
 > - **Serverless Backend:** Firebase (Firestore, Auth, Storage, Cloud Functions) and static hosting on Firebase Hosting (GitHub Pages only forwards the old address). No server or secret keys in client code.
 > - **Shopper safety:** never weaken checkout, payment, inventory or webhook authority.
 
@@ -1203,7 +1210,8 @@ entry was ~205 KB gzipped after this change.
 **Firebase loads on first use (15 October 2026):** shopper code gets Firestore Lite through `lib/lite.ts`
 (`const { doc, getDoc, liteDb } = await lite()`), never a static import from `firebase/firestore/lite`,
 `lib/firestoreLite` or `lib/firebaseApp`; `functionFetch` loads App Check the same way and `authState` lives in
-`lib/authState.ts`. That keeps Firebase + App Check (~50 KB gzip) out of the entry (`index-*.js` ~176 KB gzip);
+`lib/authState.ts`. That keeps Firebase + App Check (~50 KB gzip) out of the entry (`index-*.js` ~176 KB gzip on Vite 6;
+Vite 8 splits it, so measure everything `dist/index.html` loads up front: ~300 KB gzip with React 19, October 2026);
 `lib/shopperBundle.test.ts` fails on a static import in the shopper modules.
 
 ## Prerendered page hand-over (15 October 2026)
