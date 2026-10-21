@@ -108,6 +108,9 @@ export function cartDrawerCss(design: any): string {
     `${S} .fm-bag-cta{min-height:${ctaH}px;font-size:${metaSize + 2}px;font-weight:700;${ctaShadow ? `box-shadow:var(--rp-shadow-x, 4px) var(--rp-shadow-x, 4px) 0 var(--bag-edge);` : ""}transition:transform .15s, box-shadow .15s;}`,
     `${S} .fm-bag-cta:not(:disabled):hover{transform:translate(-2px,-2px);}`,
     `${S} .fm-bag-upsell-btn{font-size:${Math.max(9, metaSize - 1)}px;font-weight:700;}`,
+    // Suggestion card: a long title (often one word, like SISTEMA_NON_AUTORIZZATO) breaks onto new lines inside
+    // its own column and stops at three lines, so it never runs under the Add button.
+    `${S} .fm-bag-upsell-name{overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;}`,
     `${S} .fm-bag-summary{border-top:var(--bag-edge-w) solid var(--bag-edge);background:${bg};}`,
     `${S} .fm-bag-row{display:flex;justify-content:space-between;gap:1rem;align-items:baseline;}`,
     `${S} .fm-bag-total{border-top:1px solid var(--bag-rule);}`,
