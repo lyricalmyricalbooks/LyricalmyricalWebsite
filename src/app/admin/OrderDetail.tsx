@@ -1,3 +1,4 @@
+import { plainError } from "./plainError";
 import { ReturnWorkbench } from "./ReturnWorkbench";
 import { acquisitionRows } from "./orderAcquisition";
 import { DOWNLOAD_LIMIT } from "../features/site/digitalLine";
@@ -199,7 +200,7 @@ export function OrderDetail({
       else if (fresh?.paymentMismatch && fresh?.paymentStatus !== "paid") toast.error("Stripe's amount doesn't match this order. Review it in Stripe before fulfilling.");
       else if (manual) toast((report as any).awaitingWebhook ? "Stripe received payment. The order is awaiting its verified webhook; review Webhook health before shipping." : fresh?.paymentStatus === "paid" ? "Order payment was confirmed by the webhook." : "Stripe has not confirmed this payment yet.");
     } catch (err: any) {
-      if (manual) toast.error(err.message || "Couldn't reach Stripe.");
+      if (manual) toast.error(plainError(err, "Couldn't reach Stripe"));
     } finally {
       setCheckingPayment(false);
     }
@@ -406,7 +407,7 @@ export function OrderDetail({
       setSelectedLabelRate(chosen?.id || (order?.shippingMethod ? "" : result.rates?.[0]?.id || ""));
       setRatesSearched(true);
     } catch (err: any) {
-      toast.error(err.message || "Couldn't load Canada Post rates.");
+      toast.error(plainError(err, "Couldn't load Canada Post rates"));
     } finally {
       setIsGeneratingLabel(false);
     }
@@ -453,7 +454,7 @@ export function OrderDetail({
       await loadOrder();
       toast.success("Label bought. Print it, then mark the parcel shipped when it leaves.");
     } catch (err: any) {
-      toast.error(err.message || "Couldn't purchase the label.");
+      toast.error(plainError(err, "Couldn't purchase the label"));
       await loadOrder();
     } finally {
       setIsBuyingLabel(false);
@@ -469,7 +470,7 @@ export function OrderDetail({
       await loadOrder();
       toast.success("Note added");
     } catch (err: any) {
-      toast.error(err.message || "Could not save note.");
+      toast.error(plainError(err, "Could not save note"));
     } finally {
       setWorking(false);
     }
@@ -512,7 +513,7 @@ export function OrderDetail({
       loadOrder();
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Failed to refund order.");
+      toast.error(plainError(err, "Failed to refund order"));
       // A refusal may have recorded something (e.g. a failed refund); don't leave stale actions offered.
       await loadOrder();
     } finally {
@@ -581,7 +582,7 @@ export function OrderDetail({
       await loadOrder();
       toast.success("Unpaid order cancelled");
     } catch (err: any) {
-      toast.error(err.message || "Failed to cancel unpaid order.");
+      toast.error(plainError(err, "Failed to cancel unpaid order"));
       // e.g. 409 paid_in_stripe records reconciliationPending: show it instead of the stale Cancel button.
       await loadOrder();
     } finally {
@@ -633,7 +634,7 @@ export function OrderDetail({
                       : "Local fulfillment updated",
       );
     } catch (err: any) {
-      toast.error(err.message || "Could not save fulfillment.");
+      toast.error(plainError(err, "Could not save fulfillment"));
     } finally {
       setWorking(false);
     }
@@ -651,7 +652,7 @@ export function OrderDetail({
       await loadOrder();
       toast.success("Address corrected. Review it before packing.");
     } catch (err: any) {
-      toast.error(err.message || "Could not correct address.");
+      toast.error(plainError(err, "Could not correct address"));
     } finally {
       setWorking(false);
     }
