@@ -58,6 +58,41 @@ function canonicalHost() {
   }
 }
 
+// The header and footer are in every shop page, but their code sits behind lazy page chunks, so the browser only asks
+// for it after the entry script has run. Naming StoreHeader's chunk (and the chunks it imports, minus the entry) in
+// index.html lets it download beside the entry. Page chunks (MainSite, BookDetail…) stay out: they differ per route.
+function preloadShopChrome() {
+  return {
+    name: 'preload-shop-chrome',
+    apply: 'build' as const,
+    transformIndexHtml: {
+      order: 'post' as const,
+      handler(_html: string, ctx: { bundle?: Record<string, any> }) {
+        const bundle = ctx.bundle
+        if (!bundle) return
+        const chunks = Object.values(bundle).filter((c: any) => c.type === 'chunk')
+        const header: any = chunks.find((c: any) => c.name === 'StoreHeader')
+        if (!header) return
+        const entries = new Set(chunks.filter((c: any) => c.isEntry).map((c: any) => c.fileName))
+        const seen = new Set<string>()
+        const walk = (name: string) => {
+          if (seen.has(name) || entries.has(name)) return
+          seen.add(name)
+          for (const dep of bundle[name]?.imports || []) walk(dep)
+        }
+        walk(header.fileName)
+        // The Firebase SDK chunks load on first use, after the shop data is asked for; keep them out of the early set.
+        const files = [...seen].filter(f => !/(^|\/)(firebase|index\.esm|firestoreLite|firebaseApp|bloom_blob)/.test(f))
+        return files.map(f => ({
+          tag: 'link',
+          attrs: { rel: 'modulepreload', crossorigin: '', href: SITE_BASE.replace(/\/?$/, '/') + f },
+          injectTo: 'head' as const,
+        }))
+      },
+    },
+  }
+}
+
 // Firebase Hosting serves the shop from the root of its address (dev too). SITE_BASE can still be overridden
 // for a sub-path deploy; the old GitHub Pages folder (/LyricalmyricalWebsite/) now only forwards visitors.
 const SITE_BASE = process.env.SITE_BASE ?? '/'
@@ -70,6 +105,7 @@ export default defineConfig(({ command }) => ({
     tailwindcss(),
     spaFallbackBase(SITE_BASE),
     canonicalHost(),
+    preloadShopChrome(),
   ],
   resolve: {
     alias: {
