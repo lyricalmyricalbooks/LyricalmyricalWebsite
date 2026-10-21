@@ -925,7 +925,12 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-wb[data-density="compact"] { --wb-gap: 12px; --wb-pad: 10px; }
 /* The board bar: no frame of its own, so it reads as part of the header rather than a second header (ux1 #4). */
 /* Overview sub tabs (20 October 2026): one per topic, a second row inside Visitors. */
-.rp-wb-tabs { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1 1 320px; }
+.rp-wb-tabs { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1 1 max-content; max-width: 100%; }
+/* Topic tabs stay on one line (21 October 2026): when they don't fit beside the board actions those move to the next
+   line, and when they don't fit the page at all the row scrolls sideways (as on phones) instead of breaking in two. */
+.rp-wb-tabs .rp-tabs { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.rp-wb-tabs .rp-tabs .rp-tab { flex-shrink: 0; white-space: nowrap; }
+.rp-wb-tabs .rp-tabs[data-variant="page"] .rp-tab, .rp-wb-tabs .rp-tabs[data-variant="page"] .rp-tab[aria-selected="true"] { padding: 0 10px; }
 .rp-wb-tabsrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
 .rp-wb-tabsrow > .rp-wb-toolbar-actions { flex: none; }
 .rp-wb-subtabs { padding-left: 12px; border-left: var(--rp-stroke) solid var(--rp-border-strong); min-width: 0; }
