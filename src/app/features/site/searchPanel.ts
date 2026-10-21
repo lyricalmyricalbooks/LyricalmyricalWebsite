@@ -2,7 +2,7 @@
 // matching artists and shop categories while typing, "New in the shop" and category counts before
 // typing, the stock word on each result, and which letters to mark as matched. Pure, so the drawer
 // and its tests agree.
-import { bookInCategory, normalizeCategories, parentOf } from "./categoryMembership.mjs";
+import { categoryNames, normalizeCategories, parentOf } from "./categoryMembership.mjs";
 import { bookDateMs } from "./merchandising";
 import { normalizeSearch } from "./bookSearch";
 import { bookCreators } from "../../lib/bookSeo";
@@ -25,8 +25,8 @@ function matchesAll(text: string, query: string): boolean {
 
 export type ArtistMatch = { name: string; count: number };
 
-/** People credited on live books whose name matches, most books first, then A–Z. */
-export function matchingArtists(books: Book[], query: string, limit = 6): ArtistMatch[] {
+/** Everyone credited on the live books with their book count, most books first, then A–Z. Built once per catalog. */
+export function artistCounts(books: Book[]): ArtistMatch[] {
   const counts = new Map<string, ArtistMatch>();
   for (const book of books || []) {
     for (const name of bookCreators(book)) {
@@ -37,38 +37,51 @@ export function matchingArtists(books: Book[], query: string, limit = 6): Artist
       else counts.set(key, { name, count: 1 });
     }
   }
-  return [...counts.values()]
-    .filter(a => matchesAll(a.name, query))
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-    .slice(0, limit);
+  return [...counts.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+/** Artists whose name matches every typed word. */
+export function matchingArtists(artists: ArtistMatch[], query: string, limit = 6): ArtistMatch[] {
+  return artists.filter(a => matchesAll(a.name, query)).slice(0, limit);
 }
 
 export type CategoryCount = { category: any; name: string; count: number; child: boolean };
 
-/** Shop categories shoppers can see (Studio › Menus › Shop categories), parents before their children, with book counts. */
+/**
+ * Shop categories shoppers can see (Studio › Menus › Shop categories), each parent followed by its
+ * sub-categories, with book counts (a parent counts its sub-categories' books, PUBLICATIONS every
+ * book — the same membership as `bookInCategory`). Built once per catalog: the list is normalised
+ * once and each book's tags are read once.
+ */
 export function visibleCategoryCounts(categories: any[], books: Book[]): CategoryCount[] {
   const all = normalizeCategories(categories || []);
-  const visible = all.filter((c: any) => c.showInNav !== false && c.name && c.name !== "PUBLICATIONS");
+  const parentId = new Map<string, string | null>(all.map((c: any) => [c.id, parentOf(c, all)]));
+  const visible = all.filter((c: any) => c.showInNav !== false && c.name);
+  const shown = new Set(visible.map((c: any) => c.id));
+  const tagSets = (books || []).map(b => new Set<string>([...(b?.categories || []), ...(b?.genres || [])]));
+  const namesOf = (c: any) => categoryNames(c);
+  const count = (c: any) => {
+    const names = [c, ...all.filter((k: any) => parentId.get(k.id) === c.id)].flatMap(namesOf);
+    if (names.includes("PUBLICATIONS")) return tagSets.length;
+    return tagSets.filter(tags => names.some(n => tags.has(n))).length;
+  };
   const out: CategoryCount[] = [];
-  const add = (c: any) => out.push({
-    category: c,
-    name: c.name,
-    count: (books || []).filter(b => bookInCategory(b, c, all)).length,
-    child: !!parentOf(c, all),
-  });
+  const add = (c: any) => {
+    const parent = parentId.get(c.id);
+    out.push({ category: c, name: c.name, count: count(c), child: !!parent && shown.has(parent) });
+  };
   for (const c of visible) {
-    if (parentOf(c, all)) continue;
+    const parent = parentId.get(c.id);
+    if (parent && shown.has(parent)) continue;
     add(c);
-    for (const k of visible) if (parentOf(k, all) === c.id) add(k);
+    for (const k of visible) if (parentId.get(k.id) === c.id) add(k);
   }
-  // Sub-categories whose parent is hidden still show.
-  for (const c of visible) if (!out.some(o => o.category.id === c.id)) add(c);
   return out;
 }
 
-/** Categories whose name matches the query. */
-export function matchingCategories(categories: any[], books: Book[], query: string, limit = 6): CategoryCount[] {
-  return visibleCategoryCounts(categories, books).filter(c => matchesAll(c.name, query)).slice(0, limit);
+/** Categories whose name matches every typed word (from the list `visibleCategoryCounts` built). */
+export function matchingCategories(counts: CategoryCount[], query: string, limit = 6): CategoryCount[] {
+  return counts.filter(c => matchesAll(c.name, query)).slice(0, limit);
 }
 
 /** The newest live books (publication date, then release date, then when added). */

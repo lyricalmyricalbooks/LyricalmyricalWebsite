@@ -4,7 +4,7 @@ import { searchResultsPath } from "./searchResultsLink";
 import { displayPrice } from "./displayPrice";
 import { regionProps } from "./storefrontRegions";
 import { addRecentSearch, readRecentSearches, writeRecentSearches } from "./recentSearches";
-import { creditLine, markMatches, matchingArtists, matchingCategories, newestBooks, stockState, visibleCategoryCounts, type StockState } from "./searchPanel";
+import { artistCounts, creditLine, markMatches, matchingArtists, matchingCategories, newestBooks, stockState, visibleCategoryCounts, type CategoryCount, type StockState } from "./searchPanel";
 import { bookFormats } from "./CatalogControls";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
@@ -14,7 +14,7 @@ import { designNumber } from "./designNumber";
 import { getCopy } from "./storeCopy";
 import { funnelApi } from "../../lib/commerce";
 import { useFocusTrap } from "../../lib/useFocusTrap";
-import { smallPhotoUrl } from "./photoSources";
+import { gridPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
 
 type Book = any;
 
@@ -58,6 +58,8 @@ function Marked({ text, query }: { text: string; query: string }) {
   );
 }
 
+// New in the shop: 2 columns on phones, 4 on wider screens, then 4 inside the wide left column (about 44% of the drawer).
+const NEW_IN_SIZES = gridPhotoSizes([{ from: 0, cols: 2 }, { from: 640, cols: 4 }, { from: 768, cols: 9 }], { frame: "3 / 4" });
 const capClass = "font-mono text-[10.5px] tracking-[0.2em] uppercase text-white/40";
 const chipClass = "border border-white/20 px-3 py-1.5 text-xs text-white/70 hover:border-white hover:text-white";
 const linkRowClass = "flex items-baseline justify-between gap-3 border-b border-white/10 py-2 text-[15px] text-white hover:text-white";
@@ -140,9 +142,12 @@ export function SearchOverlay({
       totalMatches: ranked.length,
     };
   }, [trimmed, liveBooks, design]);
-  const artists = useMemo(() => (trimmed ? matchingArtists(liveBooks, trimmed) : []), [trimmed, liveBooks]);
-  const catMatches = useMemo(() => (trimmed ? matchingCategories(categories || [], liveBooks, trimmed) : []), [trimmed, categories, liveBooks]);
-  const browse = useMemo(() => (open && !trimmed ? visibleCategoryCounts(categories || [], liveBooks) : []), [open, trimmed, categories, liveBooks]);
+  // Counted once per catalog while the drawer is open; each keystroke only filters these lists by name.
+  const allArtists = useMemo(() => (open ? artistCounts(liveBooks) : []), [open, liveBooks]);
+  const allCategories = useMemo(() => (open ? visibleCategoryCounts(categories || [], liveBooks) : []), [open, categories, liveBooks]);
+  const artists = useMemo(() => (trimmed ? matchingArtists(allArtists, trimmed) : []), [trimmed, allArtists]);
+  const catMatches = useMemo(() => (trimmed ? matchingCategories(allCategories, trimmed) : []), [trimmed, allCategories]);
+  const browse = trimmed ? [] : allCategories;
   const newIn = useMemo(() => (open && !trimmed ? newestBooks(liveBooks, 4) : []), [open, trimmed, liveBooks]);
   const nothingFound = !!trimmed && !results.length && !artists.length && !catMatches.length;
   const showSeeAll = design?.showSearchSeeAll !== false && totalMatches > 0;
@@ -163,16 +168,19 @@ export function SearchOverlay({
 
   const lowAt = designNumber(design, "lowStockCardThreshold", 5);
   const pick = (term: string) => { setQuery(term); inputRef.current?.focus(); };
+  // Books sold in editions list their editions' formats; "Other" (a "Signed" edition, say) says nothing, so it is left out.
   const formatWords = (b: Book) => {
     const own = String(b?.format || "").trim();
-    if (own) return own;
-    return bookFormats(b).map(k => c(`filterFormat_${k}`)).join(" / ");
+    const hasEditions = Array.isArray(b?.variants) && b.variants.length > 0;
+    if (own && !hasEditions) return own;
+    const words = bookFormats(b).filter(k => k !== "other").map(k => c(`filterFormat_${k}`));
+    return words.length ? words.join(" / ") : own;
   };
-  const coverBox = (b: Book, width: number, className: string) => {
+  const coverBox = (b: Book, width: number, className: string, sizes?: string) => {
     const photo = smallPhotoUrl(b.photos?.[0], width) || b.coverPhoto?.url || "";
     return (
       <span {...regionProps("searchPhoto")} className={`block aspect-[3/4] overflow-hidden border-2 border-white fm-surface-2 ${className}`}>
-        {photo && <img src={photo} alt={b.title} loading="lazy" decoding="async" className="h-full w-full object-cover" />}
+        {photo && <img src={photo} {...(sizes ? photoSrcSet(b.photos?.[0], sizes) : {})} alt={b.title} loading="lazy" decoding="async" className="h-full w-full object-cover" />}
       </span>
     );
   };
@@ -189,14 +197,16 @@ export function SearchOverlay({
   let body: ReactNode;
   if (!trimmed) {
     const third = showRecent || suggestions.length > 0;
+    // Only the columns that have something to show share the width (New in the shop is the wide one).
+    const template = [newIn.length > 0 && "1.6fr", browse.length > 0 && "1fr", third && "1fr"].filter(Boolean).join(" ") || "1fr";
     body = (
-      <div className="fm-search-cols grid md:grid-cols-[1.6fr_1fr_1fr] md:divide-x divide-white/10 max-md:divide-y">
+      <div className="fm-search-cols grid md:grid-cols-[var(--fm-search-cols)] md:divide-x divide-white/10 max-md:divide-y" style={{ ["--fm-search-cols" as any]: template }}>
         {newIn.length > 0 && (
           <Column heading={c("searchNewInLabel")} attrs={regionProps("searchNewIn")}>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {newIn.map(b => (
-                <Link key={b.id} to={`/books/${bookSlug(b)}`} onClick={onClose} className="grid content-start gap-1.5 text-white">
-                  {coverBox(b, 240, "w-full")}
+                <Link key={b.id} to={`/books/${bookSlug(b)}`} onClick={onClose} className="fm-card grid content-start gap-1.5 text-white">
+                  {coverBox(b, 240, "w-full", NEW_IN_SIZES)}
                   <span className="fm-card-title text-xs leading-snug" data-studio-target="style:products" data-studio-label="Card title & price">{b.title}</span>
                   {displayPrice(b) > 0 && (
                     <span translate="no" className="fm-card-price-wrap fm-card-price font-mono text-[11px] text-white/60" data-studio-target="style:products" data-studio-label="Card title & price">{formatBookPrice(b)}</span>
@@ -252,7 +262,7 @@ export function SearchOverlay({
           {c("searchNoResults", { query: trimmed })}
         </p>
         <p className="m-0 text-sm text-white/60">{c("searchNoResultsHint")}</p>
-        <NoResultsTry categories={categories} books={liveBooks} heading={c("searchTryLabel")} onPick={onClose} />
+        <NoResultsTry counts={allCategories} heading={c("searchTryLabel")} onPick={onClose} />
       </div>
     );
   } else {
@@ -260,8 +270,8 @@ export function SearchOverlay({
       <>
         <div className="fm-search-cols grid md:grid-cols-[1.6fr_1fr_1fr] md:divide-x divide-white/10 max-md:divide-y">
           <Column heading={c("searchBooksLabel")} count={totalMatches}>
-            <div id="fm-search-results" role="listbox" data-ga-list="Search results" className="grid">
-              {results.length === 0 && <p className="m-0 text-[13px] text-white/40">{c("searchNoBooks")}</p>}
+            {results.length === 0 && <p className="m-0 text-[13px] text-white/40">{c("searchNoBooks")}</p>}
+            <div id="fm-search-results" role="listbox" data-ga-list="Search results" className="grid" hidden={results.length === 0}>
               {results.map((b, idx) => {
                 const price = displayPrice(b);
                 const stock = stockState(b, lowAt);
@@ -379,10 +389,17 @@ export function SearchOverlay({
                 onChange={e => setQuery(e.target.value)}
                 role="combobox"
                 aria-expanded={results.length > 0}
-                aria-controls="fm-search-results"
+                aria-controls={results.length > 0 ? "fm-search-results" : undefined}
                 aria-activedescendant={results[active] ? `fm-search-opt-${results[active].id}` : undefined}
                 onKeyDown={e => {
-                  if (!results.length) return;
+                  // No book matched: Enter follows the first artist or category, or opens the full results page.
+                  if (!results.length) {
+                    if (e.key !== "Enter" || !trimmed) return;
+                    e.preventDefault();
+                    const to = artists[0] ? searchResultsPath(artists[0].name) : catMatches[0] ? collectionPath(catMatches[0].name) : searchResultsPath(trimmed);
+                    remember(); navigate(to); onClose();
+                    return;
+                  }
                   if (e.key === "ArrowDown") { e.preventDefault(); setActive(i => (i + 1) % results.length); }
                   else if (e.key === "ArrowUp") { e.preventDefault(); setActive(i => (i - 1 + results.length) % results.length); }
                   else if (e.key === "Enter") {
@@ -417,8 +434,11 @@ function Kbd({ children }: { children: ReactNode }) {
 }
 
 /** No results: the shop's categories as chips to try instead. */
-function NoResultsTry({ categories, books, heading, onPick }: { categories?: any[]; books: Book[]; heading: string; onPick: () => void }) {
-  const cats = useMemo(() => visibleCategoryCounts(categories || [], books).filter(cat => !cat.child).slice(0, 8), [categories, books]);
+function NoResultsTry({ counts, heading, onPick }: { counts: CategoryCount[]; heading: string; onPick: () => void }) {
+  // The shelves themselves: PUBLICATIONS (every book) only when nothing else has books.
+  const filled = counts.filter(cat => cat.count > 0);
+  const shelves = filled.filter(cat => cat.name !== "PUBLICATIONS");
+  const cats = (shelves.length ? shelves : filled).slice(0, 8);
   if (!cats.length) return null;
   return (
     <div {...regionProps("searchTry")} className="grid gap-3">
