@@ -523,19 +523,20 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             <input id="wb-to" className="rp-wb-select" type="date" value={custom.to} min={custom.from || undefined} max={shopDayKey(Date.now())} onChange={e => setCustom(c => ({ ...c, to: e.target.value }))} />
           </span>
         )}
-        <label className="rp-wb-lbl" htmlFor="wb-compare">vs</label>
-        <select id="wb-compare" className="rp-wb-select" value={compareMode} onChange={e => setCompareMode(e.target.value as CompareMode)}>
+        <label className="rp-wb-vs" htmlFor="wb-compare">vs</label>
+        <select id="wb-compare" className="rp-wb-select rp-wb-compare" title={`${range.phrase} against ${range.before}`} value={compareMode} onChange={e => setCompareMode(e.target.value as CompareMode)}>
           <option value="previous">Period before</option>
           <option value="lastYear">Same days last year</option>
         </select>
       </>
     ),
-    summary: (
-      <>
-        <b>{range.phrase[0].toUpperCase() + range.phrase.slice(1)}</b>{range.preset !== "custom" && <> ({rangeWords(range.startKey, range.endKey)})</>}
-        {" "}against {range.before}.{preset === "custom" && range.preset !== "custom" && " Pick both dates to use your own range."}
-        {ownOrderCount > 0 && ` ${ownOrderCount} ${ownOrderCount === 1 ? "order" : "orders"} you placed yourself ${ownOrderCount === 1 ? "is" : "are"} left out.`}
-      </>
+    // Only a note worth reading: the dates are in the buttons and the strip, so no sentence repeats them.
+    summary: preset === "custom" && range.preset !== "custom" ? "Pick both dates to use your own range."
+      : ownOrderCount > 0 ? `${ownOrderCount} ${ownOrderCount === 1 ? "order" : "orders"} you placed yourself ${ownOrderCount === 1 ? "is" : "are"} left out.` : null,
+    figures: (
+      <section className="rp-ov-figures rp-wb-strip" aria-label="Headline figures">
+        {(["revenue", "orders", "visitors", "conversion"] as FigureId[]).map(id => { const f = figure(id); return <Figure key={id} label={FIGURES.find(x => x.id === id)!.label} value={f.value} foot={f.foot} tone={(f as any).tone} />; })}
+      </section>
     ),
     viewName: range.phrase,
     view, onApplyView: applyView,
