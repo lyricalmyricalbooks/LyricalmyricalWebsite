@@ -16,6 +16,8 @@ vi.mock("../../../lib/legacyFirebase", () => ({ legacyDb: {}, legacyAuth: {} }))
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {},
   addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false })) as any;
+// jsdom has no ResizeObserver; Studio's resizable panels (react-resizable-panels v4) construct one.
+window.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as any;
 
 const { adminApi } = await import("../api");
 const { StudioEditor } = await import("./StudioEditor");
