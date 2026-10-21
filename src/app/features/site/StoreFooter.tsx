@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
-import { Facebook, Instagram, Mail, Music2, Twitter } from "lucide-react";
+import { Mail, Music2 } from "lucide-react";
+import { Facebook, Instagram, Twitter } from "./socialIcons";
 import { POLICY_KEYS, policySlug, policyTitle } from "./policyPages";
 import { DEFAULT_SOCIAL } from "./constants";
 import { contentMaxWidth } from "./headerNav";

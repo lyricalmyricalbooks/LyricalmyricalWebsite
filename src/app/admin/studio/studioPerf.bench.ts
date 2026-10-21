@@ -1,7 +1,7 @@
 // Studio editing cost (Phase 4): what one edit costs on the published design snapshot — the same work `change()` and the
 // Save-draft / Publish state do on every keystroke. Run with `pnpm exec vitest bench src/app/admin/studio/studioPerf.bench.ts`.
 // Not part of CI timing gates; numbers are recorded in the PR.
-import { bench, describe } from "vitest";
+import { test } from "vitest";
 import live from "../../features/site/__fixtures__/liveDesign.json";
 import { defaultSettings } from "../defaultSettings";
 import { normalizeDesign, sameDesign, setPath } from "./studioModel";
@@ -29,22 +29,25 @@ function edit(present: any, saved: any, published: any, fn: (d: any) => any) {
   return next;
 }
 
-describe("one Studio edit on the live design", () => {
+// Vitest 5 runs benchmarks from a test's own `bench` (the old global `bench()` is gone).
+test("one Studio edit on the live design", async ({ bench }) => {
   let d = start;
   let n = 0;
-  bench("change a colour", () => { d = edit(d, start, start, x => setPath(x, "primaryColor", n++ % 2 ? "#e8402a" : "#e8402b")); });
-  bench("type into a word", () => { d = edit(d, start, start, x => setPath(x, "copy.cartTitle", `Bag ${n++}`)); });
-  bench("edit a section", () => {
-    d = edit(d, start, start, x => {
-      const s = firstSection(x);
-      if (!s) return setPath(x, "primaryColor", `#00000${n++ % 9}`);
-      return { ...x, heroPage: { ...x.heroPage, sections: [{ ...s, settings: { ...s.settings, heading: `Hello ${n++}` } }, ...x.heroPage.sections.slice(1)] } };
-    });
-  });
+  await bench.compare(
+    bench("change a colour", () => { d = edit(d, start, start, x => setPath(x, "primaryColor", n++ % 2 ? "#e8402a" : "#e8402b")); }),
+    bench("type into a word", () => { d = edit(d, start, start, x => setPath(x, "copy.cartTitle", `Bag ${n++}`)); }),
+    bench("edit a section", () => {
+      d = edit(d, start, start, x => {
+        const s = firstSection(x);
+        if (!s) return setPath(x, "primaryColor", `#00000${n++ % 9}`);
+        return { ...x, heroPage: { ...x.heroPage, sections: [{ ...s, settings: { ...s.settings, heading: `Hello ${n++}` } }, ...x.heroPage.sections.slice(1)] } };
+      });
+    }),
+  );
 });
 
-describe(`one Studio edit on a larger design (${Math.round(BIG_DESIGN_BYTES / 1024)} KB)`, () => {
+test(`one Studio edit on a larger design (${Math.round(BIG_DESIGN_BYTES / 1024)} KB)`, async ({ bench }) => {
   let d = big;
   let n = 0;
-  bench("type into a word (large design)", () => { d = edit(d, big, big, x => setPath(x, "copy.cartTitle", `Bag ${n++}`)); });
+  await bench("type into a word (large design)", () => { d = edit(d, big, big, x => setPath(x, "copy.cartTitle", `Bag ${n++}`)); }).run();
 });

@@ -55,7 +55,9 @@ const DESIGNS: Record<string, any> = {
 const policies = { shipping: "Ships", returns: "Returns" };
 const settingsFor = (design: any) => ({ design, policies, info: { email: "shop@example.com", description: "About us" } });
 
-const render = (el: any, path = "/") => renderToStaticMarkup(h(MemoryRouter, { initialEntries: [path] }, h(CurrencyProvider, null, el)));
+// React 19's server renderer adds <link rel="preload"> hints for images; they are not Studio hooks.
+const render = (el: any, path = "/") => renderToStaticMarkup(h(MemoryRouter, { initialEntries: [path] }, h(CurrencyProvider, null, el)))
+  .replace(/<link rel="preload"[^>]*>/g, "");
 const HOOK = /\s(data-studio-[\w-]+|data-store-region|data-section|data-hdr-fixed|aria-label|aria-current|href)="([^"]*)"/g;
 /** Every hook as "attribute=value ×count", sorted — order-free, but a lost duplicate still shows. */
 function hooks(html: string): string[] {

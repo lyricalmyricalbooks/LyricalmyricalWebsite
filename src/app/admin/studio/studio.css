@@ -245,8 +245,8 @@
 .studio-resize-handle { width: 10px; background: transparent; position: relative; cursor: col-resize; touch-action: none; }
 .studio-resize-handle::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%); background: var(--rp-divider); transition: background .15s; }
 .studio-resize-handle::after { content: ""; position: absolute; top: 50%; left: 50%; width: 4px; height: 28px; transform: translate(-50%, -50%); border-radius: 2px; background: var(--rp-text-subtle); opacity: .6; transition: background .15s, opacity .15s; }
-.studio-resize-handle:hover::before, .studio-resize-handle[data-resize-handle-active]::before { background: var(--rp-primary); }
-.studio-resize-handle:hover::after, .studio-resize-handle[data-resize-handle-active]::after { background: var(--rp-primary); opacity: 1; }
+.studio-resize-handle:hover::before, .studio-resize-handle[data-separator="active"]::before { background: var(--rp-primary); }
+.studio-resize-handle:hover::after, .studio-resize-handle[data-separator="active"]::after { background: var(--rp-primary); opacity: 1; }
 .studio-resize-handle:focus-visible { outline: 2px solid var(--rp-primary); outline-offset: 0; }
 .studio-panels .studio-sidebar, .studio-panels .studio-inspector { width: 100%; height: 100%; border: 0; }
 .studio-panels .studio-canvas { height: 100%; }

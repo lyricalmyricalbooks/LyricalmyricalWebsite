@@ -6,4 +6,4 @@ Disallow: /account
 Disallow: /wishlist
 Disallow: /track
 
-Sitemap: https://lyricalmyricalbooks.com/sitemap.xml
+Sitemap: https://lyricalmyrical-web-v2.web.app/sitemap.xml

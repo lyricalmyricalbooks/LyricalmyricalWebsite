@@ -70,7 +70,7 @@ import { saveSavedThemes, type Workspace } from "../themeStore";
 import { writeDesignValue } from "../../features/site/designModel";
 import { StudioPageOverrides, fieldPageOverride, shown as shownValue } from "./StudioPageOverrides";
 import { fineTuneConflict } from "./fineTuneConflicts";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Group as PanelGroup, Panel, Separator, useDefaultLayout, type LayoutStorage } from "react-resizable-panels";
 import { StudioRail } from "./StudioRail";
 import { MediaPickerDialog, StudioMediaPanel, useMediaLibrary } from "./StudioMedia";
 import { StudioHistory, versionName, type ThemeVersion } from "./StudioHistory";
@@ -124,9 +124,8 @@ function designChecks(design: any) {
   return buildDesignChecks(design, { sectionFields: getSectionFields, blockFields: getBlockFields, blocksKey: getBlocksKey });
 }
 
-/** React 18 (what runs here) renders `inert` only from a string value ("" = present); `inert={true}` is
- *  dropped with a warning. The installed @types/react 19 types it as boolean, so bridge that one prop. */
-const inertWhen = (on: boolean) => (on ? { inert: "" } : {}) as { inert?: boolean };
+/** React 19 renders `inert` from a boolean (an empty string now counts as off). */
+const inertWhen = (on: boolean) => (on ? { inert: true } : {});
 
 const DEVICE_W = { desktop: "1200px", tablet: "820px", mobile: "390px" } as const;
 
@@ -373,6 +372,16 @@ export function reportDeadStudioLink(target: string, panel: string) {
   w.__studioDeadLinks = [...(w.__studioDeadLinks || []), target];
 }
 
+
+// Sizes are strings: react-resizable-panels v4 reads bare numbers as pixels.
+// Panels keep v2's clipped overflow; each panel's own content scrolls.
+const PANEL_STYLE = { overflow: "hidden" } as const;
+// Blocked storage (private windows, previews) must never stop Studio from opening.
+const PANEL_STORAGE: LayoutStorage = {
+  getItem: (key) => { try { return window.localStorage.getItem(key); } catch { return null; } },
+  setItem: (key, value) => { try { window.localStorage.setItem(key, value); } catch { /* not remembered */ } },
+};
+
 export function StudioEditor({ settings, onExit, onPersisted, appearance = "light", workspace: openedWorkspace, initialLocation }: {
   appearance?: "light" | "dark";
   /** Opened from a Studio link (#designer?…): start on that page/tool instead of where you left off. */
@@ -420,6 +429,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [desktopWidth, setDesktopWidth] = useState<DesktopWidth>(isDesktopWidth(remembered.desktopWidth) ? remembered.desktopWidth : 1200);
   const canvasWidth = device === "desktop" ? desktopWidth : parseInt(DEVICE_W[device], 10);
   const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 767px)").matches);
+  // Panel widths are remembered per browser (react-resizable-panels v4 format; "v1" was v2's).
+  const panelLayout = useDefaultLayout({ id: "studio-panels-v2", storage: PANEL_STORAGE, onlySaveAfterUserInteractions: true });
   useEffect(() => {
     const media = window.matchMedia?.("(max-width: 767px)");
     if (!media) return;
@@ -2676,12 +2687,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           {canvasPanel}
           {selected ? inspectorPanel : elementPanel || <aside className="studio-inspector" aria-label="Content settings">{inspectorEmpty}</aside>}
         </> : (
-          <PanelGroup direction="horizontal" autoSaveId="studio-panels-v1" className="studio-panels">
-            <Panel id="studio-left" order={1} defaultSize={24} minSize={18} maxSize={45}>{sidebarPanel}</Panel>
-            <PanelResizeHandle className="studio-resize-handle" aria-label="Resize the settings panel" />
-            <Panel id="studio-canvas" order={2} minSize={30}>{canvasPanel}</Panel>
-            <PanelResizeHandle className="studio-resize-handle" aria-label="Resize the inspector" />
-            <Panel id="studio-inspector" order={3} defaultSize={22} minSize={16} maxSize={45}>
+          <PanelGroup orientation="horizontal" className="studio-panels" defaultLayout={panelLayout.defaultLayout} onLayoutChanged={panelLayout.onLayoutChanged}>
+            <Panel id="studio-left" defaultSize="24%" minSize="18%" maxSize="45%" style={PANEL_STYLE}>{sidebarPanel}</Panel>
+            <Separator className="studio-resize-handle" aria-label="Resize the settings panel" />
+            <Panel id="studio-canvas" minSize="30%" style={PANEL_STYLE}>{canvasPanel}</Panel>
+            <Separator className="studio-resize-handle" aria-label="Resize the inspector" />
+            <Panel id="studio-inspector" defaultSize="22%" minSize="16%" maxSize="45%" style={PANEL_STYLE}>
               {selected ? inspectorPanel : elementPanel || inspectorEmpty}
             </Panel>
           </PanelGroup>

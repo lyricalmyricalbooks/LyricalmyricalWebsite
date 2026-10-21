@@ -29,7 +29,6 @@ import {
   Undo2,
   Play,
   Film, Crop } from "lucide-react";
-import { motion } from "motion/react";
 import toast from "react-hot-toast";
 import { 
   DndContext, 
