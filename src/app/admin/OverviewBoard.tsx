@@ -505,7 +505,7 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
   const subGroups = visitorGroups(board);
   // The bands and widgets the open tab shows. Editing shows a whole topic, so moving a widget never skips hidden ones.
   const shownBands = tab.band === "all" ? bands : bands.filter(b => b.id === tab.band);
-  const shownWidgets = (band: BoardBand) => (band.id === "traffic" && tab.sub !== "all" && !editing ? band.widgets.filter(w => groupOf(w.type) === tab.sub) : band.widgets);
+  const shownWidgets = (band: BoardBand) => band.widgets;
   const hiddenBands = board.bands.filter(b => b.hidden);
   const widgetCount = board.bands.reduce((n, b) => n + b.widgets.length, 0);
 
@@ -767,11 +767,6 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
               }}>{bandMeta(b.id).title}<span className="rp-mono"> {b.widgets.length}</span></a>
             ))}
           </nav>
-        ) : tab.band === "traffic" && subGroups.length > 0 ? (
-          <div className="rp-wb-subtabs">
-            <Tabs<VisitorGroup | "all"> label="Visitors" idPrefix="visitors-" value={tab.sub} onChange={sub => openTab({ band: "traffic", sub })}
-              tabs={[{ id: "all" as const, label: "All", count: board.bands.find(b => b.id === "traffic")!.widgets.length }, ...subGroups.map(g => ({ id: g.id, label: g.label, count: g.count }))]} />
-          </div>
         ) : <span />}
         <div className="rp-wb-toolbar-actions">
           {(past.length > 0 || future.length > 0) && (
