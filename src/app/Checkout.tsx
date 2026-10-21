@@ -1850,7 +1850,7 @@ export function Checkout() {
                 {orderNumber}
               </span>
             </div>
-            <h2 className="fm-track-display text-6xl sm:text-8xl mt-6 break-words">{c("coThanks")}</h2>
+            <h2 {...regionProps("checkoutSuccessHeading")} className="fm-track-display text-6xl sm:text-8xl mt-6 break-words">{c("coThanks")}</h2>
             <p className="fm-track-mono mt-5 border-t-2 fm-track-rule pt-4">{c("coOrderNumber", { number: orderNumber })}</p>
             {previousPaidReturn && <div className="fm-track-notice mt-4" role="status"><p>{c("coPreviousPaid")}</p></div>}
             {!isManual && (
@@ -1913,7 +1913,7 @@ export function Checkout() {
                 </li>
               </ol>
               {successOrder.shippingMethod && !["pickup", "local_delivery"].includes(successOrder.fulfillment?.method) && (
-                <div className="mt-5 border-t-2 fm-track-rule pt-4 space-y-1 text-xs leading-5 text-white/60">
+                <div {...regionProps("checkoutSuccessDelivery")} className="mt-5 border-t-2 fm-track-rule pt-4 space-y-1 text-xs leading-5 text-white/60">
                   <p><span className="fm-track-mono">{c("coSuccessShipping")}</span> {successOrder.shippingMethod}</p>
                   {successOrder.shippingEstimate?.days ? (
                     <p>{c("coCarrierTransit", { days: successOrder.shippingEstimate.days })}</p>
