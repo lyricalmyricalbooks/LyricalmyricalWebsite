@@ -1185,6 +1185,21 @@ The private operations, label purchase safeguards, payment authority and server 
 
 Wishlist, Customer account and Order tracking have Studio canvases and section stacks. `features/site/storefrontRegions.ts` owns the public region manifest, responsive styling and click-to-edit hooks; its categories are generated in `studio/styleSchema.ts`. Attach `regionProps` in every supported renderer layout when adding optional public elements. Required commerce/consent regions support presentation controls without hide toggles. Merge page-only regions with root settings, preserve product overrides over catalog defaults, and keep phone overrides in `autoFitRegions`. `docs/THEME_EDITOR.md` records the page-by-page ownership and authenticated/live verification limits. Local validation reasons and public order statuses use Text & labels; provider diagnostics must not bypass editable recovery copy.
 
+## Checkout order slip (22 October 2026)
+
+`Checkout.tsx` is concept A "Order slip" (Julian's pick): a ruled header (back link, wordmark with the last word in the accent,
+Secure), a one-page form of lettered sections (`SectionHead`: Contact · Ship to · Delivery · Pay) and an outlined **Order slip**
+aside (numbered lines with covers, discount/gift-card boxes, ledger, big total, footer strip). Every class is `fm-co-*`, all CSS
+comes from `features/site/checkoutSlipStyle.ts` `checkoutSlipCss(design)` (token-only, scoped to `[data-fm-checkout].fm-co`; field
+rules use `:not(#fm-studio)` + `!important` to beat the Riso dark field reset and fold in `checkoutFieldBg/Border/InputRadius`).
+Labels sit above boxes (`checkoutLabelStyle`, "floating" = the old look; `CountryField` `stacked`). Payment methods are tabs or a
+list (`checkoutPayTabs`; `StripePaymentSection` `tabs`, its panel is `display:contents` in tabs mode). Below 1024px the slip folds into
+a bar at the top (`.fm-co-slipbar`, `data-open`) and the code boxes render a second time inside Pay; on phones `checkoutPhonePayBar`
+pins a Pay bar (`<button form="fm-checkout-form">`, region `checkoutPayBar`, required). Controls: Studio › Style › Checkout page ›
+Header & sections / Fonts & form fields / Pay button & payment choices / Order slip; words Text & labels › Checkout (Steps & headings,
+Order slip). Express wallets stay inside the Stripe payment section (they need the filled form); submission, pricing and payment
+logic are unchanged.
+
 ## Checkout carrier delivery estimates
 
 Live checkout shipping quotes preserve Shippo `estimated_days` and `duration_terms` for each
@@ -2029,6 +2044,15 @@ adds "Save for later" beside each bag line's Remove (`saveForLaterOn` / `canSave
 gift-card lines): the line leaves the bag and the book joins the wishlist (`useWishlist`), with a toast Undo that puts the line back and
 takes the book off the wishlist only if the button added it. No-op on the Studio preview's sample line. Words: Text & labels › Cart ›
 Save for later (`cartSave*`; Undo reuses `cartRemovedUndo`). Display/bag only; no rules or Functions.
+
+## Announcement countdown (22 October 2026)
+
+Studio › Style › Header & announcement bar › Announcement bar › **Announcement countdown** (`announcementCountdown`, off by default) +
+`announcementCountdownWithin` (hours, default 72): a message from Announcement messages with a **Show until** day gets "Ends in 5h 12m"
+after it (`.fm-announce-countdown`, `translate="no"`) in its last hours, counting to midnight Toronto after that day (pure
+`features/site/announcementCountdown.ts`, reusing `saleCountdown`; `activeAnnouncements` now passes `until`). Static, rotating and ticker
+bars all show it; the clock starts after mount (never in the prerender) and ticks every 30 s. The single Announcement text has no end day,
+so no countdown. Words: Text & labels › Header (`announceEnds*`). Display only.
 
 ## Payment-integrity audit fixes (9 October 2026)
 

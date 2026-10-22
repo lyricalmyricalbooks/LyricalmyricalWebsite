@@ -26,7 +26,7 @@ describe("announcement messages", () => {
       { id: "4", text: "Today only", from: "2026-10-09", until: "2026-10-09", link: "/collections/zines" },
       { id: "5", text: "" },
     ] };
-    expect(activeAnnouncements(design, noon)).toEqual([{ text: "Always" }, { text: "Today only", link: "/collections/zines" }]);
+    expect(activeAnnouncements(design, noon)).toEqual([{ text: "Always" }, { text: "Today only", link: "/collections/zines", until: "2026-10-09" }]);
   });
   it("counts days on the shop's calendar", () => {
     expect(shopDay(new Date("2026-10-10T02:00:00Z"))).toBe("2026-10-09"); // still the 9th in Toronto
