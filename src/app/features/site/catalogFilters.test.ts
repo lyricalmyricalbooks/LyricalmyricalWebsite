@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  appliedFilters, applyCatalogControls, bookFormats, bookInStock, EMPTY_FILTERS, filterView, filtersActive, formatKey, formatsIn, priceRangeFor,
+  appliedFilters, applyCatalogControls, bookFormats, bookInStock, bookSoldOut, soldOutLastOn, soldOutToEnd, EMPTY_FILTERS, filterView, filtersActive, formatKey, formatsIn, priceRangeFor,
 } from "./CatalogControls";
 
 const paperback = { id: "p", title: "Zine", format: "Paperback", retailPrice: 12, stockLevel: 4, createdAt: "2026-01-01" };
@@ -98,5 +98,23 @@ describe("oldest sort", () => {
     const ids = (sort: any) => applyCatalogControls(all, "", sort, false, [0, Infinity]).map(b => b.id);
     expect(ids("oldest")).toEqual(["p", "h", "e", "a"]);
     expect(ids("newest")).toEqual(["a", "e", "h", "p"]);
+  });
+});
+
+describe("sold-out books last (Studio › Book order)", () => {
+  it("is off by default and keeps the chosen order", () => {
+    expect(soldOutLastOn({})).toBe(false);
+    expect(soldOutLastOn({ soldOutLast: true })).toBe(true);
+    expect(applyCatalogControls(all, "", "price_asc", false, [0, Infinity]).map(b => b.id)).toEqual(["e", "p", "a", "h"]);
+  });
+  it("moves sold-out books to the end without reordering either group", () => {
+    const soldPb = { ...paperback, id: "p0", stockLevel: 0, trackInventory: true, retailPrice: 5 };
+    const list = [...all, soldPb];
+    expect(applyCatalogControls(list, "", "price_asc", false, [0, Infinity], [], false, true).map(b => b.id)).toEqual(["e", "p", "a", "p0", "h"]);
+  });
+  it("leaves coming soon books in place", () => {
+    const soon = { ...hardcover, id: "s", comingSoon: true, status: "published" };
+    expect(bookSoldOut(soon)).toBe(false);
+    expect(soldOutToEnd([hardcover, soon, paperback]).map(b => b.id)).toEqual(["s", "p", "h"]);
   });
 });

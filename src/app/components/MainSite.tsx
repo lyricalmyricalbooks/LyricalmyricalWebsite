@@ -42,7 +42,7 @@ import { displayPrice as cardDisplayPrice, showsSale, salePercentOff } from "../
 import { useSEO } from "../lib/seo";
 import { ga4FilterUse } from "../lib/ga4";
 import { breadcrumbData, collectionStructuredData, leadSentences, profileLinks, seoTopicList, siteStructuredData } from "../lib/bookSeo";
-import { CatalogControls, applyCatalogControls, appliedFilters, filterView, EMPTY_FILTERS, type CatalogFilterState, type SortKey } from "../features/site/CatalogControls";
+import { CatalogControls, applyCatalogControls, soldOutLastOn, appliedFilters, filterView, EMPTY_FILTERS, type CatalogFilterState, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { StoreHeader } from "../features/site/StoreHeader";
 import { StoreFooter } from "../features/site/StoreFooter";
@@ -552,10 +552,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const catalogView = useMemo(() => filterView(baseFilteredItems), [baseFilteredItems]);
   const displayRate = convertPrice(1);
 
+  // Studio › Style › Shop page heading & filters › Book order (off by default).
+  const soldOutLast = soldOutLastOn(storefrontDesign);
   const filteredItems = useMemo(() => {
     const applied = appliedFilters(catalogFilters, catalogView, displayRate);
-    return applyCatalogControls(baseFilteredItems, searchQuery, sort, inStockOnly, applied.priceRange, applied.formats, applied.onSale);
-  }, [baseFilteredItems, searchQuery, sort, inStockOnly, catalogFilters, catalogView, displayRate]);
+    return applyCatalogControls(baseFilteredItems, searchQuery, sort, inStockOnly, applied.priceRange, applied.formats, applied.onSale, soldOutLast);
+  }, [baseFilteredItems, searchQuery, sort, inStockOnly, catalogFilters, catalogView, displayRate, soldOutLast]);
 
   // Studio › Style › Shop page heading & filters › "Show more books" paging (0 = every book).
   const pageSize = catalogPageSize(storefrontDesign);

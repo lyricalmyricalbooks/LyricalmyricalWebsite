@@ -2557,3 +2557,10 @@ Studio › Style › Pop-up window › **When it opens** (`popupTrigger`: `delay
 (`popupTriggerOf`, `scrolledPast`, `leavingThroughTop`), used by `PopupSections`: exit intent listens for the mouse leaving
 through the top edge, only with a fine pointer (touch screens use the delay); scroll waits for that share of the scrollable
 page. Still after the cookie answer, still governed by How often it shows, never in the Studio preview. No words, rules or Functions.
+
+## Sold-out books last (22 October 2026)
+
+Studio › Style › Shop page heading & filters › Book order › **Put sold-out books last in the shop grid** (`soldOutLast`, off by
+default): `applyCatalogControls` (`features/site/CatalogControls.tsx`) moves books with nothing buyable (`bookSoldOut` = not
+`bookInStock` and not Coming soon) after the rest with `soldOutToEnd`, keeping the shopper's sort inside each group. MainSite's shop
+grid only (paging, search and filters follow it). Display only; no words, rules or Functions.

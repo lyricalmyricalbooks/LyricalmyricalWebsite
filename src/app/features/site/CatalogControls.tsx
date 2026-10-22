@@ -7,6 +7,7 @@ import { displayPrice, showsSale } from "./displayPrice";
 import { quickAddChoice } from "./buyable";
 import { matchesSearch } from "./bookSearch";
 import { compareShopOrder } from "./shopOrder";
+import { comingSoonActive } from "./comingSoon";
 
 export type SortKey = "featured" | "newest" | "oldest" | "price_asc" | "price_desc" | "title_az" | "title_za";
 
@@ -64,6 +65,25 @@ export function bookInStock(book: any): boolean {
   return quickAddChoice(book).inStock;
 }
 
+/**
+ * Studio › Style › Shop page heading & filters › Book order › "Put sold-out books last"
+ * (`soldOutLast`, off by default). Coming soon books aren't sold out: they keep their place.
+ */
+export function soldOutLastOn(design: any): boolean {
+  return design?.soldOutLast === true;
+}
+
+export function bookSoldOut(book: any): boolean {
+  return !comingSoonActive(book) && !bookInStock(book);
+}
+
+/** Moves sold-out books to the end, keeping the chosen order inside each group. */
+export function soldOutToEnd<T>(items: T[]): T[] {
+  const soldOut = items.filter(bookSoldOut);
+  if (!soldOut.length || soldOut.length === items.length) return items;
+  return [...items.filter(item => !bookSoldOut(item)), ...soldOut];
+}
+
 export type CatalogFilterState = { formats: FormatKey[]; minPrice: string; maxPrice: string; onSale?: boolean };
 export const EMPTY_FILTERS: CatalogFilterState = { formats: [], minPrice: "", maxPrice: "", onSale: false };
 
@@ -110,6 +130,7 @@ export function applyCatalogControls(
   priceRange: [number, number],
   formats: FormatKey[] = [],
   onSale = false,
+  soldOutLast = false,
 ) {
   const q = query.trim().toLowerCase();
 
@@ -147,7 +168,7 @@ export function applyCatalogControls(
     }
   });
 
-  return sorted;
+  return soldOutLast ? soldOutToEnd(sorted) : sorted;
 }
 
 export function CatalogControls({
