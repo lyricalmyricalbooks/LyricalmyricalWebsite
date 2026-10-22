@@ -21,6 +21,8 @@ export type Book = {
   seoNoindex?: boolean;
   /** Books › edit › Search (SEO) › Artist links: each credited person's official website. */
   creatorLinks?: { name: string; url: string }[];
+  /** Books › edit › Details › Artist bio: shown in the book page's Artist bio tab. */
+  artistBio?: string;
   id: string;
   title: string;
   subtitle?: string;
