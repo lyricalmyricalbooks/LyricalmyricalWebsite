@@ -22,25 +22,22 @@ export function OwnVisitsCard() {
 
   return (
     <SectionCard title="Your own visits"
-      description="Your own browsing and the orders you place with the shop's email are kept out of the Overview, the Monday summary and Google Analytics, so the numbers show real customers only."
+      description="Real customers only. You never count."
       actions={<StatusBadge tone={on ? "success" : "warning"}>{on ? "This browser: not counted" : "This browser: counted"}</StatusBadge>}>
       <Toggle label="Leave this browser out of the shop's numbers" checked={on} onChange={flip} />
-      <p className="rp-hint" style={{ margin: "8px 0 0" }}>
-        Every browser where you sign in to the admin is left out automatically. For your phone or another browser where you only look at the
-        shop, open this link there once:
-      </p>
+      <p className="rp-hint" style={{ margin: "8px 0 0" }}>Admin browsers are skipped automatically. Phone? Open this link there once.</p>
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
         <span className="rp-mono" style={{ userSelect: "all", overflowWrap: "anywhere" }}>{link}</span>
         <SecondaryButton size="sm" onClick={copy}>Copy link</SecondaryButton>
       </div>
       <div style={{ marginTop: 12 }}>
-      <HowTo summary="What else is left out, and good to know">
+      <HowTo summary="Fine print">
       <ul className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "disc" }}>
-        <li>Orders placed with <span className="rp-mono">{SHOP_OWNER_EMAIL}</span> stay in Orders but don't count as sales on the Overview. An order you place for a customer with their email counts as normal, on any browser.</li>
-        <li>Keep the link to yourself: anyone who opens it stops being counted on that browser.</li>
-        <li>Search-engine robots, speed testers and automated browsers are never counted{looksAutomated() ? " (this browser looks automated, so it isn't counted either)" : ""}.</li>
-        <li>Visits already counted before today can't be taken back. Overview › Marketing & traffic › <strong>Start traffic counts again</strong> clears the shop's own counter; Google Analytics keeps its history.</li>
-        <li>Clearing this browser's data (cookies and site data) forgets the setting: sign in to the admin or open the link again.</li>
+        <li>Orders with <span className="rp-mono">{SHOP_OWNER_EMAIL}</span> stay in Orders, out of sales.</li>
+        <li>Keep the link private. Whoever opens it stops counting.</li>
+        <li>Robots and speed testers never count{looksAutomated() ? " (this browser looks automated, so it doesn't either)" : ""}.</li>
+        <li>Past visits stay. Overview › <strong>Start traffic counts again</strong> wipes the shop's counter.</li>
+        <li>Clearing cookies forgets this. Sign in or reopen the link.</li>
       </ul>
       </HowTo>
       </div>

@@ -20,7 +20,7 @@ it("shows one topic per sub tab, keeps the others mounted and marks unsaved ones
       <SettingsTabs label="General settings" value={view} onChange={setView}
         tabs={[{ id: "g1", title: "Shop status" }, { id: "g2", title: "Shop details", unsaved: true }]} />
       <SettingsGroup id="g1" active={view === "g1"}><p>Status card</p></SettingsGroup>
-      <SettingsGroup id="g2" active={view === "g2"} subcopy="Name and address"><SettingsAnchor id="c1"><input aria-label="Name" defaultValue="" /></SettingsAnchor></SettingsGroup>
+      <SettingsGroup id="g2" active={view === "g2"}><SettingsAnchor id="c1"><input aria-label="Name" defaultValue="" /></SettingsAnchor></SettingsGroup>
     </>;
   }
   await act(async () => root.render(<Page />));

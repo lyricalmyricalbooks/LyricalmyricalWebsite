@@ -98,7 +98,7 @@ export function BackupsExportCard() {
 
   const view = record === undefined ? null : describeBackup(record);
   return (
-    <SectionCard title="Backups & export" description="Every document is copied to your storage bucket every night at 3:17 am and kept for 30 days. You can also back up now or download your own copies at any time.">
+    <SectionCard title="Backups & export" description="Nightly at 3:17 am. Kept 30 days.">
       <p style={{ margin: "0 0 8px" }}>
         {loadFailed ? <><StatusBadge tone="warning">Couldn't read the backup status</StatusBadge> <span className="rp-hint">Check your connection and reload this page.</span></>
           : view ? <><StatusBadge tone={view.tone}>{view.running ? "Backing up…" : view.label}</StatusBadge> <span className="rp-hint">{view.detail}</span></>
@@ -120,7 +120,7 @@ export function BackupsExportCard() {
         <PrimaryButton size="sm" disabled={!!busy || view?.running} onClick={runBackup}>{busy === "backup" ? "Backing up…" : "Back up now"}</PrimaryButton>
       </div>
       <h3 className="rp-label" style={{ margin: "0 0 8px" }}>Daily backups</h3>
-      <p className="rp-hint" style={{ margin: "0 0 8px" }}>One backup a day, kept for 30 days. Download saves that day's whole database as one .json file.</p>
+      <p className="rp-hint" style={{ margin: "0 0 8px" }}>Download = that day's whole shop, one .json file.</p>
       {daysError ? (
         <p style={{ margin: "0 0 16px" }}><StatusBadge tone="warning">List unavailable</StatusBadge> <span className="rp-hint">{daysError}</span> <GhostButton size="sm" onClick={loadDays}>Try again</GhostButton></p>
       ) : days === null ? (
@@ -131,7 +131,7 @@ export function BackupsExportCard() {
             caption="Daily backups"
             rows={days}
             rowKey={(r) => r.day}
-            empty={<p className="rp-hint" style={{ margin: 0 }}>No backups yet. The first one is made tonight at 3:17 am, or press Back up now.</p>}
+            empty={<p className="rp-hint" style={{ margin: 0 }}>No backups yet. First one tonight, or back up now.</p>}
             columns={[
               { key: "day", header: "Day", lead: true, render: (r) => new Date(`${r.day}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" }) },
               { key: "status", header: "Status", render: (r) => { const v = describeBackupDay(r); return <><StatusBadge tone={v.tone}>{v.label}</StatusBadge>{v.detail ? <span className="rp-hint"> {v.detail}</span> : null}</>; } },
@@ -160,7 +160,7 @@ export function BackupsExportCard() {
           return orders.length ? [`orders-${today()}.csv`, exportOrdersCsv(orders, { paidOnly: false }), "text/csv;charset=utf-8"] : null;
         })}>{busy === "orders" ? "Preparing…" : "Orders (CSV)"}</SecondaryButton>
       </div>
-      <p className="rp-hint" style={{ margin: "12px 0 0" }}>Exports leave out test orders. Orders include unpaid and cancelled ones; Orders › Table view exports only paid and refunded orders.</p>
+      <p className="rp-hint" style={{ margin: "12px 0 0" }}>No test orders. Unpaid and cancelled included.</p>
     </SectionCard>
   );
 }

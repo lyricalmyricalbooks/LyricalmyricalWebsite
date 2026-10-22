@@ -85,7 +85,7 @@ export function GmailSendingCard({ lastProblem = null }: { lastProblem?: { at?: 
 
   return (
     <SectionCard title="Gmail sending" actions={badge}
-      description="Shop emails are sent from lyricalmyricalbooks@gmail.com using a Google app password. Without one, emails fall back to Resend's test sender and only reach you.">
+      description="Sends from your Gmail with an app password.">
       {lastProblem && stored && !check?.ok && (
         <p role="status" className="rp-hint" style={{ margin: "0 0 12px", padding: 12, border: "1px solid var(--rp-warning)", color: "var(--rp-warning)", background: "var(--rp-warning-tint)" }}>
           ! Gmail refused the last email{lastProblem.at ? ` (${new Date(lastProblem.at).toLocaleString()})` : ""}. Choose Check connection, and if it fails save a new app password. {lastProblem.error}

@@ -1323,3 +1323,37 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 }
 /* The top bar's Add book button keeps a full tap size on phones (it is icon-only there). */
 @media (max-width: 767px) { .rp-topbar-actions .rp-btn-primary { min-height: 40px; height: 40px; } }
+
+/* ── Settings pages: the Masthead look ─────────────────────────────────── */
+/* Cards are ruled rows under the page's sub tabs, not shadowed boxes: one rule, a title, at most one short line. */
+.rp-settings .rp-card { background: transparent; border: 0; border-top: var(--rp-stroke) solid var(--rp-border-strong); border-radius: 0; box-shadow: none; }
+.rp-settings .rp-card .rp-card { border-top-width: var(--rp-hair); }
+.rp-settings .rp-card-head { padding: 14px 0 10px; border-bottom: 0 !important; align-items: center; }
+.rp-settings .rp-card[data-folded] .rp-card-head { padding-bottom: 14px; }
+.rp-settings .rp-card-title { font-size: 22px; }
+.rp-settings .rp-card-desc { margin: 3px 0 0; font-size: var(--rp-text-sm); color: var(--rp-text-subtle); }
+.rp-settings .rp-card-body { padding: 4px 0 28px; }
+.rp-settings .rp-card .rp-table-wrap, .rp-settings .rp-table-wrap { box-shadow: none; }
+.rp-settings .rp-metric, .rp-settings .rp-kpi-grid { box-shadow: none; }
+/* Buttons: flat and quiet, sentence case, no offset shadows. */
+.rp-settings .rp-btn { box-shadow: none !important; text-transform: none; letter-spacing: 0; font-size: var(--rp-text-sm); font-weight: 700; }
+.rp-settings .rp-btn-sm { font-size: var(--rp-text-xs); }
+.rp-settings .rp-btn-secondary { border-width: var(--rp-hair); border-color: var(--rp-border); background: transparent; }
+.rp-settings .rp-btn-secondary:hover:not(:disabled) { border-color: var(--rp-border-strong); background: var(--rp-surface); }
+.rp-settings .rp-btn:hover:not(:disabled) { transform: none; }
+/* Setup steps: a plain underlined toggle, no box. */
+.rp-howto { margin: 0 0 12px; }
+.rp-howto > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; cursor: pointer; list-style: none; font-size: var(--rp-text-sm); font-weight: 700; text-decoration: underline; text-decoration-color: var(--rp-primary); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.rp-howto > summary::-webkit-details-marker { display: none; }
+.rp-howto > summary::after { content: "+"; font-family: var(--rp-font-mono); text-decoration: none; color: var(--rp-text-subtle); }
+.rp-howto[open] > summary::after { content: "−"; }
+.rp-howto > div { padding: 6px 0 4px; }
+.rp-howto summary:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
+.rp-settings .rp-kicker::before { display: none; }
+/* The fold chevron sits at the row's right end, so every heading lines up with its fields on the left edge. */
+.rp-settings .rp-card-head { flex-wrap: nowrap; }
+.rp-settings .rp-card-head > div:first-child:has(> .rp-card-fold) { display: contents !important; }
+.rp-settings .rp-card-head > div:first-child > div { flex: 1 1 auto; order: 0; }
+.rp-settings .rp-card-head > :not(:first-child) { order: 1; flex: none; }
+.rp-settings .rp-card-fold { order: 2; margin: 0 -6px 0 0; color: var(--rp-text-subtle); }
+@media (max-width: 600px) { .rp-settings .rp-card-head { flex-wrap: wrap; } }

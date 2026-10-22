@@ -88,7 +88,7 @@ export function StripeWebhookHealth({ unsaved = false }: { unsaved?: boolean }) 
           <li style={{ padding: 10 }}>
             <StatusBadge tone={report.found && report.enabled && !report.wrongUrl ? "success" : "danger"}>{report.found ? (report.enabled ? (report.wrongUrl ? "Wrong address" : "On") : "Disabled") : "Missing"}</StatusBadge>{" "}
             Endpoint in Stripe ({report.mode === "test" ? "test/sandbox" : "live"} account)
-            <span className="rp-hint" style={{ display: "block", marginTop: 4 }}>The web address Stripe sends payment news to. It must exist, be switched on and point at this shop.</span>
+            <span className="rp-hint" style={{ display: "block", marginTop: 4 }}>Where Stripe reports payments.</span>
           </li>
           <li style={{ padding: 10 }}>
             <StatusBadge tone={report.missingEvents.length ? "danger" : "success"}>{report.missingEvents.length ? `${report.missingEvents.length} missing` : "All sent"}</StatusBadge>{" "}
@@ -97,14 +97,14 @@ export function StripeWebhookHealth({ unsaved = false }: { unsaved?: boolean }) 
           <li style={{ padding: 10 }}>
             <StatusBadge tone={state.noSecret ? "danger" : "success"}>{state.noSecret ? "Missing" : "Set"}</StatusBadge>{" "}
             Signing secret
-            <span className="rp-hint" style={{ display: "block", marginTop: 4 }}>A shared password that proves a message really came from Stripe, so nobody can fake a payment.</span>
+            <span className="rp-hint" style={{ display: "block", marginTop: 4 }}>Proves each message is really Stripe.</span>
             {state.noSecret ? " — the shop can't verify Stripe's messages. Use Reset webhook signing." : report.savedSecret ? " (saved by the shop)" : " (from Firebase Functions)"}
           </li>
           <li style={{ padding: 10 }}>
             <StatusBadge tone={state.signatureFailing ? "danger" : report.lastReceivedAt ? "success" : "neutral"}>{state.signatureFailing ? "Failing" : report.lastReceivedAt ? "Working" : "Waiting for first event"}</StatusBadge>{" "}
             Last event from this account: {when(report.lastReceivedAt)}{report.lastEventType ? ` (${report.lastEventType})` : ""}
             {state.signatureFailing && <span className="rp-hint" style={{ display: "block", marginTop: 4 }}>{report.lastFailure} — {when(report.lastFailureAt)}</span>}
-            {!report.lastReceivedAt && !state.signatureFailing && <span className="rp-hint" style={{ display: "block", marginTop: 4 }}>Set up correctly, but no payment has been made since — place a test order to confirm.</span>}
+            {!report.lastReceivedAt && !state.signatureFailing && <span className="rp-hint" style={{ display: "block", marginTop: 4 }}>Ready. Place a test order to confirm.</span>}
           </li>
           {state.processingFailing && (
             <li style={{ padding: 10 }}>
@@ -122,7 +122,7 @@ export function StripeWebhookHealth({ unsaved = false }: { unsaved?: boolean }) 
           <PrimaryButton size="sm" disabled={!!busy} onClick={() => run("fix")}>{busy === "fix" ? "Fixing…" : "Fix webhook"}</PrimaryButton>
         )}
         {state && (state.signatureFailing || state.noSecret) && (
-          <><span className="rp-hint" style={{ flexBasis: "100%" }}>Reset webhook signing replaces the endpoint and its password when Stripe's messages keep failing the check.</span>
+          <><span className="rp-hint" style={{ flexBasis: "100%" }}>Reset replaces the endpoint when checks keep failing.</span>
           <SecondaryButton size="sm" disabled={!!busy} onClick={() => run("recreate")}>{busy === "recreate" ? "Replacing…" : "Reset webhook signing"}</SecondaryButton></>
         )}
       </div>

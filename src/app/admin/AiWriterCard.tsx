@@ -93,11 +93,9 @@ export function AiWriterCard() {
 
   return (
     <SectionCard title="AI writing assistant"
-      description="Adds Write with AI buttons that draft search titles and descriptions (Books › edit › Search (SEO), Studio › Pages), book descriptions (Books › edit › Details), photo descriptions (Books › edit › Images › Describe with AI, which shows the AI the photo) and Studio's Rewrite with AI. Use a free Google AI key, an OpenRouter key (one key for many AI models), or both. You always see the draft first; nothing is saved until you save the book or page."
+      description="Drafts titles, blurbs and photo text. You approve."
       actions={stored !== null && <StatusBadge tone={active ? "success" : "neutral"}>{active ? `On · ${NAMES[active]}` : "Off"}</StatusBadge>}>
-      <p className="rp-hint" style={{ margin: "0 0 12px" }}>
-        The shop only sends public catalog facts (title, author, format, categories, description) or the words you are editing — never customers, orders, costs or stock. On free plans the AI company may use what is sent to improve its products.
-      </p>
+      <p className="rp-hint" style={{ margin: "0 0 12px" }}>Only public catalog facts go out. Never customers, orders or costs.</p>
       {readFailed && (
         <p role="alert" className="rp-hint" style={{ margin: "0 0 12px", color: "var(--rp-danger)" }}>
           ✕ Couldn't read which keys are saved. <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={load}>Try again</button>
@@ -106,7 +104,7 @@ export function AiWriterCard() {
       {stored?.gemini && stored?.openrouter && (
         <div style={{ marginBottom: 16 }}>
           <SelectField label="Which AI writes the drafts" value={active || "openrouter"} disabled={saving}
-            hint="Both keys are saved. When this one runs out of free allowance or credits, or is busy, the other one takes over by itself."
+            hint="If this one runs dry, the other takes over."
             onChange={(e) => saveProvider(e.target.value as AiProvider)}>
             <option value="openrouter">OpenRouter</option>
             <option value="gemini">Google Gemini</option>
@@ -141,7 +139,7 @@ export function AiWriterCard() {
           <li>Paste the key here and choose Save key. The free tier allows about 10 drafts a minute and a few hundred a day.</li>
         </>}
         onSave={(v) => saveKey("gemini", v)} />
-      <p className="rp-hint" style={{ margin: "12px 0 0" }}>Whichever AI you use, the shop also stops at 40 drafts per 10 minutes.</p>
+      <p className="rp-hint" style={{ margin: "12px 0 0" }}>Capped at 40 drafts per 10 minutes.</p>
 
       <div style={{ marginTop: 16 }}>
         <TextArea label="House style (optional)" rows={3} maxLength={VOICE_MAX} value={voice}
@@ -192,8 +190,8 @@ function KeySlot({ which, stored, saving, problem, placeholder, steps, onSave }:
 
   return (
     <section aria-label={`${name} key`} style={{ marginTop: 20 }}>
-      <h3 className="rp-kicker" style={{ margin: "0 0 8px" }}>{name}</h3>
-      <HowTo summary={`How to get ${which === "openrouter" ? "an" : "a"} ${name} key`} open={stored === false}>
+      <h3 style={{ margin: "0 0 8px", fontSize: "var(--rp-text-base)", fontWeight: 800 }}>{name}</h3>
+      <HowTo summary={`Get ${which === "openrouter" ? "an" : "a"} ${name} key`} open={stored === false}>
         <ol className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "decimal" }}>{steps}</ol>
       </HowTo>
       <TextField label={`${name} API key`} type="password" value={draft} autoComplete="off"
