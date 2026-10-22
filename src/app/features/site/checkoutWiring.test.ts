@@ -37,7 +37,7 @@ describe("Checkout wiring (source text)", () => {
   });
 
   it("#77 the fulfilment heading is hidden for e-book-only bags", () => {
-    expect(src).toMatch(/\{!digitalOnly && \(\s*<section>\s*<div className="mb-5">\s*<h2[^>]*>\{c\("coShipMethod"\)\}/);
+    expect(src).toMatch(/\{!digitalOnly && \(\s*<section className="fm-co-section">\s*<SectionHead [^>]*title=\{c\("coDelivery"\)\}/);
   });
 
   it("#23 a page restored from the back/forward cache unlocks Pay", () => {

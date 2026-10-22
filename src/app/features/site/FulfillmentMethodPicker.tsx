@@ -19,38 +19,36 @@ export function FulfillmentMethodPicker({ method, optionId, onSelect, shippingQu
     : localQuotes.filter(quote => quote.method === method);
   const tabs = availableMethods.filter(value => value !== 'pickup');
   const activeTab = method === 'pickup' ? 'shipping' : method;
-  return <div {...regionProps('checkoutFulfillment')} className="space-y-4">
-    {tabs.length > 1 && <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" role="group" aria-label={words.group}>
+  return <div {...regionProps('checkoutFulfillment')} className="flex flex-col gap-4">
+    {tabs.length > 1 && <div className="fm-co-seg" role="group" aria-label={words.group}>
       {tabs.map(value =>
         <button key={value} type="button" data-method={value} aria-pressed={activeTab === value}
           onClick={() => onSelect({ method: value, optionId: '' })}
-          className={`rounded-lg border px-4 py-3 text-sm font-semibold text-left ${activeTab === value ? 'border-[color:var(--accent)] bg-white text-slate-950' : 'border-slate-300 bg-slate-50 text-slate-700'}`}>{words[value]}</button>)}
+          className="fm-co-seg-btn fm-co-mono">{words[value]}</button>)}
     </div>}
-    {loading && shippingList ? <p className="text-sm text-slate-600" role="status">{words.loading}</p> : choices.length ?
-      <div role="radiogroup" aria-label={words.group} className="overflow-hidden rounded-lg border border-slate-300 bg-white">
-        {choices.map((choice, index) => <label key={choice.id} className={`flex cursor-pointer items-start justify-between gap-4 px-4 py-4 ${index ? 'border-t border-slate-200' : ''}`}>
-          <span className="flex items-start gap-3">
-            <input type="radio" name="fulfillment-option" value={choice.id} checked={optionId === choice.id}
-              onChange={() => onSelect({ method: choice.method === 'pickup' ? 'pickup' : shippingList ? 'shipping' : method, optionId: choice.id })} className="mt-1 h-4 w-4 accent-[color:var(--accent)]" />
-            <span className="space-y-1 text-sm text-slate-700">
-              <strong className="block text-slate-950">{choice.name}</strong>
-              {'address' in choice && choice.address?.street && <span className="block">{[choice.address.street, choice.address.city, [choice.address.state, choice.address.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')}</span>}
-              {'hours' in choice && choice.hours && <span className="block">{words.hours} {choice.hours}</span>}
-              {'instructions' in choice && choice.instructions && <span className="block whitespace-pre-wrap">{words.instructions} {choice.instructions}</span>}
-              {'estimate' in choice && choice.estimate && <span className="block">{words.estimate} {choice.estimate}</span>}
-              {!('method' in choice) && (() => {
-                const days = (choice as ShippingChoice).deliveryDays;
-                const template = (choice as ShippingChoice).carrierEstimate ? words.carrierTransit : words.deliveryDays;
-                if (days) return template ? <span className="block" data-delivery-estimate>{template.replace('{days}', days)}</span> : null;
-                return (choice as ShippingChoice).carrierEstimate && !(choice as ShippingChoice).durationTerms && words.carrierUnavailable
-                  ? <span className="block" data-delivery-estimate>{words.carrierUnavailable}</span> : null;
-              })()}
-              {'durationTerms' in choice && choice.durationTerms && <span className="block">{choice.durationTerms}</span>}
-            </span>
+    {loading && shippingList ? <p className="fm-co-empty" role="status">{words.loading}</p> : choices.length ?
+      <div role="radiogroup" aria-label={words.group} className="fm-co-choices">
+        {choices.map(choice => <label key={choice.id} className="fm-co-choice">
+          <input type="radio" name="fulfillment-option" value={choice.id} checked={optionId === choice.id}
+            onChange={() => onSelect({ method: choice.method === 'pickup' ? 'pickup' : shippingList ? 'shipping' : method, optionId: choice.id })} />
+          <span className="min-w-0">
+            <strong className="fm-co-choice-name">{choice.name}</strong>
+            {'address' in choice && choice.address?.street && <span className="fm-co-choice-meta">{[choice.address.street, choice.address.city, [choice.address.state, choice.address.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')}</span>}
+            {'hours' in choice && choice.hours && <span className="fm-co-choice-meta">{words.hours} {choice.hours}</span>}
+            {'instructions' in choice && choice.instructions && <span className="fm-co-choice-meta whitespace-pre-wrap">{words.instructions} {choice.instructions}</span>}
+            {'estimate' in choice && choice.estimate && <span className="fm-co-choice-meta">{words.estimate} {choice.estimate}</span>}
+            {!('method' in choice) && (() => {
+              const days = (choice as ShippingChoice).deliveryDays;
+              const template = (choice as ShippingChoice).carrierEstimate ? words.carrierTransit : words.deliveryDays;
+              if (days) return template ? <span className="fm-co-choice-meta" data-delivery-estimate>{template.replace('{days}', days)}</span> : null;
+              return (choice as ShippingChoice).carrierEstimate && !(choice as ShippingChoice).durationTerms && words.carrierUnavailable
+                ? <span className="fm-co-choice-meta" data-delivery-estimate>{words.carrierUnavailable}</span> : null;
+            })()}
+            {'durationTerms' in choice && choice.durationTerms && <span className="fm-co-choice-meta">{choice.durationTerms}</span>}
           </span>
-          <span className="shrink-0 text-sm font-semibold text-slate-950">{choice.price === 0 ? words.free : formatPrice(choice.price)}</span>
+          <span className="fm-co-choice-price">{choice.price === 0 ? words.free : formatPrice(choice.price)}</span>
         </label>)}
-      </div> : <p className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">{method !== 'shipping' ? words.addressPrompt || words.unavailable : words.unavailable}</p>}
-    {!optionId && <p role="status" className="text-sm font-medium text-amber-700">{words.review}</p>}
+      </div> : <p className="fm-co-empty">{method !== 'shipping' ? words.addressPrompt || words.unavailable : words.unavailable}</p>}
+    {!optionId && <p role="status" className="fm-co-note" style={{ color: 'var(--warning, #b45309)' }}>{words.review}</p>}
   </div>;
 }

@@ -70,6 +70,12 @@ import { inEditorPreview } from "./lib/trackingGuard";
 import { componentsSummary } from "./features/site/orderLineNotes";
 import { FulfillmentMethodPicker, bestFirst, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
 import { smallPhotoUrl } from "./features/site/photoSources";
+import { googleFontHref } from "./features/site/fonts";
+import { checkoutLabelsAbove, checkoutMarker, checkoutPayBarOn, checkoutPayTabs, checkoutSlipCss, checkoutSlipFontNames, splitBrand } from "./features/site/checkoutSlipStyle";
+
+// Studio › Style › Checkout page › Field labels: above the boxes (order slip) or inside them.
+const LabelsAbove = React.createContext(false);
+const Chevron = () => <svg className="fm-co-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 6l4 4 4-4" /></svg>;
 
 // ─── State / province drop-down for countries with a fixed list ──────────────
 function RegionField({ value, onChange, label, choose, regions, id, error }: { value: string; onChange: (v: string) => void; label: string; choose: string; regions: [string, string][]; id?: string; error?: string }) {
@@ -78,6 +84,26 @@ function RegionField({ value, onChange, label, choose, regions, id, error }: { v
   // A saved value that isn't on the list (typo, other country) would show "Choose…" yet still
   // be sent and taxed as typed. Clear it so the shopper picks a real one.
   useEffect(() => { if (value.trim() && !match) onChange(""); }, [value, !!match]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stacked = React.useContext(LabelsAbove);
+  const ownId = useId();
+  if (stacked) {
+    const selectId = id || ownId;
+    return (
+      <div className="fm-co-field">
+        <label htmlFor={selectId} className="fm-co-label fm-co-mono">{label}</label>
+        <div className="fm-co-select">
+          <select id={selectId} value={match ? match[0] : ""} onChange={(e) => onChange(e.target.value)}
+            aria-required="true" aria-invalid={error ? true : undefined} aria-describedby={error && id ? `${id}-error` : undefined}
+            autoComplete="address-level1" required className="fm-co-input">
+            <option value="">{choose}</option>
+            {regions.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+          </select>
+          <Chevron />
+        </div>
+        <FieldError id={id} error={error} />
+      </div>
+    );
+  }
   return (
     <div className="relative">
       <select
@@ -126,6 +152,32 @@ function Field({
 }) {
   const [focused, setFocused] = useState(false);
   const filled = value.length > 0;
+  const stacked = React.useContext(LabelsAbove);
+  const ownId = useId();
+  if (stacked) {
+    const inputId = id || ownId;
+    return (
+      <div className="fm-co-field">
+        <label htmlFor={inputId} className="fm-co-label fm-co-mono">{label}</label>
+        <input
+          {...inputProps}
+          id={inputId}
+          type={type}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          inputMode={inputMode}
+          required={required}
+          aria-required={required ? true : undefined}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error && id ? `${id}-error` : undefined}
+          className="fm-co-input"
+        />
+        <FieldError id={id} error={error} />
+      </div>
+    );
+  }
   return (
     <div className="relative">
       <input
@@ -159,10 +211,10 @@ function Field({
 }
 
 // ─── Street address with suggestions while typing ────────────────────────────
-function AddressField({ label, value, country, state, onChange, onPick, listLabel, attribution, googleAttribution, id, error }: {
+function AddressField({ label, value, country, state, onChange, onPick, listLabel, attribution, googleAttribution, enterHint, id, error }: {
   label: string; value: string; country: string; state: string;
   onChange: (v: string) => void; onPick: (s: AddressSuggestion) => void;
-  listLabel: string; attribution: string; googleAttribution: string; id?: string; error?: string;
+  listLabel: string; attribution: string; googleAttribution: string; enterHint?: string; id?: string; error?: string;
 }) {
   const listId = useId();
   const [items, setItems] = useState<AddressSuggestion[]>([]);
@@ -194,6 +246,7 @@ function AddressField({ label, value, country, state, onChange, onPick, listLabe
   };
 
   const credit = items.some(s => s.source === "google") ? googleAttribution : attribution;
+  const stacked = React.useContext(LabelsAbove);
 
   return (
     <div className="relative"
@@ -219,6 +272,7 @@ function AddressField({ label, value, country, state, onChange, onPick, listLabe
                 {s.secondary
                   ? <><span className="block font-medium">{s.main}</span><span className="block text-xs text-slate-500">{s.secondary}</span></>
                   : s.label}
+                {stacked && i === active && enterHint && <span className="fm-co-mono float-right" style={{ color: "var(--accent)" }} aria-hidden="true">{enterHint}</span>}
               </button>
             </li>
           ))}
@@ -229,12 +283,13 @@ function AddressField({ label, value, country, state, onChange, onPick, listLabe
   );
 }
 
-// ─── Step badge ───────────────────────────────────────────────────────────────
-function StepBadge({ n, label }: { n: string; label: string }) {
+// ─── Section heading: a small marker (A, B… or 01, 02…), the name, an optional tag ──
+function SectionHead({ marker, title, tag }: { marker: string | null; title: string; tag?: string }) {
   return (
-    <div className="mb-5 flex items-center justify-between gap-4">
-      <h2 className="text-xl font-semibold tracking-tight text-slate-900">{label}</h2>
-      <span className="text-xs font-medium text-slate-400">{n}</span>
+    <div className="fm-co-section-head">
+      {marker && <span className="fm-co-marker fm-co-mono" aria-hidden="true">{marker}</span>}
+      <h2 className="fm-co-h2">{title}</h2>
+      {tag && <span className="fm-co-tag fm-co-mono">{tag}</span>}
     </div>
   );
 }
@@ -300,6 +355,14 @@ export function Checkout() {
   const [discountOpen, setDiscountOpen]       = useState(false);
   // Order summary on phones starts collapsed unless Studio says otherwise.
   const [summaryOpen, setSummaryOpen]         = useState(false);
+  // A payment problem can appear while the shopper is at the phone Pay bar: bring the message into view.
+  const noticeRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = noticeRef.current;
+    if (notice?.tone !== "error" || !el || typeof window === "undefined") return;
+    const box = el.getBoundingClientRect();
+    if (box.top < 0 || box.bottom > window.innerHeight - 160) el.scrollIntoView({ block: "center" });
+  }, [notice]);
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
   const [discountError, setDiscountError]     = useState("");
   // Automatic offers (Discounts › Automatic) — the server applies the same choice when no code is used.
@@ -1999,115 +2062,231 @@ export function Checkout() {
   // Physical books with no delivery option chosen yet: the total isn't final, so don't present one.
   const needsDeliveryChoice = physicalItems.length > 0 && !(fulfillmentSelection.method === "shipping" ? selectedShippingQuote : selectedLocalQuote);
   const showTotalOnPay = !checkoutDesign.hidePayButtonTotal && cart.length > 0 && !needsDeliveryChoice;
-  const paymentLabel = selectedPaymentMethod === "stripe"
-    ? (showTotalOnPay ? c("coPayWithTotal", { total: formatPrice(finalTotal) }) : c("coPay"))
-    : selectedPaymentMethod === "paypal"
-      ? c("coPayPal")
-      : c("coPlaceOrder");
+  // Pay button: the words on the left, the total on the right (order slip). Read aloud as one phrase.
+  const payLabel = selectedPaymentMethod === "stripe" ? c("coPay") : selectedPaymentMethod === "paypal" ? c("coPayPal") : c("coPlaceOrder");
+  const payTotal = showTotalOnPay ? formatPrice(finalTotal) : "";
+  const paymentLabel = payTotal ? `${payLabel} ${payTotal}` : payLabel;
+  // The phone bar's words with the live total kept out of page translation (a translated number stops updating).
+  const TOTAL_SLOT = "\u0000";
+  const barWords = selectedPaymentMethod === "stripe" && payTotal ? c("coPayWithTotal", { total: TOTAL_SLOT }) : (payTotal ? `${payLabel} ${TOTAL_SLOT}` : payLabel);
+  const barParts = barWords.split(TOTAL_SLOT);
+  const barLabel = barParts.length > 1
+    ? <>{barParts[0]}<span translate="no">{payTotal}</span>{barParts.slice(1).join(payTotal)}</>
+    : barWords;
+  // Also waits while carrier rates load (the picker shows the loading words), instead of "choose an option".
+  const payDisabled = isCompleting || catalogState !== "ready" || (shippoRatesLoading && !digitalOnly && physicalItems.length > 0 && fulfillmentSelection.method === "shipping") || (finalTotal > 0 && selectedPaymentMethod === "stripe" && !stripeRoute.canPay) || (finalTotal > 0 && !hasStripe && !hasPaypal && enabledManualMethods.length === 0);
+  const labelsAbove = checkoutLabelsAbove(checkoutDesign);
+  const payTabs = checkoutPayTabs(checkoutDesign);
+  const payBar = checkoutPayBarOn(checkoutDesign);
+  const slipNumbers = checkoutDesign.checkoutSlipNumbers ?? true;
+  const [brandLead, brandLast] = splitBrand(c("coBrand"));
+  const showShipTo = fulfillmentSelection.method !== "pickup" || pickupNeedsAddress;
+  const sectionOrder = ["contact", ...(showShipTo ? ["shipTo"] : []), ...(digitalOnly ? [] : ["delivery"]), "pay"];
+  const mark = (key: string) => checkoutMarker(checkoutDesign, sectionOrder.indexOf(key));
+  const itemCount = c(cartCount === 1 ? "coItemCountOne" : "coItemCountMany", { count: cartCount });
+  const slipDate = new Date().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  const discountBoxOn = checkoutDesign.showCheckoutDiscountBox !== false || Boolean(appliedDiscount) || Boolean(discountCode);
+  const giftCardBoxOn = checkoutDesign.showCheckoutGiftCardBox !== false;
+  const policyLinks = checkoutPolicies.map((k, i) => (
+    <span key={k}>
+      {i > 0 && (i === checkoutPolicies.length - 1 ? ` ${c("coPolicyAnd")} ` : ", ")}
+      <Link to={`/page/${policySlug(k)}`} target="_blank" rel="noopener" className="underline underline-offset-2">{policyTitle(checkoutDesign, k)}</Link>
+    </span>
+  ));
+
+  // The discount and gift card boxes: in the slip on computers, in the Pay section on phones and tablets.
+  const codeBoxes = (
+    <>
+      {/* Hidden in Studio, the box still appears for a code already in play (a shared discount link or an applied code), so the shopper can always see and remove it. */}
+      {discountBoxOn && (
+        <div {...regionProps("checkoutDiscount")}>
+          {!(checkoutDesign.alwaysShowDiscountBox || discountOpen || appliedDiscount || discountCode) ? (
+            <button type="button" onClick={() => setDiscountOpen(true)} data-studio-target="copy:Checkout" data-studio-label="Discount code link" className="fm-co-link fm-co-mono">
+              <Tag size={14} aria-hidden="true" /> {c("coHaveCode")}
+            </button>
+          ) : (
+            <div className="fm-co-code-row">
+              <input
+                type="text"
+                value={discountCode}
+                onChange={e => setDiscountCode(e.target.value.toUpperCase())}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyDiscount(); } }}
+                placeholder={c("coDiscount")}
+                aria-label={c("coDiscount")}
+                disabled={Boolean(appliedDiscount)}
+                // Locked while a code is being checked, so a late answer can't apply to a different code.
+                readOnly={isApplying}
+                aria-busy={isApplying}
+                autoComplete="off"
+                className="fm-co-input"
+              />
+              {appliedDiscount ? (
+                <button type="button" onClick={removeDiscount} className="fm-co-btn-outline" aria-label={c("coDiscountRemove")}><X size={16} /></button>
+              ) : (
+                <button type="button" onClick={applyDiscount} disabled={isApplying || !discountCode} className="fm-co-btn-outline fm-co-mono">
+                  {isApplying ? <Loader2 size={16} className="animate-spin" /> : c("coApply")}
+                </button>
+              )}
+            </div>
+          )}
+          {discountError && <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} />{discountError}</p>}
+          {appliedDiscount && <p className="mt-2 flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--success)" }}><CheckCircle2 size={13} />{c("coDiscountApplied", { code: appliedDiscount.code })}</p>}
+        </div>
+      )}
+      {autoBeatsCode && checkoutDesign.showCheckoutAutoDiscountHint !== false && (
+        <div role="note" className="fm-co-box text-xs" data-studio-target="style:checkout|copy:Checkout" data-studio-label="Automatic offer hint">
+          <p>{c("coAutoBetter", { title: autoPick?.discount?.title || "" })}</p>
+          <button type="button" onClick={removeDiscount} className="mt-1.5 font-semibold underline underline-offset-4">{c("coAutoBetterRemove", { title: autoPick?.discount?.title || "" })}</button>
+        </div>
+      )}
+      {giftCardBoxOn && (
+        <div {...regionProps("checkoutGiftCard")}>
+          {!(giftCardOpen || giftCards.length || giftCardInput) ? (
+            <button type="button" onClick={() => setGiftCardOpen(true)} className="fm-co-link fm-co-mono">
+              <CreditCard size={14} aria-hidden="true" /> {c("coGiftCardOpen")}
+            </button>
+          ) : (
+            <>
+              <div className="fm-co-code-row">
+                <input
+                  type="text"
+                  value={giftCardInput}
+                  onChange={e => setGiftCardInput(e.target.value.toUpperCase())}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyGiftCard(); } }}
+                  readOnly={giftCardApplying}
+                  aria-busy={giftCardApplying}
+                  placeholder={c("coGiftCardLabel")}
+                  aria-label={c("coGiftCardLabel")}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="fm-co-input"
+                />
+                <button type="button" onClick={applyGiftCard} disabled={giftCardApplying || !giftCardInput.trim()} className="fm-co-btn-outline fm-co-mono">
+                  {giftCardApplying ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /><span className="sr-only">{c("coGiftCardApplying")}</span></> : c("coGiftCardApply")}
+                </button>
+              </div>
+              {giftCardError && <p role="alert" className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} />{giftCardError}</p>}
+              {giftCards.map(card => (
+                <p key={card.code} className="mt-2 flex items-center justify-between gap-2 text-xs font-medium" style={{ color: "var(--success)" }}>
+                  <span className="flex items-center gap-1.5"><CheckCircle2 size={13} />{c("coGiftCardApplied", { last4: card.last4, balance: formatPrice(card.balanceMinor / 100) })}</span>
+                  <button type="button" onClick={() => setGiftCards(current => current.filter(other => other.code !== card.code))} aria-label={c("coGiftCardRemoveAria", { last4: card.last4 })} className="underline underline-offset-4">{c("coGiftCardRemove")}</button>
+                </p>
+              ))}
+              {giftCards.length > 0 && selectedPaymentMethod.startsWith("manual_") && finalTotal > 0 && (
+                <p role="note" className="mt-2 text-xs">{c("coGiftCardManual")}</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </>
+  );
+  const hasCodeBoxes = discountBoxOn || giftCardBoxOn;
 
   return (
-    <div data-fm-store data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout" data-fm-checkout className="min-h-screen bg-white font-sans text-slate-900 selection:bg-sky-100">
+    <div data-fm-store data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout" data-fm-checkout data-paybar={payBar ? "on" : "off"} className="fm-co min-h-screen bg-white font-sans text-slate-900 selection:bg-sky-100">
       <StorefrontThemeStyle design={checkoutDesign} />
+      {checkoutSlipFontNames(checkoutDesign).map(name => <link key={name} rel="stylesheet" href={googleFontHref(name)} />)}
+      <style>{checkoutSlipCss(checkoutDesign)}</style>
       {settings?.payments?.testMode && (
         <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-sm font-medium text-amber-900">
           {c("coTestMode")}
         </div>
       )}
 
-      <header {...regionProps("checkoutHeader")} className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
-          <Link to="/" className="group -my-3 flex min-h-11 items-center gap-2 text-sm font-medium text-slate-600 md:my-0 md:min-h-0 transition hover:text-slate-900">
-            <ChevronLeft size={17} className="transition-transform group-hover:-translate-x-0.5" />
-            {c("coReturn")}
-          </Link>
-          <Link to="/" className="text-center text-lg font-semibold tracking-tight text-slate-950 sm:text-xl">
-            {c("coBrand")}
-          </Link>
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <Lock size={15} aria-hidden="true" />
-            <span className="hidden sm:inline">{c("coSecure")}</span>
-          </div>
+      <header {...regionProps("checkoutHeader")} className="fm-co-header">
+        <Link to="/cart" className="fm-co-back fm-co-mono">
+          <ChevronLeft size={16} aria-hidden="true" />
+          <span className="fm-co-back-text">{c("coReturn")}</span>
+        </Link>
+        <Link to="/" className="fm-co-brand">
+          {(checkoutDesign.checkoutBrandAccent ?? true) && brandLead ? <>{brandLead} <span className="fm-co-brand-accent">{brandLast}</span></> : c("coBrand")}
+        </Link>
+        <div className="fm-co-secure fm-co-mono">
+          <Lock size={14} aria-hidden="true" />
+          <span className="fm-co-secure-text">{c("coSecure")}</span>
         </div>
       </header>
 
       <TemplateSections design={checkoutDesign} templateId="cartPage" />
 
-      <div className="mx-auto grid min-h-[calc(100vh-77px)] max-w-6xl grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
-        <main {...regionProps("checkoutForm")} className="px-5 py-8 sm:px-8 sm:py-12 lg:border-r lg:border-slate-200 lg:pr-14">
+      <div className="fm-co-grid">
+        <main {...regionProps("checkoutForm")} className="min-w-0">
+          <LabelsAbove.Provider value={labelsAbove}>
           <form noValidate onSubmit={e => { e.preventDefault(); void handleCompletePurchase(); }}
             // Enter in a text box must not start a payment (implicit submission); only the Pay button does.
             onKeyDown={e => {
               const el = e.target as HTMLElement;
               if (e.key === "Enter" && el.tagName === "INPUT" && !["submit", "button", "checkbox", "radio", "image", "reset"].includes((el as HTMLInputElement).type)) e.preventDefault();
             }}
-            className="mx-auto max-w-2xl space-y-10">
-            <div {...regionProps("checkoutProgress")} className="flex items-center gap-2 text-sm text-slate-500" aria-label={c("coProgressAria")}>
-              <span className="font-medium text-[color:var(--accent)]">{c("coStepInfo")}</span>
-              <span aria-hidden="true">›</span>
-              <span>{c("coStepShipping")}</span>
-              <span aria-hidden="true">›</span>
-              <span>{c("coStepPayment")}</span>
-            </div>
+            id="fm-checkout-form" className="fm-co-form">
+            {(checkoutDesign.checkoutShowPageTitle ?? true) && <h1 {...regionProps("checkoutPageTitle")} className="fm-co-title">{c("coPageTitle")}</h1>}
+            {checkoutDesign.showCheckoutProgress && (
+              <div {...regionProps("checkoutProgress")} className="fm-co-mono fm-co-muted flex items-center gap-2" aria-label={c("coProgressAria")}>
+                <span style={{ color: "var(--accent)" }}>{c("coStepInfo")}</span>
+                <span aria-hidden="true">›</span>
+                <span>{c("coStepShipping")}</span>
+                <span aria-hidden="true">›</span>
+                <span>{c("coStepPayment")}</span>
+              </div>
+            )}
 
-            <section>
-              <StepBadge n={c("coStepOf", { n: 1 })} label={c("coContact")} />
+            <section className="fm-co-section">
+              <SectionHead marker={mark("contact")} title={c("coContact")} />
               {currentUser ? (
-                <div className="mb-4 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                <div className="fm-co-box flex items-center justify-between gap-4">
                   <div>
-                    <p className="font-medium text-slate-900">{c("coSignedIn")}</p>
-                    <p className="text-slate-500">{currentUser.email}</p>
+                    <p className="fm-co-mono">{c("coSignedIn")}</p>
+                    <p className="fm-co-note">{currentUser.email}</p>
                   </div>
                   <CheckCircle2 size={20} style={{ color: "var(--success)" }} />
                 </div>
               ) : accountsEnabled(checkoutDesign) && (
-                <button
-                  type="button"
-                  onClick={handleGoogleLogin}
-                  className="mb-4 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
+                <button type="button" onClick={handleGoogleLogin} className="fm-co-btn-outline fm-co-mono w-full">
                   {c("coGoogle")}
                 </button>
               )}
-              <Field label={c("coEmail")} type="email" value={customer.email} onChange={v => setCustomer({ ...customer, email: v })} autoComplete="email" inputMode="email" required id={detailInputId("email")} error={fieldErrors.email} />
-              <p className="mt-2 text-xs leading-5 text-slate-500">{c("coEmailNote")}</p>
-              <div className="mt-3 space-y-3">
+              <div className="flex flex-col gap-2">
+                <Field label={c("coEmail")} type="email" value={customer.email} onChange={v => setCustomer({ ...customer, email: v })} autoComplete="email" inputMode="email" required id={detailInputId("email")} error={fieldErrors.email} />
+                {c("coEmailNote") && <p className="fm-co-note">{c("coEmailNote")}</p>}
+              </div>
+              <div className="fm-co-row fm-co-row-phone-stack">
                 <Field label={c("coName")} value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required id={detailInputId("name")} error={fieldErrors.name} />
                 <Field label={c("coPhone")} type="tel" value={customer.phone} onChange={v => setCustomer({ ...customer, phone: v })} autoComplete="tel" inputMode="tel" />
               </div>
             </section>
 
-            <section>
-              <StepBadge n={c("coStepOf", { n: 2 })} label={c("coDelivery")} />
-              <div className="space-y-3">
-                {(fulfillmentSelection.method !== "pickup" || pickupNeedsAddress) && <>
-                <CountryField label={c("coCountry")} id={detailInputId("country")} error={fieldErrors.country}
-                  pinnedCodes={pinnedCountryCodes} showFlags={!checkoutDesign.hideCountryFlags}
-                  words={{ search: c("coCountrySearch"), popular: c("coCountryPopular"), all: c("coCountryAll"), none: (q: string) => c("coCountryNone", { query: q }) }}
-                  value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v, state: v === customer.address.country ? customer.address.state : "" } })} />
-                {!digitalOnly && (checkoutDesign.hideAddressSuggestions
-                  ? <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="address-line1" required id={detailInputId("street")} error={fieldErrors.street} />
-                  : <AddressField label={c("coAddress")} value={customer.address.street} country={customer.address.country} state={customer.address.state} id={detailInputId("street")} error={fieldErrors.street}
-                      listLabel={c("coAddressSuggestions")} attribution={c("coAddressAttribution")} googleAttribution={c("coAddressAttributionGoogle")}
-                      onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: v } }))}
-                      onPick={sug => setCustomer(prev => ({ ...prev, address: { ...prev.address, ...applySuggestion(prev.address, sug, { unitField: !checkoutDesign.hideCheckoutAddressUnit }) } }))} />)}
-                {!digitalOnly && !checkoutDesign.hideCheckoutAddressUnit && <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Apartment or unit"><Field label={c("coAddressUnit")} value={customer.address.unit} onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, unit: v } }))} autoComplete="address-line2" /></div>}
-                <div className={`grid grid-cols-1 gap-3 ${digitalOnly ? "" : "sm:grid-cols-3"}`}>
-                  {!digitalOnly && <Field label={c("coCity")} value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required id={detailInputId("city")} error={fieldErrors.city} />}
-                  {regionsFor(customer.address.country)
-                    ? <RegionField id={detailInputId("state")} error={fieldErrors.state} label={c("coState")} choose={c("coStateChoose")} regions={regionsFor(customer.address.country)!} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} />
-                    : <Field label={c("coState")} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" id={detailInputId("state")} error={fieldErrors.state} />}
-                  {!digitalOnly && <Field label={c("coZip")} value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" required={!postalCodeOptional(customer.address.country)} id={detailInputId("zip")} error={fieldErrors.zip} />}
+            {showShipTo && (
+            <section className="fm-co-section">
+              <SectionHead marker={mark("shipTo")} title={c(digitalOnly ? "coYourLocation" : "coShipTo")} />
+              <CountryField label={c("coCountry")} id={detailInputId("country")} error={fieldErrors.country} stacked={labelsAbove}
+                pinnedCodes={pinnedCountryCodes} showFlags={!checkoutDesign.hideCountryFlags}
+                words={{ search: c("coCountrySearch"), popular: c("coCountryPopular"), all: c("coCountryAll"), none: (q: string) => c("coCountryNone", { query: q }) }}
+                value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v, state: v === customer.address.country ? customer.address.state : "" } })} />
+              {!digitalOnly && (checkoutDesign.hideAddressSuggestions
+                ? <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="address-line1" required id={detailInputId("street")} error={fieldErrors.street} />
+                : <AddressField label={c("coAddress")} value={customer.address.street} country={customer.address.country} state={customer.address.state} id={detailInputId("street")} error={fieldErrors.street}
+                    listLabel={c("coAddressSuggestions")} attribution={c("coAddressAttribution")} googleAttribution={c("coAddressAttributionGoogle")} enterHint={c("coAddressEnter")}
+                    onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: v } }))}
+                    onPick={sug => setCustomer(prev => ({ ...prev, address: { ...prev.address, ...applySuggestion(prev.address, sug, { unitField: !checkoutDesign.hideCheckoutAddressUnit }) } }))} />)}
+              {!digitalOnly && (
+                <div className={checkoutDesign.hideCheckoutAddressUnit ? "" : "fm-co-row fm-co-row-phone-stack"}>
+                  {!checkoutDesign.hideCheckoutAddressUnit && <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Apartment or unit"><Field label={c("coAddressUnit")} value={customer.address.unit} onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, unit: v } }))} autoComplete="address-line2" /></div>}
+                  <Field label={c("coCity")} value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required id={detailInputId("city")} error={fieldErrors.city} />
                 </div>
-                </>}
+              )}
+              <div className={digitalOnly ? "" : "fm-co-row"}>
+                {regionsFor(customer.address.country)
+                  ? <RegionField id={detailInputId("state")} error={fieldErrors.state} label={c("coState")} choose={c("coStateChoose")} regions={regionsFor(customer.address.country)!} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} />
+                  : <Field label={c("coState")} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" id={detailInputId("state")} error={fieldErrors.state} />}
+                {!digitalOnly && <Field label={c("coZip")} value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" required={!postalCodeOptional(customer.address.country)} id={detailInputId("zip")} error={fieldErrors.zip} />}
               </div>
             </section>
+            )}
 
             {!digitalOnly && (
-            <section>
-              <div className="mb-5">
-                <h2 className="text-xl font-semibold tracking-tight text-slate-900">{c("coShipMethod")}</h2>
-                <p className="mt-1 text-sm text-slate-500">{c("coShipMethodNote")}</p>
-              </div>
+            <section className="fm-co-section">
+              <SectionHead marker={mark("delivery")} title={c("coDelivery")} tag={c("coDeliveryTag")} />
               {physicalItems.length > 0 && <FulfillmentMethodPicker
                 method={fulfillmentSelection.method}
                 optionId={fulfillmentSelection.optionId}
@@ -2135,43 +2314,45 @@ export function Checkout() {
                 }}
                 formatPrice={formatPrice}
               />}
-              {fulfillmentSelection.method === "pickup" && !pickupNeedsAddress && <section {...regionProps("checkoutFulfillment")} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-                <div><h3 className="text-sm font-semibold text-slate-900">{c("coBillingTitle")}</h3><p className="mt-1 text-xs leading-5 text-slate-600">{c("coBillingNote")}</p></div>
-                <CountryField label={c("coBillCountry")}
+              {c("coShipMethodNote") && <p className="fm-co-note">{c("coShipMethodNote")}</p>}
+              {fulfillmentSelection.method === "pickup" && !pickupNeedsAddress && <section {...regionProps("checkoutFulfillment")} className="fm-co-box flex flex-col gap-4">
+                <div><h3 className="fm-co-mono">{c("coBillingTitle")}</h3><p className="fm-co-note mt-1">{c("coBillingNote")}</p></div>
+                <CountryField label={c("coBillCountry")} stacked={labelsAbove}
                   pinnedCodes={pinnedCountryCodes} showFlags={!checkoutDesign.hideCountryFlags}
                   words={{ search: c("coCountrySearch"), popular: c("coCountryPopular"), all: c("coCountryAll"), none: (q: string) => c("coCountryNone", { query: q }) }}
                   value={customer.billingAddress.country} onChange={v => setCustomer(prev => ({ ...prev, billingAddress: { country: v, state: v === prev.billingAddress.country ? prev.billingAddress.state : "" } }))} />
                 {regionsFor(customer.billingAddress.country)
                   ? <RegionField label={c("coBillState")} choose={c("coBillStateChoose")} regions={regionsFor(customer.billingAddress.country)!} value={customer.billingAddress.state} onChange={v => setCustomer(prev => ({ ...prev, billingAddress: { ...prev.billingAddress, state: v } }))} />
                   : <Field label={c("coBillState")} value={customer.billingAddress.state} onChange={v => setCustomer(prev => ({ ...prev, billingAddress: { ...prev.billingAddress, state: v } }))} autoComplete="billing address-level1" required />}
-                {selectedLocalQuote?.address && <p className="text-xs text-slate-600">{c("coFulfillmentTaxLocation")} {selectedLocalQuote.address.city}, {selectedLocalQuote.address.state}</p>}
+                {selectedLocalQuote?.address && <p className="fm-co-note">{c("coFulfillmentTaxLocation")} {selectedLocalQuote.address.city}, {selectedLocalQuote.address.state}</p>}
               </section>}
             </section>
             )}
 
             {orderNoteBoxOn(checkoutDesign) && (
-              <section data-studio-target="style:checkout|copy:Checkout" data-studio-label="Order note">
-                <label htmlFor="checkout-order-note" className="text-sm font-medium text-slate-900">{c("coOrderNote")}</label>
-                <p className="mt-1 text-xs leading-5 text-slate-500">{c("coOrderNoteHelp")}</p>
+              <section data-studio-target="style:checkout|copy:Checkout" data-studio-label="Order note" className="fm-co-field">
+                <label htmlFor="checkout-order-note" className="fm-co-label fm-co-mono">{c("coOrderNote")}</label>
+                {c("coOrderNoteHelp") && <p className="fm-co-note">{c("coOrderNoteHelp")}</p>}
                 <textarea
                   id="checkout-order-note"
                   value={orderNote}
                   onChange={e => setOrderNote(e.target.value.slice(0, 500))}
                   maxLength={500}
                   rows={3}
-                  className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)]"
+                  className="fm-co-input"
                 />
               </section>
             )}
 
-            <section>
-              <StepBadge n={c("coStepOf", { n: 3 })} label={c("coPayment")} />
-              <p className="-mt-3 mb-4 text-sm leading-6 text-slate-500">{c("coPaymentNote")}</p>
-              {!checkoutDesign.hideCheckoutPaymentTotal && <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Payment total" className="mb-4 flex items-center justify-between gap-3 border-b border-slate-200 pb-4" aria-live="polite"><span>{c("summaryTotal")}</span><strong>{needsDeliveryChoice ? c("coPaymentTotalPending") : formatPrice(finalTotal)}</strong></div>}
-              <div className="overflow-hidden rounded-lg border border-slate-300 bg-white">
+            <section className="fm-co-section">
+              <SectionHead marker={mark("pay")} title={c("coPayment")} />
+              {c("coPaymentNote") && <p className="fm-co-note">{c("coPaymentNote")}</p>}
+              {!checkoutDesign.hideCheckoutPaymentTotal && <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Payment total" className="fm-co-mono flex items-baseline justify-between gap-4" aria-live="polite"><span className="fm-co-muted">{c("summaryTotal")}</span><strong className="font-normal" translate="no">{needsDeliveryChoice ? c("coPaymentTotalPending") : formatPrice(finalTotal)}</strong></div>}
+              <div className="fm-co-pay" data-pay-tabs={payTabs ? "tabs" : "list"}>
                 {hasStripe && (
                   <StripePaymentSection
                     design={checkoutDesign}
+                    tabs={payTabs}
                     selected={selectedPaymentMethod === "stripe"}
                     configured={useCardForm}
                     canRetry={stripeRoute.canRetry}
@@ -2214,34 +2395,28 @@ export function Checkout() {
                   </StripePaymentSection>
                 )}
                 {hasPaypal && (
-                  <label className={`flex cursor-pointer items-center justify-between gap-4 border-t border-slate-200 px-4 py-4 ${!hasStripe ? "border-t-0" : ""}`} data-studio-target="copy:Checkout" data-studio-label="PayPal option">
-                    <div className="flex items-center gap-3">
-                      <input type="radio" name="payment-method" disabled={isCompleting} checked={selectedPaymentMethod === "paypal"} onChange={() => setSelectedPaymentMethod("paypal")} className="h-4 w-4 accent-[color:var(--accent)]" />
-                      <span className="text-sm font-medium">{c("coPaypalOption")}</span>
-                    </div>
+                  <label className="fm-co-pay-tab fm-co-mono" data-studio-target="copy:Checkout" data-studio-label="PayPal option">
+                    <input type="radio" name="payment-method" disabled={isCompleting} checked={selectedPaymentMethod === "paypal"} onChange={() => setSelectedPaymentMethod("paypal")} />
+                    <span>{c("coPaypalOption")}</span>
                   </label>
                 )}
-                {enabledManualMethods.map((method: any, index: number) => (
-                  <label key={method.id} className={`flex cursor-pointer items-center justify-between gap-4 border-t border-slate-200 px-4 py-4 ${!hasStripe && !hasPaypal && index === 0 ? "border-t-0" : ""}`}>
-                    <div className="flex items-center gap-3">
-                      <input type="radio" name="payment-method" disabled={isCompleting} checked={selectedPaymentMethod === `manual_${method.id}`} onChange={() => setSelectedPaymentMethod(`manual_${method.id}`)} className="h-4 w-4 accent-[color:var(--accent)]" />
-                      <span className="text-sm font-medium">{method.name}</span>
-                    </div>
-                    <Building size={18} className="text-slate-400" />
+                {enabledManualMethods.map((method: any) => (
+                  <label key={method.id} className="fm-co-pay-tab fm-co-mono">
+                    <input type="radio" name="payment-method" disabled={isCompleting} checked={selectedPaymentMethod === `manual_${method.id}`} onChange={() => setSelectedPaymentMethod(`manual_${method.id}`)} />
+                    <span>{method.name}</span>
                   </label>
                 ))}
                 {!hasStripe && !hasPaypal && enabledManualMethods.length === 0 && (
-                  <div className="flex items-start gap-3 px-4 py-5 text-sm text-slate-600">
+                  <div className="fm-co-empty fm-co-pay-body flex items-start gap-3">
                     <AlertCircle size={18} className="mt-0.5 shrink-0 text-amber-600" />
                     {c("coNoPayment")}
                   </div>
                 )}
               </div>
-            </section>
+              {hasCodeBoxes && <div className="fm-co-codes fm-co-pay-codes">{codeBoxes}</div>}
 
-            <div className="border-t border-slate-200 pt-6">
               {holdIssues.length > 0 && (
-                <div {...regionProps("checkoutHoldWarning")} role="status" className="mb-4 space-y-2 rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--warning, #b45309)", color: "var(--warning, #b45309)" }}>
+                <div {...regionProps("checkoutHoldWarning")} role="status" className="space-y-2 border px-4 py-3 text-sm" style={{ borderColor: "var(--warning, #b45309)", color: "var(--warning, #b45309)" }}>
                   {holdIssues.map(issue => (
                     <p key={issue.kind === "perBook" ? issue.id : "units"}><span aria-hidden="true">⚠ </span>{issue.kind === "perBook"
                       ? c("coHoldWarning", { count: issue.count, title: issue.title, limit: issue.limit })
@@ -2250,268 +2425,182 @@ export function Checkout() {
                 </div>
               )}
               {notice && (
-                <div role={notice.tone === "error" ? "alert" : "status"} className="mb-4 rounded-lg border px-4 py-3 text-sm"
+                <div ref={noticeRef} role={notice.tone === "error" ? "alert" : "status"} className="border px-4 py-3 text-sm"
                   style={{ borderColor: notice.tone === "error" ? "var(--danger, #b4271a)" : "var(--muted, #94a3b8)", color: notice.tone === "error" ? "var(--danger, #b4271a)" : "inherit", background: notice.tone === "error" ? "rgba(var(--danger-rgb, 232, 64, 42), .08)" : "transparent" }}>
                   <span aria-hidden="true">{notice.tone === "error" ? "✕ " : "ℹ "}</span>{notice.text}
                 </div>
               )}
               {catalogState === "failed" && !notice && (
-                <p role="alert" className="mb-4 text-sm" style={{ color: "var(--danger, #b4271a)" }}>{c("coCatalogFailed")}</p>
+                <p role="alert" className="text-sm" style={{ color: "var(--danger, #b4271a)" }}>{c("coCatalogFailed")}</p>
               )}
               {termsRequired && (
-                <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Policy tick box" className="mb-4 text-sm leading-6 text-slate-700">
+                <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Policy tick box" className="text-sm leading-6">
                   <label htmlFor="checkout-terms" className="flex items-start gap-2.5">
                     <input id="checkout-terms" type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
                       aria-invalid={termsError || undefined} aria-describedby={termsError ? "checkout-terms-error" : undefined}
                       className="mt-1 h-4 w-4 shrink-0 accent-[color:var(--accent)]" />
-                    <span>
-                      {c("coTermsAgree")}{" "}
-                      {checkoutPolicies.map((k, i) => (
-                        <span key={k}>
-                          {i > 0 && (i === checkoutPolicies.length - 1 ? ` ${c("coPolicyAnd")} ` : ", ")}
-                          <Link to={`/page/${policySlug(k)}`} target="_blank" rel="noopener" className="underline underline-offset-2 hover:text-slate-900">{policyTitle(checkoutDesign, k)}</Link>
-                        </span>
-                      ))}
-                    </span>
+                    <span>{c("coTermsAgree")}{" "}{policyLinks}</span>
                   </label>
                   {termsError && <p id="checkout-terms-error" className="mt-1 text-xs" style={{ color: "var(--danger, #b4271a)" }}>{c("coErrTerms")}</p>}
                 </div>
               )}
-              <button
-                type="submit"
-                // Also waits while carrier rates load (the picker shows the loading words), instead of "choose an option".
-                disabled={isCompleting || catalogState !== "ready" || (shippoRatesLoading && !digitalOnly && physicalItems.length > 0 && fulfillmentSelection.method === "shipping") || (finalTotal > 0 && selectedPaymentMethod === "stripe" && !stripeRoute.canPay) || (finalTotal > 0 && !hasStripe && !hasPaypal && enabledManualMethods.length === 0)}
-                className="flex w-full items-center justify-center gap-2 rounded-lg fm-accent-bg px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isCompleting ? <><Loader2 size={18} className="animate-spin" /> {c("coProcessing")}</> : <><Lock size={16} /> {paymentLabel}</>}
+              <button type="submit" disabled={payDisabled} aria-label={isCompleting ? undefined : paymentLabel}
+                className={`fm-co-paybtn fm-co-paybtn-main${isCompleting ? " fm-co-paybtn-busy" : ""}`}>
+                {isCompleting
+                  ? <><Loader2 size={20} className="animate-spin" aria-hidden="true" /> {c("coProcessing")}</>
+                  : <><span>{payLabel}</span>{payTotal && <span translate="no">{payTotal}</span>}</>}
               </button>
               {c("coGuarantee") && (
-                <p {...regionProps("checkoutPromise")} className="mt-3 text-center text-sm font-medium text-slate-700"  >{c("coGuarantee")}</p>
+                <p {...regionProps("checkoutPromise")} className="fm-co-note text-center">{c("coGuarantee")}</p>
               )}
-              <div className="mt-4 flex items-start justify-center gap-2 text-center text-xs leading-5 text-slate-500">
-                <ShieldCheck size={16} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
-                <p>{c("coPrivacyNote")}</p>
+              <div className="flex flex-col gap-2">
+                {c("coPrivacyNote") && <p className="fm-co-fine fm-co-mono" data-studio-target="copy:Checkout" data-studio-label="Payment privacy note">{c("coPrivacyNote")}</p>}
+                {!termsRequired && !checkoutDesign.hideCheckoutPolicyLinks && checkoutPolicies.length > 0 && (
+                  // Card networks and PayPal expect the refund/terms policies to be visible where shoppers pay.
+                  <p data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout policy links" className="fm-co-fine fm-co-mono">
+                    {c("coPolicyAgree")}{" "}{policyLinks}
+                  </p>
+                )}
               </div>
-              {!termsRequired && !checkoutDesign.hideCheckoutPolicyLinks && checkoutPolicies.length > 0 && (
-                // Card networks and PayPal expect the refund/terms policies to be visible where shoppers pay.
-                <p data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout policy links" className="mt-3 text-center text-xs leading-5 text-slate-500">
-                  {c("coPolicyAgree")}{" "}
-                  {checkoutPolicies.map((k, i) => (
-                    <span key={k}>
-                      {i > 0 && (i === checkoutPolicies.length - 1 ? ` ${c("coPolicyAnd")} ` : ", ")}
-                      <Link to={`/page/${policySlug(k)}`} target="_blank" rel="noopener" className="underline underline-offset-2 hover:text-slate-900">{policyTitle(checkoutDesign, k)}</Link>
-                    </span>
-                  ))}
-                </p>
-              )}
-            </div>
+            </section>
 
-            <footer className="flex flex-wrap justify-center gap-x-5 gap-y-2 border-t border-slate-200 pt-6 text-xs text-slate-500">
-              <span>{c("coTrust1")}</span>
-              <span>{c("coTrust2")}</span>
-              <span>{c("coTrust3")}</span>
-            </footer>
+            {checkoutDesign.showCheckoutTrustRow && (
+              <footer data-studio-target="copy:Checkout|style:checkout" data-studio-label="Trust badges" className="fm-co-mono fm-co-muted flex flex-wrap justify-center gap-x-6 gap-y-2 border-t pt-6" style={{ borderColor: "var(--co-rule)" }}>
+                <span>{c("coTrust1")}</span>
+                <span>{c("coTrust2")}</span>
+                <span>{c("coTrust3")}</span>
+              </footer>
+            )}
           </form>
+          </LabelsAbove.Provider>
         </main>
 
-        <aside {...regionProps("checkoutSummary")} className="order-first border-b border-slate-200 bg-slate-50 px-5 py-7 sm:px-8 lg:order-none lg:border-b-0 lg:px-10 lg:py-12">
-          {/* Phones: a one-line bar (summary + total) so the form comes first; tap to open. */}
-          <button type="button" onClick={() => setSummaryOpen(o => !o)} aria-expanded={summaryOpen}
-            data-studio-target="style:checkout|copy:Checkout" data-studio-label="Phone order summary bar"
-            className="mx-auto -my-2 flex w-full max-w-2xl items-center justify-between gap-3 py-2 text-sm font-medium text-slate-900 lg:hidden">
-            <span className="flex items-center gap-2">{c(summaryOpen ? "coHideSummary" : "coShowSummary")} <span aria-hidden="true">{summaryOpen ? "▴" : "▾"}</span></span>
-            <span className="text-base font-semibold" translate="no">{formatPrice(finalTotal)}</span>
+        <aside {...regionProps("checkoutSummary")} className="fm-co-aside min-w-0" data-open={summaryOpen ? "true" : "false"}>
+          {/* Phones and tablets: a bar (covers, count, total) so the form comes first; tap to open the slip. */}
+          <button type="button" onClick={() => setSummaryOpen(o => !o)} aria-expanded={summaryOpen} aria-controls="fm-co-slip"
+            data-studio-target="style:checkout|copy:Checkout" data-studio-label="Phone order summary bar" className="fm-co-slipbar">
+            <span className="fm-co-covers" aria-hidden="true">
+              {cart.slice(0, 3).map(item => <img key={item.lineKey || `${item.id}-${item.variantId || "default"}`} src={item.photoUrl} alt="" loading="lazy" decoding="async" />)}
+            </span>
+            <span className="fm-co-slipbar-text">
+              <span className="fm-co-slipbar-title">{c("coSummary")}</span>
+              <span className="fm-co-mono fm-co-muted">{itemCount} · {c(summaryOpen ? "coHideSummary" : "coShowSummary")}</span>
+            </span>
+            <span className="fm-co-slipbar-total" translate="no">{formatPrice(finalTotal)}</span>
           </button>
-          <div className={`mx-auto max-w-2xl lg:sticky lg:top-8 lg:block ${summaryOpen ? "mt-6 block" : "hidden"}`}>
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">{c("coSummary")}</h2>
-              {/* ⚡ Bolt: Replace O(N) array iterations in render with O(1) memoized value */}
-              <span className="text-sm text-slate-500">{c(cartCount === 1 ? "coItemCountOne" : "coItemCountMany", { count: cartCount })}</span>
+
+          <div id="fm-co-slip" className="fm-co-slip">
+            <div {...regionProps("checkoutSlipHead")} className="fm-co-slip-head">
+              <h2 className="fm-co-slip-title">{c("coSummary")}</h2>
+              <p className="fm-co-slip-meta fm-co-mono" style={{ margin: 0 }}>
+                {itemCount}{(checkoutDesign.checkoutSlipShowDate ?? true) && <><br />{slipDate}</>}
+              </p>
             </div>
 
-            <div className="space-y-5">
-              {cart.map(item => (
-                <div key={item.lineKey || `${item.id}-${item.variantId || "default"}`} className="flex items-center gap-4">
-                  <div className="relative h-16 w-14 shrink-0 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
-                    <img loading="lazy" decoding="async" src={item.photoUrl} alt="" className="h-full w-full rounded object-cover" />
-                    <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-600 px-1 text-xs font-semibold text-white">{item.quantity}</span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-900">{item.title}</p>
-                    {item.variantName && <p className="mt-0.5 text-xs text-slate-500">{item.variantName}</p>}
+            <div className="fm-co-lines" data-numbers={slipNumbers ? "on" : "off"}>
+              {cart.map((item, index) => (
+                <div key={item.lineKey || `${item.id}-${item.variantId || "default"}`} className="fm-co-line">
+                  {slipNumbers && <span className="fm-co-line-num fm-co-mono" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>}
+                  <img loading="lazy" decoding="async" src={item.photoUrl} alt="" className="fm-co-thumb" />
+                  <div className="min-w-0">
+                    <p className="fm-co-line-title">{item.title}</p>
+                    {item.variantName && <p className="fm-co-line-meta">{item.variantName}</p>}
                     {(item.addOns || []).map(addOn => (
-                      <p key={addOn.id} className="mt-0.5 text-xs text-slate-500">{c("cartAddOnLine", { label: addOn.label })}{addOn.text ? ` ${c("cartAddOnText", { text: addOn.text })}` : ""}</p>
+                      <p key={addOn.id} className="fm-co-line-meta">{c("cartAddOnLine", { label: addOn.label })}{addOn.text ? ` ${c("cartAddOnText", { text: addOn.text })}` : ""}</p>
                     ))}
-                    {item.giftCardDetails?.recipientEmail && <p className="mt-0.5 text-xs text-slate-500">{c("coLineGiftCardFor", { recipient: item.giftCardDetails.recipientName || item.giftCardDetails.recipientEmail })}</p>}
+                    {item.giftCardDetails?.recipientEmail && <p className="fm-co-line-meta">{c("coLineGiftCardFor", { recipient: item.giftCardDetails.recipientName || item.giftCardDetails.recipientEmail })}</p>}
                     {(() => {
                       const parts = bundleComponents(booksMap.get(item.id)).map(part => ({ ...part, title: booksMap.get(part.id)?.title || "", variantName: part.variantId ? (booksMap.get(part.id)?.variants || []).find((v: any) => v.id === part.variantId)?.name : undefined }));
                       const items = componentsSummary(parts);
-                      return items ? <p className="mt-0.5 text-xs text-slate-500">{c("coLineIncludes", { items })}</p> : null;
+                      return items ? <p className="fm-co-line-meta">{c("coLineIncludes", { items })}</p> : null;
                     })()}
-                    {linePreorderNote(item, c) && <p className="mt-0.5 text-xs font-medium text-slate-700">{linePreorderNote(item, c)}</p>}
+                    {linePreorderNote(item, c) && <p className="fm-co-line-meta">{linePreorderNote(item, c)}</p>}
                     {!checkoutDesign.hideCheckoutLowStock && typeof item.stockLimit === "number" && item.stockLimit > 0 && item.stockLimit <= designNumber(checkoutDesign, "lowStockProductThreshold", 3) && (
-                      <p className="mt-0.5 text-xs font-medium" style={{ color: "var(--warning, #b45309)" }}>{c("coOnlyLeft", { count: item.stockLimit })}</p>
+                      <p className="fm-co-line-meta" style={{ color: "var(--warning, #b45309)" }}>{c("coOnlyLeft", { count: item.stockLimit })}</p>
                     )}
+                    <p className="fm-co-line-qty fm-co-mono">{c("coLineQty", { count: item.quantity })}</p>
                   </div>
-                  <span className="text-sm font-medium text-slate-900" translate="no">{formatPrice(item.price * item.quantity)}</span>
+                  <span className="fm-co-line-price" translate="no">{formatPrice(item.price * item.quantity)}</span>
                 </div>
               ))}
               {freeGift && (
-                <div className="flex items-center gap-4" data-studio-target="copy:Checkout" data-studio-label="Free gift line">
-                  <div className="relative h-16 w-14 shrink-0 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
-                    {freeGift.photoUrl && <img loading="lazy" decoding="async" src={freeGift.photoUrl} alt="" className="h-full w-full rounded object-cover" />}
+                <div className="fm-co-line" data-studio-target="copy:Checkout" data-studio-label="Free gift line">
+                  {slipNumbers && <span className="fm-co-line-num fm-co-mono" aria-hidden="true">{String(cart.length + 1).padStart(2, "0")}</span>}
+                  {freeGift.photoUrl ? <img loading="lazy" decoding="async" src={freeGift.photoUrl} alt="" className="fm-co-thumb" /> : <span className="fm-co-thumb" aria-hidden="true" />}
+                  <div className="min-w-0">
+                    <p className="fm-co-line-title">{c("coFreeGiftLine", { title: freeGift.title })}</p>
+                    {freeGift.variantName && <p className="fm-co-line-meta">{freeGift.variantName}</p>}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-900">{c("coFreeGiftLine", { title: freeGift.title })}</p>
-                    {freeGift.variantName && <p className="mt-0.5 text-xs text-slate-500">{freeGift.variantName}</p>}
-                  </div>
-                  <span className="text-sm font-medium" style={{ color: "var(--success)" }}>{c("coFreeGiftPrice")}</span>
+                  <span className="fm-co-line-price" style={{ color: "var(--success)" }}>{c("coFreeGiftPrice")}</span>
                 </div>
               )}
             </div>
 
             {preorderShip.count > 0 && (
-              <p {...regionProps("checkoutPreorder")} role="note" className="mt-5 border border-slate-200 bg-white px-4 py-3 text-xs leading-relaxed text-slate-700">
+              <p {...regionProps("checkoutPreorder")} role="note" className="fm-co-note" style={{ margin: 0, padding: "16px 24px 0" }}>
                 {preorderShip.shipDate ? c("coPreorderNotice", { date: formatReleaseDate(preorderShip.shipDate) }) : c("coPreorderNoticeTba")}
               </p>
             )}
 
-            <div className="my-7 border-t border-slate-200" />
+            {hasCodeBoxes && <div className="fm-co-codes fm-co-slip-codes-desktop">{codeBoxes}</div>}
 
-            {/* Hidden in Studio, the box still appears for a code already in play (a shared discount link or an applied code), so the shopper can always see and remove it. */}
-            {(checkoutDesign.showCheckoutDiscountBox !== false || appliedDiscount || discountCode) && (
-            <div {...regionProps("checkoutDiscount")}>
-            {!(checkoutDesign.alwaysShowDiscountBox || discountOpen || appliedDiscount || discountCode) ? (
-              <button type="button" onClick={() => setDiscountOpen(true)} data-studio-target="copy:Checkout" data-studio-label="Discount code link"
-                className="flex items-center gap-2 text-sm font-medium text-slate-600 underline-offset-4 hover:underline">
-                <Tag size={15} /> {c("coHaveCode")}
-              </button>
-            ) : (
-            <div className="flex gap-3">
-              <div className="relative flex-1">
-                <Tag size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={discountCode}
-                  onChange={e => setDiscountCode(e.target.value.toUpperCase())}
-                  onKeyDown={e => e.key === "Enter" && applyDiscount()}
-                  placeholder={c("coDiscount")}
-                  disabled={Boolean(appliedDiscount)}
-                  // Locked while a code is being checked, so a late answer can't apply to a different code.
-                  readOnly={isApplying}
-                  aria-busy={isApplying}
-                  className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)] disabled:bg-slate-100"
-                />
-              </div>
-              {appliedDiscount ? (
-                <button type="button" onClick={removeDiscount} className="rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" aria-label={c("coDiscountRemove")}><X size={17} /></button>
-              ) : (
-                <button type="button" onClick={applyDiscount} disabled={isApplying || !discountCode} className="rounded-lg bg-slate-700 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
-                  {isApplying ? <Loader2 size={17} className="animate-spin" /> : c("coApply")}
-                </button>
-              )}
-            </div>
-            )}
-            {discountError && <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} />{discountError}</p>}
-            {appliedDiscount && <p className="mt-2 flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--success)" }}><CheckCircle2 size={13} />{c("coDiscountApplied", { code: appliedDiscount.code })}</p>}
-            </div>
-            )}
-            {autoBeatsCode && checkoutDesign.showCheckoutAutoDiscountHint !== false && (
-              <div role="note" className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-700" data-studio-target="style:checkout|copy:Checkout" data-studio-label="Automatic offer hint">
-                <p>{c("coAutoBetter", { title: autoPick?.discount?.title || "" })}</p>
-                <button type="button" onClick={removeDiscount} className="mt-1.5 font-semibold underline underline-offset-4">{c("coAutoBetterRemove", { title: autoPick?.discount?.title || "" })}</button>
-              </div>
-            )}
+            <dl className="fm-co-ledger">
+              <dt>{c("summarySubtotal")}</dt><dd translate="no">{formatPrice(itemsSubtotal)}</dd>
+              {discountAmount > 0 && <><dt style={{ color: "var(--success)" }}>{appliedDiscount ? c("summaryDiscount") : c("coAutoDiscountLabel", { title: autoPick?.discount?.title || c("summaryDiscount") })}</dt><dd style={{ color: "var(--success)" }} translate="no">-{formatPrice(discountAmount)}</dd></>}
+              <dt>{c("summaryShipping")}{getActiveShippingDetails()?.serviceName ? ` · ${getActiveShippingDetails()?.serviceName}` : ""}</dt>
+              <dd>{needsDeliveryChoice ? c("coShipChoose") : isFreeShipping || shippingCost === 0 ? c("coFree") : formatPrice(finalShipping)}</dd>
+              <dt>{c("summaryTax")}</dt><dd>{taxCost > 0 || taxKnown ? formatPrice(taxCost) : c("coTaxLater")}</dd>
+              {giftCardUse.filter(card => card.minor > 0).map(card => (
+                <React.Fragment key={card.code}><dt>{c("coGiftCardSummary", { last4: card.last4 })}</dt><dd translate="no">-{formatPrice(card.minor / 100)}</dd></React.Fragment>
+              ))}
+            </dl>
 
-            {checkoutDesign.showCheckoutGiftCardBox !== false && (
-              <div {...regionProps("checkoutGiftCard")} className="mt-5">
-                {!(giftCardOpen || giftCards.length || giftCardInput) ? (
-                  <button type="button" onClick={() => setGiftCardOpen(true)} className="flex items-center gap-2 text-sm font-medium text-slate-600 underline-offset-4 hover:underline">
-                    <CreditCard size={15} /> {c("coGiftCardOpen")}
-                  </button>
-                ) : (
-                  <>
-                    <div className="flex gap-3">
-                      <div className="relative flex-1">
-                        <CreditCard size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input
-                          type="text"
-                          value={giftCardInput}
-                          onChange={e => setGiftCardInput(e.target.value.toUpperCase())}
-                          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyGiftCard(); } }}
-                          readOnly={giftCardApplying}
-                          aria-busy={giftCardApplying}
-                          placeholder={c("coGiftCardLabel")}
-                          aria-label={c("coGiftCardLabel")}
-                          autoComplete="off"
-                          spellCheck={false}
-                          className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)]"
-                        />
-                      </div>
-                      <button type="button" onClick={applyGiftCard} disabled={giftCardApplying || !giftCardInput.trim()} className="rounded-lg bg-slate-700 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
-                        {giftCardApplying ? <><Loader2 size={17} className="animate-spin" aria-hidden="true" /><span className="sr-only">{c("coGiftCardApplying")}</span></> : c("coGiftCardApply")}
-                      </button>
-                    </div>
-                    {giftCardError && <p role="alert" className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} />{giftCardError}</p>}
-                    {giftCards.map(card => (
-                      <p key={card.code} className="mt-2 flex items-center justify-between gap-2 text-xs font-medium" style={{ color: "var(--success)" }}>
-                        <span className="flex items-center gap-1.5"><CheckCircle2 size={13} />{c("coGiftCardApplied", { last4: card.last4, balance: formatPrice(card.balanceMinor / 100) })}</span>
-                        <button type="button" onClick={() => setGiftCards(current => current.filter(other => other.code !== card.code))} aria-label={c("coGiftCardRemoveAria", { last4: card.last4 })} className="text-slate-600 underline underline-offset-4">{c("coGiftCardRemove")}</button>
-                      </p>
-                    ))}
-                    {giftCards.length > 0 && selectedPaymentMethod.startsWith("manual_") && finalTotal > 0 && (
-                      <p role="note" className="mt-2 text-xs text-slate-700">{c("coGiftCardManual")}</p>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-
-            <div className="my-7 border-t border-slate-200" />
-
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between text-slate-600"><span>{c("summarySubtotal")}</span><span className="font-medium text-slate-900" translate="no">{formatPrice(itemsSubtotal)}</span></div>
-              {discountAmount > 0 && <div className="flex justify-between" style={{ color: "var(--success)" }}><span>{appliedDiscount ? c("summaryDiscount") : c("coAutoDiscountLabel", { title: autoPick?.discount?.title || c("summaryDiscount") })}</span><span translate="no">-{formatPrice(discountAmount)}</span></div>}
-              <div className="flex justify-between text-slate-600">
-                <span>{c("summaryShipping")}{getActiveShippingDetails()?.serviceName ? ` · ${getActiveShippingDetails()?.serviceName}` : ""}</span>
-                <span className="font-medium text-slate-900">{needsDeliveryChoice ? c("coShipChoose") : isFreeShipping || shippingCost === 0 ? c("coFree") : formatPrice(finalShipping)}</span>
-              </div>
-              {freeShipNudge && (
-                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5" data-studio-target="style:checkout|copy:Checkout" data-studio-label="Free-shipping nudge">
-                  <p className="text-xs font-medium text-slate-700">{c("coFreeShipGap", { amount: formatPrice(freeShipNudge.gap) })}</p>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+            {freeShipNudge && (
+              <div className="fm-co-slip-extra" data-studio-target="style:checkout|copy:Checkout" data-studio-label="Free-shipping nudge">
+                <div>
+                  <p className="fm-co-mono">{c("coFreeShipGap", { amount: formatPrice(freeShipNudge.gap) })}</p>
+                  <div className="mt-2 h-1.5 overflow-hidden bg-slate-200" aria-hidden="true">
                     <div className="h-full fm-accent-bg" style={{ width: `${Math.min(100, Math.max(4, (cartTotal / freeShipNudge.threshold) * 100))}%` }} />
                   </div>
                 </div>
-              )}
-              <div className="flex justify-between text-slate-600"><span>{c("summaryTax")}</span><span className="font-medium text-slate-900">{taxCost > 0 || taxKnown ? formatPrice(taxCost) : c("coTaxLater")}</span></div>
-              {giftCardUse.filter(card => card.minor > 0).map(card => (
-                <div key={card.code} className="flex justify-between text-slate-600"><span>{c("coGiftCardSummary", { last4: card.last4 })}</span><span className="font-medium text-slate-900" translate="no">-{formatPrice(card.minor / 100)}</span></div>
-              ))}
-            </div>
-
-            <div className="my-6 border-t border-slate-200" />
-
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-base font-semibold text-slate-900">{c("summaryTotal")}</p>
-                <p className="mt-0.5 text-xs uppercase tracking-wide text-slate-500">{currency}</p>
               </div>
-              <m.p key={finalTotal} initial={{ opacity: 0.5 }} animate={{ opacity: 1 }} className="text-2xl font-semibold tracking-tight text-slate-950" translate="no">{formatPrice(finalTotal)}</m.p>
+            )}
+
+            <div className="fm-co-total">
+              <span className="fm-co-total-label">{c("summaryTotal")}</span>
+              <m.p key={finalTotal} initial={{ opacity: 0.5 }} animate={{ opacity: 1 }} className="fm-co-total-amount" translate="no">{formatPrice(finalTotal)}</m.p>
             </div>
 
-            <div {...regionProps("checkoutReassurance")} className="mt-7 rounded-lg border border-slate-200 bg-white p-4">
-              <div className="flex items-start gap-3">
-                <Package size={18} className="mt-0.5 shrink-0 text-slate-500" />
-                <div>
-                  <p className="text-sm font-medium text-slate-900">{c("coPacked")}</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">{c("coPackedNote")}</p>
+            {checkoutDesign.showCheckoutReassurance && (
+              <div className="fm-co-slip-extra">
+                <div {...regionProps("checkoutReassurance")} className="fm-co-box flex items-start gap-3">
+                  <Package size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
+                  <div>
+                    <p className="text-sm font-medium">{c("coPacked")}</p>
+                    <p className="fm-co-note mt-1">{c("coPackedNote")}</p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
+
+            {(checkoutDesign.checkoutSlipShowFooter ?? true) && c("coSlipFooter") && (
+              <p {...regionProps("checkoutSlipFooter")} className="fm-co-slip-foot fm-co-mono" style={{ margin: 0 }}>{c("coSlipFooter")}</p>
+            )}
           </div>
         </aside>
       </div>
+
+      {payBar && (
+        <div {...regionProps("checkoutPayBar")} className="fm-co-paybar">
+          <div className="fm-co-paybar-row fm-co-mono">
+            <span>{c("coPayBarLabel")}</span>
+            <span translate="no">{needsDeliveryChoice ? c("coShipChoose") : formatPrice(finalTotal)}</span>
+          </div>
+          <button type="submit" form="fm-checkout-form" disabled={payDisabled} className="fm-co-paybtn">
+            {isCompleting ? <><Loader2 size={20} className="animate-spin" aria-hidden="true" /> {c("coProcessing")}</> : barLabel}
+          </button>
+        </div>
+      )}
 
       <GlobalSections design={checkoutDesign} />
     </div>
