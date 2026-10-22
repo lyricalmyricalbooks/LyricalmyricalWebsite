@@ -46,6 +46,8 @@ import RecentlyViewedRow from "./RecentlyViewedRow";
 import BackInStockForm from "./BackInStockForm";
 import PickupAvailability from "./PickupAvailability";
 import { pickupSpots } from "./pickupAvailability";
+import PdpFreeShipping from "./PdpFreeShipping";
+import { pdpFreeShipping } from "./pdpFreeShipping";
 import { quickAddChoice } from "./buyable";
 import { resolveLogoDesign } from "./selectors";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "./themeTokens";
@@ -167,6 +169,7 @@ export default function BookDetail() {
   const showBackInStock        = storefrontDesign.showBackInStock        ?? true;
   const showComingSoonSignup   = storefrontDesign.showComingSoonSignup   ?? true;
   const showPdpPickup          = storefrontDesign.showPdpPickup === true;
+  const showPdpFreeShipping    = storefrontDesign.showPdpFreeShipping === true;
 
   // Autonomy controls for book detail page
   const showAmbientGlow        = storefrontDesign.showAmbientGlow        ?? settings?.design?.showAmbientGlow        ?? true;
@@ -382,6 +385,12 @@ export default function BookDetail() {
       .find((q) => q.type !== "pickup");
     return shippingDetailsData(quote, shopCountry);
   }, [book, selectedVariant, shippingProfiles, settings, books, shopCountry]);
+  // Free-shipping line (off by default): the bag's printed books count toward the shop-wide threshold.
+  const freeShipInfo = useMemo(() => {
+    if (!showPdpFreeShipping || !book) return null;
+    const bagItems = catalogFulfillmentItems(cart, new Map((books || []).map((b: any) => [b.id, b])));
+    return pdpFreeShipping(shippingProfiles, book, selectedVariant, bagItems);
+  }, [showPdpFreeShipping, book, selectedVariant, shippingProfiles, cart, books]);
   const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
 
   const bookUrl = canonicalUrl(new URL(`${import.meta.env.BASE_URL}books/${encodeURIComponent(book?.slug || book?.id || slug || "")}`, window.location.origin).href);
@@ -1186,6 +1195,9 @@ export default function BookDetail() {
                     >
                       {getCopy(settings?.design, "pdpBuyNow")}
                     </button>
+                  )}
+                  {showPdpFreeShipping && !isOutOfStock && !isComingSoon && regionVisible(regionDesign, "productFreeShipping") && (
+                    <PdpFreeShipping info={freeShipInfo} design={settings?.design} formatPrice={formatPrice} />
                   )}
                   {showPdpPickup && !isOutOfStock && !isComingSoon && regionVisible(regionDesign, "productPickup") && (
                     <PickupAvailability
