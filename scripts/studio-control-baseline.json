@@ -687,6 +687,7 @@
   "showBackToTop": "none: appears only after scrolling one and a half screens down",
   "showBackInStock": "none: needs a sold-out or coming-soon book",
   "showBundleWidget": "none: needs a book with bundle offers",
+  "showCardFormats": "none: needs a book sold in two or more formats",
   "showCardHoverPhoto": "none: needs a book with two photos and a mouse over its card",
   "showCardWishlist": "visible",
   "showCartTrustBadges": "visible",

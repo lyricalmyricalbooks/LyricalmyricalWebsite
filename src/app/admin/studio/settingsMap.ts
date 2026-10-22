@@ -171,7 +171,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Social links", keys: ["social.instagram", "social.twitter", "social.facebook", "social.tiktok"] },
   ],
   products: [
-    { title: "Grid & columns", keys: ["productCardStyle", "productColumnsDesktop", "productColumnsMobile", "catalogGridGap", "productHoverEffect", "showCardHoverPhoto"] },
+    { title: "Grid & columns", keys: ["productCardStyle", "productColumnsDesktop", "productColumnsMobile", "catalogGridGap", "productHoverEffect", "showCardHoverPhoto", "showCardFormats"] },
     { title: "Book photos", keys: ["imageAspectRatio", "photoOutline", "placeholderImageUrl"] },
     { title: "Title & price", keys: ["productTitleColor", "cardTitleSize", "cardTitleSizeMobile", "cardTitlePhoneMin", "cardTitleWeight", "cardTitleFont", "cardTitleTracking", "productPriceColor", "cardPriceSize", "cardPriceSizeMobile", "cardPriceStackPhone", "cardPriceWeight", "cardPriceFont", "cardPriceTagBg", "cardPriceOldColor", "catalogPriceStyle", "catalogCardRuleWidth", "showPriceOnHover", "showQuickAdd", "showQuickView", "showCardWishlist", "showWishlistShare"] },
     { title: "Sold-out badge", keys: ["showSoldOutBadge", "soldOutBadgeStyle", "soldOutBadgeBg", "soldOutBadgeText", "soldOutBadgeSize", "soldOutBadgePosition", "soldOutPhotoFade"] },

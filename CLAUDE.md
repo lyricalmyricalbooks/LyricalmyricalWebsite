@@ -1917,6 +1917,13 @@ only after the card's first mouse `pointerenter` or `focusin` (Storage downloads
 uses the grid's `gridPhotoSizes`, `framingStyle` + `PhotoToneDefs` and the Zoom hover effect, has empty alt and is skipped on faded
 sold-out cards. Shop grid only (not the Product grid sections). No words, no rules, no Functions.
 
+## Formats on shop cards (22 October 2026)
+
+Studio › Style › Book cards in the shop grid › Grid & columns › **List a book's formats under its card** (`showCardFormats`, off by
+default) adds a `.fm-card-formats` line under MainSite's shop-grid card title/price ("Paperback · E-book"). Pure `cardFormats`
+(`features/site/cardFormats.ts`) uses the format filter's `bookFormats` minus "other" and shows only 2+ formats. Format words are
+Text & labels › Search & filters (`filterFormat_*`); the read-aloud lead is Catalog & empty states › `cardFormatsLead`. Display only.
+
 ## Shipping & returns tab on book pages (22 October 2026)
 
 Studio › Style › Book page · photos & layout › Extras on the page › **Shipping & returns tab** (`showPdpPolicyTab`, off by default)
