@@ -125,7 +125,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Shop filter bar", keys: ["showShopFilterBar", "shopFilterBarCounts", "shopFilterBarInStock", "shopFilterBarFont", "shopFilterBarBorderColor", "shopFilterBarActiveColor"] },
     { title: "Category chips", keys: ["showCategoryChips", "categoryChipShowCounts"] },
     { title: "Show more button", keys: ["catalogPageSize"] },
-    { title: "Search, sort & in-stock bar", keys: ["showCatalogControls", "searchResultLimit", "showSearchSeeAll", "showRecentSearches", "searchSuggestions"] },
+    { title: "Search, sort & in-stock bar", keys: ["showCatalogControls", "searchResultLimit", "searchNewInCount", "searchArtistLimit", "searchCategoryLimit", "searchTryLimit", "showSearchSeeAll", "showRecentSearches", "searchSuggestions"] },
   ],
   tokens: [
     { title: "Type scale", keys: ["typeScale", "typeScaleBase", "typeScaleFluid"] },
