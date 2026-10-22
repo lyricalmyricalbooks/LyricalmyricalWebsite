@@ -126,7 +126,7 @@ here in groups of up to 400 before deleting. The picker includes the full catalo
 
 > The **Studio editor** (`src/app/admin/studio/StudioEditor.tsx`) is the default Design editor users see; it is the only designer (the old `ThemeEditor.tsx` / `ThemeEditorPro.tsx` / `ThemeEditorBuilder.tsx` and `?editor=legacy` are gone). Put every design feature there. See CLAUDE.md › Theme editor and the Studio 2.0 roadmap in `docs/THEME_EDITOR.md`.
 >
-> **A Studio control is done only when it changes the preview:** add it to `scripts/studio-control-baseline.json` (`AUDIT_UPDATE=1 node scripts/studio-control-audit.mjs`) and keep CI's `studio-controls` and `studio-browser` jobs green. Rules: CLAUDE.md › *Studio controls must reach the shop*.
+> **A Studio control is done only when it changes the preview:** add it to `scripts/studio-control-baseline/ (one file per control)` (`AUDIT_UPDATE=1 node scripts/studio-control-audit.mjs`) and keep CI's `studio-controls` and `studio-browser` jobs green. Rules: CLAUDE.md › *Studio controls must reach the shop*.
 
 The `/admin` theme editor is the most-requested area to "make as good as
 Shopify." It is **already large and capable** (sections/blocks,

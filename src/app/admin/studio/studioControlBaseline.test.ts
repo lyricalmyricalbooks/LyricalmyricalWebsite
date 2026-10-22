@@ -1,4 +1,4 @@
-// Every Studio control is listed in scripts/studio-control-baseline.json with what it does to the preview, so the
+// Every Studio control is listed in scripts/studio-control-baseline/ (one file per control) with what it does to the preview, so the
 // browser check (scripts/studio-control-audit.mjs, CI job "studio-controls") can fail when one stops working.
 // A new control needs an entry: run `AUDIT_UPDATE=1 node scripts/studio-control-audit.mjs`, and if it shows
 // nothing on the fixture page, replace its TODO with the reason (which state or setting it needs).
@@ -7,7 +7,10 @@ import { readFileSync } from "node:fs";
 import { STYLE_GROUPS } from "./styleSchema";
 import { sectionStyleFields } from "./sectionStyleSchema";
 
-const baseline: Record<string, string> = JSON.parse(readFileSync(new URL("../../../../scripts/studio-control-baseline.json", import.meta.url), "utf8")).controls;
+// @ts-expect-error plain .mjs helper shared with the audit script
+import { readBaseline } from "../../../../scripts/studioControlBaseline.mjs";
+
+const baseline: Record<string, string> = readBaseline();
 const audit = readFileSync(new URL("../../../../scripts/studio-control-audit.mjs", import.meta.url), "utf8");
 const SECTION_TYPES = (audit.match(/AUDIT_SECTION_TYPES \|\| "([^"]+)"/) || [])[1]!.split(",");
 
