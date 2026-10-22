@@ -9,6 +9,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "catalogStock", label: "In-stock filter" }, { id: "catalogSale", label: "On-sale filter" }, { id: "catalogResults", label: "Filter result count" },
     { id: "catalogFormat", label: "Format filter" }, { id: "catalogPrice", label: "Price filter" },
     { id: "catalogClear", label: "Clear filters button" },
+    { id: "catalogShowMore", label: "Show more books button", copy: "Catalog & empty states" },
     { id: "categoryBanner", label: "Category banner" },
     { id: "categoryBannerImage", label: "Category banner picture", image: true },
     { id: "categoryBannerTitle", label: "Category banner name", copy: "Collection & wishlist pages" },

@@ -672,6 +672,7 @@
   "showCardWishlist": "visible",
   "showCartTrustBadges": "visible",
   "showCatalogControls": "visible",
+  "catalogPageSize": "none: needs more published books than the number tried (the fixture has 2)",
   "showCatalogCount": "visible",
   "showCategoryChips": "visible",
   "showCheckoutAutoDiscountHint": "none: needs a free-shipping rule or an automatic discount in the fixture's settings",

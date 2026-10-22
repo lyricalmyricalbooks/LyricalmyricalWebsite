@@ -47,6 +47,7 @@ import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { StoreHeader } from "../features/site/StoreHeader";
 import { StoreFooter } from "../features/site/StoreFooter";
 import { designNumber } from "../features/site/designNumber";
+import { catalogPageSize, nextShown, visibleCount } from "../features/site/catalogPaging";
 import { resolveMainDesign } from "../features/site/surfaceDesign";
 import { categoryTemplateSurface, previewTemplate } from "../features/site/templateAlternates";
 import { regionProps } from "../features/site/storefrontRegions";
@@ -553,6 +554,16 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     return applyCatalogControls(baseFilteredItems, searchQuery, sort, inStockOnly, applied.priceRange, applied.formats, applied.onSale);
   }, [baseFilteredItems, searchQuery, sort, inStockOnly, catalogFilters, catalogView, displayRate]);
 
+  // Studio › Style › Shop page heading & filters › "Show more books" paging (0 = every book).
+  const pageSize = catalogPageSize(storefrontDesign);
+  const [shownCount, setShownCount] = useState(0);
+  // A new category, search, sort or filter starts again from the first page.
+  useEffect(() => { setShownCount(0); }, [baseFilteredItems, searchQuery, sort, inStockOnly, catalogFilters]);
+  const shownItems = useMemo(
+    () => filteredItems.slice(0, visibleCount(filteredItems.length, pageSize, shownCount)),
+    [filteredItems, pageSize, shownCount],
+  );
+
   const { has: isWished, toggle: toggleWish, ids: wishedIds } = useWishlist();
   const wishlistCount = liveWishlistCount(wishedIds, books, isLiveBook);
 
@@ -917,7 +928,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           )}
 
           <div data-ga-list={activeCategory && activeCategory !== "ALL" && catNameForSEO(activeCategory) ? `Shop · ${catNameForSEO(activeCategory)}` : "Shop"} data-studio-target="style:products|style:catalogLayout|copy:Catalog & empty states" data-studio-label="Product grid" className={`grid ${mobileColsClass} ${desktopColsClass}`} style={{ gap: storefrontGridGap, rowGap: Math.min(isReferenceCatalog ? Math.max(40, storefrontGridGap * 3) : shopSectionSpacing, storefrontGridGap * 1.5) }}>
-            {filteredItems.map((item: any, index: number) => {
+            {shownItems.map((item: any, index: number) => {
               const slug = getBookSlug(item);
               const stock = item.stockLevel ?? 999;
               // Coming soon books often have no stock yet: they get their own badge, never "Sold out".
@@ -1114,6 +1125,21 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               );
             })}
           </div>
+          {shownItems.length < filteredItems.length && (
+            <div {...regionProps("catalogShowMore")} data-studio-target="style:catalog|copy:Catalog & empty states" data-studio-label="Show more books" className="fm-catalog-more mt-12 flex flex-col items-center gap-3">
+              <p aria-live="polite" className="text-[10px] tracking-[0.2em] uppercase fm-muted">
+                {getCopy(activeDesign, "catalogShowingCount", { shown: shownItems.length, total: filteredItems.length })}
+              </p>
+              <button
+                type="button"
+                onClick={() => setShownCount(nextShown(filteredItems.length, pageSize, shownCount))}
+                className="min-h-[44px] px-8 py-3 text-[10px] font-bold tracking-[0.2em] uppercase border border-white/30 hover:opacity-80 transition-opacity"
+                style={{ borderRadius: storefrontButtonRadius }}
+              >
+                {getCopy(activeDesign, "catalogShowMore")}
+              </button>
+            </div>
+          )}
           {quickViewBook && <QuickView book={quickViewBook} design={activeDesign} onClose={() => setQuickViewBook(null)} />}
         </main>
         )}

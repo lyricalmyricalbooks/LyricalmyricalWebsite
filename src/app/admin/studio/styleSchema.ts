@@ -449,6 +449,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "shopFilterBarFont", label: "Shop filter bar font", kind: "select", defaultValue: "DM Mono", options: FONT_SELECT_OPTIONS },
       { key: "shopFilterBarBorderColor", label: "Shop filter bar button outline", kind: "color" },
       { key: "shopFilterBarActiveColor", label: "Shop filter bar chosen button (outline and text)", kind: "color" },
+      { key: "catalogPageSize", label: "Books shown before a “Show more” button (0 = show every book)", kind: "number", min: 0, max: 96, step: 1, defaultValue: 0 },
       { key: "showCatalogCount", label: "Show “N titles” count", kind: "toggle" },
       { key: "showCategoryChips", label: "Show category chips", kind: "toggle" },
       { key: "categoryChipShowCounts", label: "Show counts on chips", kind: "toggle" },
