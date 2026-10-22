@@ -59,7 +59,7 @@ import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT
 import { StorefrontOverrides } from "./StorefrontOverrides";
 import { resolveProductDesign } from "./surfaceDesign";
 import { bookTemplateSurface, previewTemplate } from "./templateAlternates";
-import { blockLabel, cardSections, productBlocks, type ProductBlock } from "./productBlocks";
+import { blockLabel, cardSections, productBlocks, ruledSections, type ProductBlock } from "./productBlocks";
 import { resolveDynamicSettings } from "./dynamicSources";
 import { aspectRatioValue } from "./imageAspect";
 import { aspectNumber, frameAspect, frameMode, photoRatio } from "./photoFrame";
@@ -288,6 +288,7 @@ export default function BookDetail() {
   const pdpShowTag        = tokenSource.pdpShowTag        ?? true;
   const pdpTagStyle       = tokenSource.pdpTagStyle === "outline" ? "outline" : "filled";
   const pdpShowStock      = tokenSource.pdpShowStock      ?? true;
+  const pdpRuledRows      = tokenSource.pdpRuledRows      !== false;
   const pdpShowCaption    = tokenSource.pdpShowCaption    ?? true;
   const pdpThumbPosition  = tokenSource.pdpThumbPosition  || "side";
   // Room the side thumbnail rail takes from the photo column (Style › Thumbnail size; 64px → 90px).
@@ -924,6 +925,14 @@ export default function BookDetail() {
       default: return null;
     }
   };
+  const stockLine = pdpShowStock && !isGiftCard ? (
+    <span className="fm-pdp-meta fm-pdp-stock" data-state={isComingSoon ? "soon" : isOutOfStock ? "out" : isPreorder ? "preorder" : isLowStock ? "low" : "in"}>
+      {stockText}
+    </span>
+  ) : null;
+  // Ruled rows: the stock line moves up beside the category tag (when the tag row shows).
+  const buyBlocks = productBlocks(tokenSource);
+  const stockInTagRow = pdpRuledRows && pdpShowTag && buyBlocks.some(b => b.type === "tag" && !b.hidden);
   // ── Buy card blocks (Studio 2.9) ── each built-in returns exactly the JSX the card had before it became a list.
   const renderBlock = (block: ProductBlock): React.ReactNode => {
     switch (block.type) {
@@ -931,11 +940,12 @@ export default function BookDetail() {
         if (!pdpShowTag) return null;
         return <Fragment key={block.id}>
                   {pdpShowTag && (
-                    <div>
+                    <div className={stockInTagRow ? "fm-pdp-tagrow" : undefined}>
                       <span className="fm-pdp-tag" data-style={pdpTagStyle}>
                         <Tag size={10} aria-hidden="true" />
                         {categoryLabel || getCopy(settings?.design, "categoryFallback")}
                       </span>
+                      {stockInTagRow && stockLine}
                     </div>
                   )}
         </Fragment>;
@@ -991,11 +1001,7 @@ export default function BookDetail() {
                     {saleEnds && !isOutOfStock && regionVisible(regionDesign, "productSaleEnds") && (
                       <SaleEndsLine endDate={saleEnds} design={settings?.design} look={storefrontDesign} />
                     )}
-                    {pdpShowStock && !isGiftCard && (
-                      <span className="fm-pdp-meta fm-pdp-stock" data-state={isComingSoon ? "soon" : isOutOfStock ? "out" : isPreorder ? "preorder" : isLowStock ? "low" : "in"}>
-                        {stockText}
-                      </span>
-                    )}
+                    {!stockInTagRow && stockLine}
                   </div>
         </Fragment>;
       }
@@ -1627,7 +1633,7 @@ export default function BookDetail() {
             <div data-section="products" className="flex flex-col gap-8 lg:sticky lg:top-[calc(var(--fm-header-offset,0px)+1.5rem)] w-full min-w-0">
               <div className="fm-pdp-card" data-studio-target="style:productCard|copy:Product page" data-studio-label="Buy card">
 
-                {cardSections(productBlocks(tokenSource)).map((section, index) => {
+                {(pdpRuledRows ? ruledSections(cardSections(buyBlocks)) : cardSections(buyBlocks)).map((section, index) => {
                   // A section shows only when something in it does (the description section used to be conditional).
                   const parts = section.map(renderBlock).filter(part => part !== null && part !== false && part !== undefined);
                   return parts.length ? <div key={index} className={`fm-pdp-card-section ${alignCls}`}>{parts}</div> : null;

@@ -352,6 +352,7 @@
   "pdpShowBreadcrumb": "visible",
   "pdpShowBuyNow": "visible",
   "pdpShowCaption": "visible",
+  "pdpRuledRows": "visible",
   "pdpShowStock": "visible",
   "pdpShowTag": "visible",
   "pdpSpecsStyle": "none: needs a book with page count, publisher or date filled in",
