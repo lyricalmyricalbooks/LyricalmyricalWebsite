@@ -2482,3 +2482,12 @@ Shoppers may translate the storefront with the browser's Google Translate. `lib/
 text can't follow later React updates, so live money (card/PDP price, bag lines and totals, checkout summary/total) carries
 `translate="no"` — put it on any new element whose number changes while the shopper watches. Never add
 `<meta name="google" content="notranslate">` or a page-wide `translate="no"`.
+
+## Ask a question on book pages (22 October 2026)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **Ask a question** (`showPdpAskQuestion`, off by default)
+draws `features/site/PdpAskQuestion.tsx` under the buy buttons (region `productAskQuestion`, every book, sold out too): a folded
+form (name, email, question, honeypot) that sends one `contactMessages` row through `submitContactMessage` (same path and rule as
+the Contact form section, so Admin › Messages, the reply tool and `onContactMessage`'s budgeted emails all apply). Subject =
+Text & labels › Product page › `pdpAskSubject` with the title (+ edition), rules in pure `askQuestion.ts`. Never sends from the
+Studio preview (`inEditorPreview`). Words: Text & labels › Product page (`pdpAsk*`). No rule or Function change.

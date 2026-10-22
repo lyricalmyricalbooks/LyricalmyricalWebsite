@@ -48,6 +48,7 @@ import PickupAvailability from "./PickupAvailability";
 import { isPickupItem, pickupSpots } from "./pickupAvailability";
 import PdpFreeShipping from "./PdpFreeShipping";
 import PdpShipBy from "./PdpShipBy";
+import PdpAskQuestion from "./PdpAskQuestion";
 import SaleEndsLine from "./SaleEndsLine";
 import { pdpFreeShipping } from "./pdpFreeShipping";
 import { pdpPolicyEntries } from "./pdpPolicyTab";
@@ -175,6 +176,7 @@ export default function BookDetail() {
   const showPdpPickup          = storefrontDesign.showPdpPickup === true;
   const showPdpFreeShipping    = storefrontDesign.showPdpFreeShipping === true;
   const showPdpShipBy          = storefrontDesign.showPdpShipBy === true;
+  const showPdpAskQuestion     = storefrontDesign.showPdpAskQuestion === true;
   const showPdpPolicyTab       = storefrontDesign.showPdpPolicyTab === true;
 
   // Autonomy controls for book detail page
@@ -1228,6 +1230,10 @@ export default function BookDetail() {
                       design={settings?.design}
                       formatPrice={formatPrice}
                     />
+                  )}
+                  {/* Ask a question (off by default): any book, sold out or not; sends to Admin › Messages. */}
+                  {showPdpAskQuestion && book && regionVisible(regionDesign, "productAskQuestion") && (
+                    <PdpAskQuestion key={book.id} design={settings?.design} title={book.title} edition={selectedVariant?.name} />
                   )}
         </Fragment>;
       }
