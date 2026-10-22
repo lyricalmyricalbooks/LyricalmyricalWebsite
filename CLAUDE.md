@@ -2565,3 +2565,11 @@ Studio › Style › Shop page heading & filters › Book order › **Put sold-o
 default): `applyCatalogControls` (`features/site/CatalogControls.tsx`) moves books with nothing buyable (`bookSoldOut` = not
 `bookInStock` and not Coming soon) after the rest with `soldOutToEnd`, keeping the shopper's sort inside each group. MainSite's shop
 grid only (paging, search and filters follow it). Display only; no words, rules or Functions.
+
+## Books load as shoppers scroll (22 October 2026)
+
+Studio › Style › Shop page heading & filters › Show more button › **Load the next books by themselves when shoppers scroll down**
+(`catalogAutoLoad`, off by default; only with `catalogPageSize` > 0). MainSite watches the Show more block (`IntersectionObserver`,
+400 px ahead) and loads the next page like a press; after `AUTO_LOAD_ROUNDS` (4) automatic loads the button takes over so the footer
+stays reachable (pure `catalogAutoLoadOn` / `shouldAutoLoad` in `features/site/catalogPaging.ts`). A new category, search, sort or
+filter starts the count again. No words, rules or Functions.

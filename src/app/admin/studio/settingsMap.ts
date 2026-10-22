@@ -125,7 +125,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Shop filter bar", keys: ["showShopFilterBar", "shopFilterBarCounts", "shopFilterBarInStock", "shopFilterBarFont", "shopFilterBarBorderColor", "shopFilterBarActiveColor"] },
     { title: "Category chips", keys: ["showCategoryChips", "categoryChipShowCounts"] },
     { title: "Book order", keys: ["soldOutLast"] },
-    { title: "Show more button", keys: ["catalogPageSize"] },
+    { title: "Show more button", keys: ["catalogPageSize", "catalogAutoLoad"] },
     { title: "Search, sort & in-stock bar", keys: ["showCatalogControls", "searchResultLimit", "searchNewInCount", "searchArtistLimit", "searchCategoryLimit", "searchTryLimit", "showSearchSeeAll", "showRecentSearches", "searchSuggestions"] },
   ],
   tokens: [
