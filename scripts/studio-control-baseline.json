@@ -78,6 +78,7 @@
   "cartDrawerShowCheckoutArrow": "visible",
   "cartDrawerShowCount": "visible",
   "cartDrawerShowDeliveryNote": "visible",
+  "cartDrawerShowDiscountCode": "visible",
   "cartDrawerShowEmptyButton": "none: needs an empty bag; the preview shows a sample line",
   "cartDrawerShowEmptyIcon": "none: needs an empty bag; the preview shows a sample line",
   "cartDrawerShowItemNumbers": "visible",

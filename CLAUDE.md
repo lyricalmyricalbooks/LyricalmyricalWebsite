@@ -1971,6 +1971,14 @@ already open bag stays the place to see it). `features/site/AddedToBagNotice.tsx
 draws it on the bag's own CSS (`.fm-bag.fm-bag-notice`, `cartDrawerCss`), pauses on hover/focus, Escape closes, closes on any page
 change and never shows on checkout. Words: Text & labels › Cart (`cartAdded*`). Display only.
 
+## Discount code box in the bag (22 October 2026)
+
+Studio › Style › Cart drawer (shopping bag) › Total & checkout button › **Discount code box** (`cartDrawerShowDiscountCode`,
+off by default) draws `components/CartDiscountCode.tsx` above the bag total: "Have a discount code?" opens a field that saves
+the code with `rememberDiscountCode` (`features/site/sharedDiscount.ts`, same tab storage and format rule as a `?discount=` link),
+and a remembered code shows with Remove. Checkout's shared-code effect fills and checks it like a typed code; the bag never
+validates or prices it (no server call, no saving shown). Words: Text & labels › Cart › Discount code box (`cartCode*`).
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the

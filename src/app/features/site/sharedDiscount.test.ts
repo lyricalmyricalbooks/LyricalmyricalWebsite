@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { captureSharedDiscount, clearSharedDiscount, discountShareLink, sharedDiscount } from "./sharedDiscount";
+import { captureSharedDiscount, clearSharedDiscount, discountShareLink, rememberDiscountCode, sharedDiscount } from "./sharedDiscount";
 
 function fakeWindow(href: string) {
   const store = new Map<string, string>();
@@ -23,6 +23,15 @@ describe("shared discount links", () => {
     win.sessionStorage.setItem = () => { throw new Error("blocked"); };
     expect(captureSharedDiscount(win)).toBe("OK123");
     expect(sharedDiscount({ getItem: () => { throw new Error("blocked"); } } as any)).toBe("");
+  });
+  it("remembers a code typed in the bag for checkout, refusing anything that can't be a code", () => {
+    const win = fakeWindow("https://x.test/");
+    expect(rememberDiscountCode("  spring-10 ", win.sessionStorage)).toBe("SPRING-10");
+    expect(sharedDiscount(win.sessionStorage)).toBe("SPRING-10");
+    expect(rememberDiscountCode("a b", win.sessionStorage)).toBe("");
+    expect(rememberDiscountCode("X", win.sessionStorage)).toBe("");
+    expect(sharedDiscount(win.sessionStorage)).toBe("SPRING-10");
+    expect(rememberDiscountCode("OK123", { setItem: () => { throw new Error("blocked"); } } as any)).toBe("");
   });
   it("builds a sub-path aware link", () => {
     expect(discountShareLink("save10", "https://a.github.io", "/LyricalmyricalWebsiteTrial/")).toBe("https://a.github.io/LyricalmyricalWebsiteTrial/?discount=SAVE10");

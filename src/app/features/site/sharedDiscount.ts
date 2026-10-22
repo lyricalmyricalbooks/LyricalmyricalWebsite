@@ -31,6 +31,18 @@ export function sharedDiscount(storage: Storage | undefined = typeof sessionStor
   }
 }
 
+/**
+ * A code the shopper typed into the bag's discount box (Style › Cart drawer › Discount code box).
+ * Kept in the same place as a shared link's code, so checkout fills and checks it the same way.
+ * Returns the saved code, or "" when it can't be a discount code (nothing is saved then).
+ */
+export function rememberDiscountCode(raw: string, storage: Storage | undefined = typeof sessionStorage === "undefined" ? undefined : sessionStorage): string {
+  const code = String(raw || "").trim().toUpperCase();
+  if (!VALID.test(code)) return "";
+  try { storage?.setItem(KEY, code); } catch { return ""; }
+  return code;
+}
+
 export function clearSharedDiscount(storage: Storage | undefined = typeof sessionStorage === "undefined" ? undefined : sessionStorage) {
   try { storage?.removeItem(KEY); } catch { /* nothing to clear */ }
 }

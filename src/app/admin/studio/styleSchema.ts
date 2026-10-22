@@ -52,6 +52,7 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Bag line items": /^(cartDrawer(ShowItemNumbers|ShowPreorder|ShowLineOptions|Thumb|GrayscaleThumbs|ItemTitleSize|ShowUnitPrice|ShowLineTotal|QtyStyle|RemoveStyle|Border|Muted))/,
   "Bag suggestion": /^(cartDrawer(ShowUpsell|UpsellShadow|Surface|GrayscaleThumbs))/,
   "Empty bag": /^cartDrawer(ShowEmpty|Empty)/,
+  "Bag discount code": /^cartDrawer(ShowDiscountCode|Surface|Border|Muted)$/,
   "Added-to-bag notice": /^(cartAdd(Action|NoticeSeconds)$|cartDrawer(Side|Bg|Text|Muted|Surface|Edge|Checkout|Meta|Title|Thumb))/,
   "Bag total & checkout": /^(cartDrawer(ShowSummary|TotalSize|Checkout|ShowCheckoutArrow|ShowDeliveryNote|Show(Secure|Tracked|Returns)Badge)|showCartTrustBadges)/,
 };
@@ -797,6 +798,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "cartDrawerCheckoutShadow", label: "Offset shadow on the checkout button", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowCheckoutArrow", label: "Arrow on the checkout button", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowShippingPreview", label: "Shipping cost preview in cart", kind: "toggle", defaultValue: true },
+      { key: "cartDrawerShowDiscountCode", label: "Discount code box above the total (“Have a discount code?” — the code is filled in and checked at checkout; words: Text & labels › Cart)", kind: "toggle", defaultValue: false },
       { key: "cartDrawerShowDeliveryNote", label: "Delivery note under the button", kind: "toggle", defaultValue: true },
       // Empty bag
       { key: "cartDrawerShowEmptyIcon", label: "Bag icon when the bag is empty", kind: "toggle", defaultValue: true },
