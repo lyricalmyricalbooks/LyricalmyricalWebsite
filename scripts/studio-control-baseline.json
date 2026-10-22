@@ -80,6 +80,7 @@
   "cartDrawerShowDeliveryNote": "visible",
   "cartDrawerShowDiscountCode": "visible",
   "cartDrawerShowOrderNote": "visible",
+  "cartDrawerShowSaveForLater": "visible",
   "cartDrawerShowTermsCheckbox": "visible",
   "cartDrawerShowEmptyButton": "none: needs an empty bag; the preview shows a sample line",
   "cartDrawerShowEmptyIcon": "none: needs an empty bag; the preview shows a sample line",

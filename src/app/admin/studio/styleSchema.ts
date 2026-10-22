@@ -789,6 +789,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "cartDrawerShowLineOptions", label: "Extras, gift-card recipient & box-set contents under each book", kind: "toggle", defaultValue: true },
       { key: "cartDrawerQtyStyle", label: "Quantity buttons", kind: "select", defaultValue: "boxes", options: [{ value: "boxes", label: "Outlined boxes" }, { value: "pill", label: "Soft pill" }] },
       { key: "cartDrawerRemoveStyle", label: "Remove button", kind: "select", defaultValue: "text", options: [{ value: "text", label: "Word (Text & labels › Cart)" }, { value: "icon", label: "Bin icon" }] },
+      { key: "cartDrawerShowSaveForLater", label: "Save for later button beside Remove (moves the book from the bag to the wishlist, with Undo; not on gift cards; words: Text & labels › Cart)", kind: "toggle", defaultValue: false },
       // Upsell
       { key: "cartDrawerShowUpsell", label: "“Complete your collection” suggestion", kind: "toggle", defaultValue: true },
       { key: "cartDrawerUpsellShadow", label: "Offset shadow on the suggestion card", kind: "toggle", defaultValue: true },

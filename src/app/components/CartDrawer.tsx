@@ -31,6 +31,8 @@ import { inEditorPreview } from "../lib/trackingGuard";
 import { ga4ViewCart } from "../lib/ga4";
 import { AddedToBagNotice } from "../features/site/AddedToBagNotice";
 import { addedNoticeOn } from "../features/site/addedNotice";
+import { useWishlist } from "../lib/wishlist";
+import { canSaveForLater, saveForLaterOn } from "../features/site/saveForLater";
 
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
 // features/site/cartDrawerStyle.ts); its words are Studio › Text & labels › Cart.
@@ -101,6 +103,36 @@ export function CartDrawer() {
       </span>
     ), { id: `cart-removed-${key}`, duration: 6000 });
   };
+  // Save for later: the line leaves the bag and its book joins the wishlist. Undo puts the line back
+  // and takes the book off the wishlist again only if this button put it there.
+  const wishlist = useWishlist();
+  const saveForLater = (key: string, item: (typeof cart)[number], index: number) => {
+    if (isSample) return;
+    const wasSaved = wishlist.has(item.id);
+    removeFromCart(key);
+    if (!wasSaved) wishlist.toggle(item.id);
+    const lineKeyOf = (line: (typeof cart)[number]) => line.lineKey || `${line.id}::${line.variantId || ""}`;
+    toast((t) => (
+      <span className="flex items-center gap-3">
+        <span>{getCopy(design, "cartSavedLater", { title: item.title })}</span>
+        <button
+          type="button"
+          className="font-black underline min-h-[32px] px-1"
+          onClick={() => {
+            toast.dismiss(t.id);
+            if (!wasSaved) wishlist.remove(item.id);
+            const now = cartRef.current;
+            if (now.some((line) => lineKeyOf(line) === key)) return;
+            const next = [...now];
+            next.splice(Math.min(index, next.length), 0, item);
+            setCart(next);
+          }}
+        >
+          {getCopy(design, "cartRemovedUndo")}
+        </button>
+      </span>
+    ), { id: `cart-saved-${key}`, duration: 6000 });
+  };
   const drawerRef = useRef<HTMLDivElement>(null);
   // Dialog behaviour: focus moves in, Tab is contained, Escape closes, focus returns to the opener.
   useFocusTrap(drawerRef, isCartOpen, () => setIsCartOpen(false));
@@ -147,6 +179,7 @@ export function CartDrawer() {
   const backdropBlur = design.cartDrawerBackdropBlur ?? true;
   const qtyStyle = design.cartDrawerQtyStyle === "pill" ? "pill" : "boxes";
   const removeAsIcon = design.cartDrawerRemoveStyle === "icon";
+  const showSaveForLater = saveForLaterOn(design);
   const fromLeft = design.cartDrawerSide === "left";
   const grayscaleThumbs = design.cartDrawerGrayscaleThumbs ?? false;
   // Style › Cart drawer › Empty bag: the icon, the button and where the button goes.
@@ -298,13 +331,27 @@ export function CartDrawer() {
                               <span className="fm-bag-qty-n" aria-live="polite" aria-atomic="true">{item.quantity}</span>
                               <button onClick={() => updateQuantity(key, 1)} disabled={atLimit || item.quantity >= MAX_LINE_QUANTITY} aria-label={getCopy(design, "cartIncreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><PlusIcon size={12} /></button>
                             </div>
-                            <button
-                              onClick={() => removeWithUndo(key, item, idx)}
-                              aria-label={getCopy(design, "cartRemoveAria", { title: item.title })}
-                              className="fm-bag-remove fm-bag-meta min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors"
-                            >
-                              {removeAsIcon ? <Trash2 size={14} aria-hidden="true" /> : getCopy(design, "cartRemoveLabel")}
-                            </button>
+                            <div className="flex items-center gap-3">
+                              {showSaveForLater && canSaveForLater(item) && (
+                                <button
+                                  type="button"
+                                  onClick={() => saveForLater(key, item, idx)}
+                                  aria-label={getCopy(design, "cartSaveLaterAria", { title: item.title })}
+                                  data-studio-target="style:cartDrawer|copy:Cart"
+                                  data-studio-label="Save for later button"
+                                  className="fm-bag-remove fm-bag-save fm-bag-meta min-h-[44px] flex items-center justify-center transition-colors"
+                                >
+                                  {getCopy(design, "cartSaveLater")}
+                                </button>
+                              )}
+                              <button
+                                onClick={() => removeWithUndo(key, item, idx)}
+                                aria-label={getCopy(design, "cartRemoveAria", { title: item.title })}
+                                className="fm-bag-remove fm-bag-meta min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors"
+                              >
+                                {removeAsIcon ? <Trash2 size={14} aria-hidden="true" /> : getCopy(design, "cartRemoveLabel")}
+                              </button>
+                            </div>
                           </div>
                           {atLimit && <p className="fm-bag-warn fm-bag-meta" role="status">{getCopy(design, "cartOnlyAvailable", { count: Math.max(0, (item.stockLimit as number) - siblings) })}</p>}
                         </div>
