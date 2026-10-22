@@ -17,6 +17,7 @@ import type { Book } from "../features/site/types";
 import { useSiteData } from "../features/site/useSiteData";
 import { BootSplash } from "./BootSplash";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
+import { wantsHome } from "../features/site/homeLink";
 import { getCopy } from "../features/site/storeCopy";
 import { preorderActive } from "../features/site/preorder";
 import { comingSoonActive } from "../features/site/comingSoon";
@@ -528,6 +529,18 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const urlQuery = queryFromSearch(location.search);
   const [searchQuery, setSearchQuery] = useState(urlQuery);
   useEffect(() => { if (urlQuery) setSearchQuery(urlQuery); }, [urlQuery]);
+  // The header logo / shop name (HOME_LINK_STATE) returns to the shop's first view from any page, every click:
+  // Home, or with "Show a Home page" off the first category. Keyed on the navigation, so a click on "/" counts too.
+  const homeKey = wantsHome(location.state) ? location.key : null;
+  useEffect(() => {
+    if (!homeKey) return;
+    setSearchQuery("");
+    if (legacyDesign?.showHero !== false) setShowCatalog(false);
+    else if (categories.length > 0) pickCategory(categories[0]);
+    else { autoAll.current = true; setActiveCategory("ALL"); }
+    window.scrollTo({ top: 0 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [homeKey]);
   const [sort, setSort] = useState<SortKey>("featured");
   const [inStockOnly, setInStockOnly] = useState(false);
   // Format and price filters (Shopify-style); price boxes are typed in the shopper's currency.
@@ -718,11 +731,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             categories,
             activeCategory,
             onPickCategory: pickCategory,
-            // With "Show a Home page" off the shop opens on the catalog, so the logo returns to its first view.
-            onHome: () => {
-              if (legacyDesign?.showHero === false) { pickCategory(categories[0] ?? "ALL"); window.scrollTo({ top: 0 }); }
-              else setShowCatalog(false);
-            },
             showCatalog: catalogOpen,
             announcement: settings?.announcements?.[0]?.message,
             siteName: settings?.info?.name,
