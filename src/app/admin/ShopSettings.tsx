@@ -249,7 +249,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           </SectionCard>
         </SettingsAnchor>
         <SettingsAnchor id="gs-holds">
-          <SectionCard title="Checkout stock holds" description="Copies held 30 minutes at checkout. Raise for bulk buyers.">
+          <SectionCard title="Checkout stock holds" description="Held 30 minutes at checkout. E-books never count.">
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
               {([
                 { key: "perBook", label: "Most copies of one book", hint: "Per shopper. Default 10.", max: 99, placeholder: "10" },
@@ -261,7 +261,6 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                   onChange={(e) => set("stockHolds", { [f.key]: e.target.value === "" ? "" : Math.max(0, Math.floor(Number(e.target.value))) })} />
               ))}
             </div>
-            <p className="rp-hint" style={{ marginTop: 12 }}>Over the limit? They're warned in the bag. E-books never count.</p>
           </SectionCard>
         </SettingsAnchor>
       </SettingsGroup>
@@ -1563,7 +1562,6 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
               <StatusBadge tone={stripeLive ? "success" : "neutral"}>Stripe {stripeLive ? "on" : "off"}</StatusBadge>
               <StatusBadge tone={paypalLive ? "success" : "neutral"}>PayPal {paypalLive ? "on" : "off"}</StatusBadge>
               <StatusBadge tone={enabledManual.length ? "info" : "neutral"}>{enabledManual.length} manual method{enabledManual.length === 1 ? "" : "s"}</StatusBadge>
-              {!stripeLive && !paypalLive && enabledManual.length === 0 && <StatusBadge tone="danger">No way to pay is enabled</StatusBadge>}
             </div>
             {paymentIssues.length === 0 ? (
               <p role="status" style={{ padding: 12, background: "var(--rp-success-tint)", color: "var(--rp-success)", border: "1px solid var(--rp-success)" }}><strong>✓ Payment configuration is launch-ready.</strong></p>

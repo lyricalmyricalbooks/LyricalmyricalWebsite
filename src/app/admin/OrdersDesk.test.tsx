@@ -21,7 +21,7 @@ describe("OrdersDesk", () => {
     expect(html).not.toContain('class="od-title">Ship station</h2>');
     expect(html).toContain("Labels today");
     expect(html).toContain("Print pick list");
-    expect(html).toContain("All orders · completed");
+    expect(html).toContain(">All orders<");
     expect(html).toContain("Not in this queue");
     // The right side is the real order page (Stripe sync, refunds, labels).
     expect(html).toContain('data-order-detail="ABC"');

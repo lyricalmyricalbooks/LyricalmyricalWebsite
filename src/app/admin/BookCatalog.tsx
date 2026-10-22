@@ -351,14 +351,14 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     }
     if (field === "stockLevel" && Array.isArray(b.variants) && b.variants.length && inlineEditable({ ...b, variants: [] })) {
       return (
-        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Click to change each edition's stock"
+        <button type="button" className="rp-cell-edit" title="Click to change each edition's stock"
           aria-label={`Edit stock of ${b.title} (by edition)`} onClick={() => setStockEditId(b.id)}>{shown}</button>
       );
     }
     if (field === "stockLevel" && stockLinks[b.id]?.["_"]) return <span title="Counted in the inventory app">{shown}</span>;
     if (!inlineEditable(b) || (field === "stockLevel" && !b.trackInventory)) return shown;
     return (
-      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Click to edit"
+      <button type="button" className="rp-cell-edit" title="Click to edit"
         aria-label={`Edit ${field === "retailPrice" ? "price" : "stock"} of ${b.title}`}
         onClick={() => setInline({ id: b.id, field, value: String(b[field] ?? 0) })}>{shown}</button>
     );

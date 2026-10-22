@@ -366,7 +366,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-hint { font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
 /* A table row's name: the one underlined link that opens the row. Same size on every list (Inventory, Books, Customers…). */
 .rp-row-link { all: unset; box-sizing: border-box; cursor: pointer; font-size: var(--rp-text-md); font-weight: 600; line-height: 1.3; color: var(--rp-text); overflow-wrap: anywhere; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
-.rp-row-link.rp-mono { font-family: var(--rp-font-mono); letter-spacing: 0.02em; }
+.rp-row-link.rp-mono { font-family: var(--rp-font-mono); font-size: var(--rp-text-md); letter-spacing: 0.02em; }
 .rp-row-link:hover { text-decoration-thickness: 2px; text-decoration-color: var(--rp-primary); }
 .rp-row-link:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
 .rp-error-text { font-size: var(--rp-text-xs); color: var(--rp-danger); font-weight: 500; }
@@ -386,6 +386,10 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-search-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--rp-text-subtle); pointer-events: none; }
 .rp-check { display: inline-flex; align-items: center; gap: 10px; min-height: var(--rp-touch); cursor: pointer; font-size: var(--rp-text-sm); }
 .rp-check input { width: 18px; height: 18px; accent-color: var(--rp-primary); margin: 0; }
+/* A table value you can click to edit in place: reads as the value, with a dashed underline as the hint. */
+.rp-cell-edit { all: unset; box-sizing: border-box; cursor: pointer; font: inherit; color: inherit; padding: 2px 0; border-bottom: 1px dashed var(--rp-border-strong); }
+.rp-cell-edit:hover { border-bottom-style: solid; }
+.rp-cell-edit:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
 /* A to-do list's tick box: empty square to do, ink square with a tick once done. */
 .rp-todo-mark { flex: none; display: inline-grid; place-items: center; width: 18px; height: 18px; margin-top: 1px; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); font-size: 12px; font-weight: 800; line-height: 1; color: var(--rp-on-inverse); }
 .rp-todo-mark[data-done] { background: var(--rp-inverse); }
@@ -474,8 +478,8 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-search-results .rp-hint { margin-left: auto; }
 
 /* ── States ────────────────────────────────────────────────────────────── */
-.rp-state { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 56px 24px; }
-.rp-state-icon { width: 56px; height: 56px; border-radius: var(--rp-radius-lg); display: grid; place-items: center; background: var(--rp-primary); color: var(--rp-on-primary); border: var(--rp-stroke) solid var(--rp-border-strong); box-shadow: var(--rp-shadow-sm); margin-bottom: 6px; }
+.rp-state { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 40px 24px; }
+.rp-state-icon { width: 48px; height: 48px; border-radius: var(--rp-radius-lg); display: grid; place-items: center; background: var(--rp-surface); color: var(--rp-text); border: var(--rp-stroke) solid var(--rp-border-strong); margin-bottom: 6px; }
 .rp-state[data-tone="danger"] .rp-state-icon { background: var(--rp-danger-tint); color: var(--rp-danger); }
 .rp-state-title { margin: 0; font-family: var(--rp-font-display); font-style: italic; font-weight: 600; font-size: var(--rp-text-xl); }
 .rp-state-desc { margin: 0; max-width: 46ch; color: var(--rp-text-muted); font-size: var(--rp-text-sm); line-height: 1.55; }
@@ -524,7 +528,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 }
 .rp-page-title { font-size: var(--rp-text-3xl); }
 .rp-dialog-title { font-size: var(--rp-text-xl); }
-.rp-state-title { font-size: var(--rp-text-xl); }
+.rp-state-title { font-size: var(--rp-text-lg); }
 .rp-card-title { font-family: var(--rp-font-display); font-weight: 400; text-transform: uppercase; letter-spacing: 0.01em; font-size: 20px; line-height: 1.05; }
 .rp-wordmark { font-family: var(--rp-font-display); font-style: normal; font-weight: 400; text-transform: uppercase; font-size: 1.2rem; letter-spacing: 0.02em; }
 .rp-wordmark em { font-style: normal; color: var(--rp-primary-text); }
@@ -1350,9 +1354,9 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 /* Cards, buttons, figures and tables look exactly like Inventory's (the admin reference): boxed cards, Riso buttons. */
 /* Setup steps: a plain underlined toggle, no box. */
 .rp-howto { margin: 0 0 12px; }
-.rp-howto > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; cursor: pointer; list-style: none; font-size: var(--rp-text-sm); font-weight: 700; text-decoration: underline; text-decoration-color: var(--rp-primary); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.rp-howto > summary { position: relative; display: inline-flex; align-items: center; padding-right: 18px; min-height: 32px; cursor: pointer; list-style: none; font-size: var(--rp-text-sm); font-weight: 700; text-decoration: underline; text-decoration-color: var(--rp-primary); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .rp-howto > summary::-webkit-details-marker { display: none; }
-.rp-howto > summary::after { content: "+"; display: inline-block; font-family: var(--rp-font-mono); text-decoration: none; color: var(--rp-text-subtle); }
+.rp-howto > summary::after { content: "+"; position: absolute; right: 0; top: 50%; transform: translateY(-50%); font-family: var(--rp-font-mono); text-decoration: none; color: var(--rp-text-subtle); }
 .rp-howto[open] > summary::after { content: "−"; }
 .rp-howto > div { padding: 6px 0 4px; }
 .rp-howto summary:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }

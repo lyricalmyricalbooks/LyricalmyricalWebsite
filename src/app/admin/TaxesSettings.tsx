@@ -103,7 +103,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
           )}
           <TextField label="Rate (%)" inputMode="decimal" data-tax-rate value={rate} placeholder="13" error={tried && problem ? problem : undefined}
             onChange={(e) => setRate(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
-          <PrimaryButton onClick={add}>Add rate</PrimaryButton>
+          <div><PrimaryButton onClick={add}>Add rate</PrimaryButton></div>
         </div>
         <p className="rp-hint" style={{ margin: "12px 0 0" }}>Applies on save. Not tax advice.</p>
       </SectionCard>

@@ -305,7 +305,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
 
       <SectionCard flush title="Match books"
         description="Each printed edition, paired with its book in the app."
-        actions={<span className="rp-sec-note">{linkedCount} of {editions.length} matched</span>}>
+        actions={<StatusBadge tone={editions.length && linkedCount === editions.length ? "success" : "neutral"}>{linkedCount} of {editions.length} matched</StatusBadge>}>
         {(step === "connect" || catalogError) && anyLinks && (
           <div style={{ padding: 16, display: "grid", gap: 8 }} role="status">
             <p className="rp-hint" style={{ margin: 0 }}>

@@ -234,7 +234,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
         {filtered && <GhostButton onClick={clearFilters}>Clear filters</GhostButton>}
         <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
       </FilterBar>
-      <SectionCard flush collapsible={false} title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · built from all ${orders.length} orders (paid, non-test; refunds taken off). Click a customer for their orders and your private notes.`}>
+      <SectionCard flush collapsible={false} title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · paid orders only, refunds taken off.`}>
         <DataTable caption="Customers" columns={columns} rows={pageRows} rowKey={(c) => c.key} onRowClick={openCustomer}
           empty={all.length === 0
             ? <EmptyState title="No customers yet" description="Customers appear here after their first paid order." />

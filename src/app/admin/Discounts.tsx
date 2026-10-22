@@ -497,7 +497,7 @@ export function Discounts() {
     <div className="rp-stack">
       <div className="rp-kpi-grid">
         <MetricCard label="Active discounts" value={activeCodes} footer={`${discounts.length} total`} />
-        <MetricCard label="Redemptions" value={totalRedemptions.toLocaleString()} footer="Counted by the payment webhook" tone="gold" />
+        <MetricCard label="Redemptions" value={totalRedemptions.toLocaleString()} footer="Counted by the payment webhook" />
         <MetricCard label="Revenue with a discount" value={fmt(totalCodeRevenue)} footer="Paid orders, less refunds (CAD)" />
         <MetricCard label="Discounts given" value={fmt(totalGiven)} footer="Total taken off those orders" />
       </div>
@@ -521,7 +521,7 @@ export function Discounts() {
             <div className="rp-grow"><SearchField label="Search discounts" placeholder="Search codes, titles or descriptions…" value={search} onChange={e => setSearch(e.target.value)} /></div>
             <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setEditing(null); setDialogOpen(true); }}>New discount</PrimaryButton>
           </FilterBar>
-          <SectionCard flush collapsible={false} title="Discounts" description={`Showing ${rows.length} of ${discounts.length}. ${ONE_DISCOUNT_HELP}`}>
+          <SectionCard flush collapsible={false} title="Discounts" description={`${rows.length} of ${discounts.length} · one discount per order, the biggest saving wins.`}>
             <DataTable caption="Discounts" columns={columns} rows={rows} rowKey={d => d.id}
               empty={<EmptyState title="No codes match" description="Try a different status or search."
                 action={<SecondaryButton onClick={() => { setFilter("all"); setSearch(""); }}>Reset filters</SecondaryButton>} />} />
