@@ -416,9 +416,9 @@ export function SearchOverlay({
                 type="button"
                 onClick={onClose}
                 aria-label={c("searchCloseAria")}
-                className="flex-none border-2 border-white px-2.5 py-1.5 font-mono text-[11px] tracking-[0.14em] text-white hover:bg-white/10"
+                className="flex-none border-2 border-white px-2.5 py-1.5 font-mono text-[11px] tracking-[0.14em] text-white hover:bg-white/10 max-md:inline-flex max-md:min-h-11 max-md:min-w-11 max-md:items-center max-md:justify-center max-md:text-base"
               >
-                {c("searchCloseLabel")} <span aria-hidden="true">✕</span>
+                <span className="max-md:hidden">{c("searchCloseLabel")} </span><span aria-hidden="true">✕</span>
               </button>
             </div>
             {body}

@@ -11,6 +11,7 @@
 //   fm-pdp-qty          quantity stepper           fm-pdp-sq           square icon buttons
 //   fm-pdp-tabs / -tab / -panel  details tabs     fm-pdp-record       catalogue-record specs
 
+import { phoneMinText } from "./smallPrint";
 import { elementScheme } from "./colorSchemes";
 
 const S = "[data-fm-store]";
@@ -182,6 +183,7 @@ export function productPageCss(design: any): string {
   const pad = num(d, "pdpCardPadding", 24, 8, 48);
   const metaFont = font(has(d.pdpMetaFont) ? d.pdpMetaFont : "DM Mono");
   const metaSize = num(d, "pdpMetaSize", 11, 8, 16);
+  const chipSize = num(d, "pdpChipTextSize", 11, 9, 18);
   const metaColor = color(d, "pdpMetaColor", "var(--muted)");
   const titleFont = has(d.pdpTitleFont) ? font(d.pdpTitleFont) : "var(--heading-font, inherit)";
   const priceFont = has(d.pdpPriceFont) ? font(d.pdpPriceFont) : "var(--heading-font, inherit)";
@@ -298,6 +300,21 @@ export function productPageCss(design: any): string {
     css += `@media (max-width:${PHONE_MAX}px){${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-rail{${grid}}${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-thumb{${cell}}}`;
   }
   css += phoneThumbsCss(d, thumbSize, thumbGap);
+  // Smallest text on phones (Style › Small print › Smallest text on phones): the book page's small labels
+  // (tabs, tag, meta lines, chips, detail names, buy-now) never go below it, with tighter tracking so they still fit.
+  const floor = phoneMinText(d);
+  if (floor) {
+    const at = (px: number) => `${Math.max(px, floor)}px`;
+    css += `@media (max-width:${PHONE_MAX}px){`
+      + `${S} .fm-pdp-tab{font-size:${at(10)};letter-spacing:.2em;padding:0 16px;}`
+      + `${S} .fm-pdp-tag{font-size:${at(10)};letter-spacing:.22em;}`
+      + `${S} .fm-pdp-meta{font-size:${at(metaSize)};}`
+      + `${S} .fm-pdp-chip{font-size:${at(chipSize)};}`
+      + `${S} .fm-pdp-record dt{font-size:${at(9)};letter-spacing:.2em;}`
+      + `${S} .fm-pdp-buynow{font-size:${at(10)};letter-spacing:.22em;}`
+      + `${S} .fm-pdp-sticky-btn{font-size:${at(11)};}`
+      + `}`;
+  }
   // Add to bag + wishlist + share on one line on phones (full-width Add to bag only, `.fm-pdp-cta`): the
   // button shares the row with the square buttons instead of pushing Share onto a line of its own, and a
   // quantity stepper sits on the line above. Computers keep the wrapping flex row.
