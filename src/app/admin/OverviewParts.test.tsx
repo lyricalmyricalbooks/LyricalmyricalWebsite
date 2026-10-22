@@ -84,3 +84,19 @@ describe("ReadinessStrip", () => {
     expect(html).toContain("Stripe keys"); expect(html).not.toContain("Check 0"); expect(html).toContain("+5 more to check");
   });
 });
+
+import { ChangeList } from "./OverviewParts";
+
+describe("What changed list", () => {
+  it("lays every line out as a title column beside one badge, so titles line up whatever the mix of moves", () => {
+    const html = renderToStaticMarkup(<ChangeList changes={[
+      { id: "a", tone: "up", title: "Revenue rose by 31%", detail: "CA$420.00 now", weight: 1 } as any,
+      { id: "b", tone: "down", title: "Sales of Tidal Notes fell", detail: "CA$60.00 now", weight: 1 } as any,
+    ]} />);
+    expect(html).toContain('aria-label="What changed"');
+    expect(html.match(/class="rp-ov-change"/g)).toHaveLength(2);
+    expect(html).toContain("▲ Up");
+    expect(html).toContain("▼ Down");
+    expect(html.indexOf("Revenue rose by 31%")).toBeLessThan(html.indexOf("▲ Up"));
+  });
+});
