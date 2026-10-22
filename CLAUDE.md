@@ -208,7 +208,8 @@ profile/zone path. Selected live quotes are fetched and validated again server-s
 amount matches checkout. Carrier & labels › **Add an extra amount to every live rate** (`liveRateExtra { enabled, amount }` on the
 Shippo config doc, ≤ $50, `functions/liveRateExtra.js`) adds one amount to every live quote in both `getShippoRates` and
 `resolveShipping`; label purchases keep the carrier price. Create profile is one dialog (`NewShippingProfileDialog.tsx`,
-pure starters/duplicate in `shippingProfileStarters.ts`). Admin UI: Settings › Shipping › profile editor (Profile rules, Test this
+pure starters/duplicate in `shippingProfileStarters.ts`). The profile editor is Masthead-style (title, sub tabs Zones & prices · Rules · Books · Test,
+figures strip; `shippingProfileEditor.test.tsx`); never add kicker/subcopy headings or numbered steps back. Admin UI: Settings › Shipping › profile editor (Profile rules, Test this
 profile, rate dialog).
 
 **Weights are metric (18 October 2026).** Book/edition weights are entered in g or kg only (`WEIGHT_UNITS`); older

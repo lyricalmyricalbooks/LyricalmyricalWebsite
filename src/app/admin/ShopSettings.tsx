@@ -39,7 +39,8 @@ import {
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { POLICY_KEYS, POLICY_TITLES, policySlug, type PolicyKey } from "../features/site/policyPages";
-import { Checkbox, ConfirmDialog, LoadingState, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, MetricCard, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SectionHead, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
+import { ActionMenu, Checkbox, ConfirmDialog, LoadingState, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
+import { Figure } from "./OverviewParts";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import { NotificationEditor } from "./NotificationEditor";
@@ -360,7 +361,7 @@ function RateTester({ profile }: { profile: any }) {
     [{ price: each, quantity: qty, shippingProfileId: profile.id, weightGrams: grams === "" ? null : (Number(grams) || 0) / qty }],
     { country }, [profile]).filter((q) => q.type !== "pickup"), [profile, country, each, qty, grams]);
   return (
-    <SectionCard title="4 · Test this profile" description="See exactly what a customer would be offered, using your unsaved edits.">
+    <SectionCard>
       <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", marginBottom: 12 }}>
         <SelectField label="Destination" value={country} onChange={(e) => setCountry(e.target.value)}>
           {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
@@ -450,13 +451,14 @@ function LiveRateExtraField({ config, onSave }: { config: any; onSave: (extra: {
   );
 }
 
-function ShippingSettings({ profiles, profilesError = false, refreshProfiles, initialView = "overview", subTab, onSubTabChange }: any) {
+export function ShippingSettings({ profiles, profilesError = false, refreshProfiles, initialView = "overview", subTab, onSubTabChange }: any) {
   const localFulfillmentDraft = useLocalFulfillmentDraft();
   const [askConfirm, confirmNode] = useConfirm();
   const [books, setBooks] = useState<any[]>([]);
   const [booksError, setBooksError] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [editingProfile, setEditingProfile] = useState<any | null>(null);
+  const [profileView, setProfileView] = useState<"zones" | "rules" | "books" | "test">("zones");
   const [shippingView, setShippingView] = useSubTab<"overview" | "profiles" | "carrier" | "local">(onSubTabChange ? "overview" : initialView, subTab, onSubTabChange);
   
   // Modals visibility
@@ -835,7 +837,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
     </ul>
   );
   const renderTabProblems = (issues: ShippingIssue[]) => issues.length === 0 ? null : (
-    <SectionCard title={`${issues.length} problem${issues.length === 1 ? "" : "s"} to fix here`} description="These come from Overview › Checkout readiness and clear as soon as they're fixed.">
+    <SectionCard title={`${issues.length} problem${issues.length === 1 ? "" : "s"} to fix here`}>
       {renderShippingProblems(issues, { showTab: false })}
     </SectionCard>
   );
@@ -1014,12 +1016,12 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
 
         {shippingView === "overview" && (
           <>
-            <div className="rp-kpi-grid">
-              <MetricCard label="Shipping profiles" value={shippingSummary.profileCount} footer={`${shippingSummary.assignedProductCount} assigned products`} />
-              <MetricCard label="Destination coverage" value={shippingSummary.coveredCountryCount} footer={`${shippingSummary.zoneCount} zones · ${shippingSummary.rateCount} rates`} tone="gold" />
-              <MetricCard label="Configuration health" value={shippingProblems.length === 0 ? "Ready" : `${shippingProblems.length} issue${shippingProblems.length === 1 ? "" : "s"}`} footer={shippoConnected ? "Shippo connected" : "Flat rates only"} tone={shippingSummary.issues.length > 0 ? "danger" : shippingProblems.length > 0 ? "gold" : undefined} />
-            </div>
-            <SectionCard title="Checkout readiness" description="Resolve configuration gaps before they prevent a customer from choosing delivery. Each problem's button opens the tab where it's fixed.">
+            <section className="rp-ov-figures rp-wb-strip" aria-label="Shipping in numbers">
+              <Figure label="Profiles" value={shippingSummary.profileCount} foot={`${shippingSummary.assignedProductCount} books moved to a profile`} />
+              <Figure label="Countries" value={shippingSummary.coveredCountryCount} foot={`${shippingSummary.zoneCount} zones · ${shippingSummary.rateCount} rates`} />
+              <Figure label="Checkout" value={shippingProblems.length === 0 ? "Ready" : `${shippingProblems.length} issue${shippingProblems.length === 1 ? "" : "s"}`} foot={shippoConnected ? "Shippo connected" : "Flat rates only"} tone={shippingProblems.length > 0 ? "warn" : undefined} />
+            </section>
+            <SectionCard title="Checkout readiness">
               {shippingProblems.length === 0 ? (
                 <div role="status" style={{ padding: 16, background: "var(--rp-success-tint)", border: "1px solid var(--rp-success)", color: "var(--rp-success)" }}>
                   <strong>✓ Shipping configuration is ready.</strong>
@@ -1128,38 +1130,37 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
         {shippingView === "profiles" && (
         <>
         {renderTabProblems(profileProblems)}
-        <SectionHead kicker="Shipping" title="Profiles, zones & rates" subcopy="A profile is a set of zones and rates. Books use the General profile unless you assign them to another."
-          actions={<PrimaryButton onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>} />
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <PrimaryButton size="sm" onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>
+        </div>
 
         <NewShippingProfileDialog open={isCreatingProfile} onClose={() => setIsCreatingProfile(false)} profiles={profiles} onCreate={handleCreateProfile} />
 
         {profiles.length === 0 && profilesError ? null : profiles.length === 0 ? (
-          <SectionCard><EmptyState icon="🚚" title="No shipping profiles" description="Create a profile with at least one zone and rate so customers can check out."
-            action={<PrimaryButton onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>} /></SectionCard>
+          <EmptyState icon="🚚" title="No shipping profiles" description="Customers can't check out until a profile has a zone and a rate."
+            action={<PrimaryButton onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>} />
         ) : (
-          <ul className="rp-stack" style={{ listStyle: "none", margin: 0, padding: 0 }} aria-label="Shipping profiles">
+          <ul className="rp-list" style={{ margin: 0, border: "var(--rp-stroke) solid var(--rp-border-strong)", background: "var(--rp-surface)" }} aria-label="Shipping profiles">
             {profiles.map((p: any) => {
               const assigned = getAssignedProducts(p.id);
-              const zonesCount = p.zones?.length || 0;
-              const noRates = zonesCount === 0 || (p.zones || []).every((z: any) => !z.rates?.length);
+              const noRates = !(p.zones || []).some((z: any) => z.rates?.length);
               return (
-                <li key={p.id}>
-                  <SectionCard>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{ minWidth: 0 }}>
-                        <h3 className="rp-card-title" style={{ display: "inline", overflowWrap: "anywhere" }}>{p.name || "Untitled profile"}</h3>{" "}
-                        {p.id === "general-profile" && <StatusBadge tone="primary">Default</StatusBadge>}{" "}
-                        {noRates && <StatusBadge tone="warning">No rates yet</StatusBadge>}
-                        <p className="rp-hint" style={{ margin: "6px 0 0", overflowWrap: "anywhere" }}>{profileSummary(p)}</p>
-                        <p className="rp-hint" style={{ margin: "2px 0 0" }}>{zonesCount} zone{zonesCount === 1 ? "" : "s"} · {p.id === "general-profile" ? "every book not moved to another profile" : `${assigned.length} book${assigned.length === 1 ? "" : "s"}`}</p>
-                      </div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <SecondaryButton onClick={() => handleSelectProfile(p)}>Manage rates</SecondaryButton>
-                        <SecondaryButton onClick={() => handleDuplicateProfile(p)} busy={duplicatingId === p.id} disabled={!!duplicatingId} aria-label={`Duplicate ${p.name || "profile"} shipping profile`}>Duplicate</SecondaryButton>
-                        {p.id !== "general-profile" && <DestructiveButton onClick={() => handleDeleteProfile(p.id)} aria-label={`Delete ${p.name} shipping profile`}>Delete</DestructiveButton>}
-                      </div>
+                <li key={p.id} style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
+                  <div style={{ minWidth: 0, flex: "1 1 260px" }}>
+                    <button type="button" className="rp-wb-a" style={{ fontSize: "var(--rp-text-md, 16px)", overflowWrap: "anywhere", textAlign: "left" }} onClick={() => handleSelectProfile(p)}>{p.name || "Untitled profile"}</button>{" "}
+                    {p.id === "general-profile" && <StatusBadge tone="primary">Default</StatusBadge>}{" "}
+                    {noRates && <StatusBadge tone="warning">No rates yet</StatusBadge>}
+                    <div className="rp-hint" style={{ marginTop: 4, overflowWrap: "anywhere" }}>
+                      {profileSummary(p)} · {p.id === "general-profile" ? "all other books" : `${assigned.length} book${assigned.length === 1 ? "" : "s"}`}
                     </div>
-                  </SectionCard>
+                  </div>
+                  <span style={{ display: "inline-flex", gap: 12, alignItems: "center" }}>
+                    <button type="button" className="rp-wb-a" onClick={() => handleSelectProfile(p)} aria-label={`Edit ${p.name || "profile"}`}>Edit</button>
+                    <ActionMenu label={`More for ${p.name || "profile"}`} actions={[
+                      { label: duplicatingId === p.id ? "Duplicating…" : "Duplicate", onSelect: () => { if (!duplicatingId) handleDuplicateProfile(p); } },
+                      ...(p.id !== "general-profile" ? [{ label: "Delete", tone: "danger" as const, onSelect: () => handleDeleteProfile(p.id) }] : []),
+                    ]} />
+                  </span>
                 </li>
               );
             })}
@@ -1172,110 +1173,140 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
     );
   }
 
-  // ─── Profile editor ─────────────────────────────────────────────────────────
+  // ─── Profile editor (Masthead): name, sub tabs, one strip of figures ──────────
   const assignedBooks = getAssignedProducts(editingProfile.id);
   const zones = editingProfile.zones || [];
+  const rateCount = zones.reduce((n: number, z: any) => n + (z.rates?.length || 0), 0);
+  const countryCount = new Set(zones.flatMap((z: any) => z.countries || [])).size;
+  const shipsEverywhere = zones.some((z: any) => z.restOfWorld);
+  const isGeneral = editingProfile.id === "general-profile";
+  const leaveEditor = async () => {
+    const saved = profiles.find((p: any) => p.id === editingProfile?.id);
+    const dirty = saved && JSON.stringify(saved) !== JSON.stringify(editingProfile);
+    if (dirty && !(await askConfirm({ title: "Leave without saving?", message: "Your zone and rate changes to this profile haven't been saved.", confirmLabel: "Discard changes" }))) return;
+    setSelectedProfileId(null); setEditingProfile(null); setProfileView("zones");
+  };
 
   return (
     <div className="rp-stack">
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "space-between" }}>
-        <SecondaryButton onClick={async () => {
-          const saved = profiles.find((p: any) => p.id === editingProfile?.id);
-          const dirty = saved && JSON.stringify(saved) !== JSON.stringify(editingProfile);
-          if (dirty && !(await askConfirm({ title: "Leave without saving?", message: "Your zone and rate changes to this profile haven't been saved.", confirmLabel: "Discard changes" }))) return;
-          setSelectedProfileId(null); setEditingProfile(null);
-        }}>← Back to profiles</SecondaryButton>
-        <PrimaryButton onClick={handleSaveProfile} disabled={savingProfile}>{savingProfile ? "Saving…" : "Save profile changes"}</PrimaryButton>
-      </div>
-      <SectionHead kicker="Profile" title={editingProfile.name || "Untitled profile"} subcopy="Set where it ships and the prices, then choose its books. Changes apply when you save." />
-
-      {editingProfile.id !== "general-profile" && (
-        <SectionCard title="Profile name">
-          <TextField label="Profile name" value={editingProfile.name} onChange={(e) => setEditingProfile({ ...editingProfile, name: e.target.value })} />
-        </SectionCard>
-      )}
-
-      <SectionHead kicker="Zones & prices" title="1 · Where you ship and what it costs" subcopy="A zone is a group of countries that share the same prices. Each zone needs at least one rate."
-        actions={<span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {zones.length === 0 && <SecondaryButton onClick={handleAddStarterZones}>Add starter zones</SecondaryButton>}
-          <PrimaryButton onClick={() => openZoneModal()}>+ Add shipping zone</PrimaryButton>
-        </span>} />
-
-      {zones.length === 0 ? (
-        <SectionCard><EmptyState icon="🌍" title="No shipping zones" description="Customers can't check out without a zone that covers their country. Add one, then give it a rate." /></SectionCard>
-      ) : zones.map((z: any) => (
-        <SectionCard key={z.id} title={z.name} description={`${z.countries.length} countr${z.countries.length === 1 ? "y" : "ies"}`}
-          actions={
-            <span style={{ display: "flex", gap: 8 }}>
-              <SecondaryButton size="sm" onClick={() => openZoneModal(z)}>Edit zone</SecondaryButton>
-              <SecondaryButton size="sm" onClick={() => handleDuplicateZone(z)} aria-label={`Duplicate zone ${z.name}`}>Copy</SecondaryButton>
-              <DestructiveButton size="sm" onClick={() => handleDeleteZone(z.id)} aria-label={`Delete zone ${z.name}`}>Delete</DestructiveButton>
-            </span>
-          }>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }} aria-label={`Countries in ${z.name}`}>
-            {z.countries.map((c: string) => <StatusBadge key={c}>{countryName(c)}</StatusBadge>)}
+      <header className="rp-wb-head">
+        <div className="rp-wb-head-title">
+          <div style={{ minWidth: 0 }}>
+            <button type="button" className="rp-wb-a" style={{ fontSize: "var(--rp-text-sm)", marginBottom: 6 }} onClick={leaveEditor}>← Shipping profiles</button>
+            <h2 className="rp-page-title rp-wb-h1" style={{ overflowWrap: "anywhere", fontSize: "var(--rp-text-2xl)" }}>{editingProfile.name || "Untitled profile"}</h2>
           </div>
-          <div className="rp-sect">Rates</div>
-          {(!z.rates || z.rates.length === 0) ? (
-            <p role="alert" className="rp-hint" style={{ margin: 0, padding: 12, background: "var(--rp-warning-tint)", color: "var(--rp-warning)", border: "1px solid var(--rp-warning)" }}>
-              ⚠ No rates configured — customers in this zone won't have a way to ship.
-            </p>
-          ) : (
-            <div className="rp-table-wrap" role="region" aria-label={`Rates for ${z.name}`} tabIndex={0} style={{ boxShadow: "none" }}>
-              <table className="rp-table">
-                <caption className="rp-sr-only">Shipping rates for {z.name}</caption>
-                <thead><tr><th scope="col">Rate</th><th scope="col">Pricing</th><th scope="col">Offered when</th><th scope="col">Delivery</th><th scope="col">Actions</th></tr></thead>
-                <tbody>
-                  {z.rates.map((r: any) => (
-                    <tr key={r.id} style={r.enabled === false ? { opacity: 0.55 } : undefined}>
-                      <td className="rp-lead">{r.name}{r.enabled === false && <> <StatusBadge>Off</StatusBadge></>}</td>
-                      <td>{describeRatePrice(r)}</td>
-                      <td>{describeRateConditions(r) || "Always"}</td>
-                      <td>{r.type === "pickup" ? "Pickup" : `${r.deliveryDays || "—"} days`}</td>
-                      <td>
-                        <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
-                          <SecondaryButton size="sm" onClick={() => openRateModal(z.id, r)} aria-label={`Edit rate ${r.name}`}>Edit</SecondaryButton>
-                          <SecondaryButton size="sm" onClick={() => handleDuplicateRate(z.id, r)} aria-label={`Duplicate rate ${r.name}`}>Copy</SecondaryButton>
-                          <DestructiveButton size="sm" onClick={() => handleDeleteRate(z.id, r.id)} aria-label={`Delete rate ${r.name}`}>Delete</DestructiveButton>
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {isGeneral && <StatusBadge tone="primary">Default</StatusBadge>}
+        </div>
+        <Tabs variant="page" label="Profile" idPrefix="profile-" value={profileView} onChange={setProfileView} tabs={[
+          { id: "zones", label: "Zones & prices" },
+          { id: "rules", label: isGeneral ? "Rules" : "Name & rules" },
+          { id: "books", label: "Books", count: isGeneral ? undefined : assignedBooks.length },
+          { id: "test", label: "Test" },
+        ]} />
+        <section className="rp-ov-figures rp-wb-strip" aria-label="This profile in numbers">
+          <Figure label="Zones" value={zones.length} foot={zones.length ? "" : "Add one to ship"} tone={zones.length ? undefined : "warn"} />
+          <Figure label="Rates" value={rateCount} foot={profileSummary({ zones }).split(" · ").pop()} tone={rateCount ? undefined : "warn"} />
+          <Figure label="Countries" value={countryCount} foot={shipsEverywhere ? "plus everywhere else" : ""} />
+          <Figure label="Books" value={isGeneral ? "All others" : assignedBooks.length} foot="" />
+        </section>
+      </header>
+
+      <TabPanel tabId="profile-zones" active={profileView === "zones"}>
+        <div className="rp-stack">
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {zones.length === 0 && <SecondaryButton size="sm" onClick={handleAddStarterZones}>Add starter zones</SecondaryButton>}
+            <PrimaryButton size="sm" onClick={() => openZoneModal()}>+ Add zone</PrimaryButton>
+          </div>
+          {zones.length === 0 ? (
+            <EmptyState icon="🌍" title="No zones yet" description="Customers can't check out without a zone for their country." />
+          ) : zones.map((z: any) => (
+            <SectionCard key={z.id} title={z.name}
+              actions={
+                <span style={{ display: "inline-flex", gap: 12, alignItems: "center" }}>
+                  <button type="button" className="rp-wb-a" onClick={() => openZoneModal(z)}>Edit zone</button>
+                  <ActionMenu label={`More for zone ${z.name}`} actions={[
+                    { label: "Copy zone", onSelect: () => handleDuplicateZone(z) },
+                    { label: "Delete zone", tone: "danger", onSelect: () => handleDeleteZone(z.id) },
+                  ]} />
+                </span>
+              }>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }} aria-label={`Countries in ${z.name}`}>
+                {z.restOfWorld ? <StatusBadge>Everywhere else</StatusBadge> : z.countries.map((c: string) => <StatusBadge key={c}>{countryName(c)}</StatusBadge>)}
+              </div>
+              {(!z.rates || z.rates.length === 0) ? (
+                <p role="alert" className="rp-hint" style={{ margin: 0, color: "var(--rp-warning)" }}>⚠ No rates, so customers here can't check out.</p>
+              ) : (
+                <div className="rp-table-wrap" role="region" aria-label={`Rates for ${z.name}`} tabIndex={0} style={{ boxShadow: "none" }}>
+                  <table className="rp-table">
+                    <caption className="rp-sr-only">Shipping rates for {z.name}</caption>
+                    <thead><tr><th scope="col">Rate</th><th scope="col">Price</th><th scope="col">Offered when</th><th scope="col">Delivery</th><th scope="col"><span className="rp-sr-only">Actions</span></th></tr></thead>
+                    <tbody>
+                      {z.rates.map((r: any) => (
+                        <tr key={r.id} style={r.enabled === false ? { opacity: 0.55 } : undefined}>
+                          <td className="rp-lead">{r.name}{r.enabled === false && <> <StatusBadge>Off</StatusBadge></>}</td>
+                          <td>{describeRatePrice(r)}</td>
+                          <td>{describeRateConditions(r) || "Always"}</td>
+                          <td>{r.type === "pickup" ? "Pickup" : r.deliveryDays ? `${r.deliveryDays} days` : "—"}</td>
+                          <td>
+                            <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                              <button type="button" className="rp-wb-a" onClick={() => openRateModal(z.id, r)} aria-label={`Edit rate ${r.name}`}>Edit</button>
+                              <ActionMenu label={`More for rate ${r.name}`} actions={[
+                                { label: "Copy rate", onSelect: () => handleDuplicateRate(z.id, r) },
+                                { label: "Delete rate", tone: "danger", onSelect: () => handleDeleteRate(z.id, r.id) },
+                              ]} />
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div style={{ marginTop: 10 }}><button type="button" className="rp-wb-a" onClick={() => openRateModal(z.id)}>+ Add rate</button></div>
+            </SectionCard>
+          ))}
+        </div>
+      </TabPanel>
+
+      <TabPanel tabId="profile-rules" active={profileView === "rules"}>
+        <SectionCard>
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+            {!isGeneral && (
+              <TextField label="Profile name" value={editingProfile.name} onChange={(e) => setEditingProfile({ ...editingProfile, name: e.target.value })} />
+            )}
+            <TextField label="Free shipping over ($)" type="number" min={0} step="0.01" placeholder="None"
+              hint="Every rate here becomes free at this order total."
+              value={editingProfile.freeShippingOver ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, freeShippingOver: e.target.value === "" ? null : Number(e.target.value) })} />
+            <TextField label="Packing fee per order ($)" type="number" min={0} step="0.01" placeholder="0.00"
+              value={editingProfile.handlingFee ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, handlingFee: e.target.value === "" ? null : Number(e.target.value) })} />
+            <TextField label="Weight of a book with none set (g)" type="number" min={0} placeholder="e.g. 350"
+              value={editingProfile.defaultItemWeightG ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, defaultItemWeightG: e.target.value === "" ? null : Number(e.target.value) })} />
+          </div>
+        </SectionCard>
+      </TabPanel>
+
+      <TabPanel tabId="profile-books" active={profileView === "books"}>
+        <div className="rp-stack">
+          {!isGeneral && (
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <PrimaryButton size="sm" onClick={() => openProductModal()}>Choose books ({assignedBooks.length})</PrimaryButton>
             </div>
           )}
-          <div className="rp-card-actions"><span /><SecondaryButton size="sm" onClick={() => openRateModal(z.id)}>+ Add rate</SecondaryButton></div>
-        </SectionCard>
-      ))}
-
-      <SectionCard title="2 · Rules for every price" description="Optional. These apply on top of every rate above.">
-        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-          <TextField label="Free shipping over ($)" type="number" min={0} step="0.01" placeholder="e.g. 100.00"
-            hint="Every rate in this profile becomes free at or above this order total."
-            value={editingProfile.freeShippingOver ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, freeShippingOver: e.target.value === "" ? null : Number(e.target.value) })} />
-          <TextField label="Handling / packing fee ($)" type="number" min={0} step="0.01" placeholder="0.00"
-            hint="Added once per order for items in this profile."
-            value={editingProfile.handlingFee ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, handlingFee: e.target.value === "" ? null : Number(e.target.value) })} />
-          <TextField label="Assumed weight per book (g)" type="number" min={0} placeholder="e.g. 350"
-            hint="Used for weight-based rates when a book has no weight set."
-            value={editingProfile.defaultItemWeightG ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, defaultItemWeightG: e.target.value === "" ? null : Number(e.target.value) })} />
+          {isGeneral ? (
+            <p className="rp-hint" style={{ margin: 0 }}>Every book not moved to another profile ships with these prices.</p>
+          ) : assignedBooks.length === 0 ? (
+            <EmptyState icon="📦" title="No books yet" description="Books you choose here use this profile's prices." />
+          ) : (
+            <ul className="rp-list" style={{ margin: 0, border: "var(--rp-hair) solid var(--rp-border)" }} aria-label="Books that use this profile">
+              {assignedBooks.map((b: any) => <li key={b.id} style={{ padding: "10px 14px", overflowWrap: "anywhere" }}>{b.title}</li>)}
+            </ul>
+          )}
         </div>
-      </SectionCard>
+      </TabPanel>
 
-      <SectionCard title="3 · Books that use this profile" description={editingProfile.id === "general-profile" ? "Every book you haven't moved to another profile ships with these prices." : "Only the books ticked here use these prices. All others keep the General profile."}
-        actions={<SecondaryButton onClick={() => openProductModal()}>Choose books ({assignedBooks.length})</SecondaryButton>}>
-        {assignedBooks.length === 0 ? (
-          <EmptyState icon="📦" title="No books assigned" description={editingProfile.id === "general-profile" ? "Books without another profile use these rates." : "Assign books so they use this profile's rates."} />
-        ) : (
-          <ul className="rp-list" style={{ margin: -20 }} aria-label="Assigned books">
-            {assignedBooks.slice(0, 6).map((b: any) => <li key={b.id} style={{ padding: "10px 20px", overflowWrap: "anywhere" }}>{b.title}</li>)}
-            {assignedBooks.length > 6 && <li className="rp-hint">+ {assignedBooks.length - 6} more</li>}
-          </ul>
-        )}
-      </SectionCard>
-
-      <RateTester profile={editingProfile} />
+      <TabPanel tabId="profile-test" active={profileView === "test"}>
+        <RateTester profile={editingProfile} />
+      </TabPanel>
 
       <SaveBar dirty={profileDirty} saving={savingProfile} message={`Unsaved changes to “${editingProfile.name || "this profile"}”.`}
         onSave={handleSaveProfile} onDiscard={() => { if (savedProfile) setEditingProfile(JSON.parse(JSON.stringify(savedProfile))); }} />

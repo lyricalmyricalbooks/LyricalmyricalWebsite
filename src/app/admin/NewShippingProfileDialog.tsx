@@ -49,8 +49,7 @@ export function NewShippingProfileDialog({ open, onClose, profiles, onCreate }: 
 
   const grid = { display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", alignItems: "end" } as const;
   return (
-    <Dialog open={open} onClose={onClose} size="lg" badge="🚚" title="New shipping profile"
-      description="Give some books their own shipping prices, for example heavy art books or prints sent in a tube."
+    <Dialog open={open} onClose={onClose} size="lg" title="New shipping profile"
       footer={<>
         <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
         <PrimaryButton onClick={create} busy={saving} disabled={saving}>{saving ? "Creating…" : "Create profile"}</PrimaryButton>
@@ -60,24 +59,20 @@ export function NewShippingProfileDialog({ open, onClose, profiles, onCreate }: 
           error={tried && !name.trim() ? "Give the profile a name." : undefined}
           onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") create(); }} />
 
-        <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend className="rp-label" style={{ marginBottom: 8 }}>Start from</legend>
-          <div role="radiogroup" aria-label="Start from" style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+        <div>
+          <span className="rp-label" id="np-start" style={{ display: "block", marginBottom: 4 }}>Start from</span>
+          {/* The Masthead's underlined words (Overview dates), one per starting point. */}
+          <div role="radiogroup" aria-labelledby="np-start" className="rp-wb-seg" style={{ flexWrap: "wrap" }}>
             {PROFILE_STARTERS.filter((s) => s.id !== "copy" || profiles.length > 0).map((s) => (
-              <button key={s.id} type="button" role="radio" aria-checked={starter === s.id} onClick={() => pick(s.id)}
-                className={`rp-btn ${starter === s.id ? "rp-btn-ink" : "rp-btn-secondary"}`}
-                style={{ flexDirection: "column", alignItems: "flex-start", textAlign: "left", whiteSpace: "normal", height: "auto", padding: "10px 12px" }}>
-                <span>{s.label}</span>
-                <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: "none", opacity: 0.8 }}>{s.desc}</span>
-              </button>
+              <button key={s.id} type="button" role="radio" aria-checked={starter === s.id}
+                title={s.desc} onClick={() => pick(s.id)}>{s.label}</button>
             ))}
           </div>
-        </fieldset>
+        </div>
 
         {prices.length > 0 && (
           <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-            <legend className="rp-label" style={{ marginBottom: 4 }}>Prices</legend>
-            <p className="rp-hint" style={{ margin: "0 0 8px" }}>Suggested prices are filled in. Change them to what you charge; you can add more rates later.</p>
+            <legend className="rp-label" style={{ marginBottom: 8 }}>Prices</legend>
             <ul className="rp-list" style={{ margin: 0, border: "1px solid var(--rp-border)" }} aria-label="Prices by zone">
               {prices.map((p) => (
                 <li key={p.key} style={{ padding: "10px 12px" }}>
@@ -98,7 +93,7 @@ export function NewShippingProfileDialog({ open, onClose, profiles, onCreate }: 
 
         {starter === "copy" && (
           <SelectField label="Profile to copy" value={copyId} onChange={(e) => setCopyId(e.target.value)}
-            hint={copyFrom ? `${profileSummary(copyFrom)}. Books stay where they are.` : undefined}>
+            hint={copyFrom ? profileSummary(copyFrom) : undefined}>
             {profiles.map((p) => <option key={p.id} value={p.id}>{p.name || "Untitled profile"}</option>)}
           </SelectField>
         )}
@@ -106,7 +101,6 @@ export function NewShippingProfileDialog({ open, onClose, profiles, onCreate }: 
         {starter !== "blank" && (
           <TextField label="Free shipping over ($, optional)" type="number" min={0} step="0.01" inputMode="decimal" value={freeOver}
             placeholder={starter === "copy" && copyFrom?.freeShippingOver ? `Same as the copy: ${Number(copyFrom.freeShippingOver).toFixed(2)}` : "e.g. 75.00"}
-            hint="Every price in this profile becomes free at or above this order total. Leave empty for none."
             onChange={(e) => setFreeOver(e.target.value)} />
         )}
 
@@ -115,7 +109,6 @@ export function NewShippingProfileDialog({ open, onClose, profiles, onCreate }: 
             {problems.map((msg) => <li key={msg}>{msg}</li>)}
           </ul>
         )}
-        <p className="rp-hint" style={{ margin: 0 }}>Next you choose which books use it. Books you don't move keep the General profile.</p>
       </div>
     </Dialog>
   );
