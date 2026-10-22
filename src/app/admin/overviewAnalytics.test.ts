@@ -108,6 +108,16 @@ describe("whatChanged", () => {
     expect(country).toMatchObject({ id: "country-CA", tone: "down", title: "Sales to Canada fell by $120.00" });
     expect(country?.detail).toBe("The biggest move by destination ($80.00 now, $200.00 in the 30 days before).");
   });
+  it("says how much a title rose or fell in plain words", () => {
+    const line = (id: string, title: string, quantity: number) => order({ total: quantity * 20, items: [{ id, title, price: 20, quantity }] });
+    const current = [line("up", "Soft Machines", 7), line("down", "Tidal Notes", 3)];
+    const previous = [line("up", "Soft Machines", 2), line("down", "Tidal Notes", 8)];
+    const list = whatChanged({ cur: totals(current), prev: totals(previous), current, previous, before: "the 30 days before", money });
+    expect(list.find(c => c.id === "rise-up")).toMatchObject({ tone: "up", title: "Sales of Soft Machines rose by $100.00",
+      detail: "The biggest rise among your titles ($140.00 now, $40.00 in the 30 days before; 7 copies vs 2)." });
+    expect(list.find(c => c.id === "fall-down")).toMatchObject({ tone: "down", title: "Sales of Tidal Notes fell by $100.00",
+      detail: "The biggest drop among your titles ($60.00 now, $160.00 in the 30 days before; 3 copies vs 8)." });
+  });
   it("says nothing about revenue for a quiet change", () => {
     const list = whatChanged({ cur: totals([order()]), prev: totals([order({ total: 49 })]), current: [order()], previous: [order({ total: 49 })], before: "x", money });
     expect(list.some(c => c.id === "revenue")).toBe(false);
