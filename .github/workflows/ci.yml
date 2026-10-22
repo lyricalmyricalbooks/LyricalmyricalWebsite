@@ -88,6 +88,28 @@ jobs:
       - name: Firebase Hosting routing check
         run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-lyricalmyrical "node scripts/hosting-smoke.mjs"
 
+  dependency-audit:
+    # Fails a pull request when an installed package has a known high or critical advisory (root: pnpm, Cloud Functions: npm).
+    # Low and moderate advisories only print, so the unpatched Quill one (guarded by quillExport.guard.test.ts) doesn't block.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Storefront and admin packages
+        run: pnpm audit --audit-level=high
+
+      - name: Cloud Functions packages
+        working-directory: functions
+        run: npm audit --audit-level=high
+
   storefront-smoke:
     # Serves the production build and walks a shopper's path in Chromium against the live published catalog (home,
     # book page, add to bag, checkout, collection, wishlist, tracking, account, admin sign-in, 404, search, phone).
