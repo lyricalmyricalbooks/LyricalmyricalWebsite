@@ -90,14 +90,14 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
   const quotes = quoteLocalFulfillment(config, { country: 'CA', zip: postal }, subtotal === '' ? NaN : Number(subtotal), [{ quantity: 1 }]);
   return <div className="rp-stack">
     <fieldset disabled={!loaded || busy} style={{ border: 0, padding: 0, margin: 0 }} className="rp-stack">
-    <SectionCard title="Pickup & local delivery" description="Let Toronto shoppers collect their order in person, and deliver to nearby postal areas. Everything starts switched off until you turn it on. Storefront labels and look are in Studio.">
+    <SectionCard title="Pickup & local delivery" description="Pickup and nearby delivery. Off until you switch it on.">
       <Toggle label="Free local pickup for Toronto shoppers" checked={pickupOn} onChange={on => void setQuickPickup(on)} />
       <p className="rp-hint">{pickupOn ? 'On — shoppers with a Toronto postal code (starting with M) see a free "Local pickup" option at checkout. This switch saves straight away, on its own — other edits below still need Save.' : 'Off. Switch on to offer free pickup to Toronto shoppers — no other setup needed. You can add your address, hours and instructions below.'}</p>
       <Toggle label="Enable local fulfillment (pickup and delivery)" checked={config.enabled} onChange={enabled => setConfig({ ...config, enabled })} />
     </SectionCard>
 
-    <SectionCard title="Local pickup" description="Shoppers whose address is in the pickup area see a free (or low-fee) pickup option at checkout. Toronto postal codes all start with M." actions={<SecondaryButton onClick={() => setConfig({ ...config, pickupLocations: [...config.pickupLocations, newTorontoPickup()] })}>Add pickup location</SecondaryButton>}>
-      {!config.pickupLocations.length && <p className="rp-hint">No pickup location yet. Choose <strong>Add pickup location</strong> — it starts set up for Toronto; fill in your street address and postal code, then switch it on.</p>}
+    <SectionCard title="Local pickup" description="Collect in person. Toronto codes start with M." actions={<SecondaryButton onClick={() => setConfig({ ...config, pickupLocations: [...config.pickupLocations, newTorontoPickup()] })}>Add pickup location</SecondaryButton>}>
+      {!config.pickupLocations.length && <p className="rp-hint">No pickup spot yet. Add one, fill in the address, switch it on.</p>}
     </SectionCard>
     {config.pickupLocations.map((record, index) => {
       const areas = record.postalPrefixes ?? [];
@@ -111,7 +111,7 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
             <option value="custom">Specific postal areas…</option>
             <option value="everyone">Everyone, anywhere</option>
           </SelectField>
-          {area === 'custom' && <TextArea label="Pickup postal areas" hint="One to three characters each (e.g. M for all of Toronto, M6G for one neighbourhood), separated by commas or new lines." value={areas.join(', ')} onChange={e => patch('pickupLocations', record.id, { postalPrefixes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />}
+          {area === 'custom' && <TextArea label="Pickup postal areas" hint="M = all of Toronto. M6G = one area." value={areas.join(', ')} onChange={e => patch('pickupLocations', record.id, { postalPrefixes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />}
           <TextField label="Pickup fee (CAD)" hint="Use 0 for free pickup." type="number" min={0} step="0.01" value={Number.isFinite(record.price) ? record.price : ''} onChange={e => patch('pickupLocations', record.id, { price: e.target.value === '' ? NaN : Number(e.target.value) })} />
           <div className="rp-sect" style={{ margin: '8px 0 0' }}>Where shoppers collect it</div>
           <div style={GRID}>{(['street', 'city', 'state', 'zip', 'country'] as const).map(field => <TextField key={field} label={{ street: 'Street address (optional)', city: 'City', state: 'Province (e.g. ON)', zip: 'Postal code (optional)', country: 'Country' }[field]} value={record.address[field]} onChange={e => patch('pickupLocations', record.id, { address: { ...record.address, [field]: e.target.value } })} />)}</div>
@@ -123,7 +123,7 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
       </SectionCard>;
     })}
 
-    <SectionCard title="Local delivery" description="Deliver to nearby postal areas. Minimums use discounted physical books before delivery and tax; digital books never qualify." actions={<SecondaryButton onClick={() => setConfig({ ...config, deliveryZones: [...config.deliveryZones, { id: crypto.randomUUID(), enabled: false, name: '', price: 0, minimumSubtotal: 0, postalPrefixes: [], postalCodes: [], instructions: '', estimate: '' }] })}>Add delivery zone</SecondaryButton>}>
+    <SectionCard title="Local delivery" description="Hand-delivered to nearby postal areas." actions={<SecondaryButton onClick={() => setConfig({ ...config, deliveryZones: [...config.deliveryZones, { id: crypto.randomUUID(), enabled: false, name: '', price: 0, minimumSubtotal: 0, postalPrefixes: [], postalCodes: [], instructions: '', estimate: '' }] })}>Add delivery zone</SecondaryButton>}>
       {!config.deliveryZones.length && <p className="rp-hint">No delivery zones yet. Choose <strong>Add delivery zone</strong>, list the postal areas you deliver to, set a fee, then switch it on.</p>}
     </SectionCard>
     {config.deliveryZones.map((record, index) => <SectionCard key={record.id} title={record.name || 'New delivery zone'}>
@@ -131,15 +131,15 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
         <Toggle label="Offer this delivery zone at checkout" checked={record.enabled} onChange={enabled => patch('deliveryZones', record.id, { enabled })} />
         <TextField label="Name shoppers see" value={record.name} onChange={e => patch('deliveryZones', record.id, { name: e.target.value })} />
         <div style={GRID}><TextField label="Delivery fee (CAD)" hint="Use 0 for free delivery." type="number" min={0} step="0.01" value={Number.isFinite(record.price) ? record.price : ''} onChange={e => patch('deliveryZones', record.id, { price: e.target.value === '' ? NaN : Number(e.target.value) })} />
-        <TextField label="Minimum physical merchandise subtotal (CAD)" hint="Printed books after discounts, before delivery and tax. Use 0 for no minimum." type="number" min={0} step="0.01" value={Number.isFinite(record.minimumSubtotal) ? record.minimumSubtotal : ''} onChange={e => patch('deliveryZones', record.id, { minimumSubtotal: e.target.value === '' ? NaN : Number(e.target.value) })} /></div>
+        <TextField label="Minimum physical merchandise subtotal (CAD)" hint="Printed books, after discounts. 0 = none." type="number" min={0} step="0.01" value={Number.isFinite(record.minimumSubtotal) ? record.minimumSubtotal : ''} onChange={e => patch('deliveryZones', record.id, { minimumSubtotal: e.target.value === '' ? NaN : Number(e.target.value) })} /></div>
         <TextArea label="Postal prefixes" rows={2} hint="Three characters each, separated by commas or new lines." value={record.postalPrefixes.join(', ')} onChange={e => patch('deliveryZones', record.id, { postalPrefixes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />
-        <TextArea label="Exact postal codes" rows={2} hint="Six characters each; spaces are accepted. Separated by commas or new lines." value={record.postalCodes.join(', ')} onChange={e => patch('deliveryZones', record.id, { postalCodes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />
+        <TextArea label="Exact postal codes" rows={2} hint="Comma or line separated." value={record.postalCodes.join(', ')} onChange={e => patch('deliveryZones', record.id, { postalCodes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />
         <TextArea label="Delivery instructions shoppers see" value={record.instructions ?? ''} onChange={e => patch('deliveryZones', record.id, { instructions: e.target.value })} />
         <TextField label="When it arrives" hint="Shown to shoppers, e.g. Delivered within 2 business days." value={record.estimate ?? ''} onChange={e => patch('deliveryZones', record.id, { estimate: e.target.value })} />
         <div style={ROW}><SecondaryButton size="sm" disabled={index === 0} onClick={() => move('deliveryZones', index, -1)}>Move up</SecondaryButton><SecondaryButton size="sm" disabled={index === config.deliveryZones.length - 1} onClick={() => move('deliveryZones', index, 1)}>Move down</SecondaryButton><span style={{ flex: 1 }} /><DestructiveButton size="sm" onClick={() => void remove('deliveryZones', record.id, record.name)}>Remove</DestructiveButton></div>
       </div>
     </SectionCard>)}
-    <SectionCard title="Try a postal code" description="See which pickup and delivery options a shopper at this postal code would get, using the unsaved settings above.">
+    <SectionCard title="Try a postal code" description="What a shopper there would see.">
       <div style={GRID}>
         <TextField label="Canadian postal code" placeholder="M6G 3H1" value={postal} onChange={e => setPostal(e.target.value)} />
         <TextField label="Discounted physical merchandise subtotal (CAD)" type="number" min={0} step="0.01" value={subtotal} onChange={e => setSubtotal(e.target.value)} />

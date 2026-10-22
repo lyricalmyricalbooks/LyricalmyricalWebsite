@@ -36,12 +36,11 @@ export function SettingsTabs({ tabs, value, onChange, label }: { tabs: SettingsT
     tabs={tabs.map((t) => ({ id: t.id, label: t.title, unsaved: t.unsaved, ...(t.count ? { count: t.count } : {}) }))} />;
 }
 
-/** One topic of a settings page: the sub tab's panel, a line saying what it covers, then its cards. */
-export function SettingsGroup({ id, subcopy, active, children }: { id: string; subcopy?: string; active: boolean; children: ReactNode }) {
+/** One topic of a settings page: the sub tab's panel and its cards (no line under the tab: the Masthead has none). */
+export function SettingsGroup({ id, active, children }: { id: string; active: boolean; children: ReactNode }) {
   return (
     <TabPanel tabId={id} active={active}>
-      <div className="rp-stack" style={{ gap: "var(--rp-space-4)" }}>
-        {subcopy && <p className="rp-page-desc" style={{ margin: 0 }}>{subcopy}</p>}
+      <div className="rp-stack" style={{ gap: 0 }}>
         {children}
       </div>
     </TabPanel>
@@ -53,12 +52,12 @@ export function SettingsAnchor({ id, children }: { id: string; children: ReactNo
   return <div id={id} tabIndex={-1} style={{ scrollMarginTop: 16, outline: "none" }}>{children}</div>;
 }
 
-/** Step-by-step setup instructions, folded so the card shows its controls first. */
-export function HowTo({ summary = "How to set it up", open, children }: { summary?: string; open?: boolean; children: ReactNode }) {
+/** Step-by-step setup instructions, folded behind one underlined toggle so the card shows its controls first. */
+export function HowTo({ summary = "Setup steps", open, children }: { summary?: string; open?: boolean; children: ReactNode }) {
   return (
-    <details open={open} style={{ margin: "0 0 12px", border: "1px solid var(--rp-border)", background: "var(--rp-surface-sunken)", padding: "0 12px" }}>
-      <summary className="rp-label" style={{ cursor: "pointer", padding: "10px 0" }}>{summary}</summary>
-      <div style={{ paddingBottom: 12 }}>{children}</div>
+    <details className="rp-howto" open={open}>
+      <summary>{summary}</summary>
+      <div>{children}</div>
     </details>
   );
 }

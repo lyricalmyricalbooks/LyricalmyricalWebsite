@@ -68,9 +68,9 @@ export function GoogleAnalyticsCard() {
 
   return (
     <SectionCard title="Google Analytics"
-      description="Counts visitors with Google Analytics 4 and shows its traffic figures on the Overview (channels, landing pages, countries, devices, engagement, people on the site now). Visitors who decline analytics cookies, the design preview, search-engine robots and your own browsers (Settings › General › Your own visits) are never counted, and private details in page addresses (email addresses, order links, sign-in codes) are never sent to Google."
+      description="Traffic, channels and who's on the site now."
       actions={loaded && <StatusBadge tone={tracking ? "success" : "neutral"}>{tracking ? "Tracking on" : "Off"}</StatusBadge>}>
-      <HowTo summary="How to set up Google Analytics (4 steps)" open={!!loaded && !loaded.measurementId}>
+      <HowTo summary="Setup steps" open={!!loaded && !loaded.measurementId}>
         <ol className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "decimal" }}>
           <li>At <a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer">analytics.google.com</a> create a GA4 property for the shop (time zone: Toronto, currency: Canadian dollar) and a <strong>Web</strong> data stream for the shop's address.</li>
           <li>Copy the stream's <strong>Measurement ID</strong> (G-…) into the first box and save: the shop starts sending visits straight away.</li>
@@ -80,9 +80,9 @@ export function GoogleAnalyticsCard() {
       </HowTo>
       <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))" }}>
         <TextField label="Measurement ID" value={measurementId} placeholder="G-XXXXXXXXXX" autoComplete="off"
-          hint="Public: shoppers' browsers use it to send visits." error={midProblem || undefined} onChange={(e) => setMeasurementId(e.target.value)} />
+          hint="Public." error={midProblem || undefined} onChange={(e) => setMeasurementId(e.target.value)} />
         <TextField label="Property ID" value={propertyId} placeholder="123456789" autoComplete="off" inputMode="numeric"
-          hint="Private: only the shop's server uses it to read reports." error={pidProblem || undefined} onChange={(e) => setPropertyId(e.target.value)} />
+          hint="Private. Server only." error={pidProblem || undefined} onChange={(e) => setPropertyId(e.target.value)} />
       </div>
       {readFailed && (
         <p role="alert" className="rp-hint" style={{ margin: "8px 0 0", color: "var(--rp-danger)" }}>
@@ -96,7 +96,7 @@ export function GoogleAnalyticsCard() {
       {check && (
         <div role="status" className="rp-hint" style={{ margin: "12px 0 0", padding: 12, border: `1px solid var(${tone(check.connected)})`, color: `var(${tone(check.connected)})`, background: `var(${tone(check.connected)}-tint)` }}>
           {check.connected
-            ? <>✓ Connected. Google Analytics shows {check.activeNow ?? 0} {check.activeNow === 1 ? "person" : "people"} on the site right now. The Overview's traffic figures now come from Google.</>
+            ? <>✓ Connected. {check.activeNow ?? 0} on the site right now.</>
             : <>✕ {check.error || "Not connected yet."}</>}
           {!check.connected && check.serviceAccount && (
             <div style={{ marginTop: 8, color: "var(--rp-text)" }}>
@@ -110,12 +110,9 @@ export function GoogleAnalyticsCard() {
       )}
 
       <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--rp-border)" }}>
-        <h3 className="rp-label" style={{ margin: "0 0 4px" }}>Visitor journeys (BigQuery export, optional)</h3>
-        <p className="rp-hint" style={{ margin: "0 0 8px" }}>
-          Google Analytics can copy every visit into BigQuery once a day for free. The Overview then shows the real paths people take
-          (Visitor journeys) and the last page they saw before leaving. Each Overview read is one small query, capped at 2 GB.
-        </p>
-        <HowTo summary="How to turn on the BigQuery export (3 steps)" open={false}>
+        <h3 style={{ margin: "0 0 4px", fontSize: "var(--rp-text-base)", fontWeight: 800 }}>Visitor journeys <span className="rp-hint" style={{ fontWeight: 400 }}>· BigQuery, optional</span></h3>
+        <p className="rp-hint" style={{ margin: "0 0 8px" }}>The real paths people take, and where they leave.</p>
+        <HowTo summary="Setup steps" open={false}>
           <ol className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "decimal" }}>
             <li>In Google Analytics › Admin › Product links › <strong>BigQuery links</strong> › Link, choose this Firebase project (<span className="rp-mono">lyricalmyrical-web-v2</span>), tick <strong>Daily</strong> export and submit. The first day's data appears about a day later.</li>
             <li>In <a href="https://console.cloud.google.com/iam-admin/iam?project=lyricalmyrical-web-v2" target="_blank" rel="noopener noreferrer">Google Cloud › IAM</a>, give the shop's service account (shown by <strong>Check BigQuery</strong>) the roles <strong>BigQuery Data Viewer</strong> and <strong>BigQuery Job User</strong>.</li>
@@ -125,7 +122,7 @@ export function GoogleAnalyticsCard() {
         <div style={{ marginTop: 12, maxWidth: 520 }}>
           <TextField label="BigQuery export dataset" value={dataset} autoComplete="off"
             placeholder={loaded?.propertyId ? `analytics_${loaded.propertyId} (automatic)` : "analytics_<property ID> (automatic)"}
-            hint="Optional. Empty = analytics_<property ID> in this Firebase project. Private: only the shop's server uses it."
+            hint="Leave empty unless the export lives elsewhere."
             error={dsProblem || undefined} onChange={(e) => setDataset(e.target.value)} />
         </div>
         {(loaded?.propertyId || loaded?.bigQueryDataset) && (
@@ -136,7 +133,7 @@ export function GoogleAnalyticsCard() {
         {bqCheck && (
           <div role="status" className="rp-hint" style={{ margin: "12px 0 0", padding: 12, border: `1px solid var(${tone(bqCheck.connected)})`, color: `var(${tone(bqCheck.connected)})`, background: `var(${tone(bqCheck.connected)}-tint)` }}>
             {bqCheck.connected
-              ? <>✓ Connected to <span className="rp-mono">{bqCheck.dataset}</span>. The Overview's Visitor journeys and Last page before leaving now read it.</>
+              ? <>✓ Connected to <span className="rp-mono">{bqCheck.dataset}</span>.</>
               : <>✕ {bqCheck.error || "Not connected yet."}</>}
             {!bqCheck.connected && bqCheck.serviceAccount && (
               <div style={{ marginTop: 8, color: "var(--rp-text)" }}>

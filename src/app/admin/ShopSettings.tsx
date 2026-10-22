@@ -134,7 +134,7 @@ export function ShopSettings({
   }
 
   return (
-    <div className="max-w-5xl mx-auto pb-32">
+    <div className="rp-settings max-w-5xl mx-auto pb-32">
       <AnimatePresence mode="wait">
         <m.div
           key={activeTab}
@@ -202,9 +202,9 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
     <div className="rp-stack">
       <SettingsTabs label="General settings" tabs={tabs} value={view} onChange={setView} />
 
-      <SettingsGroup id="gs-store" active={view === "gs-store"} subcopy="Whether shoppers can buy right now, and how many copies one person can hold while paying.">
+      <SettingsGroup id="gs-store" active={view === "gs-store"}>
         <SettingsAnchor id="gs-status">
-          <SectionCard title="Store status" description="What shoppers can do right now. One choice covers both ways of closing the shop.">
+          <SectionCard title="Store status" description="Open, paused or behind the wall.">
             {(() => {
               const wall = !!settings.design?.showUnderConstruction;
               const status = wall ? "construction" : maintenanceOn ? "maintenance" : "open";
@@ -218,9 +218,9 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                 else set("maintenance", { enabled: false });
               };
               const options = [
-                { id: "open", label: "Open", hint: "Shoppers can browse and buy." },
-                { id: "maintenance", label: "Maintenance — checkout paused", hint: "Shoppers can browse, but the server refuses new checkouts and the storefront shows your message. Applies when you save." },
-                { id: "construction", label: "Under construction wall", hint: "Shoppers see the “under construction” page instead of the shop. Applies straight away (same as the top-bar switch)." },
+                { id: "open", label: "Open", hint: "Browse and buy." },
+                { id: "maintenance", label: "Maintenance — checkout paused", hint: "Browse only. Your message shows. Applies on save." },
+                { id: "construction", label: "Under construction wall", hint: "The shop hides behind the wall. Instant." },
               ];
               return (
                 <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
@@ -249,37 +249,37 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           </SectionCard>
         </SettingsAnchor>
         <SettingsAnchor id="gs-holds">
-          <SectionCard title="Checkout stock holds" description="While someone checks out, their copies are set aside for 30 minutes. These limits stop one person from tying up your whole catalogue. Raise them for a school, library or bookshop that orders in bulk.">
+          <SectionCard title="Checkout stock holds" description="Copies held 30 minutes at checkout. Raise for bulk buyers.">
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
               {([
-                { key: "perBook", label: "Most copies of one book", hint: "Per shopper, across their open checkouts. Default 10.", max: 99, placeholder: "10" },
-                { key: "units", label: "Most copies in total", hint: "All books together. Default 50.", max: 2000, placeholder: "50" },
-                { key: "orders", label: "Most open checkouts", hint: "Unpaid orders one shopper can have at once. Default 3.", max: 50, placeholder: "3" },
+                { key: "perBook", label: "Most copies of one book", hint: "Per shopper. Default 10.", max: 99, placeholder: "10" },
+                { key: "units", label: "Most copies in total", hint: "Default 50.", max: 2000, placeholder: "50" },
+                { key: "orders", label: "Most open checkouts", hint: "Default 3.", max: 50, placeholder: "3" },
               ] as const).map((f) => (
                 <TextField key={f.key} label={f.label} type="number" min={1} max={f.max} hint={f.hint} placeholder={`${f.placeholder} (default)`}
                   value={String(settings.stockHolds?.[f.key] ?? "")}
                   onChange={(e) => set("stockHolds", { [f.key]: e.target.value === "" ? "" : Math.max(0, Math.floor(Number(e.target.value))) })} />
               ))}
             </div>
-            <p className="rp-hint" style={{ marginTop: 12 }}>Shoppers over these limits see a warning in their bag before they pay. Copies of e-books and books you sell without tracking stock never count. A shared connection (a school or office) may hold about twice as many in total.</p>
+            <p className="rp-hint" style={{ marginTop: 12 }}>Over the limit? They're warned in the bag. E-books never count.</p>
           </SectionCard>
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="gs-details" active={view === "gs-details"} subcopy="Your name, contact details, address and the policies linked from the shop footer.">
+      <SettingsGroup id="gs-details" active={view === "gs-details"}>
         <SettingsAnchor id="gs-identity">
-          <SectionCard title="Store identity" description="Your publisher name, description and contact details.">
+          <SectionCard title="Store identity" description="Name, blurb, contact.">
             <div className="rp-stack" style={{ gap: 20 }}>
               <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
                 <TextField label="Publisher name" value={name} maxLength={100} hint={`${name.length} / 100 characters`} onChange={(e) => set("info", { name: e.target.value })} />
                 <TextField label="Contact email" type="email" value={settings.info?.email || ""} placeholder="hello@lyricalmyricalbooks.com" onChange={(e) => set("info", { email: e.target.value })} />
               </div>
-              <TextArea label="Publisher description" rows={4} value={desc} maxLength={150} hint={`${desc.length} / 150 characters — shown in search results and social previews`} onChange={(e) => set("info", { description: e.target.value })} />
+              <TextArea label="Publisher description" rows={4} value={desc} maxLength={150} hint={`${desc.length} / 150 · search and social previews`} onChange={(e) => set("info", { description: e.target.value })} />
             </div>
           </SectionCard>
         </SettingsAnchor>
         <SettingsAnchor id="gs-location">
-          <SectionCard title="Location" description="Main office and shipping origin.">
+          <SectionCard title="Location" description="Where parcels ship from.">
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
               <div style={{ gridColumn: "1 / -1" }}>
                 <TextField label="Street address" value={settings.location?.street || ""} placeholder="456 Montrose Avenue" onChange={(e) => set("location", { street: e.target.value })} />
@@ -291,20 +291,20 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                 {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
               </SelectField>
               <TextField label="Phone" type="tel" value={settings.location?.phone || ""} placeholder="647 409 6863" autoComplete="tel"
-                hint="Printed on shipping labels; carriers call it about delivery problems." onChange={(e) => set("location", { phone: e.target.value })} />
+                hint="On labels, for the carrier." onChange={(e) => set("location", { phone: e.target.value })} />
             </div>
-            <p className="rp-hint" style={{ margin: "12px 0 0" }}>Shipping labels and live carrier rates use this as the “from” address. Blank fields keep the original Toronto address.</p>
+            <p className="rp-hint" style={{ margin: "12px 0 0" }}>The “from” address on labels and live rates.</p>
           </SectionCard>
         </SettingsAnchor>
         <SettingsAnchor id="gs-policies">
-          <SectionCard title="Store policies" description="Shown in the storefront footer as links to public pages. A policy with no text is hidden. Card networks expect shipping and returns terms.">
+          <SectionCard title="Store policies" description="Footer links. Blank ones hide.">
             <div className="rp-stack" style={{ gap: 20 }}>
               {POLICY_KEYS.map((k) => {
                 const text: string = settings.policies?.[k] || "";
                 return (
                   <div key={k}>
                     <TextArea label={POLICY_TITLES[k]} rows={5} maxLength={20000} value={text}
-                      hint={text.trim() ? `Public at /page/${policySlug(k)} · blank line = new paragraph` : "Not published yet. Leave blank to hide the footer link."}
+                      hint={text.trim() ? `Live at /page/${policySlug(k)}` : "Hidden until it has text."}
                       onChange={(e) => set("policies", { [k]: e.target.value })} />
                     {!text.trim() && (
                       <SecondaryButton size="sm" onClick={() => set("policies", { [k]: POLICY_STARTERS[k] })}>Insert starter text</SecondaryButton>
@@ -312,20 +312,20 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                   </div>
                 );
               })}
-              <p className="rp-hint" style={{ margin: 0 }}>Starter text is a plain-language outline, not legal advice — edit it to match how you actually operate.</p>
+              <p className="rp-hint" style={{ margin: 0 }}>Starter text is a sketch, not legal advice.</p>
             </div>
           </SectionCard>
         </SettingsAnchor>
         <SettingsAnchor id="gs-domain">
-          <SectionCard title="Domain & visibility" description="Where customers find the store.">
+          <SectionCard title="Domain & visibility" description="For your records.">
             <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="lyricalmyricalbooks.com"
-              hint="A note for your records only: typing here doesn't move the shop. Moving the shop to your own domain is a one-time technical step done outside this page (step-by-step guide: docs/CUSTOM_DOMAIN.md in the shop's code). Checkout already accepts lyricalmyricalbooks.com and www.lyricalmyricalbooks.com."
+              hint="Doesn't move the shop. The domain is already live."
               onChange={(e) => set("domain", { custom: e.target.value })} />
           </SectionCard>
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="gs-visitors" active={view === "gs-visitors"} subcopy="Who is counted, Google Analytics, Microsoft Clarity heatmaps and Search Console, and sending old web addresses to new ones.">
+      <SettingsGroup id="gs-visitors" active={view === "gs-visitors"}>
         <SettingsAnchor id="gs-own-visits"><OwnVisitsCard /></SettingsAnchor>
         <SettingsAnchor id="gs-analytics"><GoogleAnalyticsCard /></SettingsAnchor>
         <SettingsAnchor id="gs-clarity"><ClarityCard /></SettingsAnchor>
@@ -333,7 +333,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         <SettingsAnchor id="gs-redirects"><RedirectsCard /></SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="gs-tools" active={view === "gs-tools"} subcopy="Writing help, customers' privacy requests, and backups of everything in the shop.">
+      <SettingsGroup id="gs-tools" active={view === "gs-tools"}>
         <SettingsAnchor id="gs-ai"><AiWriterCard /></SettingsAnchor>
         <SettingsAnchor id="gs-privacy"><PrivacyRequestsCard /></SettingsAnchor>
         <SettingsAnchor id="gs-backups"><BackupsExportCard /></SettingsAnchor>
@@ -360,7 +360,7 @@ function RateTester({ profile }: { profile: any }) {
     [{ price: each, quantity: qty, shippingProfileId: profile.id, weightGrams: grams === "" ? null : (Number(grams) || 0) / qty }],
     { country }, [profile]).filter((q) => q.type !== "pickup"), [profile, country, each, qty, grams]);
   return (
-    <SectionCard title="4 · Test this profile" description="See exactly what a customer would be offered, using your unsaved edits.">
+    <SectionCard>
       <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", marginBottom: 12 }}>
         <SelectField label="Destination" value={country} onChange={(e) => setCountry(e.target.value)}>
           {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
@@ -439,7 +439,7 @@ function LiveRateExtraField({ config, onSave }: { config: any; onSave: (extra: {
   return (
     <div className="rp-stack" style={{ gap: 8, paddingTop: 12, borderTop: "1px solid var(--rp-divider)" }}>
       <Toggle label="Add an extra amount to every live rate" checked={enabled} onChange={setEnabled} />
-      <p className="rp-hint" style={{ margin: 0 }}>Customers see and pay the carrier's price plus this amount, for example to cover packing. Labels you buy still cost the carrier's price.</p>
+      <p className="rp-hint" style={{ margin: 0 }}>Shoppers pay it on top. Your labels don't.</p>
       {enabled && (
         <TextField label="Extra per order ($)" type="number" min={0} max={MAX_LIVE_RATE_EXTRA} step="0.01" inputMode="decimal" value={amount}
           error={invalid ? `Enter an amount from 0 to ${MAX_LIVE_RATE_EXTRA}.` : undefined}
@@ -835,7 +835,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
     </ul>
   );
   const renderTabProblems = (issues: ShippingIssue[]) => issues.length === 0 ? null : (
-    <SectionCard title={`${issues.length} problem${issues.length === 1 ? "" : "s"} to fix here`} description="These come from Overview › Checkout readiness and clear as soon as they're fixed.">
+    <SectionCard title={`${issues.length} problem${issues.length === 1 ? "" : "s"} to fix here`}>
       {renderShippingProblems(issues, { showTab: false })}
     </SectionCard>
   );
@@ -1019,7 +1019,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
               <MetricCard label="Destination coverage" value={shippingSummary.coveredCountryCount} footer={`${shippingSummary.zoneCount} zones · ${shippingSummary.rateCount} rates`} tone="gold" />
               <MetricCard label="Configuration health" value={shippingProblems.length === 0 ? "Ready" : `${shippingProblems.length} issue${shippingProblems.length === 1 ? "" : "s"}`} footer={shippoConnected ? "Shippo connected" : "Flat rates only"} tone={shippingSummary.issues.length > 0 ? "danger" : shippingProblems.length > 0 ? "gold" : undefined} />
             </div>
-            <SectionCard title="Checkout readiness" description="Resolve configuration gaps before they prevent a customer from choosing delivery. Each problem's button opens the tab where it's fixed.">
+            <SectionCard title="Checkout readiness">
               {shippingProblems.length === 0 ? (
                 <div role="status" style={{ padding: 16, background: "var(--rp-success-tint)", border: "1px solid var(--rp-success)", color: "var(--rp-success)" }}>
                   <strong>✓ Shipping configuration is ready.</strong>
@@ -1036,7 +1036,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
 
         {shippingView === "carrier" && renderTabProblems(carrierProblems)}
         {shippingView === "carrier" && (
-        <SectionCard title="Shippo connection" description="Address verification, live carrier rates and shipping labels."
+        <SectionCard title="Shippo connection" description="Address checks, live rates, labels."
           actions={!shippoLoading && <StatusBadge tone={!shippoConnected ? "warning" : shippoConfig?.mode === "test" ? "warning" : "success"}>{!shippoConnected ? "Not connected" : shippoConfig?.mode === "test" ? "Connected · TEST key" : shippoConfig?.mode === "live" ? "Connected · LIVE" : "Connected"}</StatusBadge>}>
           {!shippoLoading && !shippoConnected && (
             <p role="alert" style={{ margin: "0 0 16px", padding: 12, background: "var(--rp-warning-tint)", border: "1px solid var(--rp-warning)", color: "var(--rp-warning)" }}>
@@ -1065,7 +1065,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
                 <div className="rp-stack" style={{ gap: 10, padding: 16, border: "1px solid var(--rp-border)", background: "var(--rp-canvas)" }}>
                   <div>
                     <strong>Countries using live rates</strong>
-                    <p className="rp-hint" style={{ margin: "4px 0 0" }}>Only checked countries request Shippo rates. Every other country uses your regular shipping profiles and zones.</p>
+                    <p className="rp-hint" style={{ margin: "4px 0 0" }}>Ticked countries get live rates. The rest use your profiles.</p>
                   </div>
                   <SearchField label="Search live-rate countries" value={carrierCountrySearch} onChange={(e) => setCarrierCountrySearch(e.target.value)} placeholder="Search countries…" />
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 8, maxHeight: 260, overflowY: "auto", padding: 4 }}>
@@ -1094,7 +1094,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
                       );
                     })}
                   </div>
-                  {(shippoConfig?.dynamicRateCountries || []).length === 0 && <p role="status" className="rp-hint" style={{ margin: 0 }}>No countries selected — all destinations currently use regular shipping rates.</p>}
+                  {(shippoConfig?.dynamicRateCountries || []).length === 0 && <p role="status" className="rp-hint" style={{ margin: 0 }}>None ticked. Everyone gets profile rates.</p>}
                   <LiveRateExtraField config={shippoConfig}
                     onSave={async (extra) => {
                       const countries = liveCountriesRef.current ?? (shippoConfig?.dynamicRateCountries || []);
@@ -1109,7 +1109,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
             <div style={{ flex: "1 1 280px" }}>
               <TextField label="Shippo API key" type={showShippoApiKey ? "text" : "password"} value={shippoApiKey} autoComplete="new-password" spellCheck={false}
                 placeholder={shippoConnected ? "Paste a new key to replace the current one" : "Paste your Shippo API key"}
-                hint="Saved to the protected backend; the full key is never loaded back into this page."
+                hint="Stored privately. Never shown again."
                 onChange={(e) => { setShippoApiKey(e.target.value); if (shippoMessage) setShippoMessage(null); }}
                 onKeyDown={(e) => { if (e.key === "Enter" && !shippoSaving) handleSaveShippoApiKey(); }} />
             </div>
@@ -1311,16 +1311,16 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications, onOp
     else document.getElementById("payments-top")?.scrollIntoView({ behavior: "smooth" });
   };
   return (
-    <SectionCard title="Test sale walkthrough" description="Rehearse one complete sale before taking real money. Steps tick themselves from your saved settings, orders, Stripe and the email log."
+    <SectionCard title="Test sale walkthrough" description="One full rehearsal before real money."
       actions={<SecondaryButton size="sm" onClick={load}>Check again</SecondaryButton>}>
       <p className="rp-hint" style={{ marginTop: 0 }}>{data ? `${doneCount} of ${steps.length} done.` : "Checking…"}</p>
-      {failed.length > 0 && <p role="alert" className="rp-hint" style={{ marginTop: 0, color: "var(--rp-danger)" }}>Couldn't read the {failed.join(", ")} — steps that depend on {failed.length === 1 ? "it" : "them"} are unknown, not necessarily undone. Press Check again.</p>}
+      {failed.length > 0 && <p role="alert" className="rp-hint" style={{ marginTop: 0, color: "var(--rp-danger)" }}>Couldn't read the {failed.join(", ")}. Check again.</p>}
       <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }} aria-label="Test sale steps">
         {steps.map((st, i) => (
           <li key={st.id} style={{ display: "flex", flexWrap: "wrap", gap: "8px 12px", alignItems: "flex-start", padding: "8px 0", borderTop: i ? "1px solid var(--rp-divider)" : undefined }}>
             <StatusBadge tone={st.done ? "success" : "neutral"}>{st.done ? "Done" : `Step ${i + 1}`}</StatusBadge>
             <span style={{ flex: "1 1 220px", minWidth: 0 }}><strong>{st.label}</strong><span className="rp-hint" style={{ display: "block" }}>{st.howTo}</span></span>
-            {!st.done && <SecondaryButton size="sm" onClick={() => go(st.link, st.id)}>{st.link === "orders" ? "Open Orders" : st.link === "notifications" ? "Open Email sender" : st.link === "storefront" ? "Open shop ↗" : "Show me"}</SecondaryButton>}
+            {!st.done && <button type="button" className="rp-wb-a" onClick={() => go(st.link, st.id)}>{st.link === "orders" ? "Open Orders" : st.link === "notifications" ? "Open Email sender" : st.link === "storefront" ? "Open shop ↗" : "Show me"}</button>}
           </li>
         ))}
       </ol>
@@ -1526,9 +1526,9 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
     <div className="rp-stack" id="payments-top">
       <SettingsTabs label="Payment settings" tabs={tabs} value={view} onChange={setView} />
 
-      <SettingsGroup id="pay-status" active={view === "pay-status"} subcopy="What shoppers can pay with now, anything blocking checkout, and a rehearsal of one complete sale.">
+      <SettingsGroup id="pay-status" active={view === "pay-status"}>
         <SettingsAnchor id="pay-overview">
-          <SectionCard title="Payment overview" description="What customers can pay with right now.">
+          <SectionCard title="Payment overview" description="What works right now.">
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
               <StatusBadge tone={testMode ? "warning" : "success"}>{testMode ? "Test mode — no real charges" : "Live mode"}</StatusBadge>
               <StatusBadge tone={stripeLive ? "success" : "neutral"}>Stripe {stripeLive ? "on" : "off"}</StatusBadge>
@@ -1548,7 +1548,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
             )}
             <div className="rp-card-actions">
               <Toggle label="Test (sandbox) mode" checked={!!testMode} onChange={updateTestMode} />
-              <span className="rp-hint">In test mode Stripe and PayPal process test charges and orders are flagged as test orders.</span>
+              <span className="rp-hint">Test charges only. Orders marked test.</span>
             </div>
           </SectionCard>
         </SettingsAnchor>
@@ -1557,9 +1557,9 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="pay-methods" active={view === "pay-methods"} subcopy="Cards and wallets through Stripe, PayPal, and payments you collect yourself (e-Transfer, cash).">
+      <SettingsGroup id="pay-methods" active={view === "pay-methods"}>
         <SettingsAnchor id="pay-stripe">
-          <SectionCard title="Stripe" description="Accept credit and debit cards, Apple Pay and Google Pay."
+          <SectionCard title="Stripe" description="Cards, Apple Pay, Google Pay."
             actions={<SecondaryButton size="sm" onClick={() => window.open("https://dashboard.stripe.com", "_blank", "noopener")}>Stripe dashboard ↗</SecondaryButton>}>
             <div className="rp-stack" style={{ gap: 20 }}>
               <Toggle label="Stripe checkout" checked={!!stripe.connected} onChange={(v) => updateStripe({ connected: v })} />
@@ -1621,7 +1621,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
           </SectionCard>
         </SettingsAnchor>
         <SettingsAnchor id="pay-paypal">
-          <SectionCard title="PayPal" description="Let customers pay with PayPal.">
+          <SectionCard title="PayPal">
             <div className="rp-stack" style={{ gap: 20 }}>
               <Toggle label="PayPal checkout" checked={!!paypal.connected} onChange={(v) => updatePaypal({ connected: v })} />
               {paypal.connected && (
@@ -1633,7 +1633,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
                       <SecretField key={`pp-live-${secretFieldsKey}`} label="Live client secret" placeholder="Client secret…" stored={!!paypal.clientSecretStored}
                         onCommit={(v) => updatePaypal({ clientSecret: v })}
                         onRemove={paypal.clientSecretStored ? () => removePaypalSecret("live") : undefined} removing={removingPaypal === "live"} />
-                      <p className="rp-hint" style={{ margin: 0 }}>Live PayPal uses the ID and secret saved here. If either is blank it uses the PayPal credentials set in Firebase Functions.</p>
+                      <p className="rp-hint" style={{ margin: 0 }}>Blank falls back to the server's credentials.</p>
                     </div>
                   </div>
                   <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 1 : 0.75 }}>
@@ -1643,7 +1643,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
                       <SecretField key={`pp-test-${secretFieldsKey}`} label="Test client secret" placeholder="Sandbox client secret…" stored={!!paypal.testClientSecretStored}
                         onCommit={(v) => updatePaypal({ testClientSecret: v })}
                         onRemove={paypal.testClientSecretStored ? () => removePaypalSecret("test") : undefined} removing={removingPaypal === "test"} />
-                      <p className="rp-hint" style={{ margin: 0 }}>Test mode never uses live PayPal credentials. Without both sandbox values, PayPal checkout is refused while test mode is on.</p>
+                      <p className="rp-hint" style={{ margin: 0 }}>Needs both sandbox values, or PayPal stays off in test mode.</p>
                     </div>
                   </div>
                 </div>
@@ -1652,7 +1652,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
           </SectionCard>
         </SettingsAnchor>
         <SettingsAnchor id="pay-manual">
-          <SectionCard title="Manual payment methods" description="Bank e-Transfer, cash on delivery or your own instructions."
+          <SectionCard title="Manual payment methods" description="e-Transfer, cash, your own terms."
             actions={
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 <SecondaryButton size="sm" onClick={() => openAddMethod("bank")}>+ e-Transfer</SecondaryButton>
@@ -1661,7 +1661,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
               </div>
             }>
             {manualMethods.length === 0 ? (
-              <EmptyState icon="💳" title="No manual methods" description="Add an e-Transfer or cash-on-delivery option for customers who don't pay by card." />
+              <EmptyState icon="💳" title="No manual methods" description="For shoppers who skip the card." />
             ) : (
               <ul className="rp-list" style={{ margin: -20 }} aria-label="Manual payment methods">
                 {manualMethods.map((method: any) => (
@@ -1683,9 +1683,9 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         </SettingsAnchor>
       </SettingsGroup>
 
-      <SettingsGroup id="pay-more" active={view === "pay-more"} subcopy="Payment icons in the footer, the shop currency, and where shipping labels are set up.">
+      <SettingsGroup id="pay-more" active={view === "pay-more"}>
         <SettingsAnchor id="pay-icons">
-          <SectionCard title="Footer payment icons" description="Default icons for the storefront footer. Studio › Theme settings › Payment icons overrides this list once you change it there."
+          <SectionCard title="Footer payment icons" description="Studio's Payment icons win once set."
             actions={<SecondaryButton size="sm" onClick={() => { window.location.hash = studioHash({ leftTab: "style" }); }}>Open Studio</SecondaryButton>}>
             <div style={{ display: "grid", gap: 4, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
               {[
@@ -1704,14 +1704,14 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
           </SectionCard>
         </SettingsAnchor>
         <SettingsAnchor id="pay-currency">
-          <SectionCard title="Currency" description="How prices are shown and charged.">
-            <p className="rp-hint" style={{ margin: 0 }}>Prices are set and charged in your store currency (CA$). Any currency selector on the storefront is a display convenience; the amount charged is always calculated by the payment server.</p>
+          <SectionCard title="Currency">
+            <p className="rp-hint" style={{ margin: 0 }}>Charged in CA$. Other currencies are display only.</p>
           </SectionCard>
         </SettingsAnchor>
         <SettingsAnchor id="pay-shippo">
-          <SectionCard title="Shippo" description="Address checks, live carrier rates and shipping labels are set up with your shipping rules."
+          <SectionCard title="Shippo" description="Lives with your shipping rules."
             actions={<SecondaryButton size="sm" onClick={() => onOpenShipping?.()}>Open Shipping › Carrier &amp; labels</SecondaryButton>}>
-            <p className="rp-hint" style={{ margin: 0 }}>The Shippo key and the countries that use live rates live in one place, so live rates can't be switched on without choosing countries.</p>
+            <p className="rp-hint" style={{ margin: 0 }}>Key and live-rate countries, in one place.</p>
           </SectionCard>
         </SettingsAnchor>
       </SettingsGroup>

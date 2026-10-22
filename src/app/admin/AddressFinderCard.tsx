@@ -92,9 +92,9 @@ export function AddressFinderCard() {
 
   return (
     <SectionCard title="Address finder at checkout"
-      description="Suggests full addresses while shoppers type their street. Without a key it uses free OpenStreetMap data, which often has no house number or postal code (common in Canada). With a Google Maps Platform key, shoppers pick their exact address and the city, province and postal code fill in."
+      description="Exact addresses as shoppers type. Google key optional."
       actions={stored !== null && <StatusBadge tone={stored ? "success" : "warning"}>{stored ? "Google" : "Free (OpenStreetMap)"}</StatusBadge>}>
-      <HowTo summary="How to get a Google key" open={stored === false}>
+      <HowTo summary="Get a Google key" open={stored === false}>
         <ol className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "decimal" }}>
           <li>In Google Cloud (console.cloud.google.com), open the project <strong>lyricalmyrical-web-v2</strong> and enable <strong>Places API (New)</strong>.</li>
           <li>APIs &amp; Services › Credentials › Create credentials › API key. Under API restrictions, allow only Places API (New). Leave Application restrictions on None: the shop's server makes the lookups, not shoppers' browsers.</li>

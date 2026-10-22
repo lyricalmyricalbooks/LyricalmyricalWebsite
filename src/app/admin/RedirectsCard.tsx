@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { friendlyError } from "./settingsLayout";
-import { DataTable, EmptyState, ErrorState, PrimaryButton, SecondaryButton, SectionCard, TextArea, TextField, useConfirm } from "./riso/components";
+import { DataTable, ErrorState, PrimaryButton, SecondaryButton, SectionCard, TextArea, TextField, useConfirm } from "./riso/components";
 import { MAX_REDIRECTS, normalizePath, normalizeTarget, parseRedirectLines, redirectProblem, type Redirect } from "../features/site/redirects";
 
 /**
@@ -55,13 +55,13 @@ export function RedirectsCard() {
   };
 
   return (
-    <SectionCard title="URL redirects" description="Renamed a book or page? Send its old address to the new one so bookmarks, search results and printed links keep working. A redirect only applies when the old address has no page of its own.">
+    <SectionCard title="URL redirects" description="Old links, new homes. Nothing breaks.">
       {confirmNode}
       {failed ? <ErrorState title="Couldn't load your redirects" description="Check your connection and try again." onRetry={load} />
         : !items ? <p className="rp-hint">Loading redirects…</p> : (
         <div style={{ display: "grid", gap: 16 }}>
           <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", alignItems: "start" }}>
-            <TextField label="Old address" placeholder="/books/old-title" value={from} onChange={e => setFrom(e.target.value)} hint="The part after the shop's web address." />
+            <TextField label="Old address" placeholder="/books/old-title" value={from} onChange={e => setFrom(e.target.value)} hint="Everything after the domain." />
             <TextField label="Send visitors to" placeholder="/books/new-title or https://…" value={to} onChange={e => setTo(e.target.value)} />
           </div>
           {problem && <p className="rp-hint" role="alert" style={{ margin: 0, color: "var(--rp-danger-text, inherit)" }}>{problem}</p>}
@@ -69,18 +69,18 @@ export function RedirectsCard() {
 
           <DataTable<Redirect>
             caption="URL redirects" rows={items} rowKey={r => r.from}
-            empty={<EmptyState title="No redirects yet" description="Add one above when you change a book's or page's web address." />}
+            empty={<p className="rp-hint" style={{ margin: 0, padding: "12px 0" }}>No redirects yet.</p>}
             columns={[
               { key: "from", header: "Old address", lead: true, render: r => <code>{r.from}</code> },
               { key: "to", header: "Goes to", render: r => <code>{r.to}</code> },
-              { key: "act", header: "", render: r => <SecondaryButton size="sm" disabled={busy} onClick={() => remove(r)} aria-label={`Delete redirect from ${r.from}`}>Delete</SecondaryButton> },
+              { key: "act", header: "", render: r => <button type="button" className="rp-wb-a" disabled={busy} onClick={() => remove(r)} aria-label={`Delete redirect from ${r.from}`}>Delete</button> },
             ]}
           />
 
-          <details>
-            <summary style={{ cursor: "pointer" }}>Add many at once</summary>
+          <details className="rp-howto">
+            <summary>Add many at once</summary>
             <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-              <TextArea label="One redirect per line: old address, new address" rows={5} value={bulk} onChange={e => setBulk(e.target.value)} placeholder={"/books/old-title, /books/new-title\n/page/about-us, /page/about"} hint="Lines that can't be added stay in the box with the reason shown if you press the button again." />
+              <TextArea label="One redirect per line: old address, new address" rows={5} value={bulk} onChange={e => setBulk(e.target.value)} placeholder={"/books/old-title, /books/new-title\n/page/about-us, /page/about"} hint="Lines that fail stay in the box." />
               <div><SecondaryButton onClick={importBulk} disabled={busy || !bulk.trim()}>Add these redirects</SecondaryButton></div>
             </div>
           </details>

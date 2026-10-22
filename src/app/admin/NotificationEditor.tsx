@@ -627,19 +627,18 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
 
       <TabPanel tabId="email-setup" active={view === "email-setup"}>
       <div className="rp-stack">
-      <p className="rp-page-desc" style={{ margin: 0 }}>How shop emails leave your account, who they come from and how they look. Set once, then rarely touched.</p>
       <GmailSendingCard lastProblem={lastGmailProblem(deliveries || [])} />
 
       <div id="email-sender" style={{ scrollMarginTop: 16 }} />
-      <SectionCard title="Email sender" description="The name customers see on your emails and where their replies go.">
+      <SectionCard title="Email sender" description="Who it's from. Where replies go.">
         <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
           <TextField label="Sender name" value={sender.fromName} placeholder="Lyricalmyrical Books" error={senderIssues.fromName}
             onChange={(e) => setSender(prev => ({ ...prev, fromName: e.target.value }))} />
           <TextField label="Reply-to address" type="email" value={sender.replyTo} placeholder="lyricalmyricalbooks@gmail.com" error={senderIssues.replyTo}
-            hint="When a customer presses Reply, it goes here. Blank = replies go to the sending address."
+            hint="Blank = the sending address."
             onChange={(e) => setSender(prev => ({ ...prev, replyTo: e.target.value }))} />
           <TextField label="Backup sender address (Resend)" type="email" value={sender.fromEmail} placeholder="orders@your-domain.com" error={senderIssues.fromEmail}
-            hint="Only used by the Resend backup sender, and only for a domain verified in Resend. Gmail sends from your Gmail account."
+            hint="Resend backup only."
             onChange={(e) => setSender(prev => ({ ...prev, fromEmail: e.target.value }))} />
         </div>
         {senderError && <p className="rp-error-text" role="alert">{senderError}</p>}
@@ -648,7 +647,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
         </div>
       </SectionCard>
 
-      <SectionCard title="Email branding" description="Shared by every customer and administrator email.">
+      <SectionCard title="Email branding" description="One look for every email.">
         <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
           <TextField label="Brand logo URL" value={data.brand?.logoUrl || ""} placeholder="https://domain.com/logo.png"
             error={data.brand?.logoUrl && !safeLogoUrl(data.brand.logoUrl) ? "Use an https:// image address. Other addresses are left out of emails." : undefined}
@@ -664,14 +663,14 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
             {badColor && <p className="rp-error-text" role="alert" style={{ margin: "6px 0 0" }}>Use a colour code like #e8402a. Until then emails use flare red.</p>}
           </div>
           <SelectField label="Email theme" value={data.brand?.emailTheme === "dark" ? "dark" : "light"} onChange={(e) => handleBrandChange("emailTheme", e.target.value)}
-            hint="Riso Press look: Light = cream paper, ink text · Dark = black paper, white text.">
+            hint="Light = cream paper. Dark = black paper.">
             <option value="light">Light (newsprint)</option>
             <option value="dark">Dark (Riso Noir)</option>
           </SelectField>
         </div>
         <details style={{ marginTop: 16 }}>
           <summary className="rp-label" style={{ cursor: "pointer" }}>Advanced: backup sender (Resend){resendStored ? " · key stored" : ""}</summary>
-          <p className="rp-hint">Used only when Gmail sending fails. Without a verified domain in Resend, its test sender only reaches the account owner.</p>
+          <p className="rp-hint">Backup if Gmail fails. Reaches only you without a verified domain.</p>
           <TextField label="Resend API key" type="password" value={resendDraft} autoComplete="new-password" spellCheck={false}
             placeholder={resendStored ? "Stored — enter a new key to replace it" : "re_…"}
             error={resendKeyProblem(resendDraft) || undefined}
@@ -701,7 +700,6 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
       <TabPanel tabId="email-templates" active={view === "email-templates"}>
       <div className="rp-stack">
       <div>
-        <p className="rp-page-desc" style={{ margin: "0 0 12px" }}>Pick an event, edit its words and check the live preview. Shop alerts are the emails sent to you.</p>
         <Tabs label="Event group" value={group} onChange={pickGroup}
           tabs={GROUP_IDS.map((g) => ({ id: g, label: `${GROUP_LABELS[g] || (g === "shopAlerts" ? "Shop alerts" : g)}${groupProblemCount(g) ? " ⚠" : ""}`, ...(groupProblemCount(g) ? { count: groupProblemCount(g) } : {}) }))} />
         {group !== "shopAlerts" && groupTabs.length > 1 && (
@@ -713,19 +711,19 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
       </div>
 
       {group === "shopAlerts" ? (
-        <SectionCard title="Shop alerts" description="Emails the shop sends to you (lyricalmyricalbooks@gmail.com), not to customers.">
+        <SectionCard title="Shop alerts" description="Emails to you, not customers.">
           <div className="rp-stack" style={{ gap: 16 }}>
             <Toggle label="New order alerts — a paid order, or an order waiting for a manual payment" checked={shopAlerts.newOrder !== false}
               onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, newOrder: on } })} />
-            <p className="rp-hint" style={{ margin: 0 }}>One email per paid order (subject “[NEW ORDER] …”) with a <strong>Fulfil this order</strong> button, plus one for each e-Transfer/cash order waiting for payment. Its wording is fixed so inbox filters keep working.</p>
+            <p className="rp-hint" style={{ margin: 0 }}>Subject “[NEW ORDER] …”, fixed so filters keep working.</p>
             <Toggle label="Shipped copy — a copy of each order you mark as shipped" checked={shopAlerts.shipped !== false}
               onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, shipped: on } })} />
             <Toggle label="Daily “orders needing you” email (8am)" checked={shopAlerts.dailyOrderDigest !== false}
               onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, dailyOrderDigest: on } })} />
-            <p className="rp-hint" style={{ margin: 0 }}>Lists paid orders not shipped after 3 days, parcels stuck in transit and label purchases to check. Nothing is sent on days with nothing to report.</p>
+            <p className="rp-hint" style={{ margin: 0 }}>Late orders, stuck parcels, odd labels. Silent on quiet days.</p>
             <Toggle label="Monday summary — last week's sales and visits, with a PDF of the highlights (Mondays, 8am)" checked={shopAlerts.weeklySummary !== false}
               onChange={(on) => setShopAlert({ shopAlerts: { ...shopAlerts, weeklySummary: on } })} />
-            <p className="rp-hint" style={{ margin: 0 }}>Revenue, orders, average order, copies sold, new customers, visits and the three best sellers, each against the week before. Test orders and your own orders are left out.</p>
+            <p className="rp-hint" style={{ margin: 0 }}>Sales, visits and best sellers vs last week.</p>
             <WeeklySummaryNow />
           </div>
         </SectionCard>
@@ -741,7 +739,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
             {activeTab === "review_request" && (
               <TextField label="Days after shipping" type="number" min={1} max={90}
                 value={delayDraft ?? String((currentTemplate as any).delayDays ?? 14)}
-                hint="Sent once per order, this many days after it was shipped (1–90). Customers who unsubscribed are skipped."
+                hint="Days after shipping (1–90)."
                 onChange={(e) => {
                   const v = e.target.value;
                   setDelayDraft(v);
@@ -780,7 +778,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
                     onMouseDown={(e) => e.preventDefault()} onClick={() => addPlaceholder(name)}>{`{{${name}}}`}</button>
                 ))}
               </div>
-              <p className="rp-hint" style={{ margin: "8px 0 0" }}>Select a placeholder to add it where your cursor was in the subject, body or sign-off.</p>
+              <p className="rp-hint" style={{ margin: "8px 0 0" }}>Click to insert at your cursor.</p>
             </div>
 
             <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
@@ -796,7 +794,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
                   {testResult.ok ? "✓ " : "✕ "}{testResult.message}
                 </p>
               )}
-              <p className="rp-hint" style={{ margin: "8px 0 0" }}>Sends what you see here, including unsaved edits, with sample order details.</p>
+              <p className="rp-hint" style={{ margin: "8px 0 0" }}>Sends this draft with sample details.</p>
             </div>
           </div>
         </SectionCard>
@@ -804,7 +802,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
         <SectionCard title="Live preview" description={subjectPreview}>
           <div style={{ marginBottom: 12 }} onFocus={loadRecentOrders} onMouseEnter={loadRecentOrders}>
             <SelectField label="Preview with" value={previewOrderId} onChange={(e) => setPreviewOrderId(e.target.value)}
-              hint="Pick a recent order to see its real name, items and totals. Nothing is sent or saved.">
+              hint="Preview with a real order. Nothing sent.">
               <option value="">Sample order</option>
               {(recentOrders || []).map((o) => <option key={o.id} value={o.id}>{o.orderId || o.id} · {o.customer?.name || o.customer?.email || "Customer"}</option>)}
             </SelectField>
@@ -827,7 +825,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
       )}
       {queue.length > 0 && (
         <div id="email-waiting" style={{ scrollMarginTop: 16 }}>
-        <SectionCard title="Waiting to send" collapsible={false} description={`Every sender refused these emails, so they are kept and tried again automatically (up to ${MAX_TRIES} tries over about a day). Fix the problem on the Sending setup tab, then choose Retry now.`}
+        <SectionCard title="Waiting to send" collapsible={false} description={`Retried automatically, up to ${MAX_TRIES} times.`}
           actions={<SecondaryButton size="sm" onClick={loadQueue}>Refresh</SecondaryButton>} flush>
           <RowsOrCards narrow={narrow} caption="Emails waiting to be sent again" rows={queue} rowKey={(r) => r.id}
             rowState={(r) => (r.status === "failed" ? "failed" : undefined)} columns={queueColumns} />
@@ -835,7 +833,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
         </div>
       )}
 
-      <SectionCard title="Recent deliveries" description="Every email the shop tried to send in the last 90 days, newest first. A failed row says what to fix."
+      <SectionCard title="Recent deliveries" description="Last 90 days, newest first."
         actions={<GhostButton onClick={() => { loadDeliveries(); loadQueue(); }}>Refresh</GhostButton>} flush>
         <div style={{ padding: "12px 16px 0" }}>
           <Tabs label="Show deliveries" value={deliveryFilter} onChange={(id) => setDeliveryFilter(id === "attention" ? "attention" : "all")}

@@ -19,7 +19,7 @@ export function ClarityCard() {
   useEffect(load, []);
 
   const problem = projectId.trim() && !cleanClarityId(projectId)
-    ? "A Clarity project ID is letters and digits only, about 10 characters (Clarity › your project › Settings › Overview)." : "";
+    ? "Letters and digits only, about 10 characters." : "";
   const dirty = loaded !== null && cleanClarityId(projectId) !== loaded;
 
   const save = async () => {
@@ -40,9 +40,9 @@ export function ClarityCard() {
 
   return (
     <SectionCard title="Microsoft Clarity"
-      description="Free heatmaps and visit recordings from Microsoft: where visitors click, how far they scroll and where they get stuck. Recordings are anonymised and hide what people type. Checkout, account and order-tracking pages are never recorded, and the visitors Google Analytics leaves out (declined cookies, the design preview, robots, your own browsers) are left out here too."
+      description="Heatmaps and replays. Checkout is never recorded."
       actions={loaded !== null && <StatusBadge tone={on ? "success" : "neutral"}>{on ? "Recording on" : "Off"}</StatusBadge>}>
-      <HowTo summary="How to get a Clarity project ID (3 steps)" open={loaded === ""}>
+      <HowTo summary="Setup steps" open={loaded === ""}>
         <ol className="rp-hint" style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, listStyle: "decimal" }}>
           <li>At <a href="https://clarity.microsoft.com/" target="_blank" rel="noopener noreferrer">clarity.microsoft.com</a> sign in and choose <strong>New project</strong> (name: the shop, website: the shop's address).</li>
           <li>Skip the install step: copy the project ID from <strong>Settings › Overview</strong> (or paste the project's web address) into the box below and save. The shop adds Clarity itself.</li>
@@ -50,7 +50,7 @@ export function ClarityCard() {
         </ol>
       </HowTo>
       <TextField label="Clarity project ID" value={projectId} placeholder="abc12def34" autoComplete="off"
-        hint="Public: shoppers' browsers use it to send heatmap and recording data to Clarity. Leave blank to switch Clarity off."
+        hint="Public. Blank turns Clarity off."
         error={problem || undefined} onChange={(e) => setProjectId(e.target.value)} />
       {readFailed && (
         <p role="alert" className="rp-hint" style={{ margin: "8px 0 0", color: "var(--rp-danger)" }}>
@@ -61,7 +61,7 @@ export function ClarityCard() {
         <PrimaryButton disabled={!dirty || !!problem || saving} onClick={save}>{saving ? "Saving…" : "Save"}</PrimaryButton>
         {on && <a className="rp-btn rp-btn-secondary" href={clarityUrls(loaded!).dashboard} target="_blank" rel="noopener noreferrer">Open Clarity</a>}
       </div>
-      {on && <p className="rp-hint" style={{ margin: "8px 0 0" }}>New visits show up in Clarity within about two hours.</p>}
+      {on && <p className="rp-hint" style={{ margin: "8px 0 0" }}>New visits land in about two hours.</p>}
     </SectionCard>
   );
 }

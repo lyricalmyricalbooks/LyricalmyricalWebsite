@@ -982,6 +982,7 @@ mark a tab with edits with `unsaved`. Tab ids must be unique on the page (`rp-ta
 The open sub tab is in the address bar (`#settings/general/visitors`, `#inventory/link`; the first tab has no slug): add a page's
 tabs to `SUB_TABS` in `adminRoute.ts` and take `subTab` / `onSubTabChange` through `useSubTab` (`settingsLayout.tsx`); switching
 replaces the history entry, and an alert's button opens the tab holding its fix (`alertRoute` in `adminAlerts.ts`).
+**Settings look (22 October 2026, owner):** every Settings page renders inside `.rp-settings` (ShopSettings root): cards are flat ruled rows (no box/shadow), the fold chevron sits at the row's right end, buttons are flat and sentence case, `HowTo` is one underlined toggle (`.rp-howto`), `SettingsGroup` has no line under the tab. A card `description` is one short line (≤70 characters, `settingsWording.test.ts`); no explanatory paragraphs, no `rp-kicker`.
 Never wrap `rp-*` chrome in `.admin-light` — its `aside button` / `input` rules override
 it. Don't add new compat rules for new work; compose the components instead.
 

@@ -100,7 +100,7 @@ export function PrivacyRequestsCard() {
   );
 
   return (
-    <SectionCard title="Privacy requests" description="Customers can ask for a copy of their data or for it to be deleted (order tracking page). Reply from your email to confirm the address is theirs before acting.">
+    <SectionCard title="Privacy requests" description="Copy or erase a customer's data. Confirm by email first.">
       {failed ? <ErrorState title="Couldn't load privacy requests" onRetry={load} />
         : requests === null ? <p className="rp-hint">Loading…</p>
         : open.length === 0 ? <EmptyState title="No open requests" description="New requests also arrive by email." icon="🔒" />

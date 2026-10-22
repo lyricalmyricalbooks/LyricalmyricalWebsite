@@ -24,12 +24,12 @@ export function testSaleSteps({ payments, orders = [], webhook = null, emailLog 
     && orderNumber && String(row.subject || "").includes(orderNumber));
   const refunded = !!order && (order.paymentStatus === "refunded" || order.status === "refunded" || order.refundedAt);
   return [
-    { id: "testMode", label: "Switch on test mode", howTo: "Turn on Test (sandbox) mode above and save.", done: testMode || !!order, link: "payments" },
-    { id: "testKey", label: "Store a Stripe test secret key", howTo: "Paste your sk_test_… key under Stripe › Test keys and save.", done: keyStored, link: "payments" },
-    { id: "order", label: "Place a test order on the shop", howTo: "Buy a book with Stripe's test card 4242 4242 4242 4242, any future date and any CVC.", done: !!order, link: "storefront" },
-    { id: "webhook", label: "Stripe confirms the payment", howTo: "Stripe's webhook marks the test order paid. If it stays unpaid, use Check webhook below.", done: !!order && !!testWebhookAt && Date.parse(testWebhookAt) >= Date.parse(order.createdAt || ""), link: "payments" },
-    { id: "email", label: "The customer gets “Order confirmed”", howTo: "Check Notifications › Recent deliveries for the order's confirmation email.", done: confirmed, link: "notifications" },
-    { id: "refund", label: "Refund the test order", howTo: "Open the order in Orders and refund it, to rehearse a refund.", done: !!refunded, link: "orders" },
-    { id: "liveMode", label: "Switch test mode off again", howTo: "Turn off Test (sandbox) mode and save, so real cards are accepted.", done: !testMode && !!refunded, link: "payments" },
+    { id: "testMode", label: "Switch on test mode", howTo: "Test mode on, then save.", done: testMode || !!order, link: "payments" },
+    { id: "testKey", label: "Store a Stripe test secret key", howTo: "Paste sk_test_… under Stripe › Test keys.", done: keyStored, link: "payments" },
+    { id: "order", label: "Place a test order on the shop", howTo: "Card 4242 4242 4242 4242, any future date, any CVC.", done: !!order, link: "storefront" },
+    { id: "webhook", label: "Stripe confirms the payment", howTo: "It turns paid. Stuck? Check webhook below.", done: !!order && !!testWebhookAt && Date.parse(testWebhookAt) >= Date.parse(order.createdAt || ""), link: "payments" },
+    { id: "email", label: "The customer gets “Order confirmed”", howTo: "See Email sender › Deliveries.", done: confirmed, link: "notifications" },
+    { id: "refund", label: "Refund the test order", howTo: "Refund it from Orders.", done: !!refunded, link: "orders" },
+    { id: "liveMode", label: "Switch test mode off again", howTo: "Test mode off, so real cards work.", done: !testMode && !!refunded, link: "payments" },
   ];
 }

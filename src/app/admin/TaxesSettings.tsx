@@ -54,7 +54,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
 
   return (
     <div className="rp-stack">
-      <SectionCard title="Tax collection" description="When this is off, checkout charges no sales tax on any order, whatever rates are listed below. Your rates stay saved for when you turn it back on.">
+      <SectionCard title="Tax collection" description="Off means no tax on any order. Rates stay saved.">
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
           <Toggle label="Collect sales tax at checkout" checked={collecting} onChange={setCollecting} />
           {collecting
@@ -64,7 +64,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
       </SectionCard>
 
       {gaps.length > 0 && (
-        <SectionCard title="Places with no tax rate" description="Shoppers here would be charged no tax. Add a rate for each, or one country-wide rate.">
+        <SectionCard title="Places with no tax rate" description="These pay no tax yet.">
           <ul className="rp-list" style={{ margin: 0 }}>
             {gaps.map((g) => (
               <li key={g.country} style={{ padding: "8px 0" }}>
@@ -80,15 +80,15 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
         </SectionCard>
       )}
 
-      <SectionCard title="Tax rates" description={`Charged at checkout on books (gift cards are never taxed). A province/state rate wins over a country-wide one. Use 0% for places you don't collect in.${collecting ? "" : " Not charged while tax collection is off."}`}>
+      <SectionCard title="Tax rates" description={collecting ? "Province beats country. Gift cards never taxed." : "Paused while collection is off."}>
         {rates.length === 0
-          ? <EmptyState icon="%" title="No tax rates yet" description="Without a rate, checkout charges no tax. Add one below." />
+          ? <EmptyState icon="%" title="No tax rates yet" description="No rate, no tax." />
           : <DataTable caption="Tax rates" rows={rates.map((r, index) => ({ ...r, index }))} rowKey={(r) => `${r.index}`} columns={columns} />}
       </SectionCard>
 
 
       <SettingsAnchor id="tax-add">
-      <SectionCard title="Add a tax rate" description="Pick the place, type its rate, then choose Add rate. Nothing is charged until you save.">
+      <SectionCard title="Add a tax rate">
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", alignItems: "end" }}>
           <SelectField label="Country" value={country} onChange={(e) => { setCountry(e.target.value); setRegion(""); }}>
             {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
@@ -105,7 +105,7 @@ export function TaxesSettings({ settings, setSettings, originalSettings, hasChan
             onChange={(e) => setRate(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
           <PrimaryButton onClick={add}>Add rate</PrimaryButton>
         </div>
-        <p className="rp-hint" style={{ margin: "12px 0 0" }}>Added rates apply once you choose Save. Check your rates with your accountant — this is not tax advice.</p>
+        <p className="rp-hint" style={{ margin: "12px 0 0" }}>Applies on save. Not tax advice.</p>
       </SectionCard>
       </SettingsAnchor>
 
