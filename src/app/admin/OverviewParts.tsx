@@ -4,6 +4,7 @@ import { SecondaryButton, SectionCard, StatusBadge, GhostButton, ErrorState, typ
 import { change } from "./overviewInsights";
 import { SHOP_TZ } from "../lib/shopDay";
 import { readinessProgress, readinessSummary, type ReadinessItem } from "./launchReadiness";
+import type { Change } from "./overviewChanges";
 
 // Small pieces shared by the Overview shell and its four detail tabs.
 
@@ -145,6 +146,31 @@ export function RunList({ children, label = "Things that need attention" }: { ch
           </div>
         </li>
       )}
+    </ul>
+  );
+}
+
+/** What changed's badge for each kind of move. */
+export const CHANGE_BADGE: Record<Change["tone"], { tone: BadgeTone; text: string }> = {
+  up: { tone: "success", text: "▲ Up" }, down: { tone: "danger", text: "▼ Down" }, info: { tone: "info", text: "● New" }, warn: { tone: "warning", text: "! Check" },
+};
+
+/**
+ * The What changed list. Each badge sits level with its line's title and every badge is the same width, so the
+ * titles and figures start and end in one straight column however the moves are mixed.
+ */
+export function ChangeList({ changes }: { changes: Change[] }) {
+  return (
+    <ul className="rp-list" aria-label="What changed">
+      {changes.map(c => (
+        <li key={c.id} className="rp-ov-change">
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, overflowWrap: "anywhere" }}>{c.title}</div>
+            <div className="rp-hint">{c.detail}</div>
+          </div>
+          <StatusBadge tone={CHANGE_BADGE[c.tone].tone} glyph={false}>{CHANGE_BADGE[c.tone].text}</StatusBadge>
+        </li>
+      ))}
     </ul>
   );
 }

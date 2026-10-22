@@ -7,7 +7,7 @@ import { salesReportCsv } from "./salesReport";
 import { launchReadiness } from "./launchReadiness";
 import toast from "react-hot-toast";
 import {
-  EmptyState, ErrorState, LoadingState, SecondaryButton, SectionCard, StatusBadge, type BadgeTone,
+  EmptyState, ErrorState, LoadingState, SecondaryButton, SectionCard,
 } from "./riso/components";
 import {
   bestSellers, customerMix, dormantStock, newestSales, newsletterSummary, orderTodos, reprintWatch, reviewSummary,
@@ -18,12 +18,12 @@ import { PRESETS, rangeWords, resolveRange, trafficShift, trafficWindow, type Co
 import { monthPace } from "./overviewSeries";
 import { mergeNewestPage } from "./ordersDesk";
 import { googleTraffic, shopRowsIn, shopTraffic } from "./overviewSources";
-import { whatChanged, type Change } from "./overviewChanges";
+import { whatChanged } from "./overviewChanges";
 import { profitSummary, titlePerformance } from "./overviewProfit";
 import { forgetReports, googleAnalyticsApi } from "./googleAnalytics";
 import { shopDayKey } from "../lib/shopDay";
 import { isOwnOrder } from "../lib/ownerDevice";
-import { Figure, ReadinessStrip, RunList, RunRow, ROW, Trend, money, moneyFigure, percent } from "./OverviewParts";
+import { ChangeList, Figure, ReadinessStrip, RunList, RunRow, Trend, money, moneyFigure, percent } from "./OverviewParts";
 import { readinessSummary } from "./launchReadiness";
 import { leadStory } from "./overviewStory";
 import { OverviewSales } from "./OverviewSales";
@@ -58,10 +58,6 @@ const PERIOD_BUTTONS: Array<{ id: Preset; label: string; title: string }> = [
   { id: "90d", label: "90d", title: "The last 90 days" }, { id: "mtd", label: "MTD", title: "This month so far" }, { id: "lastMonth", label: "Last month", title: "Last calendar month" },
   { id: "ytd", label: "YTD", title: "This year so far" }, { id: "365d", label: "12m", title: "The last 12 months" }, { id: "custom", label: "Custom", title: "Pick your own dates" },
 ];
-const CHANGE_BADGE: Record<Change["tone"], { tone: BadgeTone; text: string }> = {
-  up: { tone: "success", text: "▲ Up" }, down: { tone: "danger", text: "▼ Down" }, info: { tone: "info", text: "● New" }, warn: { tone: "warning", text: "! Check" },
-};
-
 export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?: (tab: string) => void; onEditBook?: (book: any) => void }) {
   const saved = useMemo(readPrefs, []);
   const [preset, setPreset] = useState<Preset>(saved.preset && PRESETS.some(p => p.id === saved.preset) ? saved.preset : "30d");
@@ -387,17 +383,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
               : !changes ? <LoadingState label="Comparing…" />
               : changes.length === 0 ? <EmptyState icon="≈" title="Nothing moved much" description={`Sales, titles and traffic are close to ${range.before}.`} />
               : (
-                <ul className="rp-list" aria-label="What changed">
-                  {changes.map(c => (
-                    <li key={c.id} style={ROW}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, overflowWrap: "anywhere" }}>{c.title}</div>
-                        <div className="rp-hint">{c.detail}</div>
-                      </div>
-                      <StatusBadge tone={CHANGE_BADGE[c.tone].tone} glyph={false}>{CHANGE_BADGE[c.tone].text}</StatusBadge>
-                    </li>
-                  ))}
-                </ul>
+                <ChangeList changes={changes} />
               )}
           </SectionCard>
         );

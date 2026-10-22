@@ -229,3 +229,8 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
 @media print {
   .rp-viz-bar, .rp-viz-stack-part, .rp-viz-fall-bar, .rp-viz-funnel-bar, .rp-viz-col-bar, .rp-viz-days-bar, .rp-viz-heat-cell { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }
+
+/* What changed: the badge sits level with the line's title, and all four badges share one width so the titles and
+   figures run in one straight column whatever mix of moves is listed. */
+.rp-ov-change { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; }
+.rp-ov-change > .rp-badge { min-width: 7.6em; justify-content: center; }
