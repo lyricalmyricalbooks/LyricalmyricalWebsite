@@ -167,7 +167,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Footer text & lines", keys: ["footerTextSize", "footerTextColor", "footerHeadingColor", "footerLinkHoverColor", "showFooterDividers", "footerDividerColor"] },
     { title: "Footer accent", keys: ["showFooterAccentLine", "footerAccentLineWidth", "footerAccentColor", "footerGroupHeadingsAccent", "footerSocialBoxes", "footerSocialHoverColor"] },
     { title: "Footer logo", keys: ["footerLogo", "footerLogoUrl", "footerLogoWidth"] },
-    { title: "What the footer shows", keys: ["showFooterExplore", "showFooterConnect", "showFooterLegalHeading", "showFooterLocation", "hideNewsletter", "hideRecentlyViewed", "showSocialInFooter", "showPaymentBadges", "showPoweredBy", "showFooterAdminLink", "showBackToTop", "backToTopPosition"] },
+    { title: "What the footer shows", keys: ["showFooterExplore", "showFooterConnect", "showFooterLegalHeading", "showFooterLocation", "hideNewsletter", "hideRecentlyViewed", "showSocialInFooter", "showPaymentBadges", "showPoweredBy", "showFooterAdminLink", "showBackToTop", "backToTopPosition", "showFooterCurrency"] },
     { title: "Social links", keys: ["social.instagram", "social.twitter", "social.facebook", "social.tiktok"] },
   ],
   products: [
@@ -354,6 +354,12 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Description, details & tabs", match: /^(tab|spec|productDescriptionLabel|noDescription|pdpDetailsAria|pdpPolicy)/ },
     { title: "Back-in-stock alert", match: /^alert/ },
     { title: "Related books & bundles", match: /^(related|bundle)/ },
+  ],
+  Footer: [
+    { title: "Headings, about & copyright", match: /^footer(About|ExploreHeading|ConnectHeading|NavHeading|Wordmark|LegalHeading|LocationHeading|Location|Copyright)$/ },
+    { title: "Footer links & icons", match: /^footer(Link\w+|\w+Aria|Admin)$/ },
+    { title: "Policy link titles", match: /^policyTitle/ },
+    { title: "Currency picker & Back to top", match: /^(footerCurrency|backToTop)/ },
   ],
   Cart: [
     { title: "Bag heading, rows & total", match: /^cart(Title|Empty|Count|Close|Each|Remove|Subtotal|Shipping|Total|Checkout|Delivery|Continue|OnlyAvailable|Qty|Decrease|Increase|Preorder|AddOn|GiftCard|BoxSet)/ },

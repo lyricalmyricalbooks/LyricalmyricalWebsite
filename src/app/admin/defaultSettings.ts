@@ -146,6 +146,7 @@ export const defaultSettings = (): any => ({
     showPhotoLightbox: true,
     showProductVideos: true,
     showBackToTop: false,
+    showFooterCurrency: false,
     showPoweredBy: false,
     headerLinks: {
       showEnterArchive: true,
