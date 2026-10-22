@@ -91,7 +91,7 @@ export function OverviewChart({ widgetId, paid, range, compareMode, traffic, tra
                     <XAxis dataKey="label" axisLine={false} tickLine={false} minTickGap={24} tick={{ fontSize: 11, fill: ink }} />
                     <YAxis axisLine={false} tickLine={false} width={48} tick={{ fontSize: 11, fill: ink }} tickFormatter={axisFmt} />
                     <Tooltip itemSorter={(item: any) => (item?.dataKey === "value" ? 0 : 1)} formatter={(v: any, name: any) => [fmt(v === null || v === undefined ? null : Number(v)), name]}
-                      contentStyle={{ background: "var(--rp-surface)", border: "2px solid var(--rp-border-strong)", borderRadius: 0, color: "var(--rp-text)", fontSize: 12 }} />
+                      contentStyle={{ background: "var(--rp-surface)", border: "1px solid var(--rp-border)", borderRadius: 0, color: "var(--rp-text)", fontSize: 12 }} />
                     {showCompare && <Area type="linear" isAnimationActive={animate.current} dataKey="prev" name={`${meta.label} (${chartRange.compare === "lastYear" ? "last year" : "before"})`} stroke={ink} strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 4" fill="none" connectNulls />}
                     <Area type="linear" isAnimationActive={animate.current} dataKey="value" name={meta.label} stroke={flare} strokeWidth={3} fill={flare} fillOpacity={0.14} connectNulls />
                   </AreaChart>

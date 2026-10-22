@@ -343,7 +343,7 @@ const DESK_CSS = `
 .od-head{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between}
 .od-title{margin:0;font:400 20px/1.05 var(--rp-font-display);text-transform:uppercase;letter-spacing:.01em}
 .od-head-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-.od-stats{display:flex;gap:18px;margin:0;padding:8px 14px;border:2px solid var(--rp-border-strong);background:var(--rp-surface)}
+.od-stats{display:flex;gap:18px;margin:0;padding:8px 0;border:0;border-top:2px solid var(--rp-rule,var(--rp-text));border-bottom:1px solid var(--rp-border);background:transparent}
 .od-stats div{display:flex;flex-direction:column}
 .od-stats dd{margin:0;font-size:20px;font-weight:500}
 .od-desk{display:grid;grid-template-columns:minmax(300px,360px) minmax(0,1fr);gap:24px;align-items:start}
@@ -351,10 +351,10 @@ const DESK_CSS = `
 .od-list{position:sticky;top:16px;display:flex;flex-direction:column;border:var(--rp-hair) solid var(--rp-border);box-shadow:var(--rp-shadow);background:var(--rp-surface);max-height:calc(100vh - 140px);min-height:420px}
 @media (max-width:900px){.od-list{position:static;max-height:none}}
 .od-list-head{display:flex;flex-direction:column;gap:12px;padding:14px;border-bottom:1px solid var(--rp-border)}
-.od-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border:2px solid var(--rp-border-strong)}
-.od-switch button{min-height:40px;padding:0 14px;border:0;border-left:1px solid var(--rp-border);background:var(--rp-surface);color:var(--rp-text);font:800 11px var(--rp-font-body);letter-spacing:.09em;text-transform:uppercase;cursor:pointer}
+.od-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border:1px solid var(--rp-border)}
+.od-switch button{min-height:36px;padding:0 14px;border:0;border-left:1px solid var(--rp-border);background:transparent;color:var(--rp-text);font:400 13px var(--rp-font-body);cursor:pointer}
 .od-switch button:first-child{border-left:0}
-.od-switch button.is-on{background:var(--rp-inverse);color:var(--rp-on-inverse)}
+.od-switch button.is-on{background:var(--rp-text);color:var(--rp-canvas)}
 .od-switch button:focus-visible,.od-row:focus-visible,.od-card:focus-visible{outline:2px solid var(--rp-focus);outline-offset:2px}
 .od-rows{list-style:none;margin:0;padding:0;overflow:auto;flex:1}
 .od-row{display:flex;flex-direction:row;align-items:flex-start;gap:10px;width:100%;text-align:left;padding:12px 14px;border:0;border-bottom:1px solid var(--rp-border);border-left:6px solid transparent;background:transparent;color:var(--rp-text);cursor:pointer;font:inherit}
@@ -380,9 +380,9 @@ const DESK_CSS = `
 .od-switch-inline{display:inline-grid}
 .od-only{margin:0;font-size:14px}
 .od-cards{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px}
-.od-card{display:flex;flex-direction:column;width:100%;height:100%;padding:0;text-align:left;border:2px solid var(--rp-border-strong);background:var(--rp-surface);color:var(--rp-text);box-shadow:var(--rp-shadow-sm);cursor:pointer;font:inherit}
-.od-card:hover{box-shadow:var(--rp-shadow-hover)}
-.od-card-cover{display:block;height:150px;border-bottom:2px solid var(--rp-border-strong);background:var(--rp-surface-sunken);overflow:hidden}
+.od-card{display:flex;flex-direction:column;width:100%;height:100%;padding:0;text-align:left;border:1px solid var(--rp-border);border-top:2px solid var(--rp-rule,var(--rp-text));background:var(--rp-surface);color:var(--rp-text);box-shadow:none;cursor:pointer;font:inherit}
+.od-card:hover{border-color:var(--rp-text)}
+.od-card-cover{display:block;height:150px;border-bottom:1px solid var(--rp-divider);background:var(--rp-surface-sunken);overflow:hidden}
 .od-card-cover img{display:block;width:100%;height:100%;object-fit:cover}
 .od-card-blank{display:flex;height:100%;align-items:center;justify-content:center;padding:12px;text-align:center;font:400 18px/1.1 var(--rp-font-display);text-transform:uppercase;color:var(--rp-text-subtle)}
 .od-card-body{display:flex;flex-direction:column;gap:7px;padding:12px 14px 14px;min-width:0}
