@@ -336,7 +336,12 @@ export const STYLE_GROUPS: StyleGroup[] = [
     title: "Pop-up window",
     hint: "The Pop-up section group (Page layout › Shared sections › Pop-up). It never covers the cookie banner: it waits until the shopper has answered it.",
     fields: [
+      { key: "popupTrigger", label: "When it opens", kind: "select", defaultValue: "delay", options: [
+        { value: "delay", label: "After the delay below" },
+        { value: "exit", label: "When a shopper is about to leave (mouse heads for the tabs; phones use the delay)" },
+        { value: "scroll", label: "After scrolling part way down the page" }] },
       { key: "popupDelaySeconds", label: "Delay before it opens", kind: "range", min: 0, max: 60, step: 1, suffix: "s", defaultValue: 5 },
+      { key: "popupScrollPercent", label: "How far down the page (only for “After scrolling”)", kind: "range", min: 10, max: 90, step: 5, suffix: "%", defaultValue: 50 },
       { key: "popupFrequency", label: "How often it shows", kind: "select", defaultValue: "session", options: [
         { value: "session", label: "Once per visit" }, { value: "once", label: "Once per shopper (until you change it)" }, { value: "always", label: "On every page" }] },
       { key: "popupPosition", label: "Position", kind: "select", defaultValue: "center", options: [
