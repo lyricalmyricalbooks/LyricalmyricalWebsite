@@ -1935,6 +1935,15 @@ is rendered by `StoreFooter` (so every page with the shop footer has it; Checkou
 scrolls up (instant under reduced motion) and moves focus to the header. Region `footerBackToTop`; words Text & labels › Footer ›
 `backToTop` (phones show only the arrow). Display only.
 
+## Header hides on scroll down (22 October 2026)
+
+Studio › Style › Header & announcement bar › Header layout › **Hide the header while shoppers scroll down**
+(`stickyHeaderHideOnScroll`, off by default; only while `stickyHeader` is on). `features/site/headerReveal.ts`
+(`nextHeaderHidden` pure, `useHeaderReveal` hook, used by both layouts of `StoreHeader`) slides the header up past
+its own `top` after an 8 px move down once the page has passed the header and back on any move up; never while focus or an
+`aria-expanded="true"` control is inside it. It writes only the header's transform, `data-fm-header-hidden` and
+`--fm-header-offset` (0px while hidden). No words, no rules, no Functions.
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the

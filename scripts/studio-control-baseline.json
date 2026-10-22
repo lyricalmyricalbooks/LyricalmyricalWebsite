@@ -753,6 +753,7 @@
   "soldOutPhotoFade": "none: needs a sold-out or coming-soon book",
   "spaceUnit": "css-only",
   "stickyHeader": "visible",
+  "stickyHeaderHideOnScroll": "none: the header hides only while the page is scrolled down",
   "stripeFormBg": "visible",
   "stripeFormPadding": "visible",
   "successColor": "css-only",
