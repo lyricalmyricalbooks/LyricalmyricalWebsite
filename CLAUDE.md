@@ -1944,6 +1944,13 @@ is rendered by `StoreFooter` (so every page with the shop footer has it; Checkou
 scrolls up (instant under reduced motion) and moves focus to the header. Region `footerBackToTop`; words Text & labels › Footer ›
 `backToTop` (phones show only the arrow). Display only.
 
+## Footer currency picker (22 October 2026)
+
+Studio › Style › Footer & social links › What the footer shows › **Currency picker in the footer** (`showFooterCurrency`, off by
+default) draws `features/site/FooterCurrency.tsx` in `StoreFooter`'s bottom bar: a labelled CAD/USD/EUR drop-down that calls the
+same `useCurrency().setCurrency` as the header picker (mounted only while on, so footers without a `CurrencyProvider` still render).
+Region `footerCurrency`; words Text & labels › Footer (`footerCurrencyLabel`, `footerCurrencyCAD/USD/EUR`). Display only.
+
 ## Header hides on scroll down (22 October 2026)
 
 Studio › Style › Header & announcement bar › Header layout › **Hide the header while shoppers scroll down**

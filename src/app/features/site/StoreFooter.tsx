@@ -15,6 +15,7 @@ import { footerLinksAlign, footerStyleCss } from "./footerStyle";
 import { pageInFooter } from "./footerNavigation";
 import { elementScheme } from "./colorSchemes";
 import { BackToTop } from "./BackToTop";
+import { FooterCurrency, footerCurrencyOn } from "./FooterCurrency";
 
 // ──────────────────────────────
 // Payment gateway icons for footer
@@ -218,6 +219,8 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
         </p>
 
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          {/* Style › Footer & social links › Currency picker in the footer (off by default). */}
+          {footerCurrencyOn(d) && <FooterCurrency design={d} />}
           {badges.length > 0 && (
             <div className="flex items-center gap-4 text-white/55 select-none" data-studio-target="style:paymentIcons|style:footer" data-studio-label="Payment icons">
               {badges.map((badgeId: string) => {
