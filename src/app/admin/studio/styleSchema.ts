@@ -551,6 +551,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showPdpWishlist", label: "Heart (save to wishlist) button next to Add to bag", kind: "toggle", defaultValue: true },
       { key: "showBackInStock", label: "“Notify me when back in stock” box (sold-out items)", kind: "toggle", defaultValue: true },
       { key: "showComingSoonSignup", label: "“Email me when it's out” box (Coming soon books — the Coming soon button opens it)", kind: "toggle", defaultValue: true },
+      { key: "showPdpPolicyTab", label: "Shipping & returns tab next to Description and Details (shows your Shipping and Returns policies from Settings › General › Store policies; tabs or accordions layout; words: Text & labels › Product page)", kind: "toggle", defaultValue: false },
       { key: "showPdpFreeShipping", label: "Free-shipping line under the buy buttons (“Free shipping on orders over …”, needs a free-shipping amount in Settings › Shipping; words: Text & labels › Product page)", kind: "toggle", defaultValue: false },
       { key: "showPdpPickup", label: "Pickup availability under the buy buttons (“Pickup available at …”, needs Local pickup on in Settings › Shipping; words: Text & labels › Product page)", kind: "toggle", defaultValue: false },
       { key: "showZoom", label: "Image zoom", kind: "toggle" },

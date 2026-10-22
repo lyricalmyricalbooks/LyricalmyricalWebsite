@@ -27,7 +27,7 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
     if (!safeSlug(page.slug)) { console.warn(`::warning::Page "${page.id}" has an unsafe URL slug and is left out of the sitemap: ${page.slug}`); continue; }
     urls.push({ loc: `${base}/page/${encodeURIComponent(page.slug)}`, lastmod: page.updatedAt || page._updateTime });
   }
-  // Store policies (Settings › Policies) are public pages too; card networks and Google
+  // Store policies (Settings › General › Store policies) are public pages too; card networks and Google
   // must reach the refund and terms pages as real 200 documents.
   for (const key of ['shipping', 'returns', 'privacy', 'terms']) {
     const text = settings?.policies?.[key];
