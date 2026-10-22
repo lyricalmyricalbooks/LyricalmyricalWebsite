@@ -41,6 +41,8 @@ import ReviewsSection from "./ReviewsSection";
 import { PhotoLightbox } from "./PhotoLightbox";
 import { galleryPhotos, isVideoItem, muteVideo } from "./bookVideo";
 import { PhotoCarousel } from "./PhotoCarousel";
+import { PhotoMagnifier } from "./PhotoMagnifier";
+import { magnifierLevel, magnifierOn } from "./photoMagnifier";
 import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 import BackInStockForm from "./BackInStockForm";
@@ -197,7 +199,11 @@ export default function BookDetail() {
   const productImageGlowColor  = storefrontDesign.productImageGlowColor  || primaryColor;
   const productImageShadow     = storefrontDesign.productImageShadow     || "none";
   // "Image zoom" off turns the hover zoom off entirely, whatever the zoom amount is set to.
-  const productImageHoverScale  = storefrontDesign.showZoom === false ? 1 : (storefrontDesign.productImageHoverScale ?? 1.05);
+  // Style › Book page · photos & layout › Photos › Zoom follows the mouse (off by default): it replaces the
+  // gentle hover zoom, so the two never stack.
+  const pdpMagnifier           = magnifierOn(storefrontDesign);
+  const pdpMagnifierLevel      = magnifierLevel(storefrontDesign);
+  const productImageHoverScale  = storefrontDesign.showZoom === false || pdpMagnifier ? 1 : (storefrontDesign.productImageHoverScale ?? 1.05);
   const productFrameMode       = frameMode(storefrontDesign.productImageFrameMode);
   const productImageFitClass   = storefrontDesign.productImageFit === "contain" ? "object-contain" : "object-cover";
   const productImageFit        = storefrontDesign.productImageFit === "contain" ? "contain" : "cover";
@@ -1444,7 +1450,7 @@ export default function BookDetail() {
                           );
                           const framed = motionFraming(photo, productImageHoverScale);
                           return (
-                            <>
+                            <PhotoMagnifier on={pdpMagnifier} level={pdpMagnifierLevel}>
                             <PhotoToneDefs photo={photo} />
                             <m.img
                               // `loading` before `src`: React sets attributes in this order, and Chrome loads a new
@@ -1474,7 +1480,7 @@ export default function BookDetail() {
                               onLoad={(e: any) => { if (i === carouselIndex) setImageLoaded(true); notePhotoSize(url, e.currentTarget); }}
                               onError={() => { if (i === carouselIndex) setImageLoaded(true); }}
                             />
-                            </>
+                            </PhotoMagnifier>
                           );
                         }}
                       />
