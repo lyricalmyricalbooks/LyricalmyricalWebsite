@@ -84,8 +84,8 @@ export function whatChanged(input: {
   if (visits && visits.prev > 0 && visits.cur > 0) {
     const v = change(visits.cur, visits.prev) ?? 0;
     const convNow = (cur.orders / visits.cur) * 100, convThen = (prev.orders / visits.prev) * 100;
-    if (Math.abs(v) >= 10) out.push({ id: "visits", tone: v > 0 ? "up" : "down", weight: Math.abs(v) * 10, title: `Visitors ${v > 0 ? "up" : "down"} ${pct(v)}`, detail: `${visits.cur.toLocaleString()} visitors vs ${visits.prev.toLocaleString()} in ${before}.` });
-    if (Math.abs(convNow - convThen) >= 0.5) out.push({ id: "conversion", tone: convNow > convThen ? "up" : "down", weight: Math.abs(convNow - convThen) * 200, title: `Conversion ${convNow > convThen ? "improved" : "slipped"} to ${convNow.toFixed(1)}%`, detail: `${convThen.toFixed(1)}% of visitors bought in ${before}.` });
+    if (Math.abs(v) >= 10) out.push({ id: "visits", tone: v > 0 ? "up" : "down", weight: Math.abs(v) * 10, title: `Visitors ${v > 0 ? "rose" : "fell"} by ${pct(v)}`, detail: `${plural(visits.cur, "visitor")} now, ${visits.prev.toLocaleString()} in ${before}.` });
+    if (Math.abs(convNow - convThen) >= 0.5) out.push({ id: "conversion", tone: convNow > convThen ? "up" : "down", weight: Math.abs(convNow - convThen) * 200, title: `${convNow.toFixed(1)}% of visitors bought, ${convNow > convThen ? "up" : "down"} from ${convThen.toFixed(1)}%`, detail: `${plural(cur.orders, "paid order")} from ${plural(visits.cur, "visitor")} now; ${prev.orders.toLocaleString()} from ${visits.prev.toLocaleString()} in ${before}.` });
   }
 
   // 5 · Warnings: discounts eating into price, refunds.

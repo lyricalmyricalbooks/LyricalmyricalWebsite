@@ -118,6 +118,14 @@ describe("whatChanged", () => {
     expect(list.find(c => c.id === "fall-down")).toMatchObject({ tone: "down", title: "Sales of Tidal Notes fell by $100.00",
       detail: "The biggest drop among your titles ($60.00 now, $160.00 in the 30 days before; 3 copies vs 8)." });
   });
+  it("says how visitors and the share who bought moved in plain words", () => {
+    const current = [order(), order(), order()];
+    const previous = [order({ total: 49 })];
+    const list = whatChanged({ cur: totals(current), prev: totals(previous), current, previous, visits: { cur: 120, prev: 100 }, before: "the 30 days before", money });
+    expect(list.find(c => c.id === "visits")).toMatchObject({ tone: "up", title: "Visitors rose by 20%", detail: "120 visitors now, 100 in the 30 days before." });
+    expect(list.find(c => c.id === "conversion")).toMatchObject({ tone: "up", title: "2.5% of visitors bought, up from 1.0%",
+      detail: "3 paid orders from 120 visitors now; 1 from 100 in the 30 days before." });
+  });
   it("says nothing about revenue for a quiet change", () => {
     const list = whatChanged({ cur: totals([order()]), prev: totals([order({ total: 49 })]), current: [order()], previous: [order({ total: 49 })], before: "x", money });
     expect(list.some(c => c.id === "revenue")).toBe(false);
