@@ -234,3 +234,13 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
    figures run in one straight column whatever mix of moves is listed. */
 .rp-ov-change { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; }
 .rp-ov-change > .rp-badge { min-width: 7.6em; justify-content: center; }
+
+/* Needs you: the shared list's own row padding and bottom line used to win over the panel's rows, pushing every count
+   20px in from the big total and drawing a second line under each row. Rows now line up with the total and keep one
+   line between them; on a phone the panel's own padding is narrower so the words get the room. */
+.rp-ov-run .rp-list > .rp-ov-run-row { padding: 12px 0; border-bottom: 0; }
+@media (max-width: 767px) {
+  .rp-ov-run { padding: 16px; }
+  .rp-ov-run .rp-ov-run-count { min-width: 30px; font-size: 28px; }
+  .rp-ov-run .rp-list > .rp-ov-run-row { gap: 12px; }
+}
