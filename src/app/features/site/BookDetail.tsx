@@ -178,6 +178,7 @@ export default function BookDetail() {
   const showPdpShipBy          = storefrontDesign.showPdpShipBy === true;
   const showPdpAskQuestion     = storefrontDesign.showPdpAskQuestion === true;
   const showPdpPolicyTab       = storefrontDesign.showPdpPolicyTab === true;
+  const showPdpArtistBio       = storefrontDesign.showPdpArtistBio !== false;
 
   // Autonomy controls for book detail page
   const showAmbientGlow        = storefrontDesign.showAmbientGlow        ?? settings?.design?.showAmbientGlow        ?? true;
@@ -235,7 +236,7 @@ export default function BookDetail() {
   const productDescriptionStyle = storefrontDesign.productDescriptionStyle || settings?.design?.productDescriptionStyle || "plain";
 
   // Tab & Accordion states
-  const [detailsTab, setDetailsTab] = useState<"description" | "specs" | "policies" | "reviews">("description");
+  const [detailsTab, setDetailsTab] = useState<"description" | "artist" | "specs" | "policies" | "reviews">("description");
   const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({
     description: true,
     specs: false,
@@ -721,8 +722,10 @@ export default function BookDetail() {
 
   // Shipping & returns tab (off by default): the shop's own policies from Settings › General › Store policies.
   const policyEntries = showPdpPolicyTab && regionVisible(regionDesign, "productPolicies") ? pdpPolicyEntries(settings?.policies, book, selectedVariant) : [];
-  const detailTabs: { id: "description" | "specs" | "policies" | "reviews"; label: string }[] = [
+  const artistBio = showPdpArtistBio && regionVisible(regionDesign, "productArtistBio") && typeof bk.artistBio === "string" ? bk.artistBio.trim() : "";
+  const detailTabs: { id: "description" | "artist" | "specs" | "policies" | "reviews"; label: string }[] = [
     ...(regionVisible(regionDesign, "productDescription") ? [{ id: "description" as const, label: getCopy(settings?.design, "tabDescription") }] : []),
+    ...(artistBio ? [{ id: "artist" as const, label: getCopy(settings?.design, "tabArtistBio") }] : []),
     ...(hasSpecs ? [{ id: "specs" as const, label: getCopy(settings?.design, productDetailsLayout === "accordions" ? "tabSpecs" : "tabDetails") }] : []),
     ...(policyEntries.length ? [{ id: "policies" as const, label: getCopy(settings?.design, "tabShippingReturns") }] : []),
     ...(regionVisible(regionDesign, "productReviews") ? [{ id: "reviews" as const, label: getCopy(settings?.design, "tabReviews") }] : []),
@@ -740,6 +743,8 @@ export default function BookDetail() {
   const detailContent = (id: string) =>
     id === "description" ? (
       <div {...regionProps("productDescription")} className="fm-pdp-desc fm-pdp-desc-text text-[15px] leading-[1.75] whitespace-pre-line">{bk.description ? <DescriptionText text={bk.description} /> : getCopy(settings?.design, "noDescription")}</div>
+    ) : id === "artist" ? (
+      <div {...regionProps("productArtistBio")} className="fm-pdp-desc fm-pdp-desc-text text-[15px] leading-[1.75] whitespace-pre-line"><DescriptionText text={artistBio} /></div>
     ) : id === "specs" ? <div {...regionProps("productSpecs")}>{renderSpecs()}</div> : id === "policies" ? (
       <div {...regionProps("productPolicies")} className="fm-pdp-policies flex flex-col gap-5 text-left">
         {policyEntries.map((e) => (

@@ -45,6 +45,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "productShipBy", label: "Ships-by line (under the buy buttons)" },
     { id: "productPickup", label: "Pickup availability (under the buy buttons)" },
     { id: "productAskQuestion", label: "Ask a question (under the buy buttons)" },
+    { id: "productArtistBio", label: "Artist bio tab" },
     { id: "productPolicies", label: "Shipping & returns tab" },
     { id: "productGiftCardForm", label: "Gift card recipient form" },
     { id: "relatedBooks", label: "Recommended books row" },

@@ -170,6 +170,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     title: "",
     subtitle: "",
     description: "",
+    artistBio: "",
     isbn: "",
     barcode: "",
     sku: "",
@@ -298,6 +299,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
         title: "",
         subtitle: "",
         description: "",
+        artistBio: "",
         isbn: "",
         barcode: "",
         sku: "",
@@ -1272,6 +1274,9 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                         <div className="fm-pdp-desc-text" style={{ whiteSpace: "pre-line" }}>{formData.description ? <DescriptionText text={formData.description} /> : <span className="rp-hint">Nothing written yet.</span>}</div>
                       </div>
                     )}
+                    <TextArea label="Artist bio" name="artistBio" value={formData.artistBio || ""} onChange={handleChange} rows={5}
+                      placeholder="Who made this book: a short bio of the artist or artists."
+                      hint="Optional. Fill it in and the book page gets an Artist bio tab; leave it empty and there is no tab. Same formatting as the description." />
                     <DescriptionLinkDialog open={!!descLink} initialText={descLink?.text || ""} onClose={() => setDescLink(null)} onInsert={insertDescLink} />
                   </div>
                 </div>

@@ -310,6 +310,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "tabDetails", label: "Tab: Details", default: "Details" },
       { key: "tabSpecs", label: "Accordion: Specifications", default: "Specifications" },
       { key: "tabReviews", label: "Accordion: Reviews", default: "Reviews" },
+      { key: "tabArtistBio", label: "Tab: Artist bio", default: "Artist bio", hint: "Shown on books that have an Artist bio written in Books › edit › Details." },
       { key: "tabShippingReturns", label: "Tab: Shipping & returns", default: "Shipping & returns", hint: "Shown when Style › Book page · photos & layout › Shipping & returns tab is on and a Shipping or Returns policy is written in Settings › General › Store policies." },
       { key: "pdpPolicyReadMore", label: "Shipping & returns tab · link to the full policy", default: "Read the full {policy}", hint: "Use {policy} for the policy's name (Text & labels › Footer)." },
       { key: "bundleHeading", label: "Bundle heading", default: "Frequently Bought Together" },
