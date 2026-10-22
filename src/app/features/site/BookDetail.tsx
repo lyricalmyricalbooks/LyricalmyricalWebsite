@@ -1595,7 +1595,7 @@ export default function BookDetail() {
             </div>
 
             {/* ── INFO COLUMN ── */}
-            <div data-section="products" className="flex flex-col gap-8 lg:sticky lg:top-24 w-full min-w-0">
+            <div data-section="products" className="flex flex-col gap-8 lg:sticky lg:top-[calc(var(--fm-header-offset,0px)+1.5rem)] w-full min-w-0">
               <div className="fm-pdp-card" data-studio-target="style:productCard|copy:Product page" data-studio-label="Buy card">
 
                 {cardSections(productBlocks(tokenSource)).map((section, index) => {

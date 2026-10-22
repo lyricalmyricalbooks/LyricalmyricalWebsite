@@ -2,6 +2,10 @@
 @import './tailwind.css';
 
 @layer base {
+  /* Anchor jumps (#reviews, back-in-stock box) stop below the sticky shop header (StoreHeader measures it). */
+  html {
+    scroll-padding-top: var(--fm-header-offset, 0px);
+  }
   body {
     @apply bg-background text-on-surface antialiased;
     font-family: var(--font-manrope);

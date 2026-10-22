@@ -21,6 +21,7 @@ import { SecondaryStorefrontNav } from "./SecondaryStorefrontNav";
 import { getPublishedBooks } from "./selectors";
 import { getCopy } from "./storeCopy";
 import { HOME_LINK_STATE } from "./homeLink";
+import { useHeaderOffset } from "./headerOffset";
 import { useStudioOverlay } from "./studioOverlay";
 import { activeAnnouncements } from "./sectionGroups";
 import { elementScheme } from "./colorSchemes";
@@ -374,6 +375,8 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
   const navBelow = useNavBelow(storefront, rowRef, navRef);
   const navFit = useNavFit(storefront, navRef, navBelow);
   const line = navLineProps(storefront, navBelow, navFit);
+  const headerRef = useRef<HTMLElement>(null);
+  useHeaderOffset(headerRef, String(storefront.stickyHeader ?? true));
   const routed = (to: string, label: string, key: string): Target => ({ key, label, to, active: location.pathname.endsWith(to) });
   const navBar = (
     <CategoryBar
@@ -397,6 +400,7 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
         data-section="navigation"
         data-studio-target="style:header|menus:header-order|copy:Header"
         data-studio-label="Header"
+        ref={headerRef}
         data-fm-header=""
         className={`${storefront.stickyHeader ?? true ? "sticky top-0" : "relative"} z-50`}
         style={{ backgroundColor: headerBg, color: headerColor }}
@@ -502,6 +506,8 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const stickers = sf?.navStyle === "stickers";
   const showAnnouncement = sf?.showAnnouncement ?? !isReferenceCatalog;
   const announcementShown = showAnnouncement && activeAnnouncements({ ...sf, announcementText: sf?.announcementText ?? shop.announcement }).length > 0;
+  const headerRef = useRef<HTMLElement>(null);
+  useHeaderOffset(headerRef, `${sf?.stickyHeader ?? true}|${announcementShown}`);
 
   // Theme settings › Colour schemes › Header: while the header follows a scheme, its colours replace the header's own
   // (a transparent header stays see-through until the page scrolls).
@@ -542,6 +548,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
       <header
         data-section="navigation"
         data-studio-target="style:header|menus:header-order|copy:Header" data-studio-label="Header"
+        ref={headerRef}
         data-fm-header=""
         className={`${sf?.stickyHeader ?? true ? "sticky" : "relative"} ${announcementShown ? "top-10" : "top-0"} z-50 transition-all duration-500 ${isHeaderTransparent ? "border-transparent" : isReferenceCatalog ? "" : "backdrop-blur-xl border-b"}`}
         style={{ backgroundColor: headerBgColor, borderColor: headerBorderColor }}
