@@ -1908,6 +1908,15 @@ Pure `pdpFreeShipping` (`pdpFreeShipping.ts`) uses the bag bar's rule (`shopFree
 checkout's physical rule (`isPickupItem`); hidden for e-books, gift cards, sold-out and Coming soon. Display only.
 Words: Text & labels › Product page (`pdpFreeShip*`).
 
+## Second photo on hover (22 October 2026)
+
+Studio › Style › Book cards in the shop grid › Grid & columns › **Show the book's second photo when the mouse is over a card**
+(`showCardHoverPhoto`, off by default) fades MainSite's shop-grid cards to the book's next plain photo (`cardHoverPhoto` in
+`features/site/cardHoverPhoto.ts`: skips videos and non-http URLs; none = the cover stays). `features/site/CardHoverPhoto.tsx` fetches it
+only after the card's first mouse `pointerenter` or `focusin` (Storage downloads are billed), shows it only with a fine pointer or focus,
+uses the grid's `gridPhotoSizes`, `framingStyle` + `PhotoToneDefs` and the Zoom hover effect, has empty alt and is skipped on faded
+sold-out cards. Shop grid only (not the Product grid sections). No words, no rules, no Functions.
+
 ## Shipping & returns tab on book pages (22 October 2026)
 
 Studio › Style › Book page · photos & layout › Extras on the page › **Shipping & returns tab** (`showPdpPolicyTab`, off by default)

@@ -54,6 +54,8 @@ import { regionProps } from "../features/site/storefrontRegions";
 import { collectionIntro } from "../features/site/collectionIntro";
 import { SoldOutBadge, soldOutPhotoStyle } from "../features/site/SoldOutBadge";
 import { gridPhotoSizes, photoSrcSet } from "../features/site/photoSources";
+import CardHoverPhoto from "../features/site/CardHoverPhoto";
+import { cardHoverPhoto } from "../features/site/cardHoverPhoto";
 import { framingStyle } from "../features/site/photoFraming";
 import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
 import { arrivedPrerendered } from "../lib/prerenderedPage";
@@ -659,6 +661,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showCardWishlist = storefrontDesign?.showCardWishlist !== false;
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
   const showSalePercent = storefrontDesign?.showSalePercent ?? false;
+  const showCardHoverPhoto = storefrontDesign?.showCardHoverPhoto === true;
   const showPreorderBadge = storefrontDesign?.showPreorderBadge ?? true;
   const showComingSoonBadge = storefrontDesign?.showComingSoonBadge ?? true;
   const saleBadgeLabel = storefrontDesign?.saleBadgeLabel || "SALE";
@@ -984,6 +987,17 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         frameStyle={isOutOfStock && showSoldOutBadge ? soldOutPhotoStyle(storefrontDesign) : undefined}
                       />
                       <PhotoToneDefs photo={item.photos?.[0]} />
+                      {showCardHoverPhoto && !(isOutOfStock && showSoldOutBadge) && (() => {
+                        const second = cardHoverPhoto(item);
+                        return second ? (
+                          <CardHoverPhoto
+                            photo={second}
+                            sizes={gridPhotoSizes(gridSteps, { photo: second, frame: imageAspect, cover: storefrontImageFit === "object-cover" })}
+                            className={`${storefrontImageFit} transition-[opacity,scale,transform] duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}
+                            focal={{ x: catalogImageFocalX, y: catalogImageFocalY }}
+                          />
+                        ) : null;
+                      })()}
                       {isOutOfStock && showSoldOutBadge && <SoldOutBadge design={storefrontDesign} label={soldOutLabel} />}
                       {/* Status ribbons */}
                       <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5">
