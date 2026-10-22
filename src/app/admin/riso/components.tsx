@@ -470,28 +470,51 @@ type ToastItem = { id: number; message: string } & ToastOpts;
 const ToastCtx = createContext<(m: string, o?: ToastOpts) => void>(() => {});
 export const useRisoToast = () => useContext(ToastCtx);
 
+/** Milliseconds a message stays: longer with an Undo button, longest for problems (they are the ones people need to read). */
+export const toastLifetime = (o?: ToastOpts) => (o?.tone === "err" || o?.tone === "warn" ? 10000 : o?.onAction ? 8000 : 4000);
+const MAX_TOASTS = 4;
+
+function ToastCard({ t, onClose }: { t: ToastItem; onClose: () => void }) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const start = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(onClose, toastLifetime(t));
+  }, [onClose, t]);
+  const stop = useCallback(() => { if (timer.current) clearTimeout(timer.current); timer.current = null; }, []);
+  useEffect(() => { start(); return stop; }, [start, stop]);
+  return (
+    <div className="rp-toast" data-tone={t.tone} onMouseEnter={stop} onMouseLeave={start} onFocus={stop} onBlur={start}>
+      <span className="rp-toast-text">{t.message}</span>
+      {t.onAction && (
+        <SecondaryButton size="sm" style={{ color: "inherit", borderColor: "currentColor" }}
+          onClick={() => { t.onAction?.(); onClose(); }}>
+          {t.actionLabel || "Undo"}
+        </SecondaryButton>
+      )}
+      <button type="button" className="rp-toast-x" aria-label="Dismiss message" onClick={onClose}><X size={16} aria-hidden /></button>
+    </div>
+  );
+}
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const push = useCallback((message: string, o?: ToastOpts) => {
     const id = Date.now() + Math.random();
-    setItems((s) => [...s, { id, message, ...o }]);
-    setTimeout(() => setItems((s) => s.filter((t) => t.id !== id)), o?.onAction ? 8000 : 4000);
+    setItems((s) => [...s, { id, message, ...o }].slice(-MAX_TOASTS));
   }, []);
+  const close = useCallback((id: number) => setItems((s) => s.filter((t) => t.id !== id)), []);
+  const problems = items.filter((t) => t.tone === "err");
   return (
     <ToastCtx.Provider value={push}>
       {children}
-      <div role="status" aria-live="polite" style={{ position: "fixed", bottom: 16, right: 16, zIndex: 500, display: "grid", gap: 8 }} className="rp">
-        {items.map((t) => (
-          <div key={t.id} className="rp-toast" data-tone={t.tone}>
-            <span>{t.message}</span>
-            {t.onAction && (
-              <SecondaryButton size="sm" style={{ color: "inherit", borderColor: "currentColor" }}
-                onClick={() => { t.onAction?.(); setItems((s) => s.filter((x) => x.id !== t.id)); }}>
-                {t.actionLabel || "Undo"}
-              </SecondaryButton>
-            )}
-          </div>
-        ))}
+      <div className="rp rp-toast-stack">
+        <div className="rp-toasts" aria-live="polite" role="status">
+          {items.filter((t) => t.tone !== "err").map((t) => <ToastCard key={t.id} t={t} onClose={() => close(t.id)} />)}
+        </div>
+        {/* Problems are announced at once, in their own region */}
+        <div className="rp-toasts" aria-live="assertive" role="alert">
+          {problems.map((t) => <ToastCard key={t.id} t={t} onClose={() => close(t.id)} />)}
+        </div>
       </div>
     </ToastCtx.Provider>
   );
