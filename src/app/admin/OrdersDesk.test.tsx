@@ -16,10 +16,12 @@ beforeEach(() => {
 describe("OrdersDesk", () => {
   it("a link to one order opens the Ship station: header, numbered queue and the full order page", () => {
     const html = renderToStaticMarkup(<OrdersDesk selectedId="ABC" onSelect={() => {}} />);
-    expect(html).toContain('class="od-title">Ship station</h2>');
+    // Inventory's figures strip, and no second heading repeating the page title.
+    expect(html).toContain('class="rp-kpi-grid" aria-label="Ship station today"');
+    expect(html).not.toContain('class="od-title">Ship station</h2>');
     expect(html).toContain("Labels today");
     expect(html).toContain("Print pick list");
-    expect(html).toContain("All orders · completed");
+    expect(html).toContain(">All orders<");
     expect(html).toContain("Not in this queue");
     // The right side is the real order page (Stripe sync, refunds, labels).
     expect(html).toContain('data-order-detail="ABC"');

@@ -316,7 +316,11 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 /* ── Cards ─────────────────────────────────────────────────────────────── */
 .rp-card { background: var(--rp-surface); border: var(--rp-hair) solid var(--rp-border); border-radius: var(--rp-radius-lg); box-shadow: var(--rp-shadow); }
 .rp-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; border-bottom: var(--rp-hair) solid var(--rp-divider); }
-.rp-card-fold { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; margin-top: -3px; padding: 0; border: 0; background: transparent; color: var(--rp-text); cursor: pointer; }
+.rp-card-heading { flex: 1 1 auto; min-width: 0; }
+/* The fold chevron sits at the head's right end on every card, so headings line up with the content's left edge. */
+.rp-card-fold { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; margin: 0 -6px 0 0; padding: 0; border: 0; background: transparent; color: var(--rp-text-subtle); cursor: pointer; }
+.rp-card-fold:hover { color: var(--rp-text); }
+@media (min-width: 601px) { .rp-card-head:has(> .rp-card-fold) { flex-wrap: nowrap; } }
 .rp-card-fold:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
 .rp-card-title { margin: 0; font-size: var(--rp-text-lg); font-weight: 600; color: var(--rp-text); }
 .rp-card-desc { margin: 4px 0 0; font-size: var(--rp-text-sm); color: var(--rp-text-muted); }
@@ -360,6 +364,11 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-field { display: flex; flex-direction: column; gap: 6px; }
 .rp-label { font-size: var(--rp-text-sm); font-weight: 600; color: var(--rp-text); }
 .rp-hint { font-size: var(--rp-text-xs); color: var(--rp-text-muted); }
+/* A table row's name: the one underlined link that opens the row. Same size on every list (Inventory, Books, Customers…). */
+.rp-row-link { all: unset; box-sizing: border-box; cursor: pointer; font-size: var(--rp-text-md); font-weight: 600; line-height: 1.3; color: var(--rp-text); overflow-wrap: anywhere; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.rp-row-link.rp-mono { font-family: var(--rp-font-mono); font-size: var(--rp-text-md); letter-spacing: 0.02em; }
+.rp-row-link:hover { text-decoration-thickness: 2px; text-decoration-color: var(--rp-primary); }
+.rp-row-link:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
 .rp-error-text { font-size: var(--rp-text-xs); color: var(--rp-danger); font-weight: 500; }
 .rp-input, .rp-select, .rp-textarea {
   width: 100%; min-height: var(--rp-touch); padding: 10px 12px; border-radius: var(--rp-radius);
@@ -377,6 +386,23 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-search-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--rp-text-subtle); pointer-events: none; }
 .rp-check { display: inline-flex; align-items: center; gap: 10px; min-height: var(--rp-touch); cursor: pointer; font-size: var(--rp-text-sm); }
 .rp-check input { width: 18px; height: 18px; accent-color: var(--rp-primary); margin: 0; }
+/* A table value you can click to edit in place: reads as the value, with a dashed underline as the hint. */
+.rp-cell-edit { all: unset; box-sizing: border-box; cursor: pointer; font: inherit; color: inherit; padding: 2px 0; border-bottom: 1px dashed var(--rp-border-strong); }
+.rp-cell-edit:hover { border-bottom-style: solid; }
+.rp-cell-edit:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
+/* A to-do list's tick box: empty square to do, ink square with a tick once done. */
+.rp-todo-mark { flex: none; display: inline-grid; place-items: center; width: 18px; height: 18px; margin-top: 1px; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); font-size: 12px; font-weight: 800; line-height: 1; color: var(--rp-on-inverse); }
+.rp-todo-mark[data-done] { background: var(--rp-inverse); }
+/* One-of-several choice: ruled rows, the chosen one marked with the flare edge. */
+.rp-choices { display: grid; border: var(--rp-hair) solid var(--rp-border); background: var(--rp-surface); }
+.rp-choice { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-top: 1px solid var(--rp-divider); cursor: pointer; }
+.rp-choice:first-child { border-top: 0; }
+.rp-choice:hover { background: var(--rp-surface-2); }
+.rp-choice:has(input:checked) { background: var(--rp-surface-2); box-shadow: inset 4px 0 0 var(--rp-primary); }
+.rp-choice input { appearance: none; flex: none; width: 16px; height: 16px; margin: 1px 0 0; border: var(--rp-stroke) solid var(--rp-border-strong); border-radius: 50%; background: var(--rp-surface); cursor: pointer; }
+.rp-choice input:checked { background: radial-gradient(circle, var(--rp-text) 0 3px, var(--rp-surface) 3.5px); }
+.rp-choice input:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
+.rp-choice-label { display: block; font-size: var(--rp-text-base); font-weight: 600; color: var(--rp-text); }
 .rp-toggle { display: inline-flex; align-items: center; gap: 10px; min-height: var(--rp-touch); cursor: pointer; font-size: var(--rp-text-sm); }
 .rp-toggle-track {
   position: relative; width: 42px; height: 24px; border-radius: var(--rp-radius-pill); border: var(--rp-stroke) solid var(--rp-border-strong);
@@ -452,8 +478,8 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-search-results .rp-hint { margin-left: auto; }
 
 /* ── States ────────────────────────────────────────────────────────────── */
-.rp-state { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 56px 24px; }
-.rp-state-icon { width: 56px; height: 56px; border-radius: var(--rp-radius-lg); display: grid; place-items: center; background: var(--rp-primary); color: var(--rp-on-primary); border: var(--rp-stroke) solid var(--rp-border-strong); box-shadow: var(--rp-shadow-sm); margin-bottom: 6px; }
+.rp-state { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 40px 24px; }
+.rp-state-icon { width: 48px; height: 48px; border-radius: var(--rp-radius-lg); display: grid; place-items: center; background: var(--rp-surface); color: var(--rp-text); border: var(--rp-stroke) solid var(--rp-border-strong); margin-bottom: 6px; }
 .rp-state[data-tone="danger"] .rp-state-icon { background: var(--rp-danger-tint); color: var(--rp-danger); }
 .rp-state-title { margin: 0; font-family: var(--rp-font-display); font-style: italic; font-weight: 600; font-size: var(--rp-text-xl); }
 .rp-state-desc { margin: 0; max-width: 46ch; color: var(--rp-text-muted); font-size: var(--rp-text-sm); line-height: 1.55; }
@@ -502,7 +528,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 }
 .rp-page-title { font-size: var(--rp-text-3xl); }
 .rp-dialog-title { font-size: var(--rp-text-xl); }
-.rp-state-title { font-size: var(--rp-text-xl); }
+.rp-state-title { font-size: var(--rp-text-lg); }
 .rp-card-title { font-family: var(--rp-font-display); font-weight: 400; text-transform: uppercase; letter-spacing: 0.01em; font-size: 20px; line-height: 1.05; }
 .rp-wordmark { font-family: var(--rp-font-display); font-style: normal; font-weight: 400; text-transform: uppercase; font-size: 1.2rem; letter-spacing: 0.02em; }
 .rp-wordmark em { font-style: normal; color: var(--rp-primary-text); }
@@ -556,9 +582,9 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-workspace { background-image: none; }
 
 /* ── Component-card parity ────────────────────────────────────────────── */
-/* Button: ~33px by decision; lg (or a coarse pointer) is the 44px target. */
-.rp-btn { min-height: 0; padding: 8px 16px; }
-.rp-btn-sm { min-height: 0; padding: 5px 11px; }
+/* Button: 36px by decision (28px small), the same with or without an icon; lg (or a coarse pointer) is the 44px target. */
+.rp-btn { min-height: 36px; padding: 0 16px; }
+.rp-btn-sm { min-height: 28px; padding: 0 11px; }
 .rp-btn-lg { height: var(--rp-touch); padding: 0 22px; font-size: var(--rp-text-sm); }
 @media (pointer: coarse) { .rp-btn, .rp-btn-sm { min-height: var(--rp-touch); } }
 .rp-btn:disabled, .rp-btn[aria-disabled="true"] { opacity: 0.35; }
@@ -1326,20 +1352,12 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 
 /* ── Settings pages: the Masthead look ─────────────────────────────────── */
 /* Cards, buttons, figures and tables look exactly like Inventory's (the admin reference): boxed cards, Riso buttons. */
-.rp-settings .rp-card-desc { color: var(--rp-text-subtle); }
 /* Setup steps: a plain underlined toggle, no box. */
 .rp-howto { margin: 0 0 12px; }
-.rp-howto > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; cursor: pointer; list-style: none; font-size: var(--rp-text-sm); font-weight: 700; text-decoration: underline; text-decoration-color: var(--rp-primary); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.rp-howto > summary { position: relative; display: inline-flex; align-items: center; padding-right: 18px; min-height: 32px; cursor: pointer; list-style: none; font-size: var(--rp-text-sm); font-weight: 700; text-decoration: underline; text-decoration-color: var(--rp-primary); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .rp-howto > summary::-webkit-details-marker { display: none; }
-.rp-howto > summary::after { content: "+"; font-family: var(--rp-font-mono); text-decoration: none; color: var(--rp-text-subtle); }
+.rp-howto > summary::after { content: "+"; position: absolute; right: 0; top: 50%; transform: translateY(-50%); font-family: var(--rp-font-mono); text-decoration: none; color: var(--rp-text-subtle); }
 .rp-howto[open] > summary::after { content: "−"; }
 .rp-howto > div { padding: 6px 0 4px; }
 .rp-howto summary:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
 .rp-settings .rp-kicker::before { display: none; }
-/* The fold chevron sits at the row's right end, so every heading lines up with its fields on the left edge. */
-.rp-settings .rp-card-head { flex-wrap: nowrap; }
-.rp-settings .rp-card-head > div:first-child:has(> .rp-card-fold) { display: contents !important; }
-.rp-settings .rp-card-head > div:first-child > div { flex: 1 1 auto; order: 0; }
-.rp-settings .rp-card-head > :not(:first-child) { order: 1; flex: none; }
-.rp-settings .rp-card-fold { order: 2; margin: 0 -6px 0 0; color: var(--rp-text-subtle); }
-@media (max-width: 600px) { .rp-settings .rp-card-head { flex-wrap: wrap; } }

@@ -351,14 +351,14 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     }
     if (field === "stockLevel" && Array.isArray(b.variants) && b.variants.length && inlineEditable({ ...b, variants: [] })) {
       return (
-        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Click to change each edition's stock"
+        <button type="button" className="rp-cell-edit" title="Click to change each edition's stock"
           aria-label={`Edit stock of ${b.title} (by edition)`} onClick={() => setStockEditId(b.id)}>{shown}</button>
       );
     }
     if (field === "stockLevel" && stockLinks[b.id]?.["_"]) return <span title="Counted in the inventory app">{shown}</span>;
     if (!inlineEditable(b) || (field === "stockLevel" && !b.trackInventory)) return shown;
     return (
-      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Click to edit"
+      <button type="button" className="rp-cell-edit" title="Click to edit"
         aria-label={`Edit ${field === "retailPrice" ? "price" : "stock"} of ${b.title}`}
         onClick={() => setInline({ id: b.id, field, value: String(b[field] ?? 0) })}>{shown}</button>
     );
@@ -396,7 +396,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   };
   const titleOf = (b: any) => (
     <div style={{ minWidth: 0 }}>
-      <button type="button" className="bk-title-link" onClick={() => onEdit(b)} aria-label={`Edit ${b.title}`}>{b.title || "Untitled"}</button>
+      <button type="button" className="rp-row-link" onClick={() => onEdit(b)} aria-label={`Edit ${b.title}`}>{b.title || "Untitled"}</button>
       <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{bookAuthor(b, authors) || "No author"}</div>
     </div>
   );
@@ -563,7 +563,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
           <p className="rp-hint" role="status" style={{ padding: "8px 16px", margin: 0 }}>
             {filtering
               ? "Clear the search and filters to rearrange — the order covers every book."
-              : savingOrder ? "Saving the new order…" : "Drag a row by its grip, or use the arrows, to set the order books appear in your shop (the shop's “Featured” sort)."}
+              : savingOrder ? "Saving the new order…" : "Drag a grip or use the arrows to set the shop's Featured order."}
           </p>
         )}
         {pageRows.length === 0 ? (

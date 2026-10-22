@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OrderDetail } from "./OrderDetail";
 import { Orders, loadOrderBooks, loadOrderSearchCatalog, patchOrdersCache, refreshOrdersCache } from "./Orders";
-import { EmptyState, LoadingState, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, Tabs, Toggle } from "./riso/components";
+import { EmptyState, LoadingState, MetricCard, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, Tabs, Toggle } from "./riso/components";
 import { nextToOpen, rowBooks, rowCover, rowStatus, refundState, stepOrder, deskQueue } from "./ordersDesk";
 import { badgeText, gridCounts, gridOrders, itemCount, outsideQueue, paymentChip, shipsTo, stationQueue, stationStats, stationStep, type GridSort, type GridTab } from "./shipStation";
 import { listDate, orderMoney } from "./orderListHelpers";
@@ -244,6 +244,12 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
     <aside aria-label="Ship queue" className="od-list">
       <div className="od-list-head">
         <SearchField label="Find an order" placeholder="Order, name, email, phone, postcode, book or ISBN" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <div className="od-head-actions" style={{ gap: 8 }}>
+          <SecondaryButton size="sm" disabled={!toPack.length} onClick={printPickList} title={toPack.length ? `Every book for the ${toPack.length} order${toPack.length === 1 ? "" : "s"} still to pack` : "Nothing to pack right now"}>
+            Print pick list
+          </SecondaryButton>
+          <SecondaryButton size="sm" onClick={() => pickLayout("grid")}>All orders</SecondaryButton>
+        </div>
         <p className="rp-label" style={{ margin: 0 }}>Up next · problems, packing, then labels</p>
       </div>
       {loadProblem}
@@ -313,18 +319,11 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   );
 
   const header = (
-    <header className="od-head">
-      <h2 className="od-title">Ship station</h2>
-      <div className="od-head-actions">
-        <dl className="od-stats" aria-label="Today">
-          <div><dt className="rp-label">To ship</dt><dd className="rp-mono">{orders ? stats.toShip : "–"}</dd></div>
-          <div><dt className="rp-label">Labels today</dt><dd className="rp-mono">{orders ? stats.labelsToday : "–"}</dd></div>
-          <div><dt className="rp-label">Oldest</dt><dd className="rp-mono">{orders && stats.toShip ? `${stats.oldestDays}d` : "–"}</dd></div>
-        </dl>
-        <SecondaryButton disabled={!toPack.length} onClick={printPickList} title={toPack.length ? `Every book for the ${toPack.length} order${toPack.length === 1 ? "" : "s"} still to pack` : "Nothing to pack right now"}>
-          Print pick list
-        </SecondaryButton>
-        <SecondaryButton onClick={() => pickLayout("grid")}>All orders · completed</SecondaryButton>
+    <header className="rp-stack" style={{ gap: 12 }}>
+      <div className="rp-kpi-grid" aria-label="Ship station today">
+        <MetricCard label="To ship" value={orders ? stats.toShip : "–"} footer="Paid, not sent yet" />
+        <MetricCard label="Labels today" value={orders ? stats.labelsToday : "–"} footer="Bought since midnight" />
+        <MetricCard label="Oldest" value={orders && stats.toShip ? `${stats.oldestDays}d` : "–"} tone={orders && stats.oldestDays > 3 ? "warn" : undefined} footer="Waiting longest" />
       </div>
     </header>
   );
@@ -349,7 +348,7 @@ const DESK_CSS = `
 .od-stats dd{margin:0;font-size:20px;font-weight:500}
 .od-desk{display:grid;grid-template-columns:minmax(300px,360px) minmax(0,1fr);gap:24px;align-items:start}
 @media (max-width:900px){.od-desk{grid-template-columns:minmax(0,1fr)}}
-.od-list{position:sticky;top:16px;display:flex;flex-direction:column;border:2px solid var(--rp-border-strong);background:var(--rp-surface);max-height:calc(100vh - 140px);min-height:420px}
+.od-list{position:sticky;top:16px;display:flex;flex-direction:column;border:var(--rp-hair) solid var(--rp-border);box-shadow:var(--rp-shadow);background:var(--rp-surface);max-height:calc(100vh - 140px);min-height:420px}
 @media (max-width:900px){.od-list{position:static;max-height:none}}
 .od-list-head{display:flex;flex-direction:column;gap:12px;padding:14px;border-bottom:1px solid var(--rp-border)}
 .od-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border:2px solid var(--rp-border-strong)}

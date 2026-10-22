@@ -3,7 +3,10 @@ import {
   type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode,
   type SelectHTMLAttributes, type TextareaHTMLAttributes,
 } from "react";
-import { ChevronRight, Search, X } from "lucide-react";
+import {
+  AlertTriangle, BookOpen, Check, ChevronDown, ChevronRight, CircleDashed, CreditCard, Gift, Globe, Hourglass, Inbox, LayoutGrid, Lock,
+  Minus, Package, Percent, RotateCw, Search, Tag, Truck, Waves, X,
+} from "lucide-react";
 import "./riso.css";
 import { useFocusTrap } from "../../lib/useFocusTrap";
 export { useFocusTrap };
@@ -175,19 +178,17 @@ export function SectionCard({ title, description, actions, children, bodyClassNa
     <section className="rp-card" data-folded={isFolded || undefined} {...rest}>
       {((title && (!inWidget || description)) || actions) && (
         <div className="rp-card-head" style={isFolded ? { borderBottom: 0 } : undefined}>
-          <div style={canFold ? { display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0 } : undefined}>
-            {canFold && (
-              <button type="button" className="rp-card-fold" aria-expanded={!isFolded} aria-controls={bodyId}
-                aria-label={`${isFolded ? "Expand" : "Collapse"} ${title}`} title={isFolded ? "Expand" : "Collapse"} onClick={toggle}>
-                <ChevronRight size={18} aria-hidden style={{ transform: isFolded ? "none" : "rotate(90deg)", transition: "transform .15s" }} />
-              </button>
-            )}
-            <div style={{ minWidth: 0 }}>
-              {title && !inWidget && <h2 className="rp-card-title" onClick={canFold ? toggle : undefined} style={canFold ? { cursor: "pointer" } : undefined}>{title}</h2>}
-              {description && <p className="rp-card-desc">{description}</p>}
-            </div>
+          <div className="rp-card-heading">
+            {title && !inWidget && <h2 className="rp-card-title" onClick={canFold ? toggle : undefined} style={canFold ? { cursor: "pointer" } : undefined}>{title}</h2>}
+            {description && <p className="rp-card-desc">{description}</p>}
           </div>
           {!isFolded && actions}
+          {canFold && (
+            <button type="button" className="rp-card-fold" aria-expanded={!isFolded} aria-controls={bodyId}
+              aria-label={`${isFolded ? "Expand" : "Collapse"} ${title}`} title={isFolded ? "Expand" : "Collapse"} onClick={toggle}>
+              <ChevronDown size={18} aria-hidden style={{ transform: isFolded ? "rotate(-90deg)" : "none", transition: "transform .15s" }} />
+            </button>
+          )}
         </div>
       )}
       <div id={bodyId} hidden={isFolded} className={flush ? bodyClassName : cx("rp-card-body", bodyClassName)}>{children}</div>
@@ -499,6 +500,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 /* ── States ──────────────────────────────────────────────────────────── */
 
 /** `inline`: the small version for inside a card or widget — no icon, about 80px tall, left-aligned. */
+/** One line-icon set for every empty/error state: pages may pass a short glyph or emoji, which maps onto the matching icon. */
+const STATE_ICONS: Record<string, typeof Inbox> = {
+  "📭": Inbox, "⚠": AlertTriangle, "%": Percent, "🌍": Globe, "🎁": Gift, "🏷️": Tag, "🏷": Tag, "💳": CreditCard, "📚": BookOpen, "📦": Package,
+  "🔒": Lock, "🚚": Truck, "⏳": Hourglass, "✓": Check, "◌": CircleDashed, "↻": RotateCw, "≈": Waves, "▦": LayoutGrid, "–": Minus,
+};
+function stateIcon(icon: ReactNode) {
+  const Icon = typeof icon === "string" ? STATE_ICONS[icon] : undefined;
+  return Icon ? <Icon size={24} strokeWidth={2} aria-hidden /> : icon;
+}
+
 export function EmptyState({ title, description, action, icon, inline }: { title: string; description?: string; action?: ReactNode; icon?: ReactNode; inline?: boolean }) {
   if (inline) {
     return (
@@ -511,7 +522,7 @@ export function EmptyState({ title, description, action, icon, inline }: { title
   }
   return (
     <div className="rp-state">
-      <div className="rp-state-icon" aria-hidden="true">{icon || "📭"}</div>
+      <div className="rp-state-icon" aria-hidden="true">{stateIcon(icon || "📭")}</div>
       <h3 className="rp-state-title">{title}</h3>
       {description && <p className="rp-state-desc">{description}</p>}
       {action}
@@ -531,7 +542,7 @@ export function LoadingState({ label = "Loading…" }: { label?: string }) {
 export function ErrorState({ title = "Something went wrong", description, onRetry }: { title?: string; description?: string; onRetry?: () => void }) {
   return (
     <div className="rp-state" data-tone="danger" role="alert">
-      <div className="rp-state-icon" aria-hidden="true">⚠</div>
+      <div className="rp-state-icon" aria-hidden="true">{stateIcon("⚠")}</div>
       <h3 className="rp-state-title">{title}</h3>
       {description && <p className="rp-state-desc">{description}</p>}
       {onRetry && <SecondaryButton onClick={onRetry}>Try again</SecondaryButton>}

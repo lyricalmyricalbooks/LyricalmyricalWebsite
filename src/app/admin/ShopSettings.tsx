@@ -229,11 +229,11 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                     <StatusBadge tone={status === "open" ? "success" : "warning"}>{status === "open" ? "Storefront live" : status === "maintenance" ? "Checkout paused" : "Behind construction wall"}</StatusBadge>
                     {settings.domain?.custom && <span className="rp-hint" style={{ marginLeft: 12 }}>Domain: {settings.domain.custom}</span>}
                   </div>
-                  <div className="rp-stack" style={{ gap: 8 }}>
+                  <div className="rp-choices">
                     {options.map((o) => (
-                      <label key={o.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
-                        <input type="radio" name="store-status" value={o.id} checked={status === o.id} onChange={() => void choose(o.id)} style={{ marginTop: 4, accentColor: "var(--rp-primary)" }} />
-                        <span><strong>{o.label}</strong><span className="rp-hint" style={{ display: "block" }}>{o.hint}</span></span>
+                      <label key={o.id} className="rp-choice">
+                        <input type="radio" name="store-status" value={o.id} checked={status === o.id} onChange={() => void choose(o.id)} />
+                        <span><span className="rp-choice-label">{o.label}</span><span className="rp-hint" style={{ display: "block" }}>{o.hint}</span></span>
                       </label>
                     ))}
                   </div>
@@ -249,7 +249,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           </SectionCard>
         </SettingsAnchor>
         <SettingsAnchor id="gs-holds">
-          <SectionCard title="Checkout stock holds" description="Copies held 30 minutes at checkout. Raise for bulk buyers.">
+          <SectionCard title="Checkout stock holds" description="Held 30 minutes at checkout. E-books never count.">
             <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
               {([
                 { key: "perBook", label: "Most copies of one book", hint: "Per shopper. Default 10.", max: 99, placeholder: "10" },
@@ -261,7 +261,6 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                   onChange={(e) => set("stockHolds", { [f.key]: e.target.value === "" ? "" : Math.max(0, Math.floor(Number(e.target.value))) })} />
               ))}
             </div>
-            <p className="rp-hint" style={{ marginTop: 12 }}>Over the limit? They're warned in the bag. E-books never count.</p>
           </SectionCard>
         </SettingsAnchor>
       </SettingsGroup>
@@ -1341,15 +1340,14 @@ function TestSaleWalkthrough({ payments, onOpenOrders, onOpenNotifications, onOp
     else document.getElementById("payments-top")?.scrollIntoView({ behavior: "smooth" });
   };
   return (
-    <SectionCard title="Test sale walkthrough" description="One full rehearsal before real money."
+    <SectionCard title="Test sale walkthrough" description={`One full rehearsal before real money · ${data ? `${doneCount} of ${steps.length} done` : "checking…"}`}
       actions={<SecondaryButton size="sm" onClick={load}>Check again</SecondaryButton>}>
-      <p className="rp-hint" style={{ marginTop: 0 }}>{data ? `${doneCount} of ${steps.length} done.` : "Checking…"}</p>
       {failed.length > 0 && <p role="alert" className="rp-hint" style={{ marginTop: 0, color: "var(--rp-danger)" }}>Couldn't read the {failed.join(", ")}. Check again.</p>}
       <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }} aria-label="Test sale steps">
         {steps.map((st, i) => (
-          <li key={st.id} style={{ display: "flex", flexWrap: "wrap", gap: "8px 12px", alignItems: "flex-start", padding: "8px 0", borderTop: i ? "1px solid var(--rp-divider)" : undefined }}>
-            <StatusBadge tone={st.done ? "success" : "neutral"}>{st.done ? "Done" : `Step ${i + 1}`}</StatusBadge>
-            <span style={{ flex: "1 1 220px", minWidth: 0 }}><strong>{st.label}</strong><span className="rp-hint" style={{ display: "block" }}>{st.howTo}</span></span>
+          <li key={st.id} style={{ display: "flex", flexWrap: "wrap", gap: "8px 12px", alignItems: "flex-start", padding: "10px 0", borderTop: i ? "1px solid var(--rp-divider)" : undefined }}>
+            <span className="rp-todo-mark" data-done={st.done || undefined} aria-label={st.done ? "Done" : "To do"} role="img">{st.done ? "✓" : ""}</span>
+            <span style={{ flex: "1 1 220px", minWidth: 0 }}><strong style={st.done ? { color: "var(--rp-text-muted)" } : undefined}>{st.label}</strong><span className="rp-hint" style={{ display: "block" }}>{st.howTo}</span></span>
             {!st.done && <button type="button" className="rp-wb-a" onClick={() => go(st.link, st.id)}>{st.link === "orders" ? "Open Orders" : st.link === "notifications" ? "Open Email sender" : st.link === "storefront" ? "Open shop ↗" : "Show me"}</button>}
           </li>
         ))}
@@ -1564,11 +1562,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
               <StatusBadge tone={stripeLive ? "success" : "neutral"}>Stripe {stripeLive ? "on" : "off"}</StatusBadge>
               <StatusBadge tone={paypalLive ? "success" : "neutral"}>PayPal {paypalLive ? "on" : "off"}</StatusBadge>
               <StatusBadge tone={enabledManual.length ? "info" : "neutral"}>{enabledManual.length} manual method{enabledManual.length === 1 ? "" : "s"}</StatusBadge>
-              {!stripeLive && !paypalLive && enabledManual.length === 0 && <StatusBadge tone="danger">No way to pay is enabled</StatusBadge>}
             </div>
-            <p className="rp-hint" style={{ margin: "12px 0 0" }}>
-              The amount charged is always calculated by the payment server, never in the browser. Orders are created unpaid and are marked paid only when the Stripe webhook confirms the payment.
-            </p>
             {paymentIssues.length === 0 ? (
               <p role="status" style={{ padding: 12, background: "var(--rp-success-tint)", color: "var(--rp-success)", border: "1px solid var(--rp-success)" }}><strong>✓ Payment configuration is launch-ready.</strong></p>
             ) : (

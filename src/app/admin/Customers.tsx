@@ -169,12 +169,11 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
 
   const columns: Column<CustomerRow>[] = [
     { key: "customer", header: "Customer", lead: true, render: (c) => (
-      <button type="button" onClick={() => openCustomer(c)} aria-label={`View ${c.name || c.email}`}
-        style={{ background: "none", border: 0, padding: 0, textAlign: "left", cursor: "pointer", color: "inherit", overflowWrap: "anywhere", minWidth: 170 }}>
-        <div style={{ fontWeight: 600, textDecoration: "underline" }}>{c.name || "—"}</div>
+      <div style={{ overflowWrap: "anywhere", minWidth: 170 }}>
+        <button type="button" className="rp-row-link" onClick={() => openCustomer(c)} aria-label={`View ${c.name || c.email}`}>{c.name || c.email || "—"}</button>
         <div className="rp-hint">{c.email}</div>
         {(noteFor(c)?.tags || []).length > 0 && <div className="rp-hint rp-mono">{noteFor(c)!.tags.join(" · ")}</div>}
-      </button>
+      </div>
     ) },
     { key: "segment", header: "Segment", render: (c) => <span style={{ whiteSpace: "nowrap" }}><StatusBadge tone={TONE[c.segment]}>{SEGMENT_LABELS[c.segment]}</StatusBadge></span> },
     { key: "consent", header: "Marketing", render: (c) => consent ? <span style={{ whiteSpace: "nowrap" }}><StatusBadge tone={CONSENT_TONE[consentFor(c)]}>{CONSENT_LABELS[consentFor(c)]}</StatusBadge></span> : "—" },
@@ -235,7 +234,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
         {filtered && <GhostButton onClick={clearFilters}>Clear filters</GhostButton>}
         <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
       </FilterBar>
-      <SectionCard flush collapsible={false} title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · built from all ${orders.length} orders (paid, non-test; refunds taken off). Click a customer for their orders and your private notes.`}>
+      <SectionCard flush collapsible={false} title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · paid orders only, refunds taken off.`}>
         <DataTable caption="Customers" columns={columns} rows={pageRows} rowKey={(c) => c.key} onRowClick={openCustomer}
           empty={all.length === 0
             ? <EmptyState title="No customers yet" description="Customers appear here after their first paid order." />

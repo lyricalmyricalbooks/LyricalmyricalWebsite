@@ -452,15 +452,14 @@ export function Discounts() {
       <div style={{ minWidth: 200, maxWidth: 420 }}>
         <span style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button type="button" onClick={() => edit(d)} aria-label={`Edit ${discountName(d)}`}
-            className={isAutomatic(d) ? undefined : "rp-mono"}
-            style={{ background: "none", border: 0, padding: 0, cursor: "pointer", color: "inherit", textAlign: "left", fontWeight: 600, fontSize: "var(--rp-text-base)", textDecoration: "underline", textUnderlineOffset: 2, overflowWrap: "anywhere" }}>
+            className={isAutomatic(d) ? "rp-row-link" : "rp-row-link rp-mono"}>
             {discountName(d)}
           </button>
           {isAutomatic(d)
             ? <StatusBadge tone="info">Automatic</StatusBadge>
             : <IconButton label={`Share link for ${d.code}`} onClick={() => setSharing(d.code)}><Link2 size={16} aria-hidden /></IconButton>}
         </span>
-        <div style={{ overflowWrap: "anywhere", marginTop: 4 }}>{describeDiscount(d, books || [])}</div>
+        <div className="rp-hint" style={{ overflowWrap: "anywhere", marginTop: 2 }}>{describeDiscount(d, books || [])}</div>
         {d.description && <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{d.description}</div>}
       </div>
     ) },
@@ -498,7 +497,7 @@ export function Discounts() {
     <div className="rp-stack">
       <div className="rp-kpi-grid">
         <MetricCard label="Active discounts" value={activeCodes} footer={`${discounts.length} total`} />
-        <MetricCard label="Redemptions" value={totalRedemptions.toLocaleString()} footer="Counted by the payment webhook" tone="gold" />
+        <MetricCard label="Redemptions" value={totalRedemptions.toLocaleString()} footer="Counted by the payment webhook" />
         <MetricCard label="Revenue with a discount" value={fmt(totalCodeRevenue)} footer="Paid orders, less refunds (CAD)" />
         <MetricCard label="Discounts given" value={fmt(totalGiven)} footer="Total taken off those orders" />
       </div>
@@ -522,7 +521,7 @@ export function Discounts() {
             <div className="rp-grow"><SearchField label="Search discounts" placeholder="Search codes, titles or descriptions…" value={search} onChange={e => setSearch(e.target.value)} /></div>
             <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setEditing(null); setDialogOpen(true); }}>New discount</PrimaryButton>
           </FilterBar>
-          <SectionCard flush collapsible={false} title="Discounts" description={`Showing ${rows.length} of ${discounts.length}. ${ONE_DISCOUNT_HELP}`}>
+          <SectionCard flush collapsible={false} title="Discounts" description={`${rows.length} of ${discounts.length} · one discount per order, the biggest saving wins.`}>
             <DataTable caption="Discounts" columns={columns} rows={rows} rowKey={d => d.id}
               empty={<EmptyState title="No codes match" description="Try a different status or search."
                 action={<SecondaryButton onClick={() => { setFilter("all"); setSearch(""); }}>Reset filters</SecondaryButton>} />} />
