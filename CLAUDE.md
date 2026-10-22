@@ -1953,6 +1953,15 @@ Studio › Style › Book page · photos & layout › Extras on the page › **S
 keeps the date line. Display only (the server's `saleActive` still decides the price). Words: Text & labels › Product page
 (`pdpSaleCountdownDays/Hours/Minutes`).
 
+## Added-to-bag notice (22 October 2026)
+
+Studio › Style › Cart drawer (shopping bag) › After adding a book › **After a shopper adds a book** (`cartAddAction`: `drawer`
+default = open the bag as before, `notice`) + `cartAddNoticeSeconds` (default 6, 0 = until closed). `CartDrawer` (always mounted in
+App) tells `CartContext` the mode (`setAddBehaviour`); in notice mode `addToCart` sets `lastAdded` instead of opening the bag (an
+already open bag stays the place to see it). `features/site/AddedToBagNotice.tsx` (pure rules + token-only CSS in `addedNotice.ts`)
+draws it on the bag's own CSS (`.fm-bag.fm-bag-notice`, `cartDrawerCss`), pauses on hover/focus, Escape closes, closes on any page
+change and never shows on checkout. Words: Text & labels › Cart (`cartAdded*`). Display only.
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the

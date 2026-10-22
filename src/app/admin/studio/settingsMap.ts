@@ -203,6 +203,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   ],
   cartDrawer: [
     { title: "Size & position", keys: ["cartDrawerSide", "cartDrawerWidth", "cartDrawerPadding"] },
+    { title: "After adding a book", keys: ["cartAddAction", "cartAddNoticeSeconds"] },
     { title: "Colours & outline", keys: ["cartDrawerBg", "cartDrawerText", "cartDrawerMuted", "cartDrawerSurface", "cartDrawerBorder", "cartDrawerEdgeColor", "cartDrawerEdgeWidth", "cartDrawerShadowColor", "cartDrawerShadowOffset", "cartDrawerBackdropColor", "cartDrawerBackdropBlur"] },
     { title: "Heading & fonts", keys: ["cartDrawerTitleFont", "cartDrawerTitleSize", "cartDrawerTitleCase", "cartDrawerMetaFont", "cartDrawerMetaSize", "cartDrawerShowCount"] },
     { title: "Free-shipping bar", keys: ["showFreeShipBar", "cartDrawerProgressColor", "cartDrawerProgressTrack", "cartDrawerProgressHeight"] },
@@ -358,6 +359,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Bag heading, rows & total", match: /^cart(Title|Empty|Count|Close|Each|Remove|Subtotal|Shipping|Total|Checkout|Delivery|Continue|OnlyAvailable|Qty|Decrease|Increase|Preorder|AddOn|GiftCard|BoxSet)/ },
     { title: "Free-shipping bar & suggestion", match: /^cart(FreeShip|Upsell)/ },
     { title: "Shipping cost preview", match: /^cartEstimate/ },
+    { title: "“Added to your bag” notice", match: /^cartAdded/ },
     { title: "Trust badges", match: /^trust/ },
   ],
 };

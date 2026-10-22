@@ -52,6 +52,7 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Bag line items": /^(cartDrawer(ShowItemNumbers|ShowPreorder|ShowLineOptions|Thumb|GrayscaleThumbs|ItemTitleSize|ShowUnitPrice|ShowLineTotal|QtyStyle|RemoveStyle|Border|Muted))/,
   "Bag suggestion": /^(cartDrawer(ShowUpsell|UpsellShadow|Surface|GrayscaleThumbs))/,
   "Empty bag": /^cartDrawer(ShowEmpty|Empty)/,
+  "Added-to-bag notice": /^(cartAdd(Action|NoticeSeconds)$|cartDrawer(Side|Bg|Text|Muted|Surface|Edge|Checkout|Meta|Title|Thumb))/,
   "Bag total & checkout": /^(cartDrawer(ShowSummary|TotalSize|Checkout|ShowCheckoutArrow|ShowDeliveryNote|Show(Secure|Tracked|Returns)Badge)|showCartTrustBadges)/,
 };
 
@@ -738,6 +739,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "cartDrawerSide", label: "Slides in from", kind: "select", defaultValue: "right", options: [{ value: "right", label: "Right" }, { value: "left", label: "Left" }] },
       { key: "cartDrawerWidth", label: "Bag width", kind: "range", defaultValue: 460, min: 320, max: 640, step: 10, suffix: "px" },
       { key: "cartDrawerPadding", label: "Inner side spacing", kind: "range", defaultValue: 28, min: 12, max: 48, step: 2, suffix: "px" },
+      { key: "cartAddAction", label: "After a shopper adds a book", kind: "select", defaultValue: "drawer", options: [{ value: "drawer", label: "Open the bag" }, { value: "notice", label: "Show a small “Added to your bag” notice in the corner (words: Text & labels › Cart)" }] },
+      { key: "cartAddNoticeSeconds", label: "“Added to your bag” notice: close by itself after this many seconds (0 = stays until closed)", kind: "number", min: 0, max: 30, step: 1, defaultValue: 6 },
       { key: "cartDrawerBg", label: "Bag background", kind: "color" },
       { key: "cartDrawerText", label: "Bag text", kind: "color" },
       { key: "cartDrawerMuted", label: "Bag small / muted text", kind: "color" },
