@@ -130,6 +130,7 @@
   "catalogMastheadText": "none: Reference header only; the live design uses the Modern header (an older run counted a markup leftover from the control checked before it)",
   "catalogNavGapDesktop": "none: Reference header only; the live design uses the Modern header",
   "catalogNavGapMobile": "none: Reference header only; the live design uses the Modern header",
+  "catalogAutoLoad": "none: needs a Show more number and more published books than it (the fixture has 2)",
   "catalogPageSize": "none: needs more published books than the number tried (the fixture has 2)",
   "catalogPriceStyle": "visible",
   "catalogTitleTransform": "visible",

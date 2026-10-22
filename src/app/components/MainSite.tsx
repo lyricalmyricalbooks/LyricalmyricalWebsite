@@ -47,7 +47,7 @@ import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { StoreHeader } from "../features/site/StoreHeader";
 import { StoreFooter } from "../features/site/StoreFooter";
 import { designNumber } from "../features/site/designNumber";
-import { catalogPageSize, nextShown, visibleCount } from "../features/site/catalogPaging";
+import { catalogAutoLoadOn, catalogPageSize, nextShown, shouldAutoLoad, visibleCount } from "../features/site/catalogPaging";
 import { resolveMainDesign } from "../features/site/surfaceDesign";
 import { categoryTemplateSurface, previewTemplate } from "../features/site/templateAlternates";
 import { regionProps } from "../features/site/storefrontRegions";
@@ -562,12 +562,29 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // Studio › Style › Shop page heading & filters › "Show more books" paging (0 = every book).
   const pageSize = catalogPageSize(storefrontDesign);
   const [shownCount, setShownCount] = useState(0);
+  const [autoRounds, setAutoRounds] = useState(0);
   // A new category, search, sort or filter starts again from the first page.
-  useEffect(() => { setShownCount(0); }, [baseFilteredItems, searchQuery, sort, inStockOnly, catalogFilters]);
+  useEffect(() => { setShownCount(0); setAutoRounds(0); }, [baseFilteredItems, searchQuery, sort, inStockOnly, catalogFilters]);
   const shownItems = useMemo(
     () => filteredItems.slice(0, visibleCount(filteredItems.length, pageSize, shownCount)),
     [filteredItems, pageSize, shownCount],
   );
+  // Studio › Style › Shop page heading & filters › Show more button › load by themselves (off by default).
+  const autoLoad = catalogAutoLoadOn(storefrontDesign);
+  const showMoreRef = useRef<HTMLDivElement>(null);
+  const hasMoreBooks = shownItems.length < filteredItems.length;
+  useEffect(() => {
+    const el = showMoreRef.current;
+    if (!el || !hasMoreBooks || !shouldAutoLoad(autoLoad, autoRounds) || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some(entry => entry.isIntersecting)) return;
+      observer.disconnect();
+      setShownCount(count => nextShown(filteredItems.length, pageSize, count));
+      setAutoRounds(rounds => rounds + 1);
+    }, { rootMargin: "0px 0px 400px 0px" });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [autoLoad, autoRounds, hasMoreBooks, filteredItems.length, pageSize]);
 
   const { has: isWished, toggle: toggleWish, ids: wishedIds } = useWishlist();
   const wishlistCount = liveWishlistCount(wishedIds, books, isLiveBook);
@@ -1152,8 +1169,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               );
             })}
           </div>
-          {shownItems.length < filteredItems.length && (
-            <div {...regionProps("catalogShowMore")} data-studio-target="style:catalog|copy:Catalog & empty states" data-studio-label="Show more books" className="fm-catalog-more mt-12 flex flex-col items-center gap-3">
+          {hasMoreBooks && (
+            <div ref={showMoreRef} {...regionProps("catalogShowMore")} data-studio-target="style:catalog|copy:Catalog & empty states" data-studio-label="Show more books" className="fm-catalog-more mt-12 flex flex-col items-center gap-3">
               <p aria-live="polite" className="text-[10px] tracking-[0.2em] uppercase fm-muted">
                 {getCopy(activeDesign, "catalogShowingCount", { shown: shownItems.length, total: filteredItems.length })}
               </p>

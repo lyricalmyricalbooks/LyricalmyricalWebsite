@@ -467,6 +467,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "shopFilterBarActiveColor", label: "Shop filter bar chosen button (outline and text)", kind: "color" },
       { key: "soldOutLast", label: "Put sold-out books last in the shop grid (they keep their order among themselves; coming soon books stay where they are)", kind: "toggle", defaultValue: false },
       { key: "catalogPageSize", label: "Books shown before a “Show more” button (0 = show every book)", kind: "number", min: 0, max: 96, step: 1, defaultValue: 0 },
+      { key: "catalogAutoLoad", label: "Load the next books by themselves when shoppers scroll down (needs a “Show more” number above 0; after 4 loads the button comes back so the footer can be reached)", kind: "toggle", defaultValue: false },
       { key: "showCatalogCount", label: "Show “N titles” count", kind: "toggle" },
       { key: "showCategoryChips", label: "Show category chips", kind: "toggle" },
       { key: "categoryChipShowCounts", label: "Show counts on chips", kind: "toggle" },
