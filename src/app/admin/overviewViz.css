@@ -241,6 +241,13 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
    figures run in one straight column whatever mix of moves is listed. */
 .rp-ov-change { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; }
 .rp-ov-change > .rp-badge { min-width: 7.6em; justify-content: center; }
+/* What changed in a narrow widget or on a phone: the badge moves above its title instead of keeping a wide column of its
+   own, so the title and figures use the whole width rather than wrapping two or three words to a line. */
+.rp-ov-changes { container-type: inline-size; }
+@container (max-width: 480px) {
+  .rp-ov-change { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .rp-ov-change > .rp-badge { order: -1; justify-self: start; min-width: 0; }
+}
 
 /* Needs you: the shared list's own row padding and bottom line used to win over the panel's rows, pushing every count
    20px in from the big total and drawing a second line under each row. Rows now line up with the total and keep one

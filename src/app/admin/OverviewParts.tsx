@@ -166,7 +166,7 @@ export const CHANGE_BADGE: Record<Change["tone"], { tone: BadgeTone; text: strin
  */
 export function ChangeList({ changes }: { changes: Change[] }) {
   return (
-    <ul className="rp-list" aria-label="What changed">
+    <ul className="rp-list rp-ov-changes" aria-label="What changed">
       {changes.map(c => (
         <li key={c.id} className="rp-ov-change">
           <div style={{ minWidth: 0 }}>
