@@ -305,6 +305,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "quickViewAria", label: "Quick view window name (read aloud by screen readers)", default: "Quick view: {title}", hint: "Use {title} for the book title." },
       { key: "quickViewClose", label: "Quick view close button (read aloud)", default: "Close quick view" },
       { key: "quickViewDetails", label: "Quick view link to the full page", default: "View full details" },
+      { key: "catalogShowMore", label: "Show more books button", default: "Show more books", hint: "Shown only when Theme settings › Shop page heading & filters › Books shown before a “Show more” button is above 0." },
+      { key: "catalogShowingCount", label: "Line above the Show more button", default: "Showing {shown} of {total}", hint: "Use {shown} and {total} for the numbers." },
     ],
   },
   {
