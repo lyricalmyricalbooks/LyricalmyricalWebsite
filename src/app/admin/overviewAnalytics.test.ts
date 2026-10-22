@@ -87,8 +87,8 @@ describe("whatChanged", () => {
     const current = [order({ total: 100, items: [{ id: "b1", title: "Salt", price: 25, quantity: 4 }] }), order({ total: 30, customer: { email: "b@x.com", address: { country: "France" } }, items: [{ id: "b2", title: "New", price: 30, quantity: 1 }] })];
     const previous = [order({ total: 50 })];
     const list = whatChanged({ cur: totals(current), prev: totals(previous), current, previous, before: "the 30 days before", money });
-    expect(list[0]).toMatchObject({ id: "revenue", tone: "up", title: "Revenue up 160% on the 30 days before" });
-    expect(list[0].detail).toMatch(/more orders/);
+    expect(list[0]).toMatchObject({ id: "revenue", tone: "up", title: "Revenue rose by 160%" });
+    expect(list[0].detail).toBe("Mostly from more orders ($130.00 now, $50.00 in the 30 days before; 2 orders vs 1).");
     expect(list.some(c => c.id === "rise-b1")).toBe(true);
     expect(list.some(c => c.id === "new-b2")).toBe(true);
   });
@@ -117,6 +117,14 @@ describe("whatChanged", () => {
       detail: "The biggest rise among your titles ($140.00 now, $40.00 in the 30 days before; 7 copies vs 2)." });
     expect(list.find(c => c.id === "fall-down")).toMatchObject({ tone: "down", title: "Sales of Tidal Notes fell by $100.00",
       detail: "The biggest drop among your titles ($60.00 now, $160.00 in the 30 days before; 3 copies vs 8)." });
+  });
+  it("words revenue driven by basket size and visitors like the other lines", () => {
+    const current = [order({ total: 300 })], previous = [order({ total: 100 })];
+    const list = whatChanged({ cur: totals(current), prev: totals(previous), current, previous, visits: { cur: 50, prev: 100 }, before: "the 30 days before", money });
+    expect(list.find(c => c.id === "revenue")).toMatchObject({ tone: "up", title: "Revenue rose by 200%",
+      detail: "Mostly from bigger baskets ($300.00 now, $100.00 in the 30 days before; $300.00 an order vs $100.00)." });
+    expect(list.find(c => c.id === "visits")).toMatchObject({ tone: "down", title: "Visitors fell by 50%",
+      detail: "50 visitors now, 100 in the 30 days before." });
   });
   it("says nothing about revenue for a quiet change", () => {
     const list = whatChanged({ cur: totals([order()]), prev: totals([order({ total: 49 })]), current: [order()], previous: [order({ total: 49 })], before: "x", money });

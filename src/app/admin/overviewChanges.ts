@@ -39,12 +39,14 @@ export function whatChanged(input: {
   if (rev !== null && prev.net > 0 && Math.abs(rev) >= 5) {
     const ordersMove = change(cur.orders, prev.orders) ?? 0;
     const aovMove = change(cur.aov, prev.aov) ?? 0;
-    const driver = Math.abs(ordersMove) >= Math.abs(aovMove)
-      ? `${ordersMove >= 0 ? "more" : "fewer"} orders (${plural(cur.orders, "order")} vs ${prev.orders.toLocaleString()})`
-      : `${aovMove >= 0 ? "bigger" : "smaller"} baskets (${money(cur.aov)} average vs ${money(prev.aov)})`;
+    const byOrders = Math.abs(ordersMove) >= Math.abs(aovMove);
+    const driver = byOrders ? `${ordersMove >= 0 ? "more" : "fewer"} orders` : `${aovMove >= 0 ? "bigger" : "smaller"} baskets`;
+    const counts = byOrders
+      ? `${plural(cur.orders, "order")} vs ${prev.orders.toLocaleString()}`
+      : `${money(cur.aov)} an order vs ${money(prev.aov)}`;
     out.push({ id: "revenue", tone: rev > 0 ? "up" : "down", weight: Math.abs(cur.net - prev.net) + 1e6,
-      title: `Revenue ${rev > 0 ? "up" : "down"} ${pct(rev)} on ${before}`,
-      detail: `${money(cur.net)} vs ${money(prev.net)}, mostly from ${driver}.` });
+      title: `Revenue ${rev > 0 ? "rose" : "fell"} by ${pct(rev)}`,
+      detail: `Mostly from ${driver} (${money(cur.net)} now, ${money(prev.net)} in ${before}; ${counts}).` });
   } else if (prev.net === 0 && cur.net > 0) {
     out.push({ id: "revenue", tone: "up", weight: cur.net + 1e6, title: `${money(cur.net)} taken — nothing in ${before}`, detail: `${plural(cur.orders, "paid order")} where there were none.` });
   }
@@ -84,7 +86,7 @@ export function whatChanged(input: {
   if (visits && visits.prev > 0 && visits.cur > 0) {
     const v = change(visits.cur, visits.prev) ?? 0;
     const convNow = (cur.orders / visits.cur) * 100, convThen = (prev.orders / visits.prev) * 100;
-    if (Math.abs(v) >= 10) out.push({ id: "visits", tone: v > 0 ? "up" : "down", weight: Math.abs(v) * 10, title: `Visitors ${v > 0 ? "up" : "down"} ${pct(v)}`, detail: `${visits.cur.toLocaleString()} visitors vs ${visits.prev.toLocaleString()} in ${before}.` });
+    if (Math.abs(v) >= 10) out.push({ id: "visits", tone: v > 0 ? "up" : "down", weight: Math.abs(v) * 10, title: `Visitors ${v > 0 ? "rose" : "fell"} by ${pct(v)}`, detail: `${plural(visits.cur, "visitor")} now, ${visits.prev.toLocaleString()} in ${before}.` });
     if (Math.abs(convNow - convThen) >= 0.5) out.push({ id: "conversion", tone: convNow > convThen ? "up" : "down", weight: Math.abs(convNow - convThen) * 200, title: `Conversion ${convNow > convThen ? "improved" : "slipped"} to ${convNow.toFixed(1)}%`, detail: `${convThen.toFixed(1)}% of visitors bought in ${before}.` });
   }
 
