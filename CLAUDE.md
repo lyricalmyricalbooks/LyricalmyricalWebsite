@@ -916,6 +916,18 @@ square corners, 2px ink outlines on objects and hairlines inside lists, flat off
 shadows by day, warm-grey night mode, Anton / Archivo / DM Mono, status = glyph + word.
 If tokens change there, update `riso.css` to match.
 
+**Pressroom (22 October 2026, Julian's concept A, https://claude.ai/artifact/AR9vcvX5mR5JNCDHeBpFte):** the last layer of
+`riso.css` ("Pressroom") restyles the whole admin: cream page, 232px ink rail (`--rp-rail*`; nav icons hidden, active item
+cream, `data-nav` on each item, Orders badge red), 64px top bar with a hairline (search, "Shop open" as glyph + word, round
+ink avatar), 72px Anton titles, 40px underlined page tabs, figures as a ledger (2px ink rule over mono labels/36px mono
+values), cards as flat sheets (1px border + 2px ink top rule, no shadow; every `--rp-shadow*` is `none` except
+`--rp-shadow-float` for dialogs/menus/toasts), 36px flat sentence-case buttons, 28px chips (ink when chosen), mono table
+heads with 56px rows, rounded tinted badges, alerts as tinted lines with an underlined text action. Restyle through these
+classes; don't bring back shadows, offset boxes or uppercase buttons. The top bar holds only search, shop status and the
+avatar menu (View site, Add book, Help, appearance live in that menu); the rail has no account card. Overview draws its own
+masthead: `Dashboard` skips `PageHeader` there and passes the alerts through `PageAlertsSlot` (`riso/components.tsx`), so
+`OverviewBoard` renders title + period chips → alerts → tabs → figures with the updated line and board actions under them.
+
 - `riso.css` — semantic `--rp-*` tokens (light + night) and every `rp-*` component
   class; reduced motion, 44px coarse-pointer targets, visible focus, print.
 - `components.tsx` — AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, SectionCard,

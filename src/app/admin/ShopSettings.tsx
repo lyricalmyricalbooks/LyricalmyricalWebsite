@@ -1590,7 +1590,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
               {stripe.connected && (
                 <>
                   {secretStored && (
-                    <div style={{ padding: 16, background: "var(--rp-warning-tint)", border: "2px solid var(--rp-border-strong)" }}>
+                    <div style={{ padding: 16, background: "var(--rp-warning-tint)" }}>
                       <strong>🔒 Secret key stored privately.</strong>{" "}
                       Secret keys are kept in an admin-only store the storefront cannot read.
                       {stripe.keysWerePublic && " A key was once saved where the storefront could read it and has since been moved — rotate it in the Stripe Dashboard to be safe."}

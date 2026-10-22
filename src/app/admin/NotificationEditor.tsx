@@ -808,7 +808,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
             </SelectField>
           </div>
           <iframe srcDoc={compilePreviewHtml(activeTab, data, previewOrder)} sandbox="" title={`Preview of the ${TABS.find((t) => t.id === activeTab)?.label} email`}
-            style={{ width: "100%", height: 560, border: "2px solid var(--rp-border-strong)", background: "var(--rp-surface)" }} />
+            style={{ width: "100%", height: 560, border: "1px solid var(--rp-border)", background: "var(--rp-surface)" }} />
         </SectionCard>
       </div>
       )}

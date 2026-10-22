@@ -3,7 +3,7 @@ import { markOwnerDeviceOnSignIn, SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import {
-  BookOpen, Settings, LayoutDashboard, LogOut, Plus, History, Tag, BadgePercent,
+  BookOpen, Settings, LayoutDashboard, LogOut, History, Tag, BadgePercent,
   Layers, ShoppingCart, Globe, Menu, HelpCircle, Sun, Moon, ChevronDown,
 } from "lucide-react";
 
@@ -19,8 +19,8 @@ import { adminApi } from "./api";
 import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
 import {
-  AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
-  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, useConfirm, type NavEntry,
+  AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton,
+  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, useConfirm, PageAlertsSlot, type NavEntry,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";
@@ -506,6 +506,28 @@ export function Dashboard() {
     }
   })();
 
+  // The Overview draws its own masthead and shows the alerts under it (PageAlertsSlot); every other page gets them under its PageHeader.
+  const ownMasthead = (activeTab === "overview" || activeTab === "analytics") && !selectedOrder;
+  const pageAlerts = (
+    <AdminAlerts
+      alerts={[...settingsAlerts(originalSettings), ...alerts]}
+      onOpenNotifications={() => { setActiveTab("settings"); setSettingsTab("notifications"); setShowEditor(false); setSelectedOrder(null); }}
+      onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
+      onOpenOrders={() => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder(null); }}
+      onOpenWebhook={() => { setActiveTab("settings"); setSettingsTab("payments"); setShowEditor(false); setSelectedOrder(null); }}
+      onOpenGeneral={() => { setActiveTab("settings"); setSettingsTab("general"); setShowEditor(false); setSelectedOrder(null); }}
+      onOpenInventory={() => { setActiveTab("inventory"); setShowEditor(false); setSelectedOrder(null); }}
+      onOpenRoute={(r: AlertRoute) => {
+        setActiveTab(r.tab);
+        if (r.settingsTab) setSettingsTab(r.settingsTab);
+        openSubTab(r.subTab, subTabPage(r));
+        setShowEditor(false);
+        setSelectedOrder(null);
+      }}
+      onRetry={() => refreshAlertsRef.current()}
+    />
+  );
+
   return (
     <ToastProvider>
       <AppShell
@@ -527,31 +549,17 @@ export function Dashboard() {
             onSelect={(id) => { if (id.startsWith(SETTINGS_ITEM_PREFIX)) void openSettingsPage(id.slice(SETTINGS_ITEM_PREFIX.length)); else void goTo(id); }}
             onSelectChild={goToChild}
             brand={
-              <a className="rp-brand-link" href="#overview" aria-label="Lyricalmyrical Publishing House: go to Overview"
+              <a className="rp-brand-link" href="#overview" aria-label="Lyricalmyrical back office: go to Overview"
                 onClick={(e) => { e.preventDefault(); setSidebarOpen(false); void goTo("overview"); }}>
-                <span className="rp-brand-mark"><BookOpen size={20} aria-hidden /></span>
                 <span className="rp-brand-text">
                   <span className="rp-wordmark">Lyrical<em>myrical</em></span>
-                  <span className="rp-wordmark-sub">Publishing House</span>
+                  <span className="rp-wordmark-sub">Back office</span>
                 </span>
               </a>
             }
             footer={
               <>
               <WhatsNew appearance={appearance} onHistoryOpen={() => setSidebarOpen(false)} onNavigate={async (link) => { if (link.studio) { window.location.hash = link.studio; return; } if (!(await goTo(link.tab))) return; if (link.settingsTab) setSettingsTab(link.settingsTab); }} />
-              <div className="rp-account-card">
-                <div className="rp-account-row">
-                  {avatar}
-                  <div style={{ minWidth: 0 }}>
-                    <div className="rp-account-name">{user.displayName || "Administrator"}</div>
-                    <div className="rp-account-email">{user.email}</div>
-                  </div>
-                </div>
-                <div className="rp-account-actions">
-                  <SecondaryButton size="sm" icon={<Globe size={14} aria-hidden />} onClick={openSite}>View site</SecondaryButton>
-                  <SecondaryButton size="sm" icon={<LogOut size={14} aria-hidden />} onClick={handleLogout} disabled={loggingOut} aria-busy={loggingOut}>{loggingOut ? "Logging out…" : "Log out"}</SecondaryButton>
-                </div>
-              </div>
               </>
             }
           />
@@ -573,14 +581,6 @@ export function Dashboard() {
                 onSetWall={(on) => { void toggleUnderConstruction(on); }}
                 onOpenSettings={() => { void openSettingsPage("general"); }}
               />
-              <SecondaryButton className="rp-hide-md" icon={<Globe size={16} aria-hidden />} onClick={openSite}>View site</SecondaryButton>
-              <PrimaryButton icon={<Plus size={16} aria-hidden />} aria-label="Add book" onClick={handleAddBook}>
-                <span className="rp-btn-label">Add book</span>
-              </PrimaryButton>
-              <IconButton label="Help & shortcuts" className="rp-hide-sm" onClick={() => setHelpOpen(true)}><HelpCircle size={20} aria-hidden /></IconButton>
-              <IconButton label={`Switch to ${adminTheme === "light" ? "dark" : "light"} appearance`} className="rp-hide-sm" onClick={toggleTheme}>
-                {adminTheme === "light" ? <Moon size={20} aria-hidden /> : <Sun size={20} aria-hidden />}
-              </IconButton>
               <div className="rp-menu-wrap" ref={userMenuRef}
                 onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setUserMenuOpen(false); }}
                 onKeyDown={(e) => {
@@ -622,27 +622,11 @@ export function Dashboard() {
         }
       >
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}
-        {!((activeTab === "overview" || activeTab === "analytics") && !selectedOrder) && <PageHeader
+        {!ownMasthead && <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}
           title={selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
         />}
-        <AdminAlerts
-          alerts={[...settingsAlerts(originalSettings), ...alerts]}
-          onOpenNotifications={() => { setActiveTab("settings"); setSettingsTab("notifications"); setShowEditor(false); setSelectedOrder(null); }}
-          onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
-          onOpenOrders={() => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder(null); }}
-          onOpenWebhook={() => { setActiveTab("settings"); setSettingsTab("payments"); setShowEditor(false); setSelectedOrder(null); }}
-          onOpenGeneral={() => { setActiveTab("settings"); setSettingsTab("general"); setShowEditor(false); setSelectedOrder(null); }}
-          onOpenInventory={() => { setActiveTab("inventory"); setShowEditor(false); setSelectedOrder(null); }}
-          onOpenRoute={(r: AlertRoute) => {
-            setActiveTab(r.tab);
-            if (r.settingsTab) setSettingsTab(r.settingsTab);
-            openSubTab(r.subTab, subTabPage(r));
-            setShowEditor(false);
-            setSelectedOrder(null);
-          }}
-          onRetry={() => refreshAlertsRef.current()}
-        />
+        {!ownMasthead && pageAlerts}
         {/* Feature pages still use legacy utility classes; scope the compatibility layer to them only. */}
         <div {...(migrated ? {} : legacyProps)} style={{ background: "transparent", minHeight: 480 }}>
           <AnimatePresence mode="wait">
@@ -652,7 +636,7 @@ export function Dashboard() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
             >
-              <Suspense fallback={<LoadingState label="Opening page…" />}>{content}</Suspense>
+              <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><Suspense fallback={<LoadingState label="Opening page…" />}>{content}</Suspense></PageAlertsSlot.Provider>
             </m.div>
           </AnimatePresence>
         </div>
