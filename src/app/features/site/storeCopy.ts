@@ -82,6 +82,13 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "cartEstimateError", label: "Shipping preview · Error", default: "Shipping estimates could not be loaded. Please try again or continue to checkout." },
       { key: "cartEstimateNotice", label: "Shipping preview · Notice", default: "Preliminary profile estimates before discounts and tax. Live carrier prices and eligibility require your full address at checkout. Transit starts after dispatch; processing time is separate. Your destination carries into checkout." },
 
+      { key: "cartCodeToggle", label: "Discount code box · Opener", default: "Have a discount code?", hint: "Shown when Style › Cart drawer › Total & checkout button › Discount code box is on." },
+      { key: "cartCodeLabel", label: "Discount code box · Field label", default: "Discount code" },
+      { key: "cartCodeSave", label: "Discount code box · Button", default: "Use at checkout" },
+      { key: "cartCodeSaved", label: "Discount code box · Saved message", default: "{code} will be applied at checkout.", hint: "Use {code} for the code. Checkout checks it; a code that doesn't apply is explained there." },
+      { key: "cartCodeRemove", label: "Discount code box · Remove", default: "Remove" },
+      { key: "cartCodeInvalid", label: "Discount code box · Not a code", default: "Discount codes are 3 to 32 letters, numbers, dashes or underscores." },
+
       { key: "cartTitle", label: "Cart heading", default: "Shopping Bag" },
       { key: "cartEmpty", label: "Empty cart message", default: "The archive is empty." },
       { key: "cartTotalLabel", label: "Total label", default: "Estimated total" },
