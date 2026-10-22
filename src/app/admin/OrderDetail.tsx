@@ -25,7 +25,7 @@ import { printOrders, type SlipShop } from "./orderPrint";
 import { getCopy } from "../features/site/storeCopy";
 import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, telHref } from "./orderLines";
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Copy, ExternalLink } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { formatGrams } from "../features/site/metricWeight";
@@ -36,6 +36,7 @@ import {
   Dialog,
   EmptyState,
   ErrorState,
+  IconButton,
   LoadingState,
   PrimaryButton,
   SecondaryButton,
@@ -712,22 +713,23 @@ export function OrderDetail({
     <div className="rp-stack fw-detail">
       <div className="fw-toolbar" data-print="hide">
         <SecondaryButton
-          icon={<ArrowLeft size={16} aria-hidden />}
+          size="sm"
+          icon={<ArrowLeft size={14} aria-hidden />}
           onClick={onClose}
         >
           Back to orders
         </SecondaryButton>
         {onNavigate && queueIndex >= 0 && queueIds.length > 1 && (
-          <div className="fw-toolbar-actions" aria-label="Order navigation">
-            <SecondaryButton size="sm" disabled={!prevId} onClick={() => prevId && onNavigate(prevId)}>
-              ← Previous
-            </SecondaryButton>
-            <span className="rp-hint">
-              Order {queueIndex + 1} of {queueIds.length}
+          <div className="fw-toolbar-nav" role="group" aria-label="Order navigation">
+            <IconButton label="Previous order" disabled={!prevId} onClick={() => prevId && onNavigate(prevId)}>
+              <ChevronLeft size={16} aria-hidden />
+            </IconButton>
+            <span className="rp-mono rp-hint">
+              {queueIndex + 1} / {queueIds.length}
             </span>
-            <SecondaryButton size="sm" disabled={!nextId} onClick={() => nextId && onNavigate(nextId)}>
-              Next →
-            </SecondaryButton>
+            <IconButton label="Next order" disabled={!nextId} onClick={() => nextId && onNavigate(nextId)}>
+              <ChevronRight size={16} aria-hidden />
+            </IconButton>
           </div>
         )}
         <div className="fw-toolbar-actions">
@@ -802,7 +804,6 @@ export function OrderDetail({
         </div>
       </div>
       <SectionHead
-        kicker="Order"
         title={order.orderId}
         subcopy={placedAt(order.createdAt)}
         actions={

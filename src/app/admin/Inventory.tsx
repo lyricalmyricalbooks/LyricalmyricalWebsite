@@ -306,9 +306,9 @@ function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
     { key: "title", header: "Title", lead: true, render: (r) => (
       <div style={{ overflowWrap: "anywhere", minWidth: 150 }}>
         {onEditBook
-          ? <button type="button" className="rp-link" style={{ fontWeight: 600, background: "none", border: 0, padding: 0, cursor: "pointer", textAlign: "left", color: "inherit", textDecoration: "underline" }}
+          ? <button type="button" className="rp-row-link"
               onClick={() => onEditBook(r.book)} aria-label={`Edit ${r.title} in Books`}>{r.title}</button>
-          : <div style={{ fontWeight: 600 }}>{r.title}</div>}
+          : <div className="rp-row-link" style={{ cursor: "default", textDecoration: "none" }}>{r.title}</div>}
         <div className="rp-hint">
           {[r.edition, r.format].filter(Boolean).join(" · ") || "—"}
           {r.shelfLocation && <> · Shelf <span className="rp-mono">{r.shelfLocation}</span></>}
@@ -384,8 +384,8 @@ function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
       </FilterBar>
       <SectionCard flush collapsible={false} title={receiving ? "Receive stock" : "Inventory"}
         description={receiving
-          ? "Type copies received for each edition (+12 adds, -3 removes, =40 sets the count) and optional cost prices, then press Save all. Each row is saved on its own against the live count, with the reason chosen here."
-          : "Edit a count and press Enter, or use − / +. Sales reduce stock automatically after payment; edits here are for receipts, reprints and corrections, and each one is kept in the title's history. Books matched to the inventory app are counted there and follow it."}
+          ? "+12 adds, -3 removes, =40 sets. Then Save all."
+          : "Type a count and press Enter, or use − / +. Sales count themselves."}
         actions={
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
             <SelectField label="Reason for changes" value={reason} onChange={(e) => setReason(e.target.value as AdjustReason)}>
@@ -409,7 +409,6 @@ function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
       </TabPanel>
       <TabPanel tabId="inv-link" active={view === "inv-link"}>
         <div className="rp-stack">
-          <p className="rp-page-desc" style={{ margin: 0 }}>Website sales and stock shared with the inventory app, which keeps the master count for every matched edition.</p>
           <InventoryLinkPanel books={books} onLinksChanged={setLinks} onStockChanged={refreshBooks} />
         </div>
       </TabPanel>

@@ -23,21 +23,8 @@
   flex-wrap: wrap;
   align-items: center;
 }
-.fw-panel-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--rp-divider);
-}
-.fw-panel-head h2 {
-  font: 400 24px/1.1 var(--rp-font-display);
-  text-transform: uppercase;
-  margin: 0;
-}
 .fw-step {
-  padding: 22px 24px;
+  padding: 20px;
   border-bottom: 1px solid var(--rp-divider);
 }
 .fw-step:last-child {
@@ -101,7 +88,7 @@ ul.fw-problems {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 16px 24px;
+  padding: 16px 20px;
   margin: 0;
   background: var(--rp-surface-sunken);
   border-bottom: 1px solid var(--rp-divider);
@@ -235,12 +222,8 @@ ul.fw-problems {
     grid-template-columns: minmax(0, 1fr);
     gap: 20px;
   }
-  .fw-panel-head,
   .fw-step {
     padding: 18px;
-  }
-  .fw-panel-head h2 {
-    font-size: 22px;
   }
   .fw-note-form {
     flex-wrap: wrap;
@@ -465,7 +448,6 @@ ul.fw-problems {
     grid-template-columns: minmax(0, 1fr);
     padding: 14px 18px;
   }
-  .fw-panel-head,
   .fw-step {
     padding: 18px;
   }
@@ -485,12 +467,14 @@ ul.fw-problems {
     grid-column: 2;
   }
 }
+.fw-toolbar-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 /* Toolbar: Back on the left, the order's own actions together on the right; prev/next sits between. */
 .fw-toolbar > .fw-toolbar-actions:last-child {
   margin-left: auto;
-}
-.fw-panel-head {
-  flex-wrap: wrap;
 }
 .ss-rate > .rp-mono {
   font-size: var(--rp-text-md);

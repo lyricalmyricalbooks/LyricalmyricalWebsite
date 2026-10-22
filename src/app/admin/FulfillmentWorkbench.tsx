@@ -104,8 +104,8 @@ export function FulfillmentWorkbench({
       className="rp-card fw-workbench"
       aria-label="Fulfillment workspace"
     >
-      <div className="fw-panel-head">
-        <h2>Fulfillment</h2>
+      <div className="rp-card-head">
+        <h2 className="rp-card-title">Fulfillment</h2>
         <StatusBadge
           tone={
             queue === "Needs attention"

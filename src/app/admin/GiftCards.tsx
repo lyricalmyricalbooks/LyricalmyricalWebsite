@@ -347,7 +347,7 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
 
   const columns: Column<{ card: any; status: GiftCardStatus }>[] = [
     { key: "code", header: "Card", lead: true, render: ({ card }) => (
-      <button type="button" className="rp-mono" style={{ ...LINK, background: "none", border: 0, padding: 0, cursor: "pointer", fontSize: "var(--rp-text-base)", whiteSpace: "nowrap" }}
+      <button type="button" className="rp-row-link rp-mono" style={{ whiteSpace: "nowrap" }}
         onClick={() => setSelectedId(card.id)} aria-label={`Open gift card ending ${card.last4}`}>{maskedCode(card)}</button>
     ) },
     { key: "status", header: "Status", render: ({ status }) => <span style={{ whiteSpace: "nowrap" }}><StatusBadge tone={status.tone}>{status.label}</StatusBadge></span> },
@@ -376,7 +376,7 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
     <div className="rp-stack">
       <div className="rp-kpi-grid">
         <MetricCard label="Active cards" value={counts.active} footer={`${cards.length} in total`} />
-        <MetricCard label="Balance outstanding" value={formatMinor(outstanding)} footer="Still to be spent on active cards" tone="gold" />
+        <MetricCard label="Balance outstanding" value={formatMinor(outstanding)} footer="Still to be spent on active cards" />
         <MetricCard label="Sold in the shop" value={formatMinor(sold)} footer="Face value of cards bought by shoppers" />
       </div>
       {cards.length === 0 ? (
@@ -400,7 +400,7 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
             <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExporting(true)}>Export CSV</SecondaryButton>
             {issueButton}
           </FilterBar>
-          <SectionCard flush collapsible={false} title="Gift cards" description={`Showing ${rows.length} of ${cards.length}. Open a card to see its code and history, change its balance or expiry, resend its email, or disable it.`}>
+          <SectionCard flush collapsible={false} title="Gift cards" description={`${rows.length} of ${cards.length}. Open one to see its code, change it or resend it.`}>
             <DataTable caption="Gift cards" columns={columns} rows={rows} rowKey={(r) => r.card.id} onRowClick={(r) => setSelectedId(r.card.id)}
               empty={<EmptyState title="No gift cards match" description="Try a different status or search."
                 action={<SecondaryButton onClick={() => { setFilter("all"); setSearch(""); }}>Reset filters</SecondaryButton>} />} />

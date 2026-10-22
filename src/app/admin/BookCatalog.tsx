@@ -396,7 +396,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   };
   const titleOf = (b: any) => (
     <div style={{ minWidth: 0 }}>
-      <button type="button" className="bk-title-link" onClick={() => onEdit(b)} aria-label={`Edit ${b.title}`}>{b.title || "Untitled"}</button>
+      <button type="button" className="rp-row-link" onClick={() => onEdit(b)} aria-label={`Edit ${b.title}`}>{b.title || "Untitled"}</button>
       <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{bookAuthor(b, authors) || "No author"}</div>
     </div>
   );
@@ -563,7 +563,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
           <p className="rp-hint" role="status" style={{ padding: "8px 16px", margin: 0 }}>
             {filtering
               ? "Clear the search and filters to rearrange — the order covers every book."
-              : savingOrder ? "Saving the new order…" : "Drag a row by its grip, or use the arrows, to set the order books appear in your shop (the shop's “Featured” sort)."}
+              : savingOrder ? "Saving the new order…" : "Drag a grip or use the arrows to set the shop's Featured order."}
           </p>
         )}
         {pageRows.length === 0 ? (

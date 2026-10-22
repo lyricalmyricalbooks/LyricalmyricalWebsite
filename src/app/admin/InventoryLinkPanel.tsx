@@ -264,12 +264,12 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
 
   return (
     <div className="rp-stack">
-      <SectionCard title="1. Let the website reach the inventory app"
-        description="Website sales are copied into the inventory app, and website stock follows its count. For that the website needs permission to the inventory app's database. You give it once, in Google Cloud."
+      <SectionCard title="Connect"
+        description="One-time access, given in Google Cloud."
         actions={<StatusBadge tone={connection.ok ? "success" : "warning"}>{connection.ok ? "Connected" : "Not connected yet"}</StatusBadge>}>
-        <details open={!connection.ok}>
-        <summary style={{ cursor: "pointer", fontWeight: 600, marginBottom: 10 }}>{connection.ok ? "How the connection was set up" : "Set it up (about 5 minutes, once)"}</summary>
-        <ol style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 10, listStyle: "decimal" }}>
+        <details className="rp-howto" open={!connection.ok}>
+        <summary>{connection.ok ? "How it was set up" : "Set it up · 5 minutes, once"}</summary>
+        <ol style={{ margin: "6px 0 4px", paddingLeft: 20, display: "grid", gap: 10, listStyle: "decimal" }}>
           <li>
             Copy this address:{" "}
             {serviceAccount
@@ -303,8 +303,8 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
         </div>
       </SectionCard>
 
-      <SectionCard flush title="2. Match your books"
-        description="Pick the inventory app book for each printed edition sold on the website. E-books, box sets and gift cards don't need a match: box sets follow the books inside them."
+      <SectionCard flush title="Match books"
+        description="Each printed edition, paired with its book in the app."
         actions={<span className="rp-sec-note">{linkedCount} of {editions.length} matched</span>}>
         {(step === "connect" || catalogError) && anyLinks && (
           <div style={{ padding: 16, display: "grid", gap: 8 }} role="status">
@@ -316,7 +316,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
           </div>
         )}
         {step === "connect"
-          ? (anyLinks ? null : <EmptyState title="Connect first" description="Once step 1 shows Connected, the inventory app's books appear here." />)
+          ? (anyLinks ? null : <EmptyState title="Connect first" description="Once Connect shows Connected, the app's books appear here." />)
           : catalogError ? <ErrorState description={catalogError} onRetry={loadCatalog} />
           : !appBooks ? <LoadingState label="Reading the inventory app's books…" />
           : <>
@@ -348,8 +348,8 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
             </>}
       </SectionCard>
 
-      <SectionCard title="3. Send website sales to the inventory app"
-        description="Every paid website order is added to the inventory app as a website sale, with refunds and shipping updates following. Orders you already entered there by hand are linked, not counted twice.">
+      <SectionCard title="Send sales"
+        description="Paid orders land in the app. Hand-typed ones get linked.">
         {!state.startDay ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
             <TextField label="Send orders paid from" type="date" value={startDay} max={status.today}
@@ -404,8 +404,8 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
         </div>}
       </SectionCard>
 
-      <SectionCard flush title="4. Website stock follows the inventory app"
-        description="The inventory app's count (print runs, market sales, consignment, damaged copies) sets the website's stock for every matched edition. Website sales still take copies off straight away."
+      <SectionCard flush title="Stock follows the app"
+        description="The app's count sets the shop's stock."
         actions={state.lastStockAt ? <span className="rp-sec-note">Last checked {ago(state.lastStockAt)}</span> : undefined}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", padding: 16 }}>
           <SecondaryButton disabled={!!busy || !state.startDay} onClick={doPreview}>{busy === "preview" ? "Working out the numbers…" : "Preview stock changes"}</SecondaryButton>
@@ -421,7 +421,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
         {preview?.catchingUp && <p className="rp-hint" role="status" style={{ margin: "0 16px 16px" }}>Some recent website sales are still being recorded. Preview again in a few minutes, so their copies aren't put back on sale.</p>}
         {preview?.rows && !preview.notReady && !preview.catchingUp && (
           <DataTable caption="Stock preview" columns={stockColumns} rows={preview.rows}
-            rowKey={(r) => editionKey(r.bookId, r.variantId)} empty={<EmptyState title="No matched books" description="Match books in step 2." />} />
+            rowKey={(r) => editionKey(r.bookId, r.variantId)} empty={<EmptyState title="No matched books" description="Pair them under Match books." />} />
         )}
         {!preview && state.lastSync && (
           <ul className="rp-list" aria-label="Last stock update">

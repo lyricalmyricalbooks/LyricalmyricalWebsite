@@ -452,15 +452,14 @@ export function Discounts() {
       <div style={{ minWidth: 200, maxWidth: 420 }}>
         <span style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button type="button" onClick={() => edit(d)} aria-label={`Edit ${discountName(d)}`}
-            className={isAutomatic(d) ? undefined : "rp-mono"}
-            style={{ background: "none", border: 0, padding: 0, cursor: "pointer", color: "inherit", textAlign: "left", fontWeight: 600, fontSize: "var(--rp-text-base)", textDecoration: "underline", textUnderlineOffset: 2, overflowWrap: "anywhere" }}>
+            className={isAutomatic(d) ? "rp-row-link" : "rp-row-link rp-mono"}>
             {discountName(d)}
           </button>
           {isAutomatic(d)
             ? <StatusBadge tone="info">Automatic</StatusBadge>
             : <IconButton label={`Share link for ${d.code}`} onClick={() => setSharing(d.code)}><Link2 size={16} aria-hidden /></IconButton>}
         </span>
-        <div style={{ overflowWrap: "anywhere", marginTop: 4 }}>{describeDiscount(d, books || [])}</div>
+        <div className="rp-hint" style={{ overflowWrap: "anywhere", marginTop: 2 }}>{describeDiscount(d, books || [])}</div>
         {d.description && <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{d.description}</div>}
       </div>
     ) },

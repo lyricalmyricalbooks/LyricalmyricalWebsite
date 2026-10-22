@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OrderDetail } from "./OrderDetail";
 import { Orders, loadOrderBooks, loadOrderSearchCatalog, patchOrdersCache, refreshOrdersCache } from "./Orders";
-import { EmptyState, LoadingState, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, Tabs, Toggle } from "./riso/components";
+import { EmptyState, LoadingState, MetricCard, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, Tabs, Toggle } from "./riso/components";
 import { nextToOpen, rowBooks, rowCover, rowStatus, refundState, stepOrder, deskQueue } from "./ordersDesk";
 import { badgeText, gridCounts, gridOrders, itemCount, outsideQueue, paymentChip, shipsTo, stationQueue, stationStats, stationStep, type GridSort, type GridTab } from "./shipStation";
 import { listDate, orderMoney } from "./orderListHelpers";
@@ -313,14 +313,13 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   );
 
   const header = (
-    <header className="od-head">
-      <h2 className="od-title">Ship station</h2>
-      <div className="od-head-actions">
-        <dl className="od-stats" aria-label="Today">
-          <div><dt className="rp-label">To ship</dt><dd className="rp-mono">{orders ? stats.toShip : "–"}</dd></div>
-          <div><dt className="rp-label">Labels today</dt><dd className="rp-mono">{orders ? stats.labelsToday : "–"}</dd></div>
-          <div><dt className="rp-label">Oldest</dt><dd className="rp-mono">{orders && stats.toShip ? `${stats.oldestDays}d` : "–"}</dd></div>
-        </dl>
+    <header className="rp-stack" style={{ gap: 12 }}>
+      <div className="rp-kpi-grid" aria-label="Ship station today">
+        <MetricCard label="To ship" value={orders ? stats.toShip : "–"} footer="Paid, not sent yet" />
+        <MetricCard label="Labels today" value={orders ? stats.labelsToday : "–"} footer="Bought since midnight" />
+        <MetricCard label="Oldest" value={orders && stats.toShip ? `${stats.oldestDays}d` : "–"} tone={orders && stats.oldestDays > 3 ? "warn" : undefined} footer="Waiting longest" />
+      </div>
+      <div className="od-head-actions" style={{ justifyContent: "flex-end" }}>
         <SecondaryButton disabled={!toPack.length} onClick={printPickList} title={toPack.length ? `Every book for the ${toPack.length} order${toPack.length === 1 ? "" : "s"} still to pack` : "Nothing to pack right now"}>
           Print pick list
         </SecondaryButton>

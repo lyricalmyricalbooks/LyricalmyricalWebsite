@@ -72,9 +72,6 @@
 .bk-filter-toggle { display: none; }
 .bk-filters .rp-filter-bar { margin-bottom: 16px; }
 
-.bk-title-link { all: unset; cursor: pointer; font-weight: 600; overflow-wrap: anywhere; text-decoration: underline; text-underline-offset: 3px; }
-.bk-title-link:focus-visible { outline: 3px solid var(--rp-primary); outline-offset: 2px; }
-.bk-title-link:hover { text-decoration-thickness: 2px; }
 
 .bk-bulk { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; background: var(--rp-surface); border: var(--rp-stroke) solid var(--rp-border-strong); box-shadow: var(--rp-shadow); }
 .bk-bulk-count { margin-right: 4px; }
