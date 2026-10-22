@@ -1053,28 +1053,31 @@ it. Don't add new compat rules for new work; compose the components instead.
 
 ## Your job after every change
 After completing any code enhancement, end your turn with a short "Next moves" list: 5 genuinely high-value suggestions for improving the app, ranked best-first.
-Each suggestion is one or two lines:
-- **What** — a concrete, specific action (e.g. "Debounce the catalog search box" instead of "improve performance").
-- **Why** — the payoff (e.g. a sale not lost, a faster screen, a bug avoided).
-- **Effort** — quick / medium / larger.
 
-Then offer to do the top one right away.
+Write for the shop owner, not a developer — they are not technical, so every suggestion must be understandable on its own without looking anything up or knowing any code. Each suggestion is three to five lines, with **What** and **Why it matters** always written as full sentences on their own line — never merged, never abbreviated to a fragment:
+- **What** — a concrete, specific action in plain, everyday language. Describe it the way you'd explain it out loud to the owner standing next to you, not the way you'd describe it to another developer.
+- **Why it matters to you** — its own full sentence, describing the real scenario where skipping this would actually cause a problem for the business (a sale, a customer, a screen, an order) — not a code concept, not an abstract benefit like "improves consistency."
+- **Effort** — quick / medium / larger, plus a one-phrase sense of what that means in practice (e.g. "quick — a same-day fix" / "larger — a multi-day feature").
 
-### What makes a suggestion good here
-- Tied to what just changed. First ask yourself: did this edit open an edge case, risk a lost or wrong save, or leave an obvious next step? Lead with that.
-- High-leverage, not generic. Skip boilerplate best-practice filler.
-- Specific. Name the file, function, or screen.
-- Honest. If nothing is genuinely worth doing, say "nothing pressing" and stop.
-- No repeats. Don't re-pitch anything already declined this session.
+**Hard rule — never let code leak into the main sentence.** No function or variable names (`renderChannelAnalytics`, `switchBook()`), no CSS/hex/color values (`--book-accent`, `#14110d`), no technical measurements (contrast ratios, pixel sizes, file names) anywhere in **What** or **Why**. If you need one of those for your own tracking, put it in a parenthetical at the very end of the item, after both sentences are complete and understandable without it.
+
+Before finalizing, reread each item and ask: "if I strip out the parenthetical, does this still make sense to someone who has never opened the code?" If not, rewrite it — don't just add more jargon in parentheses.
+
+**Example of the bar to clear:**
+> Bad: "Theme the `renderChannelAnalytics` chart fills — still the largest visible dark-mode gap, and canvas is invisible to the contrast sweep either way. Effort: medium."
+> Good: "**Fix the sales chart's colors in night mode.** When someone switches the app to dark mode, one of the analytics charts still shows its old bright colors, which look jarring and can be hard to read against the dark background. Effort: medium — a few hours of design work. (`renderChannelAnalytics`)"
+
+Then offer to do the top one right away, and briefly say why it's ranked first in plain terms.
+
+Suggestions must be tied to what just changed or was just discussed — lead with any edge case, risk to a sale, a save or a payment, or obvious next step the edit opened, explained in plain language. Regenerate from scratch each turn (never repeat a prior turn's list or anything already declined this session). Skip generic best-practice advice. If nothing is genuinely worth doing, say "nothing pressing" and stop.
+
+Angles worth scanning each time: bug/edge case the change introduced · the next logical feature · draft/publish & save robustness · Firestore data integrity · the speed of a slow screen · keeping catalog and ledger consistent.
 
 ### Constraints every suggestion must respect
 > [!IMPORTANT]
 > - **Stack:** React 19 + TypeScript + Vite single-page app; no new frameworks or servers.
 > - **Serverless Backend:** Firebase (Firestore, Auth, Storage, Cloud Functions) and static hosting on Firebase Hosting (GitHub Pages only forwards the old address). No server or secret keys in client code.
 > - **Shopper safety:** never weaken checkout, payment, inventory or webhook authority.
-
-### Angles worth scanning each time
-Bug / edge case the change introduced · the next logical feature · draft/publish & save robustness · Firestore data integrity · the speed of a slow screen · keeping catalog and ledger consistent.
 
 ## Pull Requests
 - When asked for "a new pull request", "new PR", or similar: **create it immediately** from the current branch.
