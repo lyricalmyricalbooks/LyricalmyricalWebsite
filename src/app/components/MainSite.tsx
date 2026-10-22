@@ -56,6 +56,7 @@ import { SoldOutBadge, soldOutPhotoStyle } from "../features/site/SoldOutBadge";
 import { gridPhotoSizes, photoSrcSet } from "../features/site/photoSources";
 import CardHoverPhoto from "../features/site/CardHoverPhoto";
 import { cardHoverPhoto } from "../features/site/cardHoverPhoto";
+import { cardFormats } from "../features/site/cardFormats";
 import { framingStyle } from "../features/site/photoFraming";
 import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
 import { arrivedPrerendered } from "../lib/prerenderedPage";
@@ -662,6 +663,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
   const showSalePercent = storefrontDesign?.showSalePercent ?? false;
   const showCardHoverPhoto = storefrontDesign?.showCardHoverPhoto === true;
+  const showCardFormats = storefrontDesign?.showCardFormats === true;
   const showPreorderBadge = storefrontDesign?.showPreorderBadge ?? true;
   const showComingSoonBadge = storefrontDesign?.showComingSoonBadge ?? true;
   const saleBadgeLabel = storefrontDesign?.saleBadgeLabel || "SALE";
@@ -1096,6 +1098,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                           </span>
                         )}
                       </div>
+                      {showCardFormats && (() => {
+                        const formats = cardFormats(item);
+                        return formats.length ? (
+                          <p className="fm-card-formats mt-2 font-mono text-[10px] uppercase tracking-[0.2em] text-white/50">
+                            <span className="sr-only">{getCopy(activeDesign, "cardFormatsLead")} </span>
+                            {formats.map(key => getCopy(activeDesign, "filterFormat_" + key)).join(" · ")}
+                          </p>
+                        ) : null;
+                      })()}
                       {showCollectionMeta && (
                         <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.2em] text-white/50">
                           {item.genres?.[0] || item.categories?.[0] || getCopy(activeDesign, "categoryFallback")}
