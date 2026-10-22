@@ -40,13 +40,13 @@ export function whatChanged(input: {
     const ordersMove = change(cur.orders, prev.orders) ?? 0;
     const aovMove = change(cur.aov, prev.aov) ?? 0;
     const driver = Math.abs(ordersMove) >= Math.abs(aovMove)
-      ? `${ordersMove >= 0 ? "more" : "fewer"} orders (${plural(cur.orders, "order")} vs ${prev.orders.toLocaleString()})`
-      : `${aovMove >= 0 ? "bigger" : "smaller"} baskets (${money(cur.aov)} average vs ${money(prev.aov)})`;
+      ? `${ordersMove >= 0 ? "more" : "fewer"} orders (${plural(cur.orders, "order")} now, ${prev.orders.toLocaleString()} before)`
+      : `${aovMove >= 0 ? "bigger" : "smaller"} baskets (${money(cur.aov)} an order now, ${money(prev.aov)} before)`;
     out.push({ id: "revenue", tone: rev > 0 ? "up" : "down", weight: Math.abs(cur.net - prev.net) + 1e6,
-      title: `Revenue ${rev > 0 ? "up" : "down"} ${pct(rev)} on ${before}`,
-      detail: `${money(cur.net)} vs ${money(prev.net)}, mostly from ${driver}.` });
+      title: `Revenue ${rev > 0 ? "rose" : "fell"} by ${pct(rev)}`,
+      detail: `${money(cur.net)} now, ${money(prev.net)} in ${before}, mostly from ${driver}.` });
   } else if (prev.net === 0 && cur.net > 0) {
-    out.push({ id: "revenue", tone: "up", weight: cur.net + 1e6, title: `${money(cur.net)} taken — nothing in ${before}`, detail: `${plural(cur.orders, "paid order")} where there were none.` });
+    out.push({ id: "revenue", tone: "up", weight: cur.net + 1e6, title: `Revenue of ${money(cur.net)}, none in ${before}`, detail: `${plural(cur.orders, "paid order")} now, none in ${before}.` });
   }
 
   // 2 · Titles: the biggest riser, the biggest faller, a new arrival.
@@ -90,10 +90,12 @@ export function whatChanged(input: {
 
   // 5 · Warnings: discounts eating into price, refunds.
   if (cur.subtotal > 0 && cur.discountRate - prev.discountRate >= 5) {
-    out.push({ id: "discounts", tone: "warn", weight: cur.discounts, title: `Discounts now take ${cur.discountRate.toFixed(0)}% of list price`, detail: `Up from ${prev.discountRate.toFixed(0)}% — ${money(cur.discounts)} given away in codes and offers.` });
+    out.push({ id: "discounts", tone: "warn", weight: cur.discounts, title: `Discounts took ${cur.discountRate.toFixed(0)}% off list price, up from ${prev.discountRate.toFixed(0)}%`,
+      detail: `${money(cur.discounts)} off in codes and offers now, ${money(prev.discounts)} in ${before}.` });
   }
   if (cur.revenue > 0 && cur.refunded / cur.revenue >= 0.05) {
-    out.push({ id: "refunds", tone: "warn", weight: cur.refunded * 2, title: `${money(cur.refunded)} refunded`, detail: `${((cur.refunded / cur.revenue) * 100).toFixed(0)}% of what customers paid in this period.` });
+    out.push({ id: "refunds", tone: "warn", weight: cur.refunded * 2, title: `${money(cur.refunded)} refunded`,
+      detail: `${((cur.refunded / cur.revenue) * 100).toFixed(0)}% of what customers paid now; ${money(prev.refunded)} refunded in ${before}.` });
   }
   return out.sort((a, b) => b.weight - a.weight).slice(0, 6);
 }

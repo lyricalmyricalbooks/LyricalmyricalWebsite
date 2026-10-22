@@ -87,8 +87,8 @@ describe("whatChanged", () => {
     const current = [order({ total: 100, items: [{ id: "b1", title: "Salt", price: 25, quantity: 4 }] }), order({ total: 30, customer: { email: "b@x.com", address: { country: "France" } }, items: [{ id: "b2", title: "New", price: 30, quantity: 1 }] })];
     const previous = [order({ total: 50 })];
     const list = whatChanged({ cur: totals(current), prev: totals(previous), current, previous, before: "the 30 days before", money });
-    expect(list[0]).toMatchObject({ id: "revenue", tone: "up", title: "Revenue up 160% on the 30 days before" });
-    expect(list[0].detail).toMatch(/more orders/);
+    expect(list[0]).toMatchObject({ id: "revenue", tone: "up", title: "Revenue rose by 160%",
+      detail: "$130.00 now, $50.00 in the 30 days before, mostly from more orders (2 orders now, 1 before)." });
     expect(list.some(c => c.id === "rise-b1")).toBe(true);
     expect(list.some(c => c.id === "new-b2")).toBe(true);
   });
@@ -125,6 +125,17 @@ describe("whatChanged", () => {
     expect(list.find(c => c.id === "visits")).toMatchObject({ tone: "up", title: "Visitors rose by 20%", detail: "120 visitors now, 100 in the 30 days before." });
     expect(list.find(c => c.id === "conversion")).toMatchObject({ tone: "up", title: "2.5% of visitors bought, up from 1.0%",
       detail: "3 paid orders from 120 visitors now; 1 from 100 in the 30 days before." });
+  });
+  it("says how revenue, discounts and refunds moved in plain words", () => {
+    const fresh = whatChanged({ cur: totals([order()]), prev: totals([]), current: [order()], previous: [], before: "the 30 days before", money });
+    expect(fresh.find(c => c.id === "revenue")).toMatchObject({ title: "Revenue of $50.00, none in the 30 days before", detail: "1 paid order now, none in the 30 days before." });
+    const current = [order({ subtotal: 50, discount: 10, total: 40, refundedAmountMinor: 1000, expectedAmountMinor: 4000 })];
+    const previous = [order()];
+    const list = whatChanged({ cur: totals(current), prev: totals(previous), current, previous, before: "the 30 days before", money });
+    expect(list.find(c => c.id === "discounts")).toMatchObject({ tone: "warn", title: "Discounts took 20% off list price, up from 0%",
+      detail: "$10.00 off in codes and offers now, $0.00 in the 30 days before." });
+    expect(list.find(c => c.id === "refunds")).toMatchObject({ tone: "warn", title: "$10.00 refunded",
+      detail: "25% of what customers paid now; $0.00 refunded in the 30 days before." });
   });
   it("says nothing about revenue for a quiet change", () => {
     const list = whatChanged({ cur: totals([order()]), prev: totals([order({ total: 49 })]), current: [order()], previous: [order({ total: 49 })], before: "x", money });
