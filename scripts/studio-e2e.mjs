@@ -1537,7 +1537,11 @@ const findStyleField = async (page, label, key) => {
 const openStyleField = async (page, key) => {
   if (await page.locator(`[data-style-key="${key}"]`).count()) return;
   // The field may sit in a folded sub-section: open them all.
-  for (const t of await page.locator(".studio-subsection-toggle[aria-expanded=false]").all()) await t.click().catch(() => {});
+  // Click the first folded one each time: positions shift as they open, so a list taken up front skips every other one.
+  const folded = page.locator(".studio-subsection-toggle[aria-expanded=false]");
+  for (let i = 0; i < 40 && await folded.count() && !(await page.locator(`[data-style-key="${key}"]`).count()); i++) {
+    await folded.first().click({ timeout: 5000 }).catch(() => {});
+  }
   await page.locator(`[data-style-key="${key}"]`).first().waitFor({ timeout: 5000 });
 };
 
