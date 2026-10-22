@@ -1361,3 +1361,20 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-howto > div { padding: 6px 0 4px; }
 .rp-howto summary:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
 .rp-settings .rp-kicker::before { display: none; }
+
+/* Toasts: stacked bottom-right (full width on phones, above the home bar), closable, slide in unless motion is reduced */
+.rp-toast-stack { position: fixed; right: 16px; bottom: 16px; z-index: 500; display: grid; gap: 8px; justify-items: end; pointer-events: none; }
+.rp-toasts { display: grid; gap: 8px; justify-items: end; }
+.rp-toasts .rp-toast { pointer-events: auto; animation: rp-toast-in 0.18s ease-out; }
+.rp-toast-text { min-width: 0; }
+.rp-toast-x { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; margin: -4px -6px -4px 0; padding: 0; background: transparent; color: inherit; border: 0; cursor: pointer; opacity: 0.8; }
+.rp-toast-x:hover { opacity: 1; }
+.rp-toast-x:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+@keyframes rp-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .rp-toasts .rp-toast { animation: none; } }
+@media (max-width: 767px) {
+  .rp-toast-stack { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); justify-items: stretch; }
+  .rp-toasts { justify-items: stretch; }
+  .rp-toasts .rp-toast { max-width: none; }
+  .rp-toast-x { width: 44px; height: 44px; margin: -12px -10px -12px 0; }
+}
