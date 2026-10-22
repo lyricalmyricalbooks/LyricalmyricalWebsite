@@ -812,6 +812,7 @@
   "soldOutBadgeStyle": "none: needs a sold-out or coming-soon book",
   "soldOutBadgeText": "none: needs a sold-out or coming-soon book",
   "soldOutLabel": "none: needs a sold-out or coming-soon book",
+  "soldOutLast": "none: needs a sold-out book in the shop grid (the fixture has none)",
   "soldOutPhotoFade": "none: needs a sold-out or coming-soon book",
   "spaceUnit": "css-only",
   "stickyHeader": "visible",
