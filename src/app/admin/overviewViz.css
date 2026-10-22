@@ -192,6 +192,13 @@ button.rp-viz-rank-row:focus-visible { outline: 2px solid var(--rp-focus); outli
 .rp-viz-order-end { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
 .rp-viz-order-end .rp-viz-rank-value { text-align: right; min-width: 10ch; }
 .rp-viz-orders .rp-badge[data-tone="neutral"] { color: var(--rp-text); }
+/* Newest orders in a narrow widget or on a phone: the amount and status move to their own line under the order, lined
+   up with the name, so the customer's name and the order line keep their width instead of breaking word by word. */
+@container (max-width: 600px) {
+  .rp-viz-orders .rp-viz-rank-row { flex-wrap: wrap; align-items: flex-start; column-gap: 10px; row-gap: 6px; }
+  .rp-viz-orders .rp-viz-order-end { flex: 1 0 100%; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 6px 12px; padding-left: calc(32px + 10px); }
+  .rp-viz-orders .rp-viz-order-end .rp-viz-rank-value { min-width: 0; text-align: left; }
+}
 
 /* Trend chart controls (#24): measure tabs in one row that scrolls sideways; grouping as a select. */
 .rp-wb-chart .rp-ov-switch[role="tablist"] { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: thin; max-width: 100%; }
