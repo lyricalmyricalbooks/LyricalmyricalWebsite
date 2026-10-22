@@ -1926,6 +1926,15 @@ adds a `policies` tab/accordion beside Description and Details (tabs and accordi
 text tabs it is never kept hidden in the HTML (the same words on every book page aren't book content). Region `productPolicies`;
 words Text & labels › Product page (`tabShippingReturns`, `pdpPolicyReadMore`); GA4 tab name `shipping_returns`.
 
+## Back to top button (22 October 2026)
+
+Studio › Style › Footer & social links › What the footer shows › **Show a “Back to top” button once shoppers scroll down**
+(`showBackToTop`, off by default) + **Back to top button corner** (`backToTopPosition`, right/left). `features/site/BackToTop.tsx`
+is rendered by `StoreFooter` (so every page with the shop footer has it; Checkout doesn't), fixed to a bottom corner, shown after
+1.5 screens (`backToTopShown`, pure rules + token-only CSS in `backToTop.ts`), moves above the book page's sticky add-to-bag bar,
+scrolls up (instant under reduced motion) and moves focus to the header. Region `footerBackToTop`; words Text & labels › Footer ›
+`backToTop` (phones show only the arrow). Display only.
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the

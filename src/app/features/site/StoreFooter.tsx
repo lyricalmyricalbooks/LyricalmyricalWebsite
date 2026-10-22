@@ -14,6 +14,7 @@ import { wordmarkSecondaryStyle } from "../../components/LogoMark";
 import { footerLinksAlign, footerStyleCss } from "./footerStyle";
 import { pageInFooter } from "./footerNavigation";
 import { elementScheme } from "./colorSchemes";
+import { BackToTop } from "./BackToTop";
 
 // ──────────────────────────────
 // Payment gateway icons for footer
@@ -268,6 +269,8 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
         </div>
       </div>
       </div>
+      {/* Style › Footer & social links › Back to top button (off by default); fixed to a bottom corner. */}
+      <BackToTop design={d} />
     </footer>
   );
 }

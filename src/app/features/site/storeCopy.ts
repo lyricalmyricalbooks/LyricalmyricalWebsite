@@ -160,6 +160,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "footerTiktokAria", label: "TikTok icon (read aloud by screen readers)", default: "TikTok" },
       { key: "footerEmailAria", label: "Email icon (read aloud by screen readers)", default: "Email us" },
       { key: "footerAdmin", label: "Admin link (bottom bar)", default: "Admin" },
+      { key: "backToTop", label: "Back to top button", default: "Back to top", hint: "Shown when Style › Footer & social links › Back to top button is on. Phones show only the arrow; screen readers read these words." },
       { key: "footerLegalHeading", label: "Legal heading", default: "Legal" },
       { key: "policyTitleShipping", label: "Policy link & page title: Shipping", default: "Shipping Policy" },
       { key: "policyTitleReturns", label: "Policy link & page title: Returns", default: "Returns Policy" },
