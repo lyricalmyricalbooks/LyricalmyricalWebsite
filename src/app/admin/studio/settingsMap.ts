@@ -212,7 +212,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Empty bag", keys: ["cartDrawerShowEmptyIcon", "cartDrawerShowEmptyButton", "cartDrawerEmptyLink"] },
   ],
   checkout: [
-    { title: "What shoppers see", keys: ["showOrderNote", "hideCheckoutAddressUnit", "hideCheckoutPaymentTotal", "hideCheckoutExpressWallets", "hideAddressSuggestions", "checkoutPinnedCountries", "hideCountryFlags", "checkoutSummaryOpenOnPhones", "hidePayButtonTotal", "showCheckoutDiscountBox", "alwaysShowDiscountBox", "showCheckoutGiftCardBox", "showCheckoutAutoDiscountHint", "hideCheckoutFreeShipNudge", "hideCheckoutLowStock", "hideCheckoutPolicyLinks"] },
+    { title: "What shoppers see", keys: ["showOrderNote", "hideCheckoutAddressUnit", "hideCheckoutPaymentTotal", "hideCheckoutExpressWallets", "hideAddressSuggestions", "checkoutPinnedCountries", "hideCountryFlags", "checkoutSummaryOpenOnPhones", "hidePayButtonTotal", "showCheckoutDiscountBox", "alwaysShowDiscountBox", "showCheckoutGiftCardBox", "showCheckoutAutoDiscountHint", "hideCheckoutFreeShipNudge", "hideCheckoutLowStock", "hideCheckoutPolicyLinks", "requireCheckoutTerms"] },
     { title: "Colours", keys: ["checkoutAccentColor", "checkoutBgColor"] },
     { title: "Fonts & form fields", keys: ["checkoutHeadingFont", "checkoutFont", "checkoutFieldFont", "checkoutFieldBg", "checkoutFieldText", "checkoutFieldBorder", "checkoutInputRadius"] },
     { title: "Card payment form", keys: ["stripeFormBg", "stripeFormPadding"] },
@@ -323,7 +323,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Steps & headings", match: /^co(Brand|Return|Secure|Progress|Step|Contact$|Delivery$|Payment$|Summary|ShowSummary|HideSummary|ItemCount)/ },
     { title: "Contact & address fields", match: /^co(SignedIn|Google|Email|Name|Address|Country|City|State|Zip|Phone|Bill|EnterAddress)/ },
     { title: "Shipping, pickup & delivery", match: /^co(Ship|Fulfillment|Rates|ArrivesBy|FreeShip|Packed|Pickup|Carrier|Estimated|Free$|NoShipping|Preorder|TaxLater)/ },
-    { title: "Payment & the Pay button", match: /^co(Payment|Card|Pay|PayPal|Paypal|PlaceOrder|Processing|Stripe|Trust|Guarantee|TestMode|NoPayment|PrivacyNote|Policy|OnlyLeft|Express|OrderNote|Rates)/ },
+    { title: "Payment & the Pay button", match: /^co(Payment|Card|Pay|PayPal|Paypal|PlaceOrder|Processing|Stripe|Trust|Guarantee|TestMode|NoPayment|PrivacyNote|Policy|Terms|OnlyLeft|Express|OrderNote|Rates)/ },
     { title: "Discount codes", match: /^co(HaveCode|Discount|Apply)/ },
     { title: "Gift cards, automatic offers & free gifts", match: /^co(GiftCard|Auto|FreeGift|Line)/ },
     { title: "After the order", match: /^co(Thanks|Account|Pending|Continue|OrderPlaced|OrderConfirmed|Finalizing|CheckEmail|OrderNumber|ConfirmationSent|Confirming|Success|TrackOrder)/ },

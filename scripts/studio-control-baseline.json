@@ -418,6 +418,7 @@
   "productTitleSize": "visible",
   "radiusScale": "visible",
   "recentlyViewedCount": "none: needs recently viewed books in this browser",
+  "requireCheckoutTerms": "visible",
   "referenceCategoryLimit": "none: Reference header only; the live design uses the Modern header",
   "risoCardRadius": "css-only",
   "risoGrain": "visible",
