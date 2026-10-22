@@ -1,4 +1,5 @@
 import React from "react";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ReadinessPanel } from "./OverviewParts";
@@ -71,6 +72,25 @@ describe("RunList", () => {
     expect(html).toContain("orders to ship");
     expect(html).toContain("No reviews to moderate, unread messages.");
     expect(html.match(/<li/g)?.length).toBe(2);
+  });
+
+  it("reads a count of 1 in the singular, keeps the plural otherwise and in the All clear line", () => {
+    const row = (count: number) => renderToStaticMarkup(
+      <RunRow label="reviews to moderate" one="review to moderate" detail="Readers are waiting to see these" detailOne="A reader is waiting to see it"
+        count={count} loading={false} onOpen={() => {}} openLabel="Go" />);
+    expect(row(1)).toContain("review to moderate<");
+    expect(row(1)).toContain("A reader is waiting to see it");
+    expect(row(2)).toContain("reviews to moderate<");
+    expect(row(2)).toContain("Readers are waiting to see these");
+    const clear = renderToStaticMarkup(<RunList><RunRow label="reviews to moderate" one="review to moderate" detail="d" count={0} loading={false} onOpen={() => {}} openLabel="Go" /></RunList>);
+    expect(clear).toContain("No reviews to moderate.");
+  });
+
+  it("gives every Needs you line on the Overview a singular wording", () => {
+    const src = readFileSync(new URL("./AnalyticsDashboard.tsx", import.meta.url), "utf8");
+    const rows = src.match(/<RunRow [^>]*?label="[^"]+"[^>]*/g) || [];
+    expect(rows.length).toBeGreaterThan(5);
+    for (const r of rows) expect(r).toMatch(/ one="[^"]+"/);
   });
 });
 
