@@ -900,23 +900,30 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
 
   const set = (name: string, value: any) => setFormData((prev: any) => ({ ...prev, [name]: value }));
   // Description links: remember the caret so Add link inserts where the owner was typing.
+  // The Artist bio box shares the Description's tools: `field` says which box a tool acts on.
+  type RichField = "description" | "artistBio";
   const descSelection = useRef<{ start: number; end: number } | null>(null);
-  const [descLink, setDescLink] = useState<{ text: string } | null>(null);
-  const openDescLink = () => {
-    const text = String(formData.description || "");
-    const sel = descSelection.current;
-    setDescLink({ text: sel ? text.slice(sel.start, sel.end).trim() : "" });
+  const bioSelection = useRef<{ start: number; end: number } | null>(null);
+  const selectionOf = (field: RichField) => (field === "artistBio" ? bioSelection : descSelection);
+  const [descLink, setDescLink] = useState<{ text: string; field: RichField } | null>(null);
+  const openDescLink = (field: RichField = "description") => {
+    const text = String(formData[field] || "");
+    const sel = selectionOf(field).current;
+    setDescLink({ text: sel ? text.slice(sel.start, sel.end).trim() : "", field });
   };
   const descWrap = useRef<HTMLDivElement>(null);
+  const bioWrap = useRef<HTMLDivElement>(null);
+  const wrapOf = (field: RichField) => (field === "artistBio" ? bioWrap : descWrap);
   const [descPreview, setDescPreview] = useState(false);
-  const formatDescription = (action: FormatAction) => {
-    const area = descWrap.current?.querySelector("textarea");
-    const text = String(formData.description || "");
+  const [bioPreview, setBioPreview] = useState(false);
+  const formatDescription = (action: FormatAction, field: RichField = "description") => {
+    const area = wrapOf(field).current?.querySelector("textarea");
+    const text = String(formData[field] || "");
     const start = area ? area.selectionStart : text.length;
     const end = area ? area.selectionEnd : text.length;
     const next = applyFormat(text, start, end, action);
-    set("description", next.text);
-    descSelection.current = { start: next.start, end: next.end };
+    set(field, next.text);
+    selectionOf(field).current = { start: next.start, end: next.end };
     requestAnimationFrame(() => { if (area) { area.focus(); area.setSelectionRange(next.start, next.end); } });
   };
   // Write with AI (Gemini, Settings › General › AI writing assistant): drafts or improves the description in
@@ -1005,20 +1012,22 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
   };
   const insertDescLink = (label: string, href: string) => {
     const markup = linkMarkup(label, href);
+    const field: RichField = descLink?.field || "description";
+    const selRef = selectionOf(field);
     setFormData((prev: any) => {
-      const text = String(prev.description || "");
-      const sel = descSelection.current;
+      const text = String(prev[field] || "");
+      const sel = selRef.current;
       const start = sel ? Math.min(sel.start, text.length) : text.length;
       const end = sel ? Math.min(sel.end, text.length) : text.length;
       const before = text.slice(0, start);
       const gap = before && !/\s$/.test(before) ? " " : "";
-      descSelection.current = { start: start + gap.length + markup.length, end: start + gap.length + markup.length };
-      return { ...prev, description: before + gap + markup + text.slice(end) };
+      selRef.current = { start: start + gap.length + markup.length, end: start + gap.length + markup.length };
+      return { ...prev, [field]: before + gap + markup + text.slice(end) };
     });
     setDescLink(null);
     requestAnimationFrame(() => {
-      const area = descWrap.current?.querySelector("textarea");
-      const at = descSelection.current;
+      const area = wrapOf(field).current?.querySelector("textarea");
+      const at = selRef.current;
       if (area && at) { area.focus(); area.setSelectionRange(at.start, at.end); }
     });
   };
@@ -1250,7 +1259,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                         <button key={action} type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title={label} aria-label={label}
                           onMouseDown={(e) => e.preventDefault()} onClick={() => formatDescription(action)}><Icon size={14} aria-hidden /></button>
                       ))}
-                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Add link" onMouseDown={(e) => e.preventDefault()} onClick={openDescLink}><Link2 size={14} aria-hidden /> Add link</button>
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Add link" onMouseDown={(e) => e.preventDefault()} onClick={() => openDescLink("description")}><Link2 size={14} aria-hidden /> Add link</button>
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-pressed={descPreview} onClick={() => setDescPreview((v) => !v)}><Eye size={14} aria-hidden /> {descPreview ? "Hide preview" : "Preview"}</button>
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" disabled={descAiBusy} onClick={() => void writeDescriptionWithAi()}
                         title="Draft this description with AI (Settings › General › AI writing assistant)">
@@ -1274,9 +1283,26 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
                         <div className="fm-pdp-desc-text" style={{ whiteSpace: "pre-line" }}>{formData.description ? <DescriptionText text={formData.description} /> : <span className="rp-hint">Nothing written yet.</span>}</div>
                       </div>
                     )}
-                    <TextArea label="Artist bio" name="artistBio" value={formData.artistBio || ""} onChange={handleChange} rows={5}
-                      placeholder="Who made this book: a short bio of the artist or artists."
-                      hint="Optional. Fill it in and the book page gets an Artist bio tab; leave it empty and there is no tab. Same formatting as the description." />
+                    <div className="be-desc-toolbar" role="toolbar" aria-label="Artist bio formatting">
+                      {DESC_TOOLS.map(({ action, label, Icon }) => (
+                        <button key={action} type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title={label} aria-label={`${label} (Artist bio)`}
+                          onMouseDown={(e) => e.preventDefault()} onClick={() => formatDescription(action, "artistBio")}><Icon size={14} aria-hidden /></button>
+                      ))}
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" title="Add link" onMouseDown={(e) => e.preventDefault()} onClick={() => openDescLink("artistBio")}><Link2 size={14} aria-hidden /> Add link</button>
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-pressed={bioPreview} onClick={() => setBioPreview((v) => !v)}><Eye size={14} aria-hidden /> {bioPreview ? "Hide preview" : "Preview"}</button>
+                    </div>
+                    <div ref={bioWrap}>
+                      <TextArea label="Artist bio" name="artistBio" value={formData.artistBio || ""} onChange={handleChange} rows={5}
+                        onSelect={(e) => { const t = e.currentTarget; bioSelection.current = { start: t.selectionStart, end: t.selectionEnd }; }}
+                        placeholder="Who made this book: a short bio of the artist or artists."
+                        hint="Optional. Fill it in and the book page gets an Artist bio tab; leave it empty and there is no tab. Select words and use the buttons above for bold, italic, links and more." />
+                    </div>
+                    {bioPreview && (
+                      <div className="be-desc-preview" aria-label="Artist bio preview">
+                        <p className="rp-hint">Preview — the shop uses its own fonts and colours.</p>
+                        <div className="fm-pdp-desc-text" style={{ whiteSpace: "pre-line" }}>{formData.artistBio ? <DescriptionText text={formData.artistBio} /> : <span className="rp-hint">Nothing written yet.</span>}</div>
+                      </div>
+                    )}
                     <DescriptionLinkDialog open={!!descLink} initialText={descLink?.text || ""} onClose={() => setDescLink(null)} onInsert={insertDescLink} />
                   </div>
                 </div>

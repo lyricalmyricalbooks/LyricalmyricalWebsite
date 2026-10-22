@@ -64,6 +64,7 @@ import { resolveDynamicSettings } from "./dynamicSources";
 import { aspectRatioValue } from "./imageAspect";
 import { aspectNumber, frameAspect, frameMode, photoRatio } from "./photoFrame";
 import { regionProps, regionVisible } from "./storefrontRegions";
+import { orderTabs } from "./pdpTabOrder";
 import { DescriptionText } from "./DescriptionText";
 import { googleFontHref } from "./fonts";
 import { productPageCss, productPageFontNames, titleFitSize } from "./productPageStyle";
@@ -177,6 +178,8 @@ export default function BookDetail() {
   const showPdpFreeShipping    = storefrontDesign.showPdpFreeShipping === true;
   const showPdpShipBy          = storefrontDesign.showPdpShipBy === true;
   const showPdpAskQuestion     = storefrontDesign.showPdpAskQuestion === true;
+  const ruledText              = storefrontDesign.pdpRuledText === true;
+  const ruledCls               = ruledText ? " fm-pdp-desc-ruled" : "";
   const showPdpPolicyTab       = storefrontDesign.showPdpPolicyTab === true;
   const showPdpArtistBio       = storefrontDesign.showPdpArtistBio !== false;
 
@@ -723,13 +726,13 @@ export default function BookDetail() {
   // Shipping & returns tab (off by default): the shop's own policies from Settings › General › Store policies.
   const policyEntries = showPdpPolicyTab && regionVisible(regionDesign, "productPolicies") ? pdpPolicyEntries(settings?.policies, book, selectedVariant) : [];
   const artistBio = showPdpArtistBio && regionVisible(regionDesign, "productArtistBio") && typeof bk.artistBio === "string" ? bk.artistBio.trim() : "";
-  const detailTabs: { id: "description" | "artist" | "specs" | "policies" | "reviews"; label: string }[] = [
+  const detailTabs: { id: "description" | "artist" | "specs" | "policies" | "reviews"; label: string }[] = orderTabs([
     ...(regionVisible(regionDesign, "productDescription") ? [{ id: "description" as const, label: getCopy(settings?.design, "tabDescription") }] : []),
     ...(artistBio ? [{ id: "artist" as const, label: getCopy(settings?.design, "tabArtistBio") }] : []),
     ...(hasSpecs ? [{ id: "specs" as const, label: getCopy(settings?.design, productDetailsLayout === "accordions" ? "tabSpecs" : "tabDetails") }] : []),
     ...(policyEntries.length ? [{ id: "policies" as const, label: getCopy(settings?.design, "tabShippingReturns") }] : []),
     ...(regionVisible(regionDesign, "productReviews") ? [{ id: "reviews" as const, label: getCopy(settings?.design, "tabReviews") }] : []),
-  ];
+  ], storefrontDesign);
   const activeTab = detailTabs.some((t) => t.id === detailsTab) ? detailsTab : detailTabs[0]?.id;
   const onTabKey = (e: React.KeyboardEvent, i: number) => {
     if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
@@ -742,15 +745,15 @@ export default function BookDetail() {
   };
   const detailContent = (id: string) =>
     id === "description" ? (
-      <div {...regionProps("productDescription")} className="fm-pdp-desc fm-pdp-desc-text text-[15px] leading-[1.75] whitespace-pre-line">{bk.description ? <DescriptionText text={bk.description} /> : getCopy(settings?.design, "noDescription")}</div>
+      <div {...regionProps("productDescription")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line`}>{bk.description ? <DescriptionText text={bk.description} ruled={ruledText} /> : getCopy(settings?.design, "noDescription")}</div>
     ) : id === "artist" ? (
-      <div {...regionProps("productArtistBio")} className="fm-pdp-desc fm-pdp-desc-text text-[15px] leading-[1.75] whitespace-pre-line"><DescriptionText text={artistBio} /></div>
+      <div {...regionProps("productArtistBio")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line`}><DescriptionText text={artistBio} ruled={ruledText} /></div>
     ) : id === "specs" ? <div {...regionProps("productSpecs")}>{renderSpecs()}</div> : id === "policies" ? (
       <div {...regionProps("productPolicies")} className="fm-pdp-policies flex flex-col gap-5 text-left">
         {policyEntries.map((e) => (
           <div key={e.key} className="flex flex-col gap-2">
             {policyEntries.length > 1 && <p className="fm-pdp-meta">{policyTitle(settings?.design, e.key)}</p>}
-            <div className="fm-pdp-desc-text text-[14px] leading-[1.75] [&_p+p]:mt-3" dangerouslySetInnerHTML={{ __html: policyHtml(e.text) }} />
+            <div className={`fm-pdp-desc-text${ruledCls} text-[14px] leading-[1.75] [&_p+p]:mt-3`} dangerouslySetInnerHTML={{ __html: policyHtml(e.text) }} />
             <Link to={`/page/${policySlug(e.key)}`} className="fm-pdp-meta underline underline-offset-2 self-start">
               {getCopy(settings?.design, "pdpPolicyReadMore", { policy: policyTitle(settings?.design, e.key) })}
             </Link>
@@ -1272,10 +1275,10 @@ export default function BookDetail() {
                           <p className="fm-pdp-meta mb-3" style={{ color: "var(--accent, #e8402a)" }}>
                             {getCopy(settings?.design, "productDescriptionLabel")}
                           </p>
-                          <div className="fm-pdp-desc-text text-[15px] leading-[1.8] whitespace-pre-line"><DescriptionText text={bk.description} /></div>
+                          <div className={`fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.8] whitespace-pre-line`}><DescriptionText text={bk.description} ruled={ruledText} /></div>
                         </div>
                       ) : (
-                        <div {...regionProps("productDescription")} className="fm-pdp-desc-text text-white/50 text-[14px] leading-[1.8] whitespace-pre-line"><DescriptionText text={bk.description} /></div>
+                        <div {...regionProps("productDescription")} className={`fm-pdp-desc-text${ruledCls} text-white/50 text-[14px] leading-[1.8] whitespace-pre-line`}><DescriptionText text={bk.description} ruled={ruledText} /></div>
                       )
                     )}
                     {hasSpecs && <div {...regionProps("productSpecs")}>{renderSpecs()}</div>}
