@@ -2003,6 +2003,14 @@ unticked shows `cartTermsError` (role=alert) and focuses the box; the tick is ke
 only the bag's button (checkout reached another way is not blocked; nothing is recorded on the order). Words: Text & labels › Cart ›
 Terms checkbox (`cartTerms*`).
 
+## Save for later in the bag (22 October 2026)
+
+Studio › Style › Cart drawer (shopping bag) › Book rows › **Save for later button** (`cartDrawerShowSaveForLater`, off by default)
+adds "Save for later" beside each bag line's Remove (`saveForLaterOn` / `canSaveForLater` in `features/site/saveForLater.ts`; never on
+gift-card lines): the line leaves the bag and the book joins the wishlist (`useWishlist`), with a toast Undo that puts the line back and
+takes the book off the wishlist only if the button added it. No-op on the Studio preview's sample line. Words: Text & labels › Cart ›
+Save for later (`cartSave*`; Undo reuses `cartRemovedUndo`). Display/bag only; no rules or Functions.
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the
