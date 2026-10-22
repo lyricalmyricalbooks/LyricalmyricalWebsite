@@ -145,10 +145,10 @@ export function SearchOverlay({
   // Counted once per catalog while the drawer is open; each keystroke only filters these lists by name.
   const allArtists = useMemo(() => (open ? artistCounts(liveBooks) : []), [open, liveBooks]);
   const allCategories = useMemo(() => (open ? visibleCategoryCounts(categories || [], liveBooks) : []), [open, categories, liveBooks]);
-  const artists = useMemo(() => (trimmed ? matchingArtists(allArtists, trimmed) : []), [trimmed, allArtists]);
-  const catMatches = useMemo(() => (trimmed ? matchingCategories(allCategories, trimmed) : []), [trimmed, allCategories]);
+  const artists = useMemo(() => (trimmed ? matchingArtists(allArtists, trimmed, limitOf(design, "searchArtistLimit", 6)) : []), [trimmed, allArtists, design]);
+  const catMatches = useMemo(() => (trimmed ? matchingCategories(allCategories, trimmed, limitOf(design, "searchCategoryLimit", 6)) : []), [trimmed, allCategories, design]);
   const browse = trimmed ? [] : allCategories;
-  const newIn = useMemo(() => (open && !trimmed ? newestBooks(liveBooks, 4) : []), [open, trimmed, liveBooks]);
+  const newIn = useMemo(() => (open && !trimmed ? newestBooks(liveBooks, limitOf(design, "searchNewInCount", 4)) : []), [open, trimmed, liveBooks, design]);
   const nothingFound = !!trimmed && !results.length && !artists.length && !catMatches.length;
   const showSeeAll = design?.showSearchSeeAll !== false && totalMatches > 0;
   // A catalog refresh can shorten the list without a new query: keep the highlighted row inside it.
@@ -262,7 +262,7 @@ export function SearchOverlay({
           {c("searchNoResults", { query: trimmed })}
         </p>
         <p className="m-0 text-sm text-white/60">{c("searchNoResultsHint")}</p>
-        <NoResultsTry counts={allCategories} heading={c("searchTryLabel")} onPick={onClose} />
+        <NoResultsTry counts={allCategories} limit={limitOf(design, "searchTryLimit", 8)} heading={c("searchTryLabel")} onPick={onClose} />
       </div>
     );
   } else {
@@ -429,16 +429,21 @@ export function SearchOverlay({
   );
 }
 
+/** A list length from Studio › Style (Search pop-up numbers): whole, at least 1. */
+function limitOf(design: any, key: string, fallback: number): number {
+  return Math.max(1, Math.round(designNumber(design, key, fallback)));
+}
+
 function Kbd({ children }: { children: ReactNode }) {
   return <kbd className="border border-white/20 px-1.5 py-px font-mono text-[10.5px] text-white/60">{children}</kbd>;
 }
 
 /** No results: the shop's categories as chips to try instead. */
-function NoResultsTry({ counts, heading, onPick }: { counts: CategoryCount[]; heading: string; onPick: () => void }) {
+function NoResultsTry({ counts, limit, heading, onPick }: { counts: CategoryCount[]; limit: number; heading: string; onPick: () => void }) {
   // The shelves themselves: PUBLICATIONS (every book) only when nothing else has books.
   const filled = counts.filter(cat => cat.count > 0);
   const shelves = filled.filter(cat => cat.name !== "PUBLICATIONS");
-  const cats = (shelves.length ? shelves : filled).slice(0, 8);
+  const cats = (shelves.length ? shelves : filled).slice(0, limit);
   if (!cats.length) return null;
   return (
     <div {...regionProps("searchTry")} className="grid gap-3">
