@@ -99,6 +99,15 @@ describe("whatChanged", () => {
     expect(list.some(c => c.id === "conversion" && c.tone === "up")).toBe(true);
     expect(list.length).toBeLessThanOrEqual(6);
   });
+  it("names the country in words and counts a code and a name as one destination", () => {
+    const at = (country: string, total: number) => order({ total, customer: { email: `${country}@x.com`, address: { country } } });
+    const current = [at("CA", 40), at("Canada", 40), at("France", 30)];
+    const previous = [at("Canada", 200), at("FR", 30)];
+    const list = whatChanged({ cur: totals(current), prev: totals(previous), current, previous, before: "the 30 days before", money });
+    const country = list.find(c => c.id.startsWith("country-"));
+    expect(country).toMatchObject({ id: "country-CA", tone: "down", title: "Sales to Canada fell by $120.00" });
+    expect(country?.detail).toBe("The biggest move by destination ($80.00 now, $200.00 in the 30 days before).");
+  });
   it("says nothing about revenue for a quiet change", () => {
     const list = whatChanged({ cur: totals([order()]), prev: totals([order({ total: 49 })]), current: [order()], previous: [order({ total: 49 })], before: "x", money });
     expect(list.some(c => c.id === "revenue")).toBe(false);
