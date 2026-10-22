@@ -45,8 +45,9 @@ import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 import BackInStockForm from "./BackInStockForm";
 import PickupAvailability from "./PickupAvailability";
-import { pickupSpots } from "./pickupAvailability";
+import { isPickupItem, pickupSpots } from "./pickupAvailability";
 import PdpFreeShipping from "./PdpFreeShipping";
+import PdpShipBy from "./PdpShipBy";
 import SaleEndsLine from "./SaleEndsLine";
 import { pdpFreeShipping } from "./pdpFreeShipping";
 import { pdpPolicyEntries } from "./pdpPolicyTab";
@@ -173,6 +174,7 @@ export default function BookDetail() {
   const showComingSoonSignup   = storefrontDesign.showComingSoonSignup   ?? true;
   const showPdpPickup          = storefrontDesign.showPdpPickup === true;
   const showPdpFreeShipping    = storefrontDesign.showPdpFreeShipping === true;
+  const showPdpShipBy          = storefrontDesign.showPdpShipBy === true;
   const showPdpPolicyTab       = storefrontDesign.showPdpPolicyTab === true;
 
   // Autonomy controls for book detail page
@@ -1215,6 +1217,10 @@ export default function BookDetail() {
                   )}
                   {showPdpFreeShipping && !isOutOfStock && !isComingSoon && regionVisible(regionDesign, "productFreeShipping") && (
                     <PdpFreeShipping info={freeShipInfo} design={settings?.design} formatPrice={formatPrice} />
+                  )}
+                  {/* Ships-by line (off by default): printed copies in stock now only (not pre-orders or backorders). */}
+                  {showPdpShipBy && !isOutOfStock && !isComingSoon && !isPreorder && !isBackorder && stockLevel > 0 && book && isPickupItem(book, selectedVariant) && regionVisible(regionDesign, "productShipBy") && (
+                    <PdpShipBy design={settings?.design} look={storefrontDesign} />
                   )}
                   {showPdpPickup && !isOutOfStock && !isComingSoon && regionVisible(regionDesign, "productPickup") && (
                     <PickupAvailability

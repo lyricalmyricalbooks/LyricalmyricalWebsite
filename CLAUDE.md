@@ -1926,6 +1926,15 @@ adds a `policies` tab/accordion beside Description and Details (tabs and accordi
 text tabs it is never kept hidden in the HTML (the same words on every book page aren't book content). Region `productPolicies`;
 words Text & labels › Product page (`tabShippingReturns`, `pdpPolicyReadMore`); GA4 tab name `shipping_returns`.
 
+## Ships-by line on book pages (22 October 2026)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **Ships-by line** (`showPdpShipBy`, off by default) +
+`pdpShipByDays` (working days, default 2), `pdpShipByCutoff` (Toronto hour, default 14), `pdpShipByCountdownHours` (default 4,
+0 = no countdown) and `pdpShipByClosedDays` (YYYY-MM-DD list): "Order now — ships by {date}" under the buy buttons
+(`features/site/PdpShipBy.tsx`, region `productShipBy`), "Order within {hours}h {minutes}m" near the cut-off. Pure `shipBy.ts`
+(Mon–Fri Toronto minus closed days). Drawn only after mount (never in the prerender), only for printed copies in stock (not
+pre-orders, backorders, Coming soon, e-books, gift cards). Display only. Words: Text & labels › Product page (`pdpShipBy*`).
+
 ## Back to top button (22 October 2026)
 
 Studio › Style › Footer & social links › What the footer shows › **Show a “Back to top” button once shoppers scroll down**
