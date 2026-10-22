@@ -96,12 +96,12 @@ export function descriptionTextCss(d: any): string {
   css += `${T} .fm-pdp-desc-heading{font-family:${headingFont};font-size:${headingSize ? `${headingSize}px` : "1.25em"};line-height:1.25;color:${headingColor};margin:${gap * 1.5}px 0 ${gap / 2}px;white-space:normal;}`;
   css += `${T} .fm-pdp-desc-subheading{font-size:${headingSize ? `${Math.round(headingSize * 0.8)}px` : "1.05em"};}`;
   css += `${T} > :first-child{margin-top:0;}`;
-  if (d.pdpRuledText === true) {
-    // Every line is a row between hairlines, like the Details table (the rows themselves come from DescriptionText `ruled`).
-    const rule = color(d, "pdpCardDividerColor", "rgba(var(--border-rgb), 0.45)");
-    css += `${T}.fm-pdp-desc-ruled > *{margin:0;padding:${Math.max(gap, 8)}px 0;border-top:1px solid ${rule};}`;
-    css += `${T}.fm-pdp-desc-ruled > :last-child{border-bottom:1px solid ${rule};}`;
-  }
+  const ruleLine = color(d, "pdpCardDividerColor", "rgba(var(--border-rgb), 0.45)");
+  if (d.pdpRuledEveryLine === true) {
+    // Every line is its own row between hairlines, like the Details table (the rows come from DescriptionText `ruled`).
+    css += `${T}.fm-pdp-desc-ruled > *{margin:0;padding:${Math.max(gap, 8)}px 0;border-top:1px solid ${ruleLine};}`;
+    css += `${T}.fm-pdp-desc-ruled > :last-child{border-bottom:1px solid ${ruleLine};}`;
+  } else if (d.pdpRuledText === true) css += `${T} > * + *{border-top:1px solid ${ruleLine};padding-top:${gap}px;margin-top:${gap}px;}`;
   css += `${T} .fm-pdp-desc-list{margin:${gap}px 0;padding-left:1.4em;white-space:normal;}`;
   css += `${T} ul.fm-pdp-desc-list{list-style:disc;}${T} ol.fm-pdp-desc-list{list-style:decimal;}`;
   css += `${T} .fm-pdp-desc-list li{margin:.2em 0;}`;

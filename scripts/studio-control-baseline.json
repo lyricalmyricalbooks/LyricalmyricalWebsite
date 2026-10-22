@@ -379,6 +379,7 @@
   "pdpPriceSize": "visible",
   "pdpPriceSizeMobile": "visible",
   "pdpRuledRows": "visible",
+  "pdpRuledEveryLine": "none: needs a book with a description of several lines",
   "pdpRuledText": "css-only",
   "pdpSaleCountdownWithin": "none: needs Sale countdown on and a book whose sale ends within the next few days",
   "pdpShipByClosedDays": "none: needs Ships-by line on (book pages only)",
