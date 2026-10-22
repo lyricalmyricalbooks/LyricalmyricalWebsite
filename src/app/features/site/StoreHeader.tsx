@@ -334,13 +334,18 @@ export function StoreHeader({ design, pages, books, shop }: { design: any; pages
     return () => window.removeEventListener("keydown", onKey);
   }, [shopMode]);
   const openSearch = () => setSearchOpen(true);
+  // Browse and the Categories column list the shop categories the header shows (Studio › Menus › Shop categories).
+  const searchCategories = useMemo(
+    () => (shop ? shop.categories : layerDesign(design, design?.storefront).categories || design?.categories || []),
+    [shop, design],
+  );
   const searchBooks = useMemo(() => (shopMode ? getPublishedBooks(books) : books), [shopMode, books]);
   return (
     <>
       {shop
         ? <ShopHeader design={design} pages={pages} books={books} shop={shop} onSearch={openSearch} />
         : <PageHeader design={design} pages={pages} onSearch={openSearch} />}
-      {searchUsed.current && <Suspense fallback={null}><SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={searchBooks} design={shop ? shop.surface : design} /></Suspense>}
+      {searchUsed.current && <Suspense fallback={null}><SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={searchBooks} design={shop ? shop.surface : design} categories={searchCategories} /></Suspense>}
       {/* Section groups shown on every page: under the header, and the pop-up (Studio › Page layout). */}
       <GroupSections design={design} group="headerSections" books={searchBooks} />
       <PopupSections design={design} books={searchBooks} />

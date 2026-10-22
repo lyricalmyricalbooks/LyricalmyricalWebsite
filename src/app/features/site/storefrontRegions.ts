@@ -102,9 +102,12 @@ export const REGION_GROUPS: RegionGroup[] = [
   { id: "searchLayout", title: "Search · layout & elements", copy: "Search & filters", files: ["features/site/SearchOverlay.tsx"], regions: [
     { id: "searchPanel", label: "Search panel", required: true },
     { id: "searchField", label: "Search input", required: true }, { id: "searchClose", label: "Close search button", required: true },
-    { id: "searchResult", label: "Search result row", required: true }, { id: "searchPrompt", label: "Search guidance" }, { id: "searchSuggestions", label: "Popular searches" }, { id: "searchRecent", label: "Recent searches" },
+    { id: "searchResult", label: "Search result row", required: true }, { id: "searchPrompt", label: "Search label" }, { id: "searchSuggestions", label: "Popular searches" }, { id: "searchRecent", label: "Recent searches" },
     { id: "searchEmpty", label: "No search results" }, { id: "searchSeeAll", label: "See all results link" }, { id: "searchPhoto", label: "Result cover", image: true },
-    { id: "searchAuthor", label: "Result author" },
+    { id: "searchAuthor", label: "Result author" }, { id: "searchStock", label: "Result stock word" },
+    { id: "searchArtists", label: "Matching artists" }, { id: "searchCategories", label: "Matching categories" },
+    { id: "searchNewIn", label: "New in the shop" }, { id: "searchBrowse", label: "Browse categories" },
+    { id: "searchKeys", label: "Keyboard hints" }, { id: "searchTry", label: "No results: category suggestions" },
   ] },
   { id: "reviewsLayout", title: "Reviews · layout & elements", copy: "Reviews", files: ["features/site/ReviewsSection.tsx"], regions: [
     { id: "reviewsHeading", label: "Reviews heading" }, { id: "reviewsList", label: "Published reviews" }, { id: "reviewsMore", label: "Show more reviews button" },

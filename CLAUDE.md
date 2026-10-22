@@ -1870,6 +1870,17 @@ is a disabled label). JSON-LD says OutOfStock. Turning the switch off fires `onB
 signups get an **Out now** email for editions with stock (`releasePending` carries the wording to `backInStockSweep`); while
 it is on, no back-in-stock email is sent. Admin › Books has a Coming soon badge and status filter. Deploy Functions with the frontend.
 
+## Search drawer (21 October 2026)
+
+`features/site/SearchOverlay.tsx` is concept A "Catalogue index" (Julian's pick): a full-width drawer from the top, the typing
+line in the heading font, and three columns. Before typing: New in the shop (`newestBooks`), Browse (`visibleCategoryCounts`,
+shop categories passed from `StoreHeader` as `categories`), recent + popular searches. While typing: Books (cover, credit,
+format, stock word `stockState`, price; arrow keys move the outlined row), Artists (`matchingArtists`, from `bookCreators`, link
+to the search results page) and Categories (`matchingCategories`, link to `/collections/<slug>`), typed letters marked with
+`markMatches` (pure helpers in `features/site/searchPanel.ts`). No results shows category chips (`searchTry`). Words: Text &
+labels › Search & filters (`search*`); each part is a region in Style › Search · layout & elements. Phone input size comes from
+the row (index.css floors phone inputs at max(16px, 1em)).
+
 ## Pickup availability on book pages (21 October 2026)
 
 Studio › Style › Book page · photos & layout › Extras on the page › **Pickup availability** (`showPdpPickup`, off by default)
