@@ -2,6 +2,8 @@ import { layerDesign } from "../features/site/designModel";
 import { CartShippingPreview } from "./CartShippingPreview";
 import { CartDiscountCode } from "./CartDiscountCode";
 import { CartOrderNote } from "./CartOrderNote";
+import { CartTermsAgree } from "./CartTermsAgree";
+import { rememberTermsAgreed, termsAgreed } from "../features/site/bagTerms";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { m, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router";
@@ -175,7 +177,16 @@ export function CartDrawer() {
   const remaining = FREE_SHIP_THRESHOLD ? Math.max(0, FREE_SHIP_THRESHOLD - shippableTotal) : 0;
   const progress = FREE_SHIP_THRESHOLD ? Math.min(100, (shippableTotal / FREE_SHIP_THRESHOLD) * 100) : 100;
   const pad2 = (n: number) => String(n).padStart(2, "0");
-  const goCheckout = () => { setIsCartOpen(false); navigate("/checkout"); };
+  // Style › Cart drawer › Terms checkbox (off by default): the bag's checkout button waits for the tick.
+  const askTerms = design.cartDrawerShowTermsCheckbox === true;
+  const [agreedTerms, setAgreedTerms] = useState(() => termsAgreed());
+  const [termsError, setTermsError] = useState(false);
+  const termsBox = useRef<HTMLInputElement>(null);
+  const agreeTerms = (agreed: boolean) => { setAgreedTerms(rememberTermsAgreed(agreed)); if (agreed) setTermsError(false); };
+  const goCheckout = () => {
+    if (askTerms && !agreedTerms) { setTermsError(true); termsBox.current?.focus(); return; }
+    setIsCartOpen(false); navigate("/checkout");
+  };
 
   // Style › Cart drawer › After adding a book: the bag (default) or a small notice in its corner.
   const noticeMode = addedNoticeOn(design);
@@ -365,6 +376,8 @@ export function CartDrawer() {
                   </ul>
                 )}
 
+                {askTerms && <CartTermsAgree ref={termsBox} design={design} policies={(settings as any)?.policies} agreed={agreedTerms}
+                  showError={termsError} onChange={agreeTerms} onLinkClick={() => setIsCartOpen(false)} />}
                 <button onClick={goCheckout} className="fm-bag-cta w-full flex items-center justify-center gap-3">
                   {getCopy(design, "cartCheckoutButton")} {showArrow && <ArrowRight size={16} aria-hidden="true" />}
                 </button>
