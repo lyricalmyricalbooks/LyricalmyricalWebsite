@@ -60,8 +60,15 @@ export function whatChanged(input: {
     if (d < 0 && (!faller || d < faller.d)) faller = { id, d };
   });
   const name = (id: string) => now.get(id)?.title || then.get(id)?.title || "A title";
-  if (riser) { const r = riser as { id: string; d: number }; out.push({ id: `rise-${r.id}`, tone: "up", weight: r.d, title: `${name(r.id)} is climbing`, detail: `+${money(r.d)} on ${before} (${plural(now.get(r.id)?.units || 0, "copy", "copies")} now, ${(then.get(r.id)?.units || 0).toLocaleString()} then).` }); }
-  if (faller) { const f = faller as { id: string; d: number }; out.push({ id: `fall-${f.id}`, tone: "down", weight: -f.d, title: `${name(f.id)} slowed down`, detail: `−${money(-f.d)} on ${before} (${plural(now.get(f.id)?.units || 0, "copy", "copies")} now, ${(then.get(f.id)?.units || 0).toLocaleString()} then).` }); }
+  const titleMove = (id: string, d: number, kind: string) => {
+    const a = now.get(id), b = then.get(id);
+    return {
+      title: `Sales of ${name(id)} ${d > 0 ? "rose" : "fell"} by ${money(Math.abs(d))}`,
+      detail: `The biggest ${kind} among your titles (${money(a?.revenue || 0)} now, ${money(b?.revenue || 0)} in ${before}; ${plural(a?.units || 0, "copy", "copies")} vs ${(b?.units || 0).toLocaleString()}).`,
+    };
+  };
+  if (riser) { const r = riser as { id: string; d: number }; out.push({ id: `rise-${r.id}`, tone: "up", weight: r.d, ...titleMove(r.id, r.d, "rise") }); }
+  if (faller) { const f = faller as { id: string; d: number }; out.push({ id: `fall-${f.id}`, tone: "down", weight: -f.d, ...titleMove(f.id, f.d, "drop") }); }
   if (fresh) { const n = fresh as { id: string; r: number }; out.push({ id: `new-${n.id}`, tone: "info", weight: n.r, title: `${name(n.id)} started selling`, detail: `${money(n.r)} from ${plural(now.get(n.id)?.units || 0, "copy", "copies")}, with no sales in ${before}.` }); }
 
   // 3 · Where it came from: the country that moved most.
