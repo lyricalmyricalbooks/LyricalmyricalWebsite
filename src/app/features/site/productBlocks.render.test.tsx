@@ -53,7 +53,7 @@ describe("buy box blocks on the product page", () => {
     expect(order(c)).toEqual(["buy", "title", "custom:series", "custom:note", "custom:badge", "price"]);
     expect(c.querySelector("[data-pdp-block=series]")?.textContent).toBe("Book of The Night Series");
     expect(c.querySelector("details summary")?.textContent).toBe("Shipping & returns");
-    expect(c.querySelectorAll(".fm-pdp-card-section")).toHaveLength(2);
+    expect(c.querySelectorAll(".fm-pdp-card-section")).toHaveLength(5); // ruled rows: title and price get their own rows
     expect(c.querySelector(".fm-pdp-tag:not(.fm-pdp-badge)")).toBeNull();
   });
   it("leaves out an added block whose connected detail is missing when Hide when empty is on", async () => {
