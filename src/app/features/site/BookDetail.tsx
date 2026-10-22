@@ -180,8 +180,7 @@ export default function BookDetail() {
   const showPdpFreeShipping    = storefrontDesign.showPdpFreeShipping === true;
   const showPdpShipBy          = storefrontDesign.showPdpShipBy === true;
   const showPdpAskQuestion     = storefrontDesign.showPdpAskQuestion === true;
-  const ruledText              = storefrontDesign.pdpRuledEveryLine === true;
-  const ruledCls               = ruledText ? " fm-pdp-desc-ruled" : "";
+  const ruledCls               = storefrontDesign.pdpRuledEveryLine === true ? " fm-pdp-desc-ruled" : "";
   const showPdpPolicyTab       = storefrontDesign.showPdpPolicyTab === true;
   const showPdpArtistBio       = storefrontDesign.showPdpArtistBio !== false;
 
@@ -751,9 +750,9 @@ export default function BookDetail() {
   };
   const detailContent = (id: string) =>
     id === "description" ? (
-      <div {...regionProps("productDescription")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line`}>{bk.description ? <DescriptionText text={bk.description} ruled={ruledText} /> : getCopy(settings?.design, "noDescription")}</div>
+      <div {...regionProps("productDescription")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line`}>{bk.description ? <DescriptionText text={bk.description} /> : getCopy(settings?.design, "noDescription")}</div>
     ) : id === "artist" ? (
-      <div {...regionProps("productArtistBio")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line`}><DescriptionText text={artistBio} ruled={ruledText} /></div>
+      <div {...regionProps("productArtistBio")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line`}><DescriptionText text={artistBio} /></div>
     ) : id === "specs" ? <div {...regionProps("productSpecs")}>{renderSpecs()}</div> : id === "policies" ? (
       <div {...regionProps("productPolicies")} className="fm-pdp-policies flex flex-col gap-5 text-left">
         {policyEntries.map((e) => (
@@ -1281,10 +1280,10 @@ export default function BookDetail() {
                           <p className="fm-pdp-meta mb-3" style={{ color: "var(--accent, #e8402a)" }}>
                             {getCopy(settings?.design, "productDescriptionLabel")}
                           </p>
-                          <div className={`fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.8] whitespace-pre-line`}><DescriptionText text={bk.description} ruled={ruledText} /></div>
+                          <div className={`fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.8] whitespace-pre-line`}><DescriptionText text={bk.description} /></div>
                         </div>
                       ) : (
-                        <div {...regionProps("productDescription")} className={`fm-pdp-desc-text${ruledCls} text-white/50 text-[14px] leading-[1.8] whitespace-pre-line`}><DescriptionText text={bk.description} ruled={ruledText} /></div>
+                        <div {...regionProps("productDescription")} className={`fm-pdp-desc-text${ruledCls} text-white/50 text-[14px] leading-[1.8] whitespace-pre-line`}><DescriptionText text={bk.description} /></div>
                       )
                     )}
                     {hasSpecs && <div {...regionProps("productSpecs")}>{renderSpecs()}</div>}
