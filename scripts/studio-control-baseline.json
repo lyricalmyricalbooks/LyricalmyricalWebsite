@@ -49,6 +49,8 @@
   "cardTitleSizeMobile": "visible",
   "cardTitleTracking": "visible",
   "cardTitleWeight": "visible",
+  "cartAddAction": "none: the notice shows only after a shopper adds a book to the bag",
+  "cartAddNoticeSeconds": "none: needs After a shopper adds a book set to the notice, and a book added to the bag",
   "cartDrawerBackdropBlur": "visible",
   "cartDrawerBackdropColor": "visible",
   "cartDrawerBg": "visible",

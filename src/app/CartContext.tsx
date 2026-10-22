@@ -1,7 +1,7 @@
 import { ga4Event, ga4Items } from "./lib/ga4";
 import { emitShopSignal } from "./lib/shopSignals";
 import { useStudioOverlay } from "./features/site/studioOverlay";
-import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, useRef, ReactNode } from "react";
 import { preorderActive, releaseDateOf } from "./features/site/preorder";
 import { comingSoonActive } from "./features/site/comingSoon";
 import { addOnSelection, bundleComponents, giftCardDetails, isGiftCardProduct, saleActive, type GiftCardDetails } from "./features/site/promotions";
@@ -55,7 +55,15 @@ interface CartContextType {
   cartCount: number;
   isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
+  /** The line just added while Studio › Cart drawer › After adding a book = small notice (else null). */
+  lastAdded?: AddedLine | null;
+  dismissAdded?: () => void;
+  /** Set by the bag drawer from the design: "notice" shows the small notice instead of opening the bag. */
+  setAddBehaviour?: (mode: AddBehaviour) => void;
 }
+
+export type AddBehaviour = "drawer" | "notice";
+export type AddedLine = { item: CartItem; quantity: number; at: number };
 
 /**
  * A line's identity: book, edition, add-ons (with their wording) and the gift-card recipient.
@@ -238,6 +246,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>(readStoredCart);
   const [isCartOpen, setIsCartOpen] = useState(false);
   useStudioOverlay("cart", setIsCartOpen);
+  // Studio › Style › Cart drawer › After adding a book (default: open the bag).
+  const addBehaviour = useRef<AddBehaviour>("drawer");
+  const [lastAdded, setLastAdded] = useState<AddedLine | null>(null);
 
   // Keep other open tabs in step (e.g. the bag emptied after a purchase in another tab).
   useEffect(() => {
@@ -314,7 +325,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (lineQuantityCap(limit) <= 0) return prev;
       return [...prev, { ...draft, quantity: nextCartQuantity(0, quantity, limit) }];
     });
-    setIsCartOpen(true);
+    // An open bag stays the place the shopper sees the change (e.g. its own suggestion card).
+    if (addBehaviour.current === "notice" && !isCartOpen) setLastAdded({ item: { ...draft, quantity }, quantity, at: Date.now() });
+    else setIsCartOpen(true);
     ga4Event("add_to_cart", { currency: "CAD", value: round2(price * quantity), items: ga4Items([{ ...draft, quantity }]) });
     emitShopSignal("bookAdd", product.id);
     return true;
@@ -351,7 +364,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   return (
     <CartContext.Provider value={{ 
       cart: keyedCart, addToCart, removeFromCart, updateQuantity, clearCart, setCart,
-      cartTotal, cartCount, isCartOpen, setIsCartOpen 
+      cartTotal, cartCount, isCartOpen, setIsCartOpen,
+      lastAdded, dismissAdded: () => setLastAdded(null),
+      setAddBehaviour: (mode: AddBehaviour) => { addBehaviour.current = mode; if (mode === "drawer") setLastAdded(null); },
     }}>
       {children}
     </CartContext.Provider>

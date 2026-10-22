@@ -25,6 +25,8 @@ import { smallPhotoUrl } from "../features/site/photoSources";
 import { previewSampleCart } from "../features/site/previewSampleCart";
 import { inEditorPreview } from "../lib/trackingGuard";
 import { ga4ViewCart } from "../lib/ga4";
+import { AddedToBagNotice } from "../features/site/AddedToBagNotice";
+import { addedNoticeOn } from "../features/site/addedNotice";
 
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
 // features/site/cartDrawerStyle.ts); its words are Studio › Text & labels › Cart.
@@ -173,7 +175,22 @@ export function CartDrawer() {
   const pad2 = (n: number) => String(n).padStart(2, "0");
   const goCheckout = () => { setIsCartOpen(false); navigate("/checkout"); };
 
+  // Style › Cart drawer › After adding a book: the bag (default) or a small notice in its corner.
+  const noticeMode = addedNoticeOn(design);
+  const setAddBehaviour = useRef(shopper.setAddBehaviour);
+  setAddBehaviour.current = shopper.setAddBehaviour;
+  useEffect(() => {
+    setAddBehaviour.current?.(noticeMode ? "notice" : "drawer");
+    return () => setAddBehaviour.current?.("drawer");
+  }, [noticeMode]);
+  useEffect(() => { if (isCartOpen && shopper.lastAdded) shopper.dismissAdded?.(); }, [isCartOpen]);
+
   return (
+    <>
+    {noticeMode && !isCartOpen && (
+      <AddedToBagNotice design={design} added={shopper.lastAdded} count={shopper.cartCount}
+        onDismiss={() => shopper.dismissAdded?.()} onViewBag={() => setIsCartOpen(true)} formatPrice={formatPrice} />
+    )}
     <AnimatePresence>
       {isCartOpen && (
         <>
@@ -354,5 +371,6 @@ export function CartDrawer() {
         </>
       )}
     </AnimatePresence>
+    </>
   );
 }
