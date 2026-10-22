@@ -170,3 +170,16 @@ describe("alertRoute", () => {
     expect(alertRoute({ action: "retry" })).toBeNull();
   });
 });
+
+describe("held stock alert", () => {
+  const state = (holds: any[]) => ({ startDay: "2026-10-01", autoSync: true, lastRunAt: new Date().toISOString(), lastSync: { holds } });
+  const hold = { bookId: "b1", variantId: "", title: "Injured", hold: "big-change", from: 3, to: 40 };
+
+  it("names the book and stays hidden until the held change itself changes", () => {
+    const [a] = inventoryLinkAlerts(state([hold]));
+    expect(a.detail).toContain("Injured");
+    expect(alertSignature(inventoryLinkAlerts(state([hold]))[0])).toBe(alertSignature(a));
+    expect(alertSignature(inventoryLinkAlerts(state([{ ...hold, to: 41 }]))[0])).not.toBe(alertSignature(a));
+    expect(alertSignature(inventoryLinkAlerts(state([hold, { ...hold, bookId: "b2", title: "Salt" }]))[0])).not.toBe(alertSignature(a));
+  });
+});

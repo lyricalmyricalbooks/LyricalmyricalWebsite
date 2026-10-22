@@ -4,8 +4,13 @@ import { IconButton, PrimaryButton, SecondaryButton } from "./riso/components";
 import { alertRoute, alertSignature, type AdminAlert, type AlertRoute } from "./adminAlerts";
 
 const KEY = "admin-dismissed-alerts";
+/** Hidden alerts are remembered in this browser (not just this tab), newest last, so closing one keeps it closed. */
+const KEEP = 200;
 const readDismissed = (): string[] => {
-  try { return JSON.parse(sessionStorage.getItem(KEY) || "[]"); } catch { return []; }
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || "[]");
+    return Array.isArray(saved) ? saved.filter((s) => typeof s === "string") : [];
+  } catch { return []; }
 };
 
 /** How many alerts show before the rest fold behind "Show N more". */
@@ -19,8 +24,8 @@ const ACTION_LABEL: Record<string, string> = {
   payments: "Open Payments", webhook: "Open webhook health", order: "Open order",
 };
 
-// Alerts shown above every admin page. Dismissing hides an alert for this browser
-// session until a new order joins it. Urgent ones come first; past two the rest fold away.
+// Alerts shown above every admin page. Dismissing hides an alert in this browser until
+// a new order (or new change) joins it. Urgent ones come first; past two the rest fold away.
 export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, onOpenNotifications, onOpenGeneral, onOpenInventory, onOpenRoute, onRetry }: {
   alerts: AdminAlert[];
   onOpenOrder: (id: string) => void;
@@ -43,9 +48,9 @@ export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, 
   if (!visible.length) return null;
 
   const dismiss = (a: AdminAlert) => {
-    const next = [...dismissed, alertSignature(a)];
+    const next = [...dismissed.filter((s) => s !== alertSignature(a)), alertSignature(a)].slice(-KEEP);
     setDismissed(next);
-    try { sessionStorage.setItem(KEY, JSON.stringify(next)); } catch { /* private mode */ }
+    try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* private mode */ }
   };
   const run = (a: AdminAlert) => {
     const route = onOpenRoute && alertRoute(a);
