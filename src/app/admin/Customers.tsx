@@ -235,7 +235,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
         <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
       </FilterBar>
       <SectionCard flush collapsible={false} title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · paid orders only, refunds taken off.`}>
-        <DataTable caption="Customers" columns={columns} rows={pageRows} rowKey={(c) => c.key} onRowClick={openCustomer}
+        <DataTable stackOnPhone caption="Customers" columns={columns} rows={pageRows} rowKey={(c) => c.key} onRowClick={openCustomer}
           empty={all.length === 0
             ? <EmptyState title="No customers yet" description="Customers appear here after their first paid order." />
             : <EmptyState title="No customers match" description="Try another segment, search or filter."

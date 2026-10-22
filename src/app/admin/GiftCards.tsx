@@ -401,7 +401,7 @@ export function GiftCards({ openId, onOpened }: { openId?: string | null; onOpen
             {issueButton}
           </FilterBar>
           <SectionCard flush collapsible={false} title="Gift cards" description={`${rows.length} of ${cards.length}. Open one to see its code, change it or resend it.`}>
-            <DataTable caption="Gift cards" columns={columns} rows={rows} rowKey={(r) => r.card.id} onRowClick={(r) => setSelectedId(r.card.id)}
+            <DataTable stackOnPhone caption="Gift cards" columns={columns} rows={rows} rowKey={(r) => r.card.id} onRowClick={(r) => setSelectedId(r.card.id)}
               empty={<EmptyState title="No gift cards match" description="Try a different status or search."
                 action={<SecondaryButton onClick={() => { setFilter("all"); setSearch(""); }}>Reset filters</SecondaryButton>} />} />
           </SectionCard>

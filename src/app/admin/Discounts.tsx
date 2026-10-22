@@ -522,7 +522,7 @@ export function Discounts() {
             <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setEditing(null); setDialogOpen(true); }}>New discount</PrimaryButton>
           </FilterBar>
           <SectionCard flush collapsible={false} title="Discounts" description={`${rows.length} of ${discounts.length} · one discount per order, the biggest saving wins.`}>
-            <DataTable caption="Discounts" columns={columns} rows={rows} rowKey={d => d.id}
+            <DataTable stackOnPhone caption="Discounts" columns={columns} rows={rows} rowKey={d => d.id}
               empty={<EmptyState title="No codes match" description="Try a different status or search."
                 action={<SecondaryButton onClick={() => { setFilter("all"); setSearch(""); }}>Reset filters</SecondaryButton>} />} />
           </SectionCard>
