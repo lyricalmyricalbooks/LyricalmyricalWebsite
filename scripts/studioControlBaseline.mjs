@@ -23,3 +23,12 @@ export function writeBaseline(controls, dir = BASELINE_DIR) {
   }
   for (const id of Object.keys(old)) if (!(id in controls)) unlinkSync(new URL(fileOf(id), dir));
 }
+
+// A branch started before the split that still edits scripts/studio-control-baseline.json: after merging main,
+// `node scripts/studioControlBaseline.mjs scripts/studio-control-baseline.json` copies its entries into the
+// per-control files (adding and changing, never removing), then delete the .json.
+if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href && process.argv[2]) {
+  const { controls } = JSON.parse(readFileSync(process.argv[2], "utf8"));
+  writeBaseline({ ...readBaseline(), ...controls });
+  console.log(`Copied ${Object.keys(controls).length} controls into scripts/studio-control-baseline/`);
+}

@@ -1013,7 +1013,8 @@ it. Don't add new compat rules for new work; compose the components instead.
   **Faster merging (22 October 2026):** browser jobs set up Chromium with `.github/actions/chromium` (cached browser; apt
   packages only when `ldd` finds one missing — `--with-deps` sometimes hung 10 min). Section fields are dealt across all
   control shards. The control baseline is one file per control in `scripts/studio-control-baseline/` (`~` for `:`), read
-  and written only through `scripts/studioControlBaseline.mjs`, so parallel PRs adding controls never conflict.
+  and written only through `scripts/studioControlBaseline.mjs`, so parallel PRs adding controls never conflict. A branch that still edits the old `.json`: merge main, run
+  `node scripts/studioControlBaseline.mjs scripts/studio-control-baseline.json`, then delete the `.json`.
 - **Shopper click-through:** CI job `storefront-smoke` (same pull requests as the Studio checks) serves `vite build` and runs
   `pnpm run test:storefront` (`scripts/storefront-smoke.mjs`): home, book page, add to bag, checkout, collection, wishlist,
   tracking, account, admin sign-in, 404, search and phone against the live published catalog. It fails on a page error,
