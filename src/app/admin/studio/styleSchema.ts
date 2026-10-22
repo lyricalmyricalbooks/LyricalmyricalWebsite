@@ -53,6 +53,7 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Bag suggestion": /^(cartDrawer(ShowUpsell|UpsellShadow|Surface|GrayscaleThumbs))/,
   "Empty bag": /^cartDrawer(ShowEmpty|Empty)/,
   "Bag discount code": /^cartDrawer(ShowDiscountCode|Surface|Border|Muted)$/,
+  "Bag order note": /^cartDrawer(ShowOrderNote|Surface|Border|Muted)$/,
   "Added-to-bag notice": /^(cartAdd(Action|NoticeSeconds)$|cartDrawer(Side|Bg|Text|Muted|Surface|Edge|Checkout|Meta|Title|Thumb))/,
   "Bag total & checkout": /^(cartDrawer(ShowSummary|TotalSize|Checkout|ShowCheckoutArrow|ShowDeliveryNote|Show(Secure|Tracked|Returns)Badge)|showCartTrustBadges)/,
 };
@@ -799,6 +800,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "cartDrawerShowCheckoutArrow", label: "Arrow on the checkout button", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowShippingPreview", label: "Shipping cost preview in cart", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowDiscountCode", label: "Discount code box above the total (“Have a discount code?” — the code is filled in and checked at checkout; words: Text & labels › Cart)", kind: "toggle", defaultValue: false },
+      { key: "cartDrawerShowOrderNote", label: "Order note box above the total (“Add a note to your order” — also turns on the order note box at checkout, where it is sent with the order; words: Text & labels › Cart)", kind: "toggle", defaultValue: false },
       { key: "cartDrawerShowDeliveryNote", label: "Delivery note under the button", kind: "toggle", defaultValue: true },
       // Empty bag
       { key: "cartDrawerShowEmptyIcon", label: "Bag icon when the bag is empty", kind: "toggle", defaultValue: true },

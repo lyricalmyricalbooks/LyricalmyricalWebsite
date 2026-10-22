@@ -62,6 +62,7 @@ import { bagPreorder, linePreorderNote, formatReleaseDate } from "./features/sit
 import { discountAmountFor, discountableItems, pickAutomaticDiscount } from "./features/site/discountMath";
 import { expandDiscountCategories } from "./features/site/discountCategories";
 import { clearSharedDiscount, sharedDiscount } from "./features/site/sharedDiscount";
+import { bagNote, orderNoteBoxOn, rememberBagNote } from "./features/site/bagNote";
 import { isGiftCardProduct, bundleComponents, bundleWeightGrams } from "./features/site/promotions";
 import { isLiveBook } from "./features/site/liveBook";
 import { previewSampleCart } from "./features/site/previewSampleCart";
@@ -271,7 +272,9 @@ export function Checkout() {
   const submitPurchase = useRef(createCheckoutSubmission());
   const purchaseNavigating = useRef(false);
   const serverSaysFree = useRef(false);
-  const [orderNote, setOrderNote] = useState("");
+  // Starts from the bag's note (Style › Cart drawer › Order note box) and keeps it in step.
+  const [orderNote, setOrderNoteState] = useState(() => bagNote());
+  const setOrderNote = (value: string) => setOrderNoteState(rememberBagNote(value));
   // Style › Checkout › policy tick box (off by default): Pay and the express wallet wait for it.
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsError, setTermsError] = useState(false);
@@ -1405,7 +1408,7 @@ export function Checkout() {
         customerId: currentUser?.uid || null,
         referralSource: (referralSource || "direct").slice(0, 200),
         ...(acquisition ? { acquisition } : {}),
-        ...(checkoutDesign.showOrderNote && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
+        ...(orderNoteBoxOn(checkoutDesign) && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
         addressVerified,
         addressError,
         items: cart.map(item => ({
@@ -1497,7 +1500,7 @@ export function Checkout() {
               referralSource: orderData.referralSource,
               ...(acquisition ? { acquisition } : {}),
               ...(appliedDiscount?.code ? { appliedDiscount: { code: appliedDiscount.code } } : {}),
-              ...(checkoutDesign.showOrderNote && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
+              ...(orderNoteBoxOn(checkoutDesign) && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
             },
           }),
         });
@@ -2146,7 +2149,7 @@ export function Checkout() {
             </section>
             )}
 
-            {checkoutDesign.showOrderNote && (
+            {orderNoteBoxOn(checkoutDesign) && (
               <section data-studio-target="style:checkout|copy:Checkout" data-studio-label="Order note">
                 <label htmlFor="checkout-order-note" className="text-sm font-medium text-slate-900">{c("coOrderNote")}</label>
                 <p className="mt-1 text-xs leading-5 text-slate-500">{c("coOrderNoteHelp")}</p>
