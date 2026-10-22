@@ -7,7 +7,7 @@
 //   AUDIT_ONLY=type,header node scripts/...               (only these Style categories)
 //   AUDIT_OUT=file.json                                   (where the results go)
 //   CHROMIUM_PATH=/path/to/chrome                         (use an installed Chromium)
-//   AUDIT_CHECK=1                                         (CI: compare with scripts/studio-control-baseline.json and
+//   AUDIT_CHECK=1                                         (CI: compare with scripts/studio-control-baseline/ and
 //                                                          fail when a control that worked stops, or a new one isn't listed)
 //   AUDIT_UPDATE=1                                        (rewrite the baseline from this run, keeping its reasons)
 //   AUDIT_SHARD=2/4                                       (CI: this machine's share of the controls; each shard opens its
@@ -17,10 +17,10 @@
 // "dom-only" (markup changed, nothing drawn), "none" (nothing at all happened).
 import { chromium } from "playwright";
 import { createServer } from "vite";
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
+import { readBaseline, writeBaseline } from "./studioControlBaseline.mjs";
 
-const BASELINE_FILE = new URL("./studio-control-baseline.json", import.meta.url);
-const baselineFile = (process.env.AUDIT_CHECK || process.env.AUDIT_UPDATE) ? JSON.parse(readFileSync(BASELINE_FILE, "utf8")) : null;
+const baselineFile = (process.env.AUDIT_CHECK || process.env.AUDIT_UPDATE) ? { controls: readBaseline() } : null;
 const RANK = { none: 0, "dom-only": 1, "css-only": 2, visible: 3 };
 /** What the baseline expects of a control: its result, or "none" with the reason it can't show on the fixture. */
 const expected = (id) => {
@@ -275,18 +275,21 @@ if (!only.length || only.includes("sections")) {
   }, TYPES);
   const sections = registry.map((r, i) => ({ id: "audit-" + i, type: r.type, settings: JSON.parse(JSON.stringify(r.defaults)) }));
   const rank = { none: 0, "dom-only": 1, "css-only": 2, visible: 3 };
-  // Section fields go one device per shard, counting from the last shard (the first ones also take the leftover controls).
-  for (const [devNo, dev] of ["desktop", "tablet", "mobile"].entries()) {
-    if (!inShard(shardCount - 1 - devNo % shardCount)) continue;
-    const list = sectionFields.filter(f => f.kind !== "date" && f.key !== "customClass"
+  // Section fields are dealt out one by one across the shards (all devices together), so no shard gets a whole device.
+  let sectionNo = 0;
+  for (const dev of ["desktop", "tablet", "mobile"]) {
+    const fields = sectionFields.filter(f => f.kind !== "date" && f.key !== "customClass"
       && (/^mobile/.test(f.key) || f.key === "hideOnMobile" ? "mobile" : f.key === "hideOnTablet" ? "tablet" : "desktop") === dev);
-    if (!list.length) continue;
+    const mine = new Set(sections.flatMap(s => fields.map(f => s.id + "|" + f.key)).filter(() => inShard(sectionNo++)));
+    if (!mine.size) continue;
+    const list = fields;
     await go("/", null, dev);
     const d = { ...baselineState.design, showHero: true, heroPage: { ...(baselineState.design.heroPage || {}), sections } };
     await send(d);
     await page.waitForTimeout(1500);
     await baseline();
     for (const s of sections) for (const f of list) {
+      if (!mine.has(s.id + "|" + f.key)) continue;
       let best = { status: "none", value: null };
       const id = sectionId(s.type, f.key, dev), want = expected(id);
       for (const wait of want ? [350, 1200] : [350]) {
@@ -326,7 +329,7 @@ if (process.env.AUDIT_UPDATE) {
     const old = baselineFile.controls[idOf(r)];
     controls[idOf(r)] = r.status !== "none" ? r.status : (old && String(old).startsWith("none: ") ? old : "none: TODO say why this control can't show on the fixture page");
   }
-  writeFileSync(BASELINE_FILE, JSON.stringify({ ...baselineFile, controls: Object.fromEntries(Object.entries(controls).sort()) }, null, 1) + "\n");
+  writeBaseline(controls);
   console.log(`Baseline updated: ${Object.keys(controls).length} controls`);
 }
 if (process.env.AUDIT_CHECK) {
@@ -335,7 +338,7 @@ if (process.env.AUDIT_CHECK) {
     const want = expected(idOf(r));
     const name = `${r.groupTitle} › ${r.label} (${idOf(r)})`;
     if (r.status === "error") problems.push(`${name}: the check itself failed: ${r.error}`);
-    else if (want == null) problems.push(`${name}: new control with no entry in scripts/studio-control-baseline.json (run with AUDIT_UPDATE=1, then give a reason if it shows nothing)`);
+    else if (want == null) problems.push(`${name}: new control with no entry in scripts/studio-control-baseline/ (run with AUDIT_UPDATE=1, then give a reason if it shows nothing)`);
     else if (RANK[r.status] < RANK[want]) problems.push(`${name}: used to change the preview (${want}), now ${r.status}`);
   }
   const better = results.filter(r => expected(idOf(r)) === "none" && r.status !== "none").map(r => idOf(r));

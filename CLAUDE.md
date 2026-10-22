@@ -713,7 +713,7 @@ renders into `<body>` (`createPortal`, inside a `data-fm-store` wrapper). Dots u
 > [!IMPORTANT]
 > **Studio controls must reach the shop (16 October 2026, after an audit found ~30 dead controls).** A control that
 > exists only in the schema, or whose CSS another rule beats, is a bug the owner finds by clicking it. Rules:
-> - **Every control is in `scripts/studio-control-baseline.json`** with what it does to the Studio fixture preview
+> - **Every control is in `scripts/studio-control-baseline/ (one file per control)`** with what it does to the Studio fixture preview
 >   (`visible` / `css-only` / `dom-only`), or `none: <reason>` naming the state or setting it needs (a full bag, hover,
 >   another switch). `studioControlBaseline.test.ts` fails on a missing, stale or reasonless entry; CI job
 >   **studio-controls** (`pnpm run test:studio-controls`, ~15 min) changes every control in the browser and fails when one
@@ -1010,6 +1010,10 @@ it. Don't add new compat rules for new work; compose the components instead.
   under the old check names. They run on pull requests only (a push to main runs `test`), and a PR touching only
   `functions/`, `docs/`, release notes, rules or root `*.md` passes them at once (`changes` job). Every check must stay
   independent (its own page); a new check is placed on a shard by its position, so nothing to update.
+  **Faster merging (22 October 2026):** browser jobs set up Chromium with `.github/actions/chromium` (cached browser; apt
+  packages only when `ldd` finds one missing — `--with-deps` sometimes hung 10 min). Section fields are dealt across all
+  control shards. The control baseline is one file per control in `scripts/studio-control-baseline/` (`~` for `:`), read
+  and written only through `scripts/studioControlBaseline.mjs`, so parallel PRs adding controls never conflict.
 - **Shopper click-through:** CI job `storefront-smoke` (same pull requests as the Studio checks) serves `vite build` and runs
   `pnpm run test:storefront` (`scripts/storefront-smoke.mjs`): home, book page, add to bag, checkout, collection, wishlist,
   tracking, account, admin sign-in, 404, search and phone against the live published catalog. It fails on a page error,

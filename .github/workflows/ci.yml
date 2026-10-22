@@ -133,7 +133,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm exec playwright install --with-deps chromium
+      - uses: ./.github/actions/chromium
 
       - run: pnpm exec vite build
 
@@ -166,7 +166,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm exec playwright install --with-deps chromium
+      - uses: ./.github/actions/chromium
 
       - name: Studio browser checks
         run: pnpm run test:studio
@@ -183,7 +183,7 @@ jobs:
 
   studio-controls-shard:
     # Changes every Studio control in the fixture's preview of the live design and fails when one that used to
-    # change the page no longer does, or a new control has no entry in scripts/studio-control-baseline.json
+    # change the page no longer does, or a new control has no entry in scripts/studio-control-baseline/ (one file per control)
     # (CLAUDE.md › Studio controls must reach the shop). Each machine checks every fourth control.
     name: studio-controls ${{ matrix.shard }}/4
     needs: changes
@@ -208,7 +208,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm exec playwright install --with-deps chromium
+      - uses: ./.github/actions/chromium
 
       - name: Every Studio control still reaches the preview
         run: node scripts/studio-control-audit.mjs
