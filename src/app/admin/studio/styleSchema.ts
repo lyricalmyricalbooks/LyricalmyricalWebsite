@@ -316,6 +316,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "announcementTracking", label: "Announcement letter spacing", kind: "range", min: 0, max: 0.5, step: 0.02, suffix: "em" },
       { key: "announcementSpeed", label: "Ticker speed (seconds per loop)", kind: "range", min: 5, max: 90, step: 1 },
       { key: "announcementRotateSeconds", label: "Seconds each message shows (several messages)", kind: "range", min: 2, max: 20, step: 1, suffix: "s", defaultValue: 5 },
+      { key: "announcementCountdown", label: "Announcement countdown (“Ends in 5h 12m” after a message in its last hours; needs Announcement messages › Show until; words: Text & labels › Header)", kind: "toggle", defaultValue: false },
+      { key: "announcementCountdownWithin", label: "Announcement countdown: start counting this many hours before the message ends", kind: "number", min: 1, max: 336, step: 1, defaultValue: 72 },
       { key: "navStyle", label: "Nav link style", kind: "select", options: [{ value: "default", label: "Plain" }, { value: "stickers", label: "Sticker pills" }] },
       { key: "showMobileNavigation", label: "Show phone navigation", kind: "toggle", defaultValue: true },
       { key: "phoneCompactHeader", label: "Compact header on phones (thin announcement line, one-line logo, search & bag)", kind: "toggle", defaultValue: true },

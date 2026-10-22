@@ -43,7 +43,7 @@ export function shopDay(now = new Date()): string {
  * Announcement messages) only the ones inside their show-from / show-until days count; without a
  * list, the single Announcement text is used, as before.
  */
-export function activeAnnouncements(design: any, now = new Date()): { text: string; link?: string }[] {
+export function activeAnnouncements(design: any, now = new Date()): { text: string; link?: string; until?: string }[] {
   const list: Announcement[] = Array.isArray(design?.announcements) ? design.announcements : [];
   if (!list.length) {
     const text = typeof design?.announcementText === "string" ? design.announcementText : "";
@@ -53,7 +53,7 @@ export function activeAnnouncements(design: any, now = new Date()): { text: stri
   return list
     .filter(a => a && typeof a.text === "string" && a.text.trim())
     .filter(a => (!a.from || a.from <= day) && (!a.until || a.until >= day))
-    .map(a => ({ text: a.text, ...(a.link ? { link: a.link } : {}) }));
+    .map(a => ({ text: a.text, ...(a.link ? { link: a.link } : {}), ...(a.until ? { until: a.until } : {}) }));
 }
 
 // ── Pop-up group ───────────────────────────────────────────────────────────────────────────────
