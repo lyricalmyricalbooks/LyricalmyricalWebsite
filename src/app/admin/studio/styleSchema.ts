@@ -374,6 +374,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showFooterConnect", label: "Show Participate & connect link group", kind: "toggle", defaultValue: true },
       { key: "showFooterLegalHeading", label: "Show legal row heading", kind: "toggle", defaultValue: true },
       { key: "showFooterLocation", label: "Show footer location", kind: "toggle", defaultValue: true },
+      { key: "showBackToTop", label: "Show a “Back to top” button once shoppers scroll down", kind: "toggle", defaultValue: false },
+      { key: "backToTopPosition", label: "Back to top button corner", kind: "select", defaultValue: "right", options: [{ value: "right", label: "Bottom right" }, { value: "left", label: "Bottom left" }] },
       { key: "footerColumns", label: "Multi-column footer", kind: "toggle" },
       { key: "footerLayout", label: "Footer columns", kind: "select", options: [{ value: "3col", label: "3 columns" }, { value: "4col", label: "4 columns (with location)" }] },
       { key: "footerBg", label: "Footer background", kind: "color" },
