@@ -31,7 +31,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "footerBottom", label: "Footer bottom bar", copy: "Footer" },
     { id: "footerAdmin", label: "Footer admin link", copy: "Footer" },
   ] },
-  { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx", "features/site/PickupAvailability.tsx"], regions: [
+  { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx", "features/site/PickupAvailability.tsx", "features/site/PdpFreeShipping.tsx"], regions: [
     { id: "productDescription", label: "Book description" }, { id: "productSpecs", label: "Book specifications" },
     { id: "productReviews", label: "Book reviews" },
     { id: "productSaleEnds", label: "Sale end date (under the price)" },
@@ -39,6 +39,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "productSaveBadge", label: "Sale savings badge (Save …)" },
     { id: "productAddOns", label: "Extras (signed copy, inscription, gift wrap)" },
     { id: "productBoxSet", label: "Box set contents" },
+    { id: "productFreeShipping", label: "Free-shipping line (under the buy buttons)" },
     { id: "productPickup", label: "Pickup availability (under the buy buttons)" },
     { id: "productGiftCardForm", label: "Gift card recipient form" },
     { id: "relatedBooks", label: "Recommended books row" },

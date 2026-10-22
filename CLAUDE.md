@@ -1899,6 +1899,15 @@ nothing while pickup is off or fails `validateLocalFulfillment`, and only for ph
 (`catalogFulfillmentItems`); hidden when sold out or Coming soon. Display only: checkout still decides pickup choices and prices.
 Words: Text & labels › Product page (`pdpPickup*`).
 
+## Free-shipping line on book pages (22 October 2026)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **Free-shipping line** (`showPdpFreeShipping`, off by default)
+draws "Free shipping on orders over {threshold}" under the buy buttons (`features/site/PdpFreeShipping.tsx`, region
+`productFreeShipping`), switching to "Add {amount} more…" / "Your order ships free" from the printed books already in the bag.
+Pure `pdpFreeShipping` (`pdpFreeShipping.ts`) uses the bag bar's rule (`shopFreeShipThreshold`, `shippableBagTotal`) and
+checkout's physical rule (`isPickupItem`); hidden for e-books, gift cards, sold-out and Coming soon. Display only.
+Words: Text & labels › Product page (`pdpFreeShip*`).
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the
