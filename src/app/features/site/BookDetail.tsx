@@ -47,6 +47,7 @@ import BackInStockForm from "./BackInStockForm";
 import PickupAvailability from "./PickupAvailability";
 import { pickupSpots } from "./pickupAvailability";
 import PdpFreeShipping from "./PdpFreeShipping";
+import SaleEndsLine from "./SaleEndsLine";
 import { pdpFreeShipping } from "./pdpFreeShipping";
 import { pdpPolicyEntries } from "./pdpPolicyTab";
 import { policyHtml, policySlug, policyTitle } from "./policyPages";
@@ -984,9 +985,7 @@ export default function BookDetail() {
                       )}
                     </div>
                     {saleEnds && !isOutOfStock && regionVisible(regionDesign, "productSaleEnds") && (
-                      <span {...regionProps("productSaleEnds")} className="fm-pdp-meta fm-pdp-sale-ends">
-                        {getCopy(settings?.design, "pdpSaleEnds", { date: formatReleaseDate(saleEnds) })}
-                      </span>
+                      <SaleEndsLine endDate={saleEnds} design={settings?.design} look={storefrontDesign} />
                     )}
                     {pdpShowStock && !isGiftCard && (
                       <span className="fm-pdp-meta fm-pdp-stock" data-state={isComingSoon ? "soon" : isOutOfStock ? "out" : isPreorder ? "preorder" : isLowStock ? "low" : "in"}>

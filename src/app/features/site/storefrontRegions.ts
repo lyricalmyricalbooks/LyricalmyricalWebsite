@@ -32,7 +32,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "footerAdmin", label: "Footer admin link", copy: "Footer" },
     { id: "footerBackToTop", label: "Back to top button", copy: "Footer" },
   ] },
-  { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx", "features/site/PickupAvailability.tsx", "features/site/PdpFreeShipping.tsx"], regions: [
+  { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx", "features/site/PickupAvailability.tsx", "features/site/PdpFreeShipping.tsx", "features/site/SaleEndsLine.tsx"], regions: [
     { id: "productDescription", label: "Book description" }, { id: "productSpecs", label: "Book specifications" },
     { id: "productReviews", label: "Book reviews" },
     { id: "productSaleEnds", label: "Sale end date (under the price)" },

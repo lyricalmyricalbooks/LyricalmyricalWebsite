@@ -1944,6 +1944,15 @@ its own `top` after an 8 px move down once the page has passed the header and ba
 `aria-expanded="true"` control is inside it. It writes only the header's transform, `data-fm-header-hidden` and
 `--fm-header-offset` (0px while hidden). No words, no rules, no Functions.
 
+## Sale countdown on book pages (22 October 2026)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **Sale countdown** (`showPdpSaleCountdown`, off by default) +
+`pdpSaleCountdownWithin` (hours, default 72): in a dated sale's last hours the "Sale ends {date}" line under the price
+(`features/site/SaleEndsLine.tsx`, region `productSaleEnds`) counts down to the real end, midnight Toronto after `saleEndsAt`
+(pure `saleCountdown.ts`), ticking every 30 s, and hides once the sale has ended. The clock starts after mount, so the prerender
+keeps the date line. Display only (the server's `saleActive` still decides the price). Words: Text & labels › Product page
+(`pdpSaleCountdownDays/Hours/Minutes`).
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the
