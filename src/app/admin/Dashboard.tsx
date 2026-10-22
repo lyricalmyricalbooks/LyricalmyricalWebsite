@@ -549,11 +549,11 @@ export function Dashboard() {
             onSelect={(id) => { if (id.startsWith(SETTINGS_ITEM_PREFIX)) void openSettingsPage(id.slice(SETTINGS_ITEM_PREFIX.length)); else void goTo(id); }}
             onSelectChild={goToChild}
             brand={
-              <a className="rp-brand-link" href="#overview" aria-label="Lyricalmyrical back office: go to Overview"
+              <a className="rp-brand-link" href="#overview" aria-label="Lyricalmyrical website admin: go to Overview"
                 onClick={(e) => { e.preventDefault(); setSidebarOpen(false); void goTo("overview"); }}>
                 <span className="rp-brand-text">
                   <span className="rp-wordmark">Lyrical<em>myrical</em></span>
-                  <span className="rp-wordmark-sub">Back office</span>
+                  <span className="rp-wordmark-sub">Website admin</span>
                 </span>
               </a>
             }

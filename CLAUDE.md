@@ -917,7 +917,7 @@ shadows by day, warm-grey night mode, Anton / Archivo / DM Mono, status = glyph 
 If tokens change there, update `riso.css` to match.
 
 **Pressroom (22 October 2026, Julian's concept A, https://claude.ai/artifact/AR9vcvX5mR5JNCDHeBpFte):** the last layer of
-`riso.css` ("Pressroom") restyles the whole admin: cream page, 232px ink rail (`--rp-rail*`; nav icons hidden, active item
+`riso.css` ("Pressroom") restyles the whole admin: cream page, 232px ink rail (`--rp-rail*`; "Website admin" under the wordmark, 16px line icons in one column (faint, label colour on hover/current), active item
 cream, `data-nav` on each item, Orders badge red), 64px top bar with a hairline (search, "Shop open" as glyph + word, round
 ink avatar), 72px Anton titles, 40px underlined page tabs, figures as a ledger (2px ink rule over mono labels/36px mono
 values), cards as flat sheets (1px border + 2px ink top rule, no shadow; every `--rp-shadow*` is `none` except
