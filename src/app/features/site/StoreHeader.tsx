@@ -22,6 +22,7 @@ import { getPublishedBooks } from "./selectors";
 import { getCopy } from "./storeCopy";
 import { HOME_LINK_STATE } from "./homeLink";
 import { useHeaderOffset } from "./headerOffset";
+import { HEADER_REVEAL_CSS, useHeaderReveal } from "./headerReveal";
 import { useStudioOverlay } from "./studioOverlay";
 import { activeAnnouncements } from "./sectionGroups";
 import { elementScheme } from "./colorSchemes";
@@ -377,6 +378,9 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
   const line = navLineProps(storefront, navBelow, navFit);
   const headerRef = useRef<HTMLElement>(null);
   useHeaderOffset(headerRef, String(storefront.stickyHeader ?? true));
+  // Style › Header layout › "Hide the header while scrolling down" (off by default): only for a sticky header.
+  const revealOnScrollUp = (storefront.stickyHeader ?? true) && storefront.stickyHeaderHideOnScroll === true;
+  useHeaderReveal(headerRef, revealOnScrollUp);
   const routed = (to: string, label: string, key: string): Target => ({ key, label, to, active: location.pathname.endsWith(to) });
   const navBar = (
     <CategoryBar
@@ -396,6 +400,7 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
   return (
     <>
       <AnnouncementBar design={storefront} show={storefront.showAnnouncement ?? false} shop={false} />
+      {revealOnScrollUp && <style>{HEADER_REVEAL_CSS}</style>}
       <header
         data-section="navigation"
         data-studio-target="style:header|menus:header-order|copy:Header"
@@ -508,6 +513,8 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const announcementShown = showAnnouncement && activeAnnouncements({ ...sf, announcementText: sf?.announcementText ?? shop.announcement }).length > 0;
   const headerRef = useRef<HTMLElement>(null);
   useHeaderOffset(headerRef, `${sf?.stickyHeader ?? true}|${announcementShown}`);
+  const revealOnScrollUp = (sf?.stickyHeader ?? true) && sf?.stickyHeaderHideOnScroll === true;
+  useHeaderReveal(headerRef, revealOnScrollUp);
 
   // Theme settings › Colour schemes › Header: while the header follows a scheme, its colours replace the header's own
   // (a transparent header stays see-through until the page scrolls).
@@ -544,6 +551,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   return (
     <>
       {stickers && <style>{STICKER_PILL_CSS}</style>}
+      {revealOnScrollUp && <style>{HEADER_REVEAL_CSS}</style>}
       <AnnouncementBar design={sf} show={showAnnouncement} fallback={shop.announcement} shop />
       <header
         data-section="navigation"

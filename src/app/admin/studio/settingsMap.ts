@@ -150,7 +150,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Text wordmark", keys: ["logoText", "wordmarkStyle", "wordmarkPrimary", "wordmarkSecondary", "wordmarkSecondaryMuted", "wordmarkSecondaryColor", "wordmarkSize", "wordmarkWeight"] },
   ],
   header: [
-    { title: "Header layout", keys: ["headerStyle", "logoPosition", "logoHeight", "stickyHeader", "transparentHeader", "navStyle", "showMobileNavigation", "phoneCompactHeader", "mobileNavStyle", "mobileNavTabSize", "showSecondaryNavigation", "showStoreChromeOnUtilityPages"] },
+    { title: "Header layout", keys: ["headerStyle", "logoPosition", "logoHeight", "stickyHeader", "stickyHeaderHideOnScroll", "transparentHeader", "navStyle", "showMobileNavigation", "phoneCompactHeader", "mobileNavStyle", "mobileNavTabSize", "showSecondaryNavigation", "showStoreChromeOnUtilityPages"] },
     { title: "Header colours", keys: ["headerBg", "headerColor"] },
     { title: "Announcement bar", keys: ["showAnnouncement", "announcementText", "announcementBg", "announcementColor", "announcementScrolling", "announcementFontSize", "announcementWeight", "announcementTracking", "announcementSpeed", "announcementRotateSeconds"] },
     { title: "Icons & buttons in the header", keys: ["hideHeaderSearch", "hideHeaderWishlist", "hideHeaderAccount", "hideCurrencySelector", "hideThemeToggle", "hideAdminLink", "hideCartButton"] },
