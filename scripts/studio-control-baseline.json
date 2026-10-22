@@ -8,6 +8,8 @@
   "announcementBg": "visible",
   "announcementColor": "visible",
   "announcementFontSize": "visible",
+  "announcementCountdown": "none: needs an announcement message with a Show until day in the next few days",
+  "announcementCountdownWithin": "none: needs Announcement countdown on and a message with a Show until day",
   "announcementRotateSeconds": "none: needs two or more announcement messages",
   "announcementScrolling": "visible",
   "announcementSpeed": "none: only for the scrolling announcement bar (off in the live design)",

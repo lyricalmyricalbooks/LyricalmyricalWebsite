@@ -58,3 +58,24 @@ describe("announcement bar messages", () => {
     expect(bar()?.querySelector("[data-studio-edit-value]")).not.toBeNull();
   });
 });
+
+describe("announcement countdown", () => {
+  const ending = { showAnnouncement: true, announcements: [{ id: "1", text: "Sale today", until: "2026-10-09" }] };
+  it("adds nothing while the switch is off (default)", async () => {
+    await mount(ending);
+    expect(bar()?.textContent).toBe("Sale today");
+    expect(bar()?.querySelector(".fm-announce-countdown")).toBeNull();
+  });
+  it("counts down to the end of the Show until day and keeps ticking", async () => {
+    await mount({ ...ending, announcementCountdown: true });
+    expect(bar()?.querySelector(".fm-announce-countdown")?.textContent).toBe("Ends in 12h 0m");
+    expect(bar()?.querySelector(".fm-announce-countdown")?.getAttribute("translate")).toBe("no");
+    await act(async () => { vi.advanceTimersByTime(11.5 * 3_600_000); });
+    expect(bar()?.querySelector(".fm-announce-countdown")?.textContent).toBe("Ends in 30 min");
+  });
+  it("waits until the message is inside the window and uses Text & labels words", async () => {
+    await mount({ showAnnouncement: true, announcementCountdown: true, announcementCountdownWithin: 24, copy: { announceEndsDays: "Last {days} days" },
+      announcements: [{ id: "1", text: "Far off", until: "2026-10-20" }] });
+    expect(bar()?.querySelector(".fm-announce-countdown")).toBeNull();
+  });
+});

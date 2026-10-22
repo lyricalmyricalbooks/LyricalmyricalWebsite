@@ -2018,6 +2018,15 @@ gift-card lines): the line leaves the bag and the book joins the wishlist (`useW
 takes the book off the wishlist only if the button added it. No-op on the Studio preview's sample line. Words: Text & labels › Cart ›
 Save for later (`cartSave*`; Undo reuses `cartRemovedUndo`). Display/bag only; no rules or Functions.
 
+## Announcement countdown (22 October 2026)
+
+Studio › Style › Header & announcement bar › Announcement bar › **Announcement countdown** (`announcementCountdown`, off by default) +
+`announcementCountdownWithin` (hours, default 72): a message from Announcement messages with a **Show until** day gets "Ends in 5h 12m"
+after it (`.fm-announce-countdown`, `translate="no"`) in its last hours, counting to midnight Toronto after that day (pure
+`features/site/announcementCountdown.ts`, reusing `saleCountdown`; `activeAnnouncements` now passes `until`). Static, rotating and ticker
+bars all show it; the clock starts after mount (never in the prerender) and ticks every 30 s. The single Announcement text has no end day,
+so no countdown. Words: Text & labels › Header (`announceEnds*`). Display only.
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the
