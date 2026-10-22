@@ -1979,6 +1979,14 @@ the code with `rememberDiscountCode` (`features/site/sharedDiscount.ts`, same ta
 and a remembered code shows with Remove. Checkout's shared-code effect fills and checks it like a typed code; the bag never
 validates or prices it (no server call, no saving shown). Words: Text & labels › Cart › Discount code box (`cartCode*`).
 
+## Order note in the bag (22 October 2026)
+
+Studio › Style › Cart drawer (shopping bag) › Total & checkout button › **Order note box** (`cartDrawerShowOrderNote`, off by
+default) draws `components/CartOrderNote.tsx` above the bag total: "Add a note to your order" saves the text for the tab as typed
+(`features/site/bagNote.ts`, ≤500 characters, blank removes). Checkout's order-note box shows when `orderNoteBoxOn(design)`
+(`showOrderNote` or this switch), starts from the bag note and keeps it in step; only that box sends `orderNote` (same rules limit,
+same retry key). `clearCart` forgets the note. Words: Text & labels › Cart › Order note box (`cartNote*`).
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the

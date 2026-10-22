@@ -89,6 +89,10 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "cartCodeRemove", label: "Discount code box · Remove", default: "Remove" },
       { key: "cartCodeInvalid", label: "Discount code box · Not a code", default: "Discount codes are 3 to 32 letters, numbers, dashes or underscores." },
 
+      { key: "cartNoteToggle", label: "Order note box · Opener", default: "Add a note to your order", hint: "Shown when Style › Cart drawer › Total & checkout button › Order note box is on." },
+      { key: "cartNoteLabel", label: "Order note box · Field label", default: "Order note or gift message" },
+      { key: "cartNoteHelp", label: "Order note box · Help text", default: "You'll see it again at checkout. Up to {max} characters.", hint: "Use {max} for the character limit." },
+
       { key: "cartTitle", label: "Cart heading", default: "Shopping Bag" },
       { key: "cartEmpty", label: "Empty cart message", default: "The archive is empty." },
       { key: "cartTotalLabel", label: "Total label", default: "Estimated total" },

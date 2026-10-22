@@ -1,6 +1,7 @@
 import { layerDesign } from "../features/site/designModel";
 import { CartShippingPreview } from "./CartShippingPreview";
 import { CartDiscountCode } from "./CartDiscountCode";
+import { CartOrderNote } from "./CartOrderNote";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { m, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router";
@@ -320,6 +321,7 @@ export function CartDrawer() {
 
               {cart.length > 0 && (design.cartDrawerShowShippingPreview ?? true) && <CartShippingPreview cart={cart} design={design} formatPrice={formatPrice} onEstimate={setShippingEstimate} />}
               {cart.length > 0 && design.cartDrawerShowDiscountCode === true && <CartDiscountCode design={design} />}
+              {cart.length > 0 && design.cartDrawerShowOrderNote === true && <CartOrderNote design={design} />}
 
               {/* Complete your collection */}
               {cart.length > 0 && showUpsell && recommendedBook && (

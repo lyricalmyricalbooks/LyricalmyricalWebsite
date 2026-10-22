@@ -4,6 +4,7 @@ import { useStudioOverlay } from "./features/site/studioOverlay";
 import { createContext, useContext, useState, useEffect, useMemo, useRef, ReactNode } from "react";
 import { preorderActive, releaseDateOf } from "./features/site/preorder";
 import { comingSoonActive } from "./features/site/comingSoon";
+import { clearBagNote } from "./features/site/bagNote";
 import { addOnSelection, bundleComponents, giftCardDetails, isGiftCardProduct, saleActive, type GiftCardDetails } from "./features/site/promotions";
 import { smallPhotoUrl } from "./features/site/photoSources";
 
@@ -352,7 +353,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  const clearCart = () => setCart([]);
+  // A finished order also forgets the bag's order note (Style › Cart drawer › Order note box).
+  const clearCart = () => { setCart([]); clearBagNote(); };
 
   // ⚡ Bolt: Cache derived calculations using `useMemo`
   // Measured impact: prevents O(N) recalculations on provider renders caused by unrelated state changes (like `isCartOpen`)
