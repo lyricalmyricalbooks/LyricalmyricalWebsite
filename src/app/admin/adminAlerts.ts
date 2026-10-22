@@ -14,6 +14,8 @@ export type AdminAlert = {
   title: string;
   detail: string;
   orderIds: string[];
+  /** What the alert is about when no order is (held books…): a change brings a hidden alert back. */
+  key?: string;
   action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "inventory";
 };
 
@@ -214,8 +216,12 @@ export function inventoryLinkAlerts(state: any, now = Date.now()): AdminAlert[] 
   }
   const holds = Array.isArray(state.lastSync?.holds) ? state.lastSync.holds.filter((h: any) => ["big-change", "not-derived", "now-has-editions"].includes(h.hold)) : [];
   if (state.autoSync && holds.length) {
-    out.push(link("inventory-link-holds", "info", `Stock for ${plural(holds.length, "book waits", "books wait")} for you`,
-      "A big change, a book with no print run in the inventory app, or a matched book now sold in editions isn't applied automatically. Open the stock preview to check it."));
+    const names = holds.slice(0, 3).map((h: any) => (h.edition ? `${h.title} (${h.edition})` : h.title)).filter(Boolean).join(", ");
+    out.push({
+      ...link("inventory-link-holds", "info", `Stock for ${plural(holds.length, "book waits", "books wait")} for you`,
+        `${names ? `${names}${holds.length > 3 ? " and more" : ""}. ` : ""}A big change, a book with no print run in the inventory app, or a matched book now sold in editions isn't applied automatically. Open the stock preview and press Apply, or leave it as it is.`),
+      key: holds.map((h: any) => `${h.bookId}/${h.variantId || "_"}/${h.hold}/${h.to ?? ""}`).sort().join(","),
+    });
   }
   for (const issue of Array.isArray(state.shipmentIssues) ? state.shipmentIssues : []) {
     if (!issue?.orderId) continue;
@@ -226,7 +232,7 @@ export function inventoryLinkAlerts(state: any, now = Date.now()): AdminAlert[] 
 }
 
 // Changes whenever the set of problems changes, so a dismissed alert comes back
-// when a new order joins it.
+// when a new order (or, for alerts about books, a new change) joins it.
 export function alertSignature(a: AdminAlert): string {
-  return `${a.id}:${[...a.orderIds].sort().join(",")}`;
+  return `${a.id}:${[...a.orderIds].sort().join(",")}${a.key ? `:${a.key}` : ""}`;
 }

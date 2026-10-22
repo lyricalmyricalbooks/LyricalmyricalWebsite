@@ -7,7 +7,7 @@ import type { AdminAlert } from "./adminAlerts";
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
 let container: HTMLDivElement;
-beforeEach(() => { container = document.createElement("div"); document.body.replaceChildren(container); try { sessionStorage.clear(); } catch {} });
+beforeEach(() => { container = document.createElement("div"); document.body.replaceChildren(container); try { localStorage.clear(); sessionStorage.clear(); } catch {} });
 
 const a = (id: string, tone: AdminAlert["tone"], action: AdminAlert["action"] = "orders"): AdminAlert =>
   ({ id, tone, title: `Title ${id}`, detail: `Detail ${id}`, orderIds: ["o1"], action });
@@ -28,7 +28,7 @@ it("puts urgent alerts first, folds past two and keeps every action reachable", 
   // Hiding one keeps it hidden for the session.
   await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Hide “Title d1” for now"]')!.click());
   expect(titles()).not.toContain("Title d1");
-  expect(sessionStorage.getItem("admin-dismissed-alerts")).toContain("d1");
+  expect(localStorage.getItem("admin-dismissed-alerts")).toContain("d1");
   await act(async () => root.unmount());
 });
 
