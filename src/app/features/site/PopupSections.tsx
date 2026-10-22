@@ -7,7 +7,10 @@ import { inEditorPreview } from "../../lib/trackingGuard";
 import { useFocusTrap } from "../../lib/useFocusTrap";
 import { getCopy } from "./storeCopy";
 import { useStudioOverlay } from "./studioOverlay";
-import { groupSections, popupAllowed, popupVersion, POPUP_SEEN_KEY, POPUP_SUPPRESS_KEY, type PopupFrequency } from "./sectionGroups";
+import {
+  groupSections, leavingThroughTop, popupAllowed, popupScrollPercent, popupTriggerOf, popupVersion, scrolledPast,
+  POPUP_SEEN_KEY, POPUP_SUPPRESS_KEY, type PopupFrequency,
+} from "./sectionGroups";
 
 const read = (store: Storage | undefined, key: string) => { try { return store?.getItem(key) ?? null; } catch { return null; } };
 const write = (store: Storage | undefined, key: string, value: string) => { try { store?.setItem(key, value); } catch { /* storage blocked */ } };
@@ -15,7 +18,9 @@ const write = (store: Storage | undefined, key: string, value: string) => { try 
 /**
  * The pop-up section group (Studio › Page layout › Pop-up). It waits until the shopper has answered
  * the cookie banner (so the two never stack), then for Style › Pop-up › Delay, and shows as often as
- * Style › Pop-up › How often allows. In the Studio preview it only opens when Studio asks
+ * Style › Pop-up › How often allows. Style › Pop-up › When it opens can instead wait until the shopper
+ * is about to leave (the mouse heads for the tabs; phones have no mouse, so they use the delay) or has
+ * scrolled part way down the page. In the Studio preview it only opens when Studio asks
  * (Page layout › Pop-overs › Pop-up, or while its sections are being edited).
  */
 export function PopupSections({ design, books = [] }: { design: any; books?: any[] }) {
@@ -28,6 +33,8 @@ export function PopupSections({ design, books = [] }: { design: any; books?: any
   const delay = Math.max(0, Math.min(120, Number(design?.popupDelaySeconds ?? 5))) * 1000;
   const bannerOn = design?.showCookieBanner !== false;
   const hideOnPhones = design?.popupHideOnPhones === true;
+  const trigger = popupTriggerOf(design);
+  const scrollPercent = popupScrollPercent(design);
 
   useEffect(() => {
     if (preview || !sections.length || typeof window === "undefined") return;
@@ -37,13 +44,34 @@ export function PopupSections({ design, books = [] }: { design: any; books?: any
     const seen = { session: read(window.sessionStorage, key) === "1", ever: read(window.localStorage, key) === "1" };
     if (!popupAllowed(frequency, seen)) return;
     let timer = 0;
-    const start = () => { window.clearTimeout(timer); timer = window.setTimeout(() => setOpen(true), delay); };
+    let armed = false;
+    const show = () => { disarm(); setOpen(true); };
+    const onLeave = (e: MouseEvent) => { if (leavingThroughTop(e)) show(); };
+    const onScroll = () => {
+      const page = document.documentElement;
+      if (scrolledPast(window.scrollY, window.innerHeight, page.scrollHeight, scrollPercent)) show();
+    };
+    // Exit intent needs a mouse; on touch screens the pop-up falls back to the delay.
+    const exitMode = trigger === "exit" && !!window.matchMedia?.("(hover: hover) and (pointer: fine)").matches;
+    const disarm = () => {
+      window.clearTimeout(timer);
+      if (!armed) return;
+      armed = false;
+      document.removeEventListener("mouseout", onLeave);
+      window.removeEventListener("scroll", onScroll);
+    };
+    const start = () => {
+      disarm();
+      if (exitMode) { armed = true; document.addEventListener("mouseout", onLeave); return; }
+      if (trigger === "scroll") { armed = true; window.addEventListener("scroll", onScroll, { passive: true }); onScroll(); return; }
+      timer = window.setTimeout(() => setOpen(true), delay);
+    };
     const answered = () => !bannerOn || read(window.localStorage, CONSENT_KEY) !== null;
     if (answered()) start();
     const onConsent = () => { if (answered()) start(); };
     window.addEventListener(CONSENT_EVENT, onConsent);
-    return () => { window.clearTimeout(timer); window.removeEventListener(CONSENT_EVENT, onConsent); };
-  }, [preview, sections.length, version, frequency, delay, bannerOn, hideOnPhones]);
+    return () => { disarm(); window.removeEventListener(CONSENT_EVENT, onConsent); };
+  }, [preview, sections.length, version, frequency, delay, bannerOn, hideOnPhones, trigger, scrollPercent]);
 
   const close = () => {
     setOpen(false);

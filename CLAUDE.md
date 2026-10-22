@@ -2513,3 +2513,11 @@ form (name, email, question, honeypot) that sends one `contactMessages` row thro
 the Contact form section, so Admin › Messages, the reply tool and `onContactMessage`'s budgeted emails all apply). Subject =
 Text & labels › Product page › `pdpAskSubject` with the title (+ edition), rules in pure `askQuestion.ts`. Never sends from the
 Studio preview (`inEditorPreview`). Words: Text & labels › Product page (`pdpAsk*`). No rule or Function change.
+
+## Pop-up trigger (22 October 2026)
+
+Studio › Style › Pop-up window › **When it opens** (`popupTrigger`: `delay` default = as before, `exit`, `scroll`) +
+**How far down the page** (`popupScrollPercent`, 10–90, default 50). Pure rules in `features/site/sectionGroups.ts`
+(`popupTriggerOf`, `scrolledPast`, `leavingThroughTop`), used by `PopupSections`: exit intent listens for the mouse leaving
+through the top edge, only with a fine pointer (touch screens use the delay); scroll waits for that share of the scrollable
+page. Still after the cookie answer, still governed by How often it shows, never in the Studio preview. No words, rules or Functions.

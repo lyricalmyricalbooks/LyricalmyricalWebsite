@@ -104,3 +104,45 @@ describe("pop-up opened by Studio before it mounted", () => {
     } finally { delete (window as any).__studioOpenOverlay; }
   });
 });
+
+describe("pop-up › when it opens", () => {
+  const mouse = (fine: boolean) => {
+    (window as any).matchMedia = (q: string) => ({ matches: q.includes("pointer: fine") ? fine : false, addEventListener() {}, removeEventListener() {} });
+  };
+  afterEach(() => { delete (window as any).matchMedia; });
+
+  it("exit intent: opens only when the mouse leaves through the top of the window", async () => {
+    mouse(true);
+    await mount(design({ showCookieBanner: false, popupTrigger: "exit", popupDelaySeconds: 1 }));
+    await tick(10000);
+    expect(dialog()).toBeNull();
+    await act(async () => { document.dispatchEvent(new MouseEvent("mouseout", { clientY: 300 })); });
+    expect(dialog()).toBeNull();
+    await act(async () => { document.dispatchEvent(new MouseEvent("mouseout", { clientY: -2 })); });
+    expect(dialog()).not.toBeNull();
+  });
+
+  it("exit intent falls back to the delay on touch screens", async () => {
+    mouse(false);
+    await mount(design({ showCookieBanner: false, popupTrigger: "exit", popupDelaySeconds: 2 }));
+    await tick(1000);
+    expect(dialog()).toBeNull();
+    await tick(1000);
+    expect(dialog()).not.toBeNull();
+  });
+
+  it("scroll: waits until the shopper is part way down the page", async () => {
+    Object.defineProperty(document.documentElement, "scrollHeight", { value: 2000, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 1000, configurable: true });
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true, writable: true });
+    await mount(design({ showCookieBanner: false, popupTrigger: "scroll", popupScrollPercent: 50 }));
+    await tick(10000);
+    expect(dialog()).toBeNull();
+    (window as any).scrollY = 400;
+    await act(async () => { window.dispatchEvent(new Event("scroll")); });
+    expect(dialog()).toBeNull();
+    (window as any).scrollY = 520;
+    await act(async () => { window.dispatchEvent(new Event("scroll")); });
+    expect(dialog()).not.toBeNull();
+  });
+});

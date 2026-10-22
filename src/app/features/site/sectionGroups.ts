@@ -69,6 +69,32 @@ export function popupAllowed(frequency: PopupFrequency | undefined, seen: { sess
   return !seen.session;
 }
 
+export type PopupTrigger = "delay" | "exit" | "scroll";
+
+/** Style › Pop-up › When it opens: after the delay (default, as before), when the shopper is about to leave, or part way down the page. */
+export function popupTriggerOf(design: any): PopupTrigger {
+  const t = design?.popupTrigger;
+  return t === "exit" || t === "scroll" ? t : "delay";
+}
+
+/** How far down the page (10–90 %) the scroll trigger waits for; default 50. */
+export function popupScrollPercent(design: any): number {
+  const n = Number(design?.popupScrollPercent ?? 50);
+  return Number.isFinite(n) ? Math.max(10, Math.min(90, Math.round(n))) : 50;
+}
+
+/** True once the shopper has scrolled `percent` of the way through what can be scrolled (a page too short to scroll counts). */
+export function scrolledPast(scrollY: number, viewportHeight: number, pageHeight: number, percent: number): boolean {
+  const room = pageHeight - viewportHeight;
+  if (room <= 0) return true;
+  return scrollY / room >= percent / 100;
+}
+
+/** "About to leave": the mouse left the window through its top edge (towards the tabs, address bar or close button). */
+export function leavingThroughTop(e: { clientY: number; relatedTarget?: unknown }): boolean {
+  return !e.relatedTarget && e.clientY <= 0;
+}
+
 /** A stable fingerprint of the pop-up's sections, so editing them shows it again to returning shoppers. */
 export function popupVersion(sections: any[]): string {
   const text = JSON.stringify(sections.map(s => [s.id, s.type, s.settings]));
