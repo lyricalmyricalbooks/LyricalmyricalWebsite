@@ -72,3 +72,23 @@ describe("shop card controls revealed on hover", () => {
     }
   });
 });
+
+describe("Show more books", () => {
+  it("is off by default and pages the grid when a number is chosen", async () => {
+    site.data = dataFor([]);
+    expect(renderToStaticMarkup(tree())).not.toContain("Show more books");
+
+    (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+    const el = document.createElement("div");
+    root = createRoot(el);
+    site.data = { ...dataFor([]), settings: { design: { categories: [], copy: {}, catalogPageSize: 1 } } };
+    await act(async () => root!.render(tree()));
+    const titles = () => [...el.querySelectorAll("h3.fm-card-title")].map(n => n.textContent);
+    expect(titles()).toHaveLength(1);
+    const more = el.querySelector('[data-store-region="catalogShowMore"]')!;
+    expect(more.textContent).toContain("Showing 1 of 2");
+    await act(async () => more.querySelector("button")!.click());
+    expect(titles()).toHaveLength(2);
+    expect(el.querySelector('[data-store-region="catalogShowMore"]')).toBeNull();
+  });
+});
