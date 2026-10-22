@@ -714,6 +714,7 @@
   "showPageFooter": "visible",
   "showPaymentBadges": "none: the Payment icons list is empty in the live design",
   "showPdpArtistLinks": "none: needs a book with Artist links (Books › edit › Search (SEO))",
+  "showPdpAskQuestion": "visible",
   "showPdpEditionDetails": "none: needs a book sold in editions",
   "showPdpShipBy": "none: shows only on a book page, after the page has loaded",
   "showPdpFreeShipping": "none: needs a free-shipping amount in Settings › Shipping",

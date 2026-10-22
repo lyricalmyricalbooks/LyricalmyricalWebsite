@@ -32,7 +32,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "footerAdmin", label: "Footer admin link", copy: "Footer" },
     { id: "footerBackToTop", label: "Back to top button", copy: "Footer" },
   ] },
-  { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx", "features/site/PickupAvailability.tsx", "features/site/PdpFreeShipping.tsx", "features/site/PdpShipBy.tsx", "features/site/SaleEndsLine.tsx"], regions: [
+  { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx", "features/site/PickupAvailability.tsx", "features/site/PdpFreeShipping.tsx", "features/site/PdpShipBy.tsx", "features/site/PdpAskQuestion.tsx", "features/site/SaleEndsLine.tsx"], regions: [
     { id: "productDescription", label: "Book description" }, { id: "productSpecs", label: "Book specifications" },
     { id: "productReviews", label: "Book reviews" },
     { id: "productSaleEnds", label: "Sale end date (under the price)" },
@@ -43,6 +43,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "productFreeShipping", label: "Free-shipping line (under the buy buttons)" },
     { id: "productShipBy", label: "Ships-by line (under the buy buttons)" },
     { id: "productPickup", label: "Pickup availability (under the buy buttons)" },
+    { id: "productAskQuestion", label: "Ask a question (under the buy buttons)" },
     { id: "productPolicies", label: "Shipping & returns tab" },
     { id: "productGiftCardForm", label: "Gift card recipient form" },
     { id: "relatedBooks", label: "Recommended books row" },

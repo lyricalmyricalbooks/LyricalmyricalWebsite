@@ -568,6 +568,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "pdpShipByCountdownHours", label: "Ships-by line: show “Order within 2h 15m” this many hours before the cut-off (0 = never)", kind: "number", min: 0, max: 24, step: 1, defaultValue: 4 },
       { key: "pdpShipByClosedDays", label: "Ships-by line: days you don't send orders besides weekends (holidays, time away), as dates like 2026-12-25, 2026-12-26", kind: "text" },
       { key: "showPdpPickup", label: "Pickup availability under the buy buttons (“Pickup available at …”, needs Local pickup on in Settings › Shipping; words: Text & labels › Product page)", kind: "toggle", defaultValue: false },
+      { key: "showPdpAskQuestion", label: "“Ask a question about this book” under the buy buttons (a small form; questions arrive in Admin › Messages; words: Text & labels › Product page)", kind: "toggle", defaultValue: false },
       { key: "showZoom", label: "Image zoom", kind: "toggle" },
       { key: "showPhotoLightbox", label: "Click photo to enlarge (full-screen viewer)", kind: "toggle", defaultValue: true },
       { key: "showProductVideos", label: "Show book videos (added in Books › edit › Images) among the photos", kind: "toggle", defaultValue: true },
