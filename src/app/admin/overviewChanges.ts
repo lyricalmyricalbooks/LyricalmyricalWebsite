@@ -2,6 +2,7 @@
 // with, biggest first. Every line is computed from recorded orders/visits — no guesses. Pure; money is formatted by
 // the caller so currency stays in one place.
 import { bestSellers, change, refundedAmount, type Order, type PeriodTotals } from "./overviewInsights";
+import { countryCode, countryName } from "./shippingCountries";
 
 export interface Change { id: string; tone: "up" | "down" | "info" | "warn"; title: string; detail: string; weight: number }
 
@@ -15,10 +16,12 @@ function titleRevenue(orders: Order[]): Map<string, { title: string; revenue: nu
   return m;
 }
 
+/** Orders store a country as a code ("CA") or a name ("Canada"); both count as one destination, keyed by its code. */
 function countryRevenue(orders: Order[]): Map<string, number> {
   const m = new Map<string, number>();
   orders.forEach(o => {
-    const c = String(o.customer?.address?.country || o.shippingAddress?.country || "").trim();
+    const raw = String(o.customer?.address?.country || o.shippingAddress?.country || "").trim();
+    const c = raw ? countryCode(raw) || raw : "";
     if (c) m.set(c, (m.get(c) || 0) + Math.max(0, num(o.total) - refundedAmount(o)));
   });
   return m;
@@ -67,7 +70,7 @@ export function whatChanged(input: {
   new Set([...cNow.keys(), ...cThen.keys()]).forEach(c => { const d = (cNow.get(c) || 0) - (cThen.get(c) || 0); if (!country || Math.abs(d) > Math.abs(country.d)) country = { c, d }; });
   if (country && Math.abs((country as { c: string; d: number }).d) > 0 && cThen.size > 0) {
     const k = country as { c: string; d: number };
-    out.push({ id: `country-${k.c}`, tone: k.d > 0 ? "up" : "down", weight: Math.abs(k.d) * 0.8, title: `${k.c}: ${k.d > 0 ? "+" : "−"}${money(Math.abs(k.d))}`, detail: `The biggest move by destination (${money(cNow.get(k.c) || 0)} now, ${money(cThen.get(k.c) || 0)} in ${before}).` });
+    out.push({ id: `country-${k.c}`, tone: k.d > 0 ? "up" : "down", weight: Math.abs(k.d) * 0.8, title: `Sales to ${countryName(k.c)} ${k.d > 0 ? "rose" : "fell"} by ${money(Math.abs(k.d))}`, detail: `The biggest move by destination (${money(cNow.get(k.c) || 0)} now, ${money(cThen.get(k.c) || 0)} in ${before}).` });
   }
 
   // 4 · Traffic and how well it converts.
