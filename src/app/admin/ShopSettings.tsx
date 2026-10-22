@@ -60,6 +60,8 @@ import { OwnVisitsCard } from "./OwnVisitsCard";
 import { SearchConsoleCard } from "./SearchConsoleCard";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
 import { saveSectionsInOrder } from "./settingsSave";
+import { NewShippingProfileDialog } from "./NewShippingProfileDialog";
+import { duplicateProfile, profileSummary } from "./shippingProfileStarters";
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
 import { useSettingsDirty } from "./settingsDirty";
@@ -97,9 +99,11 @@ export function ShopSettings({
       const b = await adminApi.getShippingProfiles();
       setShippingProfiles(b);
       setProfilesError(false);
+      return b;
     } catch (err) {
       console.error(err);
       setProfilesError(true);
+      return null;
     }
   }
 
@@ -353,7 +357,7 @@ function RateTester({ profile }: { profile: any }) {
     [{ price: each, quantity: qty, shippingProfileId: profile.id, weightGrams: grams === "" ? null : (Number(grams) || 0) / qty }],
     { country }, [profile]).filter((q) => q.type !== "pickup"), [profile, country, each, qty, grams]);
   return (
-    <SectionCard title="Test this profile" description="See exactly what a customer would be offered — using your unsaved edits.">
+    <SectionCard title="4 · Test this profile" description="See exactly what a customer would be offered, using your unsaved edits.">
       <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", marginBottom: 12 }}>
         <SelectField label="Destination" value={country} onChange={(e) => setCountry(e.target.value)}>
           {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
@@ -418,9 +422,8 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
   const [isZoneModalOpen, setIsZoneModalOpen] = useState(false);
   const [isRateModalOpen, setIsRateModalOpen] = useState(false);
   
-  // Creating Profile inline state
+  // Create profile dialog
   const [isCreatingProfile, setIsCreatingProfile] = useState(false);
-  const [newProfileName, setNewProfileName] = useState("");
   const [shippoApiKey, setShippoApiKey] = useState("");
   const [showShippoApiKey, setShowShippoApiKey] = useState(false);
   const [shippoConfig, setShippoConfig] = useState<any | null>(null);
@@ -500,26 +503,49 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
     }
   };
 
+  const newId = () => (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
   const handleSelectProfile = (profile: any) => {
     setSelectedProfileId(profile.id);
     setEditingProfile(JSON.parse(JSON.stringify(profile)));
   };
 
-  const [creatingProfile, setCreatingProfile] = useState(false);
-  const handleCreateProfile = async () => {
+  // Opens a just-made profile from the fresh list (so it isn't "unsaved"), then asks which books use it.
+  const openNewProfile = async (created: any, message: string) => {
+    const list = await refreshProfiles();
+    const saved = (list || []).find((p: any) => p.id === created.id) || created;
+    handleSelectProfile(saved);
+    setShippingView("profiles");
+    openProductModal(saved.id);
+    toast.success(message);
+  };
+  const creatingRef = useRef(false);
+  const handleCreateProfile = async (draft: any): Promise<boolean> => {
     // A double click must not create two profiles.
-    if (!newProfileName.trim() || creatingProfile) return;
-    setCreatingProfile(true);
+    if (creatingRef.current) return false;
+    creatingRef.current = true;
     try {
-      const newProf = await adminApi.createShippingProfile({ name: newProfileName, zones: [] });
-      setNewProfileName("");
-      setIsCreatingProfile(false);
-      refreshProfiles();
-      handleSelectProfile(newProf);
+      const created = await adminApi.createShippingProfile(draft);
+      await openNewProfile(created, `“${draft.name}” created. Tick the books that use it.`);
+      return true;
     } catch {
       toast.error("Couldn't create the shipping profile. Check your connection and try again.");
+      return false;
     } finally {
-      setCreatingProfile(false);
+      creatingRef.current = false;
+    }
+  };
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const handleDuplicateProfile = async (profile: any) => {
+    if (duplicatingId) return;
+    setDuplicatingId(profile.id);
+    try {
+      const draft = duplicateProfile(profile, newId, profiles.map((p: any) => p.name));
+      const created = await adminApi.createShippingProfile(draft);
+      await openNewProfile(created, `Copied as “${draft.name}”. Tick the books that use it; its prices are the same as “${profile.name}”.`);
+    } catch {
+      toast.error("Couldn't copy the shipping profile. Check your connection and try again.");
+    } finally {
+      setDuplicatingId(null);
     }
   };
 
@@ -566,9 +592,9 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
   };
 
   // Product assignment helper
-  const openProductModal = () => {
+  const openProductModal = (profileId: string = editingProfile.id) => {
     const assigned = books
-      .filter((b: any) => b.shippingProfileId === editingProfile.id)
+      .filter((b: any) => b.shippingProfileId === profileId)
       .map((b: any) => b.id);
     setSelectedProductIds(assigned);
     setProductSearch("");
@@ -706,7 +732,6 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
     });
   };
 
-  const newId = () => (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
   const handleDuplicateRate = (zoneId: string, rate: any) => {
     setEditingProfile((prev: any) => {
       const zones = (prev.zones || []).map((z: any) => z.id !== zoneId ? z
@@ -1056,23 +1081,13 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
         <>
         {renderTabProblems(profileProblems)}
         <SectionHead kicker="Shipping" title="Profiles, zones & rates" subcopy="A profile is a set of zones and rates. Books use the General profile unless you assign them to another."
-          actions={!isCreatingProfile && <PrimaryButton onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>} />
+          actions={<PrimaryButton onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>} />
 
-        {isCreatingProfile && (
-          <SectionCard title="New shipping profile" description="Define a set of rules for special items, like heavy or fragile books.">
-            <TextField label="Profile name" value={newProfileName} placeholder="e.g. Heavy items, Fragile prints…" data-autofocus onChange={(e) => setNewProfileName(e.target.value)} />
-            <div className="rp-card-actions">
-              <span />
-              <span style={{ display: "flex", gap: 8 }}>
-                <SecondaryButton onClick={() => { setIsCreatingProfile(false); setNewProfileName(""); }}>Cancel</SecondaryButton>
-                <PrimaryButton onClick={handleCreateProfile} disabled={!newProfileName.trim() || creatingProfile}>{creatingProfile ? "Creating…" : "Create profile"}</PrimaryButton>
-              </span>
-            </div>
-          </SectionCard>
-        )}
+        <NewShippingProfileDialog open={isCreatingProfile} onClose={() => setIsCreatingProfile(false)} profiles={profiles} onCreate={handleCreateProfile} />
 
         {profiles.length === 0 && profilesError ? null : profiles.length === 0 ? (
-          <SectionCard><EmptyState icon="🚚" title="No shipping profiles" description="Create a profile with at least one zone and rate so customers can check out." /></SectionCard>
+          <SectionCard><EmptyState icon="🚚" title="No shipping profiles" description="Create a profile with at least one zone and rate so customers can check out."
+            action={<PrimaryButton onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>} /></SectionCard>
         ) : (
           <ul className="rp-stack" style={{ listStyle: "none", margin: 0, padding: 0 }} aria-label="Shipping profiles">
             {profiles.map((p: any) => {
@@ -1087,10 +1102,12 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
                         <h3 className="rp-card-title" style={{ display: "inline", overflowWrap: "anywhere" }}>{p.name || "Untitled profile"}</h3>{" "}
                         {p.id === "general-profile" && <StatusBadge tone="primary">Default</StatusBadge>}{" "}
                         {noRates && <StatusBadge tone="warning">No rates yet</StatusBadge>}
-                        <p className="rp-hint" style={{ margin: "6px 0 0" }}>{zonesCount} zone{zonesCount === 1 ? "" : "s"} · {assigned.length} product{assigned.length === 1 ? "" : "s"} assigned</p>
+                        <p className="rp-hint" style={{ margin: "6px 0 0", overflowWrap: "anywhere" }}>{profileSummary(p)}</p>
+                        <p className="rp-hint" style={{ margin: "2px 0 0" }}>{zonesCount} zone{zonesCount === 1 ? "" : "s"} · {p.id === "general-profile" ? "every book not moved to another profile" : `${assigned.length} book${assigned.length === 1 ? "" : "s"}`}</p>
                       </div>
-                      <div style={{ display: "flex", gap: 8 }}>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         <SecondaryButton onClick={() => handleSelectProfile(p)}>Manage rates</SecondaryButton>
+                        <SecondaryButton onClick={() => handleDuplicateProfile(p)} busy={duplicatingId === p.id} disabled={!!duplicatingId} aria-label={`Duplicate ${p.name || "profile"} shipping profile`}>Duplicate</SecondaryButton>
                         {p.id !== "general-profile" && <DestructiveButton onClick={() => handleDeleteProfile(p.id)} aria-label={`Delete ${p.name} shipping profile`}>Delete</DestructiveButton>}
                       </div>
                     </div>
@@ -1122,7 +1139,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
         }}>← Back to profiles</SecondaryButton>
         <PrimaryButton onClick={handleSaveProfile} disabled={savingProfile}>{savingProfile ? "Saving…" : "Save profile changes"}</PrimaryButton>
       </div>
-      <SectionHead kicker="Profile" title={editingProfile.name || "Untitled profile"} subcopy="Zone and rate edits are applied to the profile when you save." />
+      <SectionHead kicker="Profile" title={editingProfile.name || "Untitled profile"} subcopy="Set where it ships and the prices, then choose its books. Changes apply when you save." />
 
       {editingProfile.id !== "general-profile" && (
         <SectionCard title="Profile name">
@@ -1130,35 +1147,7 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
         </SectionCard>
       )}
 
-      <SectionCard title="Assigned products" description="Books that use this profile's rates."
-        actions={<SecondaryButton onClick={openProductModal}>Manage products ({assignedBooks.length})</SecondaryButton>}>
-        {assignedBooks.length === 0 ? (
-          <EmptyState icon="📦" title="No books assigned" description={editingProfile.id === "general-profile" ? "Books without another profile use these rates." : "Assign books so they use this profile's rates."} />
-        ) : (
-          <ul className="rp-list" style={{ margin: -20 }} aria-label="Assigned books">
-            {assignedBooks.slice(0, 6).map((b: any) => <li key={b.id} style={{ padding: "10px 20px", overflowWrap: "anywhere" }}>{b.title}</li>)}
-            {assignedBooks.length > 6 && <li className="rp-hint">+ {assignedBooks.length - 6} more</li>}
-          </ul>
-        )}
-      </SectionCard>
-
-      <SectionCard title="Profile rules" description="Apply to every rate in this profile.">
-        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-          <TextField label="Free shipping over ($)" type="number" min={0} step="0.01" placeholder="e.g. 100.00"
-            hint="Every rate in this profile becomes free at or above this order total."
-            value={editingProfile.freeShippingOver ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, freeShippingOver: e.target.value === "" ? null : Number(e.target.value) })} />
-          <TextField label="Handling / packing fee ($)" type="number" min={0} step="0.01" placeholder="0.00"
-            hint="Added once per order for items in this profile."
-            value={editingProfile.handlingFee ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, handlingFee: e.target.value === "" ? null : Number(e.target.value) })} />
-          <TextField label="Assumed weight per book (g)" type="number" min={0} placeholder="e.g. 350"
-            hint="Used for weight-based rates when a book has no weight set."
-            value={editingProfile.defaultItemWeightG ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, defaultItemWeightG: e.target.value === "" ? null : Number(e.target.value) })} />
-        </div>
-      </SectionCard>
-
-      <RateTester profile={editingProfile} />
-
-      <SectionHead kicker="Zones" title="Geographic shipping zones" subcopy="A zone groups countries that share the same rates."
+      <SectionHead kicker="Zones & prices" title="1 · Where you ship and what it costs" subcopy="A zone is a group of countries that share the same prices. Each zone needs at least one rate."
         actions={<span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {zones.length === 0 && <SecondaryButton onClick={handleAddStarterZones}>Add starter zones</SecondaryButton>}
           <PrimaryButton onClick={() => openZoneModal()}>+ Add shipping zone</PrimaryButton>
@@ -1211,6 +1200,34 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
           <div className="rp-card-actions"><span /><SecondaryButton size="sm" onClick={() => openRateModal(z.id)}>+ Add rate</SecondaryButton></div>
         </SectionCard>
       ))}
+
+      <SectionCard title="2 · Rules for every price" description="Optional. These apply on top of every rate above.">
+        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+          <TextField label="Free shipping over ($)" type="number" min={0} step="0.01" placeholder="e.g. 100.00"
+            hint="Every rate in this profile becomes free at or above this order total."
+            value={editingProfile.freeShippingOver ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, freeShippingOver: e.target.value === "" ? null : Number(e.target.value) })} />
+          <TextField label="Handling / packing fee ($)" type="number" min={0} step="0.01" placeholder="0.00"
+            hint="Added once per order for items in this profile."
+            value={editingProfile.handlingFee ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, handlingFee: e.target.value === "" ? null : Number(e.target.value) })} />
+          <TextField label="Assumed weight per book (g)" type="number" min={0} placeholder="e.g. 350"
+            hint="Used for weight-based rates when a book has no weight set."
+            value={editingProfile.defaultItemWeightG ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, defaultItemWeightG: e.target.value === "" ? null : Number(e.target.value) })} />
+        </div>
+      </SectionCard>
+
+      <SectionCard title="3 · Books that use this profile" description={editingProfile.id === "general-profile" ? "Every book you haven't moved to another profile ships with these prices." : "Only the books ticked here use these prices. All others keep the General profile."}
+        actions={<SecondaryButton onClick={() => openProductModal()}>Choose books ({assignedBooks.length})</SecondaryButton>}>
+        {assignedBooks.length === 0 ? (
+          <EmptyState icon="📦" title="No books assigned" description={editingProfile.id === "general-profile" ? "Books without another profile use these rates." : "Assign books so they use this profile's rates."} />
+        ) : (
+          <ul className="rp-list" style={{ margin: -20 }} aria-label="Assigned books">
+            {assignedBooks.slice(0, 6).map((b: any) => <li key={b.id} style={{ padding: "10px 20px", overflowWrap: "anywhere" }}>{b.title}</li>)}
+            {assignedBooks.length > 6 && <li className="rp-hint">+ {assignedBooks.length - 6} more</li>}
+          </ul>
+        )}
+      </SectionCard>
+
+      <RateTester profile={editingProfile} />
 
       <SaveBar dirty={profileDirty} saving={savingProfile} message={`Unsaved changes to “${editingProfile.name || "this profile"}”.`}
         onSave={handleSaveProfile} onDiscard={() => { if (savedProfile) setEditingProfile(JSON.parse(JSON.stringify(savedProfile))); }} />

@@ -538,6 +538,10 @@ export const adminApi = {
     const docRef = await addDoc(collection(db, "shipping-profiles"), {
       name: profile.name,
       zones: profile.zones || [],
+      // A profile made from a starter or a copy arrives with its rules filled in.
+      freeShippingOver: nonNegativeOrNull(profile.freeShippingOver),
+      handlingFee: nonNegativeOrNull(profile.handlingFee),
+      defaultItemWeightG: nonNegativeOrNull(profile.defaultItemWeightG),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
