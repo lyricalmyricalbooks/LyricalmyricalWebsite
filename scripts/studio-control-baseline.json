@@ -703,6 +703,7 @@
   "showPdpEditionDetails": "none: needs a book sold in editions",
   "showPdpFreeShipping": "none: needs a free-shipping amount in Settings › Shipping",
   "showPdpPickup": "none: needs Local pickup switched on in Settings › Shipping",
+  "showPdpPolicyTab": "none: needs a Shipping or Returns policy written in Settings › General › Store policies",
   "showPdpWishlist": "visible",
   "showPhotoLightbox": "visible",
   "showPoweredBy": "visible",

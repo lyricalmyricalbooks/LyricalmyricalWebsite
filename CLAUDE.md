@@ -1908,6 +1908,15 @@ Pure `pdpFreeShipping` (`pdpFreeShipping.ts`) uses the bag bar's rule (`shopFree
 checkout's physical rule (`isPickupItem`); hidden for e-books, gift cards, sold-out and Coming soon. Display only.
 Words: Text & labels › Product page (`pdpFreeShip*`).
 
+## Shipping & returns tab on book pages (22 October 2026)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **Shipping & returns tab** (`showPdpPolicyTab`, off by default)
+adds a `policies` tab/accordion beside Description and Details (tabs and accordions layouts only) showing the shop's own
+`settings.policies.shipping` / `.returns` text (`policyHtml`, escaped) with a link to `/page/policy-<key>`. Pure `pdpPolicyEntries`
+(`pdpPolicyTab.ts`): shipping only for physical copies (`isPickupItem`), returns always, none when both are blank. Unlike the other
+text tabs it is never kept hidden in the HTML (the same words on every book page aren't book content). Region `productPolicies`;
+words Text & labels › Product page (`tabShippingReturns`, `pdpPolicyReadMore`); GA4 tab name `shipping_returns`.
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the

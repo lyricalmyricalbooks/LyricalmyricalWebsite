@@ -48,6 +48,8 @@ import PickupAvailability from "./PickupAvailability";
 import { pickupSpots } from "./pickupAvailability";
 import PdpFreeShipping from "./PdpFreeShipping";
 import { pdpFreeShipping } from "./pdpFreeShipping";
+import { pdpPolicyEntries } from "./pdpPolicyTab";
+import { policyHtml, policySlug, policyTitle } from "./policyPages";
 import { quickAddChoice } from "./buyable";
 import { resolveLogoDesign } from "./selectors";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "./themeTokens";
@@ -170,6 +172,7 @@ export default function BookDetail() {
   const showComingSoonSignup   = storefrontDesign.showComingSoonSignup   ?? true;
   const showPdpPickup          = storefrontDesign.showPdpPickup === true;
   const showPdpFreeShipping    = storefrontDesign.showPdpFreeShipping === true;
+  const showPdpPolicyTab       = storefrontDesign.showPdpPolicyTab === true;
 
   // Autonomy controls for book detail page
   const showAmbientGlow        = storefrontDesign.showAmbientGlow        ?? settings?.design?.showAmbientGlow        ?? true;
@@ -227,7 +230,7 @@ export default function BookDetail() {
   const productDescriptionStyle = storefrontDesign.productDescriptionStyle || settings?.design?.productDescriptionStyle || "plain";
 
   // Tab & Accordion states
-  const [detailsTab, setDetailsTab] = useState<"description" | "specs" | "reviews">("description");
+  const [detailsTab, setDetailsTab] = useState<"description" | "specs" | "policies" | "reviews">("description");
   const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({
     description: true,
     specs: false,
@@ -710,9 +713,12 @@ export default function BookDetail() {
     </div>
   );
 
-  const detailTabs: { id: "description" | "specs" | "reviews"; label: string }[] = [
+  // Shipping & returns tab (off by default): the shop's own policies from Settings › General › Store policies.
+  const policyEntries = showPdpPolicyTab && regionVisible(regionDesign, "productPolicies") ? pdpPolicyEntries(settings?.policies, book, selectedVariant) : [];
+  const detailTabs: { id: "description" | "specs" | "policies" | "reviews"; label: string }[] = [
     ...(regionVisible(regionDesign, "productDescription") ? [{ id: "description" as const, label: getCopy(settings?.design, "tabDescription") }] : []),
     ...(hasSpecs ? [{ id: "specs" as const, label: getCopy(settings?.design, productDetailsLayout === "accordions" ? "tabSpecs" : "tabDetails") }] : []),
+    ...(policyEntries.length ? [{ id: "policies" as const, label: getCopy(settings?.design, "tabShippingReturns") }] : []),
     ...(regionVisible(regionDesign, "productReviews") ? [{ id: "reviews" as const, label: getCopy(settings?.design, "tabReviews") }] : []),
   ];
   const activeTab = detailTabs.some((t) => t.id === detailsTab) ? detailsTab : detailTabs[0]?.id;
@@ -728,7 +734,19 @@ export default function BookDetail() {
   const detailContent = (id: string) =>
     id === "description" ? (
       <div {...regionProps("productDescription")} className="fm-pdp-desc fm-pdp-desc-text text-[15px] leading-[1.75] whitespace-pre-line">{bk.description ? <DescriptionText text={bk.description} /> : getCopy(settings?.design, "noDescription")}</div>
-    ) : id === "specs" ? <div {...regionProps("productSpecs")}>{renderSpecs()}</div> : book ? (
+    ) : id === "specs" ? <div {...regionProps("productSpecs")}>{renderSpecs()}</div> : id === "policies" ? (
+      <div {...regionProps("productPolicies")} className="fm-pdp-policies flex flex-col gap-5 text-left">
+        {policyEntries.map((e) => (
+          <div key={e.key} className="flex flex-col gap-2">
+            {policyEntries.length > 1 && <p className="fm-pdp-meta">{policyTitle(settings?.design, e.key)}</p>}
+            <div className="fm-pdp-desc-text text-[14px] leading-[1.75] [&_p+p]:mt-3" dangerouslySetInnerHTML={{ __html: policyHtml(e.text) }} />
+            <Link to={`/page/${policySlug(e.key)}`} className="fm-pdp-meta underline underline-offset-2 self-start">
+              {getCopy(settings?.design, "pdpPolicyReadMore", { policy: policyTitle(settings?.design, e.key) })}
+            </Link>
+          </div>
+        ))}
+      </div>
+    ) : book ? (
       <div {...regionProps("productReviews")}><ReviewsSection key={book.id} bookId={book.id} hideHeader={true} /></div>
     ) : null;
 
@@ -759,7 +777,7 @@ export default function BookDetail() {
         {detailContent(activeTab)}
         {/* The other text tabs stay in the page, hidden, so search engines (and the prerendered HTML) read the
             description and the Details record whichever tab is open. Reviews load only when opened. */}
-        {keepHiddenText && detailTabs.filter((t) => t.id !== activeTab && t.id !== "reviews").map((t) => (
+        {keepHiddenText && detailTabs.filter((t) => t.id !== activeTab && t.id !== "reviews" && t.id !== "policies").map((t) => (
           <div key={t.id} hidden data-pdp-hidden-tab={t.id}>{detailContent(t.id)}</div>
         ))}
       </div>
@@ -780,7 +798,7 @@ export default function BookDetail() {
           </button>
           {openAccordions[t.id]
             ? <div id={`pdp-acc-${t.id}`} className="px-5 pb-5">{detailContent(t.id)}</div>
-            : keepHiddenText && t.id !== "reviews" && <div id={`pdp-acc-${t.id}`} hidden>{detailContent(t.id)}</div>}
+            : keepHiddenText && t.id !== "reviews" && t.id !== "policies" && <div id={`pdp-acc-${t.id}`} hidden>{detailContent(t.id)}</div>}
         </div>
       ))}
     </div>
