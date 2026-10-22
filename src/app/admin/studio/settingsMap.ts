@@ -194,7 +194,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Enlarged photo viewer", keys: ["pdpViewerButtonBg", "pdpViewerButtonIcon", "pdpViewerButtonBorderColor", "pdpViewerButtonShape", "pdpViewerShade", "pdpViewerShowCount", "pdpViewerCountColor"] },
     { title: "Photo frame & thumbnails", keys: ["pdpThumbPosition", "pdpThumbWrap", "pdpThumbsPhone", "pdpThumbFill", "pdpThumbPerRow", "pdpThumbLastRow", "pdpThumbSize", "pdpThumbGap", "pdpThumbShape", "pdpThumbActiveColor", "pdpPhotoBorderColor", "pdpPhotoBorderWidth", "pdpShowCaption", "pdpPhotoDots"] },
     { title: "Description / Details tabs", keys: ["pdpDetailsPlacement", "pdpSpecsStyle", "pdpTabActiveBg", "pdpTabActiveText", "pdpPanelBorderColor", "pdpPanelTextWidth"] },
-    { title: "Description text", keys: ["pdpDescFont", "pdpDescSize", "pdpDescSizeMobile", "pdpDescLineHeight", "pdpDescColor", "pdpDescAlign", "pdpDescLinkColor", "pdpDescLinkUnderline", "pdpRuledText", "pdpDescHeadingFont", "pdpDescHeadingSize", "pdpDescHeadingColor", "pdpDescQuoteColor", "pdpDescBlockGap"] },
+    { title: "Description text", keys: ["pdpDescFont", "pdpDescSize", "pdpDescSizeMobile", "pdpDescLineHeight", "pdpDescColor", "pdpDescAlign", "pdpDescLinkColor", "pdpDescLinkUnderline", "pdpRuledText", "pdpRuledEveryLine", "pdpDescHeadingFont", "pdpDescHeadingSize", "pdpDescHeadingColor", "pdpDescQuoteColor", "pdpDescBlockGap"] },
     { title: "Breadcrumb & small labels", keys: ["pdpShowBackLink", "pdpShowBackArrow", "pdpShowBreadcrumb", "pdpMetaFont", "pdpMetaSize", "pdpMetaColor"] },
   ],
   catalogLayout: [

@@ -178,7 +178,7 @@ export default function BookDetail() {
   const showPdpFreeShipping    = storefrontDesign.showPdpFreeShipping === true;
   const showPdpShipBy          = storefrontDesign.showPdpShipBy === true;
   const showPdpAskQuestion     = storefrontDesign.showPdpAskQuestion === true;
-  const ruledText              = storefrontDesign.pdpRuledText === true;
+  const ruledText              = storefrontDesign.pdpRuledEveryLine === true;
   const ruledCls               = ruledText ? " fm-pdp-desc-ruled" : "";
   const showPdpPolicyTab       = storefrontDesign.showPdpPolicyTab === true;
   const showPdpArtistBio       = storefrontDesign.showPdpArtistBio !== false;
