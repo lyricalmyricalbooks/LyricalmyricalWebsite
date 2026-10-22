@@ -390,7 +390,9 @@ await check("link and book pickers save the same strings as typed links", deskto
   // The preview shows only the picked book.
   const frame = page.frameLocator("iframe").first();
   await frame.locator("[data-fm-section] .fm-card-title", { hasText: "Paper Weather" }).first().waitFor({ timeout: 15000 });
-  if (await frame.locator("[data-fm-section] .fm-card-title", { hasText: "Night Pages" }).count()) throw new Error("the grid still shows a book that was not picked");
+  // The preview may still be swapping in the new grid when the picked book first appears: give it a moment.
+  await frame.locator("[data-fm-section] .fm-card-title", { hasText: "Night Pages" }).first().waitFor({ state: "detached", timeout: 5000 })
+    .catch(() => { throw new Error("the grid still shows a book that was not picked"); });
 });
 
 await check("right-click a section to move it to another page, and Undo brings it back", desktop, async page => {
