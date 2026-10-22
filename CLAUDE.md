@@ -2573,3 +2573,12 @@ Studio › Style › Shop page heading & filters › Show more button › **Load
 400 px ahead) and loads the next page like a press; after `AUTO_LOAD_ROUNDS` (4) automatic loads the button takes over so the footer
 stays reachable (pure `catalogAutoLoadOn` / `shouldAutoLoad` in `features/site/catalogPaging.ts`). A new category, search, sort or
 filter starts the count again. No words, rules or Functions.
+
+## Zoom follows the mouse on book photos (22 October 2026)
+
+Studio › Style › Book page · photos & layout › Photos › **Zoom follows the mouse** (`showPdpMagnifier`, off by default) +
+`pdpMagnifierLevel` (1.5–4, default 2.5): `features/site/PhotoMagnifier.tsx` wraps each main-photo slide in `BookDetail` and,
+only with a fine pointer that can hover, scales the photo from the point under the mouse (pure `photoMagnifier.ts`), writing the
+style straight to the element (no re-render). Reset on leave or any button press, so the strip's mouse drag still swipes; videos,
+thumbnails and the enlarged viewer are untouched. While on, the plain hover zoom (`productImageHoverScale`) is 1 so they never
+stack. No words, rules or Functions.

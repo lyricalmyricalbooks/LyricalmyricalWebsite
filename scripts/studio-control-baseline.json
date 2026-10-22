@@ -804,6 +804,8 @@
   "showUnderConstructionAdmin": "none: needs the under-construction wall switched on",
   "showWishlistShare": "none: only on the wishlist page with saved books",
   "showZoom": "none: the fixture's books have no photos",
+  "showPdpMagnifier": "none: the fixture's books have no photos (and it needs a mouse hovering the photo)",
+  "pdpMagnifierLevel": "none: only with Zoom follows the mouse on, a photo and a mouse hovering it",
   "smallPrintCase": "visible",
   "smallPrintColor": "visible",
   "smallPrintFont": "visible",
