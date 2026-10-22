@@ -109,17 +109,22 @@ export function DrillList({ items, empty = "Nothing to show for this period.", l
   );
 }
 
-/** One line of the run sheet (the ink "to do" tile): a big count, what it is, and where to fix it. */
-export function RunRow({ label, detail, count, loading, onOpen, openLabel }: {
-  label: string; detail: string; count: number | null; loading: boolean; onOpen: () => void; openLabel: string;
+/**
+ * One line of the run sheet (the ink "to do" tile): a big count, what it is, and where to fix it. `label` is the plural
+ * ("reviews to moderate", also used by the All clear line); `one` and `detailOne` are what a count of 1 reads instead,
+ * so a single item says "1 review to moderate" rather than "1 reviews to moderate".
+ */
+export function RunRow({ label, one, detail, detailOne, count, loading, onOpen, openLabel }: {
+  label: string; one?: string; detail: string; detailOne?: string; count: number | null; loading: boolean; onOpen: () => void; openLabel: string;
 }) {
   const clear = count === 0;
+  const single = count === 1;
   return (
     <li className="rp-ov-run-row" data-clear={clear || undefined}>
       <span className="rp-ov-run-count">{loading ? "…" : count}</span>
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div className="rp-ov-run-label">{label}</div>
-        <div className="rp-ov-run-detail">{loading ? "Loading…" : clear ? "✓ All clear" : detail}</div>
+        <div className="rp-ov-run-label">{single && one ? one : label}</div>
+        <div className="rp-ov-run-detail">{loading ? "Loading…" : clear ? "✓ All clear" : single && detailOne ? detailOne : detail}</div>
         {!loading && !clear && <button type="button" className="rp-ov-run-go" onClick={onOpen}>{openLabel} <span aria-hidden="true">→</span></button>}
       </div>
     </li>

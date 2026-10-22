@@ -339,24 +339,24 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         <p className="rp-ov-run-sub"><strong style={{ color: "var(--rp-primary-hover)" }}>{gaReport.activeNow}</strong> {gaReport.activeNow === 1 ? "person is" : "people are"} on the site now (Google Analytics)</p>
       )}
       <RunList>
-        <RunRow label="paid orders waiting to ship" count={insights ? insights.fulfil.length : null} loading={ordersLoading}
+        <RunRow label="paid orders waiting to ship" one="paid order waiting to ship" count={insights ? insights.fulfil.length : null} loading={ordersLoading}
           detail={insights && insights.fulfil[0] ? `Oldest has waited ${insights.fulfil[0].ageDays} day${insights.fulfil[0].ageDays === 1 ? "" : "s"}` : ""}
           onOpen={() => { openFirstActionQueue(); setActiveTab?.("orders"); }} openLabel="Ship orders" />
-        <RunRow label="reviews to moderate" count={reviews ? reviews.pending : null} loading={!audience.data && !audience.error}
-          detail="Readers are waiting to see these" onOpen={() => setActiveTab?.("reviews")} openLabel="Moderate" />
-        <RunRow label="titles to reprint soon" count={insights ? insights.reprint.length : null} loading={ordersLoading || stockLoading}
+        <RunRow label="reviews to moderate" one="review to moderate" count={reviews ? reviews.pending : null} loading={!audience.data && !audience.error}
+          detail="Readers are waiting to see these" detailOne="A reader is waiting to see it" onOpen={() => setActiveTab?.("reviews")} openLabel="Moderate" />
+        <RunRow label="titles to reprint soon" one="title to reprint soon" count={insights ? insights.reprint.length : null} loading={ordersLoading || stockLoading}
           detail={`On course to sell out within ${REORDER_COVER_DAYS} days`} onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
-        <RunRow label="print books or editions sold out" count={insights ? insights.shelf.soldOut : null} loading={ordersLoading || stockLoading}
-          detail="Customers can't buy these right now" onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
-        <RunRow label="cancel or return requests" count={todos ? todos.requests.length : null} loading={ordersLoading}
+        <RunRow label="print books or editions sold out" one="print book or edition sold out" count={insights ? insights.shelf.soldOut : null} loading={ordersLoading || stockLoading}
+          detail="Customers can't buy these right now" detailOne="Customers can't buy it right now" onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
+        <RunRow label="cancel or return requests" one="cancel or return request" count={todos ? todos.requests.length : null} loading={ordersLoading}
           detail="Customers asked from their order page" onOpen={() => { openOrdersQueue("Needs attention"); setActiveTab?.("orders"); }} openLabel="Answer requests" />
-        <RunRow label="gift cards not issued" count={todos ? todos.giftCardsMissing.length : null} loading={ordersLoading}
+        <RunRow label="gift cards not issued" one="gift card not issued" count={todos ? todos.giftCardsMissing.length : null} loading={ordersLoading}
           detail="Paid, but the buyer has no code yet" onOpen={() => setActiveTab?.("giftCards")} openLabel="Open gift cards" />
-        <RunRow label="pre-orders awaiting release" count={todos ? todos.awaitingRelease.length : null} loading={ordersLoading}
+        <RunRow label="pre-orders awaiting release" one="pre-order awaiting release" count={todos ? todos.awaitingRelease.length : null} loading={ordersLoading}
           detail="Press Ready to ship now on each order when the books arrive" onOpen={() => { openOrdersQueue("Awaiting release"); setActiveTab?.("orders"); }} openLabel="Open pre-orders" />
-        <RunRow label="unread messages" count={counts ? counts.unreadMessages : null} loading={!counts}
+        <RunRow label="unread messages" one="unread message" count={counts ? counts.unreadMessages : null} loading={!counts}
           detail="From the contact form on your website" onOpen={() => setActiveTab?.("messages")} openLabel="Read messages" />
-        <RunRow label="privacy requests" count={counts ? counts.openPrivacyRequests : null} loading={!counts}
+        <RunRow label="privacy requests" one="privacy request" count={counts ? counts.openPrivacyRequests : null} loading={!counts}
           detail="Customers asked for a copy or deletion of their data" onOpen={() => setActiveTab?.("general")} openLabel="Open privacy requests" />
       </RunList>
       {(allOrders.error || audience.error || stock.error) && (
