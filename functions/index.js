@@ -30,6 +30,7 @@ const { labelProblem, addressKey: guardAddressKey, shippoTransactionOutcome, adv
 const { labelHandedOver, transactionRefundState, findLabelTransaction, refundEntry, openRefunds, applyRefundChecks, REFUND_WINDOW_DAYS: LABEL_REFUND_WINDOW_DAYS } = require("./labelVoid");
 const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
+const { liveRateExtra, withLiveRateExtra, cleanLiveRateExtra } = require("./liveRateExtra");
 const { labelRatesFor, isPurchasableRate, isSoldRate: isSoldRateName, isCanadaPostRate: isCanadaPostRateName, soldName } = require("./labelRates");
 const { needsCustoms, customsItems, customsDeclaration } = require("./customs");
 const { FALLBACK_COPY_GRAMS, lineCopyGrams, parcelGrams } = require("./parcelWeight");
@@ -1023,7 +1024,8 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
       }, shippoToken);
       const carrierQuotes = (shipment.rates || []).map(rate => ({
         name: `${rate.provider || ""} ${rate.servicelevel?.name || rate.servicelevel?.token || "Shipping"}`.trim(),
-        price: Number(rate.amount),
+        // Same extra the shopper was shown (getShippoRates), so the charge matches the quote.
+        price: withLiveRateExtra(Number(rate.amount), liveRateExtra(config)),
         estimate: shippingEstimateOf(rate.estimated_days, rate.duration_terms),
       })).filter(rate => Number.isFinite(rate.price)).sort((a, b) => a.price - b.price);
       if (!carrierQuotes.length) return null;
@@ -5012,6 +5014,7 @@ exports.getShippoConfig = onBrowserRequest({ secrets: [SHIPPO_API_TOKEN] }, asyn
       updatedAt: config?.updatedAt || null,
       dynamicRatesEnabled: config?.dynamicRatesEnabled ?? false,
       dynamicRateCountries: Array.isArray(config?.dynamicRateCountries) ? config.dynamicRateCountries : [],
+      liveRateExtra: { enabled: config?.liveRateExtra?.enabled === true, amount: Number(config?.liveRateExtra?.amount) || 0 },
     });
   } catch (err) {
     console.error("getShippoConfig failed:", err);
@@ -5033,6 +5036,13 @@ exports.setShippoDynamicRates = onBrowserRequest(async (req, res) => {
   const dynamicRateCountries = Array.isArray(req.body?.countries)
     ? [...new Set(req.body.countries.map(country => String(country).trim().toUpperCase()).filter(country => /^[A-Z]{2}$/.test(country)))].slice(0, 250)
     : null;
+  let extra;
+  try {
+    extra = cleanLiveRateExtra(req.body?.extra);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+    return;
+  }
 
   try {
     const configDoc = await SHIPPO_CONFIG_DOC.get();
@@ -5041,6 +5051,7 @@ exports.setShippoDynamicRates = onBrowserRequest(async (req, res) => {
       ...current,
       dynamicRatesEnabled: enabled,
       ...(dynamicRateCountries ? { dynamicRateCountries } : {}),
+      ...(extra ? { liveRateExtra: extra } : {}),
       updatedAt: new Date().toISOString(),
       updatedBy: adminUser.email,
     });
@@ -5048,6 +5059,7 @@ exports.setShippoDynamicRates = onBrowserRequest(async (req, res) => {
       success: true,
       dynamicRatesEnabled: enabled,
       dynamicRateCountries: dynamicRateCountries ?? current.dynamicRateCountries ?? [],
+      liveRateExtra: extra ?? current.liveRateExtra ?? { enabled: false, amount: 0 },
     });
   } catch (err) {
     console.error("setShippoDynamicRates failed:", err);
@@ -5171,7 +5183,8 @@ exports.getShippoRates = onBrowserRequest(
       }, shippoToken);
 
       const rates = shipment.rates || [];
-      const formattedRates = rates.map(checkoutRate);
+      const extra = liveRateExtra(config);
+      const formattedRates = rates.map(checkoutRate).map((rate) => extra ? { ...rate, price: withLiveRateExtra(rate.price, extra), base: withLiveRateExtra(rate.base, extra) } : rate);
 
       res.status(200).json({ rates: formattedRates });
     } catch (err) {

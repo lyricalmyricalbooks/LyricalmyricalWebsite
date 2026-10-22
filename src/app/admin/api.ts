@@ -538,6 +538,10 @@ export const adminApi = {
     const docRef = await addDoc(collection(db, "shipping-profiles"), {
       name: profile.name,
       zones: profile.zones || [],
+      // A profile made from a starter or a copy arrives with its rules filled in.
+      freeShippingOver: nonNegativeOrNull(profile.freeShippingOver),
+      handlingFee: nonNegativeOrNull(profile.handlingFee),
+      defaultItemWeightG: nonNegativeOrNull(profile.defaultItemWeightG),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
@@ -1496,7 +1500,7 @@ export const adminApi = {
     return result;
   },
 
-  setShippoDynamicRates: async (enabled: boolean, countries?: string[]) => {
+  setShippoDynamicRates: async (enabled: boolean, countries?: string[], extra?: { enabled: boolean; amount: number }) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to save Shippo settings.");
 
@@ -1506,7 +1510,7 @@ export const adminApi = {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${idToken}`,
       },
-      body: JSON.stringify({ enabled, ...(countries ? { countries } : {}) }),
+      body: JSON.stringify({ enabled, ...(countries ? { countries } : {}), ...(extra ? { extra } : {}) }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Failed to update Shippo dynamic rates setting.");
