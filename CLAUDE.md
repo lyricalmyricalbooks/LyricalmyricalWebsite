@@ -205,7 +205,10 @@ the customer's `shippingMethod` (else cheapest) and rejects unservable destinati
 zones fall back to legacy flat `calculateShipping`. Live Shippo quotes can be enabled for an explicit
 country allowlist in Settings › Shipping › Carrier & labels; all other countries use the regular
 profile/zone path. Selected live quotes are fetched and validated again server-side so the charged
-amount matches checkout. Admin UI: Settings › Shipping › profile editor (Profile rules, Test this
+amount matches checkout. Carrier & labels › **Add an extra amount to every live rate** (`liveRateExtra { enabled, amount }` on the
+Shippo config doc, ≤ $50, `functions/liveRateExtra.js`) adds one amount to every live quote in both `getShippoRates` and
+`resolveShipping`; label purchases keep the carrier price. Create profile is one dialog (`NewShippingProfileDialog.tsx`,
+pure starters/duplicate in `shippingProfileStarters.ts`). Admin UI: Settings › Shipping › profile editor (Profile rules, Test this
 profile, rate dialog).
 
 **Weights are metric (18 October 2026).** Book/edition weights are entered in g or kg only (`WEIGHT_UNITS`); older

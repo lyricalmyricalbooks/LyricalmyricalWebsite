@@ -62,6 +62,9 @@ import { assignedCountryNames, countryName, groupedCountries, remainingCountryNa
 import { saveSectionsInOrder } from "./settingsSave";
 import { NewShippingProfileDialog } from "./NewShippingProfileDialog";
 import { duplicateProfile, profileSummary } from "./shippingProfileStarters";
+
+/** Same cap as functions/liveRateExtra.js MAX_LIVE_RATE_EXTRA. */
+const MAX_LIVE_RATE_EXTRA = 50;
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
 import { useSettingsDirty } from "./settingsDirty";
@@ -406,6 +409,45 @@ function normalizeRate(r: any) {
     maxItems: numOrNull(r.maxItems),
     note: String(r.note || "").trim(),
   };
+}
+
+/** Carrier & labels › live rates: one amount added to every live carrier price the shopper sees and pays. */
+function LiveRateExtraField({ config, onSave }: { config: any; onSave: (extra: { enabled: boolean; amount: number }) => Promise<void> }) {
+  const saved = config?.liveRateExtra || { enabled: false, amount: 0 };
+  const [enabled, setEnabled] = useState<boolean>(saved.enabled === true);
+  const [amount, setAmount] = useState<string>(saved.amount ? Number(saved.amount).toFixed(2) : "1.00");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    setEnabled(saved.enabled === true);
+    setAmount(saved.amount ? Number(saved.amount).toFixed(2) : "1.00");
+  }, [saved.enabled, saved.amount]);
+  const value = Number(amount);
+  const invalid = amount.trim() === "" || !Number.isFinite(value) || value < 0 || value > MAX_LIVE_RATE_EXTRA;
+  const dirty = enabled !== (saved.enabled === true) || (!invalid && Math.round(value * 100) !== Math.round((Number(saved.amount) || 0) * 100));
+  const save = async () => {
+    if (invalid || saving) return;
+    setSaving(true);
+    try {
+      await onSave({ enabled, amount: Math.round(value * 100) / 100 });
+      toast.success(enabled ? `Live rates now include an extra $${value.toFixed(2)}` : "Live rates now show the carrier's price");
+    } catch (err: any) {
+      toast.error(friendlyError(err, "save the extra amount on live rates"));
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="rp-stack" style={{ gap: 8, paddingTop: 12, borderTop: "1px solid var(--rp-divider)" }}>
+      <Toggle label="Add an extra amount to every live rate" checked={enabled} onChange={setEnabled} />
+      <p className="rp-hint" style={{ margin: 0 }}>Customers see and pay the carrier's price plus this amount, for example to cover packing. Labels you buy still cost the carrier's price.</p>
+      {enabled && (
+        <TextField label="Extra per order ($)" type="number" min={0} max={MAX_LIVE_RATE_EXTRA} step="0.01" inputMode="decimal" value={amount}
+          error={invalid ? `Enter an amount from 0 to ${MAX_LIVE_RATE_EXTRA}.` : undefined}
+          onChange={(e) => setAmount(e.target.value)} style={{ maxWidth: 160 }} />
+      )}
+      {dirty && <div><PrimaryButton size="sm" onClick={save} busy={saving} disabled={invalid}>Save extra amount</PrimaryButton></div>}
+    </div>
+  );
 }
 
 function ShippingSettings({ profiles, profilesError = false, refreshProfiles, initialView = "overview", subTab, onSubTabChange }: any) {
@@ -1053,6 +1095,12 @@ function ShippingSettings({ profiles, profilesError = false, refreshProfiles, in
                     })}
                   </div>
                   {(shippoConfig?.dynamicRateCountries || []).length === 0 && <p role="status" className="rp-hint" style={{ margin: 0 }}>No countries selected — all destinations currently use regular shipping rates.</p>}
+                  <LiveRateExtraField config={shippoConfig}
+                    onSave={async (extra) => {
+                      const countries = liveCountriesRef.current ?? (shippoConfig?.dynamicRateCountries || []);
+                      const result = await adminApi.setShippoDynamicRates(true, countries, extra);
+                      setShippoConfig((prev: any) => ({ ...prev, liveRateExtra: result?.liveRateExtra || extra }));
+                    }} />
                 </div>
               )}
             </div>
