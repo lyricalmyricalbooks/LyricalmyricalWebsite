@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import { Link } from "react-router";
-import { descriptionBlocks, inlineParts, type DescriptionBlock } from "./descriptionLinks";
+import { descriptionBlocks, inlineParts } from "./descriptionLinks";
 
 const LINK_CLASS = "fm-pdp-desc-link underline underline-offset-2 break-words hover:opacity-80";
 
@@ -21,23 +21,15 @@ function Inline({ text }: { text: string }) {
   );
 }
 
-/** With ruled lines on, every line of plain text is its own row (blank lines only separate); other blocks are unchanged. */
-export function ruledBlocks(blocks: DescriptionBlock[], ruled: boolean): DescriptionBlock[] {
-  if (!ruled) return blocks;
-  return blocks.flatMap((b) => b.type === "text"
-    ? b.text.split("\n").map((line) => line.trim()).filter(Boolean).map((line): DescriptionBlock => ({ type: "text", text: line }))
-    : [b]);
-}
-
 /**
  * A book description with its formatting (Books › edit › Details › Description toolbar) drawn:
  * links, bold, italic, headings, lists, quotes and dividers. Plain text renders as before.
  * Styled by Studio › Style › Product page · buy card & details › Description text (`fm-pdp-desc-*`).
  */
-export function DescriptionText({ text, ruled = false }: { text: string; ruled?: boolean }) {
+export function DescriptionText({ text }: { text: string }) {
   return (
     <>
-      {ruledBlocks(descriptionBlocks(text), ruled).map((b, i) => {
+      {descriptionBlocks(text).map((b, i) => {
         switch (b.type) {
           case "h3": return <h3 key={i} className="fm-pdp-desc-heading">{<Inline text={b.text} />}</h3>;
           case "h4": return <h4 key={i} className="fm-pdp-desc-heading fm-pdp-desc-subheading">{<Inline text={b.text} />}</h4>;

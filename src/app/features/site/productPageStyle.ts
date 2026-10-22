@@ -97,11 +97,8 @@ export function descriptionTextCss(d: any): string {
   css += `${T} .fm-pdp-desc-subheading{font-size:${headingSize ? `${Math.round(headingSize * 0.8)}px` : "1.05em"};}`;
   css += `${T} > :first-child{margin-top:0;}`;
   const ruleLine = color(d, "pdpCardDividerColor", "rgba(var(--border-rgb), 0.45)");
-  if (d.pdpRuledEveryLine === true) {
-    // Every line is its own row between hairlines, like the Details table (the rows come from DescriptionText `ruled`).
-    css += `${T}.fm-pdp-desc-ruled > *{margin:0;padding:${Math.max(gap, 8)}px 0;border-top:1px solid ${ruleLine};}`;
-    css += `${T}.fm-pdp-desc-ruled > :last-child{border-bottom:1px solid ${ruleLine};}`;
-  } else if (d.pdpRuledText === true) css += `${T} > * + *{border-top:1px solid ${ruleLine};padding-top:${gap}px;margin-top:${gap}px;}`;
+  if (d.pdpRuledEveryLine === true) css += notebookCss(d, T, ruleLine);
+  else if (d.pdpRuledText === true) css += `${T} > * + *{border-top:1px solid ${ruleLine};padding-top:${gap}px;margin-top:${gap}px;}`;
   css += `${T} .fm-pdp-desc-list{margin:${gap}px 0;padding-left:1.4em;white-space:normal;}`;
   css += `${T} ul.fm-pdp-desc-list{list-style:disc;}${T} ol.fm-pdp-desc-list{list-style:decimal;}`;
   css += `${T} .fm-pdp-desc-list li{margin:.2em 0;}`;
@@ -109,7 +106,45 @@ export function descriptionTextCss(d: any): string {
   css += `${T} .fm-pdp-desc-rule{margin:${gap * 1.5}px 0;border:0;border-top:1px solid rgba(var(--border-rgb), 0.45);}`;
   css += `${T} .fm-pdp-desc-link{color:${linkColor};text-decoration:${d.pdpDescLinkUnderline === false ? "none" : "underline"};}`;
   css += `${T} strong{font-weight:700;}${T} em{font-style:italic;}`;
+  if (d.pdpRuledEveryLine === true) css += notebookBlocksCss(d, T);
   return css;
+}
+
+/** Notebook line height in px for a text size: the Description line height when it is airy enough, else 2. */
+function notebookLine(d: any, size: number): number {
+  const lh = num(d, "pdpDescLineHeight", 0, 0, 2.6);
+  return Math.round(size * (lh >= 1.8 ? lh : 2));
+}
+
+/**
+ * Notebook lines (`pdpRuledEveryLine`) = a ruled notebook page: a hairline under every wrapped line, drawn as a
+ * background that repeats at exactly the line height (px, so it can't drift from the text), plus one rule
+ * above the first line. Blank lines in the text stay as empty ruled lines.
+ */
+function notebookCss(d: any, T: string, rule: string): string {
+  const size = num(d, "pdpDescSize", 15, 10, 24);
+  const phone = num(d, "pdpDescSizeMobile", 0, 0, 24) || size;
+  const page = (s: number, inset: number) => {
+    const line = notebookLine(d, s);
+    return `${T}.fm-pdp-desc-ruled{font-size:${s}px;line-height:${line}px;padding-left:${inset}px;`
+      + `background-image:repeating-linear-gradient(to bottom,transparent 0,transparent ${line - 1}px,${rule} ${line - 1}px,${rule} ${line}px);}`;
+  };
+  return `${T}.fm-pdp-desc-ruled{border-top:1px solid ${rule};}`
+    + page(size, 20) + `@media (max-width:${PHONE_MAX}px){${page(phone, 14)}}`;
+}
+
+/** Inside a notebook page every block keeps to the line grid: no margins, an empty line before a heading, a divider = one empty line. */
+function notebookBlocksCss(d: any, T: string): string {
+  const N = `${T}.fm-pdp-desc-ruled`;
+  const size = num(d, "pdpDescSize", 15, 10, 24);
+  const phone = num(d, "pdpDescSizeMobile", 0, 0, 24) || size;
+  const blocks = (s: number) => {
+    const line = notebookLine(d, s);
+    return `${N} > *,${N} > * + *,${N} .fm-pdp-desc-list li,${N} p{margin:0;padding-top:0;border-top:0;line-height:${line}px;}`
+      + `${N} > * + .fm-pdp-desc-heading{margin-top:${line}px;}`
+      + `${N} .fm-pdp-desc-rule{margin:0;height:${line}px;border:0;}`;
+  };
+  return blocks(size) + `@media (max-width:${PHONE_MAX}px){${blocks(phone)}}`;
 }
 
 /**
