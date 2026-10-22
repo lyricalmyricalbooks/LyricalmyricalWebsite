@@ -2513,3 +2513,12 @@ form (name, email, question, honeypot) that sends one `contactMessages` row thro
 the Contact form section, so Admin › Messages, the reply tool and `onContactMessage`'s budgeted emails all apply). Subject =
 Text & labels › Product page › `pdpAskSubject` with the title (+ edition), rules in pure `askQuestion.ts`. Never sends from the
 Studio preview (`inEditorPreview`). Words: Text & labels › Product page (`pdpAsk*`). No rule or Function change.
+
+## Star rating under the book title (22 October 2026)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **Star rating under the book title** (`showPdpRatingStars`, off by
+default) draws `features/site/PdpRating.tsx` in the buy card's heading block (region `productRating`): five stars in half steps, the
+average to one decimal and the review count, from the approved-review summary the page already reads (`reviewsApi.summary`; pure
+`ratingLine` in `pdpRating.ts`). Nothing for a book with no approved reviews. When reviews are reachable it is a button that opens the
+Reviews tab / accordion or scrolls to the reviews section (`openReviews` in `BookDetail`). Words: Text & labels › Product page
+(`pdpRatingCount`, `pdpRatingCountOne`, `pdpRatingAria`). Display only.

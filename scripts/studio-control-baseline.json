@@ -726,6 +726,7 @@
   "showPdpShipBy": "none: shows only on a book page, after the page has loaded",
   "showPdpFreeShipping": "none: needs a free-shipping amount in Settings › Shipping",
   "showPdpPickup": "none: needs Local pickup switched on in Settings › Shipping",
+  "showPdpRatingStars": "none: needs a book with at least one approved review",
   "showPdpSaleCountdown": "none: needs a book on sale with a Sale ends date in the next few days",
   "showPdpPolicyTab": "none: needs a Shipping or Returns policy written in Settings › General › Store policies",
   "showPdpWishlist": "visible",

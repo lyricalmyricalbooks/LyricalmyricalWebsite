@@ -50,6 +50,7 @@ import PdpFreeShipping from "./PdpFreeShipping";
 import PdpShipBy from "./PdpShipBy";
 import PdpAskQuestion from "./PdpAskQuestion";
 import SaleEndsLine from "./SaleEndsLine";
+import PdpRating from "./PdpRating";
 import { pdpFreeShipping } from "./pdpFreeShipping";
 import { pdpPolicyEntries } from "./pdpPolicyTab";
 import { policyHtml, policySlug, policyTitle } from "./policyPages";
@@ -178,6 +179,7 @@ export default function BookDetail() {
   const showPdpShipBy          = storefrontDesign.showPdpShipBy === true;
   const showPdpAskQuestion     = storefrontDesign.showPdpAskQuestion === true;
   const showPdpPolicyTab       = storefrontDesign.showPdpPolicyTab === true;
+  const showPdpRatingStars     = storefrontDesign.showPdpRatingStars === true;
 
   // Autonomy controls for book detail page
   const showAmbientGlow        = storefrontDesign.showAmbientGlow        ?? settings?.design?.showAmbientGlow        ?? true;
@@ -727,6 +729,20 @@ export default function BookDetail() {
     ...(regionVisible(regionDesign, "productReviews") ? [{ id: "reviews" as const, label: getCopy(settings?.design, "tabReviews") }] : []),
   ];
   const activeTab = detailTabs.some((t) => t.id === detailsTab) ? detailsTab : detailTabs[0]?.id;
+  // The star line under the title opens the reviews: the Reviews tab or accordion, or the reviews section below.
+  const reviewsReachable = regionVisible(regionDesign, "productReviews") && (productDetailsLayout === "sections" || detailTabs.some((t) => t.id === "reviews"));
+  const openReviews = () => {
+    if (productDetailsLayout === "tabs") setDetailsTab("reviews");
+    else if (productDetailsLayout === "accordions") setOpenAccordions((prev) => ({ ...prev, reviews: true }));
+    ga4PdpInteract("tab_open", { tab: pdpTabName("reviews") });
+    window.requestAnimationFrame(() => {
+      const target = productDetailsLayout === "tabs" ? document.getElementById("pdp-tab-reviews")
+        : productDetailsLayout === "accordions" ? document.querySelector<HTMLElement>('[aria-controls="pdp-acc-reviews"]')
+        : document.querySelector<HTMLElement>('[data-store-region="productReviews"]');
+      target?.scrollIntoView?.({ behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+      if (productDetailsLayout === "tabs") target?.focus({ preventScroll: true });
+    });
+  };
   const onTabKey = (e: React.KeyboardEvent, i: number) => {
     if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
     e.preventDefault();
@@ -958,6 +974,9 @@ export default function BookDetail() {
                     )}
                     {bk.authorName && (
                       <p className="fm-pdp-meta">{bk.authorName}</p>
+                    )}
+                    {showPdpRatingStars && reviewsReady && regionVisible(regionDesign, "productRating") && (
+                      <PdpRating summary={seoReviews!.summary} design={settings?.design} onOpen={reviewsReachable ? openReviews : undefined} />
                     )}
                   </div>
         </Fragment>;
