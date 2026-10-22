@@ -36,11 +36,11 @@ export function SettingsTabs({ tabs, value, onChange, label }: { tabs: SettingsT
     tabs={tabs.map((t) => ({ id: t.id, label: t.title, unsaved: t.unsaved, ...(t.count ? { count: t.count } : {}) }))} />;
 }
 
-/** One topic of a settings page: the sub tab's panel and its cards (no line under the tab: the Masthead has none). */
+/** One topic of a settings page: the sub tab's panel and its cards, spaced like Inventory's. */
 export function SettingsGroup({ id, active, children }: { id: string; active: boolean; children: ReactNode }) {
   return (
     <TabPanel tabId={id} active={active}>
-      <div className="rp-stack" style={{ gap: 0 }}>
+      <div className="rp-stack">
         {children}
       </div>
     </TabPanel>

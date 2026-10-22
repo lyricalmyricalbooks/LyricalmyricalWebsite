@@ -16,8 +16,8 @@ import { inventoryApi } from "./inventoryApi";
 import { liveStockOf } from "./inventoryInsights";
 import toast from "react-hot-toast";
 import {
-  ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, GhostButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, Pagination,
-  PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, type Column,
+  ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, GhostButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, Pagination,
+  PrimaryButton, Tabs, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, type Column,
 } from "./riso/components";
 import { preorderActive, releaseDateOf } from "../features/site/preorder";
 import { normalizeCategories } from "../features/site/navItems";
@@ -46,6 +46,8 @@ async function eachBook(books: any[], write: (b: any) => Promise<unknown>) {
   const results = await Promise.allSettled(books.map(write));
   return books.filter((_, i) => results[i].status === "rejected");
 }
+
+const STATUS_CHIPS = [...STATUS_FILTERS, "Pre-order", "Coming soon"] as const;
 
 export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps) {
   const [books, setBooks] = useState<any[]>([]);
@@ -157,6 +159,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const pageRows = rows.slice((cur - 1) * pageSize, cur * pageSize);
 
   // Arranging works on the whole catalog, so it is offered only when no search or filter hides books.
+  const statusCounts = useMemo(() => Object.fromEntries(STATUS_CHIPS.map((v) => [v, books.filter((b) => matchesStatus(b, v)).length])) as Record<typeof STATUS_CHIPS[number], number>, [books]);
+  const soldOut = useMemo(() => books.filter((b) => matchesStatus(b, "Published") && stockOf(b).kind === "soldout").length, [books, stockOf]);
   const filtering = !!q || statusFilter !== "All" || stockFilter !== "All" || categoryFilter !== "All" || formatFilter !== "All";
   const canArrange = sort === "shop" && !filtering && !savingOrder;
   const moveBook = async (id: string, to: number) => {
@@ -477,31 +481,20 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
 
   return (
     <div className="rp-stack">
-      <div className="bk-toolbar">
-        <p className="bk-count" role="status">
-          {filtering ? `Showing ${rows.length} of ${books.length} title${books.length === 1 ? "" : "s"}` : `${books.length} title${books.length === 1 ? "" : "s"}`}
-        </p>
-        <div className="bk-toolbar-actions">
-          <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>Add book</PrimaryButton>
-          <ActionMenu label="More catalog actions" actions={[
-            { label: "Import CSV…", onSelect: () => setImportOpen(true) },
-            { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
-            { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
-            { label: "Google indexing", onSelect: () => setIndexOpen(true) },
-          ]} />
-        </div>
+      <div className="rp-kpi-grid">
+        <MetricCard label="Titles" value={books.length} footer={`${statusCounts.Draft} draft · ${statusCounts.Archived} archived`} />
+        <MetricCard label="Published" value={statusCounts.Published} footer={`${statusCounts.Scheduled} scheduled`} />
+        <MetricCard label="Sold out" value={soldOut} tone={soldOut ? "danger" : undefined} footer="Published, cannot be bought" />
+        <MetricCard label="Pre-order · coming soon" value={statusCounts["Pre-order"] + statusCounts["Coming soon"]} footer={`${statusCounts["Pre-order"]} pre-order · ${statusCounts["Coming soon"]} coming soon`} />
       </div>
+      <Tabs label="Publication status" value={statusFilter} onChange={setStatusFilter}
+        tabs={STATUS_CHIPS.map((v) => ({ id: v, label: v, count: statusCounts[v] }))} />
       <div className="bk-filters" data-open={filtersOpen}>
       <FilterBar>
         <div className="rp-grow"><SearchField label="Search books" placeholder="Search title, author, ISBN or SKU…" value={search} onChange={e => setSearch(e.target.value)} /></div>
         <SecondaryButton className="bk-filter-toggle" icon={<SlidersHorizontal size={16} aria-hidden />} aria-expanded={filtersOpen} onClick={() => setFiltersOpen(o => !o)}>
           {filtersOpen ? "Hide filters" : `Filters & sort${activeFilters ? ` (${activeFilters})` : ""}`}
         </SecondaryButton>
-        <div className="bk-filter-extra">
-          <SelectField label="Publication status" hideLabel value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-            {[...STATUS_FILTERS, "Pre-order", "Coming soon"].map(v => <option key={v} value={v}>{v === "All" ? "All statuses" : v}</option>)}
-          </SelectField>
-        </div>
         <div className="bk-filter-extra">
           <SelectField label="Stock" hideLabel value={stockFilter} onChange={e => setStockFilter(e.target.value)}>
             {STOCK_FILTERS.map(v => <option key={v} value={v}>{v === "All" ? "All stock" : v}</option>)}
@@ -554,7 +547,18 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
       )}
 
       <SectionCard flush title="Catalog" collapsible={false}
-        actions={pageRows.length > 0 ? <Checkbox label={sort === "shop" ? "Select all" : "Select page"} checked={allSelected} onChange={togglePage} /> : undefined}>
+        actions={
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+            {pageRows.length > 0 && <Checkbox label={sort === "shop" ? "Select all" : "Select page"} checked={allSelected} onChange={togglePage} />}
+            <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>Add book</PrimaryButton>
+            <ActionMenu label="More catalog actions" actions={[
+              { label: "Import CSV…", onSelect: () => setImportOpen(true) },
+              { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
+              { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
+              { label: "Google indexing", onSelect: () => setIndexOpen(true) },
+            ]} />
+          </div>
+        }>
         {sort === "shop" && (
           <p className="rp-hint" role="status" style={{ padding: "8px 16px", margin: 0 }}>
             {filtering

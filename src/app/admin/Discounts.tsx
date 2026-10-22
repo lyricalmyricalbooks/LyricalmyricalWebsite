@@ -458,7 +458,7 @@ export function Discounts() {
           </button>
           {isAutomatic(d)
             ? <StatusBadge tone="info">Automatic</StatusBadge>
-            : <SecondaryButton size="sm" icon={<Link2 size={14} aria-hidden />} aria-label={`Share link for ${d.code}`} onClick={() => setSharing(d.code)}>Share link</SecondaryButton>}
+            : <IconButton label={`Share link for ${d.code}`} onClick={() => setSharing(d.code)}><Link2 size={16} aria-hidden /></IconButton>}
         </span>
         <div style={{ overflowWrap: "anywhere", marginTop: 4 }}>{describeDiscount(d, books || [])}</div>
         {d.description && <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{d.description}</div>}

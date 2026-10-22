@@ -39,8 +39,7 @@ import {
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { POLICY_KEYS, POLICY_TITLES, policySlug, type PolicyKey } from "../features/site/policyPages";
-import { ActionMenu, Checkbox, ConfirmDialog, LoadingState, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
-import { Figure } from "./OverviewParts";
+import { ActionMenu, Checkbox, ConfirmDialog, LoadingState, MetricCard, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import { NotificationEditor } from "./NotificationEditor";
@@ -135,7 +134,7 @@ export function ShopSettings({
   }
 
   return (
-    <div className="rp-settings max-w-5xl mx-auto pb-32">
+    <div className="rp-settings pb-32">
       <AnimatePresence mode="wait">
         <m.div
           key={activeTab}
@@ -1016,10 +1015,10 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
 
         {shippingView === "overview" && (
           <>
-            <section className="rp-ov-figures rp-wb-strip" aria-label="Shipping in numbers">
-              <Figure label="Profiles" value={shippingSummary.profileCount} foot={`${shippingSummary.assignedProductCount} books moved to a profile`} />
-              <Figure label="Countries" value={shippingSummary.coveredCountryCount} foot={`${shippingSummary.zoneCount} zones · ${shippingSummary.rateCount} rates`} />
-              <Figure label="Checkout" value={shippingProblems.length === 0 ? "Ready" : `${shippingProblems.length} issue${shippingProblems.length === 1 ? "" : "s"}`} foot={shippoConnected ? "Shippo connected" : "Flat rates only"} tone={shippingProblems.length > 0 ? "warn" : undefined} />
+            <section className="rp-kpi-grid" aria-label="Shipping in numbers">
+              <MetricCard label="Profiles" value={shippingSummary.profileCount} footer={`${shippingSummary.assignedProductCount} books moved to a profile`} />
+              <MetricCard label="Countries" value={shippingSummary.coveredCountryCount} footer={`${shippingSummary.zoneCount} zones · ${shippingSummary.rateCount} rates`} />
+              <MetricCard label="Checkout" value={shippingProblems.length === 0 ? "Ready" : `${shippingProblems.length} issue${shippingProblems.length === 1 ? "" : "s"}`} footer={shippoConnected ? "Shippo connected" : "Flat rates only"} tone={shippingProblems.length > 0 ? "warn" : undefined} />
             </section>
             <SectionCard title="Checkout readiness">
               {shippingProblems.length === 0 ? (
@@ -1203,11 +1202,11 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
           { id: "books", label: "Books", count: isGeneral ? undefined : assignedBooks.length },
           { id: "test", label: "Test" },
         ]} />
-        <section className="rp-ov-figures rp-wb-strip" aria-label="This profile in numbers">
-          <Figure label="Zones" value={zones.length} foot={zones.length ? "" : "Add one to ship"} tone={zones.length ? undefined : "warn"} />
-          <Figure label="Rates" value={rateCount} foot={profileSummary({ zones }).split(" · ").pop()} tone={rateCount ? undefined : "warn"} />
-          <Figure label="Countries" value={countryCount} foot={shipsEverywhere ? "plus everywhere else" : ""} />
-          <Figure label="Books" value={isGeneral ? "All others" : assignedBooks.length} foot="" />
+        <section className="rp-kpi-grid" aria-label="This profile in numbers">
+          <MetricCard label="Zones" value={zones.length} footer={zones.length ? "" : "Add one to ship"} tone={zones.length ? undefined : "warn"} />
+          <MetricCard label="Rates" value={rateCount} footer={profileSummary({ zones }).split(" · ").pop()} tone={rateCount ? undefined : "warn"} />
+          <MetricCard label="Countries" value={countryCount} footer={shipsEverywhere ? "plus everywhere else" : ""} />
+          <MetricCard label="Books" value={isGeneral ? "All others" : assignedBooks.length} footer="" />
         </section>
       </header>
 

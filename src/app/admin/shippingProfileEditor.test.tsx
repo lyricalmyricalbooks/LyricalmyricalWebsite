@@ -34,13 +34,13 @@ describe("Settings › Shipping › profiles (Masthead layout)", () => {
     expect(el.textContent).not.toContain("A profile is a set of zones");
   });
 
-  it("opens a profile as a big title, underlined sub tabs and one strip of figures", async () => {
+  it("opens a profile as a big title, underlined sub tabs and the same figures strip as Inventory", async () => {
     const el = await mount();
     await click(byText(el, "button", "General"));
     expect(el.querySelector("h2.rp-page-title")?.textContent).toBe("General");
     const tabs = [...el.querySelectorAll('[role="tablist"][aria-label="Profile"] [role="tab"]')].map((t) => t.textContent);
     expect(tabs).toEqual(["Zones & prices", "Rules", "Books", "Test"]);
-    expect([...el.querySelectorAll(".rp-ov-figure-label")].map((n) => n.textContent)).toEqual(["Zones", "Rates", "Countries", "Books"]);
+    expect([...el.querySelectorAll(".rp-kpi-grid .rp-metric-label")].map((n) => n.textContent)).toEqual(["Zones", "Rates", "Countries", "Books"]);
     expect(el.textContent).not.toMatch(/\\d · (Where you ship|Rules for|Books that|Test this)/);
     expect(el.querySelector(".rp-card-desc")).toBeNull();
     // One panel at a time; the others stay mounted.

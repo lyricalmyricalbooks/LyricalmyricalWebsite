@@ -200,15 +200,13 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
 
   return (
     <div className="rp-stack">
-      <div className="rp-filter-bar">
-        <Tabs<Filter> label="Message folder" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
-          tabs={([["inbox", "Inbox"], ["unread", "Unread"], ["replied", "Replied"], ["archived", "Archived"]] as const).map(([id, label]) => ({ id, label, count: tabCounts[id] }))} />
-      </div>
+      <Tabs<Filter> label="Message folder" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
+        tabs={([["inbox", "Inbox"], ["unread", "Unread"], ["replied", "Replied"], ["archived", "Archived"]] as const).map(([id, label]) => ({ id, label, count: tabCounts[id] }))} />
       <FilterBar>
         <div className="rp-grow"><SearchField label="Search messages" placeholder="Search name, email or text…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       </FilterBar>
 
-      <SectionCard flush title="Messages"
+      <SectionCard flush collapsible={false} title="Messages"
         description={`${list.length} in this view${hasMore ? " (older messages not loaded yet)" : ""} · ${last7} received in the last 7 days · ${totals?.all ?? messages.length} all time`}
         actions={unread ? <StatusBadge tone="warning">{unread} unread</StatusBadge> : <StatusBadge tone="success">All read</StatusBadge>}>
         {loading ? <LoadingState label="Loading messages…" />
