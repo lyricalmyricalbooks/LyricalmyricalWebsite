@@ -5,8 +5,10 @@ import { flagEmoji, matchCountries, orderedCountries } from "./countryPicker";
 import { comboboxInputProps, optionId } from "./comboboxAria";
 
 // ─── Country picker: pinned favourites, type-to-search, keyboard friendly ─────
-export function CountryField({ value, onChange, label = "Country", pinnedCodes, showFlags, words, id, error }: {
+export function CountryField({ value, onChange, label = "Country", pinnedCodes, showFlags, words, id, error, stacked = false }: {
   value: string; onChange: (v: string) => void; label?: string; id?: string; error?: string;
+  /** Checkout's order-slip look: the label sits above a square box (Studio › Checkout page › Field labels). */
+  stacked?: boolean;
   pinnedCodes: string[]; showFlags: boolean;
   words: { search: string; popular: string; all: string; none: (q: string) => string };
 }) {
@@ -16,6 +18,8 @@ export function CountryField({ value, onChange, label = "Country", pinnedCodes, 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const listId = useId();
+  const ownId = useId();
+  const inputId = id || ownId;
   const { pinned, rest } = useMemo(() => orderedCountries(pinnedCodes), [pinnedCodes]);
   const results = useMemo(() => (query.trim() ? matchCountries(query, pinnedCodes) : [...pinned, ...rest]), [query, pinned, rest, pinnedCodes]);
   const selected = COUNTRIES.find(c => c.name === value);
@@ -35,15 +39,17 @@ export function CountryField({ value, onChange, label = "Country", pinnedCodes, 
   }, [active, open]);
 
   return (
-    <div className="relative" onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { setOpen(false); setQuery(""); } }}>
+    <div className={stacked ? "fm-co-field" : "relative"} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { setOpen(false); setQuery(""); } }}>
+      {stacked && <label htmlFor={inputId} className="fm-co-label fm-co-mono">{label}</label>}
+      <div className={stacked ? "fm-co-select" : "contents"}>
       <input
         ref={inputRef}
-        id={id}
+        id={inputId}
         {...comboboxInputProps({ open, listId, activeIndex: active, count: results.length })}
         aria-controls={listId}
         aria-invalid={error ? true : undefined}
         aria-describedby={error && id ? `${id}-error` : undefined}
-        aria-label={label}
+        aria-label={stacked ? undefined : label}
         autoComplete="country-name"
         value={open ? query : `${selected ? flag(selected.code) : ""}${value}`}
         placeholder={open ? words.search : ""}
@@ -65,10 +71,13 @@ export function CountryField({ value, onChange, label = "Country", pinnedCodes, 
           else if (e.key === "Tab") { if (query.trim() && results[active]) choose(results[active].name); else setOpen(false); }
           else if (e.key === "Escape") { setOpen(false); setQuery(""); }
         }}
-        className="peer w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3.5 pb-2 pt-6 text-sm text-slate-900 outline-none transition focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)]"
+        className={stacked ? "fm-co-input" : "peer w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3.5 pb-2 pt-6 text-sm text-slate-900 outline-none transition focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)]"}
       />
-      <label className="absolute left-3.5 top-2 text-xs text-slate-500 pointer-events-none">{label}</label>
-      <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-xs">▾</span>
+      {stacked
+        ? <svg className="fm-co-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 6l4 4 4-4" /></svg>
+        : <><label className="absolute left-3.5 top-2 text-xs text-slate-500 pointer-events-none">{label}</label>
+          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-xs">▾</span></>}
+      </div>
       {error && id && <p id={`${id}-error`} data-studio-target="copy:Checkout" data-studio-label="Field error" className="mt-1 text-xs leading-5" style={{ color: "var(--danger, #b4271a)" }}><span aria-hidden="true">✕ </span>{error}</p>}
       {open && (
         <ul ref={listRef} id={listId} role="listbox" aria-label={label} data-studio-target="style:checkout" data-studio-label="Country list"

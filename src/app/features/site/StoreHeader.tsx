@@ -25,6 +25,7 @@ import { useHeaderOffset } from "./headerOffset";
 import { HEADER_REVEAL_CSS, useHeaderReveal } from "./headerReveal";
 import { useStudioOverlay } from "./studioOverlay";
 import { activeAnnouncements } from "./sectionGroups";
+import { announcementCountdownOn, announcementCountdownText } from "./announcementCountdown";
 import { elementScheme } from "./colorSchemes";
 import { GroupSections } from "../../components/sectionRender";
 import { PopupSections } from "./PopupSections";
@@ -167,12 +168,27 @@ function CategoryBar({ navRef, items, design, copyDesign, color, line, stickers,
   );
 }
 
-/** One announcement message: plain text, or a link when the message has one. */
-function AnnouncementMessage({ text, link, editable, className }: { text: string; link?: string; editable?: boolean; className?: string }) {
+/** One announcement message: plain text, or a link when the message has one, then its countdown words if any. */
+function AnnouncementMessage({ text, link, editable, className, countdown }: { text: string; link?: string; editable?: boolean; className?: string; countdown?: string }) {
   const edit = editable ? { "data-studio-style-text": "announcementText", "data-studio-edit-value": text } : {};
-  if (!link) return <span {...edit} className={className}>{text}</span>;
-  if (/^(https?:|mailto:)/i.test(link)) return <a href={link} {...edit} className={`${className || ""} underline-offset-4 hover:underline`}>{text}</a>;
-  return <Link to={link} {...edit} className={`${className || ""} underline-offset-4 hover:underline`}>{text}</Link>;
+  const message = !link ? <span {...edit} className={className}>{text}</span>
+    : /^(https?:|mailto:)/i.test(link) ? <a href={link} {...edit} className={`${className || ""} underline-offset-4 hover:underline`}>{text}</a>
+    : <Link to={link} {...edit} className={`${className || ""} underline-offset-4 hover:underline`}>{text}</Link>;
+  if (!countdown) return message;
+  // translate="no": the words change every half minute, which a page translator can't follow.
+  return <>{message}<span className="fm-announce-countdown ml-2 whitespace-nowrap" translate="no">{countdown}</span></>;
+}
+
+/** Style › Header & announcement bar › Announcement countdown: a clock that starts only after mount (the prerendered HTML never carries one). */
+function useAnnouncementClock(on: boolean): number | null {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    if (!on) { setNow(null); return; }
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [on]);
+  return now;
 }
 
 /** Cycles through several messages (Style › Header & announcement bar › Seconds each message shows); pauses on hover/focus. */
@@ -204,10 +220,12 @@ function announceText(design: any) {
   };
 }
 
-function AnnouncementBar({ design, show, fallback, shop }: { design: any; show: boolean; fallback?: string; shop: boolean }) {
+function AnnouncementBar({ design, copyDesign, show, fallback, shop }: { design: any; copyDesign: any; show: boolean; fallback?: string; shop: boolean }) {
   const messages = show ? activeAnnouncements({ ...design, announcementText: design?.announcementText ?? fallback }) : [];
   const single = !Array.isArray(design?.announcements) || !design.announcements.length;
   const { index, pause } = useRotation(messages.length, Number(design?.announcementRotateSeconds ?? 5));
+  const now = useAnnouncementClock(show && announcementCountdownOn(design) && messages.some(m => m.until));
+  const countdownOf = (m: { until?: string }) => (now === null ? "" : announcementCountdownText(design, copyDesign, m.until, now));
   if (!messages.length) return null;
   const current = messages[index];
   if (!shop) {
@@ -219,7 +237,7 @@ function AnnouncementBar({ design, show, fallback, shop }: { design: any; show: 
         style={{ backgroundColor: design.announcementBg || "var(--accent)", color: design.announcementColor || "var(--on-accent)", ...announceText(design) }}
         {...pause}
       >
-        <AnnouncementMessage key={index} text={current.text} link={current.link} editable={single} />
+        <AnnouncementMessage key={index} text={current.text} link={current.link} editable={single} countdown={countdownOf(current)} />
       </div>
     );
   }
@@ -242,7 +260,7 @@ function AnnouncementBar({ design, show, fallback, shop }: { design: any; show: 
           ) : (
             <span key={copy} aria-hidden={copy === 1} className="px-8 whitespace-nowrap">
               {Array.from({ length: 2 }).flatMap((_, round) => messages.map((m, i) => (
-                <AnnouncementMessage key={`${round}-${i}`} text={m.text} link={copy === 0 ? m.link : undefined} className="px-8" />
+                <AnnouncementMessage key={`${round}-${i}`} text={m.text} link={copy === 0 ? m.link : undefined} className="px-8" countdown={countdownOf(m)} />
               )))}
             </span>
           ))}
@@ -252,7 +270,7 @@ function AnnouncementBar({ design, show, fallback, shop }: { design: any; show: 
   }
   return (
     <div data-section="announcements" data-studio-target="style:header" data-studio-label="Announcement bar" className="fm-announce text-center py-2.5 px-6 uppercase sticky top-0 z-[60]" style={{ ...colors, ...announceText(design) }} {...pause}>
-      <AnnouncementMessage key={index} text={current.text} link={current.link} editable={single} />
+      <AnnouncementMessage key={index} text={current.text} link={current.link} editable={single} countdown={countdownOf(current)} />
     </div>
   );
 }
@@ -399,7 +417,7 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
 
   return (
     <>
-      <AnnouncementBar design={storefront} show={storefront.showAnnouncement ?? false} shop={false} />
+      <AnnouncementBar design={storefront} copyDesign={design} show={storefront.showAnnouncement ?? false} shop={false} />
       {revealOnScrollUp && <style>{HEADER_REVEAL_CSS}</style>}
       <header
         data-section="navigation"
@@ -552,7 +570,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
     <>
       {stickers && <style>{STICKER_PILL_CSS}</style>}
       {revealOnScrollUp && <style>{HEADER_REVEAL_CSS}</style>}
-      <AnnouncementBar design={sf} show={showAnnouncement} fallback={shop.announcement} shop />
+      <AnnouncementBar design={sf} copyDesign={design} show={showAnnouncement} fallback={shop.announcement} shop />
       <header
         data-section="navigation"
         data-studio-target="style:header|menus:header-order|copy:Header" data-studio-label="Header"

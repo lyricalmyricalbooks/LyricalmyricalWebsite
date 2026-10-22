@@ -152,7 +152,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   header: [
     { title: "Header layout", keys: ["headerStyle", "logoPosition", "logoHeight", "stickyHeader", "stickyHeaderHideOnScroll", "transparentHeader", "navStyle", "showMobileNavigation", "phoneCompactHeader", "mobileNavStyle", "mobileNavTabSize", "showSecondaryNavigation", "showStoreChromeOnUtilityPages"] },
     { title: "Header colours", keys: ["headerBg", "headerColor"] },
-    { title: "Announcement bar", keys: ["showAnnouncement", "announcementText", "announcementBg", "announcementColor", "announcementScrolling", "announcementFontSize", "announcementWeight", "announcementTracking", "announcementSpeed", "announcementRotateSeconds"] },
+    { title: "Announcement bar", keys: ["showAnnouncement", "announcementText", "announcementBg", "announcementColor", "announcementScrolling", "announcementFontSize", "announcementWeight", "announcementTracking", "announcementSpeed", "announcementRotateSeconds", "announcementCountdown", "announcementCountdownWithin"] },
     { title: "Icons & buttons in the header", keys: ["hideHeaderSearch", "hideHeaderWishlist", "hideHeaderAccount", "hideCurrencySelector", "hideThemeToggle", "hideAdminLink", "hideCartButton"] },
   ],
   navlinks: [
@@ -215,7 +215,10 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   checkout: [
     { title: "What shoppers see", keys: ["showOrderNote", "hideCheckoutAddressUnit", "hideCheckoutPaymentTotal", "hideCheckoutExpressWallets", "hideAddressSuggestions", "checkoutPinnedCountries", "hideCountryFlags", "checkoutSummaryOpenOnPhones", "hidePayButtonTotal", "showCheckoutDiscountBox", "alwaysShowDiscountBox", "showCheckoutGiftCardBox", "showCheckoutAutoDiscountHint", "hideCheckoutFreeShipNudge", "hideCheckoutLowStock", "hideCheckoutPolicyLinks", "requireCheckoutTerms"] },
     { title: "Colours", keys: ["checkoutAccentColor", "checkoutBgColor"] },
-    { title: "Fonts & form fields", keys: ["checkoutHeadingFont", "checkoutFont", "checkoutFieldFont", "checkoutFieldBg", "checkoutFieldText", "checkoutFieldBorder", "checkoutInputRadius"] },
+    { title: "Fonts & form fields", keys: ["checkoutHeadingFont", "checkoutFont", "checkoutFieldFont", "checkoutMetaFont", "checkoutLabelStyle", "checkoutFieldHeight", "checkoutFieldBg", "checkoutFieldText", "checkoutFieldBorder", "checkoutInputRadius"] },
+    { title: "Header & sections", keys: ["checkoutBrandAccent", "checkoutHeaderRuleWidth", "checkoutShowPageTitle", "checkoutPageTitleSize", "showCheckoutProgress", "checkoutSectionMarker", "checkoutMarkerColor", "checkoutSectionTitleSize", "checkoutRuleColor", "showCheckoutTrustRow"] },
+    { title: "Pay button & payment choices", keys: ["checkoutPayTabs", "checkoutPayBg", "checkoutPayText", "checkoutPayHeight", "checkoutPayShadow", "checkoutPayShadowColor", "checkoutPhonePayBar"] },
+    { title: "Order slip", keys: ["checkoutSlipBg", "checkoutSlipOutline", "checkoutSlipOutlineWidth", "checkoutSlipShadowColor", "checkoutSlipShadowOffset", "checkoutSlipTitleSize", "checkoutSlipShowDate", "checkoutSlipNumbers", "checkoutSlipThumbWidth", "checkoutSlipPerforation", "checkoutSlipTotalSize", "showCheckoutReassurance", "checkoutSlipShowFooter", "checkoutSlipFooterBg", "checkoutSlipFooterText"] },
     { title: "Card payment form", keys: ["stripeFormBg", "stripeFormPadding"] },
   ],
   customPages: [
@@ -321,7 +324,8 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "Search box & search window", match: /^(filterSearch|search)/ },
   ],
   Checkout: [
-    { title: "Steps & headings", match: /^co(Brand|Return|Secure|Progress|Step|Contact$|Delivery$|Payment$|Summary|ShowSummary|HideSummary|ItemCount)/ },
+    { title: "Steps & headings", match: /^co(Brand|Return|Secure|Progress|Step|PageTitle|Contact$|YourLocation|Delivery$|DeliveryTag|Payment$)/ },
+    { title: "Order slip", match: /^co(Summary|ShowSummary|HideSummary|ItemCount|LineQty|Slip)/ },
     { title: "Contact & address fields", match: /^co(SignedIn|Google|Email|Name|Address|Country|City|State|Zip|Phone|Bill|EnterAddress)/ },
     { title: "Shipping, pickup & delivery", match: /^co(Ship|Fulfillment|Rates|ArrivesBy|FreeShip|Packed|Pickup|Carrier|Estimated|Free$|NoShipping|Preorder|TaxLater)/ },
     { title: "Payment & the Pay button", match: /^co(Payment|Card|Pay|PayPal|Paypal|PlaceOrder|Processing|Stripe|Trust|Guarantee|TestMode|NoPayment|PrivacyNote|Policy|Terms|OnlyLeft|Express|OrderNote|Rates)/ },

@@ -67,7 +67,7 @@ export function Sidebar({ brand, items, activeId, activeChildId, onSelect, onSel
                 <li key={item.id}>
                   {item.section && <div className="rp-nav-section" aria-hidden="true">{item.section}</div>}
                   <button
-                    type="button" className="rp-nav-item"
+                    type="button" className="rp-nav-item" data-nav={item.id}
                     aria-current={active ? "page" : undefined}
                     aria-expanded={item.children ? active : undefined}
                     onClick={() => onSelect(item.id)}
@@ -157,6 +157,12 @@ function writeFolded(key: string, folded: boolean) {
  * keep only their description and actions (see OverviewBoard.tsx).
  */
 export const CardInWidget = createContext(false);
+
+/**
+ * A page that draws its own masthead (the Overview) shows the admin alerts under it, as every other page does
+ * under its PageHeader: the shell hands the alerts down through this slot instead of drawing them above the page.
+ */
+export const PageAlertsSlot = createContext<ReactNode>(null);
 
 /**
  * A titled card. Cards with a title can be folded down to just their heading (chevron button); the choice is

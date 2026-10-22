@@ -916,6 +916,18 @@ square corners, 2px ink outlines on objects and hairlines inside lists, flat off
 shadows by day, warm-grey night mode, Anton / Archivo / DM Mono, status = glyph + word.
 If tokens change there, update `riso.css` to match.
 
+**Pressroom (22 October 2026, Julian's concept A, https://claude.ai/artifact/AR9vcvX5mR5JNCDHeBpFte):** the last layer of
+`riso.css` ("Pressroom") restyles the whole admin: cream page, 232px ink rail (`--rp-rail*`; nav icons hidden, active item
+cream, `data-nav` on each item, Orders badge red), 64px top bar with a hairline (search, "Shop open" as glyph + word, round
+ink avatar), 72px Anton titles, 40px underlined page tabs, figures as a ledger (2px ink rule over mono labels/36px mono
+values), cards as flat sheets (1px border + 2px ink top rule, no shadow; every `--rp-shadow*` is `none` except
+`--rp-shadow-float` for dialogs/menus/toasts), 36px flat sentence-case buttons, 28px chips (ink when chosen), mono table
+heads with 56px rows, rounded tinted badges, alerts as tinted lines with an underlined text action. Restyle through these
+classes; don't bring back shadows, offset boxes or uppercase buttons. The top bar holds only search, shop status and the
+avatar menu (View site, Add book, Help, appearance live in that menu); the rail has no account card. Overview draws its own
+masthead: `Dashboard` skips `PageHeader` there and passes the alerts through `PageAlertsSlot` (`riso/components.tsx`), so
+`OverviewBoard` renders title + period chips → alerts → tabs → figures with the updated line and board actions under them.
+
 - `riso.css` — semantic `--rp-*` tokens (light + night) and every `rp-*` component
   class; reduced motion, 44px coarse-pointer targets, visible focus, print.
 - `components.tsx` — AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, SectionCard,
@@ -1172,6 +1184,21 @@ The private operations, label purchase safeguards, payment authority and server 
 ### Public designer coverage (2 October 2026)
 
 Wishlist, Customer account and Order tracking have Studio canvases and section stacks. `features/site/storefrontRegions.ts` owns the public region manifest, responsive styling and click-to-edit hooks; its categories are generated in `studio/styleSchema.ts`. Attach `regionProps` in every supported renderer layout when adding optional public elements. Required commerce/consent regions support presentation controls without hide toggles. Merge page-only regions with root settings, preserve product overrides over catalog defaults, and keep phone overrides in `autoFitRegions`. `docs/THEME_EDITOR.md` records the page-by-page ownership and authenticated/live verification limits. Local validation reasons and public order statuses use Text & labels; provider diagnostics must not bypass editable recovery copy.
+
+## Checkout order slip (22 October 2026)
+
+`Checkout.tsx` is concept A "Order slip" (Julian's pick): a ruled header (back link, wordmark with the last word in the accent,
+Secure), a one-page form of lettered sections (`SectionHead`: Contact · Ship to · Delivery · Pay) and an outlined **Order slip**
+aside (numbered lines with covers, discount/gift-card boxes, ledger, big total, footer strip). Every class is `fm-co-*`, all CSS
+comes from `features/site/checkoutSlipStyle.ts` `checkoutSlipCss(design)` (token-only, scoped to `[data-fm-checkout].fm-co`; field
+rules use `:not(#fm-studio)` + `!important` to beat the Riso dark field reset and fold in `checkoutFieldBg/Border/InputRadius`).
+Labels sit above boxes (`checkoutLabelStyle`, "floating" = the old look; `CountryField` `stacked`). Payment methods are tabs or a
+list (`checkoutPayTabs`; `StripePaymentSection` `tabs`, in tabs mode its panel wraps only the chosen method's body under the tab row). Below 1024px the slip folds into
+a bar at the top (`.fm-co-slipbar`, `data-open`) and the code boxes render a second time inside Pay; on phones `checkoutPhonePayBar`
+pins a Pay bar (`<button form="fm-checkout-form">`, region `checkoutPayBar`, required). Controls: Studio › Style › Checkout page ›
+Header & sections / Fonts & form fields / Pay button & payment choices / Order slip; words Text & labels › Checkout (Steps & headings,
+Order slip). Express wallets stay inside the Stripe payment section (they need the filled form); submission, pricing and payment
+logic are unchanged.
 
 ## Checkout carrier delivery estimates
 
@@ -2017,6 +2044,15 @@ adds "Save for later" beside each bag line's Remove (`saveForLaterOn` / `canSave
 gift-card lines): the line leaves the bag and the book joins the wishlist (`useWishlist`), with a toast Undo that puts the line back and
 takes the book off the wishlist only if the button added it. No-op on the Studio preview's sample line. Words: Text & labels › Cart ›
 Save for later (`cartSave*`; Undo reuses `cartRemovedUndo`). Display/bag only; no rules or Functions.
+
+## Announcement countdown (22 October 2026)
+
+Studio › Style › Header & announcement bar › Announcement bar › **Announcement countdown** (`announcementCountdown`, off by default) +
+`announcementCountdownWithin` (hours, default 72): a message from Announcement messages with a **Show until** day gets "Ends in 5h 12m"
+after it (`.fm-announce-countdown`, `translate="no"`) in its last hours, counting to midnight Toronto after that day (pure
+`features/site/announcementCountdown.ts`, reusing `saleCountdown`; `activeAnnouncements` now passes `until`). Static, rotating and ticker
+bars all show it; the clock starts after mount (never in the prerender) and ticks every 30 s. The single Announcement text has no end day,
+so no countdown. Words: Text & labels › Header (`announceEnds*`). Display only.
 
 ## Payment-integrity audit fixes (9 October 2026)
 
