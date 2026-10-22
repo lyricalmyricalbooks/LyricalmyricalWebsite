@@ -272,6 +272,9 @@ export function Checkout() {
   const purchaseNavigating = useRef(false);
   const serverSaysFree = useRef(false);
   const [orderNote, setOrderNote] = useState("");
+  // Style › Checkout › policy tick box (off by default): Pay and the express wallet wait for it.
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsError, setTermsError] = useState(false);
   // Per-field problems found when the shopper pressed Pay (cleared as each is fixed).
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<DetailField, string>>>({});
   const ratesGuard = useRef(createLatestGuard());
@@ -342,6 +345,9 @@ export function Checkout() {
   // Until the saved settings arrive (or if they never do) checkout wears the Riso Noir defaults.
   const checkoutDesign = resolveSurfaceDesign(settings?.design ?? DEFAULT_SETTINGS.design, "/checkout");
   const checkoutPolicies = POLICY_KEYS.filter(k => Boolean(String((settings as any)?.policies?.[k] || "").trim()));
+  // Only with a policy to agree to; a ticked box needs no reminder.
+  const termsRequired = Boolean(checkoutDesign.requireCheckoutTerms) && checkoutPolicies.length > 0;
+  useEffect(() => { if (termsAccepted) setTermsError(false); }, [termsAccepted]);
   useEffect(() => { if (settings?.design?.checkoutSummaryOpenOnPhones) setSummaryOpen(true); }, [settings?.design?.checkoutSummaryOpenOnPhones]);
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(checkoutDesign, key, vars);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
@@ -1324,6 +1330,12 @@ export function Checkout() {
       return;
     }
     setFieldErrors({});
+    if (termsRequired && !termsAccepted) {
+      setTermsError(true);
+      setNotice({ tone: "error", text: c("coErrTerms") });
+      setTimeout(() => document.getElementById("checkout-terms")?.focus(), 0);
+      return;
+    }
     if (!validBilling) {
       setNotice({ tone: "error", text: c("coErrPickupBillingFields") });
       return;
@@ -2182,7 +2194,7 @@ export function Checkout() {
                       onStateChange={setCardState}
                       expressText={c("coExpressCheckout")}
                       showExpress={!checkoutDesign.hideCheckoutExpressWallets}
-                      expressEnabled={expressWalletEnabled({ isCompleting, canPay: stripeRoute.canPay, needsDeliveryChoice, catalogReady: catalogState === "ready", total: finalTotal, problems: detailProblems })}
+                      expressEnabled={expressWalletEnabled({ isCompleting, canPay: stripeRoute.canPay, needsDeliveryChoice, catalogReady: catalogState === "ready", total: finalTotal, problems: detailProblems, termsAccepted: !termsRequired || termsAccepted })}
                       onExpressConfirm={async () => { await handleCompletePurchase(); return purchaseNavigating.current; }}
                       fontName={checkoutDesign.checkoutFieldFont || checkoutDesign.checkoutFont || checkoutDesign.font || checkoutDesign.bodyFont || undefined}
                       fieldBackground={checkoutDesign.checkoutFieldBg || undefined}
@@ -2243,6 +2255,25 @@ export function Checkout() {
               {catalogState === "failed" && !notice && (
                 <p role="alert" className="mb-4 text-sm" style={{ color: "var(--danger, #b4271a)" }}>{c("coCatalogFailed")}</p>
               )}
+              {termsRequired && (
+                <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Policy tick box" className="mb-4 text-sm leading-6 text-slate-700">
+                  <label htmlFor="checkout-terms" className="flex items-start gap-2.5">
+                    <input id="checkout-terms" type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
+                      aria-invalid={termsError || undefined} aria-describedby={termsError ? "checkout-terms-error" : undefined}
+                      className="mt-1 h-4 w-4 shrink-0 accent-[color:var(--accent)]" />
+                    <span>
+                      {c("coTermsAgree")}{" "}
+                      {checkoutPolicies.map((k, i) => (
+                        <span key={k}>
+                          {i > 0 && (i === checkoutPolicies.length - 1 ? ` ${c("coPolicyAnd")} ` : ", ")}
+                          <Link to={`/page/${policySlug(k)}`} target="_blank" rel="noopener" className="underline underline-offset-2 hover:text-slate-900">{policyTitle(checkoutDesign, k)}</Link>
+                        </span>
+                      ))}
+                    </span>
+                  </label>
+                  {termsError && <p id="checkout-terms-error" className="mt-1 text-xs" style={{ color: "var(--danger, #b4271a)" }}>{c("coErrTerms")}</p>}
+                </div>
+              )}
               <button
                 type="submit"
                 // Also waits while carrier rates load (the picker shows the loading words), instead of "choose an option".
@@ -2258,7 +2289,7 @@ export function Checkout() {
                 <ShieldCheck size={16} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
                 <p>{c("coPrivacyNote")}</p>
               </div>
-              {!checkoutDesign.hideCheckoutPolicyLinks && checkoutPolicies.length > 0 && (
+              {!termsRequired && !checkoutDesign.hideCheckoutPolicyLinks && checkoutPolicies.length > 0 && (
                 // Card networks and PayPal expect the refund/terms policies to be visible where shoppers pay.
                 <p data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout policy links" className="mt-3 text-center text-xs leading-5 text-slate-500">
                   {c("coPolicyAgree")}{" "}

@@ -902,6 +902,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coBelowMinimum", label: "Total below the card minimum", default: "Card and PayPal payments must be at least {amount}. Add another book or choose a different payment method.", hint: "Use {amount} for the minimum." },
       { key: "coPolicyAgree", label: "Policy line under Pay (lead-in)", default: "By placing your order you agree to our" },
       { key: "coPolicyAnd", label: "Policy line under Pay (“and” before the last link)", default: "and" },
+      { key: "coTermsAgree", label: "Policy tick box (lead-in)", default: "I have read and agree to the", hint: "Shown only when Style › Checkout asks shoppers to tick the box. The policy links follow." },
+      { key: "coErrTerms", label: "Policy tick box not ticked", default: "Tick the box to agree to our policies before paying." },
       { key: "coFreeOrderError", label: "Free order couldn't be completed", default: "We couldn’t complete your free order. Please try again." },
       { key: "coNoShipping", label: "No shipping to country", default: "We don't currently offer shipping for this order to {country}. Try another country or contact us for a custom quote.", hint: "Use {country} for the country." },
       { key: "coItemCountOne", label: "Summary item count (1)", default: "{count} item", hint: "Use {count} for the number." },

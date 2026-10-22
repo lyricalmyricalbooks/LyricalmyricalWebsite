@@ -81,8 +81,10 @@ export function checkoutDetailProblems(input: DetailsInput): DetailProblem[] {
  */
 export function expressWalletEnabled(state: {
   isCompleting: boolean; canPay: boolean; needsDeliveryChoice: boolean; catalogReady: boolean; total: number; problems: DetailProblem[];
+  /** Style › Checkout › policy tick box: false while it is asked for and not ticked. */
+  termsAccepted?: boolean;
 }): boolean {
-  return !state.isCompleting && state.canPay && !state.needsDeliveryChoice && state.catalogReady && state.total > 0 && state.problems.length === 0;
+  return state.termsAccepted !== false && !state.isCompleting && state.canPay && !state.needsDeliveryChoice && state.catalogReady && state.total > 0 && state.problems.length === 0;
 }
 
 /** Stable DOM id of a field's input (used for focus and aria-describedby). */

@@ -723,6 +723,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "hideCheckoutFreeShipNudge", label: "Hide “add more for free shipping” in the order summary", kind: "toggle" },
       { key: "hideCheckoutLowStock", label: "Hide “only N left” in the order summary", kind: "toggle" },
       { key: "hideCheckoutPolicyLinks", label: "Hide the policy links under the Pay button", kind: "toggle" },
+      { key: "requireCheckoutTerms", label: "Ask shoppers to tick “I agree to the policies” before they can pay (needs a policy in Settings › General › Policies)", kind: "toggle" },
     ],
   },
   {

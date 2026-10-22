@@ -40,6 +40,9 @@ describe("checkout field problems", () => {
     expect(expressWalletEnabled({ ...ready, problems: [] })).toBe(true);
     expect(expressWalletEnabled({ ...ready, problems: [], needsDeliveryChoice: true })).toBe(false);
     expect(expressWalletEnabled({ ...ready, problems: [], total: 0 })).toBe(false);
+    // Style › Checkout › policy tick box: the wallet waits until it is ticked (missing = not asked).
+    expect(expressWalletEnabled({ ...ready, problems: [], termsAccepted: false })).toBe(false);
+    expect(expressWalletEnabled({ ...ready, problems: [], termsAccepted: true })).toBe(true);
   });
 
   test("pickup without an address asks for no address fields", () => {
