@@ -186,7 +186,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
   ],
   productCard: [
     { title: "Buy card box", keys: ["pdpCardBg", "pdpCardBorderColor", "pdpCardBorderWidth", "pdpCardShadowColor", "pdpCardShadowOffset", "pdpCardPadding", "pdpCardDividerColor"] },
-    { title: "Title, price & stock", keys: ["pdpEditionPicker", "pdpStickyBar", "pdpStickyPhoneOnly", "pdpShowBuyNow", "pdpShowTag", "pdpTagStyle", "pdpTitleFont", "pdpTitleSize", "pdpTitleSizeMobile", "pdpTitleColor", "pdpTitleCase", "pdpPriceFont", "pdpPriceSize", "pdpPriceSizeMobile", "pdpPriceColor", "pdpShowStock", "pdpStockColor"] },
+    { title: "Title, price & stock", keys: ["pdpEditionPicker", "pdpStickyBar", "pdpStickyPhoneOnly", "pdpShowBuyNow", "pdpRuledRows", "pdpShowTag", "pdpTagStyle", "pdpTitleFont", "pdpTitleSize", "pdpTitleSizeMobile", "pdpTitleColor", "pdpTitleCase", "pdpPriceFont", "pdpPriceSize", "pdpPriceSizeMobile", "pdpPriceColor", "pdpShowStock", "pdpStockColor"] },
     { title: "Edition choices", keys: ["pdpChipShowPrice", "pdpChipTextSize", "pdpChipCase", "pdpChipTextColor", "pdpChipBorderColor", "pdpChipBorderWidth", "pdpChipRadius", "pdpChipActiveBg", "pdpChipActiveText", "pdpChipSoldOutStrike"] },
     { title: "“Notify me” signup box", keys: ["pdpAlertBg", "pdpAlertBorderColor", "pdpAlertBorderWidth", "pdpAlertRadius", "pdpAlertPadding", "pdpAlertHeadingColor", "pdpAlertFieldBorderColor", "pdpAlertButtonBg", "pdpAlertButtonText", "pdpAlertButtonBorderColor"] },
     { title: "Extras & gift card fields", keys: ["pdpFieldBg", "pdpFieldText", "pdpFieldBorderColor", "pdpFieldBorderWidth", "pdpFieldRadius", "pdpFieldFocusColor"] },

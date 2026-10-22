@@ -233,6 +233,7 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-price{font-family:${priceFont};font-weight:400;line-height:1;letter-spacing:.01em;font-variant-numeric:tabular-nums;color:${cardTint("pdpPriceColor", "rgb(var(--fg-rgb))")};}`;
   css += sizeRules(`${S} .fm-pdp-price`, num(d, "pdpPriceSize", 0, 0, 96), num(d, "pdpPriceSizeMobile", 0, 0, 80), "clamp(34px, 5vw, 60px)", PHONE_PRICE_SCALE);
   css += `${S} .fm-pdp-stock{display:inline-flex;align-items:center;gap:8px;}`;
+  css += `${S} .fm-pdp-tagrow{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}`;
   css += `${S} .fm-pdp-stock::before{content:"";width:10px;height:10px;flex:none;background:${stockDot};}`;
   css += `${S} .fm-pdp-stock[data-state="out"]::before{background:var(--danger);}`;
 

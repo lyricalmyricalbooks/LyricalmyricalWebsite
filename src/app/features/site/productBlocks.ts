@@ -89,6 +89,24 @@ export function cardSections(blocks: ProductBlock[]): ProductBlock[][] {
   return sections.filter(s => s.length);
 }
 
+/**
+ * Ruled rows (Style › Book page · buy box & details › Ruled rows, `pdpRuledRows`, on by default): the category tag, the
+ * title and the price each get their own ruled row instead of sharing the first part of the card.
+ */
+const OWN_ROW = new Set<ProductBlockType>(["tag", "heading", "price"]);
+export function ruledSections(sections: ProductBlock[][]): ProductBlock[][] {
+  const out: ProductBlock[][] = [];
+  for (const section of sections) {
+    let run: ProductBlock[] = [];
+    for (const b of section) {
+      if (OWN_ROW.has(b.type)) { if (run.length) out.push(run); out.push([b]); run = []; }
+      else run.push(b);
+    }
+    if (run.length) out.push(run);
+  }
+  return out;
+}
+
 // ── pure edits (Studio › Page layout › Buy box blocks) ────────────────────────────────────────────
 const newId = (type: string) => `${type}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
