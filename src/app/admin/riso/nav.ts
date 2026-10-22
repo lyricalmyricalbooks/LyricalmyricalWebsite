@@ -1,5 +1,5 @@
 import {
-  BookOpen, Settings, Inbox, LayoutDashboard, Tag, BadgePercent, ShoppingCart, Users, Boxes, Gift,
+  BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
   SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail,
 } from "lucide-react";
 import type { NavEntry } from "./components";
@@ -10,9 +10,9 @@ export const NAV: NavEntry[] = [
   { id: "customers", label: "Customers", icon: Users },
   { id: "inventory", label: "Inventory", icon: Boxes },
   { id: "catalog", label: "Books", icon: BookOpen },
-  { id: "discounts", label: "Discounts", icon: Tag },
+  { id: "discounts", label: "Discounts", icon: BadgePercent },
   { id: "giftCards", label: "Gift cards", icon: Gift },
-  { id: "reviews", label: "Reviews", icon: BadgePercent },
+  { id: "reviews", label: "Reviews", icon: Star },
   { id: "messages", label: "Messages", icon: Inbox },
   { id: "settings", label: "Settings", icon: Settings, children: [
     { id: "general", label: "General", icon: SlidersHorizontal },
