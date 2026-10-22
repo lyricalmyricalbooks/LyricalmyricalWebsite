@@ -924,7 +924,8 @@ values), cards as flat sheets (1px border + 2px ink top rule, no shadow; every `
 `--rp-shadow-float` for dialogs/menus/toasts), 36px flat sentence-case buttons, 28px chips (ink when chosen), mono table
 heads with 56px rows, rounded tinted badges, alerts as tinted lines with an underlined text action. Restyle through these
 classes; don't bring back shadows, offset boxes or uppercase buttons. The top bar holds only search, shop status and the
-avatar menu (View site, Add book, Help, appearance live in that menu); the rail has no account card. Overview draws its own
+avatar menu (View site, Help, appearance, Log out live in that menu; Add book is on Books); the rail has no account card.
+Every Pressroom selector is scoped `.rp:not(.studio-editor)` so Studio keeps its own look; keep new layer rules scoped the same way. Overview draws its own
 masthead: `Dashboard` skips `PageHeader` there and passes the alerts through `PageAlertsSlot` (`riso/components.tsx`), so
 `OverviewBoard` renders title + period chips → alerts → tabs → figures with the updated line and board actions under them.
 
