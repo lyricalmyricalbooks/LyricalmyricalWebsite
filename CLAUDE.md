@@ -1181,7 +1181,7 @@ aside (numbered lines with covers, discount/gift-card boxes, ledger, big total, 
 comes from `features/site/checkoutSlipStyle.ts` `checkoutSlipCss(design)` (token-only, scoped to `[data-fm-checkout].fm-co`; field
 rules use `:not(#fm-studio)` + `!important` to beat the Riso dark field reset and fold in `checkoutFieldBg/Border/InputRadius`).
 Labels sit above boxes (`checkoutLabelStyle`, "floating" = the old look; `CountryField` `stacked`). Payment methods are tabs or a
-list (`checkoutPayTabs`; `StripePaymentSection` `tabs`, its panel is `display:contents` in tabs mode). Below 1024px the slip folds into
+list (`checkoutPayTabs`; `StripePaymentSection` `tabs`, in tabs mode its panel wraps only the chosen method's body under the tab row). Below 1024px the slip folds into
 a bar at the top (`.fm-co-slipbar`, `data-open`) and the code boxes render a second time inside Pay; on phones `checkoutPhonePayBar`
 pins a Pay bar (`<button form="fm-checkout-form">`, region `checkoutPayBar`, required). Controls: Studio › Style › Checkout page ›
 Header & sections / Fonts & form fields / Pay button & payment choices / Order slip; words Text & labels › Checkout (Steps & headings,
