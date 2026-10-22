@@ -603,8 +603,13 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
 
   return (
     <div className="rp-stack">
+      <Tabs<EmailView> variant="page" label="Email sender" value={view} onChange={setView} tabs={[
+        { id: "email-templates", label: "Emails", unsaved: templatesDirty, ...(Object.keys(allProblems).length ? { count: Object.keys(allProblems).length } : {}) },
+        { id: "email-setup", label: "Sending setup", unsaved: brandDirty || senderDirty },
+        { id: "email-deliveries", label: "Deliveries", ...(queue.length + attentionCount ? { count: queue.length + attentionCount } : {}) },
+      ]} />
       {/* At a glance: what needs the owner, whichever sub tab is open. */}
-      <nav aria-label="Email sender at a glance" className="rp-card" style={{ padding: "12px 16px", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", boxShadow: "none" }}>
+      <nav aria-label="Email sender at a glance" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
         {queueError ? <StatusBadge tone="warning">Couldn't check the send queue</StatusBadge>
           : queue.length ? <StatusBadge tone={gaveUpCount ? "danger" : "warning"}>{gaveUpCount ? `${gaveUpCount} email${gaveUpCount === 1 ? "" : "s"} not sent` : `${waitingCount} email${waitingCount === 1 ? "" : "s"} waiting to send`}</StatusBadge>
           : <StatusBadge tone="success">Nothing waiting to send</StatusBadge>}
@@ -619,11 +624,6 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
         </>}
       </nav>
 
-      <Tabs<EmailView> variant="page" label="Email sender" value={view} onChange={setView} tabs={[
-        { id: "email-templates", label: "Emails", unsaved: templatesDirty, ...(Object.keys(allProblems).length ? { count: Object.keys(allProblems).length } : {}) },
-        { id: "email-setup", label: "Sending setup", unsaved: brandDirty || senderDirty },
-        { id: "email-deliveries", label: "Deliveries", ...(queue.length + attentionCount ? { count: queue.length + attentionCount } : {}) },
-      ]} />
 
       <TabPanel tabId="email-setup" active={view === "email-setup"}>
       <div className="rp-stack">

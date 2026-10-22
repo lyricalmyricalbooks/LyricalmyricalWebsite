@@ -17,10 +17,12 @@ describe("Settings card wording", () => {
       expect(src).not.toMatch(/className="rp-kicker"/);
     });
   }
-  it("settings pages are drawn in the flat Masthead style", () => {
-    expect(readFileSync(resolve(__dirname, "ShopSettings.tsx"), "utf8")).toContain('className="rp-settings ');
+  it("settings pages draw cards, buttons and figures exactly like Inventory (no Settings-only restyle)", () => {
+    const src = readFileSync(resolve(__dirname, "ShopSettings.tsx"), "utf8");
+    expect(src).toContain('className="rp-settings ');
+    expect(src).not.toContain("max-w-5xl");
+    expect(src).not.toContain("rp-wb-strip");
     const css = readFileSync(resolve(__dirname, "riso/riso.css"), "utf8");
-    expect(css).toMatch(/\.rp-settings \.rp-card \{[^}]*box-shadow: none/);
-    expect(css).toMatch(/\.rp-settings \.rp-btn \{[^}]*box-shadow: none/);
+    expect(css).not.toMatch(/\.rp-settings \.rp-(card|btn|btn-secondary|metric|kpi-grid|card-title|card-body) \{/);
   });
 });

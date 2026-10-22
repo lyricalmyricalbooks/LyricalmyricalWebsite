@@ -169,17 +169,17 @@ function Queue() {
 
   return (
     <div className="rp-stack">
-      <Tabs<Filter> variant="page" label="Review status" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
-        tabs={(["pending", "approved", "rejected", "all"] as const).map((f) => {
-          const label = f[0].toUpperCase() + f.slice(1);
-          // Only pending is complete once the newest-200 cap is hit; say so instead of a wrong total.
-          return capped && f !== "pending" ? { id: f, label: `${label} · ${counts[f]}+` } : { id: f, label, count: counts[f] };
-        })} />
       <div className="rp-kpi-grid">
         <MetricCard label="Average rating" value={stats.average ? `${stats.average.toFixed(1)} ★` : "—"} footer={`${stats.total} review${stats.total === 1 ? "" : "s"} · ${stats.approvedAverage ? stats.approvedAverage.toFixed(1) : "—"} approved only`} />
         <MetricCard label="Low-rated pending" value={stats.lowPending} tone={stats.lowPending ? "warn" : undefined} footer="1–2 stars awaiting a decision" />
         <MetricCard label="Awaiting a reply" value={stats.unanswered} footer="Approved with no owner reply" />
       </div>
+      <Tabs<Filter> label="Review status" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
+        tabs={(["pending", "approved", "rejected", "all"] as const).map((f) => {
+          const label = f[0].toUpperCase() + f.slice(1);
+          // Only pending is complete once the newest-200 cap is hit; say so instead of a wrong total.
+          return capped && f !== "pending" ? { id: f, label: `${label} · ${counts[f]}+` } : { id: f, label, count: counts[f] };
+        })} />
 
       <FilterBar>
         <div className="rp-grow"><SearchField label="Search reviews" placeholder="Search reviewer, book or text…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
@@ -189,7 +189,7 @@ function Queue() {
         </SelectField>
       </FilterBar>
 
-      <SectionCard flush title="Moderation queue" description={`${list.length} review${list.length === 1 ? "" : "s"} in this view`}
+      <SectionCard flush collapsible={false} title="Moderation queue" description={`${list.length} review${list.length === 1 ? "" : "s"} in this view`}
         actions={list.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <Checkbox label="Select all" checked={allSelected}

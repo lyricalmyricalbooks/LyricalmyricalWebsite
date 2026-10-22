@@ -170,7 +170,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const columns: Column<CustomerRow>[] = [
     { key: "customer", header: "Customer", lead: true, render: (c) => (
       <button type="button" onClick={() => openCustomer(c)} aria-label={`View ${c.name || c.email}`}
-        style={{ background: "none", border: 0, padding: 0, textAlign: "left", cursor: "pointer", color: "var(--rp-primary-text)", overflowWrap: "anywhere", minWidth: 170 }}>
+        style={{ background: "none", border: 0, padding: 0, textAlign: "left", cursor: "pointer", color: "inherit", overflowWrap: "anywhere", minWidth: 170 }}>
         <div style={{ fontWeight: 600, textDecoration: "underline" }}>{c.name || "—"}</div>
         <div className="rp-hint">{c.email}</div>
         {(noteFor(c)?.tags || []).length > 0 && <div className="rp-hint rp-mono">{noteFor(c)!.tags.join(" · ")}</div>}

@@ -441,8 +441,6 @@ export function Dashboard() {
   const trail: Array<{ label: string; onClick?: () => void }> = [{ label: "Admin", onClick: () => goTo("overview") }];
   if (selectedOrder && activeTab !== "orders") {
     trail.push({ label: "Orders", onClick: () => setSelectedOrder(null) }, { label: "Order detail" });
-  } else if (navActive === "settings") {
-    trail.push({ label: "Settings", onClick: () => goTo("settings") }, { label: childLabel || "General" });
   } else {
     trail.push({ label: copy.title });
   }
