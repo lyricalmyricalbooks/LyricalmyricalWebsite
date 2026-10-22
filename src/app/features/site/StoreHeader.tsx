@@ -20,6 +20,7 @@ const SearchOverlay = lazy(() => import("./SearchOverlay").then(m => ({ default:
 import { SecondaryStorefrontNav } from "./SecondaryStorefrontNav";
 import { getPublishedBooks } from "./selectors";
 import { getCopy } from "./storeCopy";
+import { HOME_LINK_STATE } from "./homeLink";
 import { useStudioOverlay } from "./studioOverlay";
 import { activeAnnouncements } from "./sectionGroups";
 import { elementScheme } from "./colorSchemes";
@@ -84,8 +85,6 @@ export type ShopHeaderContext = {
   categories: any[];
   activeCategory: any;
   onPickCategory: (category: any) => void;
-  /** Logo / masthead click: back to Home. */
-  onHome: () => void;
   showCatalog: boolean;
   /** Fallback announcement (Settings › announcements) and site name (masthead fallback). */
   announcement?: string;
@@ -404,7 +403,7 @@ function PageHeader({ design, pages, onSearch }: { design: any; pages: Page[]; o
       >
         <div ref={rowRef} className="fm-hdr-row mx-auto flex flex-nowrap items-center justify-between gap-4 px-6 py-4" style={{ maxWidth, color: headerColor }}>
           <div className="flex min-w-0 flex-1 items-center gap-8 md:gap-12">
-            <Link to="/" data-hdr-fixed className="flex shrink-0 items-center" aria-label={getCopy(design, "logoAlt")}>
+            <Link to="/" state={HOME_LINK_STATE} data-hdr-fixed className="flex shrink-0 items-center" aria-label={getCopy(design, "logoAlt")}>
               <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={scheme ? { ...storefront, logoColor: undefined } : storefront} /></span>
             </Link>
             {!navBelow && navBar}
@@ -455,7 +454,7 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const wishlistCount = liveWishlistCount(wishedIds, books, isLiveBook);
   const location = useLocation();
   const sf = shop.surface;
-  const { categories, activeCategory, onPickCategory: pick, onHome, showCatalog } = shop;
+  const { categories, activeCategory, onPickCategory: pick, showCatalog } = shop;
 
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -527,9 +526,9 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
     />
   );
   const logo = (
-    <button onClick={onHome} style={{ color: headerTextColor }} data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center">
+    <Link to="/" state={HOME_LINK_STATE} aria-label={getCopy(design, "logoAlt")} style={{ color: headerTextColor }} data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center">
       <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={headerScheme ? { ...shop.logoDesign, logoColor: undefined } : shop.logoDesign} /></span>
-    </button>
+    </Link>
   );
   // An empty bag shows Style › Header › "Empty-bag amount": a number is shown as a price, anything else as typed.
   const placeholder = sf?.catalogCartTotalPlaceholder;
@@ -553,13 +552,14 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
             <style>{`.fm-ref-masthead{font-size:${mastheadMobile}px}@media(min-width:${PHONE_MAX + 1}px){.fm-ref-masthead{font-size:${mastheadDesktop}px}}.fm-ref-catbar{column-gap:${navGapMobile}px}@media(min-width:${PHONE_MAX + 1}px){.fm-ref-catbar{column-gap:${navGapDesktop}px}}`}</style>
             {/* Wraps so a long masthead never pushes the bag off a phone screen; the bag then sits on its own line. */}
             <div className={`flex flex-wrap items-start gap-x-6 gap-y-3 ${shop.logoPosition === "right" ? "flex-row-reverse justify-between" : shop.logoPosition === "center" ? "justify-center relative" : "justify-between"}`}>
-              <button
-                onClick={onHome}
+              <Link
+                to="/"
+                state={HOME_LINK_STATE}
                 className={`fm-ref-masthead font-black tracking-tight leading-none hover:opacity-80 transition-opacity ${shop.logoPosition === "right" ? "text-right" : shop.logoPosition === "center" ? "text-center" : "text-left"}`}
                 style={{ color: (!headerScheme && sf?.logoColor) || headerTextColor, textTransform: sf?.brandTransform || "none" }}
               >
                 <span data-studio-target="style:catalogLayout|style:logo" data-studio-label="Masthead" data-studio-style-text="catalogMastheadText">{mastheadText}</span>
-              </button>
+              </Link>
               {showBag && cartPlacement === "top-right" && (
                 <button
                   onClick={() => setIsCartOpen(true)}
