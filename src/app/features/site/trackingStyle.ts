@@ -46,5 +46,7 @@ export const TRACKING_CSS = [
   `${S} .fm-track-step[data-done="false"]{opacity:.55;}`,
   `${S} .fm-track-ledger .fm-track-row{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px dashed var(--t-rule);}`,
   `${S} .fm-track-ledger .fm-track-total{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding-top:16px;margin-top:8px;border-top:4px double var(--t-edge);}`,
+  // Phones: small labels never under 12px, links get a full-height tap area.
+  `@media (max-width:767px){${S} .fm-track-mono,${S} .fm-track-stamp{font-size:12px;}${S} .fm-track-link{min-height:44px;}}`,
   `${S} .fm-track-thumb{width:64px;aspect-ratio:3/4;flex-shrink:0;border:2px solid var(--t-edge);overflow:hidden;background:var(--surface, transparent);}`,
 ].join("\n");
