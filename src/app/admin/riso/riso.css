@@ -1136,7 +1136,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-wb-seg { display: inline-flex; flex-wrap: wrap; }
 .rp-wb-seg button { min-height: 32px; padding: 6px 8px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--rp-text-muted); font: 600 13px/1 var(--rp-font-body); cursor: pointer; white-space: nowrap; }
 .rp-wb-seg button:hover { color: var(--rp-text); }
-.rp-wb-seg button[aria-pressed="true"] { color: var(--rp-text); border-bottom-color: var(--rp-primary); }
+.rp-wb-seg button[aria-pressed="true"], .rp-wb-seg button[aria-checked="true"] { color: var(--rp-text); border-bottom-color: var(--rp-primary); }
 .rp-wb-select { min-height: 32px; padding: 0 8px; border: var(--rp-hair) solid var(--rp-border); border-radius: 0; background: var(--rp-surface); color: var(--rp-text); font: 400 12px var(--rp-font-body); }
 .rp-wb-dates { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .rp-wb-editbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 8px 12px; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); color: var(--rp-text); font: 800 11px/1 var(--rp-font-body); letter-spacing: 0.09em; text-transform: uppercase; cursor: pointer; }
