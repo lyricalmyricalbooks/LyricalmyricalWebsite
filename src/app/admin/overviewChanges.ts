@@ -64,7 +64,7 @@ export function whatChanged(input: {
     const a = now.get(id), b = then.get(id);
     return {
       title: `Sales of ${name(id)} ${d > 0 ? "rose" : "fell"} by ${money(Math.abs(d))}`,
-      detail: `The biggest ${kind} among your titles (${money(a?.revenue || 0)} now, ${money(b?.revenue || 0)} in ${before}; ${plural(a?.units || 0, "copy", "copies")} vs ${(b?.units || 0).toLocaleString()}).`,
+      detail: `${money(a?.revenue || 0)} from ${plural(a?.units || 0, "copy", "copies")} now, ${money(b?.revenue || 0)} from ${(b?.units || 0).toLocaleString()} in ${before}. The biggest ${kind} among your titles.`,
     };
   };
   if (riser) { const r = riser as { id: string; d: number }; out.push({ id: `rise-${r.id}`, tone: "up", weight: r.d, ...titleMove(r.id, r.d, "rise") }); }
@@ -77,7 +77,7 @@ export function whatChanged(input: {
   new Set([...cNow.keys(), ...cThen.keys()]).forEach(c => { const d = (cNow.get(c) || 0) - (cThen.get(c) || 0); if (!country || Math.abs(d) > Math.abs(country.d)) country = { c, d }; });
   if (country && Math.abs((country as { c: string; d: number }).d) > 0 && cThen.size > 0) {
     const k = country as { c: string; d: number };
-    out.push({ id: `country-${k.c}`, tone: k.d > 0 ? "up" : "down", weight: Math.abs(k.d) * 0.8, title: `Sales to ${countryName(k.c)} ${k.d > 0 ? "rose" : "fell"} by ${money(Math.abs(k.d))}`, detail: `The biggest move by destination (${money(cNow.get(k.c) || 0)} now, ${money(cThen.get(k.c) || 0)} in ${before}).` });
+    out.push({ id: `country-${k.c}`, tone: k.d > 0 ? "up" : "down", weight: Math.abs(k.d) * 0.8, title: `Sales to ${countryName(k.c)} ${k.d > 0 ? "rose" : "fell"} by ${money(Math.abs(k.d))}`, detail: `${money(cNow.get(k.c) || 0)} now, ${money(cThen.get(k.c) || 0)} in ${before}. The biggest move by destination.` });
   }
 
   // 4 · Traffic and how well it converts.
