@@ -209,7 +209,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Free-shipping bar", keys: ["showFreeShipBar", "cartDrawerProgressColor", "cartDrawerProgressTrack", "cartDrawerProgressHeight"] },
     { title: "Book rows", keys: ["cartDrawerShowItemNumbers", "cartDrawerThumbWidth", "cartDrawerThumbOutline", "cartDrawerGrayscaleThumbs", "cartDrawerItemTitleSize", "cartDrawerShowUnitPrice", "cartDrawerShowLineTotal", "cartDrawerShowPreorder", "cartDrawerShowLineOptions", "cartDrawerQtyStyle", "cartDrawerRemoveStyle"] },
     { title: "Suggestion card", keys: ["cartDrawerShowUpsell", "cartDrawerUpsellShadow"] },
-    { title: "Total & checkout button", keys: ["cartDrawerShowSummary", "cartDrawerShowShippingPreview", "cartDrawerShowDiscountCode", "cartDrawerShowOrderNote", "cartDrawerTotalSize", "showCartTrustBadges", "cartDrawerShowSecureBadge", "cartDrawerShowTrackedBadge", "cartDrawerShowReturnsBadge", "cartDrawerCheckoutBg", "cartDrawerCheckoutText", "cartDrawerCheckoutHeight", "cartDrawerCheckoutShadow", "cartDrawerShowCheckoutArrow", "cartDrawerShowDeliveryNote"] },
+    { title: "Total & checkout button", keys: ["cartDrawerShowSummary", "cartDrawerShowShippingPreview", "cartDrawerShowDiscountCode", "cartDrawerShowOrderNote", "cartDrawerTotalSize", "showCartTrustBadges", "cartDrawerShowSecureBadge", "cartDrawerShowTrackedBadge", "cartDrawerShowReturnsBadge", "cartDrawerCheckoutBg", "cartDrawerCheckoutText", "cartDrawerCheckoutHeight", "cartDrawerCheckoutShadow", "cartDrawerShowCheckoutArrow", "cartDrawerShowTermsCheckbox", "cartDrawerShowDeliveryNote"] },
     { title: "Empty bag", keys: ["cartDrawerShowEmptyIcon", "cartDrawerShowEmptyButton", "cartDrawerEmptyLink"] },
   ],
   checkout: [
@@ -362,6 +362,7 @@ export const TEXT_SUBSECTIONS: Record<string, TextSub[]> = {
     { title: "“Added to your bag” notice", match: /^cartAdded/ },
     { title: "Discount code box", match: /^cartCode/ },
     { title: "Order note box", match: /^cartNote/ },
+    { title: "Terms checkbox", match: /^cartTerms/ },
     { title: "Trust badges", match: /^trust/ },
   ],
 };

@@ -1987,6 +1987,15 @@ default) draws `components/CartOrderNote.tsx` above the bag total: "Add a note t
 (`showOrderNote` or this switch), starts from the bag note and keeps it in step; only that box sends `orderNote` (same rules limit,
 same retry key). `clearCart` forgets the note. Words: Text & labels › Cart › Order note box (`cartNote*`).
 
+## Terms checkbox in the bag (22 October 2026)
+
+Studio › Style › Cart drawer (shopping bag) › Total & checkout button › **Terms checkbox** (`cartDrawerShowTermsCheckbox`, off by
+default) draws `components/CartTermsAgree.tsx` above the bag's checkout button: "I agree to the {terms}." with the terms title
+(`policyTitle`) linked to `/page/policy-terms` only when `settings.policies.terms` has text (`hasTermsPage`). Pressing the button
+unticked shows `cartTermsError` (role=alert) and focuses the box; the tick is kept for the tab (`features/site/bagTerms.ts`). It gates
+only the bag's button (checkout reached another way is not blocked; nothing is recorded on the order). Words: Text & labels › Cart ›
+Terms checkbox (`cartTerms*`).
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the
