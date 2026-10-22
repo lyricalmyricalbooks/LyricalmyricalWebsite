@@ -556,6 +556,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showBackInStock", label: "“Notify me when back in stock” box (sold-out items)", kind: "toggle", defaultValue: true },
       { key: "showComingSoonSignup", label: "“Email me when it's out” box (Coming soon books — the Coming soon button opens it)", kind: "toggle", defaultValue: true },
       { key: "showPdpPolicyTab", label: "Shipping & returns tab next to Description and Details (shows your Shipping and Returns policies from Settings › General › Store policies; tabs or accordions layout; words: Text & labels › Product page)", kind: "toggle", defaultValue: false },
+      { key: "showPdpSaleCountdown", label: "Sale countdown under the price (“Sale ends in 5h 12m” in a dated sale's last hours instead of “Sale ends …”; needs Books › edit › Pricing › Sale ends; words: Text & labels › Product page)", kind: "toggle", defaultValue: false },
+      { key: "pdpSaleCountdownWithin", label: "Sale countdown: start counting this many hours before the sale ends", kind: "number", min: 1, max: 336, step: 1, defaultValue: 72 },
       { key: "showPdpFreeShipping", label: "Free-shipping line under the buy buttons (“Free shipping on orders over …”, needs a free-shipping amount in Settings › Shipping; words: Text & labels › Product page)", kind: "toggle", defaultValue: false },
       { key: "showPdpPickup", label: "Pickup availability under the buy buttons (“Pickup available at …”, needs Local pickup on in Settings › Shipping; words: Text & labels › Product page)", kind: "toggle", defaultValue: false },
       { key: "showZoom", label: "Image zoom", kind: "toggle" },
