@@ -35,7 +35,9 @@ let legacyEmailsMoved = false;
 // share one request per book for a short while instead of reading it twice.
 const approvedCache = new Map<string, { at: number; promise: Promise<Review[]> }>();
 const summaryCache = new Map<string, { at: number; promise: Promise<{ count: number; average: number }> }>();
-const clearApprovedCache = () => { approvedCache.clear(); summaryCache.clear(); };
+// Shop-card star ratings (showCardRating): one aggregation per book, kept for the tab for five minutes.
+const cardSummaryCache = new Map<string, { at: number; promise: Promise<{ count: number; average: number }> }>();
+const clearApprovedCache = () => { approvedCache.clear(); summaryCache.clear(); cardSummaryCache.clear(); };
 
 /**
  * Count and average of a book's approved reviews from the list `listApproved` returned, or null when the list may be
@@ -86,6 +88,19 @@ export const reviewsApi = {
       .then(fromList => fromList || aggregateSummary(bookId));
     summaryCache.set(bookId, { at: Date.now(), promise });
     promise.catch(() => summaryCache.delete(bookId));
+    return promise;
+  },
+
+  /**
+   * Count and average for a shop card's stars: Firestore's aggregate only (one read per book, never the review list),
+   * shared for five minutes so scrolling back and forth reads nothing new.
+   */
+  cardSummary: (bookId: string): Promise<{ count: number; average: number }> => {
+    const hit = cardSummaryCache.get(bookId);
+    if (hit && Date.now() - hit.at < 300_000) return hit.promise;
+    const promise = aggregateSummary(bookId);
+    cardSummaryCache.set(bookId, { at: Date.now(), promise });
+    promise.catch(() => cardSummaryCache.delete(bookId));
     return promise;
   },
 

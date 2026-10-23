@@ -368,6 +368,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "catalogCountOne", label: "Title count (1)", default: "{count} title", hint: "Use {count} for the number." },
       { key: "catalogCountMany", label: "Title count (many)", default: "{count} titles", hint: "Use {count} for the number." },
       { key: "cardCreatorLead", label: "Author line on shop cards — word read aloud before the name", default: "By", hint: "Shown only when Theme settings › Book cards in the shop grid › Show the author or artist is on." },
+      { key: "cardRatingLabel", label: "Star rating on shop cards — sentence read aloud", default: "Rated {average} out of 5 from {count} reviews", hint: "Shown only when Theme settings › Book cards in the shop grid › Show star ratings is on. Use {average} and {count}." },
+      { key: "cardRatingCount", label: "Star rating on shop cards — number beside the stars", default: "({count})", hint: "Use {count} for the number of reviews and {average} for the average. Leave empty to show only the stars." },
       { key: "cardFormatsLead", label: "Formats line on shop cards — words read aloud before the list", default: "Available as", hint: "Shown only when Theme settings › Book cards in the shop grid › List a book's formats is on. The format names are the Search & filters format words." },
       { key: "quickViewButton", label: "Quick view button on shop cards", default: "Quick view", hint: "Shown only when Theme settings › Book cards in the shop grid › Quick view is on." },
       { key: "quickViewAria", label: "Quick view window name (read aloud by screen readers)", default: "Quick view: {title}", hint: "Use {title} for the book title." },

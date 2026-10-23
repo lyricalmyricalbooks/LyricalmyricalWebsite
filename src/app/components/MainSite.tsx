@@ -58,6 +58,7 @@ import CardHoverPhoto from "../features/site/CardHoverPhoto";
 import { cardHoverPhoto } from "../features/site/cardHoverPhoto";
 import { cardFormats } from "../features/site/cardFormats";
 import { cardCreator } from "../features/site/cardCreator";
+import CardRatingStars from "../features/site/CardRatingStars";
 import { framingStyle } from "../features/site/photoFraming";
 import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
 import { arrivedPrerendered } from "../lib/prerenderedPage";
@@ -685,6 +686,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showCardHoverPhoto = storefrontDesign?.showCardHoverPhoto === true;
   const showCardFormats = storefrontDesign?.showCardFormats === true;
   const showCardCreator = storefrontDesign?.showCardCreator === true;
+  const showCardRating = storefrontDesign?.showCardRating === true;
   const showPreorderBadge = storefrontDesign?.showPreorderBadge ?? true;
   const showComingSoonBadge = storefrontDesign?.showComingSoonBadge ?? true;
   const saleBadgeLabel = storefrontDesign?.saleBadgeLabel || "SALE";
@@ -1128,6 +1130,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                           </p>
                         ) : null;
                       })()}
+                      {showCardRating && item.id && (
+                        <CardRatingStars
+                          bookId={item.id}
+                          label={r => getCopy(activeDesign, "cardRatingLabel", { average: r.average, count: r.count })}
+                          countText={r => getCopy(activeDesign, "cardRatingCount", { average: r.average, count: r.count })}
+                        />
+                      )}
                       {showCardFormats && (() => {
                         const formats = cardFormats(item);
                         return formats.length ? (
