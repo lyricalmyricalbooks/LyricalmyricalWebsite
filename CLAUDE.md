@@ -904,6 +904,16 @@ and stock; the contract is `docs/INVENTORY_LINK.md` (same file as the inventory 
   `trackInventory` on only when every edition is a matched printed one (`untracked-mixed` hold otherwise); a `_` link on a book now
   sold in editions holds (`now-has-editions`). Removing matches never needs the inventory app (Unmatch all). Order detail ›
   **Remove the inventory app label** (`fulfillmentAction("clear_app_label")`). Waiting orders age by `pendingSince`.
+- **Switching apps (23 October 2026):** the rail opens with **Website · Inventory** (`admin/AppSwitcher.tsx`, pure rules
+  `admin/appSwitch.ts`, shared with the inventory app's `src/lib/app-switch.js`; docs/INVENTORY_LINK.md › Switching between the
+  apps); phones/tablets also get an **Inventory ↗** pill in the top bar (owner's ask: one tap on the phone). Each app names its
+  tab (`lm-website-admin` / `lm-inventory-app`); a click goes to the tab this page opened before, else `window.open("", name)`
+  (which also finds the tab that opened this one), else a new one — never `opener.focus()`, which browsers ignore (opener
+  kept on purpose for the name lookup), and a deep link changes only the
+  `#fragment` (`#orders/<id>` here, `#website-order=<id>` there) so neither app reloads. Installed apps (standalone/TWA) use the
+  plain link so the phone hands it over. The count is `pendingImport.count` (null = link not connected, no badge), set with `startDay` by
+  Dashboard's alert check (`setInventoryLink`). Order detail's toolbar has **See it in the inventory app** only for orders the
+  link sent (`orderInInventoryApp` = the server's `countsForInventory`) with printed books.
 - **Deploy** Firestore rules + Functions with the frontend. Local tests use in-memory fakes (`functions/inventoryLink.fakes.mjs`);
   they don't prove the IAM grant, the deployed trigger or the inventory app's import.
 
@@ -924,7 +934,7 @@ values), cards as flat sheets (1px border + 2px ink top rule, no shadow; every `
 `--rp-shadow-float` for dialogs/menus/toasts), 36px flat sentence-case buttons, 28px chips (ink when chosen), mono table
 heads with 56px rows, rounded tinted badges, alerts as tinted lines with an underlined text action. Restyle through these
 classes; don't bring back shadows, offset boxes or uppercase buttons. The top bar holds only search, shop status and the
-avatar menu (View site, Help, appearance, Log out live in that menu; Add book is on Books); the rail has no account card.
+avatar menu (View site, Help, appearance, Log out live in that menu; Add book is on Books), plus the Inventory app pill below 1024px; the rail has no account card.
 Every Pressroom selector is scoped `.rp:not(.studio-editor)` so Studio keeps its own look; keep new layer rules scoped the same way. Overview draws its own
 masthead: `Dashboard` skips `PageHeader` there and passes the alerts through `PageAlertsSlot` (`riso/components.tsx`), so
 `OverviewBoard` renders title + period chips → alerts → tabs → figures with the updated line and board actions under them.

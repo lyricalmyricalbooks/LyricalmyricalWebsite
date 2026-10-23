@@ -1832,3 +1832,47 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   .rp-dialog-root:not([data-variant="drawer"]):not(.studio-editor) > .rp-dialog .rp-dialog-foot > .rp-btn { flex: 1 1 0; min-height: 48px; }
   .rp-dialog-root:not([data-variant="drawer"]):not(.studio-editor) > .rp-dialog .rp-dialog-foot > .rp-foot-start { flex: 1 1 100%; margin-right: 0; }
 }
+
+/* ── App switch: "Website · Inventory" (AppSwitcher.tsx). The website half is where you are (cream, like the current
+ * nav item); the inventory half opens the inventory app, with the orders waiting for it in the Orders red. ── */
+.rp-app-switch, .rp-app-pill { display: none; }
+.rp:not(.studio-editor) .rp-app-switch {
+  display: grid; grid-template-columns: 1fr 1fr; margin: -8px 0 24px; border: 1px solid var(--rp-rail-line);
+}
+.rp:not(.studio-editor) .rp-app-switch-seg {
+  display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 8px;
+  color: var(--rp-rail-text); font: 400 13px/1 var(--rp-font-body); text-decoration: none; white-space: nowrap;
+}
+.rp:not(.studio-editor) .rp-app-switch-seg + .rp-app-switch-seg { border-left: 1px solid var(--rp-rail-line); }
+.rp:not(.studio-editor) .rp-app-switch-seg[aria-current="page"] { background: var(--rp-on-inverse); color: #100f0d; font-weight: 600; }
+.rp:not(.studio-editor) a.rp-app-switch-seg:hover { background: rgba(250, 246, 236, 0.06); color: var(--rp-on-inverse); }
+.rp:not(.studio-editor) a.rp-app-switch-seg:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--rp-focus); }
+.rp:not(.studio-editor) .rp-app-switch-go { flex: none; color: var(--rp-rail-faint); }
+.rp:not(.studio-editor) a.rp-app-switch-seg:hover .rp-app-switch-go { color: currentColor; }
+.rp:not(.studio-editor) .rp-app-switch-badge { font: 400 12px/1 var(--rp-font-mono); color: #e8402a; }
+@media (pointer: coarse) {
+  .rp:not(.studio-editor) .rp-app-switch-seg { min-height: var(--rp-touch); font-size: 15px; }
+}
+/* Phones and tablets: the rail is a drawer, so the top bar carries a one-tap way across too. */
+@media (max-width: 1023px) {
+  .rp:not(.studio-editor) .rp-app-switch { margin: -4px 0 20px; }
+  .rp:not(.studio-editor) .rp-app-pill {
+    display: inline-flex; align-items: center; min-height: var(--rp-touch); padding: 0 4px; text-decoration: none; color: var(--rp-text);
+  }
+  .rp:not(.studio-editor) .rp-app-pill-face {
+    display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 10px; border: 1px solid var(--rp-text);
+    border-radius: 999px; font: 600 13px/1 var(--rp-font-body); white-space: nowrap;
+  }
+  .rp:not(.studio-editor) .rp-app-pill:hover .rp-app-pill-face { background: var(--rp-text); color: var(--rp-canvas); }
+  .rp:not(.studio-editor) .rp-app-pill:focus-visible { outline: none; }
+  .rp:not(.studio-editor) .rp-app-pill:focus-visible .rp-app-pill-face { box-shadow: 0 0 0 2px var(--rp-focus); }
+  .rp:not(.studio-editor) .rp-app-pill .rp-app-switch-badge { margin-left: 2px; }
+}
+/* "See it in the inventory app" on an order page. */
+.rp-app-deeplink {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 32px; color: var(--rp-text); font: 400 13px var(--rp-font-body);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.rp-app-deeplink:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+@media (pointer: coarse) { .rp-app-deeplink { min-height: var(--rp-touch); } }
+@media print { .rp-app-switch, .rp-app-pill, .rp-app-deeplink { display: none !important; } }

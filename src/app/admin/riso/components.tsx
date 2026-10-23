@@ -48,8 +48,8 @@ export type NavEntry = {
   group?: string;
 };
 
-export function Sidebar({ brand, items, activeId, activeChildId, onSelect, onSelectChild, open, onClose, footer }: {
-  brand: ReactNode; items: NavEntry[]; activeId: string | null; activeChildId?: string;
+export function Sidebar({ brand, top, items, activeId, activeChildId, onSelect, onSelectChild, open, onClose, footer }: {
+  brand: ReactNode; top?: ReactNode; items: NavEntry[]; activeId: string | null; activeChildId?: string;
   onSelect: (id: string) => void; onSelectChild: (parentId: string, childId: string) => void;
   open: boolean; onClose: () => void; footer: ReactNode;
 }) {
@@ -64,6 +64,7 @@ export function Sidebar({ brand, items, activeId, activeChildId, onSelect, onSel
           {/* The rail is a drawer on phones and tablets; it closes from here as well as from the scrim and Escape. */}
           <button type="button" className="rp-icon-btn rp-drawer-close" aria-label="Close menu" onClick={onClose}><X size={20} aria-hidden /></button>
         </div>
+        {top}
         <nav className="rp-nav" aria-label="Primary">
           <ul className="rp-nav-list">
             {items.map((item) => {
