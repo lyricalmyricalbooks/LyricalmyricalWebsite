@@ -791,24 +791,11 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
         </div>
       )}
 
-      {/* The board's own bar: jump to a topic, add widgets, view options, undo and the save status. */}
-      {(tab.band === "all" || editing) && <div className="rp-wb-toolbar" role="toolbar" aria-label="Board">
-        {tab.band === "all" ? (
-          <nav className="rp-wb-jump" aria-label="Jump to a topic">
-            {bands.filter(b => b.widgets.length > 0).map(b => (
-              <a key={b.id} href={`#wb-band-${b.id}`} onClick={e => {
-                e.preventDefault();
-                if (b.collapsed) commit(x => updateBand(x, b.id, { collapsed: false }));
-                document.getElementById(`wb-band-${b.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}>{bandMeta(b.id).title}<span className="rp-mono"> {b.widgets.length}</span></a>
-            ))}
-          </nav>
-        ) : <span />}
-        {editing && (
-          <p className="rp-wb-edit-hint">
-            Editing <strong>{board.name}</strong>: drag a widget by its grip or use ← → to move it within its topic, and pick its width on its bar. Undo is at the top.
-          </p>
-        )}
+      {/* While editing, one line says how to move widgets (the topic tabs above already jump between topics). */}
+      {editing && <div className="rp-wb-toolbar" role="toolbar" aria-label="Board">
+        <p className="rp-wb-edit-hint">
+          Editing <strong>{board.name}</strong>: drag a widget by its grip or use ← → to move it within its topic, and pick its width on its bar. Undo is at the top.
+        </p>
       </div>}
 
       {widgetCount === 0 && (

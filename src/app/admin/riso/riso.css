@@ -969,10 +969,6 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-wb-addbtn { position: relative; }
 .rp-wb-newdot { position: absolute; top: -4px; right: -4px; width: 10px; height: 10px; background: var(--rp-primary); border: 2px solid var(--rp-surface); border-radius: 50%; }
 .rp-wb-toolbar-actions .rp-ov-switch button { white-space: nowrap; }
-.rp-wb-jump { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--rp-text-sm); font-weight: 700; }
-.rp-wb-jump a { color: var(--rp-text); text-decoration: none; border-bottom: 2px solid transparent; padding: 2px 0; }
-.rp-wb-jump a:hover, .rp-wb-jump a:focus-visible { border-bottom-color: var(--rp-primary); }
-.rp-wb-jump .rp-mono { color: var(--rp-text-subtle); }
 .rp-wb-save { display: inline-flex; align-items: center; gap: 8px; font-family: var(--rp-font-body); font-size: 12px; color: var(--rp-text-subtle); }
 .rp-wb-save[data-state="error"] { color: var(--rp-danger); }
 .rp-wb-save[data-state="local"] { color: var(--rp-warning); }
@@ -993,7 +989,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 
 .rp-wb-fold { flex: none; display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; background: transparent; color: var(--rp-text); cursor: pointer; }
 .rp-wb-fold svg { transition: transform .15s; }
-.rp-wb-fold:focus-visible, .rp-wb-title button:focus-visible, .rp-wb-band-title button:focus-visible, .rp-wb-link:focus-visible, .rp-wb-jump a:focus-visible, .rp-wb-crumb:focus-visible, .rp-wb-dropzone:focus-visible, .rp-wb-sizes button:focus-visible, .rp-wb-chips button:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
+.rp-wb-fold:focus-visible, .rp-wb-title button:focus-visible, .rp-wb-band-title button:focus-visible, .rp-wb-link:focus-visible, .rp-wb-crumb:focus-visible, .rp-wb-dropzone:focus-visible, .rp-wb-sizes button:focus-visible, .rp-wb-chips button:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: 2px; }
 
 .rp-wb-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--wb-gap); align-items: start; }
 .rp-wb-widget { grid-column: span 6; min-width: 0; display: flex; flex-direction: column; background: var(--rp-surface); border: var(--rp-stroke) solid var(--rp-border-strong); box-shadow: var(--rp-shadow-sm); }
@@ -1098,9 +1094,6 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   .rp-wb-full-head { padding: 14px 12px; }
   /* The jump links are one row that scrolls sideways. */
   .rp-wb-toolbar { flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
-  .rp-wb-jump { min-width: 0; }
-  .rp-wb-jump { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
-  .rp-wb-jump a { flex: none; white-space: nowrap; }
   .rp-wb-toolbar-actions { margin-left: 0; }
   /* Editing on a phone: moving and width live in each widget's ⋯ and Settings…; topic moves in the topic's ⋯ (ux1 #20). */
   .rp-wb[data-editing] .rp-wb-sizes, .rp-wb[data-editing] .rp-wb-move { display: none; }
@@ -1117,7 +1110,6 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   .rp-wb-fold { width: 44px; height: 44px; }
   .rp-wb-grip { display: none; }
   .rp-wb-a, .rp-wb-link, .rp-wb-crumb, .rp-wb-boardtoggle { min-height: 44px; display: inline-flex; align-items: center; }
-  .rp-wb-jump a { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; }
   .rp-wb-body .rp-ov-switch button, .rp-wb-full-body .rp-ov-switch button { min-height: 44px; }
   .rp-wb-body summary, .rp-wb-full-body summary { padding-block: 12px; }
   .rp-wb-body .rp-ov-drill-list a, .rp-wb-body .rp-hint a { display: inline-flex; align-items: center; min-height: 44px; }
