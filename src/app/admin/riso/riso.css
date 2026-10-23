@@ -1827,3 +1827,8 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   .inv-sheet-stock .rp-input { width: 44px !important; text-align: center !important; padding: 0 4px; }
   .inv-sheet-count { font-size: 15px; }
 }
+/* Pocket Pressroom: a dialog's buttons share its full width on a phone, so Cancel and the main action are thumb-sized. */
+@media screen and (max-width: 767px) {
+  .rp-dialog-root:not([data-variant="drawer"]):not(.studio-editor) > .rp-dialog .rp-dialog-foot > .rp-btn { flex: 1 1 0; min-height: 48px; }
+  .rp-dialog-root:not([data-variant="drawer"]):not(.studio-editor) > .rp-dialog .rp-dialog-foot > .rp-foot-start { flex: 1 1 100%; margin-right: 0; }
+}

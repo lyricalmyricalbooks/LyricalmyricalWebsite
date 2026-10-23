@@ -27,6 +27,7 @@ import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, cha
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink } from "lucide-react";
 import { adminApi } from "./api";
+import { usePhone } from "./usePhone";
 import toast from "react-hot-toast";
 import { formatGrams } from "../features/site/metricWeight";
 import {
@@ -81,6 +82,7 @@ export function OrderDetail({
     return true;
   };
   const [order, setOrder] = useState<any>(null);
+  const phone = usePhone();
   // Tell the list beside us only when the order really changed (an action, a Stripe sync that
   // moved something) — never for the first load of an order, which made the desk reload every order.
   const lastSeen = useRef<{ id: string; stamp: string } | null>(null);
@@ -714,10 +716,11 @@ export function OrderDetail({
       <div className="fw-toolbar" data-print="hide">
         <SecondaryButton
           size="sm"
+          className="fw-back"
           icon={<ArrowLeft size={14} aria-hidden />}
           onClick={onClose}
         >
-          Back to orders
+          {phone ? "Orders" : "Back to orders"}
         </SecondaryButton>
         {onNavigate && queueIndex >= 0 && queueIds.length > 1 && (
           <div className="fw-toolbar-nav" role="group" aria-label="Order navigation">
@@ -733,17 +736,28 @@ export function OrderDetail({
           </div>
         )}
         <div className="fw-toolbar-actions">
-          <SecondaryButton size="sm" onClick={handlePrintPackingSlip}>
-            Print packing slip
-          </SecondaryButton>
-          {!isVoiding &&
+          {!phone && (
+            <SecondaryButton size="sm" onClick={handlePrintPackingSlip}>
+              Print packing slip
+            </SecondaryButton>
+          )}
+          {(phone || (!isVoiding &&
             (paid ||
               (order.paymentStatus !== "refunded" &&
                 order.paymentStatus !== "refund_pending" &&
-                order.status !== "cancelled")) && (
+                order.status !== "cancelled")))) && (
               <ActionMenu
                 label="More order actions"
                 actions={[
+                  // Phones keep the toolbar to one row: the packing slip moves into this menu.
+                  ...(phone ? [{ label: "Print packing slip", onSelect: handlePrintPackingSlip }] : []),
+                  ...(isVoiding ||
+                  !(paid ||
+                    (order.paymentStatus !== "refunded" &&
+                      order.paymentStatus !== "refund_pending" &&
+                      order.status !== "cancelled"))
+                    ? []
+                    : [
                   ...(canMarkManualPaid(order)
                     ? [{ label: "Payment received — mark paid", onSelect: () => setConfirmAction("markPaid") }]
                     : []),
@@ -798,6 +812,7 @@ export function OrderDetail({
                           },
                         ]
                       : []),
+                  ]),
                 ]}
               />
             )}
@@ -805,7 +820,7 @@ export function OrderDetail({
       </div>
       <SectionHead
         title={order.orderId}
-        subcopy={placedAt(order.createdAt)}
+        subcopy={phone && order.customer?.name ? `${order.customer.name} · ${placedAt(order.createdAt)}` : placedAt(order.createdAt)}
         actions={
           <>
             <StatusBadge tone={payTone}>

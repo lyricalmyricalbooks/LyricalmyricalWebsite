@@ -99,8 +99,16 @@ export function FulfillmentWorkbench({
   const packingActive = queue === "Ready to pack";
   const shippingActive = queue === "Ready to ship";
   const copies = physicalItems(order).reduce((n: number, i: any) => n + (Number(i.quantity) || 0), 0);
+  const root = React.useRef<HTMLElement>(null);
+  const goToStep = (key: string) => {
+    const el = root.current?.querySelector<HTMLElement>(`.fw-step[data-step="${key}"]`);
+    if (!el) return;
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  };
   return (
     <section
+      ref={root}
       className="rp-card fw-workbench"
       aria-label="Fulfillment workspace"
     >
@@ -120,23 +128,27 @@ export function FulfillmentWorkbench({
       </div>
       {shipping && method === "shipping" && order.paymentStatus === "paid" && !terminal(order) && (
         <ol className="fw-strip" aria-label="Steps">
-          {[
-            { done: reviewed, now: addressActive, title: reviewed ? "Address checked" : "Check the address", sub: [addr.city, addr.state, addr.zip].filter(Boolean).join(" ") },
-            { done: packed, now: packingActive, title: packed ? "Packed" : "Pack", sub: `${copies} book${copies === 1 ? "" : "s"}` },
+          {([
+            { key: "address", done: reviewed, now: addressActive, title: reviewed ? "Address checked" : "Check the address", sub: [addr.city, addr.state, addr.zip].filter(Boolean).join(" ") },
+            { key: "pack", done: packed, now: packingActive, title: packed ? "Packed" : "Pack", sub: `${copies} book${copies === 1 ? "" : "s"}` },
             {
+              key: "ship",
               done: ["In transit", "Completed"].includes(queue),
               now: shippingActive,
               title: ["In transit", "Completed"].includes(queue) ? "Shipped" : order.labelUrl ? "Hand over & ship" : "Label & ship",
               sub: ["In transit", "Completed"].includes(queue) ? order.trackingNumber || "Sent" : order.labelUrl ? "Label bought" : "Parcel and rate",
             },
-          ].map((step, i) => (
+          ]).map((step, i) => (
             <li key={i} className="fw-strip-step" data-state={step.done ? "done" : step.now ? "now" : "todo"} aria-current={step.now ? "step" : undefined}>
-              <span className="fw-strip-mark rp-mono" aria-hidden="true">{step.done ? "✓" : i + 1}</span>
-              <span>
-                <span className="rp-label">Step {i + 1}{step.now ? " · now" : ""}</span>
-                <strong>{step.title}</strong>
-                {step.sub ? <span className="rp-hint">{step.sub}</span> : null}
-              </span>
+              {/* A tap on a step scrolls to it: on a phone the steps sit one under the other, far apart. */}
+              <button type="button" className="fw-strip-go" aria-current={step.now ? "step" : undefined} onClick={() => goToStep(step.key)}>
+                <span className="fw-strip-mark rp-mono" aria-hidden="true">{step.done ? "✓" : i + 1}</span>
+                <span>
+                  <span className="rp-label">Step {i + 1}{step.now ? " · now" : ""}</span>
+                  <strong>{step.title}</strong>
+                  {step.sub ? <span className="rp-hint">{step.sub}</span> : null}
+                </span>
+              </button>
             </li>
           ))}
         </ol>
@@ -223,7 +235,7 @@ export function FulfillmentWorkbench({
         </div>
       )}
       {shipping && method !== "pickup" && (
-        <div className="fw-step" data-active={addressActive}>
+        <div className="fw-step" data-step="address" data-active={addressActive}>
           <div className="fw-step-heading">
             <span className="fw-step-icon" aria-hidden="true">
               {reviewed ? <Check size={18} /> : <MapPin size={18} />}
@@ -292,7 +304,7 @@ export function FulfillmentWorkbench({
           )}
         </div>
       )}
-      <div className="fw-step" data-active={packingActive}>
+      <div className="fw-step" data-step="pack" data-active={packingActive}>
         <div className="fw-step-heading">
           <span className="fw-step-icon" aria-hidden="true">
             {packed ? <Check size={18} /> : <Package size={18} />}
@@ -331,7 +343,18 @@ export function FulfillmentWorkbench({
         )}
         <ul className="fw-items" aria-label="Order items">
           {(order.items || []).map((item: any, index: number) => (
-            <li key={index}>
+            <li
+              key={index}
+              data-tick={packingActive && !isDigitalItem(item) && !busy ? "true" : undefined}
+              // While packing, a tap anywhere on the line ticks it (the checkbox alone is a small target on a phone).
+              onClick={(e) => {
+                if (!packingActive || isDigitalItem(item) || busy) return;
+                // Selecting a title to copy it (drag or double-click) is not a tick.
+                if (e.detail > 1 || (typeof window !== "undefined" && window.getSelection?.()?.isCollapsed === false)) return;
+                if ((e.target as HTMLElement).closest("input, label, button, a, summary")) return;
+                onCheck(index);
+              }}
+            >
               {packingActive && !isDigitalItem(item) ? (
                 <Checkbox
                   label=""
@@ -420,7 +443,7 @@ export function FulfillmentWorkbench({
         )}
       </div>
       {shipping && method !== "pickup" && (
-        <div className="fw-step" data-active={shippingActive}>
+        <div className="fw-step" data-step="ship" data-active={shippingActive}>
           <div className="fw-step-heading">
             <span className="fw-step-icon" aria-hidden="true">
               <Truck size={18} />
