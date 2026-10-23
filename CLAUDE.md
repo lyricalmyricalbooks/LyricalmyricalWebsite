@@ -2689,3 +2689,11 @@ rules are the book page's Ships-by settings (`pdpShipByDays`, `pdpShipByCutoff`,
 read from the bag's root design; `shipBy.ts`). Pure `bagShipsOnSchedule` (`features/site/bagShipBy.ts`) shows it only when the bag holds
 a printed book and every printed line is in stock for its copies (no pre-order, backorder, Coming soon or box set; e-books/gift cards
 ignored). Drawn after mount only. Display only. Words: Text & labels › Cart (`cartShipBy`, `cartShipByCountdown`).
+
+## Previous / next book on book pages (23 October 2026)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **Previous / next book links** (`showPdpBookNav`, off by
+default) draws `features/site/PdpBookNav.tsx` at the foot of the book page (region `productBookNav`): the books either side of this
+one in the shop grid's starting order (Featured = Shop order, then newest; `soldOutLast` respected), inside the breadcrumb's shop
+category when the book has one, else every published book (pure `bookNeighbours` in `features/site/bookNeighbours.ts`, reusing
+`applyCatalogControls` / `getFilteredItems`). No wrapping. Display only. Words: Text & labels › Product page (`pdpBookNav*`).

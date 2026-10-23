@@ -52,6 +52,8 @@ import PdpFreeShipping from "./PdpFreeShipping";
 import PdpShipBy from "./PdpShipBy";
 import PdpAskQuestion from "./PdpAskQuestion";
 import PdpInBag from "./PdpInBag";
+import PdpBookNav from "./PdpBookNav";
+import { bookNeighbours } from "./bookNeighbours";
 import PdpTaxNote from "./PdpTaxNote";
 import { taxCollectionOn } from "./taxRate";
 import SaleEndsLine from "./SaleEndsLine";
@@ -186,6 +188,7 @@ export default function BookDetail() {
   const showPdpShipBy          = storefrontDesign.showPdpShipBy === true;
   const showPdpAskQuestion     = storefrontDesign.showPdpAskQuestion === true;
   const showPdpInBag           = storefrontDesign.showPdpInBag === true;
+  const showPdpBookNav         = storefrontDesign.showPdpBookNav === true;
   const showPdpTaxNote         = storefrontDesign.showPdpTaxNote === true;
   const ruledCls               = storefrontDesign.pdpRuledEveryLine === true ? " fm-pdp-desc-ruled" : "";
   const showPdpPolicyTab       = storefrontDesign.showPdpPolicyTab === true;
@@ -1727,6 +1730,13 @@ export default function BookDetail() {
           </div>
 
           {pdpDetailsBelow && detailsBlock && <div className="mt-12 lg:mt-16">{detailsBlock}</div>}
+          {/* Previous / next book (off by default): the shop grid's order, inside the breadcrumb's category. */}
+          {showPdpBookNav && regionVisible(regionDesign, "productBookNav") && (
+            <PdpBookNav
+              neighbours={bookNeighbours(book, books as any[], { category: shopCat, categories: Array.isArray(configuredCategories) ? configuredCategories : [], soldOutLast: settings?.design?.soldOutLast === true })}
+              design={settings?.design}
+            />
+          )}
         </div>
 
         {/* ── Related books ── */}
