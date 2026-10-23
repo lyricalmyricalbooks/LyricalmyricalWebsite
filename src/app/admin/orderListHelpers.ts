@@ -15,6 +15,17 @@ export function orderMoney(o: any): { text: string; paid: string } {
 export const orderDate = (o: any): string => o?.paidAt || o?.createdAt || "";
 export const orderTime = (o: any): number => Date.parse(orderDate(o)) || 0;
 
+/** How long an order has waited, for a phone row: "now", "40m", "5h", "3d". */
+export function waitedText(iso?: string, now = Date.now()): string {
+  const t = Date.parse(iso || "");
+  if (!Number.isFinite(t)) return "";
+  const minutes = Math.max(0, Math.floor((now - t) / 60000));
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
+}
+
 /** "Oct 3" this year, "Oct 3, 2025" for any other year. */
 export function listDate(iso?: string, now: Date = new Date()): string {
   if (!iso) return "";

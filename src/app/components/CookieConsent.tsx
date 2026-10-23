@@ -1,5 +1,6 @@
 import { regionProps } from "../features/site/storefrontRegions";
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router";
 import { m, AnimatePresence } from "motion/react";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { useLiveDesign } from "../features/site/useSiteData";
@@ -41,6 +42,8 @@ export function CookieConsent() {
   const [marketing, setMarketing] = useState(false);
   const design = useLiveDesign();
   const c = (key: string) => getCopy(design, key);
+  // The admin is the owner's own workspace (and on phones the banner would cover its bottom bar): no banner there.
+  const onAdmin = /^\/admin(?:\/|$)/.test(useLocation().pathname);
 
   // Studio preview: Studio opens the banner on request (Page layout › Pop-overs › Cookie banner) even when
   // this browser has already answered it, and an answer given in the preview is never saved.
@@ -69,7 +72,7 @@ export function CookieConsent() {
     setDecided(true);
   };
 
-  if (design?.showCookieBanner === false) return null;
+  if (design?.showCookieBanner === false || onAdmin) return null;
   // Phones get a compact banner (smaller heading, tighter spacing, all buttons on one row when they fit) so it
   // covers about a quarter of the screen; from 768px up every class below is exactly the desktop look.
   const btn = "max-md:min-h-11 max-md:max-w-full max-md:whitespace-nowrap border-2 border-[var(--rp-outline)] px-2.5 py-3 text-[10px] font-black uppercase tracking-[0.08em] md:px-4 md:tracking-[0.2em] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]";

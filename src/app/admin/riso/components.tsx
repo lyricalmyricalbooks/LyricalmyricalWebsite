@@ -1,5 +1,5 @@
 import {
-  createContext, forwardRef, useCallback, useContext, useEffect, useId, useRef, useState,
+  Fragment, createContext, forwardRef, useCallback, useContext, useEffect, useId, useRef, useState,
   type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode,
   type SelectHTMLAttributes, type TextareaHTMLAttributes,
 } from "react";
@@ -44,6 +44,8 @@ export type NavEntry = {
   section?: string;
   /** Count of things waiting on this page (e.g. orders to ship); hidden at 0. */
   badge?: number;
+  /** The parent page a flattened child item belongs to (e.g. "settings"); phones lay these out as a grid of short links. */
+  group?: string;
 };
 
 export function Sidebar({ brand, items, activeId, activeChildId, onSelect, onSelectChild, open, onClose, footer }: {
@@ -57,15 +59,20 @@ export function Sidebar({ brand, items, activeId, activeChildId, onSelect, onSel
     <>
       {open && <div className="rp-scrim" onClick={onClose} aria-hidden="true" />}
       <aside ref={ref} className="rp-sidebar" data-open={open} aria-label="Admin sidebar">
-        <div className="rp-sidebar-brand">{brand}</div>
+        <div className="rp-sidebar-brand">
+          {brand}
+          {/* The rail is a drawer on phones and tablets; it closes from here as well as from the scrim and Escape. */}
+          <button type="button" className="rp-icon-btn rp-drawer-close" aria-label="Close menu" onClick={onClose}><X size={20} aria-hidden /></button>
+        </div>
         <nav className="rp-nav" aria-label="Primary">
           <ul className="rp-nav-list">
             {items.map((item) => {
               const active = activeId === item.id;
               const Icon = item.icon;
               return (
-                <li key={item.id}>
-                  {item.section && <div className="rp-nav-section" aria-hidden="true">{item.section}</div>}
+                <Fragment key={item.id}>
+                {item.section && <li className="rp-nav-section-row" aria-hidden="true"><div className="rp-nav-section">{item.section}</div></li>}
+                <li data-group={item.group}>
                   <button
                     type="button" className="rp-nav-item" data-nav={item.id}
                     aria-current={active ? "page" : undefined}
@@ -93,6 +100,7 @@ export function Sidebar({ brand, items, activeId, activeChildId, onSelect, onSel
                     </ul>
                   )}
                 </li>
+                </Fragment>
               );
             })}
           </ul>

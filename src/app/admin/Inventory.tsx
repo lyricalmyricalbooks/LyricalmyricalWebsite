@@ -7,6 +7,7 @@ import { InventoryLinkPanel } from "./InventoryLinkPanel";
 import { useSubTab } from "./settingsLayout";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { isStockLinked, type InventoryLinks } from "./inventoryLink";
+import { smallPhotoUrl } from "../features/site/photoSources";
 import {
   buildInventory, inventorySummary, inventoryToCsv, lowStockThreshold, parseCost, parseReceive, parseStock,
   waitingReaders, wakesRestockEmails, ADJUST_REASONS, STATUS_LABELS,
@@ -21,6 +22,8 @@ import {
 const TONE: Record<StockStatus, BadgeTone> = {
   out: "danger", low: "warning", reprint: "info", ok: "success", digital: "neutral", untracked: "neutral", bundle: "primary", giftCard: "neutral",
 };
+/** Phone rows say a status as glyph + word, like the badges do. */
+const GLYPH: Partial<Record<BadgeTone, string>> = { danger: "✕", warning: "⚠", success: "✓", info: "◷" };
 const PAGE_SIZE = 25;
 type Tab = "all" | "out" | "low" | "reprint" | "ok" | "digital" | "untracked" | "other";
 const inTab = (r: InventoryRow, t: Tab) => t === "all" || (t === "other" ? r.status === "bundle" || r.status === "giftCard" : r.status === t);
@@ -41,6 +44,12 @@ function useAsk() {
 }
 
 const rowName = (r: InventoryRow) => (r.edition ? `${r.title} (${r.edition})` : r.title);
+const PHONE_MQ = "(max-width: 767px)";
+/** A small cover for a phone row: the book's first photo (its smallest good copy), else its cover image. */
+const rowCoverUrl = (r: InventoryRow): string => {
+  const first = r.book?.photos?.[0];
+  return (typeof first === "string" ? first : smallPhotoUrl(first, 80)) || (typeof r.book?.coverImage === "string" ? r.book.coverImage : "");
+};
 
 function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
   const toast = useRisoToast();
@@ -54,6 +63,14 @@ function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
   // Parts of the page that fell back to defaults because they couldn't be read (low-stock line, cost prices, inventory app links).
   const [partial, setPartial] = useState<string[]>([]);
   const [tab, setTab] = useState<Tab>("all");
+  // Phones (concept A): the table becomes a sheet of rows with a − / count / + stepper.
+  const [phone, setPhone] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(PHONE_MQ).matches);
+  useEffect(() => {
+    const mq = window.matchMedia?.(PHONE_MQ);
+    const on = () => setPhone(!!mq?.matches);
+    mq?.addEventListener?.("change", on);
+    return () => mq?.removeEventListener?.("change", on);
+  }, []);
   // Page sub tabs: the stock list, and the link to the inventory app.
   const [view, setView] = useSubTab<"inv-stock" | "inv-link">("inv-stock", subTab, onSubTabChange);
   const [q, setQ] = useState("");
@@ -339,6 +356,31 @@ function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
     ]),
   ];
 
+  const emptyList = <EmptyState title="No titles match" description={q.trim() ? `Nothing in this tab matches “${q.trim()}”.` : "Nothing is in this tab right now."}
+    action={tab !== "all" || q.trim() ? <SecondaryButton onClick={() => { setTab("all"); setQ(""); }}>Show every title</SecondaryButton> : undefined} />;
+  const phoneSheet = pageRows.length === 0 ? emptyList : (
+    <ul className="inv-sheet" aria-label="Inventory">
+      {pageRows.map((r) => {
+        const cover = rowCoverUrl(r);
+        const meta = [r.edition || r.format, r.shelfLocation ? `Shelf ${r.shelfLocation}` : "", r.draft ? "Draft" : "", r.archived ? "Archived" : ""].filter(Boolean).join(" · ");
+        const counted = r.kind === "stock";
+        return (
+          <li key={r.id} className="inv-sheet-row">
+            <span className="inv-sheet-cover" aria-hidden="true">{cover ? <img src={cover} alt="" loading="lazy" decoding="async" /> : null}</span>
+            <span className="inv-sheet-body">
+              {onEditBook
+                ? <button type="button" className="inv-sheet-title" onClick={() => onEditBook(r.book)} aria-label={`Edit ${r.title} in Books`}>{r.title}</button>
+                : <span className="inv-sheet-title">{r.title}</span>}
+              <span className="inv-sheet-meta"><span className="inv-sheet-status" data-tone={TONE[r.status]}>{GLYPH[TONE[r.status]] ? <span aria-hidden="true">{GLYPH[TONE[r.status]]} </span> : null}{STATUS_LABELS[r.status]}</span>{meta ? <span className="rp-mono">· {meta}</span> : null}</span>
+              {counted && linked(r) ? <span className="inv-sheet-note">Synced from the app</span> : null}
+            </span>
+            <span className="inv-sheet-stock">{counted && !linked(r) ? stockCell(r) : counted ? <span className="rp-mono inv-sheet-count" aria-label={`Stock for ${rowName(r)}: ${r.stock}`}>{r.stock}</span> : null}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
   if (loading) return <LoadingState label="Loading inventory…" />;
   if (failed) return <ErrorState title="Inventory could not be loaded" onRetry={load} />;
 
@@ -356,21 +398,21 @@ function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
       ]} />
       <TabPanel tabId="inv-stock" active={view === "inv-stock"}>
       <div className="rp-stack">
-      <div className="rp-kpi-grid">
+      <div className="rp-kpi-grid inv-figures">
         <MetricCard label="Units on hand" value={sum.units} footer="Counted print editions" />
         <MetricCard label="Stock value" value={`CA$${sum.value.toFixed(0)}`}
           footer={sum.costedRows ? `At retail · CA$${sum.costValue.toFixed(0)} at cost (${sum.costedRows} of ${sum.countedRows} costed)` : "At retail price"} />
         <MetricCard label="Out of stock" value={sum.out} tone={sum.out ? "danger" : undefined} footer="Cannot be bought" />
         <MetricCard label="Low / reprint soon" value={sum.low + sum.reprint} tone={sum.low + sum.reprint ? "warn" : undefined} footer={`${sum.low} low · ${sum.reprint} selling fast`} />
       </div>
-      <Tabs<Tab> label="Stock status" value={tab} onChange={setTab}
+      <div className="inv-status"><Tabs<Tab> label="Stock status" value={tab} onChange={setTab}
         tabs={[
           { id: "all", label: "All", count: counts.all }, { id: "out", label: "Out of stock", count: counts.out },
           { id: "low", label: "Low stock", count: counts.low }, { id: "reprint", label: "Reprint soon", count: counts.reprint },
           { id: "ok", label: "In stock", count: counts.ok }, { id: "digital", label: "Digital", count: counts.digital },
           { id: "untracked", label: "Not tracked", count: counts.untracked }, { id: "other", label: "Box sets & gift cards", count: counts.other },
-        ]} />
-      <div className="rp-hint" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", margin: 0 }}>
+        ]} /></div>
+      <div className="rp-hint inv-threshold" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", margin: 0 }}>
         <label htmlFor="inv-low-stock-line">Show “Low stock” at or below</label>
         <input id="inv-low-stock-line" className="rp-input rp-mono" type="number" min={0} inputMode="numeric" style={{ width: 72, textAlign: "right" }}
           value={thresholdDraft} aria-describedby="inv-low-stock-help"
@@ -380,8 +422,9 @@ function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
       <FilterBar>
         <div className="rp-grow"><SearchField label="Search titles" placeholder="Search titles or shelf…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <Checkbox label={`Show drafts & archived (${hiddenCount})`} checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
-        <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={exportCsv}>Export CSV</SecondaryButton>
+        <SecondaryButton className="inv-export" icon={<Download size={16} aria-hidden />} onClick={exportCsv}>Export CSV</SecondaryButton>
       </FilterBar>
+      <div className="inv-list">
       <SectionCard flush collapsible={false} title={receiving ? "Receive stock" : "Inventory"}
         description={receiving
           ? "+12 adds, -3 removes, =40 sets. Then Save all."
@@ -400,11 +443,10 @@ function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
             ) : <PrimaryButton icon={<PackagePlus size={16} aria-hidden />} onClick={() => { setReceiving(true); setResults({}); }}>Receive stock</PrimaryButton>}
           </div>
         }>
-        <DataTable caption="Inventory" columns={columns} rows={pageRows} rowKey={(r) => r.id}
-          empty={<EmptyState title="No titles match" description={q.trim() ? `Nothing in this tab matches “${q.trim()}”.` : "Nothing is in this tab right now."}
-            action={tab !== "all" || q.trim() ? <SecondaryButton onClick={() => { setTab("all"); setQ(""); }}>Show every title</SecondaryButton> : undefined} />} />
+        {phone && !receiving ? phoneSheet : <DataTable caption="Inventory" columns={columns} rows={pageRows} rowKey={(r) => r.id} empty={emptyList} />}
         {!receiving && rows.length > PAGE_SIZE && <Pagination page={Math.min(page, pageCount)} pageCount={pageCount} onPage={setPage} />}
       </SectionCard>
+      </div>
       </div>
       </TabPanel>
       <TabPanel tabId="inv-link" active={view === "inv-link"}>

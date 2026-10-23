@@ -1660,7 +1660,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp:not(.studio-editor) .rp-ov-lead { border: 0; box-shadow: none; }
 
 /* Phones: the rail slides in as before */
-@media (max-width: 1023px) { .rp:not(.studio-editor) .rp-sidebar { box-shadow: var(--rp-shadow-float); } }
+@media (max-width: 1023px) { .rp:not(.studio-editor) .rp-sidebar[data-open="true"] { box-shadow: var(--rp-shadow-float); } }
 @media (max-width: 767px) {
   .rp:not(.studio-editor) .rp-topbar { width: auto; margin: 0; padding: 0 8px; background: var(--rp-canvas); }
   .rp:not(.studio-editor) .rp-topbar-search { flex: none; max-width: none; }
@@ -1713,3 +1713,116 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 
 /* Clickable table rows can be reached and opened from the keyboard (Tab, then Enter or Space). */
 .rp .rp-table tbody tr[data-clickable="true"]:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: -2px; background: var(--rp-surface-2); }
+
+/* ── Pocket Pressroom (23 October 2026): the admin on phones, Julian's concept A ─────────────────
+ * https://claude.ai/artifact/JUjyHuqyhnM6weXdj3vh8i. A shrink of the Pressroom desktop: a 56px top bar
+ * (menu · wordmark · shop status · search), the ink rail as a 320px drawer that ends with the account row,
+ * 56px Anton mastheads, a 20px gutter, figures as a two-column ledger, lists as flat sheets of 44px+ rows.
+ * Phone-only parts are hidden on wider screens first, so the desktop draws exactly as before. */
+/* An empty toast stack is a page-coloured 8px strip over the content; the closed drawer's shadow leaked onto the page edge. */
+.rp-toast-stack.rp { background: transparent; }
+.rp-toast-stack:empty { display: none; }
+.rp .rp-topbar-wordmark, .rp .rp-status-short, .rp .rp-wb-seg-phone, .rp .rp-wb-more, .rp .rp-drawer-account, .rp .rp-drawer-close { display: none; }
+@media (max-width: 1023px) {
+  .rp:not(.studio-editor) .rp-sidebar-brand { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .rp:not(.studio-editor) .rp-drawer-close { display: inline-grid; place-items: center; flex: none; width: var(--rp-touch); height: var(--rp-touch); margin: -12px -4px 0 0; padding: 0; border: 0; background: none; color: var(--rp-on-inverse); }
+  .rp:not(.studio-editor) .rp-drawer-close:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: -2px; }
+}
+@media (max-width: 767px) {
+  .rp:not(.studio-editor) { --rp-gutter: 20px; }
+  .rp:not(.studio-editor) .rp-workspace { padding-bottom: 48px; }
+
+  /* Top bar */
+  .rp:not(.studio-editor) .rp-topbar { height: 56px; min-height: 56px; padding: 0 8px 0 4px; gap: 4px; }
+  .rp:not(.studio-editor) .rp-topbar .rp-menu-only { order: 0; }
+  .rp:not(.studio-editor) .rp-topbar-wordmark {
+    display: block; order: 1; flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    font: 400 18px/1 var(--rp-font-display); letter-spacing: 0.01em; text-transform: none; color: var(--rp-text); text-decoration: none;
+  }
+  .rp:not(.studio-editor) .rp-topbar-actions { order: 2; gap: 0; }
+  .rp:not(.studio-editor) .rp-topbar-search { order: 3; }
+  .rp:not(.studio-editor) .rp-avatar-menu { display: none; }
+  .rp:not(.studio-editor) .rp-status-btn { min-height: var(--rp-touch); padding: 0 4px; gap: 6px; border: 0; background: transparent; font-size: 13px; font-weight: 600; }
+  .rp:not(.studio-editor) .rp-status-btn[data-tone="warning"] { color: var(--rp-warning); }
+  .rp:not(.studio-editor) .rp-status-btn > svg { display: none; }
+  .rp:not(.studio-editor) .rp-status-btn .rp-status-glyph { font-size: 10px; }
+  .rp:not(.studio-editor) .rp-status-word { display: none; }
+  .rp:not(.studio-editor) .rp-status-short { display: inline; }
+
+  /* The drawer: 320px of ink, 44px rows, Settings as a two-column grid of short links, the account row last */
+  .rp:not(.studio-editor) .rp-sidebar { width: min(320px, calc(100vw - 48px)); padding: 20px 8px 0; overflow-y: auto; }
+  .rp:not(.studio-editor) .rp-sidebar-brand { padding: 0 0 20px 12px; }
+  .rp:not(.studio-editor) .rp-nav-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rp:not(.studio-editor) .rp-nav-list > li { grid-column: 1 / -1; }
+  .rp:not(.studio-editor) .rp-nav-list > li[data-group] { grid-column: auto; min-width: 0; }
+  .rp:not(.studio-editor) .rp-nav-list > li + li { margin-top: 0; }
+  .rp:not(.studio-editor) .rp-nav-item { min-height: var(--rp-touch); padding: 0 12px; gap: 12px; font-size: 15px; }
+  .rp:not(.studio-editor) .rp-nav-list > li[data-group] .rp-nav-item > svg { display: none; }
+  .rp:not(.studio-editor) .rp-nav-list > li[data-group] .rp-nav-item { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .rp:not(.studio-editor) .rp-nav-section { padding: 20px 12px 8px; }
+  .rp:not(.studio-editor) .rp-sidebar-foot { margin-top: auto; padding: 16px 0 0; }
+  .rp:not(.studio-editor) .rp-drawer-account {
+    position: relative; display: flex; align-items: center; gap: 12px; margin: 16px -8px 0; padding: 12px 8px 20px 20px;
+    border-top: 1px solid var(--rp-rail-line);
+  }
+  .rp:not(.studio-editor) .rp-drawer-account .rp-avatar { flex: none; width: 36px; height: 36px; background: var(--rp-on-inverse); color: #100f0d; font-size: 15px; font-weight: 700; }
+  .rp:not(.studio-editor) .rp-drawer-account-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 15px; color: var(--rp-on-inverse); }
+  .rp:not(.studio-editor) .rp-drawer-account-site { min-height: var(--rp-touch); padding: 0 4px; border: 0; background: none; color: var(--rp-on-inverse); font: 400 13px var(--rp-font-body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .rp:not(.studio-editor) .rp-drawer-account .rp-icon-btn { width: var(--rp-touch); height: var(--rp-touch); color: var(--rp-on-inverse); background: transparent; border: 0; }
+  .rp:not(.studio-editor) .rp-drawer-account-menu { position: absolute; right: 8px; bottom: calc(100% - 8px); left: auto; top: auto; min-width: 220px; }
+  .rp:not(.studio-editor) .rp-drawer-account-site:focus-visible, .rp:not(.studio-editor) .rp-drawer-account .rp-icon-btn:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: -2px; }
+
+  /* Mastheads */
+  .rp:not(.studio-editor) .rp-page-title, .rp:not(.studio-editor) .rp-wb-h1 { font-size: 56px; line-height: 1; }
+  .rp:not(.studio-editor) .rp-page-header { padding-top: 24px; }
+
+  /* Overview: four period chips + More; the comparison keeps its saved choice */
+  .rp:not(.studio-editor) .rp-wb-head-title { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .rp:not(.studio-editor) .rp-wb-period { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+  .rp:not(.studio-editor) .rp-wb-period { flex-wrap: nowrap; gap: 6px; }
+  .rp:not(.studio-editor) .rp-wb-seg { flex-wrap: nowrap; gap: 6px; overflow: visible; }
+  .rp:not(.studio-editor) .rp-wb-seg button:not([data-phone]) { display: none; }
+  .rp:not(.studio-editor) .rp-wb-seg button { padding: 0 10px; }
+  .rp:not(.studio-editor) .rp-wb-seg-long { display: none; }
+  .rp:not(.studio-editor) .rp-wb-seg-phone { display: inline; }
+  .rp:not(.studio-editor) .rp-wb-period .rp-wb-more { display: inline-block; flex: 0 1 88px; min-width: 64px; width: 88px; padding: 0 2px 0 8px; color: var(--rp-text); text-overflow: ellipsis; }
+  .rp:not(.studio-editor) .rp-wb-toolbar-actions { flex-wrap: nowrap; width: 100%; gap: 4px; }
+  .rp:not(.studio-editor) .rp-wb-save:not([data-state="error"]) { display: none; }
+
+  /* Alerts: one tinted line, the fix as an underlined word at its end */
+  .rp:not(.studio-editor) .rp-alert { flex-wrap: nowrap; gap: 8px; padding: 6px 0 6px 12px; }
+  .rp:not(.studio-editor) .rp-alert-text { flex: 1 1 auto; }
+  .rp:not(.studio-editor) .rp-alert-detail { display: none; }
+  .rp:not(.studio-editor) .rp-alert-actions { width: auto; padding-left: 0; gap: 0; }
+  /* Board editing is a desk job: phones keep the board picker and view options, not Add widgets or Edit board */
+  .rp:not(.studio-editor) .rp-wb-addbtn, .rp:not(.studio-editor) .rp-wb-editbtn, .rp:not(.studio-editor) .rp-wb-undo { display: none; }
+  .rp:not(.studio-editor) .rp-wb-more[data-on] { background-color: var(--rp-text); border-color: var(--rp-text); color: var(--rp-canvas); }
+  .rp:not(.studio-editor) .rp-wb-vs, .rp:not(.studio-editor) .rp-wb-compare { display: none; }
+
+  /* Inventory: status chips in one scrolling row, the list as a sheet, the low-stock line under it */
+  .rp:not(.studio-editor) .inv-status .rp-tabs { flex-wrap: nowrap; overflow-x: auto; width: auto; max-width: none; margin: 0 calc(-1 * var(--rp-gutter)); padding: 0 var(--rp-gutter); scrollbar-width: none; }
+  .rp:not(.studio-editor) .inv-status .rp-tabs::-webkit-scrollbar { display: none; }
+  .rp:not(.studio-editor) .inv-status .rp-tab { flex: none; }
+  .rp:not(.studio-editor) .inv-figures .rp-metric-foot { display: none; }
+  .rp:not(.studio-editor) .inv-export { display: none; }
+  .rp:not(.studio-editor) .inv-threshold { order: 10; }
+  .rp:not(.studio-editor) .inv-list .rp-card-desc { display: none; }
+  .rp:not(.studio-editor) .inv-list .rp-card-head { padding: 12px; }
+  .inv-sheet { list-style: none; margin: 0; padding: 0; }
+  .inv-sheet-row { display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 10px 12px; }
+  .inv-sheet-row + .inv-sheet-row { border-top: 1px solid var(--rp-divider); }
+  .inv-sheet-cover { flex: none; width: 40px; height: 52px; border: 1px solid var(--rp-border-strong); background: var(--rp-surface-sunken); overflow: hidden; }
+  .inv-sheet-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .inv-sheet-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .inv-sheet-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; max-width: 100%; padding: 0; border: 0; background: none; color: var(--rp-text); font: 600 15px/1.25 var(--rp-font-body); text-align: left; overflow: hidden; overflow-wrap: anywhere; cursor: pointer; }
+  .inv-sheet-meta { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11px; color: var(--rp-text-subtle); }
+  .inv-sheet-meta > .rp-mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inv-sheet-status { flex: none; font-size: 12px; font-weight: 600; color: var(--rp-text-muted); }
+  .inv-sheet-status[data-tone="danger"] { color: var(--rp-danger); }
+  .inv-sheet-status[data-tone="warning"] { color: var(--rp-warning); }
+  .inv-sheet-status[data-tone="success"] { color: var(--rp-success); }
+  .inv-sheet-note { font-size: 12px; color: var(--rp-text-subtle); }
+  .inv-sheet-stock { flex: none; }
+  .inv-sheet-stock .rp-input { width: 44px !important; text-align: center !important; padding: 0 4px; }
+  .inv-sheet-count { font-size: 15px; }
+}

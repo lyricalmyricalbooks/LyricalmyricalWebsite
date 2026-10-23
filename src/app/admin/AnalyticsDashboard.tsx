@@ -52,11 +52,12 @@ const readPrefs = (): Prefs => { try { return JSON.parse(window.localStorage.get
 const writePrefs = (p: Prefs) => { try { window.localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* per-browser convenience only */ } };
 /** How often the board quietly re-reads the newest orders, the to-do counts and today's visits while it is on screen. */
 export const AUTO_REFRESH_MS = 5 * 60_000;
-/** The period buttons, in the B4 board's short words; `title` says each in full. */
-const PERIOD_BUTTONS: Array<{ id: Preset; label: string; title: string }> = [
-  { id: "today", label: "Today", title: "Today" }, { id: "7d", label: "7d", title: "The last 7 days" }, { id: "30d", label: "30d", title: "The last 30 days" },
+/** The period buttons, in the B4 board's short words; `title` says each in full. `phone` = the word on the four
+ *  buttons a phone shows (Pocket Pressroom); the others sit in its "More" list. */
+const PERIOD_BUTTONS: Array<{ id: Preset; label: string; title: string; phone?: string }> = [
+  { id: "today", label: "Today", title: "Today", phone: "Today" }, { id: "7d", label: "7d", title: "The last 7 days", phone: "7 days" }, { id: "30d", label: "30d", title: "The last 30 days", phone: "30 days" },
   { id: "90d", label: "90d", title: "The last 90 days" }, { id: "mtd", label: "MTD", title: "This month so far" }, { id: "lastMonth", label: "Last month", title: "Last calendar month" },
-  { id: "ytd", label: "YTD", title: "This year so far" }, { id: "365d", label: "12m", title: "The last 12 months" }, { id: "custom", label: "Custom", title: "Pick your own dates" },
+  { id: "ytd", label: "YTD", title: "This year so far", phone: "Year" }, { id: "365d", label: "12m", title: "The last 12 months" }, { id: "custom", label: "Custom", title: "Pick your own dates" },
 ];
 export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?: (tab: string) => void; onEditBook?: (book: any) => void }) {
   const saved = useMemo(readPrefs, []);
@@ -505,9 +506,17 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       <>
         <div className="rp-wb-seg" role="group" aria-label="Period">
           {PERIOD_BUTTONS.map(p => (
-            <button key={p.id} type="button" aria-pressed={preset === p.id} title={p.title} onClick={() => setPreset(p.id)}>{p.label}</button>
+            <button key={p.id} type="button" aria-pressed={preset === p.id} title={p.title} data-phone={p.phone ? "" : undefined} onClick={() => setPreset(p.id)}>
+              {p.phone ? <><span className="rp-wb-seg-long">{p.label}</span><span className="rp-wb-seg-phone">{p.phone}</span></> : p.label}
+            </button>
           ))}
         </div>
+        {/* Phones: the four common periods are buttons; every other period is one pick away here. */}
+        <select className="rp-wb-select rp-wb-more" aria-label="More periods" data-on={PERIOD_BUTTONS.some(p => p.id === preset && !p.phone) || undefined}
+          value={PERIOD_BUTTONS.some(p => p.id === preset && !p.phone) ? preset : ""} onChange={e => { if (e.target.value) setPreset(e.target.value as Preset); }}>
+          <option value="">More</option>
+          {PERIOD_BUTTONS.filter(p => !p.phone).map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+        </select>
         {preset === "custom" && (
           <span className="rp-wb-dates">
             <label className="rp-wb-lbl" htmlFor="wb-from">From</label>

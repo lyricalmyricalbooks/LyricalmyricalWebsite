@@ -17,7 +17,7 @@ describe("OrdersDesk", () => {
   it("a link to one order opens the Ship station: header, numbered queue and the full order page", () => {
     const html = renderToStaticMarkup(<OrdersDesk selectedId="ABC" onSelect={() => {}} />);
     // Inventory's figures strip, and no second heading repeating the page title.
-    expect(html).toContain('class="rp-kpi-grid" aria-label="Ship station today"');
+    expect(html).toContain('class="rp-kpi-grid od-figures" aria-label="Ship station today"');
     expect(html).not.toContain('class="od-title">Ship station</h2>');
     expect(html).toContain("Labels today");
     expect(html).toContain("Print pick list");
