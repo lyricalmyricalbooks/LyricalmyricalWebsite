@@ -305,9 +305,6 @@ export function returnPolicyData(days: string | undefined, countryCode: string |
     : { '@type': 'MerchantReturnPolicy', applicableCountry: country, returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow', merchantReturnDays: n, returnMethod: 'https://schema.org/ReturnByMail' };
 }
 
-/** What one copy costs to ship within the shop's own country, for Google's product listings: the cheapest
- *  shipping option (not pickup) from Settings › Shipping. Its delivery estimate ("3–7", "3-7 business days",
- *  "5") becomes the transit time when it reads as days. Null when there is no such option. */
 /** "1–3", "2 business days", "1" → a day range, or null. */
 function dayRange(text: unknown): { min: number; max: number } | null {
   const m = String(text ?? '').match(/^\s*(\d{1,2})\s*(?:[-–—]|to)?\s*(\d{1,2})?\s*(?:business\s+)?(?:days?)?\s*$/i);
@@ -318,6 +315,10 @@ function dayRange(text: unknown): { min: number; max: number } | null {
 
 const dayValue = (r: { min: number; max: number }) => ({ '@type': 'QuantitativeValue', minValue: r.min, maxValue: r.max, unitCode: 'DAY' });
 
+/** What one copy costs to ship within the shop's own country, for Google's product listings: the cheapest
+ *  shipping option (not pickup) from Settings › Shipping. Its delivery estimate ("3–7", "3-7 business days",
+ *  "5") becomes the transit time when it reads as days;
+ *  `handlingDays` (Text & labels › Site & sharing) becomes the handling time. Null when there is no such option. */
 export function shippingDetailsData(quote: { price: number; deliveryDays?: string; type?: string } | null | undefined, countryCode: string | undefined, currency = 'CAD', handlingDays?: string) {
   const country = String(countryCode ?? '').trim().toUpperCase();
   if (!quote || quote.type === 'pickup' || !/^[A-Z]{2}$/.test(country) || !Number.isFinite(Number(quote.price)) || Number(quote.price) < 0) return null;
