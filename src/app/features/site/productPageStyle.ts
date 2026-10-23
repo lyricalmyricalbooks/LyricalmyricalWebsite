@@ -106,7 +106,7 @@ export function descriptionTextCss(d: any): string {
   css += `${T} .fm-pdp-desc-rule{margin:${gap * 1.5}px 0;border:0;border-top:1px solid rgba(var(--border-rgb), 0.45);}`;
   css += `${T} .fm-pdp-desc-link{color:${linkColor};text-decoration:${d.pdpDescLinkUnderline === false ? "none" : "underline"};}`;
   css += `${T} strong{font-weight:700;}${T} em{font-style:italic;}`;
-  if (d.pdpRuledEveryLine === true) css += notebookBlocksCss(d, T);
+  if (d.pdpRuledEveryLine === true) css += notebookBlocksCss(d, T) + notebookRecordCss(d, ruleLine);
   return css;
 }
 
@@ -145,6 +145,19 @@ function notebookBlocksCss(d: any, T: string): string {
       + `${N} .fm-pdp-desc-rule{margin:0;height:${line}px;border:0;}`;
   };
   return blocks(size) + `@media (max-width:${PHONE_MAX}px){${blocks(phone)}}`;
+}
+
+/** The Details record on the same notebook page: label | value on the line grid, one rule under every line. */
+function notebookRecordCss(d: any, rule: string): string {
+  const R = `${S} dl.fm-pdp-record.fm-pdp-record-ruled`;
+  const size = num(d, "pdpDescSize", 15, 10, 24);
+  const phone = num(d, "pdpDescSizeMobile", 0, 0, 24) || size;
+  const page = (s: number, inset: number) => {
+    const line = notebookLine(d, s);
+    return `${R}{padding-left:${inset}px;background-image:repeating-linear-gradient(to bottom,transparent 0,transparent ${line - 1}px,${rule} ${line - 1}px,${rule} ${line}px);}`
+      + `${R} dt,${R} dd{padding:0;border-top:0;line-height:${line}px;}`;
+  };
+  return `${R}{border-top:1px solid ${rule};}` + page(size, 20) + `@media (max-width:${PHONE_MAX}px){${page(phone, 14)}}`;
 }
 
 /**
