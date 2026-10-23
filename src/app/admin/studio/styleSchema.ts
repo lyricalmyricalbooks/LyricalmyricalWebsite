@@ -876,6 +876,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "cartDrawerShowEmptyIcon", label: "Bag icon when the bag is empty", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowEmptyButton", label: "“Continue shopping” button when the bag is empty", kind: "toggle", defaultValue: true },
       { key: "cartDrawerEmptyLink", label: "“Continue shopping” goes to (blank = Home)", kind: "link" },
+      { key: "cartDrawerEmptyPicks", label: "Suggest books in an empty bag (featured books first, then the newest; only books that can be bought now; words: Text & labels › Cart)", kind: "toggle", defaultValue: false },
+      { key: "cartDrawerEmptyPicksCount", label: "How many books an empty bag suggests", kind: "range", defaultValue: 3, min: 1, max: 4, step: 1 },
     ],
   },
   {
