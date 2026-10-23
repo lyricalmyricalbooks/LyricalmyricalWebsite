@@ -1710,3 +1710,6 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   .rp:not(.studio-editor) .rp-wb-boardwrap { position: static; }
   .rp:not(.studio-editor) .rp-wb-boardctl { left: 0; right: 0; width: auto; }
 }
+
+/* Clickable table rows can be reached and opened from the keyboard (Tab, then Enter or Space). */
+.rp .rp-table tbody tr[data-clickable="true"]:focus-visible { outline: 2px solid var(--rp-focus, currentColor); outline-offset: -2px; background: var(--rp-surface-2); }
