@@ -360,6 +360,9 @@ export function DataTable<T>({ columns, rows, rowKey, caption, empty, rowState, 
         <tbody>
           {rows.map((r) => (
             <tr key={rowKey(r)} {...rowProps?.(r)} data-row-state={rowState?.(r)} style={onRowClick ? { cursor: "pointer" } : rowProps?.(r)?.style}
+              tabIndex={onRowClick ? 0 : undefined}
+              data-clickable={onRowClick ? "true" : undefined}
+              onKeyDown={onRowClick ? (e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); onRowClick(r); } } : undefined}
               onClick={onRowClick ? (e) => { if (!(e.target as HTMLElement).closest?.("a,button,input,select,textarea,label")) onRowClick(r); } : undefined}>{columns.map((c) => <td key={c.key} data-label={c.header || undefined} className={cx(c.numeric && "rp-num", c.lead && "rp-lead")}>{c.render(r)}</td>)}</tr>
           ))}
         </tbody>
