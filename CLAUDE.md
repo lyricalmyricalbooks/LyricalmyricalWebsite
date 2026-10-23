@@ -1957,6 +1957,14 @@ default) adds a `.fm-card-formats` line under MainSite's shop-grid card title/pr
 (`features/site/cardFormats.ts`) uses the format filter's `bookFormats` minus "other" and shows only 2+ formats. Format words are
 Text & labels › Search & filters (`filterFormat_*`); the read-aloud lead is Catalog & empty states › `cardFormatsLead`. Display only.
 
+## Author line on shop cards (23 October 2026)
+
+Studio › Style › Book cards in the shop grid › Grid & columns › **Show the author or artist under each card's title**
+(`showCardCreator`, off by default) adds a `.fm-card-creator` line under MainSite's shop-grid card title/price: the book's
+Author / contributors credit as typed (`subtitle`, else `authorName`; pure `cardCreator` in `features/site/cardCreator.ts`, one
+line, cut at a word near 120 characters). No credit = no line. Read-aloud lead Text & labels › Catalog & empty states ›
+`cardCreatorLead`. Display only.
+
 ## Shipping & returns tab on book pages (22 October 2026)
 
 Studio › Style › Book page · photos & layout › Extras on the page › **Shipping & returns tab** (`showPdpPolicyTab`, off by default)
