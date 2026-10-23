@@ -33,7 +33,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "footerBackToTop", label: "Back to top button", copy: "Footer" },
     { id: "footerCurrency", label: "Footer currency picker", copy: "Footer" },
   ] },
-  { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx", "features/site/PickupAvailability.tsx", "features/site/PdpFreeShipping.tsx", "features/site/PdpInBag.tsx", "features/site/PdpShipBy.tsx", "features/site/PdpAskQuestion.tsx", "features/site/SaleEndsLine.tsx"], regions: [
+  { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx", "features/site/PickupAvailability.tsx", "features/site/PdpFreeShipping.tsx", "features/site/PdpInBag.tsx", "features/site/PdpShipBy.tsx", "features/site/PdpAskQuestion.tsx", "features/site/SaleEndsLine.tsx", "features/site/ReleaseCountdownText.tsx"], regions: [
     { id: "productDescription", label: "Book description" }, { id: "productSpecs", label: "Book specifications" },
     { id: "productReviews", label: "Book reviews" },
     { id: "productSaleEnds", label: "Sale end date (under the price)" },

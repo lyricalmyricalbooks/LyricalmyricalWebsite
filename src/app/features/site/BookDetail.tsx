@@ -53,6 +53,7 @@ import PdpShipBy from "./PdpShipBy";
 import PdpAskQuestion from "./PdpAskQuestion";
 import PdpInBag from "./PdpInBag";
 import SaleEndsLine from "./SaleEndsLine";
+import ReleaseCountdownText from "./ReleaseCountdownText";
 import { pdpFreeShipping } from "./pdpFreeShipping";
 import { pdpPolicyEntries } from "./pdpPolicyTab";
 import { policyHtml, policySlug, policyTitle } from "./policyPages";
@@ -942,7 +943,9 @@ export default function BookDetail() {
   };
   const stockLine = pdpShowStock && !isGiftCard ? (
     <span className="fm-pdp-meta fm-pdp-stock" data-state={isComingSoon ? "soon" : isOutOfStock ? "out" : isPreorder ? "preorder" : isLowStock ? "low" : "in"}>
-      {stockText}
+      {isPreorder && !isOutOfStock && preorderDate
+        ? <ReleaseCountdownText releaseDate={releaseDateOf(book)} fallback={stockText} design={settings?.design} look={storefrontDesign} />
+        : stockText}
     </span>
   ) : null;
   // Ruled rows: the stock line moves up beside the category tag (when the tag row shows).

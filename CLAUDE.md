@@ -2627,3 +2627,11 @@ shopper with books in the bag is on another browser tab (`visibilitychange`), th
 `cartTabReminder` ("({count}) Your books are waiting"); the page's own title comes back on return unless something else changed it
 meanwhile (`titleToRestore`). Hook in `CartDrawer` (always mounted), pure rules in `features/site/tabReminder.ts`: never with an empty
 bag, on `/admin` or in the Studio preview. Display only; no rules or Functions.
+
+## Release countdown on pre-orders (23 October 2026)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **Release countdown** (`showPdpReleaseCountdown`, off by
+default) + `pdpReleaseCountdownWithin` (hours, default 72): a pre-order book with a Publication date swaps its stock line for
+"Pre-order · out in 2d 5h" in the last hours before midnight Toronto on that date (pure `features/site/releaseCountdown.ts`,
+`ReleaseCountdownText.tsx`), ticking every 30 s; release day brings the usual words back. The clock starts after mount, so the
+prerender keeps "Pre-order · ships {date}". Display only. Words: Text & labels › Product page (`pdpReleaseCountdown*`).
