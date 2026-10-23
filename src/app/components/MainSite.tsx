@@ -2,6 +2,8 @@ import { m, AnimatePresence } from "motion/react";
 import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Send, Heart, Zap } from "lucide-react";
 import { queryFromSearch } from "../features/site/searchResultsLink";
+import { catalogStateInUrlOn, catalogUrlSearch, readCatalogUrl } from "../features/site/catalogUrlState";
+import { inEditorPreview } from "../lib/trackingGuard";
 import { Link, useNavigate, useLocation, useParams } from "react-router";
 import { CATEGORIES, placeholderImage, DEFAULT_SOCIAL } from "../features/site/constants";
 import { aspectRatioValue } from "../features/site/imageAspect";
@@ -553,6 +555,29 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const [catalogFilters, setCatalogFilters] = useState<CatalogFilterState>(EMPTY_FILTERS);
   const catalogView = useMemo(() => filterView(baseFilteredItems), [baseFilteredItems]);
   const displayRate = convertPrice(1);
+
+  // Studio › Style › Shop page heading & filters › Book order › keep search, sort and filters in the address (off by
+  // default). Read once when the switch is on, then rewritten in place (replaceState keeps the router's own entry, so
+  // Back from a book returns to the same view). Never in the Studio preview.
+  const stateInUrl = catalogStateInUrlOn(storefrontDesign) && !inEditorPreview();
+  const [urlStateReady, setUrlStateReady] = useState(false);
+  useEffect(() => {
+    if (!stateInUrl || urlStateReady || typeof window === "undefined") return;
+    const fromUrl = readCatalogUrl(window.location.search);
+    if (fromUrl.query) setSearchQuery(fromUrl.query);
+    setSort(fromUrl.sort);
+    setInStockOnly(fromUrl.inStockOnly);
+    setCatalogFilters(fromUrl.filters);
+    setUrlStateReady(true);
+  }, [stateInUrl, urlStateReady]);
+  useEffect(() => {
+    if (!stateInUrl || !urlStateReady || typeof window === "undefined") return;
+    const search = catalogUrlSearch(window.location.search, { query: searchQuery, sort, inStockOnly, filters: catalogFilters });
+    if (search === window.location.search) return;
+    try {
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}${search}${window.location.hash}`);
+    } catch { /* Safari refuses very rapid rewrites; the next change writes it */ }
+  }, [stateInUrl, urlStateReady, searchQuery, sort, inStockOnly, catalogFilters, location.pathname, location.search]);
 
   // Studio › Style › Shop page heading & filters › Book order (off by default).
   const soldOutLast = soldOutLastOn(storefrontDesign);

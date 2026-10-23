@@ -2662,3 +2662,12 @@ default) adds a `.fm-card-rating` line (five stars in the accent colour + "(12)"
 cached 5 min) once the card is within 300 px of the screen; pure `cardRating` / `starStates` (`cardRating.ts`) draw nothing for
 books without approved reviews. Words: Text & labels › Catalog & empty states (`cardRatingLabel` read aloud, `cardRatingCount`).
 Uses the existing `reviews (bookId, status, rating)` aggregate index. Display only; no rules or Functions.
+
+## Shop filters in the address (23 October 2026)
+
+Studio › Style › Shop page heading & filters › Book order › **Keep the shopper's search, sort and filters in the page address**
+(`catalogStateInUrl`, off by default). MainSite reads `?q`, `sort`, `stock=1`, `sale=1`, `format=a,b`, `min`, `max` once when the
+switch is on (pure `readCatalogUrl` in `features/site/catalogUrlState.ts`, malformed values fall back to defaults) and then rewrites
+them in place with `history.replaceState` (keeping the router's own history state, so no new entries and Back from a book returns
+to the same view; `catalogUrlSearch` keeps every other parameter). Never in the Studio preview. Canonical URLs already drop the
+query. No words, rules or Functions.
