@@ -2587,3 +2587,10 @@ only with a fine pointer that can hover, scales the photo from the point under t
 style straight to the element (no re-render). Reset on leave or any button press, so the strip's mouse drag still swipes; videos,
 thumbnails and the enlarged viewer are untouched. While on, the plain hover zoom (`productImageHoverScale`) is 1 so they never
 stack. No words, rules or Functions.
+
+## Already in your bag on book pages (23 October 2026)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **Already in your bag** (`showPdpInBag`, off by default)
+draws `features/site/PdpInBag.tsx` under the buy buttons (region `productInBag`) once the bag holds the chosen edition: "2 copies
+already in your bag · View bag" (BookDetail's `inBag` count; the link calls `setIsCartOpen`). Display only. Words: Text & labels ›
+Product page (`pdpInBagOne`, `pdpInBagMany` with `{count}`, `pdpInBagView`; empty link = no link).
