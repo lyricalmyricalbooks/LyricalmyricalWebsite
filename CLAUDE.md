@@ -2671,3 +2671,12 @@ switch is on (pure `readCatalogUrl` in `features/site/catalogUrlState.ts`, malfo
 them in place with `history.replaceState` (keeping the router's own history state, so no new entries and Back from a book returns
 to the same view; `catalogUrlSearch` keeps every other parameter). Never in the Studio preview. Canonical URLs already drop the
 query. No words, rules or Functions.
+
+## Read more for long descriptions (23 October 2026)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **“Read more” for long descriptions** (`pdpDescriptionFold`,
+off by default) + `pdpDescriptionFoldLines` (3–40, default 8): `features/site/DescriptionFold.tsx` wraps the book description
+(tabs/accordions and the sections layout) and, for a text pure `mightOverflow` (`descriptionFold.ts`, phone-width guess) calls long,
+limits it to that many lines (`calc(N * 1lh)`, token-only fade mask) with a Read more / Show less button (`aria-expanded`). After
+drawing, a box that turns out to fit drops the fold (`overflows`; a hidden tab/accordion is re-measured when shown). The whole text
+stays in the HTML. Off = the children exactly. Words: Text & labels › Product page (`pdpDescriptionMore`, `pdpDescriptionLess`).
