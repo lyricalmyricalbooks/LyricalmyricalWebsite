@@ -2619,3 +2619,11 @@ each with photo, price, a title link to the book page and an add button. Books c
 (`candidateBooks`: published, live, in stock, priced) ordered by pure `emptyBagPicks` (`features/site/emptyBagPicks.ts`: featured
 first, then newest by `bookDateMs`, ties by id). The Studio preview shows a sample line, so it is seen only after removing it.
 Words: Text & labels › Cart (`cartEmptyPicks*`). Display only.
+
+## Tab reminder (23 October 2026)
+
+Studio › Style › Cart drawer (shopping bag) › Total & checkout button › **Tab reminder** (`cartTabReminder`, off by default): while a
+shopper with books in the bag is on another browser tab (`visibilitychange`), the tab title becomes Text & labels › Cart ›
+`cartTabReminder` ("({count}) Your books are waiting"); the page's own title comes back on return unless something else changed it
+meanwhile (`titleToRestore`). Hook in `CartDrawer` (always mounted), pure rules in `features/site/tabReminder.ts`: never with an empty
+bag, on `/admin` or in the Studio preview. Display only; no rules or Functions.

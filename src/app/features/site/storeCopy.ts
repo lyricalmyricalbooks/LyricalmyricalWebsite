@@ -114,6 +114,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "cartEmptyPicksHeading", label: "Empty bag suggestions · Heading", default: "You might like", hint: "Shown when Style › Cart drawer › Empty bag › Suggest books in an empty bag is on." },
       { key: "cartEmptyPicksAdd", label: "Empty bag suggestions · Add button", default: "+ Add to Bag" },
       { key: "cartEmptyPicksAddAria", label: "Empty bag suggestions · Add button, read aloud", default: "Add {title} to your bag", hint: "Use {title} for the book title." },
+      { key: "cartTabReminder", label: "Tab reminder · Tab title", default: "({count}) Your books are waiting", hint: "Shown as the browser tab title while a shopper with books in the bag is on another tab, when Style › Cart drawer › Tab reminder is on. Use {count} for how many books are in the bag." },
       { key: "cartAddedTitle", label: "“Added to your bag” notice · Heading", default: "Added to your bag", hint: "Shown instead of opening the bag when Style › Cart drawer › After a shopper adds a book is set to the small notice." },
       { key: "cartAddedQty", label: "“Added to your bag” notice · Copies added", default: "Qty {count}", hint: "Use {count} for how many copies were just added." },
       { key: "cartAddedViewBag", label: "“Added to your bag” notice · View bag button", default: "View bag ({count})", hint: "Use {count} for how many books are now in the bag." },

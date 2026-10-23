@@ -7,7 +7,7 @@ import { CartTermsAgree } from "./CartTermsAgree";
 import { rememberTermsAgreed, termsAgreed } from "../features/site/bagTerms";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { m, AnimatePresence } from "motion/react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import toast from "react-hot-toast";
 import { useCart, catalogUnitPrice, MAX_LINE_QUANTITY, repriceCart } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
@@ -36,6 +36,7 @@ import { useWishlist } from "../lib/wishlist";
 import { canSaveForLater, saveForLaterOn } from "../features/site/saveForLater";
 import { emptyBagPicks, emptyBagPicksCount, emptyBagPicksOn } from "../features/site/emptyBagPicks";
 import { bookSlug } from "../features/site/staffNotes";
+import { tabReminderApplies, tabReminderOn, tabReminderTitle, titleToRestore } from "../features/site/tabReminder";
 
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
 // features/site/cartDrawerStyle.ts); its words are Studio › Text & labels › Cart.
@@ -50,6 +51,7 @@ export function CartDrawer() {
   const { isCartOpen, setIsCartOpen } = shopper;
   const [shippingEstimate, setShippingEstimate] = useState<number | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const { books, settings, fresh } = useSiteData();
   // Studio preview only: an empty bag borrows one display-only line (like checkout), so the bag's
   // line, total and suggestion controls can be seen while editing them. Removing it shows the empty
@@ -238,6 +240,29 @@ export function CartDrawer() {
     return () => setAddBehaviour.current?.("drawer");
   }, [noticeMode]);
   useEffect(() => { if (isCartOpen && shopper.lastAdded) shopper.dismissAdded?.(); }, [isCartOpen]);
+
+  // Style › Cart drawer › Tab reminder (off by default): while the shopper is on another tab with books in
+  // the bag, the tab title says so; their own page title comes back when they return.
+  const shopperCount = shopper.cart.reduce((n, i) => n + (i.quantity || 0), 0);
+  const reminderWords = tabReminderOn(design) ? tabReminderTitle(getCopy(design, "cartTabReminder", { count: shopperCount })) : "";
+  const reminderActive = !!reminderWords && tabReminderApplies(true, shopperCount, location.pathname, inEditorPreview());
+  useEffect(() => {
+    if (!reminderActive || typeof document === "undefined") return;
+    let saved: string | null = null;
+    const restore = () => {
+      if (saved === null) return;
+      const back = titleToRestore(document.title, reminderWords, saved);
+      if (back !== null) document.title = back;
+      saved = null;
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        if (saved === null) { saved = document.title; document.title = reminderWords; }
+      } else restore();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => { document.removeEventListener("visibilitychange", onVisibility); restore(); };
+  }, [reminderActive, reminderWords, location.pathname]);
 
   return (
     <>
