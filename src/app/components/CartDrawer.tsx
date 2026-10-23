@@ -4,6 +4,8 @@ import { CartDiscountCode } from "./CartDiscountCode";
 import { bagSavings } from "../features/site/bagSavings";
 import { CartOrderNote } from "./CartOrderNote";
 import { CartTermsAgree } from "./CartTermsAgree";
+import { CartShipBy } from "./CartShipBy";
+import { bagShipsOnSchedule, cartShipByOn } from "../features/site/bagShipBy";
 import { rememberTermsAgreed, termsAgreed } from "../features/site/bagTerms";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { m, AnimatePresence } from "motion/react";
@@ -188,6 +190,8 @@ export function CartDrawer() {
   // Style › Cart drawer › Book rows › Sale savings (off by default): display only, the server prices the order.
   const showSavings = design.cartDrawerShowSavings === true;
   const savings = useMemo(() => (showSavings ? bagSavings(cart, booksMap) : null), [showSavings, cart, booksMap]);
+  // Style › Cart drawer › Total & checkout button › Ships-by line (off by default): only when every printed book can leave on schedule.
+  const showShipBy = cartShipByOn(design) && bagShipsOnSchedule(cart, booksMap);
   const fromLeft = design.cartDrawerSide === "left";
   const grayscaleThumbs = design.cartDrawerGrayscaleThumbs ?? false;
   // Style › Cart drawer › Empty bag: the icon, the button and where the button goes.
@@ -470,6 +474,7 @@ export function CartDrawer() {
             {/* Summary ledger + checkout */}
             {cart.length > 0 && (
               <div data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Bag total & checkout" className="fm-bag-pad fm-bag-summary pt-5 pb-6 space-y-4">
+                {showShipBy && <CartShipBy design={design} />}
                 {showSummary && (
                   <div className="space-y-2">
                     <div className="fm-bag-row fm-bag-meta"><span>{getCopy(design, "cartSubtotalLabel")}</span><span translate="no">{formatPrice(cartTotal)}</span></div>

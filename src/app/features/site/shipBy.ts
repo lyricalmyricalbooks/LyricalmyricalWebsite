@@ -59,12 +59,13 @@ export function shipBy(nowMs: number, rules: ShipByRules): ShipBy | null {
 }
 
 /** Which Text & labels line says it: the countdown inside the last `countdownHours` before the cut-off, else the plain line. */
-export function shipByCopy(s: ShipBy, dateText: string, countdownHours: number): { key: string; values: Record<string, string> } {
+export function shipByCopy(s: ShipBy, dateText: string, countdownHours: number,
+  keys: { plain: string; countdown: string } = { plain: "pdpShipBy", countdown: "pdpShipByCountdown" }): { key: string; values: Record<string, string> } {
   const m = s.minutesToCutoff;
   if (m !== null && m > 0 && countdownHours > 0 && m <= countdownHours * 60) {
-    return { key: "pdpShipByCountdown", values: { date: dateText, hours: String(Math.floor(m / 60)), minutes: String(m % 60) } };
+    return { key: keys.countdown, values: { date: dateText, hours: String(Math.floor(m / 60)), minutes: String(m % 60) } };
   }
-  return { key: "pdpShipBy", values: { date: dateText } };
+  return { key: keys.plain, values: { date: dateText } };
 }
 
 /** "Monday, Oct 26" in the shopper's language (the date is a Toronto calendar date). */

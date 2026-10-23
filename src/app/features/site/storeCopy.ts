@@ -93,6 +93,9 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "cartNoteLabel", label: "Order note box · Field label", default: "Order note or gift message" },
       { key: "cartNoteHelp", label: "Order note box · Help text", default: "You'll see it again at checkout. Up to {max} characters.", hint: "Use {max} for the character limit." },
 
+      { key: "cartShipBy", label: "Ships by · date", default: "Order now — ships by {date}", hint: "Above the bag total when Style › Cart drawer › Total & checkout button › Ships-by line is on. Use {date} for the day the order would be sent." },
+      { key: "cartShipByCountdown", label: "Ships by · before the cut-off", default: "Order within {hours}h {minutes}m — ships by {date}", hint: "Shown in the last hours before your daily cut-off (Style › Book page › Ships-by line). Use {hours}, {minutes} and {date}." },
+
       { key: "cartTermsAgree", label: "Terms checkbox · Sentence", default: "I agree to the {terms}.", hint: "Shown when Style › Cart drawer › Total & checkout button › Terms checkbox is on. {terms} becomes the terms page link (its name is Text & labels › Footer › terms title)." },
       { key: "cartTermsError", label: "Terms checkbox · Not ticked", default: "Please tick the box to agree before checking out." },
 
