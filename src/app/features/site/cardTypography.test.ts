@@ -65,6 +65,19 @@ describe("smallPrintCss", () => {
     expect(css).not.toMatch(/^\[data-fm-store\]/);
   });
 
+  it("styles the optional author, formats and star lines only when set", () => {
+    const plain = cardTypographyCss({});
+    expect(plain).not.toContain("fm-card-creator");
+    expect(plain).not.toContain("fm-card-formats");
+    expect(plain).not.toContain("fm-card-rating-stars");
+    const css = cardTypographyCss({ cardCreatorColor: "#aa0000", cardCreatorSize: 15, cardFormatsColor: "#00aa00", cardRatingStarColor: "#0000aa" });
+    expect(css).toContain("[data-fm-store] .fm-card-creator{color:#aa0000 !important;}");
+    expect(css).toContain("@media (min-width:768px){[data-fm-store] .fm-card-creator{font-size:15px !important;}}");
+    expect(css).toContain("[data-fm-store] .fm-card-formats{color:#00aa00 !important;}");
+    expect(css).toContain("[data-fm-store] .fm-card-rating-stars{color:#0000aa !important;}");
+    expect(cardTypographyCss({ cardCreatorSize: 8 })).toContain("@media (max-width:767px){[data-fm-store] .fm-card-creator{font-size:12px !important;}}");
+  });
+
   it("raises phone card title and price below the floor", () => {
     const css = cardTypographyCss({ cardTitleSizeMobile: 2, cardPriceSizeMobile: 9 });
     expect(css).toContain(".fm-card-title{font-size:14px");

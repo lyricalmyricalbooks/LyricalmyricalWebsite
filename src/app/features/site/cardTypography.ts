@@ -8,6 +8,7 @@ import { phoneMinText } from "./smallPrint";
 //   fm-card-price       – the amount (size + weight)
 //   fm-card-price-tag   – the boxed price tag (background)
 //   fm-card-price-old   – the crossed-out price
+//   fm-card-creator / fm-card-formats / fm-card-rating-stars – the optional lines under the title
 // Every rule is only emitted when the merchant set the matching control, so defaults are untouched.
 
 const num = (v: any) => {
@@ -61,6 +62,11 @@ export function cardTypographyCss(design: any): string {
   }
   if (d.cardPriceTagBg) css += `${S} .fm-card-price-tag{background-color:${clean(d.cardPriceTagBg)} !important;}`;
   if (d.cardPriceOldColor) css += `${S} .fm-card-price-old{color:${clean(d.cardPriceOldColor)} !important;opacity:1 !important;}`;
+  // The optional lines under the title (Grid & columns › author / formats / star ratings switches).
+  if (d.cardCreatorColor) css += `${S} .fm-card-creator{color:${clean(d.cardCreatorColor)} !important;}`;
+  css += sizeRules(`${S} .fm-card-creator`, num(d.cardCreatorSize), 0, phoneMinText(d));
+  if (d.cardFormatsColor) css += `${S} .fm-card-formats{color:${clean(d.cardFormatsColor)} !important;}`;
+  if (d.cardRatingStarColor) css += `${S} .fm-card-rating-stars{color:${clean(d.cardRatingStarColor)} !important;}`;
 
   return css;
 }
