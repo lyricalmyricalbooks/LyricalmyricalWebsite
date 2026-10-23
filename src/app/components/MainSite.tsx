@@ -57,6 +57,7 @@ import { gridPhotoSizes, photoSrcSet } from "../features/site/photoSources";
 import CardHoverPhoto from "../features/site/CardHoverPhoto";
 import { cardHoverPhoto } from "../features/site/cardHoverPhoto";
 import { cardFormats } from "../features/site/cardFormats";
+import { cardCreator } from "../features/site/cardCreator";
 import { framingStyle } from "../features/site/photoFraming";
 import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
 import { arrivedPrerendered } from "../lib/prerenderedPage";
@@ -683,6 +684,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showSalePercent = storefrontDesign?.showSalePercent ?? false;
   const showCardHoverPhoto = storefrontDesign?.showCardHoverPhoto === true;
   const showCardFormats = storefrontDesign?.showCardFormats === true;
+  const showCardCreator = storefrontDesign?.showCardCreator === true;
   const showPreorderBadge = storefrontDesign?.showPreorderBadge ?? true;
   const showComingSoonBadge = storefrontDesign?.showComingSoonBadge ?? true;
   const saleBadgeLabel = storefrontDesign?.saleBadgeLabel || "SALE";
@@ -1117,6 +1119,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                           </span>
                         )}
                       </div>
+                      {showCardCreator && (() => {
+                        const credit = cardCreator(item);
+                        return credit ? (
+                          <p className="fm-card-creator mt-1.5 text-xs leading-snug text-white/70 break-words">
+                            <span className="sr-only">{getCopy(activeDesign, "cardCreatorLead")} </span>
+                            {credit}
+                          </p>
+                        ) : null;
+                      })()}
                       {showCardFormats && (() => {
                         const formats = cardFormats(item);
                         return formats.length ? (

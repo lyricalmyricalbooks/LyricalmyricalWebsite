@@ -246,6 +246,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "lowStockCardThreshold", label: "Show “low stock” when this many or fewer are left (cards)", kind: "number", min: 1, max: 100, step: 1 },
       { key: "productHoverEffect", label: "Hover effect", kind: "select", options: opts("none", "zoom", "lift") },
       { key: "showCardHoverPhoto", label: "Show the book's second photo when the mouse is over a card (shop grid; books with one photo keep their cover)", kind: "toggle", defaultValue: false },
+      { key: "showCardCreator", label: "Show the author or artist under each card's title (the Author / contributors credit from Books › edit)", kind: "toggle", defaultValue: false },
       { key: "showCardFormats", label: "List a book's formats under its card (e.g. Paperback · E-book; only books sold in two or more formats)", kind: "toggle", defaultValue: false },
       { key: "imageAspectRatio", label: "Image shape (proportions)", kind: "select", options: PHOTO_RATIO_OPTIONS },
       { key: "photoOutline", label: "Image outline (arch, circle, hexagon…)", kind: "select", options: PHOTO_OUTLINE_OPTIONS },
