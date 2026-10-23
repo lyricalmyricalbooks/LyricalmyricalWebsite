@@ -23,3 +23,13 @@ describe("notebook lines (pdpRuledEveryLine)", () => {
     expect(css.lastIndexOf("margin:0;padding-top:0")).toBeGreaterThan(css.indexOf(".fm-pdp-desc-heading{font-family"));
   });
 });
+
+describe("notebook Details record", () => {
+  it("puts the Details record on the same line grid", async () => {
+    const { descriptionTextCss } = await import("./productPageStyle");
+    const css = descriptionTextCss({ pdpRuledEveryLine: true });
+    expect(css).toContain("dl.fm-pdp-record.fm-pdp-record-ruled");
+    expect(css).toMatch(/fm-pdp-record-ruled dd\{padding:0;border-top:0;line-height:30px;\}/);
+    expect(descriptionTextCss({})).not.toContain("fm-pdp-record-ruled");
+  });
+});
