@@ -308,17 +308,30 @@ export function returnPolicyData(days: string | undefined, countryCode: string |
 /** What one copy costs to ship within the shop's own country, for Google's product listings: the cheapest
  *  shipping option (not pickup) from Settings › Shipping. Its delivery estimate ("3–7", "3-7 business days",
  *  "5") becomes the transit time when it reads as days. Null when there is no such option. */
-export function shippingDetailsData(quote: { price: number; deliveryDays?: string; type?: string } | null | undefined, countryCode: string | undefined, currency = 'CAD') {
+/** "1–3", "2 business days", "1" → a day range, or null. */
+function dayRange(text: unknown): { min: number; max: number } | null {
+  const m = String(text ?? '').match(/^\s*(\d{1,2})\s*(?:[-–—]|to)?\s*(\d{1,2})?\s*(?:business\s+)?(?:days?)?\s*$/i);
+  if (!m) return null;
+  const min = Number(m[1]), max = Number(m[2] ?? m[1]);
+  return max >= min ? { min, max } : null;
+}
+
+const dayValue = (r: { min: number; max: number }) => ({ '@type': 'QuantitativeValue', minValue: r.min, maxValue: r.max, unitCode: 'DAY' });
+
+export function shippingDetailsData(quote: { price: number; deliveryDays?: string; type?: string } | null | undefined, countryCode: string | undefined, currency = 'CAD', handlingDays?: string) {
   const country = String(countryCode ?? '').trim().toUpperCase();
   if (!quote || quote.type === 'pickup' || !/^[A-Z]{2}$/.test(country) || !Number.isFinite(Number(quote.price)) || Number(quote.price) < 0) return null;
-  const days = String(quote.deliveryDays || '').match(/^\s*(\d{1,2})\s*(?:[-–—]|to)?\s*(\d{1,2})?\s*(?:business\s+)?(?:days?)?\s*$/i);
-  const min = days ? Number(days[1]) : NaN;
-  const max = days ? Number(days[2] ?? days[1]) : NaN;
+  const transit = dayRange(quote.deliveryDays);
+  const handling = dayRange(handlingDays);
   return {
     '@type': 'OfferShippingDetails',
     shippingRate: { '@type': 'MonetaryAmount', value: Number(Number(quote.price).toFixed(2)), currency },
     shippingDestination: { '@type': 'DefinedRegion', addressCountry: country },
-    ...(days && max >= min ? { deliveryTime: { '@type': 'ShippingDeliveryTime', transitTime: { '@type': 'QuantitativeValue', minValue: min, maxValue: max, unitCode: 'DAY' } } } : {}),
+    ...(transit || handling ? { deliveryTime: {
+      '@type': 'ShippingDeliveryTime',
+      ...(handling ? { handlingTime: dayValue(handling) } : {}),
+      ...(transit ? { transitTime: dayValue(transit) } : {}),
+    } } : {}),
   };
 }
 
@@ -344,6 +357,8 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
     ...(book.sku ? { sku: book.sku } : {}),
     ...(book.language ? { inLanguage: book.language } : {}),
     ...creatorProps(book),
+    // Google's merchant listings ask for a brand: for a book that is its publisher, else the shop.
+    ...(searchText(book.publisher) || options.seller ? { brand: { '@type': 'Brand', name: searchText(book.publisher) || options.seller } } : {}),
     ...(book.publisher ? { publisher: options.seller && namesShop(searchText(book.publisher), options.seller) ? shopRef(searchText(book.publisher), options.shopUrl) : { '@type': 'Organization', name: book.publisher } } : {}),
     offers: {
       '@type': 'Offer', url: options.url,

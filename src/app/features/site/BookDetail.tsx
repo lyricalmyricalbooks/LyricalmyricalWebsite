@@ -412,7 +412,7 @@ export default function BookDetail() {
     const weightGrams = parseWeightGrams(variant?.weight) ?? parseWeightGrams((book as any).weight) ?? bundleWeightGrams(book, new Map(books.map((b: any) => [b.id, b])));
     const quote = quoteShipping([{ price: unit, quantity: 1, shippingProfileId: (book as any).shippingProfileId || null, weightGrams }], { country: String(settings?.location?.country || "Canada") }, shippingProfiles)
       .find((q) => q.type !== "pickup");
-    return shippingDetailsData(quote, shopCountry);
+    return shippingDetailsData(quote, shopCountry, undefined, getCopy(settings?.design, "seoHandlingDays"));
   }, [book, selectedVariant, shippingProfiles, settings, books, shopCountry]);
   // Free-shipping line (off by default): the bag's printed books count toward the shop-wide threshold.
   const freeShipInfo = useMemo(() => {

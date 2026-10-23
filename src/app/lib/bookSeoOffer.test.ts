@@ -23,6 +23,16 @@ describe("shippingDetailsData", () => {
     });
     expect(shippingDetailsData({ price: 0, deliveryDays: "5 days" }, "CA")?.deliveryTime.transitTime).toMatchObject({ minValue: 5, maxValue: 5 });
   });
+  it("adds the shop's handling time next to transit time", () => {
+    expect(shippingDetailsData({ price: 15, deliveryDays: "3-7" }, "CA", "CAD", "1-3")?.deliveryTime).toEqual({
+      "@type": "ShippingDeliveryTime",
+      handlingTime: { "@type": "QuantitativeValue", minValue: 1, maxValue: 3, unitCode: "DAY" },
+      transitTime: { "@type": "QuantitativeValue", minValue: 3, maxValue: 7, unitCode: "DAY" },
+    });
+    expect(shippingDetailsData({ price: 15 }, "CA", "CAD", "2")?.deliveryTime).toEqual({
+      "@type": "ShippingDeliveryTime", handlingTime: { "@type": "QuantitativeValue", minValue: 2, maxValue: 2, unitCode: "DAY" },
+    });
+  });
   it("leaves delivery time out when the estimate isn't days, and the whole thing out for pickup or no quote", () => {
     expect(shippingDetailsData({ price: 9, deliveryDays: "Next week" }, "CA")).not.toHaveProperty("deliveryTime");
     expect(shippingDetailsData({ price: 0, type: "pickup" }, "CA")).toBeNull();
