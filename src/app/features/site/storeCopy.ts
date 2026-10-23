@@ -473,6 +473,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "announceEndsDays", label: "Announcement countdown · days left", default: "Ends in {days}d {hours}h", hint: "Shown after an announcement message in its last hours when Style › Header & announcement bar › Announcement countdown is on (the message needs a Show until day). Use {days}, {hours} and {minutes}." },
       { key: "announceEndsHours", label: "Announcement countdown · hours left", default: "Ends in {hours}h {minutes}m", hint: "Shown in the message's last day. Use {hours} and {minutes}." },
       { key: "announceEndsMinutes", label: "Announcement countdown · minutes left", default: "Ends in {minutes} min", hint: "Shown in the message's last hour. Use {minutes}." },
+      { key: "announceClose", label: "Announcement bar close button (read aloud)", default: "Close announcement", hint: "Read aloud for the × on the announcement bar when Style › Header & announcement bar › Close button on the announcement bar is on." },
       { key: "ariaMainNavigation", label: "Main navigation (read aloud by screen readers, not shown)", default: "Main navigation" },
       { key: "ariaSearch", label: "Search icon (read aloud by screen readers, not shown)", default: "Search" },
       { key: "ariaWishlist", label: "Wishlist icon (read aloud by screen readers, not shown)", default: "Wishlist" },
