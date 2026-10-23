@@ -1,3 +1,4 @@
+import "../../styles/adminCompat.css";
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { markOwnerDeviceOnSignIn, SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.

@@ -3,6 +3,7 @@
 // would have saved.
 import { createRoot } from "react-dom/client";
 import "../../../../styles/index.css";
+import "../../../../styles/adminCompat.css";
 import { adminApi } from "../../api";
 import { StudioEditor } from "../StudioEditor";
 import { createStudioFixture, installFakeStudioApi } from "./fakeStudioApi";
