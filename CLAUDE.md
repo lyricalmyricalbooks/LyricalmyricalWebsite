@@ -2653,3 +2653,12 @@ draws `features/site/PdpTaxNote.tsx` under the price (region `productTaxNote`, p
 downloads `pdpTaxNoteTaxOnly`, gift cards nothing (pure `taxNoteKey` / `taxNoteParts` in `pdpTaxNote.ts`). The first [bracketed]
 words link to `/page/policy-shipping` when `settings.policies.shipping` has text, else the brackets are dropped. Display only.
 Words: Text & labels › Product page (`pdpTaxNote*`).
+
+## Star ratings on shop cards (23 October 2026)
+
+Studio › Style › Book cards in the shop grid › Grid & columns › **Show star ratings under each card** (`showCardRating`, off by
+default) adds a `.fm-card-rating` line (five stars in the accent colour + "(12)") under MainSite's shop-grid card title/price.
+`features/site/CardRatingStars.tsx` asks `reviewsApi.cardSummary` (Firestore count/average aggregate only, one read per book,
+cached 5 min) once the card is within 300 px of the screen; pure `cardRating` / `starStates` (`cardRating.ts`) draw nothing for
+books without approved reviews. Words: Text & labels › Catalog & empty states (`cardRatingLabel` read aloud, `cardRatingCount`).
+Uses the existing `reviews (bookId, status, rating)` aggregate index. Display only; no rules or Functions.
