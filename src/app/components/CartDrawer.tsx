@@ -1,6 +1,7 @@
 import { layerDesign } from "../features/site/designModel";
 import { CartShippingPreview } from "./CartShippingPreview";
 import { CartDiscountCode } from "./CartDiscountCode";
+import { bagSavings } from "../features/site/bagSavings";
 import { CartOrderNote } from "./CartOrderNote";
 import { CartTermsAgree } from "./CartTermsAgree";
 import { rememberTermsAgreed, termsAgreed } from "../features/site/bagTerms";
@@ -180,6 +181,9 @@ export function CartDrawer() {
   const qtyStyle = design.cartDrawerQtyStyle === "pill" ? "pill" : "boxes";
   const removeAsIcon = design.cartDrawerRemoveStyle === "icon";
   const showSaveForLater = saveForLaterOn(design);
+  // Style › Cart drawer › Book rows › Sale savings (off by default): display only, the server prices the order.
+  const showSavings = design.cartDrawerShowSavings === true;
+  const savings = useMemo(() => (showSavings ? bagSavings(cart, booksMap) : null), [showSavings, cart, booksMap]);
   const fromLeft = design.cartDrawerSide === "left";
   const grayscaleThumbs = design.cartDrawerGrayscaleThumbs ?? false;
   // Style › Cart drawer › Empty bag: the icon, the button and where the button goes.
@@ -312,7 +316,15 @@ export function CartDrawer() {
                         <div className="flex-1 min-w-0 flex flex-col gap-1">
                           <div className="flex justify-between gap-3 items-start">
                             <h3 className="fm-bag-name max-md:[overflow-wrap:anywhere]">{item.title}</h3>
-                            {showLineTotal && <span className="fm-bag-line" translate="no">{formatPrice(item.price * item.quantity)}</span>}
+                            {showLineTotal && (
+                              <span className="fm-bag-line" translate="no">
+                                {savings?.perCopy.get(item) ? (() => {
+                                  const was = formatPrice((item.price + (savings.perCopy.get(item) as number)) * item.quantity);
+                                  return <s className="fm-bag-was"><span className="sr-only">{getCopy(design, "cartYouSaveWasAria", { price: was })}</span><span aria-hidden="true">{was}</span></s>;
+                                })() : null}
+                                {formatPrice(item.price * item.quantity)}
+                              </span>
+                            )}
                           </div>
                           {item.variantName && <p className="fm-bag-meta">{item.variantName}</p>}
                           {showLineOptions && (item.addOns || []).map((addOn) => (
@@ -325,6 +337,7 @@ export function CartDrawer() {
                           {showLineOptions && item.bundle && (item.bundleCount || 0) > 0 && <p className="fm-bag-meta fm-bag-boxset">{getCopy(design, "cartBoxSetIncludes", { count: item.bundleCount as number })}</p>}
                           {showPreorder && linePreorderNote(item, (k, v) => getCopy(design, k, v)) && <p className="fm-bag-meta fm-bag-preorder">{linePreorderNote(item, (k, v) => getCopy(design, k, v))}</p>}
                           {showUnitPrice && <p className="fm-bag-meta">{getCopy(design, "cartEachLabel", { price: formatPrice(item.price) })}</p>}
+                          {savings?.perCopy.get(item) ? <p className="fm-bag-meta fm-bag-saving" translate="no">{getCopy(design, "cartYouSaveLine", { amount: formatPrice((savings.perCopy.get(item) as number) * item.quantity) })}</p> : null}
                           <div className="flex items-center justify-between gap-3 mt-auto pt-2">
                             <div className="fm-bag-qty" data-style={qtyStyle} role="group" aria-label={getCopy(design, "cartQtyAria", { title: item.title })}>
                               <button onClick={() => updateQuantity(key, -1)} disabled={item.quantity <= 1} aria-label={getCopy(design, "cartDecreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><Minus size={12} /></button>
@@ -408,6 +421,11 @@ export function CartDrawer() {
                   <div className="space-y-2">
                     <div className="fm-bag-row fm-bag-meta"><span>{getCopy(design, "cartSubtotalLabel")}</span><span translate="no">{formatPrice(cartTotal)}</span></div>
                     <div className="fm-bag-row fm-bag-meta"><span>{getCopy(design, "cartShippingLabel")}</span><span>{shippingEstimate !== null && (design.cartDrawerShowShippingPreview ?? true) ? formatPrice(shippingEstimate) : getCopy(design, "cartShippingValue")}</span></div>
+                  </div>
+                )}
+                {savings && savings.total > 0 && (
+                  <div className="fm-bag-row fm-bag-meta fm-bag-saving" data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Bag sale savings">
+                    <span>{getCopy(design, "cartYouSaveLabel")}</span><span translate="no">{formatPrice(savings.total)}</span>
                   </div>
                 )}
                 <div className={`fm-bag-row ${showSummary ? "fm-bag-total pt-3" : ""}`}>
