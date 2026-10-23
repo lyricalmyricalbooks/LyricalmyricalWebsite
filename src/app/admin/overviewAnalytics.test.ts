@@ -4,7 +4,7 @@ import { bucketSeries, buildRangeSeries, metricValue, monthPace, seriesSummary }
 import { whatChanged } from "./overviewChanges";
 import { costOf, profitSummary, sortTitles, titlePerformance, titlesCsv } from "./overviewProfit";
 import { cohortRetention, hourHeatmap, newVsReturningRevenue, operations, repeatTiming } from "./overviewCohorts";
-import { funnelSteps, googleTraffic, shopTraffic } from "./overviewSources";
+import { funnelSteps, googleRecordedNothing, googleTraffic, pickTraffic, shopTraffic } from "./overviewSources";
 import { totals } from "./overviewInsights";
 
 const NOON = Date.parse("2026-10-13T16:00:00Z"); // noon in Toronto
@@ -238,5 +238,46 @@ describe("traffic sources", () => {
     expect(t).toMatchObject({ source: "google", visitors: { cur: 40, prev: 20 }, sessions: { cur: 55, prev: 25 } });
     expect(t.visitsOn("2026-10-12")).toBe(9);
     expect(funnelSteps(t.funnel).map(s => s.ofPrevious)).toEqual([null, 20, 50, expect.closeTo(33.33, 1)]);
+  });
+
+  describe("pickTraffic: a silent Google is never drawn as a real 0", () => {
+    const ga = (cur: number, days: any[] = cur ? [{ date: "2026-10-12", activeUsers: cur }] : []) => ({
+      totals: { current: { activeUsers: cur }, previous: { activeUsers: 12 } },
+      byDate: { current: days, previous: [{ date: "2026-10-05", activeUsers: 12 }] },
+      events: { current: {}, previous: {} }, channels: [], sources: [], landing: [], countries: [], devices: [], pages: [], visitorType: [], activeNow: 0,
+    }) as any;
+    const range = resolveRange("7d", { now: NOON });
+    const shop = (visits: number) => shopTraffic(visits ? [{ date: "2026-10-12", visits }] : [], range, 0);
+
+    it("knows when Google recorded nobody for the window", () => {
+      expect(googleRecordedNothing(ga(0))).toBe(true);
+      expect(googleRecordedNothing(ga(0, [{ date: "2026-10-12", activeUsers: 0 }]))).toBe(true);
+      expect(googleRecordedNothing(ga(5))).toBe(false);
+    });
+    it("uses Google whenever it recorded visitors", () => {
+      const { traffic, gap } = pickTraffic(ga(5), shop(9));
+      expect(traffic?.source).toBe("google");
+      expect(gap).toBeNull();
+    });
+    it("falls back to the shop's counter when Google is empty but the counter isn't", () => {
+      const { traffic, gap } = pickTraffic(ga(0), shop(9));
+      expect(traffic?.source).toBe("shop");
+      expect(traffic?.visitors.cur).toBe(9);
+      expect(gap).toEqual({ kind: "fallback", mismatch: null });
+    });
+    it("says nothing was recorded when both are empty", () => {
+      expect(pickTraffic(ga(0), shop(0)).gap).toEqual({ kind: "empty", mismatch: null });
+      expect(pickTraffic(ga(0), null).gap?.kind).toBe("empty");
+    });
+    it("flags a property that doesn't hold the shop's tag, and only when Google listed its tags", () => {
+      expect(pickTraffic(ga(0), shop(0), { streamIds: ["G-OLD111"], shopTag: "g-new222" }).gap)
+        .toEqual({ kind: "empty", mismatch: { tag: "G-NEW222", propertyTags: ["G-OLD111"] } });
+      expect(pickTraffic(ga(5), shop(0), { streamIds: ["G-OLD111"], shopTag: "G-NEW222" }).gap?.kind).toBeNull();
+      expect(pickTraffic(ga(5), shop(0), { streamIds: ["g-new222"], shopTag: "G-NEW222" }).gap).toBeNull();
+      expect(pickTraffic(ga(5), shop(0), { streamIds: null, shopTag: "G-NEW222" }).gap).toBeNull();
+    });
+    it("without Google, the shop's counter as before", () => {
+      expect(pickTraffic(undefined, shop(4))).toMatchObject({ traffic: { source: "shop" }, gap: null });
+    });
   });
 });

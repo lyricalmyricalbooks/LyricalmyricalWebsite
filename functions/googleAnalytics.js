@@ -3,6 +3,7 @@
 // stored anywhere. The owner adds that service account's email to the property as a Viewer once, and the GA4
 // property id lives in admin-only adminSecrets/googleAnalytics. Nothing here writes to Firestore.
 const DATA_API = "https://analyticsdata.googleapis.com/v1beta/properties/";
+const ADMIN_API = "https://analyticsadmin.googleapis.com/v1beta/properties/";
 const METADATA = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/";
 const SCOPE = "https://www.googleapis.com/auth/analytics.readonly";
 const TIMEOUT_MS = 20000;
@@ -290,6 +291,18 @@ async function metadataCredentials(fetchImpl, scope = SCOPE) {
 }
 
 /**
+ * The web streams' measurement IDs ("G-…") on the property, read through the Analytics Admin API with the same read-only
+ * token; null when Google didn't answer (Admin API not switched on in the project, no access). Lets the admin say when the
+ * property it reads doesn't hold the tag the storefront sends (settings/website.analytics.ga4MeasurementId).
+ */
+function streamIdsOf(res) {
+  if (!res || !res.ok || !res.body || typeof res.body !== "object") return null;
+  return (Array.isArray(res.body.dataStreams) ? res.body.dataStreams : [])
+    .map(s => String(s?.webStreamData?.measurementId || "").toUpperCase())
+    .filter(Boolean);
+}
+
+/**
  * The admin action. deps: `readSettings()` → { propertyId }, `allow()` → rate limit, `credentials()` → { accessToken, email },
  * `fetchImpl`, `projectId`. op "status" checks the connection with one tiny report; op "report" returns the Overview's figures.
  */
@@ -308,11 +321,13 @@ async function handleGa4Report(body, deps) {
   const auth = { Authorization: `Bearer ${creds.accessToken}`, "Content-Type": "application/json" };
   const post = (path, payload) => fetchJson(deps.fetchImpl, `${DATA_API}${propertyId}:${path}`, { method: "POST", headers: auth, body: JSON.stringify(payload) });
   const fail = res => ({ status: 200, body: { ...base, connected: false, ...gaErrorMessage(res.status, res.body, creds.email) } });
+  const streams = () => fetchJson(deps.fetchImpl, `${ADMIN_API}${propertyId}/dataStreams?pageSize=50`, { headers: auth })
+    .then(streamIdsOf, () => null);
 
   if (op === "status") {
-    const res = await post("runRealtimeReport", { metrics: [{ name: "activeUsers" }] });
+    const [res, streamIds] = await Promise.all([post("runRealtimeReport", { metrics: [{ name: "activeUsers" }] }), streams()]);
     if (!res.ok) return fail(res);
-    return { status: 200, body: { ...base, connected: true, activeNow: Number(rowsOf(res.body)[0]?.activeUsers) || 0 } };
+    return { status: 200, body: { ...base, connected: true, activeNow: Number(rowsOf(res.body)[0]?.activeUsers) || 0, streamIds } };
   }
 
   const range = cleanRange(body?.range);
@@ -320,7 +335,8 @@ async function handleGa4Report(body, deps) {
   const batches = buildBatches(range);
   const asBatch = requests => post("batchRunReports", { requests: requests.map(({ key, ...r }) => r) });
   // Asked together so the whole read stays well inside the endpoint's time limit.
-  const [realtime, livePages, liveMinutes, ...results] = await Promise.all([
+  const [streamIds, realtime, livePages, liveMinutes, ...results] = await Promise.all([
+    streams(),
     post("runRealtimeReport", { metrics: [{ name: "activeUsers" }] }),
     post("runRealtimeReport", { dimensions: [{ name: "unifiedScreenName" }], metrics: [{ name: "activeUsers" }, { name: "screenPageViews" }], limit: 10 }),
     post("runRealtimeReport", { dimensions: [{ name: "minutesAgo" }], metrics: [{ name: "activeUsers" }], limit: 30 }),
@@ -340,9 +356,9 @@ async function handleGa4Report(body, deps) {
     answers[b] = { requests: batches[b], response: { reports: singles.map(res => (res.ok ? res.body?.reports?.[0] || {} : null)) } };
   }));
   const extra = { pages: livePages.ok ? livePages.body : null, minutes: liveMinutes.ok ? liveMinutes.body : null, refused };
-  return { status: 200, body: { ...base, connected: true, range, report: shapeReport(answers, realtime.ok ? realtime.body : null, extra) } };
+  return { status: 200, body: { ...base, connected: true, range, streamIds, report: shapeReport(answers, realtime.ok ? realtime.body : null, extra) } };
 }
 
 module.exports = {
-  cleanPropertyId, propertyIdProblem, cleanRange, buildBatches, rowsOf, shapeReport, realtimePagesOf, realtimeMinutesOf, ACTION_EVENTS, STEP_EVENTS, SHOP_EVENTS, CUSTOM_DEFINITIONS, VISITOR_KEYS, NAVIGATION_KEYS, EVENT_KEYS, CUSTOM_EVENT_KEYS, OPTIONAL_BATCHES, gaErrorMessage, handleGa4Report, metadataCredentials, fetchJson,
+  cleanPropertyId, propertyIdProblem, cleanRange, buildBatches, rowsOf, shapeReport, streamIdsOf, realtimePagesOf, realtimeMinutesOf, ACTION_EVENTS, STEP_EVENTS, SHOP_EVENTS, CUSTOM_DEFINITIONS, VISITOR_KEYS, NAVIGATION_KEYS, EVENT_KEYS, CUSTOM_EVENT_KEYS, OPTIONAL_BATCHES, gaErrorMessage, handleGa4Report, metadataCredentials, fetchJson,
 };

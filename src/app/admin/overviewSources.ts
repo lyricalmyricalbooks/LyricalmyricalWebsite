@@ -68,6 +68,35 @@ export function googleTraffic(report: Ga4Report): TrafficFigures {
   };
 }
 
+/** Google answered but recorded no visitor on any day of the chosen window (no daily rows, no people). */
+export function googleRecordedNothing(report: Ga4Report): boolean {
+  return !(report.byDate?.current || []).some(d => num(d.activeUsers) > 0) && num(report.totals?.current?.activeUsers) === 0;
+}
+
+/**
+ * Why the visitor figures may not be Google's, or may be missing:
+ * - `fallback`: Google recorded nobody for these days while the shop's own counter did, so the counter is shown;
+ * - `empty`: Google recorded nobody and the counter has nothing either — "nothing recorded", never a real zero;
+ * - `mismatch` (with either, or alone): the GA property doesn't hold the tag the storefront sends.
+ */
+export interface TrafficGap { kind: "fallback" | "empty" | null; mismatch: { tag: string; propertyTags: string[] } | null }
+
+/**
+ * The traffic every panel reads. Google's figures when it is connected and recorded visitors; the shop's own counter
+ * when Google recorded nobody but the counter did (a silent 0 from Google made the Visitors chart flat-line with -100%).
+ * `streamIds` are the property's web tags (null = unknown), `shopTag` the G-… ID the storefront sends.
+ */
+export function pickTraffic(report: Ga4Report | undefined, shop: TrafficFigures | null,
+  opts: { streamIds?: string[] | null; shopTag?: string } = {}): { traffic: TrafficFigures | null; gap: TrafficGap | null } {
+  if (!report) return { traffic: shop, gap: null };
+  const tag = String(opts.shopTag || "").toUpperCase();
+  const tags = Array.isArray(opts.streamIds) ? opts.streamIds.map(t => String(t).toUpperCase()) : null;
+  const mismatch = tag && tags && !tags.includes(tag) ? { tag, propertyTags: tags } : null;
+  if (!googleRecordedNothing(report)) return { traffic: googleTraffic(report), gap: mismatch ? { kind: null, mismatch } : null };
+  if (shop && shop.visitors.cur > 0) return { traffic: shop, gap: { kind: "fallback", mismatch } };
+  return { traffic: googleTraffic(report), gap: { kind: "empty", mismatch } };
+}
+
 /** Each funnel step with its share of the step before. */
 export function funnelSteps(f: Funnel) {
   const steps = [

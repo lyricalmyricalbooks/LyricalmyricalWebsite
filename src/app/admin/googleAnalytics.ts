@@ -74,6 +74,8 @@ export interface Ga4Report {
 export interface Ga4Answer {
   connected: boolean; code?: string; error?: string; serviceAccount?: string; propertyId?: string; enableApiUrl?: string;
   activeNow?: number; report?: Ga4Report;
+  /** The property's web tags ("G-…"), from the Analytics Admin API; null when Google didn't say, missing on older servers. */
+  streamIds?: string[] | null;
 }
 
 /** Google Search Console (functions/searchConsole.js): searches and pages that showed the shop on Google. */
