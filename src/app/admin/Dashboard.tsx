@@ -14,6 +14,8 @@ import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
 import { AdminAlerts } from "./AdminAlerts.tsx";
 import { backupAlert, buildAdminAlerts, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
 import { inventoryLinkApi } from "./inventoryLinkApi";
+import { inventoryWaiting, setInventoryWaiting } from "./appSwitch";
+import { AppSwitcher, AppSwitchPill, useWebsiteTabName } from "./AppSwitcher";
 import { getOrdersCached, peekOrders, setOrdersLoader } from "./ordersCache";
 import { anyDirty, useBeforeUnloadWhenDirty } from "./settingsDirty";
 import { adminApi } from "./api";
@@ -68,6 +70,7 @@ function readBootRoute() {
 export function Dashboard() {
   const online = useOnline();
   useAdminAppManifest();
+  useWebsiteTabName();
   const [boot] = useState(readBootRoute);
   const [activeTab, setActiveTab] = useState(boot.tab);
   const [user, setUser] = useState<any>(null);
@@ -194,6 +197,8 @@ export function Dashboard() {
           ]);
           if (!alive) return;
           alertInputs.current = { webhook, emailLog, backup, linkState, failedParts };
+          // The switcher's count; an unreadable link state keeps the last count rather than inventing one.
+          if (linkState) setInventoryWaiting(inventoryWaiting(linkState));
           showAlerts(data);
         })
         // The orders themselves could not be read: say so instead of leaving a stale or empty list.
@@ -567,6 +572,7 @@ export function Dashboard() {
             activeChildId={navChild}
             onSelect={(id) => { if (id.startsWith(SETTINGS_ITEM_PREFIX)) void openSettingsPage(id.slice(SETTINGS_ITEM_PREFIX.length)); else void goTo(id); }}
             onSelectChild={goToChild}
+            top={<AppSwitcher onSwitch={() => setSidebarOpen(false)} />}
             brand={
               <a className="rp-brand-link" href="#overview" aria-label="Lyricalmyrical website admin: go to Overview"
                 onClick={(e) => { e.preventDefault(); setSidebarOpen(false); void goTo("overview"); }}>
@@ -596,6 +602,7 @@ export function Dashboard() {
               onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
               onOpenCustomer={(q) => { setSearchCustomerQuery(q); goTo("customers"); }} />
             <div className="rp-topbar-actions">
+              <AppSwitchPill />
               <ShopStatusMenu
                 wallOn={!!settings?.design?.showUnderConstruction}
                 checkoutPaused={maintenanceOn}
