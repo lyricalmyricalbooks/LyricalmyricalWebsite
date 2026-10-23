@@ -709,7 +709,7 @@ export default function BookDetail() {
   const artistLink = (l: { name: string; url: string }) => <a href={l.url} target="_blank" rel="noopener" className="underline underline-offset-2">{l.name}</a>;
 
   const renderSpecs = () => pdpSpecsRecord ? (
-    <dl className={`fm-pdp-record${ruledCls ? " fm-pdp-record-ruled" : ""} w-full text-left`}>
+    <dl className="fm-pdp-record w-full text-left">
       {specRows.map((r) => (
         <Fragment key={r.key}><dt>{r.label}</dt><dd>{r.value}</dd></Fragment>
       ))}
