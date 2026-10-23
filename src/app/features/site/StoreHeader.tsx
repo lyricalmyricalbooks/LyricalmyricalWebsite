@@ -1,6 +1,6 @@
 import { type CSSProperties, type ReactNode, type RefObject, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
-import { Heart, Search, ShoppingCart, User as UserIcon } from "lucide-react";
+import { Heart, Search, ShoppingCart, User as UserIcon, X } from "lucide-react";
 import { useCart } from "../../CartContext";
 import { CurrencySelector, useCurrency } from "../../CurrencyContext";
 import { LogoMark } from "../../components/LogoMark";
@@ -26,6 +26,7 @@ import { HEADER_REVEAL_CSS, useHeaderReveal } from "./headerReveal";
 import { useStudioOverlay } from "./studioOverlay";
 import { activeAnnouncements } from "./sectionGroups";
 import { announcementCountdownOn, announcementCountdownText } from "./announcementCountdown";
+import { announcementDismissOn, announcementSignature, useAnnouncementClosed, useCloseAnnouncement } from "./announcementDismiss";
 import { elementScheme } from "./colorSchemes";
 import { GroupSections } from "../../components/sectionRender";
 import { PopupSections } from "./PopupSections";
@@ -220,24 +221,52 @@ function announceText(design: any) {
   };
 }
 
+/** Style › Header & announcement bar › Close button: the × at the bar's right end (words: Text & labels › Header › announceClose). */
+function AnnouncementClose({ copyDesign, onClose, background }: { copyDesign: any; onClose: () => void; background?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClose}
+      aria-label={getCopy(copyDesign, "announceClose")}
+      data-studio-target="style:header"
+      data-studio-label="Announcement close button"
+      className="fm-announce-close absolute right-1 top-1/2 z-[1] flex h-8 w-8 -translate-y-1/2 items-center justify-center opacity-80 hover:opacity-100 focus-visible:opacity-100"
+      style={{ color: "inherit", backgroundColor: background }}
+    >
+      <X size={14} aria-hidden="true" />
+    </button>
+  );
+}
+
+/** The messages the bar would show (shared by the bar and the header's offset, so both agree on a closed bar). */
+const barMessages = (design: any, show: boolean, fallback?: string) =>
+  show ? activeAnnouncements({ ...design, announcementText: design?.announcementText ?? fallback }) : [];
+
 function AnnouncementBar({ design, copyDesign, show, fallback, shop }: { design: any; copyDesign: any; show: boolean; fallback?: string; shop: boolean }) {
-  const messages = show ? activeAnnouncements({ ...design, announcementText: design?.announcementText ?? fallback }) : [];
+  const messages = barMessages(design, show, fallback);
   const single = !Array.isArray(design?.announcements) || !design.announcements.length;
   const { index, pause } = useRotation(messages.length, Number(design?.announcementRotateSeconds ?? 5));
   const now = useAnnouncementClock(show && announcementCountdownOn(design) && messages.some(m => m.until));
   const countdownOf = (m: { until?: string }) => (now === null ? "" : announcementCountdownText(design, copyDesign, m.until, now));
-  if (!messages.length) return null;
+  const dismissible = announcementDismissOn(design);
+  const signature = dismissible ? announcementSignature(messages) : "";
+  const closed = useAnnouncementClosed(dismissible, signature);
+  const onClose = useCloseAnnouncement(signature);
+  if (!messages.length || closed) return null;
   const current = messages[index];
+  // Room for the × so a centred message never runs under it.
+  const sidePad = dismissible ? "relative px-10" : "px-6";
   if (!shop) {
     return (
       <div
         data-studio-target="style:header"
         data-studio-label="Announcement bar"
-        className="fm-announce px-6 py-2.5 text-center uppercase"
+        className={`fm-announce ${sidePad} py-2.5 text-center uppercase`}
         style={{ backgroundColor: design.announcementBg || "var(--accent)", color: design.announcementColor || "var(--on-accent)", ...announceText(design) }}
         {...pause}
       >
         <AnnouncementMessage key={index} text={current.text} link={current.link} editable={single} countdown={countdownOf(current)} />
+        {dismissible && <AnnouncementClose copyDesign={copyDesign} onClose={onClose} />}
       </div>
     );
   }
@@ -265,12 +294,14 @@ function AnnouncementBar({ design, copyDesign, show, fallback, shop }: { design:
             </span>
           ))}
         </div>
+        {dismissible && <AnnouncementClose copyDesign={copyDesign} onClose={onClose} background={colors.backgroundColor} />}
       </div>
     );
   }
   return (
-    <div data-section="announcements" data-studio-target="style:header" data-studio-label="Announcement bar" className="fm-announce text-center py-2.5 px-6 uppercase sticky top-0 z-[60]" style={{ ...colors, ...announceText(design) }} {...pause}>
+    <div data-section="announcements" data-studio-target="style:header" data-studio-label="Announcement bar" className={`fm-announce text-center py-2.5 ${dismissible ? "px-10" : "px-6"} uppercase sticky top-0 z-[60]`} style={{ ...colors, ...announceText(design) }} {...pause}>
       <AnnouncementMessage key={index} text={current.text} link={current.link} editable={single} countdown={countdownOf(current)} />
+      {dismissible && <AnnouncementClose copyDesign={copyDesign} onClose={onClose} />}
     </div>
   );
 }
@@ -528,7 +559,9 @@ function ShopHeader({ design, pages, books, shop, onSearch }: { design: any; pag
   const bagLabel = sf?.cartLabel || getCopy(design, "cartLabel");
   const stickers = sf?.navStyle === "stickers";
   const showAnnouncement = sf?.showAnnouncement ?? !isReferenceCatalog;
-  const announcementShown = showAnnouncement && activeAnnouncements({ ...sf, announcementText: sf?.announcementText ?? shop.announcement }).length > 0;
+  const shownMessages = barMessages(sf, showAnnouncement, shop.announcement);
+  const announcementClosed = useAnnouncementClosed(announcementDismissOn(sf), announcementDismissOn(sf) ? announcementSignature(shownMessages) : "");
+  const announcementShown = shownMessages.length > 0 && !announcementClosed;
   const headerRef = useRef<HTMLElement>(null);
   useHeaderOffset(headerRef, `${sf?.stickyHeader ?? true}|${announcementShown}`);
   const revealOnScrollUp = (sf?.stickyHeader ?? true) && sf?.stickyHeaderHideOnScroll === true;

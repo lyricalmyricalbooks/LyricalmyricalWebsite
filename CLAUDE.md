@@ -2635,3 +2635,12 @@ default) + `pdpReleaseCountdownWithin` (hours, default 72): a pre-order book wit
 "Pre-order · out in 2d 5h" in the last hours before midnight Toronto on that date (pure `features/site/releaseCountdown.ts`,
 `ReleaseCountdownText.tsx`), ticking every 30 s; release day brings the usual words back. The clock starts after mount, so the
 prerender keeps "Pre-order · ships {date}". Display only. Words: Text & labels › Product page (`pdpReleaseCountdown*`).
+
+## Announcement bar close button (23 October 2026)
+
+Studio › Style › Header & announcement bar › Announcement bar › **Close button on the announcement bar** (`announcementDismissible`,
+off by default) adds a × (`.fm-announce-close`) to every bar layout (static, rotating, ticker; shop and page headers). Closing hides the
+bar in that browser until its messages change: `features/site/announcementDismiss.ts` stores a fingerprint of today's messages
+(`announcementSignature`, text + link) in localStorage `lm:announce-closed` (never read or written in the Studio preview; a storage
+failure closes it for the page view). The shop header's offset reads the same state, so it moves up when the bar is closed. The
+prerender always shows the bar. Words: Text & labels › Header › `announceClose`. Display only.

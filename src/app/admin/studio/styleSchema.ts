@@ -319,6 +319,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "announcementRotateSeconds", label: "Seconds each message shows (several messages)", kind: "range", min: 2, max: 20, step: 1, suffix: "s", defaultValue: 5 },
       { key: "announcementCountdown", label: "Announcement countdown (“Ends in 5h 12m” after a message in its last hours; needs Announcement messages › Show until; words: Text & labels › Header)", kind: "toggle", defaultValue: false },
       { key: "announcementCountdownWithin", label: "Announcement countdown: start counting this many hours before the message ends", kind: "number", min: 1, max: 336, step: 1, defaultValue: 72 },
+      { key: "announcementDismissible", label: "Close button on the announcement bar (shoppers can close it; it comes back when you change the messages; words: Text & labels › Header)", kind: "toggle", defaultValue: false },
       { key: "navStyle", label: "Nav link style", kind: "select", options: [{ value: "default", label: "Plain" }, { value: "stickers", label: "Sticker pills" }] },
       { key: "showMobileNavigation", label: "Show phone navigation", kind: "toggle", defaultValue: true },
       { key: "phoneCompactHeader", label: "Compact header on phones (thin announcement line, one-line logo, search & bag)", kind: "toggle", defaultValue: true },
