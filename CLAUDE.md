@@ -2610,3 +2610,12 @@ whose book is on a real sale (`showsSale`, so never an edition line or a gift ca
 add-ons shows the regular line total struck through (`.fm-bag-was`), "You save {amount}" under it, and a "You save" row above the
 total (`.fm-bag-saving`). Pure `features/site/bagSavings.ts` (`lineSavingPerCopy`, `bagSavings`); a stale saved price claims nothing.
 Display only (the server prices the order). Words: Text & labels › Cart › Sale savings (`cartYouSave*`).
+
+## Suggestions in an empty bag (23 October 2026)
+
+Studio › Style › Cart drawer (shopping bag) › Empty bag › **Suggest books in an empty bag** (`cartDrawerEmptyPicks`, off by default)
++ `cartDrawerEmptyPicksCount` (1–4, default 3): an empty bag lists books under the empty message (region "Empty bag suggestions"),
+each with photo, price, a title link to the book page and an add button. Books come from the bag suggestion's own buyable list
+(`candidateBooks`: published, live, in stock, priced) ordered by pure `emptyBagPicks` (`features/site/emptyBagPicks.ts`: featured
+first, then newest by `bookDateMs`, ties by id). The Studio preview shows a sample line, so it is seen only after removing it.
+Words: Text & labels › Cart (`cartEmptyPicks*`). Display only.

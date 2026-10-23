@@ -7,7 +7,7 @@ import { CartTermsAgree } from "./CartTermsAgree";
 import { rememberTermsAgreed, termsAgreed } from "../features/site/bagTerms";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { m, AnimatePresence } from "motion/react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import toast from "react-hot-toast";
 import { useCart, catalogUnitPrice, MAX_LINE_QUANTITY, repriceCart } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
@@ -34,6 +34,8 @@ import { AddedToBagNotice } from "../features/site/AddedToBagNotice";
 import { addedNoticeOn } from "../features/site/addedNotice";
 import { useWishlist } from "../lib/wishlist";
 import { canSaveForLater, saveForLaterOn } from "../features/site/saveForLater";
+import { emptyBagPicks, emptyBagPicksCount, emptyBagPicksOn } from "../features/site/emptyBagPicks";
+import { bookSlug } from "../features/site/staffNotes";
 
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
 // features/site/cartDrawerStyle.ts); its words are Studio › Text & labels › Cart.
@@ -195,6 +197,8 @@ export function CartDrawer() {
     if (/^https?:\/\//i.test(emptyLink)) { window.location.assign(emptyLink); return; }
     navigate(emptyLink.startsWith("/") ? emptyLink : "/");
   };
+  // Style › Cart drawer › Empty bag › Suggest books in an empty bag (off by default).
+  const emptyPicks = cart.length === 0 && emptyBagPicksOn(design) ? emptyBagPicks(candidateBooks, emptyBagPicksCount(design)) : [];
   const itemCount = cart.reduce((n, i) => n + (i.quantity || 0), 0);
 
   // The bar follows Settings › Shipping's own free-shipping rules, so it never promises
@@ -387,6 +391,30 @@ export function CartDrawer() {
                       {getCopy(design, "cartContinue")}
                     </button>
                   )}
+                </div>
+              )}
+
+              {emptyPicks.length > 0 && (
+                <div data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Empty bag suggestions" className="fm-bag-pad fm-bag-rule fm-bag-empty-picks border-t pt-6 pb-8">
+                  <p className="fm-bag-meta mb-4">{getCopy(design, "cartEmptyPicksHeading")}</p>
+                  <ul className="space-y-3">
+                    {emptyPicks.map((book: any) => (
+                      <li key={book.id} className="fm-bag-upsell flex flex-wrap md:flex-nowrap gap-4 p-4 items-center">
+                        <div className="fm-bag-thumb" style={{ width: "56px" }}>
+                          {book.photos?.[0]?.url && <img loading="lazy" decoding="async" src={smallPhotoUrl(book.photos[0])} alt="" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="fm-bag-name fm-bag-upsell-name" title={book.title}>
+                            <Link to={`/books/${bookSlug(book)}`} onClick={() => setIsCartOpen(false)} className="hover:underline">{breakableTitle(book.title)}</Link>
+                          </h3>
+                          <p className="fm-bag-meta mt-1 whitespace-nowrap" translate="no">{formatPrice(catalogUnitPrice(book, recommendedChoice(book)))}</p>
+                        </div>
+                        <button onClick={() => addToCart(book, recommendedChoice(book))} aria-label={getCopy(design, "cartEmptyPicksAddAria", { title: book.title || "" })} className="fm-bag-upsell-btn shrink-0 px-4 min-h-[44px] w-full md:w-auto">
+                          {getCopy(design, "cartEmptyPicksAdd")}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
 
