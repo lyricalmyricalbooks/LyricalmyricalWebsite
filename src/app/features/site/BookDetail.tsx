@@ -52,6 +52,8 @@ import PdpFreeShipping from "./PdpFreeShipping";
 import PdpShipBy from "./PdpShipBy";
 import PdpAskQuestion from "./PdpAskQuestion";
 import PdpInBag from "./PdpInBag";
+import PdpPaymentIcons from "./PdpPaymentIcons";
+import { resolveFooterBadges } from "./paymentBadges";
 import PdpTaxNote from "./PdpTaxNote";
 import { taxCollectionOn } from "./taxRate";
 import SaleEndsLine from "./SaleEndsLine";
@@ -186,6 +188,7 @@ export default function BookDetail() {
   const showPdpShipBy          = storefrontDesign.showPdpShipBy === true;
   const showPdpAskQuestion     = storefrontDesign.showPdpAskQuestion === true;
   const showPdpInBag           = storefrontDesign.showPdpInBag === true;
+  const showPdpPaymentIcons    = storefrontDesign.showPdpPaymentIcons === true;
   const showPdpTaxNote         = storefrontDesign.showPdpTaxNote === true;
   const ruledCls               = storefrontDesign.pdpRuledEveryLine === true ? " fm-pdp-desc-ruled" : "";
   const showPdpPolicyTab       = storefrontDesign.showPdpPolicyTab === true;
@@ -1251,6 +1254,10 @@ export default function BookDetail() {
                     >
                       {getCopy(settings?.design, "pdpBuyNow")}
                     </button>
+                  )}
+                  {/* Payment icons (off by default): the footer's card and wallet logos, while the book can be bought. */}
+                  {showPdpPaymentIcons && !isOutOfStock && !isComingSoon && regionVisible(regionDesign, "productPaymentIcons") && (
+                    <PdpPaymentIcons badges={resolveFooterBadges(settings?.design, settings)} design={settings?.design} />
                   )}
                   {/* Already in your bag (off by default): copies of the chosen edition the bag holds. */}
                   {showPdpInBag && inBag > 0 && regionVisible(regionDesign, "productInBag") && (

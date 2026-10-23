@@ -2697,3 +2697,12 @@ the related-books row shows only other published books sharing a credited artist
 `features/site/relatedArtist.ts`, names from `bookCreators`, compared case-insensitively; at most 4) under Text & labels › Product
 page › `relatedArtistHeading` ("More by {artist}"). A curated `relatedBookIds` selection always wins, and a book whose artists have
 nothing else keeps the usual row and heading. Kept out of `merchandising.ts` so sections don't pull in `lib/bookSeo`. Display only.
+
+## Payment icons on book pages (23 October 2026)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **Payment icons under the buy buttons**
+(`showPdpPaymentIcons`, off by default) draws `features/site/PdpPaymentIcons.tsx` under the buy buttons (region
+`productPaymentIcons`): the footer's card/wallet logos (`resolveFooterBadges`, picked in Style › Payment icons; the SVGs live in
+`features/site/paymentIcons.tsx`, shared with `StoreFooter`), unknown ids and repeats dropped (`pdpPaymentBadges`), hidden while
+sold out or Coming soon. One `role="img"` label, Text & labels › Product page › `pdpPaymentIconsLabel` ("Ways to pay: {methods}").
+Display only — checkout still decides which methods are offered.
