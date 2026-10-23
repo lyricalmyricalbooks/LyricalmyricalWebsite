@@ -249,6 +249,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "pdpTaxNoteTaxOnly", label: "Tax & shipping note · e-books and other downloads", default: "Taxes calculated at checkout.", hint: "Used for books with nothing to ship. Gift cards show no note (they are never taxed)." },
       { key: "pdpDescriptionMore", label: "Long description · Read more button", default: "Read more", hint: "Under a long book description when Style › Book page · photos & layout › “Read more” for long descriptions is on." },
       { key: "pdpDescriptionLess", label: "Long description · Show less button", default: "Show less", hint: "Replaces Read more once the whole description is showing." },
+      { key: "pdpPaymentIconsLabel", label: "Payment icons · read aloud", default: "Ways to pay: {methods}", hint: "What screen readers say for the payment icons under the buy buttons (Style › Book page · photos & layout › Payment icons). Use {methods} for the names of the icons shown." },
       { key: "pdpInBagOne", label: "Already in your bag · one copy", default: "1 copy already in your bag", hint: "Under the buy buttons when Style › Book page · photos & layout › Already in your bag is on, once the shopper has this edition in the bag." },
       { key: "pdpInBagMany", label: "Already in your bag · several copies", default: "{count} copies already in your bag", hint: "Use {count} for the number of copies." },
       { key: "pdpInBagView", label: "Already in your bag · link", default: "View bag", hint: "Opens the bag. Leave it empty for no link." },
