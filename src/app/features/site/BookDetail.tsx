@@ -51,6 +51,7 @@ import { isPickupItem, pickupSpots } from "./pickupAvailability";
 import PdpFreeShipping from "./PdpFreeShipping";
 import PdpShipBy from "./PdpShipBy";
 import PdpAskQuestion from "./PdpAskQuestion";
+import PdpInBag from "./PdpInBag";
 import SaleEndsLine from "./SaleEndsLine";
 import { pdpFreeShipping } from "./pdpFreeShipping";
 import { pdpPolicyEntries } from "./pdpPolicyTab";
@@ -180,6 +181,7 @@ export default function BookDetail() {
   const showPdpFreeShipping    = storefrontDesign.showPdpFreeShipping === true;
   const showPdpShipBy          = storefrontDesign.showPdpShipBy === true;
   const showPdpAskQuestion     = storefrontDesign.showPdpAskQuestion === true;
+  const showPdpInBag           = storefrontDesign.showPdpInBag === true;
   const ruledCls               = storefrontDesign.pdpRuledEveryLine === true ? " fm-pdp-desc-ruled" : "";
   const showPdpPolicyTab       = storefrontDesign.showPdpPolicyTab === true;
   const showPdpArtistBio       = storefrontDesign.showPdpArtistBio !== false;
@@ -1235,6 +1237,10 @@ export default function BookDetail() {
                     >
                       {getCopy(settings?.design, "pdpBuyNow")}
                     </button>
+                  )}
+                  {/* Already in your bag (off by default): copies of the chosen edition the bag holds. */}
+                  {showPdpInBag && inBag > 0 && regionVisible(regionDesign, "productInBag") && (
+                    <PdpInBag count={inBag} design={settings?.design} onOpenBag={() => setIsCartOpen(true)} />
                   )}
                   {showPdpFreeShipping && !isOutOfStock && !isComingSoon && regionVisible(regionDesign, "productFreeShipping") && (
                     <PdpFreeShipping info={freeShipInfo} design={settings?.design} formatPrice={formatPrice} />
