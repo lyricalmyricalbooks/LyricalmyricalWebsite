@@ -2644,3 +2644,12 @@ bar in that browser until its messages change: `features/site/announcementDismis
 (`announcementSignature`, text + link) in localStorage `lm:announce-closed` (never read or written in the Studio preview; a storage
 failure closes it for the page view). The shop header's offset reads the same state, so it moves up when the bar is closed. The
 prerender always shows the bar. Words: Text & labels › Header › `announceClose`. Display only.
+
+## Tax & shipping note on book pages (23 October 2026)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **Tax & shipping note** (`showPdpTaxNote`, off by default)
+draws `features/site/PdpTaxNote.tsx` under the price (region `productTaxNote`, priced books only): printed copies
+(`isPickupItem`) "Taxes and [shipping] calculated at checkout.", tax switched off (`taxCollectionOn`) `pdpTaxNoteShippingOnly`,
+downloads `pdpTaxNoteTaxOnly`, gift cards nothing (pure `taxNoteKey` / `taxNoteParts` in `pdpTaxNote.ts`). The first [bracketed]
+words link to `/page/policy-shipping` when `settings.policies.shipping` has text, else the brackets are dropped. Display only.
+Words: Text & labels › Product page (`pdpTaxNote*`).

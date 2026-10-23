@@ -52,6 +52,8 @@ import PdpFreeShipping from "./PdpFreeShipping";
 import PdpShipBy from "./PdpShipBy";
 import PdpAskQuestion from "./PdpAskQuestion";
 import PdpInBag from "./PdpInBag";
+import PdpTaxNote from "./PdpTaxNote";
+import { taxCollectionOn } from "./taxRate";
 import SaleEndsLine from "./SaleEndsLine";
 import ReleaseCountdownText from "./ReleaseCountdownText";
 import { pdpFreeShipping } from "./pdpFreeShipping";
@@ -183,6 +185,7 @@ export default function BookDetail() {
   const showPdpShipBy          = storefrontDesign.showPdpShipBy === true;
   const showPdpAskQuestion     = storefrontDesign.showPdpAskQuestion === true;
   const showPdpInBag           = storefrontDesign.showPdpInBag === true;
+  const showPdpTaxNote         = storefrontDesign.showPdpTaxNote === true;
   const ruledCls               = storefrontDesign.pdpRuledEveryLine === true ? " fm-pdp-desc-ruled" : "";
   const showPdpPolicyTab       = storefrontDesign.showPdpPolicyTab === true;
   const showPdpArtistBio       = storefrontDesign.showPdpArtistBio !== false;
@@ -1020,6 +1023,12 @@ export default function BookDetail() {
                       <SaleEndsLine endDate={saleEnds} design={settings?.design} look={storefrontDesign} />
                     )}
                     {!stockInTagRow && stockLine}
+                    {/* Tax & shipping note (off by default): display only, checkout works both out. */}
+                    {showPdpTaxNote && retailPrice > 0 && regionVisible(regionDesign, "productTaxNote") && (
+                      <PdpTaxNote design={settings?.design} policies={settings?.policies}
+                        physical={!isGiftCard && isPickupItem(book, selectedVariant)}
+                        taxed={!isGiftCard && taxCollectionOn(settings)} />
+                    )}
                   </div>
         </Fragment>;
       }
