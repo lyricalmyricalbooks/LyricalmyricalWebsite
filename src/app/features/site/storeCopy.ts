@@ -298,6 +298,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "pdpGiftDelivery", label: "Gift card · delivery note", default: "Emailed with a code to use at checkout. No shipping needed.", multiline: true },
       { key: "ariaGoToPhoto", label: "Thumbnail / dot (read aloud by screen readers, not shown)", default: "Go to photo {n}", hint: "Use {n} for the photo number." },
       { key: "relatedHeading", label: "Related products heading", default: "From the Catalogue" },
+      { key: "relatedArtistHeading", label: "Related books heading when showing the same artist", default: "More by {artist}", hint: "Use {artist} for the artist's name. Shown when Style › More by this artist is on." },
       { key: "backToCatalog", label: "Back link label", default: "Back" },
       { key: "addToBagLabel", label: "Add to bag button", default: "ADD TO BAG" },
       { key: "bookLoading", label: "Loading text", default: "Loading" },

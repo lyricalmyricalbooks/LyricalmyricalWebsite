@@ -2689,3 +2689,11 @@ rules are the book page's Ships-by settings (`pdpShipByDays`, `pdpShipByCutoff`,
 read from the bag's root design; `shipBy.ts`). Pure `bagShipsOnSchedule` (`features/site/bagShipBy.ts`) shows it only when the bag holds
 a printed book and every printed line is in stock for its copies (no pre-order, backorder, Coming soon or box set; e-books/gift cards
 ignored). Drawn after mount only. Display only. Words: Text & labels › Cart (`cartShipBy`, `cartShipByCountdown`).
+
+## More by this artist on book pages (23 October 2026)
+
+Studio › Style › Book page · photos & layout › Extras on the page › **More by this artist** (`relatedByArtist`, off by default):
+the related-books row shows only other published books sharing a credited artist (pure `relatedRow` in
+`features/site/relatedArtist.ts`, names from `bookCreators`, compared case-insensitively; at most 4) under Text & labels › Product
+page › `relatedArtistHeading` ("More by {artist}"). A curated `relatedBookIds` selection always wins, and a book whose artists have
+nothing else keeps the usual row and heading. Kept out of `merchandising.ts` so sections don't pull in `lib/bookSeo`. Display only.

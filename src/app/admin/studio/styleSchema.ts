@@ -572,6 +572,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showBundleWidget", label: "“Frequently bought together”", kind: "toggle", defaultValue: true },
       { key: "productBundleLayout", label: "Bundle style", kind: "select", options: [{ value: "bordered", label: "Bordered" }, { value: "card", label: "Card" }, { value: "glassmorphic", label: "Glassmorphic" }] },
       { key: "showRelatedProducts", label: "“From the Catalogue” row (related books)", kind: "toggle" },
+      { key: "relatedByArtist", label: "More by this artist (the related-books row shows other books by the same artist, when the shop has any; a book's own picked recommendations still win; heading: Text & labels › Product page)", kind: "toggle", defaultValue: false },
       { key: "showSpecs", label: "Specifications", kind: "toggle", defaultValue: true },
       { key: "showSocialShare", label: "Share button", kind: "toggle", defaultValue: true },
       { key: "showPdpWishlist", label: "Heart (save to wishlist) button next to Add to bag", kind: "toggle", defaultValue: true },

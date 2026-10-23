@@ -1,7 +1,7 @@
 import { catName, categoryNames } from "./navItems";
 import { describedAlt } from "./photoAlt";
 import { inEditorPreview } from "../../lib/trackingGuard";
-import { recommendedBooks } from "./merchandising";
+import { relatedRow } from "./relatedArtist";
 import { shownDetailRows } from "./detailRows";
 import { m } from "motion/react";
 import { Fragment, useEffect, useMemo, useState } from "react";
@@ -362,7 +362,8 @@ export default function BookDetail() {
     ${productPageCss(tokenSource)}
   `;
 
-  const otherBooks = recommendedBooks(book, books);
+  const related = relatedRow(book, books, { byArtist: storefrontDesign.relatedByArtist === true });
+  const otherBooks = related.books;
 
   const { has: isWished, toggle: toggleWish } = useWishlist();
   const wished = book ? isWished(book.id) : false;
@@ -1735,7 +1736,7 @@ export default function BookDetail() {
             <div className="mx-auto px-6 py-20" style={{ maxWidth: pageMaxWidth }}>
               <div {...regionProps("relatedHeading")} className="flex items-center gap-6 mb-12">
                 <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">
-                  {getCopy(settings?.design, "relatedHeading")}
+                  {related.artist ? getCopy(settings?.design, "relatedArtistHeading", { artist: related.artist }) : getCopy(settings?.design, "relatedHeading")}
                 </h2>
                 <div className="flex-1 h-px bg-white/[0.06]" />
               </div>
