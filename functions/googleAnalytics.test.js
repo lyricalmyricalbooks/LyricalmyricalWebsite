@@ -91,6 +91,17 @@ describe("handleGa4Report", () => {
     expect(url).toContain("properties/123456789:runRealtimeReport");
     expect(init.headers.Authorization).toBe("Bearer tok");
   });
+  it("lists the property's tags so a mismatch with the shop's tag can be shown; null when the Admin API refuses", async () => {
+    const streams = { dataStreams: [{ type: "WEB_DATA_STREAM", webStreamData: { measurementId: "G-abc123" } }, { type: "IOS_APP_DATA_STREAM" }] };
+    const ok = deps({ fetchImpl: vi.fn(async (url) => (url.includes("/dataStreams") ? reply(200, streams) : reply(200, report([], ["activeUsers"], [{ d: [], m: [1] }])))) });
+    const { body } = await handleGa4Report({ op: "status" }, ok);
+    expect(body.streamIds).toEqual(["G-ABC123"]);
+    expect(ok.fetchImpl.mock.calls.find(([url]) => url.includes("/dataStreams"))[0]).toContain("analyticsadmin.googleapis.com/v1beta/properties/123456789/dataStreams");
+    const refused = deps({ fetchImpl: vi.fn(async (url) => (url.includes("/dataStreams") ? reply(403, { error: { message: "API disabled" } }) : reply(200, { reports: [] }))) });
+    const answer = await handleGa4Report({ op: "report", range: RANGE }, refused);
+    expect(answer.body.connected).toBe(true);
+    expect(answer.body.streamIds).toBeNull();
+  });
   it("report: refuses a bad range and is rate limited", async () => {
     expect((await handleGa4Report({ op: "report", range: { startDate: "x" } }, deps({ fetchImpl: vi.fn(async () => reply(200, {})) }))).status).toBe(400);
     expect((await handleGa4Report({ op: "report", range: RANGE }, deps({ allow: async () => false }))).status).toBe(429);
@@ -99,8 +110,9 @@ describe("handleGa4Report", () => {
     const d = deps({ fetchImpl: vi.fn(async () => reply(200, { reports: [] })) });
     const { body } = await handleGa4Report({ op: "report", range: RANGE }, d);
     expect(body.connected).toBe(true);
-    expect(d.fetchImpl).toHaveBeenCalledTimes(10);
+    expect(d.fetchImpl).toHaveBeenCalledTimes(11);
     expect(d.fetchImpl.mock.calls.filter(([url]) => url.includes(":runRealtimeReport"))).toHaveLength(3);
+    expect(d.fetchImpl.mock.calls.filter(([url]) => url.includes("analyticsadmin.googleapis.com"))).toHaveLength(1);
     expect(body.report.totals.current).toEqual({});
     expect(body.report.campaigns).toEqual([]);
     expect(body.report.pageTime).toEqual([]);

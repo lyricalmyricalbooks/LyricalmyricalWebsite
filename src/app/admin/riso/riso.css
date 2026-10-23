@@ -910,6 +910,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-ov-switch button:disabled { opacity: 0.5; cursor: not-allowed; }
 .rp-ov-chart-stats { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; font-size: var(--rp-text-sm); }
 .rp-ov-chart-stats b { font-family: var(--rp-font-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+.rp-ov-gap { margin-top: 12px; }
 .rp-ov-switch button:focus-visible, .rp-ov-run-go:focus-visible, .rp-ov-table-toggle summary:focus-visible { outline: 2px solid var(--rp-on-primary); outline-offset: 2px; }
 .rp-ov-lead-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-top: 6px; font-size: var(--rp-text-sm); }
 .rp-ov-lead .rp-check { color: inherit; }

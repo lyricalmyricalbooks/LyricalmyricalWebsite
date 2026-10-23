@@ -31,6 +31,9 @@ export function GoogleAnalyticsCard() {
   const pidProblem = propertyId.trim() && !cleanPropertyId(propertyId) ? "A property ID is a number of 6–15 digits (Admin › Property details), not the G-… ID." : "";
   const dsProblem = bigQueryDatasetProblem(dataset);
   const datasetDirty = !!loaded && cleanBigQueryDataset(dataset) !== cleanBigQueryDataset(loaded.bigQueryDataset);
+  // The property the reports read must hold the tag the shop sends, or every visitor figure reads 0.
+  const wrongProperty = !!check?.connected && Array.isArray(check.streamIds) && !!loaded?.measurementId
+    && !check.streamIds.map(t => t.toUpperCase()).includes(loaded.measurementId.toUpperCase());
   const dirty = !!loaded && (cleanMeasurementId(measurementId) !== loaded.measurementId || cleanPropertyId(propertyId) !== loaded.propertyId || datasetDirty);
 
   const verifyBigQuery = async () => {
@@ -65,6 +68,7 @@ export function GoogleAnalyticsCard() {
 
   const tracking = !!loaded?.measurementId;
   const tone = (ok: boolean) => (ok ? "--rp-success" : "--rp-danger");
+  const checkTone = wrongProperty ? "--rp-warning" : check ? tone(check.connected) : "";
 
   return (
     <SectionCard title="Google Analytics"
@@ -94,8 +98,10 @@ export function GoogleAnalyticsCard() {
         {loaded?.propertyId && <SecondaryButton disabled={checking || saving} onClick={verify}>{checking ? "Checking…" : "Check connection"}</SecondaryButton>}
       </div>
       {check && (
-        <div role="status" className="rp-hint" style={{ margin: "12px 0 0", padding: 12, border: `1px solid var(${tone(check.connected)})`, color: `var(${tone(check.connected)})`, background: `var(${tone(check.connected)}-tint)` }}>
-          {check.connected
+        <div role="status" className="rp-hint" style={{ margin: "12px 0 0", padding: 12, border: `1px solid var(${checkTone})`, color: `var(${checkTone})`, background: `var(${checkTone}-tint)` }}>
+          {check.connected && wrongProperty
+            ? <>! Connected, but this property doesn't hold your tag {loaded?.measurementId}. Its tags: {check.streamIds!.join(", ") || "none"}. Use the property ID of the one that holds it.</>
+            : check.connected
             ? <>✓ Connected. {check.activeNow ?? 0} on the site right now.</>
             : <>✕ {check.error || "Not connected yet."}</>}
           {!check.connected && check.serviceAccount && (

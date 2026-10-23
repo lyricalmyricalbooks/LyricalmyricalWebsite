@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Checkbox, DataTable, ErrorState, LoadingState } from "./riso/components";
+import { Checkbox, DataTable, ErrorState, LoadingState, SecondaryButton } from "./riso/components";
 import type { Order } from "./overviewInsights";
 import { autoGrain, resolveRange, type CompareMode, type Grain, type Range } from "./overviewRange";
 import { bucketSeries, buildRangeSeries, CHART_METRICS, metricValue, seriesSummary, type ChartMetric } from "./overviewSeries";
-import type { TrafficFigures } from "./overviewSources";
+import type { TrafficFigures, TrafficGap } from "./overviewSources";
 import type { ChartGrain, WidgetConfig } from "./overviewBoard";
 import { Trend, money, moneyShort, percent } from "./OverviewParts";
 
@@ -12,9 +12,34 @@ import { Trend, money, moneyShort, percent } from "./OverviewParts";
  * One trend chart on the Overview board. Each chart widget keeps its own measure, grouping and comparison
  * (saved in the widget's settings), so the owner can line up revenue, orders and visitors side by side.
  */
-export function OverviewChart({ widgetId, paid, range, compareMode, traffic, trafficReady, trafficFailed, ordersError, sourceName, config, onConfig, onRetry, onRetryTraffic, full }: {
+/**
+ * Why the visitors aren't Google's, or aren't there: one tinted line (the admin's alert style) with the way to fix it.
+ * A window Google and the shop's counter both left empty says so instead of drawing a flat line at 0.
+ */
+function TrafficGapNote({ gap, phrase, onOpen }: { gap: TrafficGap; phrase: string; onOpen?: () => void }) {
+  const wrongProperty = gap.mismatch
+    ? <>The property Google reads doesn't hold your shop's tag <span className="rp-mono" style={{ whiteSpace: "nowrap" }}>{gap.mismatch.tag}</span>.</>
+    : null;
+  const [title, detail] = gap.kind === "empty" ? ["No visitors recorded", wrongProperty || `Google Analytics and the shop's counter have nothing for ${phrase}.`]
+    : gap.kind === "fallback" ? ["Google Analytics came back empty", <>{wrongProperty}{wrongProperty && " "}Showing the shop's own counter.</>]
+    : ["Check your Google Analytics property", wrongProperty];
+  return (
+    <div role="status" className="rp-alert rp-ov-gap" data-tone="warning">
+      <span className="rp-alert-glyph" aria-hidden="true">!</span>
+      <div className="rp-alert-text">
+        <span className="rp-alert-kicker">Visitors</span>
+        <strong className="rp-alert-title">{title}</strong>
+        <span className="rp-alert-detail">{detail}</span>
+      </div>
+      {onOpen && <div className="rp-alert-actions"><SecondaryButton size="sm" onClick={onOpen}>Check connection</SecondaryButton></div>}
+    </div>
+  );
+}
+
+export function OverviewChart({ widgetId, paid, range, compareMode, traffic, trafficReady, trafficFailed, ordersError, sourceName, trafficGap = null, onOpenTrafficSettings, config, onConfig, onRetry, onRetryTraffic, full }: {
   widgetId: string; paid: Order[] | null; range: Range; compareMode: CompareMode; traffic: TrafficFigures | null;
   trafficReady: boolean; trafficFailed: boolean; ordersError: boolean; sourceName: string;
+  trafficGap?: TrafficGap | null; onOpenTrafficSettings?: () => void;
   config: WidgetConfig; onConfig: (patch: WidgetConfig) => void; onRetry: () => void; onRetryTraffic: () => void; full?: boolean;
 }) {
   const metric: ChartMetric = config.metric || "revenue";
@@ -75,9 +100,11 @@ export function OverviewChart({ widgetId, paid, range, compareMode, traffic, tra
           : meta.needsTraffic && trafficFailed ? <ErrorState title="Traffic unavailable" description="Visits could not be loaded." onRetry={onRetryTraffic} />
           : !paid || (meta.needsTraffic && !trafficReady) ? <LoadingState label="Loading chart…" />
           : !usable ? <p className="rp-hint" style={{ marginTop: 16 }}>Google Analytics visitors chart over a longer period — choose 7 days or more.</p>
+          : meta.needsTraffic && trafficGap?.kind === "empty" ? <TrafficGapNote gap={trafficGap} phrase={chartRange.phrase} onOpen={onOpenTrafficSettings} />
           : empty ? <p className="rp-hint" style={{ marginTop: 16 }}>{meta.needsTraffic ? "Visitors will chart here once the storefront records them." : "This will chart here once customers place paid orders."}</p>
           : (
             <>
+              {meta.needsTraffic && trafficGap && <TrafficGapNote gap={trafficGap} phrase={chartRange.phrase} onOpen={onOpenTrafficSettings} />}
               <p className="rp-sr-only">{words}</p>
               <div className="rp-ov-chart-stats" aria-hidden="true">
                 <span><b>{fmt(summary.value)}</b> {metric === "aov" || metric === "conversion" ? "average" : "in total"}{summary.previous !== null && <> · <Trend now={summary.value || 0} before={summary.previous || 0} /></>}</span>

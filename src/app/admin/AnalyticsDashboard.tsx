@@ -17,7 +17,7 @@ import { recordedSince, sumMap } from "./overviewTraffic";
 import { PRESETS, rangeWords, resolveRange, trafficShift, trafficWindow, type CompareMode, type Preset } from "./overviewRange";
 import { monthPace } from "./overviewSeries";
 import { mergeNewestPage } from "./ordersDesk";
-import { googleTraffic, shopRowsIn, shopTraffic } from "./overviewSources";
+import { pickTraffic, shopRowsIn, shopTraffic } from "./overviewSources";
 import { whatChanged } from "./overviewChanges";
 import { profitSummary, titlePerformance } from "./overviewProfit";
 import { forgetReports, googleAnalyticsApi } from "./googleAnalytics";
@@ -217,8 +217,14 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   // Traffic: Google Analytics when connected, else the shop's own counters (UTC-keyed, shifted onto shop days).
   const shift = trafficShift(range);
   const gaReport = ga.status === "connected" ? ga.answer?.report : undefined;
-  const traffic = useMemo(() => (gaReport ? googleTraffic(gaReport) : daily.rows ? shopTraffic(daily.rows, range, shift) : null), [gaReport, daily.rows, range, shift]);
-  const trafficReady = ga.status !== "loading" && traffic !== null;
+  const shopTag = launch.parts?.settings?.analytics?.ga4MeasurementId;
+  // Google's figures, unless Google recorded nobody for these days while the shop's own counter did (then the counter,
+  // with a note); a property that doesn't hold the storefront's tag is flagged either way.
+  const { traffic, gap: trafficGap } = useMemo(
+    () => pickTraffic(gaReport, daily.rows ? shopTraffic(daily.rows, range, shift) : null, { streamIds: ga.answer?.streamIds, shopTag }),
+    [gaReport, daily.rows, range, shift, ga.answer?.streamIds, shopTag]);
+  // Google's answer waits for the shop's counter too, so a silent Google can fall back to it.
+  const trafficReady = ga.status !== "loading" && traffic !== null && !(gaReport && !daily.rows && !daily.error);
   const trafficFailed = !gaReport && daily.error;
   const dailyCurrent = useMemo(() => shopRowsIn(daily.rows || [], range.startKey, range.endKey, shift), [daily.rows, range, shift]);
   const dailyPrevious = useMemo(() => shopRowsIn(daily.rows || [], range.prevStartKey, range.prevEndKey, shift), [daily.rows, range, shift]);
@@ -417,7 +423,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       case "chart":
         return (
           <OverviewChart widgetId={w.id} paid={periods ? periods.paid : null} range={range} compareMode={compareMode} traffic={traffic}
-            trafficReady={trafficReady} trafficFailed={trafficFailed} ordersError={allOrders.error} sourceName={sourceName}
+            trafficReady={trafficReady} trafficFailed={trafficFailed} ordersError={allOrders.error} sourceName={sourceName} trafficGap={trafficGap}
+            onOpenTrafficSettings={setActiveTab ? () => setActiveTab("general") : undefined}
             config={w.config || {}} onConfig={setConfig} onRetry={refresh} onRetryTraffic={loadDaily} full={full} />
         );
       case "figures": {
