@@ -879,6 +879,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "cartDrawerShowDiscountCode", label: "Discount code box above the total (“Have a discount code?” — the code is filled in and checked at checkout; words: Text & labels › Cart)", kind: "toggle", defaultValue: false },
       { key: "cartDrawerShowOrderNote", label: "Order note box above the total (“Add a note to your order” — also turns on the order note box at checkout, where it is sent with the order; words: Text & labels › Cart)", kind: "toggle", defaultValue: false },
       { key: "cartDrawerShowTermsCheckbox", label: "Terms checkbox above the checkout button (“I agree to the Terms of service” — the bag’s button waits for the tick; links to your terms when Settings has them; words: Text & labels › Cart)", kind: "toggle", defaultValue: false },
+      { key: "cartDrawerShowShipBy", label: "Ships-by line above the total (“Order now — ships by Monday, Oct 26”; only when every printed book in the bag is in stock; uses the working days, cut-off and closed days set under Book page · photos & layout › Ships-by line; words: Text & labels › Cart)", kind: "toggle", defaultValue: false },
       { key: "cartDrawerShowDeliveryNote", label: "Delivery note under the button", kind: "toggle", defaultValue: true },
       // Empty bag
       { key: "cartDrawerShowEmptyIcon", label: "Bag icon when the bag is empty", kind: "toggle", defaultValue: true },

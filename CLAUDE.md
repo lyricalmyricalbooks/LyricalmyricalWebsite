@@ -2680,3 +2680,12 @@ off by default) + `pdpDescriptionFoldLines` (3–40, default 8): `features/site/
 limits it to that many lines (`calc(N * 1lh)`, token-only fade mask) with a Read more / Show less button (`aria-expanded`). After
 drawing, a box that turns out to fit drops the fold (`overflows`; a hidden tab/accordion is re-measured when shown). The whole text
 stays in the HTML. Off = the children exactly. Words: Text & labels › Product page (`pdpDescriptionMore`, `pdpDescriptionLess`).
+
+## Ships-by line in the bag (23 October 2026)
+
+Studio › Style › Cart drawer (shopping bag) › Total & checkout button › **Ships-by line** (`cartDrawerShowShipBy`, off by default)
+draws `components/CartShipBy.tsx` at the top of the bag total: "Order now — ships by {date}", with the countdown near the cut-off. Its
+rules are the book page's Ships-by settings (`pdpShipByDays`, `pdpShipByCutoff`, `pdpShipByCountdownHours`, `pdpShipByClosedDays`,
+read from the bag's root design; `shipBy.ts`). Pure `bagShipsOnSchedule` (`features/site/bagShipBy.ts`) shows it only when the bag holds
+a printed book and every printed line is in stock for its copies (no pre-order, backorder, Coming soon or box set; e-books/gift cards
+ignored). Drawn after mount only. Display only. Words: Text & labels › Cart (`cartShipBy`, `cartShipByCountdown`).
