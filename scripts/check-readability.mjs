@@ -3,12 +3,12 @@
  * Readability audit for the admin dashboard's light mode.
  *
  * The admin uses a dark-first design and flips to light via the `.admin-light`
- * class, whose overrides live in `src/styles/theme.css`. The recurring failure
+ * class, whose overrides live in `src/styles/adminCompat.css`. The recurring failure
  * mode is faint white text — utilities like `text-white/30` — which renders as
- * (near-)white-on-white in light mode and disappears unless theme.css remaps it.
+ * (near-)white-on-white in light mode and disappears unless adminCompat.css remaps it.
  *
  * This script scans the admin source for those faint-white text utilities and
- * flags any that lack a matching `.admin-light` override in theme.css. Run it
+ * flags any that lack a matching `.admin-light` override in adminCompat.css. Run it
  * with `npm run check:readability`. Exit code 1 means there are unreadable
  * utilities to fix; 0 means light mode is covered.
  */
@@ -19,7 +19,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const adminDir = path.join(rootDir, 'src', 'app', 'admin');
-const themeCssPath = path.join(rootDir, 'src', 'styles', 'theme.css');
+const themeCssPath = path.join(rootDir, 'src', 'styles', 'adminCompat.css');
 
 // Opacity at/below this is dark-mode "muted" text that vanishes on white.
 // Anything in this range MUST have an `.admin-light` override to stay legible.
@@ -35,7 +35,7 @@ function walk(dir) {
   return out;
 }
 
-// Collect the opacity steps that theme.css already overrides under .admin-light.
+// Collect the opacity steps that adminCompat.css already overrides under .admin-light.
 function coveredOpacities() {
   const css = readFileSync(themeCssPath, 'utf8');
   const covered = new Set();
@@ -72,7 +72,7 @@ console.log('====================================================');
 
 if (findings.length === 0) {
   console.log('✅ PASS: every faint-white text utility used in the admin has');
-  console.log('   a matching .admin-light override in src/styles/theme.css.');
+  console.log('   a matching .admin-light override in src/styles/adminCompat.css.');
   process.exit(0);
 }
 
@@ -82,5 +82,5 @@ for (const f of findings) {
   console.error(`   ${f.file}:${f.line}  ${f.token}`);
 }
 console.error('\n   Fix: add a `.admin-light .text-white\\/<n>` rule in');
-console.error('   src/styles/theme.css mapping it to a readable slate color.');
+console.error('   src/styles/adminCompat.css mapping it to a readable slate color.');
 process.exit(1);
