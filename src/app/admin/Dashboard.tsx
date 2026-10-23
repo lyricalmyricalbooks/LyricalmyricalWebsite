@@ -23,9 +23,10 @@ import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton,
   IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, useConfirm, PageAlertsSlot, type NavEntry,
 } from "./riso/components";
-import { GlobalSearch, ActivityLogDialog, ShopStatusMenu } from "./riso/shellParts";
+import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
+import { useAdminAppManifest } from "./adminApp";
 import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, sidebarItems } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, settingsPageOf, subTabPage } from "./adminRoute";
 
@@ -66,6 +67,7 @@ function readBootRoute() {
 
 export function Dashboard() {
   const online = useOnline();
+  useAdminAppManifest();
   const [boot] = useState(readBootRoute);
   const [activeTab, setActiveTab] = useState(boot.tab);
   const [user, setUser] = useState<any>(null);
@@ -455,6 +457,22 @@ export function Dashboard() {
     </span>
   );
 
+  // The administrator's own actions: the avatar menu in the top bar, and the account row at the foot of the phone drawer.
+  const accountActions = [
+    { key: "logs", label: "Activity logs", icon: <History size={16} aria-hidden />, run: () => setShowLogs(true) },
+    { key: "site", label: "View site", icon: <Globe size={16} aria-hidden />, run: openSite },
+    { key: "help", label: "Help & shortcuts", icon: <HelpCircle size={16} aria-hidden />, run: () => setHelpOpen(true) },
+    { key: "theme", label: adminTheme === "light" ? "Dark appearance" : "Light appearance", icon: adminTheme === "light" ? <Moon size={16} aria-hidden /> : <Sun size={16} aria-hidden />, run: toggleTheme },
+    { key: "logout", label: loggingOut ? "Logging out…" : "Log out", icon: <LogOut size={16} aria-hidden />, run: handleLogout, tone: "danger" as const, busy: loggingOut },
+  ];
+  const accountMenuItems = (close: () => void) => accountActions.map((a) => (
+    <button key={a.key} role="menuitem" data-tone={a.tone} className="rp-menu-item" disabled={a.busy} aria-busy={a.busy || undefined}
+      onClick={() => { if (a.key !== "logout") close(); a.run(); }}>
+      {a.icon} {a.label}
+    </button>
+  ));
+  const userName = user.displayName || user.email;
+
   const destinations = [
     ...NAV.filter((n) => !n.children).map((n) => ({ id: n.id, label: n.label, run: () => goTo(n.id) })),
     ...(NAV.find((n) => n.children)?.children || []).map((c) => ({
@@ -561,6 +579,8 @@ export function Dashboard() {
             footer={
               <>
               <WhatsNew appearance={appearance} onHistoryOpen={() => setSidebarOpen(false)} onNavigate={async (link) => { if (link.studio) { window.location.hash = link.studio; return; } if (!(await goTo(link.tab))) return; if (link.settingsTab) setSettingsTab(link.settingsTab); }} />
+              <DrawerAccount avatar={avatar} name={userName} email={user.email} onViewSite={openSite}
+                menuItems={(close) => accountMenuItems(() => { close(); setSidebarOpen(false); })} />
               </>
             }
           />
@@ -570,6 +590,8 @@ export function Dashboard() {
             <IconButton label="Open navigation" className="rp-menu-only" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(true)}>
               <Menu size={20} aria-hidden />
             </IconButton>
+            {/* Phones: the wordmark sits in the top bar (the rail is a drawer there). */}
+            <a className="rp-topbar-wordmark" href="#overview" onClick={(e) => { e.preventDefault(); void goTo("overview"); }}>Lyricalmyrical</a>
             <GlobalSearch destinations={destinations} onOpenBook={handleEditBook} shortcut={!showEditor && !(activeTab === "settings" && settingsTab === "designer")}
               onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
               onOpenCustomer={(q) => { setSearchCustomerQuery(q); goTo("customers"); }} />
@@ -582,7 +604,7 @@ export function Dashboard() {
                 onSetWall={(on) => { void toggleUnderConstruction(on); }}
                 onOpenSettings={() => { void openSettingsPage("general"); }}
               />
-              <div className="rp-menu-wrap" ref={userMenuRef}
+              <div className="rp-menu-wrap rp-avatar-menu" ref={userMenuRef}
                 onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setUserMenuOpen(false); }}
                 onKeyDown={(e) => {
                   if (!userMenuOpen) return;
@@ -600,21 +622,7 @@ export function Dashboard() {
                 {userMenuOpen && (
                   <div className="rp-menu" role="menu">
                     <div className="rp-menu-label">{user.email}</div>
-                    <button role="menuitem" className="rp-menu-item" onClick={() => { setUserMenuOpen(false); setShowLogs(true); }}>
-                      <History size={16} aria-hidden /> Activity logs
-                    </button>
-                    <button role="menuitem" className="rp-menu-item" onClick={() => { setUserMenuOpen(false); openSite(); }}>
-                      <Globe size={16} aria-hidden /> View site
-                    </button>
-                    <button role="menuitem" className="rp-menu-item" onClick={() => { setUserMenuOpen(false); setHelpOpen(true); }}>
-                      <HelpCircle size={16} aria-hidden /> Help &amp; shortcuts
-                    </button>
-                    <button role="menuitem" className="rp-menu-item" onClick={() => { setUserMenuOpen(false); toggleTheme(); }}>
-                      {adminTheme === "light" ? <Moon size={16} aria-hidden /> : <Sun size={16} aria-hidden />} {adminTheme === "light" ? "Dark appearance" : "Light appearance"}
-                    </button>
-                    <button role="menuitem" data-tone="danger" className="rp-menu-item" onClick={handleLogout} disabled={loggingOut} aria-busy={loggingOut}>
-                      <LogOut size={16} aria-hidden /> {loggingOut ? "Logging out…" : "Log out"}
-                    </button>
+                    {accountMenuItems(() => setUserMenuOpen(false))}
                   </div>
                 )}
               </div>

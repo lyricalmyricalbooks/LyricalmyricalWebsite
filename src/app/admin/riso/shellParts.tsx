@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ChevronDown, Construction, DoorOpen, Search, SlidersHorizontal, X } from "lucide-react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronDown, Construction, DoorOpen, MoreHorizontal, Search, SlidersHorizontal, X } from "lucide-react";
 import { adminApi } from "../api";
 import { getOrdersCached } from "../ordersCache";
 import { matchCustomers, matchOrders } from "../globalSearch";
@@ -264,6 +264,7 @@ export function ShopStatusMenu({ wallOn, checkoutPaused, busy, disabled, onSetWa
         aria-label={`${word}. Change shop status`} onClick={() => setOpen((v) => !v)}>
         <span aria-hidden="true" className="rp-status-glyph">{glyph}</span>
         <span className="rp-status-word">{busy ? "Saving…" : word}</span>
+        <span className="rp-status-short" aria-hidden="true">{busy ? "Saving…" : { closed: "Closed", paused: "Paused", open: "Open" }[state]}</span>
         <ChevronDown size={14} aria-hidden />
       </button>
       {open && (
@@ -279,6 +280,58 @@ export function ShopStatusMenu({ wallOn, checkoutPaused, busy, disabled, onSetWa
           <button type="button" role="menuitem" className="rp-menu-item" onClick={() => pick(onOpenSettings)}>
             <SlidersHorizontal size={16} aria-hidden /> Store status settings
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Account row at the foot of the phone drawer ─────────────────────── */
+
+/**
+ * Phones (Pocket Pressroom, 23 October 2026): the top bar has no room for the avatar, so the drawer ends with
+ * the administrator (avatar, name, View site) and a ⋯ menu holding the same actions as the top-bar avatar menu.
+ */
+export function DrawerAccount({ avatar, name, email, onViewSite, menuItems }: {
+  avatar: ReactNode; name: string; email: string; onViewSite: () => void;
+  menuItems: (close: () => void) => ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+  useEffect(() => {
+    if (!open) return;
+    wrap.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
+    const away = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", away);
+    // A native listener: the drawer's focus trap closes the whole drawer on Escape before React's handlers run.
+    const node = wrap.current;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); btn.current?.focus(); } };
+    node?.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); node?.removeEventListener("keydown", esc); };
+  }, [open]);
+  const close = () => setOpen(false);
+  return (
+    <div className="rp-drawer-account" ref={wrap}
+      onKeyDown={(e) => {
+        if (!open) return;
+        const items = Array.from(wrap.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') || []);
+        const i = items.indexOf(document.activeElement as HTMLElement);
+        if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+      }}>
+      {avatar}
+      <span className="rp-drawer-account-name" title={email}>{name}</span>
+      <button type="button" className="rp-drawer-account-site" onClick={onViewSite}>View site</button>
+      <button ref={btn} type="button" className="rp-icon-btn" aria-label="Account actions" aria-haspopup="menu"
+        aria-expanded={open} aria-controls={open ? menuId : undefined} onClick={() => setOpen((v) => !v)}>
+        <MoreHorizontal size={18} aria-hidden />
+      </button>
+      {open && (
+        <div className="rp-menu rp-drawer-account-menu" role="menu" id={menuId}>
+          <div className="rp-menu-label">{email}</div>
+          {menuItems(close)}
         </div>
       )}
     </div>

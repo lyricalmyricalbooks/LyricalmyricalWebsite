@@ -35,7 +35,7 @@ export const SETTINGS_ITEM_PREFIX = "settings/";
 export function sidebarItems(nav: NavEntry[]): NavEntry[] {
   return nav.flatMap((entry) => entry.children
     ? entry.children.map((child, i) => ({
-      id: SETTINGS_ITEM_PREFIX + child.id, label: child.label, icon: child.icon || entry.icon,
+      id: SETTINGS_ITEM_PREFIX + child.id, label: child.label, icon: child.icon || entry.icon, group: entry.id,
       ...(i === 0 ? { section: entry.label } : {}),
     }))
     : [entry]);
