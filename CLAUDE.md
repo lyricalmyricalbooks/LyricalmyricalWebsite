@@ -907,12 +907,13 @@ and stock; the contract is `docs/INVENTORY_LINK.md` (same file as the inventory 
 - **Switching apps (23 October 2026):** the rail opens with **Website · Inventory** (`admin/AppSwitcher.tsx`, pure rules
   `admin/appSwitch.ts`, shared with the inventory app's `src/lib/app-switch.js`; docs/INVENTORY_LINK.md › Switching between the
   apps); phones/tablets also get an **Inventory ↗** pill in the top bar (owner's ask: one tap on the phone). Each app names its
-  tab (`lm-website-admin` / `lm-inventory-app`); a click goes back to the opener when the other app opened this tab, else to the
-  tab it opened before, else the named tab, else a new one (opener kept on purpose), and a deep link changes only the
+  tab (`lm-website-admin` / `lm-inventory-app`); a click goes to the tab this page opened before, else `window.open("", name)`
+  (which also finds the tab that opened this one), else a new one — never `opener.focus()`, which browsers ignore (opener
+  kept on purpose for the name lookup), and a deep link changes only the
   `#fragment` (`#orders/<id>` here, `#website-order=<id>` there) so neither app reloads. Installed apps (standalone/TWA) use the
-  plain link so the phone hands it over. The count is `pendingImport.count` (null = link not connected, no badge), set by
-  Dashboard's alert check (`setInventoryWaiting`). Order detail's toolbar has **See it in the inventory app** for paid orders with
-  printed books while the link is connected.
+  plain link so the phone hands it over. The count is `pendingImport.count` (null = link not connected, no badge), set with `startDay` by
+  Dashboard's alert check (`setInventoryLink`). Order detail's toolbar has **See it in the inventory app** only for orders the
+  link sent (`orderInInventoryApp` = the server's `countsForInventory`) with printed books.
 - **Deploy** Firestore rules + Functions with the frontend. Local tests use in-memory fakes (`functions/inventoryLink.fakes.mjs`);
   they don't prove the IAM grant, the deployed trigger or the inventory app's import.
 

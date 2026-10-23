@@ -1,11 +1,11 @@
 import { useSyncExternalStore } from "react";
+import { orderDay } from "../lib/shopDay";
 
 // The "Website · Inventory" switcher: the website admin and the inventory app (lyricalmyricalbooks/lyrical-inventory)
 // open each other. Rules shared with the inventory app's src/lib/app-switch.js (docs/INVENTORY_LINK.md › Switching
 // between the apps). Pure helpers first; the window handling takes its window as an argument so it can be tested.
 
 export const INVENTORY_APP_URL = "https://lyricalmyricalbooks.github.io/lyrical-inventory/";
-export const INVENTORY_ORIGINS = ["https://lyricalmyricalbooks.github.io"];
 /** Each app names its own tab so the other can find it again instead of opening another one. */
 export const WEBSITE_TAB_NAME = "lm-website-admin";
 export const INVENTORY_TAB_NAME = "lm-inventory-app";
@@ -20,16 +20,29 @@ export function inventoryWaiting(state: any): number | null {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
 }
 
-/** The inventory app knows a website order once it has been paid (refunded ones too). */
-export function orderInInventoryApp(order: any): boolean {
-  if (!order || order.isTest) return false;
-  const status = String(order.paymentStatus || "");
-  return status === "paid" || status === "refunded" || status === "refund_pending" || !!order.paidAt;
+export type InventoryLinkView = { waiting: number; startDay: string };
+/** What the switcher and order pages need from the link's saved state (null = not connected). */
+export function inventoryLinkView(state: any): InventoryLinkView | null {
+  const waiting = inventoryWaiting(state);
+  if (waiting === null) return null;
+  return { waiting, startDay: typeof state?.startDay === "string" ? state.startDay : "" };
+}
+
+// Same statuses as functions/inventoryLink.js COUNTED_STATUSES.
+const COUNTED = new Set(["paid", "refund_pending", "refunded"]);
+/**
+ * Whether the website sent this order to the inventory app: the server's own rule (`countsForInventory` in
+ * functions/inventoryLink.js) — a real order, accepted payment, paid on or after the day sales started being sent.
+ */
+export function orderInInventoryApp(order: any, startDay: string): boolean {
+  if (!order || order.isTest === true || !startDay) return false;
+  if (!COUNTED.has(String(order.paymentStatus || ""))) return false;
+  const day = typeof order.paidAt === "string" ? orderDay(order.paidAt) : "";
+  return !!day && day >= startDay;
 }
 
 type Win = {
   open: (url?: string, target?: string) => any;
-  opener?: any;
   matchMedia?: (q: string) => { matches: boolean };
   navigator?: any;
   document?: { referrer?: string };
@@ -44,35 +57,29 @@ export function isInstalledApp(win: Win): boolean {
   } catch { return false; }
 }
 
-const originOf = (url: string) => { try { return new URL(url).origin; } catch { return ""; } };
-
 let openedTab: any = null;
 /** Tests start each case from a page that has opened nothing. */
 export function forgetOpenedTab() { openedTab = null; }
 
-function show(tab: any, url: string, deep: boolean) {
-  // Cross-origin: only the address can be set. A deep link changes the #fragment alone, so the app keeps running.
-  if (deep) tab.location.href = url;
-  tab.focus?.();
-}
-
 /**
  * Opens the inventory app from a click. Returns true when it handled the click (call preventDefault), false to let
- * the plain link open it (installed apps, a blocked pop-up). The opener is kept on purpose: both apps are the
- * publisher's, and it is how the inventory app finds this tab again instead of opening a third one.
+ * the plain link open it (installed apps, a blocked pop-up).
+ *
+ * Browsers only bring a tab forward for the page that opened it, or through window.open with the tab's name, so a
+ * page never calls `opener.focus()` (a silent no-op in Chrome). The inventory app names its own tab, so the named
+ * open below also finds the tab that opened this one. The opener is kept on purpose: it keeps both tabs in the same
+ * browser group, which is where the name lookup searches.
  */
 export function openInventoryApp(win: Win, url: string = INVENTORY_APP_URL, deep = url !== INVENTORY_APP_URL): boolean {
   if (isInstalledApp(win)) return false;
   try {
-    // 1. This tab was opened by the inventory app's own switcher.
-    const opener = win.opener;
-    if (opener && !opener.closed && INVENTORY_ORIGINS.includes(originOf(String(win.document?.referrer || "")))) {
-      show(opener, url, deep);
+    // A tab this page opened before: this page may move and raise it directly.
+    if (openedTab && !openedTab.closed) {
+      if (deep) openedTab.location.href = url; // only the #fragment changes, so the app keeps running
+      openedTab.focus?.();
       return true;
     }
-    // 2. A tab this page opened before.
-    if (openedTab && !openedTab.closed) { show(openedTab, url, deep); return true; }
-    // 3. The tab named for the inventory app, or a new one.
+    // The tab named for the inventory app (opened by us, or the one that opened us), else a new one.
     const tab = win.open("", INVENTORY_TAB_NAME);
     if (!tab) return false;
     let blank = false;
@@ -86,13 +93,15 @@ export function openInventoryApp(win: Win, url: string = INVENTORY_APP_URL, deep
 }
 
 /* The link's state, shared by the rail, the phone top bar and order pages (Dashboard reads it with the alerts). */
-let waiting: number | null = null;
+let link: InventoryLinkView | null = null;
 const listeners = new Set<() => void>();
-export function setInventoryWaiting(next: number | null) {
-  if (next === waiting) return;
-  waiting = next;
+export function setInventoryLink(next: InventoryLinkView | null) {
+  if (next === link || (next && link && next.waiting === link.waiting && next.startDay === link.startDay)) return;
+  link = next;
   listeners.forEach((l) => l());
 }
 const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; };
-/** null = the inventory app link isn't connected; otherwise how many website orders wait for the app. */
-export const useInventoryWaiting = () => useSyncExternalStore(subscribe, () => waiting, () => waiting);
+/** null = the inventory app link isn't connected; otherwise the waiting count and the day sales started being sent. */
+export const useInventoryLink = () => useSyncExternalStore(subscribe, () => link, () => link);
+/** How many website orders wait for the inventory app (null = not connected). */
+export const useInventoryWaiting = () => useInventoryLink()?.waiting ?? null;

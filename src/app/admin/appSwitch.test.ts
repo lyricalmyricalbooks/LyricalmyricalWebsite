@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  INVENTORY_APP_URL, INVENTORY_TAB_NAME, forgetOpenedTab, inventoryOrderUrl, inventoryWaiting, isInstalledApp,
-  openInventoryApp, orderInInventoryApp,
+  INVENTORY_APP_URL, INVENTORY_TAB_NAME, forgetOpenedTab, inventoryLinkView, inventoryOrderUrl, inventoryWaiting,
+  isInstalledApp, openInventoryApp, orderInInventoryApp,
 } from "./appSwitch";
 
 // A cross-origin tab: its address can be set but not read.
@@ -40,11 +40,22 @@ describe("addresses and counts", () => {
     expect(inventoryWaiting({ connection: { ok: true }, pendingImport: { count: 3 } })).toBe(3);
     expect(inventoryWaiting({ connection: { ok: true }, pendingImport: { count: "x" } })).toBe(0);
   });
-  it("offers the inventory app only for paid (or refunded) real orders", () => {
-    expect(orderInInventoryApp({ paymentStatus: "paid" })).toBe(true);
-    expect(orderInInventoryApp({ paymentStatus: "refunded" })).toBe(true);
-    expect(orderInInventoryApp({ paymentStatus: "unpaid" })).toBe(false);
-    expect(orderInInventoryApp({ paymentStatus: "paid", isTest: true })).toBe(false);
+  it("keeps the day sales started being sent next to the count", () => {
+    expect(inventoryLinkView({ connection: { ok: true }, startDay: "2026-10-11", pendingImport: { count: 2 } })).toEqual({ waiting: 2, startDay: "2026-10-11" });
+    expect(inventoryLinkView({ connection: { ok: false }, startDay: "2026-10-11" })).toBeNull();
+  });
+  it("offers the inventory app only for orders the link sent (functions/inventoryLink.js countsForInventory)", () => {
+    const paid = { paymentStatus: "paid", paidAt: "2026-10-12T15:00:00.000Z" };
+    expect(orderInInventoryApp(paid, "2026-10-11")).toBe(true);
+    expect(orderInInventoryApp({ ...paid, paymentStatus: "refunded" }, "2026-10-11")).toBe(true);
+    expect(orderInInventoryApp(paid, "")).toBe(false); // sales not being sent yet
+    expect(orderInInventoryApp(paid, "2026-10-13")).toBe(false); // paid before the start day
+    // 02:00 UTC on the 12th is still the 11th in Toronto, so it counts from a start day of the 11th only.
+    expect(orderInInventoryApp({ ...paid, paidAt: "2026-10-12T02:00:00.000Z" }, "2026-10-12")).toBe(false);
+    expect(orderInInventoryApp({ ...paid, paymentStatus: "unpaid" }, "2026-10-11")).toBe(false);
+    expect(orderInInventoryApp({ paymentStatus: "cancelled", paidAt: paid.paidAt }, "2026-10-11")).toBe(false);
+    expect(orderInInventoryApp({ ...paid, isTest: true }, "2026-10-11")).toBe(false);
+    expect(orderInInventoryApp({ paymentStatus: "paid" }, "2026-10-11")).toBe(false);
   });
 });
 
@@ -63,22 +74,14 @@ describe("installed apps hand the link to the phone", () => {
 });
 
 describe("switching between browser tabs", () => {
-  it("goes back to the inventory app that opened this tab, without reloading it", () => {
+  it("never asks the tab that opened this one to come forward (browsers ignore it): it finds that tab by name", () => {
     const opener = otherAppTab();
-    const win = browser({ opener, document: { referrer: "https://lyricalmyricalbooks.github.io/" } });
-    expect(openInventoryApp(win)).toBe(true);
-    expect(opener.focus).toHaveBeenCalled();
-    expect(opener.set).toEqual([]);
-    expect(win.open).not.toHaveBeenCalled();
-  });
-  it("never steers a stranger that opened this tab (an email, another site)", () => {
-    const opener = otherAppTab();
-    const tab = blankTab();
-    const win = browser({ opener, document: { referrer: "https://mail.google.com/" }, open: vi.fn(() => tab) });
-    expect(openInventoryApp(win)).toBe(true);
-    expect(opener.focus).not.toHaveBeenCalled();
+    opener.focus = vi.fn();
+    const win = browser({ opener, document: { referrer: "https://lyricalmyricalbooks.github.io/" }, open: vi.fn(() => opener) });
+    expect(openInventoryApp(win, inventoryOrderUrl("A-9"))).toBe(true);
     expect(win.open).toHaveBeenCalledWith("", INVENTORY_TAB_NAME);
-    expect(tab.location.replace).toHaveBeenCalledWith(INVENTORY_APP_URL);
+    expect(opener.set).toEqual([inventoryOrderUrl("A-9")]);
+    expect(opener.focus).toHaveBeenCalledTimes(1);
   });
   it("opens a new named tab the first time, then reuses it", () => {
     const tab = blankTab();

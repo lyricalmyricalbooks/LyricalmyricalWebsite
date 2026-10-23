@@ -14,7 +14,7 @@ import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
 import { AdminAlerts } from "./AdminAlerts.tsx";
 import { backupAlert, buildAdminAlerts, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
 import { inventoryLinkApi } from "./inventoryLinkApi";
-import { inventoryWaiting, setInventoryWaiting } from "./appSwitch";
+import { inventoryLinkView, setInventoryLink } from "./appSwitch";
 import { AppSwitcher, AppSwitchPill, useWebsiteTabName } from "./AppSwitcher";
 import { getOrdersCached, peekOrders, setOrdersLoader } from "./ordersCache";
 import { anyDirty, useBeforeUnloadWhenDirty } from "./settingsDirty";
@@ -198,7 +198,7 @@ export function Dashboard() {
           if (!alive) return;
           alertInputs.current = { webhook, emailLog, backup, linkState, failedParts };
           // The switcher's count; an unreadable link state keeps the last count rather than inventing one.
-          if (linkState) setInventoryWaiting(inventoryWaiting(linkState));
+          if (linkState) setInventoryLink(inventoryLinkView(linkState));
           showAlerts(data);
         })
         // The orders themselves could not be read: say so instead of leaving a stale or empty list.
