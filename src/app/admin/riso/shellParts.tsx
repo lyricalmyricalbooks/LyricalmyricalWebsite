@@ -305,7 +305,11 @@ export function DrawerAccount({ avatar, name, email, onViewSite, menuItems }: {
     wrap.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
     const away = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
     document.addEventListener("mousedown", away);
-    return () => document.removeEventListener("mousedown", away);
+    // A native listener: the drawer's focus trap closes the whole drawer on Escape before React's handlers run.
+    const node = wrap.current;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); btn.current?.focus(); } };
+    node?.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); node?.removeEventListener("keydown", esc); };
   }, [open]);
   const close = () => setOpen(false);
   return (
@@ -314,8 +318,7 @@ export function DrawerAccount({ avatar, name, email, onViewSite, menuItems }: {
         if (!open) return;
         const items = Array.from(wrap.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') || []);
         const i = items.indexOf(document.activeElement as HTMLElement);
-        if (e.key === "Escape") { e.stopPropagation(); setOpen(false); btn.current?.focus(); }
-        else if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+        if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
         else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
       }}>
       {avatar}

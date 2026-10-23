@@ -1719,9 +1719,9 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
  * (menu · wordmark · shop status · search), the ink rail as a 320px drawer that ends with the account row,
  * 56px Anton mastheads, a 20px gutter, figures as a two-column ledger, lists as flat sheets of 44px+ rows.
  * Phone-only parts are hidden on wider screens first, so the desktop draws exactly as before. */
-/* An empty toast stack is a page-coloured 8px strip over the content; the closed drawer's shadow leaked onto the page edge. */
+/* The toast stack drew a page-coloured 8px strip over the content; the closed drawer's shadow leaked onto the page edge. */
 .rp-toast-stack.rp { background: transparent; }
-.rp-toast-stack:empty { display: none; }
+.rp-nav-list > li.rp-nav-section-row + li { margin-top: 0; }
 .rp .rp-topbar-wordmark, .rp .rp-status-short, .rp .rp-wb-seg-phone, .rp .rp-wb-more, .rp .rp-drawer-account, .rp .rp-drawer-close { display: none; }
 @media (max-width: 1023px) {
   .rp:not(.studio-editor) .rp-sidebar-brand { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
@@ -1780,19 +1780,20 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   .rp:not(.studio-editor) .rp-wb-head-title { flex-direction: column; align-items: flex-start; gap: 16px; }
   .rp:not(.studio-editor) .rp-wb-period { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
   .rp:not(.studio-editor) .rp-wb-period { flex-wrap: nowrap; gap: 6px; }
-  .rp:not(.studio-editor) .rp-wb-seg { flex-wrap: nowrap; gap: 6px; overflow: visible; }
-  .rp:not(.studio-editor) .rp-wb-seg button:not([data-phone]) { display: none; }
-  .rp:not(.studio-editor) .rp-wb-seg button { padding: 0 10px; }
-  .rp:not(.studio-editor) .rp-wb-seg-long { display: none; }
-  .rp:not(.studio-editor) .rp-wb-seg-phone { display: inline; }
+  .rp:not(.studio-editor) .rp-wb-period .rp-wb-seg { flex-wrap: nowrap; gap: 6px; overflow: visible; }
+  .rp:not(.studio-editor) .rp-wb-period .rp-wb-seg button:not([data-phone]) { display: none; }
+  .rp:not(.studio-editor) .rp-wb-period .rp-wb-seg button { padding: 0 10px; }
+  .rp:not(.studio-editor) .rp-wb-period .rp-wb-seg-long { display: none; }
+  .rp:not(.studio-editor) .rp-wb-period .rp-wb-seg-phone { display: inline; }
   .rp:not(.studio-editor) .rp-wb-period .rp-wb-more { display: inline-block; flex: 0 1 88px; min-width: 64px; width: 88px; padding: 0 2px 0 8px; color: var(--rp-text); text-overflow: ellipsis; }
   .rp:not(.studio-editor) .rp-wb-toolbar-actions { flex-wrap: nowrap; width: 100%; gap: 4px; }
   .rp:not(.studio-editor) .rp-wb-save:not([data-state="error"]) { display: none; }
 
   /* Alerts: one tinted line, the fix as an underlined word at its end */
   .rp:not(.studio-editor) .rp-alert { flex-wrap: nowrap; gap: 8px; padding: 6px 0 6px 12px; }
-  .rp:not(.studio-editor) .rp-alert-text { flex: 1 1 auto; }
-  .rp:not(.studio-editor) .rp-alert-detail { display: none; }
+  .rp:not(.studio-editor) .rp-alert-text { flex: 1 1 auto; display: block; }
+  .rp:not(.studio-editor) .rp-alert-title { display: block; }
+  .rp:not(.studio-editor) .rp-alert-detail { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 2px 0 0; font-size: 13px; }
   .rp:not(.studio-editor) .rp-alert-actions { width: auto; padding-left: 0; gap: 0; }
   /* Board editing is a desk job: phones keep the board picker and view options, not Add widgets or Edit board */
   .rp:not(.studio-editor) .rp-wb-addbtn, .rp:not(.studio-editor) .rp-wb-editbtn, .rp:not(.studio-editor) .rp-wb-undo { display: none; }

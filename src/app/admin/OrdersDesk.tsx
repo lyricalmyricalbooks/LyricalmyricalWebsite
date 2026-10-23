@@ -115,6 +115,8 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   }, [orders, list, selectedId, narrow, layout, closedByOwner]);
 
   const open = (id: string | null) => { if (id) setClosedByOwner(false); onSelect(id); };
+  // Phones: an order opened from elsewhere (top-bar search, an alert) opens full screen in the station.
+  useEffect(() => { if (phone && selectedId && layout !== "desk") setLayout("desk"); }, [phone, selectedId, layout]);
 
   // Keyboard: j / k next / previous order, "/" search, Escape clears the search.
   const keys = useRef({ ids, selectedId, query });
