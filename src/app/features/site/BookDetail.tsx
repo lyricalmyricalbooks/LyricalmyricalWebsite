@@ -72,6 +72,7 @@ import { aspectNumber, frameAspect, frameMode, photoRatio } from "./photoFrame";
 import { regionProps, regionVisible } from "./storefrontRegions";
 import { orderTabs } from "./pdpTabOrder";
 import { DescriptionText } from "./DescriptionText";
+import DescriptionFold from "./DescriptionFold";
 import { googleFontHref } from "./fonts";
 import { productPageCss, productPageFontNames, titleFitSize } from "./productPageStyle";
 import { schemeButtonColors } from "./colorSchemes";
@@ -756,7 +757,7 @@ export default function BookDetail() {
   };
   const detailContent = (id: string) =>
     id === "description" ? (
-      <div {...regionProps("productDescription")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line`}>{bk.description ? <DescriptionText text={bk.description} /> : getCopy(settings?.design, "noDescription")}</div>
+      <div {...regionProps("productDescription")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line`}>{bk.description ? <DescriptionFold design={settings?.design} look={storefrontDesign} text={bk.description}><DescriptionText text={bk.description} /></DescriptionFold> : getCopy(settings?.design, "noDescription")}</div>
     ) : id === "artist" ? (
       <div {...regionProps("productArtistBio")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line`}><DescriptionText text={artistBio} /></div>
     ) : id === "specs" ? <div {...regionProps("productSpecs")}>{renderSpecs()}</div> : id === "policies" ? (
@@ -1298,10 +1299,10 @@ export default function BookDetail() {
                           <p className="fm-pdp-meta mb-3" style={{ color: "var(--accent, #e8402a)" }}>
                             {getCopy(settings?.design, "productDescriptionLabel")}
                           </p>
-                          <div className={`fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.8] whitespace-pre-line`}><DescriptionText text={bk.description} /></div>
+                          <div className={`fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.8] whitespace-pre-line`}><DescriptionFold design={settings?.design} look={storefrontDesign} text={bk.description}><DescriptionText text={bk.description} /></DescriptionFold></div>
                         </div>
                       ) : (
-                        <div {...regionProps("productDescription")} className={`fm-pdp-desc-text${ruledCls} text-white/50 text-[14px] leading-[1.8] whitespace-pre-line`}><DescriptionText text={bk.description} /></div>
+                        <div {...regionProps("productDescription")} className={`fm-pdp-desc-text${ruledCls} text-white/50 text-[14px] leading-[1.8] whitespace-pre-line`}><DescriptionFold design={settings?.design} look={storefrontDesign} text={bk.description}><DescriptionText text={bk.description} /></DescriptionFold></div>
                       )
                     )}
                     {hasSpecs && <div {...regionProps("productSpecs")}>{renderSpecs()}</div>}
