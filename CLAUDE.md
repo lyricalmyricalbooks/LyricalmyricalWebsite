@@ -2602,3 +2602,11 @@ Studio › Style › Book page · photos & layout › Extras on the page › **A
 draws `features/site/PdpInBag.tsx` under the buy buttons (region `productInBag`) once the bag holds the chosen edition: "2 copies
 already in your bag · View bag" (BookDetail's `inBag` count; the link calls `setIsCartOpen`). Display only. Words: Text & labels ›
 Product page (`pdpInBagOne`, `pdpInBagMany` with `{count}`, `pdpInBagView`; empty link = no link).
+
+## Sale savings in the bag (23 October 2026)
+
+Studio › Style › Cart drawer (shopping bag) › Book rows › **Sale savings** (`cartDrawerShowSavings`, off by default): a bag line
+whose book is on a real sale (`showsSale`, so never an edition line or a gift card) and whose price is the sale price plus its
+add-ons shows the regular line total struck through (`.fm-bag-was`), "You save {amount}" under it, and a "You save" row above the
+total (`.fm-bag-saving`). Pure `features/site/bagSavings.ts` (`lineSavingPerCopy`, `bagSavings`); a stale saved price claims nothing.
+Display only (the server prices the order). Words: Text & labels › Cart › Sale savings (`cartYouSave*`).
