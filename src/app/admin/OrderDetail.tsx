@@ -27,6 +27,8 @@ import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, cha
 import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink } from "lucide-react";
 import { adminApi } from "./api";
+import { orderInInventoryApp, useInventoryLink } from "./appSwitch";
+import { InventoryOrderLink } from "./AppSwitcher";
 import toast from "react-hot-toast";
 import { formatGrams } from "../features/site/metricWeight";
 import {
@@ -71,6 +73,7 @@ export function OrderDetail({
   /** Called after an action (or a Stripe sync) changed the order — not on the first load — so a list beside it can refresh. */
   onChanged?: (order: any) => void;
 }) {
+  const inventoryLink = useInventoryLink();
   const queueIndex = queueIds.indexOf(orderId);
   const prevId = queueIndex > 0 ? queueIds[queueIndex - 1] : "";
   const nextId = queueIndex >= 0 && queueIndex < queueIds.length - 1 ? queueIds[queueIndex + 1] : "";
@@ -708,6 +711,8 @@ export function OrderDetail({
 
   const queue = queueOf(order);
   const problem = dispatchProblem(order);
+  // Only orders the link sent to the inventory app (the server's rule), with printed books in them.
+  const showInInventory = !!inventoryLink && orderInInventoryApp(order, inventoryLink.startDay) && (order.items || []).some((item: any) => item && !isDigitalItem(item));
 
   return (
     <div className="rp-stack fw-detail">
@@ -733,6 +738,7 @@ export function OrderDetail({
           </div>
         )}
         <div className="fw-toolbar-actions">
+          {showInInventory && <InventoryOrderLink orderId={order.id} />}
           <SecondaryButton size="sm" onClick={handlePrintPackingSlip}>
             Print packing slip
           </SecondaryButton>
