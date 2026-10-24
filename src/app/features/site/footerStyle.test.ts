@@ -75,4 +75,14 @@ describe("footer style controls", () => {
     // Outside the phone query the Studio gap is untouched.
     expect(css).toContain("[data-fm-footer] .fm-footer-list>*+*{margin-top:8px;}");
   });
+  it("leaves the payment icons as drawn until their strength or colour is changed", () => {
+    const css = footerStyleCss({});
+    expect(css).not.toContain("fm-footer-pay-icon");
+    const faint = footerStyleCss({ footerPaymentIconOpacity: 80 });
+    expect(faint).toContain("[data-fm-footer] .fm-footer-pay-icon{opacity:0.8 !important;}");
+    expect(faint).toContain("[data-fm-footer] .fm-footer-pay-icon:hover{opacity:1 !important;}");
+    expect(footerStyleCss({ footerPaymentIconColor: "#ff6fae" })).toContain(".fm-footer-pay-icons{color:#ff6fae !important;}");
+    // A footer that follows a colour scheme takes the scheme's colours instead.
+    expect(footerStyleCss({ footerPaymentIconColor: "#ff6fae", colorSchemes: [{ id: "s", v: 2, background: "#000" }], elementSchemes: { footer: "s" } })).not.toContain("#ff6fae");
+  });
 });
