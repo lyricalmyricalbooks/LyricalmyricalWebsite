@@ -239,7 +239,8 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
                   const panelId = `msg-${m.id}`;
                   const ord = orders[m.email.trim().toLowerCase()];
                   return (
-                    <li key={m.id}>
+                    <li key={m.id} data-unread={isUnread(m) ? "true" : undefined}
+                      style={isUnread(m) ? { boxShadow: "inset 3px 0 0 var(--rp-primary)" } : undefined}>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start", justifyContent: "space-between" }}>
                         <div style={{ display: "flex", gap: 10, minWidth: 0, flex: "1 1 320px" }}>
                           <input type="checkbox" aria-label={`Select message from ${m.name}`} style={{ marginTop: 4 }}
@@ -293,7 +294,10 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
                             </div>
                           ))}
                           <TextArea label={`Reply to ${m.name}`} rows={4} maxLength={5000} value={drafts[m.id] || ""} disabled={sending === m.id}
-                            hint="Sent from the shop's email to the address above; it's saved here with the message."
+                            hint="Sent from the shop's email to the address above; it's saved here with the message. Press Ctrl/⌘ + Enter to send."
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && sending !== m.id && (drafts[m.id] || "").trim()) { e.preventDefault(); void sendReply(m); }
+                            }}
                             onChange={(e) => setDrafts((d) => ({ ...d, [m.id]: e.target.value }))} />
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                             <PrimaryButton icon={<Send size={16} aria-hidden />} disabled={sending === m.id || !(drafts[m.id] || "").trim()} onClick={() => sendReply(m)}>
