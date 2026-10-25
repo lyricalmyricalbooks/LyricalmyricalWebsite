@@ -1,7 +1,8 @@
 // Behavioural check of firestore.rules against the real rules engine (Firestore emulator).
-// Not part of `pnpm test` (it needs Java and the emulator). From the repo root:
-//   npm i --no-save firebase-tools@13 @firebase/rules-unit-testing@3 firebase@10
-//   npx firebase emulators:exec --only firestore --project demo-rules "node scripts/firestore-rules-emulator.mjs"
+// CI runs it on every pull request (job firestore-rules in .github/workflows/ci.yml). It is not part of
+// `pnpm test` (it needs Java and the emulator). Locally, from an empty folder outside the repo:
+//   npm i @firebase/rules-unit-testing@6.0.0 firebase@13.1.0 firebase-tools@15.32.1 && cp <repo>/scripts/firestore-rules-emulator.mjs .
+//   RULES_FILE=<repo>/firestore.rules npx firebase emulators:exec --only firestore --project demo-rules "node firestore-rules-emulator.mjs"
 // It caught that an unrolled per-line order check exceeded the 1000-expression limit and
 // refused every guest order, which the text checks in src/app/securityRules.test.ts can't see.
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
