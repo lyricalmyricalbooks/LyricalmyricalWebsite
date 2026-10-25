@@ -37,6 +37,7 @@ import { StorefrontThemeStyle } from "./features/site/StorefrontThemeStyle";
 import { accountsEnabled } from "./features/site/customerAccounts";
 import { getCopy, CopyError, copyErrorText } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
+import { subscribePreview } from "./features/site/previewTab";
 import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess } from "./lib/orderAccessClient";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
@@ -541,14 +542,9 @@ export function Checkout() {
   // Preview only replaces appearance; fulfillment and payment settings stay server-sourced.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("preview") !== "true") return;
-    const receive = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.source !== window.parent
-        || !["THEME_UPDATE", "STUDIO_PREVIEW_STATE"].includes(event.data?.type) || !event.data.design) return;
-      setSettings((current: any) => ({ ...current, design: resolveSurfaceDesign(event.data.design, "/checkout") }));
-    };
-    window.addEventListener("message", receive);
+    const stop = subscribePreview((preview) => setSettings((current: any) => ({ ...current, design: resolveSurfaceDesign(preview.design, "/checkout") })));
     window.parent.postMessage({ type: "PREVIEW_READY" }, window.location.origin);
-    return () => window.removeEventListener("message", receive);
+    return stop;
   }, []);
 
   // Recover cart if cartId query parameter is present in URL
