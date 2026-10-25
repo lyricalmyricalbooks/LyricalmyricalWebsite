@@ -67,6 +67,7 @@ import { duplicateProfile, profileSummary } from "./shippingProfileStarters";
 const MAX_LIVE_RATE_EXTRA = 50;
 import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
+import { ShopErrorsCard } from "./ShopErrorsCard";
 import { useSettingsDirty } from "./settingsDirty";
 import { HowTo, SettingsAnchor, SettingsGroup, SettingsTabs, friendlyError, useSubTab, type SettingsTab } from "./settingsLayout";
 import { testSaleSteps } from "./testSaleWalkthrough";
@@ -336,6 +337,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
         <SettingsAnchor id="gs-ai"><AiWriterCard /></SettingsAnchor>
         <SettingsAnchor id="gs-privacy"><PrivacyRequestsCard /></SettingsAnchor>
         <SettingsAnchor id="gs-backups"><BackupsExportCard /></SettingsAnchor>
+        <SettingsAnchor id="gs-shop-errors"><ShopErrorsCard /></SettingsAnchor>
       </SettingsGroup>
 
       <SaveBar dirty={dirty.length > 0} saving={!!savingSection} onSave={saveAll} onDiscard={discard}

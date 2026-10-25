@@ -258,6 +258,10 @@ await check("anon can't read opt-outs", assertFails(getDoc(doc(anon, "marketing-
   }
 }
 
+// clientErrors: written only by the Functions; shoppers can neither add nor read crash reports
+await check("anon can't write a crash report", assertFails(setDoc(doc(anon, "clientErrors/x"), { message: "fake", count: 1 })));
+await check("anon can't read crash reports", assertFails(getDoc(doc(anon, "clientErrors/x"))));
+
 await env.cleanup();
 console.log(failures ? `${failures} FAILED` : "ALL OK");
 process.exit(failures ? 1 : 0);

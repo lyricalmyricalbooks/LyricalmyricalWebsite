@@ -1549,6 +1549,19 @@ export const adminApi = {
     if (secrets.paypal) await setDoc(doc(db, "adminSecrets", "paypal"), { ...secrets.paypal, updatedAt: serverTimestamp() }, { merge: true });
   },
 
+  // Settings › General › Tools & records › Shop errors (functions/clientErrors.js writes them; one row per distinct error).
+  getClientErrors: async (count = 50) => {
+    const snap = await getDocs(query(collection(db, "clientErrors"), orderBy("lastSeenAt", "desc"), limit(count)));
+    return snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+  },
+  clearClientErrors: async (ids: string[]) => {
+    for (let i = 0; i < ids.length; i += 400) {
+      const batch = writeBatch(db);
+      ids.slice(i, i + 400).forEach(id => batch.delete(doc(db, "clientErrors", id)));
+      await batch.commit();
+    }
+  },
+
   getRecentEmailLog: async (count = 5) => {
     const snap = await getDocs(query(collection(db, "emailLog"), orderBy("at", "desc"), limit(count)));
     return snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));

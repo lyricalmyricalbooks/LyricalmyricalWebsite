@@ -141,7 +141,7 @@ describe("firestore.rules round-2 security (#18, #111, #112)", () => {
   it("expires server-only bookkeeping with Firestore TTL policies (#72)", () => {
     const indexes = JSON.parse(read("firestore.indexes.json"));
     const ttl = indexes.fieldOverrides.filter((o: any) => o.ttl === true && o.fieldPath === "expiresAt").map((o: any) => o.collectionGroup).sort();
-    expect(ttl).toEqual(["abandoned-cart-throttle", "contact-email-throttle", "email-claims", "payment-webhook-events", "rate-limits"]);
+    expect(ttl).toEqual(["abandoned-cart-throttle", "clientErrors", "contact-email-throttle", "email-claims", "payment-webhook-events", "rate-limits"]);
   });
 
   it("has the index the paged pending-reviews queue needs (#144)", () => {

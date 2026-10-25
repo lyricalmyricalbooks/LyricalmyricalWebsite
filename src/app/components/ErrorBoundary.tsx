@@ -3,6 +3,7 @@ import { Component, type ReactNode } from "react";
 import { getCopy } from "../features/site/storeCopy";
 import { SITE_CACHE_KEY } from "../features/site/constants";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
+import { reportClientError } from "../lib/errorReport";
 
 // The boundary sits above the data providers, so it reads the last-seen design from the site cache.
 function cachedDesign(): any {
@@ -39,6 +40,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: s
 
   componentDidCatch(error: Error) {
     console.error("Storefront render error:", error);
+    reportClientError("page", error);
     try {
       if (window.parent !== window) {
         window.parent.postMessage({ type: "PREVIEW_ERROR", message: String(error?.message || error) }, window.location.origin);

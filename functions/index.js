@@ -59,6 +59,7 @@ const { refundRetrySuffix, refundPlan, refundedSoFar, restockLinesFor, withoutRe
 const { leftTheShop, restockRefundedOrder } = require("./refundRestock");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
 const { hitLimit, LIMITS, clientIpOf, serverGeoCountry } = require("./rateLimit");
+const { cleanReport, recordClientError } = require("./clientErrors");
 const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./addressLookup");
 const { handleAiWrite } = require("./aiWriter");
 const { handleGa4Report, metadataCredentials } = require("./googleAnalytics");
@@ -5869,6 +5870,17 @@ exports.createShippingLabel = onBrowserRequest(
 //    The discounts collection is admin-only in Firestore rules, so the
 //    storefront validates codes through this endpoint instead.
 // ──────────────────────────────────────────────────────────────
+// A page or section that failed to draw in a shopper's browser (src/app/lib/errorReport.ts). Counted per distinct
+// error in admin-only clientErrors (functions/clientErrors.js); nothing personal is kept. Always answers 204.
+async function handleClientError(req, res) {
+  const report = cleanReport(req.body.report);
+  if (report && (await hitLimit(db, "client-error", req, LIMITS.clientError))) {
+    const result = await recordClientError(db, report).catch(err => { console.warn("clientError record failed:", err.message); return null; });
+    if (result === "full") console.warn("clientError: today's budget of new errors is used up; new errors aren't recorded until tomorrow.");
+  }
+  res.status(204).send("");
+}
+
 exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
   if (applyCors(req, res)) return;
 
@@ -5884,6 +5896,8 @@ exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
     res.status(200).json({ country: serverGeoCountry(req) || null });
     return;
   }
+
+  if (req.body?.action === "clientError") return handleClientError(req, res);
 
   // Checkout's automatic offers (no code): the conditions checkout needs to show the same saving
   // the server will charge. Customer lists and usage counts stay private.

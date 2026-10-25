@@ -1,3 +1,4 @@
+import { reportClientError } from "../lib/errorReport";
 import { sectionSpacingCss } from "./sectionSpacing";
 import { sectionStepCss } from "../features/site/designTokens";
 import { backgroundImageCss } from "../features/site/backgroundSources";
@@ -232,6 +233,7 @@ export class SectionBoundary extends Component<{ sectionId: string; type: string
 
   componentDidCatch(error: Error) {
     console.error(`Section ${this.props.type} (${this.props.sectionId}) failed to render:`, error);
+    reportClientError("section", error, this.props.type);
     try {
       if (window.parent !== window) {
         window.parent.postMessage({ type: "PREVIEW_ERROR", sectionId: this.props.sectionId,
