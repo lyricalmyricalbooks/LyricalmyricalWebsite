@@ -359,6 +359,10 @@ export function Dashboard() {
     return () => { document.title = previous; };
   }, [pageTitle]);
 
+  // Declared before the loading/sign-in returns below: a hook after them crashes the admin on sign-in.
+  // A new book's starting values and what to do once it's saved ("Add to the shop" from an inventory app book).
+  const [newBookStart, setNewBookStart] = useState<{ prefill: Record<string, any>; onCreated: (id: string) => void } | null>(null);
+
   if (loading) {
     return (
       <div className="rp" data-rp-appearance={adminTheme === "dark" ? "dark" : "light"}>
@@ -394,8 +398,6 @@ export function Dashboard() {
     setShowEditor(true);
   };
 
-  // A new book's starting values and what to do once it's saved ("Add to the shop" from an inventory app book).
-  const [newBookStart, setNewBookStart] = useState<{ prefill: Record<string, any>; onCreated: (id: string) => void } | null>(null);
   const handleAddBook = () => {
     setNewBookStart(null);
     setEditingBook(null);
