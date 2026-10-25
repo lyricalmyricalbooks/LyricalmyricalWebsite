@@ -492,7 +492,9 @@ const usedInventoryIds = links => new Set(Object.values(links || {}).flatMap(e =
 
 /** A small https copy of a book's first photo for the app's list ("" when none). */
 function smallCover(book) {
-  const photo = Array.isArray(book?.photos) ? book.photos.find(p => p && !p.videoUrl) : null;
+  const first = Array.isArray(book?.photos) ? book.photos.find(p => p && !p.videoUrl) : null;
+  // Older books keep a photo as a plain address, or only the old coverImage field.
+  const photo = typeof first === "string" ? { url: first } : first || (book?.coverImage ? { url: String(book.coverImage) } : null);
   if (!photo) return "";
   const copies = String(photo.srcset || "").split(",").map(part => {
     const [url, width] = part.trim().split(/\s+/);
@@ -582,10 +584,14 @@ function linkRequestPlan({ requests, replies = {}, links = {}, books = [], appBo
   return { adds, replies: out };
 }
 
-/** Answers younger than 30 days (the app shows them until the request leaves its list). */
-function keptReplies(replies, now = new Date()) {
+/**
+ * Answers to keep. An answer stays while the app still lists its request (so a request is never applied twice,
+ * e.g. after the owner unmatched the book on purpose), and for 30 days after the app drops it.
+ */
+function keptReplies(replies, now = new Date(), requests = null) {
   const cutoff = now.getTime() - REPLY_KEEP_MS;
-  return Object.fromEntries(Object.entries(replies || {}).filter(([, r]) => r && Date.parse(r.at) > cutoff));
+  const listed = requests && typeof requests === "object" ? requests : {};
+  return Object.fromEntries(Object.entries(replies || {}).filter(([key, r]) => r && (listed[key] || Date.parse(r.at) > cutoff)));
 }
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
@@ -602,8 +608,10 @@ function websiteTodo({ holds = [], newMatches = 0, appOnly = 0, adminUrl, now = 
 }
 
 /** The app's own to-do (`websiteLink/app.todo`), cleaned: text only, a safe #hash, at most 10. */
+const WEBSITE_TODO_IDS = new Set(["stock-held", "new-matches", "app-books"]);
 function cleanAppTodo(todo) {
-  const items = Array.isArray(todo?.items) ? todo.items : [];
+  // Only the app's own items: the website's own (which the app also lists) must not come back as "in the app".
+  const items = (Array.isArray(todo?.items) ? todo.items : []).filter(item => !WEBSITE_TODO_IDS.has(String(item?.id || "")));
   return {
     at: typeof todo?.at === "string" ? todo.at.slice(0, 40) : null,
     items: items.slice(0, MAX_TODO).map(item => ({

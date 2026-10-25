@@ -495,8 +495,9 @@ async function runSweep(deps, opts = {}) {
     }
 
     // "Add to the app": the owner saved a website book in the app; link the two with Match these' guards.
-    let replies = keptReplies(state.appLinkReplies, start);
     const requests = appDoc && appDoc.linkRequests && typeof appDoc.linkRequests === "object" ? appDoc.linkRequests : {};
+    // Not read this run: keep every answer, so nothing is tried again on a partial view.
+    let replies = appRead ? keptReplies(state.appLinkReplies, start, requests) : { ...(state.appLinkReplies || {}) };
     const unanswered = Object.entries(requests).some(([key, r]) => r && replies[key]?.inventoryBookId !== r.inventoryBookId);
     if (Object.keys(state.links || {}).length && unanswered) {
       try {
@@ -526,11 +527,12 @@ async function runSweep(deps, opts = {}) {
         if (result.saved) {
           state.links = result.links;
           // New matches: orders with unmatched copies are sent again (this run's own relink status must not undo it).
-          if (result.relink) { status.relinkPending = true; status.relinkCursor = null; }
+          // Its past orders aren't counted yet, so stock waits for the re-send too (the rule for every new match).
+          if (result.relink) { status.relinkPending = true; status.relinkCursor = null; recorded = false; }
         }
         out.linkRequests = { answered: Object.keys(result.plan.replies).length, linked: result.saved ? result.plan.adds.length : 0 };
         status.linkRequestError = null;
-      } catch (err) { status.linkRequestError = errText(err); }
+      } catch (err) { status.linkRequestError = errText(err); console.error("inventory link: app link requests", err); }
     }
     status.appLinkReplies = replies;
 
@@ -547,10 +549,11 @@ async function runSweep(deps, opts = {}) {
         status.matchError = null;
         // Books in only one of the two: the app's books for "Add to the shop" here, the website's for "Add to the app".
         status.appOnlyBooks = { at: iso(start), items: appBooksForShop(books, appBooks, state.links, { ignoredMatches, ignoredAppBooks: state.ignoredAppBooks || {} }) };
-        try {
+        // Without the app's doc its dismissed books are unknown: keep the list it has rather than bring them back.
+        if (appRead) try {
           await store.writeShopCatalog({ at: iso(start), books: shopBooksForApp(books, appBooks, state.links, { ignoredMatches, dismissed: appDoc?.dismissedShopBooks || {}, now: start.getTime() }) });
           status.shopCatalogError = null;
-        } catch (err) { status.shopCatalogError = errText(err); }
+        } catch (err) { status.shopCatalogError = errText(err); console.error("inventory link: shop catalog", err); }
       } catch (err) { status.matchError = errText(err); }
     } else if (!Object.keys(state.links || {}).length && (state.newMatches || state.appOnlyBooks)) {
       status.newMatches = null;
@@ -610,7 +613,8 @@ async function runSweep(deps, opts = {}) {
         await store.writeWebsiteSide({ todo, linkReplies: replies });
         status.websiteSideSig = signature;
       }
-    } catch (err) { status.websiteSideError = errText(err); }
+      status.websiteSideError = null;
+    } catch (err) { status.websiteSideError = errText(err); console.error("inventory link: website to-do", err); }
     return out;
   } catch (err) {
     status.lastError = { at: iso(deps.now()), message: errText(err) };
@@ -628,6 +632,8 @@ async function runSweep(deps, opts = {}) {
         status.newMatches = { ...status.newMatches, items, count: Math.max(0, status.newMatches.count - (status.newMatches.items.length - items.length)) };
       }
       tx.set(ref, { ...status, ...(lease?.runId === runId ? { lease: FieldValue.delete() } : {}) }, { merge: true });
+      // A merge keeps map keys the run dropped, so pruned answers are replaced as a whole field.
+      if (status.appLinkReplies !== undefined) tx.update(ref, { appLinkReplies: status.appLinkReplies });
     }).catch(err => console.error("inventory link: could not save the run's status", err));
   }
 }

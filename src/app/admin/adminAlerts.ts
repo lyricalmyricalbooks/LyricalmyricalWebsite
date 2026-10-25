@@ -225,6 +225,12 @@ export function inventoryLinkAlerts(state: any, now = Date.now()): AdminAlert[] 
       key: holds.map((h: any) => `${h.bookId}/${h.variantId || "_"}/${h.hold}/${h.to ?? ""}`).sort().join(","),
     });
   }
+  // The to-do and new-book exchange with the app failing (its answers would otherwise never arrive).
+  const exchangeError = state.linkRequestError || state.shopCatalogError || state.websiteSideError;
+  if (exchangeError) {
+    out.push(link("inventory-link-exchange", "warning", "The website couldn't share its to-do list or new books with the inventory app",
+      "Books added in one app may not be offered to the other yet. The website tries again every 5 minutes; if this stays, press Check connection on the Inventory page."));
+  }
   // Books only the inventory app has: offered under Inventory app link › Add to the shop.
   const onlyInApp = appOnlyBooks(state);
   if (onlyInApp.length) {
@@ -239,7 +245,7 @@ export function inventoryLinkAlerts(state: any, now = Date.now()): AdminAlert[] 
   // app open, since it can't have been checked since.
   const appTodo = state.app?.todo;
   const todoAt = Date.parse(appTodo?.at || "");
-  if (Array.isArray(appTodo?.items) && (!Number.isFinite(todoAt) || now - todoAt < 7 * DAY)) {
+  if (Array.isArray(appTodo?.items) && Number.isFinite(todoAt) && now - todoAt < 7 * DAY) {
     for (const item of appTodo.items.slice(0, 10)) {
       if (!item?.id || !item?.title) continue;
       out.push({ id: `inventory-app-${item.id}`, tone: "info", title: String(item.title).slice(0, 200),

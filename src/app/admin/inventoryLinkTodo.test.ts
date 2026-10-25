@@ -36,3 +36,11 @@ describe("alerts from the inventory app", () => {
     expect(odd.find((a) => a.id === "inventory-app-x")?.appHash).toBe("#todo");
   });
 });
+
+describe("review fixes", () => {
+  it("an app to-do with no time is treated as old; exchange failures show one warning", () => {
+    const alerts = inventoryLinkAlerts({ ...base, app: { todo: { items: [{ id: "x", title: "No time", hash: "#todo" }] } }, shopCatalogError: "boom" }, NOW);
+    expect(alerts.some((a) => a.id === "inventory-app-x")).toBe(false);
+    expect(alerts.find((a) => a.id === "inventory-link-exchange")).toMatchObject({ tone: "warning", action: "inventory" });
+  });
+});
