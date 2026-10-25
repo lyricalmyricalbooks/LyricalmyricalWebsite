@@ -61,11 +61,7 @@ const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = requir
 const { hitLimit, LIMITS, clientIpOf, serverGeoCountry } = require("./rateLimit");
 const { cleanReport, recordClientError } = require("./clientErrors");
 const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./addressLookup");
-const { handleAiWrite } = require("./aiWriter");
-const { handleGa4Report, metadataCredentials } = require("./googleAnalytics");
-const { handleSearchConsole, SCOPE: SEARCH_CONSOLE_SCOPE } = require("./searchConsole");
-const { handleBigQueryJourneys, SCOPE: BIGQUERY_SCOPE } = require("./bigQueryJourneys");
-const { handleTrafficReset } = require("./trafficReset");
+const { adminReportActions } = require("./adminReports");
 const { publicErrorMessage } = require("./publicErrors");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
 const { preorderActive, preorderLine, preorderEmailLines, releaseDateOf } = require("./shared/preorder");
@@ -1720,6 +1716,30 @@ exports.paypalWebhook = onRequest(
   }
 );
 
+// The actions createStripeCheckoutSession answers before its checkout rate limit, by body.action. Payment
+// creation, manual local orders, unsubscribe and free orders stay inline below the limit.
+const CHECKOUT_FUNCTION_ACTIONS = {
+  newsletterSignup: handleNewsletterSignup,
+  newsletterConfirm: handleNewsletterConfirm,
+  status: handleCheckoutStatus,
+  track: handleTrackOrder,
+  trackingLink: handleTrackingLink,
+  registerPaymentDomain: handleRegisterPaymentDomain,
+  webhookHealth: handleWebhookHealth,
+  giftCardAdmin: handleGiftCardAdmin,
+  inventoryLink: handleInventoryLinkAdmin,
+  backupNow: handleBackupNow,
+  restockRefunded: handleRestockRefunded,
+  ...adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit, LIMITS }),
+  cancelOrder: handleCancelOrder,
+  resolvePaymentMismatch: handleResolveMismatch,
+  orderRequest: handleOrderRequest,
+  privacyRequest: handlePrivacyRequest,
+  privacyExport: handlePrivacyAdmin,
+  privacyErase: handlePrivacyAdmin,
+  verifyStripeKeys: handleVerifyStripeKeys,
+};
+
 // ──────────────────────────────────────────────────────────────
 // 1. HTTP Endpoint: Create Stripe Checkout Session (Secure)
 // ──────────────────────────────────────────────────────────────
@@ -1734,29 +1754,11 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       return;
     }
 
-    if (req.body?.action === "newsletterSignup") return handleNewsletterSignup(req, res);
-    if (req.body?.action === "newsletterConfirm") return handleNewsletterConfirm(req, res);
-    if (req.body?.action === "status") return handleCheckoutStatus(req, res);
-    if (req.body?.action === "track") return handleTrackOrder(req, res);
-    if (req.body?.action === "trackingLink") return handleTrackingLink(req, res);
-    if (req.body?.action === "registerPaymentDomain") return handleRegisterPaymentDomain(req, res);
-    if (req.body?.action === "webhookHealth") return handleWebhookHealth(req, res);
-    if (req.body?.action === "giftCardAdmin") return handleGiftCardAdmin(req, res);
-    if (req.body?.action === "inventoryLink") return handleInventoryLinkAdmin(req, res);
-    if (req.body?.action === "backupNow") return handleBackupNow(req, res);
-    if (req.body?.action === "restockRefunded") return handleRestockRefunded(req, res);
-    if (req.body?.action === "backups") return handleBackups(req, res);
-    if (req.body?.action === "aiWrite") return handleAiWriteRequest(req, res);
-    if (req.body?.action === "ga4Report") return handleGa4ReportRequest(req, res);
-    if (req.body?.action === "searchConsole") return handleSearchConsoleRequest(req, res);
-    if (req.body?.action === "bigQueryJourneys") return handleBigQueryJourneysRequest(req, res);
-    if (req.body?.action === "resetTraffic") return handleResetTrafficRequest(req, res);
-    if (req.body?.action === "cancelOrder") return handleCancelOrder(req, res);
-    if (req.body?.action === "resolvePaymentMismatch") return handleResolveMismatch(req, res);
-    if (req.body?.action === "orderRequest") return handleOrderRequest(req, res);
-    if (req.body?.action === "privacyRequest") return handlePrivacyRequest(req, res);
-    if (req.body?.action === "privacyExport" || req.body?.action === "privacyErase") return handlePrivacyAdmin(req, res);
-    if (req.body?.action === "verifyStripeKeys") return handleVerifyStripeKeys(req, res);
+    const action = req.body?.action;
+    // Own keys only: a body action like "constructor" or ["aiWrite"] must never reach a handler.
+    if (typeof action === "string" && Object.hasOwn(CHECKOUT_FUNCTION_ACTIONS, action)) {
+      return CHECKOUT_FUNCTION_ACTIONS[action](req, res);
+    }
     // Payment creation is limited per visitor so bots can't test stolen cards here.
     if (!(await hitLimit(db, "checkout", req, LIMITS.checkout))) {
       res.status(429).json({ error: "Too many checkout attempts. Please wait a few minutes and try again." });
@@ -7202,117 +7204,6 @@ exports.nightlyFirestoreBackup = onSchedule(
   }
 );
 
-/** Settings › General › Backups & export › the daily list (op "list") and Download (op "download", body.day). */
-async function handleBackups(req, res) {
-  const adminUser = await requireAdmin(req, res);
-  if (!adminUser) return;
-  try {
-    const { listBackups, backupDownloadUrl } = require("./backupAdmin");
-    const projectId = process.env.GCLOUD_PROJECT || admin.app().options.projectId;
-    const bucket = admin.storage().bucket(admin.app().options.storageBucket || `${projectId}.firebasestorage.app`);
-    if (req.body?.op === "download") {
-      const { status, body } = await backupDownloadUrl({ bucket, day: req.body.day });
-      return res.status(status).json(body);
-    }
-    res.status(200).json({ backups: await listBackups({ bucket }) });
-  } catch (err) {
-    console.error("backups admin failed:", err);
-    res.status(500).json({ error: "Couldn't read the backups. Try again in a minute." });
-  }
-}
-
-// Admin AI writing assistant (Books › edit, Studio › Pages): Google Gemini or OpenRouter, keys in adminSecrets/ai.
-async function handleAiWriteRequest(req, res) {
-  const adminUser = await requireAdmin(req, res);
-  if (!adminUser) return;
-  try {
-    const { status, body } = await handleAiWrite(req.body || {}, {
-      readSettings: async () => {
-        const saved = await readAdminSecret("ai");
-        return { apiKey: saved.geminiKey, openrouterKey: saved.openrouterKey, openrouterModel: saved.openrouterModel, provider: saved.provider, voice: saved.voice };
-      },
-      allow: () => hitLimit(db, "ai-write", req, LIMITS.aiWrite),
-      bucket: admin.app().options.storageBucket || `${process.env.GCLOUD_PROJECT || admin.app().options.projectId}.firebasestorage.app`,
-    });
-    res.status(status).json(body);
-  } catch (err) {
-    console.error("aiWrite failed:", err?.message || err);
-    res.status(500).json({ error: "The AI assistant couldn't answer just now. Try again in a minute." });
-  }
-}
-
-// Overview › Google Analytics figures (admin): the GA4 Data API read with this function's own service account.
-async function handleGa4ReportRequest(req, res) {
-  const adminUser = await requireAdmin(req, res);
-  if (!adminUser) return;
-  try {
-    const { status, body } = await handleGa4Report(req.body || {}, {
-      readSettings: () => readAdminSecret("googleAnalytics"),
-      allow: () => hitLimit(db, "ga4-report", req, LIMITS.ga4),
-      credentials: () => metadataCredentials(fetch),
-      fetchImpl: fetch,
-      projectId: process.env.GCLOUD_PROJECT || admin.app().options.projectId || "",
-    });
-    res.status(status).json(body);
-  } catch (err) {
-    console.error("ga4Report failed:", err?.message || err);
-    res.status(500).json({ error: "Google Analytics couldn't be read just now. Try again in a minute." });
-  }
-}
-
-// Overview › Found on Google (admin): the Search Console API read with this function's own service account.
-async function handleSearchConsoleRequest(req, res) {
-  const adminUser = await requireAdmin(req, res);
-  if (!adminUser) return;
-  try {
-    const { status, body } = await handleSearchConsole(req.body || {}, {
-      readSettings: () => readAdminSecret("googleAnalytics"),
-      allow: () => hitLimit(db, "search-console", req, LIMITS.ga4),
-      credentials: () => metadataCredentials(fetch, SEARCH_CONSOLE_SCOPE),
-      fetchImpl: fetch,
-      projectId: process.env.GCLOUD_PROJECT || admin.app().options.projectId || "",
-    });
-    res.status(status).json(body);
-  } catch (err) {
-    console.error("searchConsole failed:", err?.message || err);
-    res.status(500).json({ error: "Search Console couldn't be read just now. Try again in a minute." });
-  }
-}
-
-// Overview › Visitor journeys / Last page before leaving (admin): one read-only query over the GA4 BigQuery export,
-// run with this function's own service account (functions/bigQueryJourneys.js).
-async function handleBigQueryJourneysRequest(req, res) {
-  const adminUser = await requireAdmin(req, res);
-  if (!adminUser) return;
-  try {
-    const { status, body } = await handleBigQueryJourneys(req.body || {}, {
-      readSettings: () => readAdminSecret("googleAnalytics"),
-      allow: () => hitLimit(db, "bigquery-journeys", req, LIMITS.ga4),
-      credentials: () => metadataCredentials(fetch, BIGQUERY_SCOPE),
-      fetchImpl: fetch,
-      projectId: process.env.GCLOUD_PROJECT || admin.app().options.projectId || "",
-    });
-    res.status(status).json(body);
-  } catch (err) {
-    console.error("bigQueryJourneys failed:", err?.message || err);
-    res.status(500).json({ error: "BigQuery couldn't be read just now. Try again in a minute." });
-  }
-}
-
-// Overview › Start traffic counts again (admin): deletes the shop's own daily traffic counters, never orders.
-async function handleResetTrafficRequest(req, res) {
-  const adminUser = await requireAdmin(req, res);
-  if (!adminUser) return;
-  try {
-    const { status, body } = await handleTrafficReset(req.body || {}, { db, by: adminUser.email });
-    res.status(status).json(body);
-  } catch (err) {
-    console.error("resetTraffic failed:", err?.message || err);
-    res.status(500).json({ error: "The traffic counts couldn't be reset. Try again in a minute." });
-  }
-}
-
-/** Settings › General › Backups & export › Back up now (admin). Fits inside this endpoint's 60 s limit. */
 // Order detail › Put the books back in stock: a refund that left its books out (Restock items unticked).
 async function handleRestockRefunded(req, res) {
   const adminUser = await requireAdmin(req, res);
@@ -7330,6 +7221,7 @@ async function handleRestockRefunded(req, res) {
   }
 }
 
+/** Settings › General › Backups & export › Back up now (admin). Fits inside this endpoint's 60 s limit. */
 async function handleBackupNow(req, res) {
   const adminUser = await requireAdmin(req, res);
   if (!adminUser) return;

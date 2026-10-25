@@ -12,6 +12,13 @@ Server side: Stripe/PayPal, webhooks, refunds, stock holds, gift cards, discount
   return-page check and the wallet-domain button (no new public functions: the CI deploy account
   can't set IAM on them). Storefront card payment always uses the inline Payment Element;
   older saved redirect settings no longer move the shopper to hosted Checkout.
+- **Action table (25 October 2026):** `createStripeCheckoutSession` routes `body.action` through `CHECKOUT_FUNCTION_ACTIONS`
+  (own keys only, string actions only) before its checkout rate limit; payment creation, `createManualLocalOrder`,
+  `unsubscribe` and `completeFreeOrder` stay inline below the limit. The admin report actions (`backups`, `aiWrite`,
+  `ga4Report`, `searchConsole`, `bigQueryJourneys`, `resetTraffic`) live in `functions/adminReports.js`, which gets
+  `db`, `admin`, `requireAdmin`, `readAdminSecret`, `hitLimit` and `LIMITS` passed in rather than requiring them, so the
+  vm-based handler tests' fakes reach it. Add a new pre-limit action as one line in the table; move further groups the
+  same way (a module exporting a factory that takes index.js's guards).
 - `stripeWebhook` — the **only** path that marks Stripe orders paid; it also
   decrements stock, counts discount redemptions, and records revenue. Orders are
   created `unpaid` first.

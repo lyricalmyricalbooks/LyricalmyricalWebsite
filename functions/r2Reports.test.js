@@ -78,7 +78,7 @@ describe("#20 backups", () => {
     expect(job).toContain("runningSince");
     expect(block("exports.nightlyFirestoreBackup = onSchedule(", "async function handleBackupNow")).toContain('runFirestoreBackup({ trigger: "nightly"');
     expect(block("async function handleBackupNow(")).toContain("requireAdmin(req, res)");
-    expect(source).toContain('if (req.body?.action === "backupNow") return handleBackupNow(req, res);');
+    expect(source).toContain("  backupNow: handleBackupNow,");
   });
 });
 
