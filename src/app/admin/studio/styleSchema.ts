@@ -854,6 +854,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "cartDrawerProgressHeight", label: "Progress bar height", kind: "range", defaultValue: 6, min: 2, max: 12, step: 1, suffix: "px" },
       // Line items
       { key: "cartDrawerShowItemNumbers", label: "Number each line (01, 02 …)", kind: "toggle", defaultValue: true },
+      { key: "cartDrawerShowThumbs", label: "Show a photo beside each book in the bag", kind: "toggle", defaultValue: true },
       { key: "cartDrawerThumbWidth", label: "Book photo width", kind: "range", defaultValue: 72, min: 48, max: 128, step: 4, suffix: "px" },
       { key: "cartDrawerThumbOutline", label: "Outline book photos", kind: "toggle", defaultValue: true },
       { key: "cartDrawerGrayscaleThumbs", label: "Black & white book photos", kind: "toggle", defaultValue: false },
