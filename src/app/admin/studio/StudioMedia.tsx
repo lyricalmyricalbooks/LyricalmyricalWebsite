@@ -117,7 +117,7 @@ const FILTERS: { id: MediaFilter; label: string }[] = [
 type Names = Parameters<typeof usagePlaces>[2];
 /** `snapshots`: My themes and Version history entries that still hold the picture (restoring them brings it back). */
 type Usage = { draft: UsagePlace[]; liveOnly: UsagePlace[]; pages: { slug: string; title: string }[]; snapshots: string[] };
-const useCount = (u: Usage) => u.draft.length + u.liveOnly.length + u.pages.length + u.snapshots.length;
+const usageCount = (u: Usage) => u.draft.length + u.liveOnly.length + u.pages.length + u.snapshots.length;
 type Snapshots = {
   savedThemes: { name?: string; design?: any }[]; getVersions: () => Promise<{ label?: string; createdAt?: string; design?: any }[]>;
   /** Scheduled designs, campaign restore designs and unexpired share links (Delete checks them too). */
@@ -158,7 +158,7 @@ export function StudioMediaPanel({ lib, design, published, pages, names, savedTh
   const usageById = useMemo(() => new Map(lib.items.map(item => [item.id, usageOf(item)])), [lib.items, usageOf]);
   const isUsed = useCallback((item: MediaItem) => {
     const u = usageById.get(item.id) || usageOf(item);
-    return useCount(u) > 0;
+    return usageCount(u) > 0;
   }, [usageById, usageOf]);
   const counts = useMemo(() => Object.fromEntries(FILTERS.map(f => [f.id, filterMedia(lib.items, "", f.id, isUsed).length])), [lib.items, isUsed]);
   const visible = useMemo(() => filterMedia(lib.items, query, filter, isUsed), [lib.items, query, filter, isUsed]);
@@ -200,7 +200,7 @@ function MediaDetails({ item, usage, lib, onBack, savedThemes, getVersions, getS
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const replaceInput = useRef<HTMLInputElement>(null);
-  const used = useCount(usage);
+  const used = usageCount(usage);
 
   const act = async (label: string, run: () => Promise<void>) => {
     setBusy(label); setError("");
