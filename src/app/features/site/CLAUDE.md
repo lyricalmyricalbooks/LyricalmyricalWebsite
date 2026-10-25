@@ -96,6 +96,9 @@ Server totals and webhook-only Stripe-paid-order/inventory authority are unchang
 Checkout submission locks synchronously before asynchronous field validation,
 disables payment-method switches while processing, and retains the lock during
 provider navigation. Failed validation/service calls release it for correction.
+The flow itself (form → paying → confirming) is one pure reducer, `features/site/checkoutFlow.ts` (`checkoutFlow`,
+`confirmationView`, `readReturn`, tested in `checkoutFlow.test.ts`): add a new step or landing outcome there as an
+event, never as another `useState` flag in `Checkout.tsx`. Only the order record's `paid` confirms an order.
 Actual field display can be verified without submitting a payment; authenticated
 sandbox payment, webhook, refund and email verification remain separate.
 
