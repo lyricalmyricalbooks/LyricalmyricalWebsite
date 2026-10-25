@@ -88,3 +88,16 @@ test("a partial refund with nothing ticked never restocks; manual orders only re
   expect(app.docs.orders.A).toMatchObject({ paymentStatus: "paid", refundedAmountMinor: 500 });
   expect(app.docs.books.a.stockLevel).toBe(3);
 });
+
+test("a refund request in the wrong shape is refused before anything is touched (src/shared/orderActions.ts)", async () => {
+  const app = harness();
+  for (const body of [{ amountMinor: "20" }, { restock: "yes" }, { restockLines: "all" }, { orderId: "orders/A" }, { amountMinor: 20.5 }]) {
+    const res = await app.call(body);
+    expect(res.code, JSON.stringify(body)).toBe(400);
+    expect(res.body.code).toBe("bad_request");
+  }
+  expect(app.refunds).toEqual([]);
+  expect(app.docs.orders.A.paymentStatus).toBe("paid");
+  // What the admin sends today still works, extra keys included.
+  expect((await app.call({ reason: "Damaged", restock: false, amountMinor: null, restockLines: null, extra: 1 })).code).toBe(200);
+});

@@ -17,3 +17,14 @@ here once, as a TypeScript module, instead of a hand-kept mirror pair with a par
   `shippingGeo` and `weightGrams` moved first), discount maths, promotions, address rules.
 - `src/app/features/site/merchantFeed.mjs` keeps its own small copy of the pre-order date check because plain Node build
   scripts can't import TypeScript; `features/site/merchantFeed.test.ts` guards it.
+
+## Typed edges (requests and records)
+
+`edge.ts` is a small dependency-free schema kit (`string`, `number`, `boolean`, `oneOf`, `optional`, `nullable`, `array`,
+`object`, `check`, `Infer`): one schema both checks a value at the boundary and gives both sides its TypeScript type. Objects
+keep only the keys they list and ignore extras, so an older admin tab still works. `orderActions.ts` holds the first ones: the
+admin's refund (`refundOrderBody`) and cancel / payment-mismatch / restock actions (`orderActionBody`). The admin builds those
+bodies with `satisfies` on their types (`admin/api.ts`), and `functions/index.js` `readBody(req, res, schema)` refuses any other
+shape with 400 `bad_request` before touching the order. Friendly business checks (amount above zero, at most what is left)
+stay in the handlers. Next: the rest of the order and money actions, then one schema per Firestore collection for what
+browsers may write (mirroring `firestore.rules`).

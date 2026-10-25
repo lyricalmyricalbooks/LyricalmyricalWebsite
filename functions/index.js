@@ -69,6 +69,8 @@ const { handleTrafficReset } = require("./trafficReset");
 const { publicErrorMessage } = require("./publicErrors");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
 const { preorderActive, preorderLine, preorderEmailLines, releaseDateOf } = require("./shared/preorder");
+const { check: checkBody } = require("./shared/edge");
+const { orderActionBody, refundOrderBody } = require("./shared/orderActions");
 const digitalDelivery = require("./digitalDelivery");
 const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCount } = require("./emailThrottle");
 const { paypalCredentials } = require("./paypalCredentials");
@@ -139,6 +141,14 @@ function onBrowserRequest(...args) {
 
 // Verifies the Firebase ID token in the Authorization header and that it
 // belongs to an admin. Sends the error response itself; returns null on failure.
+// Checks a request body against its shared schema (src/shared/orderActions.ts): the parsed body, or null after a 400.
+function readBody(req, res, schema) {
+  const result = checkBody(schema, req.body);
+  if (result.ok) return result.value;
+  res.status(400).json({ error: `This request is missing or has the wrong ${result.error.path || "body"} (expected ${result.error.expected}).`, code: "bad_request" });
+  return null;
+}
+
 async function requireAdmin(req, res) {
   const match = (req.headers.authorization || "").match(/^Bearer (.+)$/);
   if (!match) {
@@ -2930,8 +2940,9 @@ async function recordStripeReconciliation(orderId, session) {
 async function handleCancelOrder(req, res) {
   const adminUser = await requireAdmin(req, res);
   if (!adminUser) return;
-  const orderId = req.body?.orderId;
-  if (typeof orderId !== "string" || !orderId || orderId.includes("/")) return res.status(400).json({ error: "Missing orderId" });
+  const body = readBody(req, res, orderActionBody);
+  if (!body) return;
+  const { orderId } = body;
   const ref = db.collection("orders").doc(orderId);
   try {
     // Ask Stripe first: an order still "unpaid" here may already be paid there (missed webhook).
@@ -3001,8 +3012,9 @@ async function handleCancelOrder(req, res) {
 async function handleResolveMismatch(req, res) {
   const adminUser = await requireAdmin(req, res);
   if (!adminUser) return;
-  const orderId = req.body?.orderId;
-  if (typeof orderId !== "string" || !orderId || orderId.includes("/")) return res.status(400).json({ error: "Missing orderId" });
+  const body = readBody(req, res, orderActionBody);
+  if (!body) return;
+  const { orderId } = body;
   const ref = db.collection("orders").doc(orderId);
   const snap = await ref.get();
   const current = snap.exists ? snap.data() : null;
@@ -3701,11 +3713,9 @@ exports.refundOrder = onBrowserRequest(
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
 
-    const { orderId, reason, restock = true, amountMinor = null, restockLines = null } = req.body || {};
-    if (!orderId || typeof orderId !== "string" || orderId.includes("/")) {
-      res.status(400).json({ error: "Missing orderId" });
-      return;
-    }
+    const body = readBody(req, res, refundOrderBody);
+    if (!body) return;
+    const { orderId, reason, restock = true, amountMinor = null, restockLines = null } = body;
 
     const orderRef = db.collection("orders").doc(orderId);
     const actor = adminUser.email || adminUser.uid;
@@ -7307,8 +7317,9 @@ async function handleResetTrafficRequest(req, res) {
 async function handleRestockRefunded(req, res) {
   const adminUser = await requireAdmin(req, res);
   if (!adminUser) return;
-  const orderId = req.body?.orderId;
-  if (typeof orderId !== "string" || !orderId || orderId.includes("/")) return res.status(400).json({ error: "Missing orderId" });
+  const body = readBody(req, res, orderActionBody);
+  if (!body) return;
+  const { orderId } = body;
   try {
     const result = await restockRefundedOrder(db, orderId, { actor: adminUser.email || adminUser.uid });
     res.status(200).json({ ok: true, ...result });
