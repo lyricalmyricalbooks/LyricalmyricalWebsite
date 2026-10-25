@@ -217,7 +217,7 @@ describe('#72 retention of server-only bookkeeping', () => {
   const indexes = JSON.parse(fs.readFileSync(path.join(here, '..', 'firestore.indexes.json'), 'utf8'));
   test('every throttle and event collection has a TTL on expiresAt', () => {
     const ttl = indexes.fieldOverrides.filter((o) => o.ttl === true && o.fieldPath === 'expiresAt').map((o) => o.collectionGroup).sort();
-    expect(ttl).toEqual(['abandoned-cart-throttle', 'contact-email-throttle', 'email-claims', 'payment-webhook-events', 'rate-limits']);
+    expect(ttl).toEqual(['abandoned-cart-throttle', 'clientErrors', 'contact-email-throttle', 'email-claims', 'payment-webhook-events', 'rate-limits']);
   });
   test('the writers stamp expiresAt', () => {
     expect(fs.readFileSync(path.join(here, 'rateLimit.js'), 'utf8')).toMatch(/expiresAt: new Date/);

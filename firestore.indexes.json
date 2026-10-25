@@ -181,6 +181,12 @@
       "indexes": []
     },
     {
+      "collectionGroup": "clientErrors",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
       "collectionGroup": "systemStatus",
       "fieldPath": "orders",
       "indexes": []

@@ -2088,6 +2088,17 @@ after it (`.fm-announce-countdown`, `translate="no"`) in its last hours, countin
 bars all show it; the clock starts after mount (never in the prerender) and ticks every 30 s. The single Announcement text has no end day,
 so no countdown. Words: Text & labels › Header (`announceEnds*`). Display only.
 
+## Shop errors (25 October 2026)
+
+Shopper-side crashes reach the admin. `src/app/lib/errorReport.ts` (`installErrorReporting`, first in `main.tsx`;
+`reportClientError` from the route `ErrorBoundary` and `SectionBoundary`) sends `validateDiscountCode`
+`{ action: "clientError", report }` only from a production build, never in the Studio preview, a frame, `/admin` or for
+`looksAutomated()`; noise (network/extension errors, cross-origin scripts) is dropped, at most 5 per page. The server
+(`functions/clientErrors.js`, `LIMITS.clientError`) scrubs emails, long numbers, queries and fragments and counts one
+admin-only `clientErrors/{signature}` per distinct error (≤100 new a Toronto day, `systemStatus/clientErrorBudget`;
+TTL 30 days on `expiresAt`). Admin: Settings › General › Tools & records › **Shop errors** (`ShopErrorsCard.tsx`) and the
+`shop-errors` alert (`shopErrors.ts`, errors seen in the last day). Deploy rules, indexes and Functions with the frontend.
+
 ## Payment-integrity audit fixes (9 October 2026)
 
 - **Exact card amount:** `StripeCardForm` exposes `setAmount(minor, currency)` / `releaseAmount()`. Checkout pins the

@@ -12,6 +12,7 @@ import { Login } from "./Login";
 import { BookCatalog } from "./BookCatalog";
 import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
 import { AdminAlerts } from "./AdminAlerts.tsx";
+import { shopErrorAlert, shopErrorRows } from "./shopErrors";
 import { backupAlert, buildAdminAlerts, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { inventoryLinkView, setInventoryLink } from "./appSwitch";
@@ -167,14 +168,15 @@ export function Dashboard() {
   const [searchCustomerQuery, setSearchCustomerQuery] = useState<string | undefined>(undefined);
   // What the last check read besides the orders (Stripe webhook, email log, backup, inventory link), so opening or
   // closing an order re-counts the badge and alerts from memory without reading any of it again.
-  const alertInputs = useRef<{ webhook: any; emailLog: any[]; backup: any; linkState: any; failedParts: string[] } | null>(null);
+  const alertInputs = useRef<{ webhook: any; emailLog: any[]; backup: any; linkState: any; shopErrors: any[]; failedParts: string[] } | null>(null);
   const showAlerts = (data: any[]) => {
     const inputs = alertInputs.current;
     if (!inputs) return;
     setOrdersBadge(ordersNeedingWork(data));
     const backupNote = backupAlert(inputs.backup);
     const note = checkFailedAlert(inputs.failedParts);
-    setAlerts([...buildAdminAlerts(data, inputs.webhook, Date.now(), inputs.emailLog), ...inventoryLinkAlerts(inputs.linkState), ...(backupNote ? [backupNote] : []), ...(note ? [note] : [])]);
+    const errorsNote = shopErrorAlert(shopErrorRows(inputs.shopErrors));
+    setAlerts([...buildAdminAlerts(data, inputs.webhook, Date.now(), inputs.emailLog), ...inventoryLinkAlerts(inputs.linkState), ...(backupNote ? [backupNote] : []), ...(errorsNote ? [errorsNote] : []), ...(note ? [note] : [])]);
   };
   useEffect(() => {
     if (!user) return;
@@ -189,14 +191,15 @@ export function Dashboard() {
       return getOrdersCached({ maxAgeMs })
         .then(async (data) => {
           const failedParts: string[] = [];
-          const [webhook, emailLog, backup, linkState] = await Promise.all([
+          const [webhook, emailLog, backup, linkState, shopErrors] = await Promise.all([
             adminApi.getStripeWebhookStatus({ strict: true }).catch(() => { failedParts.push("the Stripe webhook status"); return null; }),
             adminApi.getRecentEmailLog(50).catch(() => { failedParts.push("the email log"); return []; }),
             adminApi.getBackupStatus().catch(() => { failedParts.push("the backup status"); return undefined; }),
             inventoryLinkApi.state().catch(() => { failedParts.push("the inventory app link"); return null; }),
+            adminApi.getClientErrors(20).catch(() => []),
           ]);
           if (!alive) return;
-          alertInputs.current = { webhook, emailLog, backup, linkState, failedParts };
+          alertInputs.current = { webhook, emailLog, backup, linkState, shopErrors, failedParts };
           // The switcher's count; an unreadable link state keeps the last count rather than inventing one.
           if (linkState) setInventoryLink(inventoryLinkView(linkState));
           showAlerts(data);
