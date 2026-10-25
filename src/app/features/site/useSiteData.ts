@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { publicApi } from "../../lib/publicApi";
 import { funnelApi } from "../../lib/commerce";
 import { DEFAULT_SETTINGS } from "./constants";
+import { subscribePreview } from "./previewTab";
 import { readSiteCache, writeSiteCache, SITE_CACHE_EVENT } from "./siteCache";
 import type { Book, SiteSettings, Page } from "./types";
 import { RISO_NOIR_TOKENS, withRisoNoirDefault } from "./risoNoir";
@@ -175,28 +176,6 @@ export function useSiteData() {
       if (event.origin && (event.origin !== window.location.origin || (window.parent !== window && event.source !== window.parent))) return;
       if (!event.data) return;
 
-      if (event.data.type === "STUDIO_PREVIEW_STATE") {
-        const preview = event.data;
-        (window as any).__studioPreviewState = {
-          settings: preview.settings,
-          books: Array.isArray(preview.books) ? preview.books : undefined,
-          pages: Array.isArray(preview.pages) ? preview.pages : undefined,
-        };
-        if (preview.design && typeof preview.design === "object") {
-          (window as any).__studioPreviewDesign = preview.design;
-          setSettings((prev) => ({ ...prev, ...(preview.settings || {}), design: preview.design }));
-        }
-        if (Array.isArray(preview.books)) setBooks(preview.books);
-        if (Array.isArray(preview.pages)) setPages(preview.pages);
-        setLoading(false);
-      } else if (event.data.type === "THEME_UPDATE" && event.data.design && typeof event.data.design === "object") {
-        (window as any).__studioPreviewDesign = event.data.design;
-        setSettings((prev) => ({
-          ...prev,
-          design: event.data.design
-        }));
-      }
-
       if (event.data.type === "BOOK_PREVIEW_UPDATE" && event.data.book) {
         setBooks((prev) => {
           const updatedBook = event.data.book;
@@ -213,6 +192,17 @@ export function useSiteData() {
     };
 
     window.addEventListener("message", handleMessage);
+    // Studio's unsaved snapshot (previewTab.ts keeps it on window for pages that mount later).
+    const stopPreview = subscribePreview((preview) => {
+      if (preview.type === "STUDIO_PREVIEW_STATE") {
+        setSettings((prev) => ({ ...prev, ...(preview.settings || {}), design: preview.design }));
+        if (preview.books) setBooks(preview.books);
+        if (preview.pages) setPages(preview.pages);
+        setLoading(false);
+      } else {
+        setSettings((prev) => ({ ...prev, design: preview.design }));
+      }
+    });
 
     // BroadcastChannel for cross-tab updates. Preview only (shoppers never need it), and guarded
     // because some browsers have no BroadcastChannel — a throw here would take down the whole page.
@@ -230,6 +220,7 @@ export function useSiteData() {
 
     return () => {
       cancelled = true;
+      stopPreview();
       window.removeEventListener("message", handleMessage);
       try { bc?.close(); } catch { /* already closed */ }
     };
@@ -299,17 +290,10 @@ export function useLiveDesign(): Record<string, any> {
   }, []);
   useEffect(() => {
     if (!isPreviewUrl()) return;
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || (window.parent !== window && event.source !== window.parent)) return;
-      const d = event.data;
-      if ((d?.type === "STUDIO_PREVIEW_STATE" || d?.type === "THEME_UPDATE") && d.design && typeof d.design === "object") {
-        setDesign(withRisoNoirDefault(d.design) || d.design);
-      }
-    };
-    window.addEventListener("message", onMessage);
+    const stop = subscribePreview((preview) => setDesign(withRisoNoirDefault(preview.design) || preview.design));
     // A snapshot that arrived between the first render and this effect is already on window.
     setDesign(readCachedDesign());
-    return () => window.removeEventListener("message", onMessage);
+    return stop;
   }, []);
   return design;
 }

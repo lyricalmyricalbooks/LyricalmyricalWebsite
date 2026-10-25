@@ -6,6 +6,7 @@ import { catalogStateInUrlOn, catalogUrlSearch, readCatalogUrl } from "../featur
 import { inEditorPreview } from "../lib/trackingGuard";
 import { Link, useNavigate, useLocation, useParams } from "react-router";
 import { CATEGORIES, placeholderImage, DEFAULT_SOCIAL } from "../features/site/constants";
+import { subscribePreview } from "../features/site/previewTab";
 import { aspectRatioValue } from "../features/site/imageAspect";
 import {
   getFeaturedBooks,
@@ -226,34 +227,12 @@ function useThemePreview(initialDesign: any) {
   const isPreview = window.location.search.includes("preview=true");
 
   useEffect(() => {
-    // 1. Listen for iframe messages (legacy/standard)
-    const handleMessage = (event: MessageEvent) => {
-      if (!isPreview || event.origin !== window.location.origin || (window.parent !== window && event.source !== window.parent)) return;
-      if (event.data && (event.data.type === "THEME_UPDATE" || event.data.type === "STUDIO_PREVIEW_STATE")) {
-        setDesignOverride(event.data.design);
-
-      }
-    };
-
-    // 2. Listen for BroadcastChannel (cross-tab sync)
-    // Preview only — otherwise a draft could leak into the admin's own normal storefront tabs.
-    let bc: BroadcastChannel | null = null;
-    try {
-      if (isPreview) bc = new BroadcastChannel("site_preview_updates");
-      if (bc) bc.onmessage = (event) => {
-        if (event.data && event.data.type === "THEME_UPDATE") {
-          setDesignOverride(event.data.design);
-        }
-      };
-    } catch (_) {}
-
-    window.addEventListener("message", handleMessage);
-    if (isPreview) window.parent.postMessage({ type: "PREVIEW_READY" }, window.location.origin);
-
-    return () => {
-      window.removeEventListener("message", handleMessage);
-      bc?.close();
-    };
+    // Studio's unsaved design (one shared listener, previewTab.ts). Nothing posts THEME_UPDATE on the old
+    // "site_preview_updates" channel any more (the book editor sends BOOK_PREVIEW_UPDATE there, read by useSiteData).
+    if (!isPreview) return;
+    const stopPreview = subscribePreview((preview) => setDesignOverride(preview.design));
+    window.parent.postMessage({ type: "PREVIEW_READY" }, window.location.origin);
+    return stopPreview;
   }, [isPreview]);
 
   return designOverride || initialDesign;

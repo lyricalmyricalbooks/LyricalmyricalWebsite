@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getCopy } from "./storeCopy";
 import { useLiveDesign } from "./useSiteData";
-import { isPreviewTab, studioDraftStatus, type StudioDraftStatus } from "./previewTab";
+import { isPreviewTab, studioDraftStatus, subscribePreview, type StudioDraftStatus } from "./previewTab";
 
 /** How long the tab waits for Studio's first snapshot before saying it shows the live shop. */
 export const STUDIO_ANSWER_MS = 4000;
@@ -28,13 +28,9 @@ export function DraftPreviewBanner() {
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
     if (!tab) return;
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.data?.type !== "STUDIO_PREVIEW_STATE") return;
-      setStatus(studioDraftStatus());
-    };
-    window.addEventListener("message", onMessage);
+    const stop = subscribePreview((preview) => { if (preview.type === "STUDIO_PREVIEW_STATE") setStatus(studioDraftStatus()); });
     const timer = window.setTimeout(() => setWaited(true), STUDIO_ANSWER_MS);
-    return () => { window.removeEventListener("message", onMessage); window.clearTimeout(timer); };
+    return () => { stop(); window.clearTimeout(timer); };
   }, [tab]);
   // Only a tab Studio opened (it has an opener) says "Studio isn't open": a visitor who typed ?preview=true sees nothing.
   const fromStudio = tab && (() => { try { return Boolean(window.opener); } catch { return false; } })();

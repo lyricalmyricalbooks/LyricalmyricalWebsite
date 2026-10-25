@@ -44,6 +44,65 @@ function keepPreviewParam(win: Win) {
   });
 }
 
+/** One Studio message the preview accepted: the full snapshot (STUDIO_PREVIEW_STATE) or a design-only update (THEME_UPDATE). */
+export type PreviewMessage = {
+  type: "STUDIO_PREVIEW_STATE" | "THEME_UPDATE";
+  design: Record<string, any>;
+  /** STUDIO_PREVIEW_STATE only. */
+  settings?: Record<string, any>;
+  books?: any[];
+  pages?: any[];
+  status?: StudioDraftStatus;
+};
+type PreviewListener = (message: PreviewMessage) => void;
+
+const listeners = new Set<PreviewListener>();
+const installed = new WeakSet<object>();
+let latest: PreviewMessage | null = null;
+
+const previewUrl = (win: Window) => {
+  try { return new URLSearchParams(win.location.search).get("preview") === "true"; } catch { return false; }
+};
+
+/**
+ * The one check every preview receiver shares: a same-origin message from the window that hosts this preview
+ * (Studio's frame parent, or this tab itself when previewTab re-dispatches the BroadcastChannel copy), carrying a design.
+ */
+export function readPreviewMessage(event: MessageEvent, win: Window = window): PreviewMessage | null {
+  if (!previewUrl(win) || event.origin !== win.location.origin || event.source !== win.parent) return null;
+  const data = event.data;
+  if (!data || (data.type !== "STUDIO_PREVIEW_STATE" && data.type !== "THEME_UPDATE") || !data.design || typeof data.design !== "object") return null;
+  if (data.type === "THEME_UPDATE") return { type: data.type, design: data.design };
+  return {
+    type: data.type,
+    design: data.design,
+    settings: data.settings,
+    books: Array.isArray(data.books) ? data.books : undefined,
+    pages: Array.isArray(data.pages) ? data.pages : undefined,
+    status: DRAFT_STATUSES.includes(data.studioStatus) ? data.studioStatus : undefined,
+  };
+}
+
+function listen(win: Win): () => void {
+  if (installed.has(win)) return () => {};
+  installed.add(win);
+  const onMessage = (event: MessageEvent) => {
+    const message = readPreviewMessage(event, win);
+    if (!message) return;
+    if (message.type === "STUDIO_PREVIEW_STATE") {
+      (win as any).__studioPreviewState = { settings: message.settings, books: message.books, pages: message.pages };
+    }
+    win.__studioPreviewDesign = message.design;
+    if (win === (globalThis as any).window) {
+      latest = message;
+      listeners.forEach((fn) => fn(message));
+    }
+  };
+  // Capture phase on window: runs before any component's own listener, so stored state is never behind.
+  win.addEventListener("message", onMessage, true);
+  return () => { win.removeEventListener("message", onMessage, true); installed.delete(win); };
+}
+
 /**
  * Studio preview (iframe or new tab): remember the newest snapshot from the very first message, before
  * React has mounted anything. Lazy pages (product, custom page, tracking, 404…) mount after the iframe's
@@ -51,28 +110,24 @@ function keepPreviewParam(win: Win) {
  * so without this they showed the published design until the next edit. Returns a cleanup function.
  */
 export function rememberPreviewSnapshot(win: Win = window as Win): () => void {
-  let preview = false;
-  try { preview = new URLSearchParams(win.location.search).get("preview") === "true"; } catch { /* no location */ }
-  if (!preview) return () => {};
-  const origin = win.location.origin;
-  const onMessage = (event: MessageEvent) => {
-    if (event.origin !== origin || event.source !== win.parent) return;
-    const data = event.data;
-    if (!data || !data.design || typeof data.design !== "object") return;
-    if (data.type === "STUDIO_PREVIEW_STATE") {
-      (win as any).__studioPreviewState = {
-        settings: data.settings,
-        books: Array.isArray(data.books) ? data.books : undefined,
-        pages: Array.isArray(data.pages) ? data.pages : undefined,
-      };
-      win.__studioPreviewDesign = data.design;
-    } else if (data.type === "THEME_UPDATE") {
-      win.__studioPreviewDesign = data.design;
-    }
-  };
-  // Capture phase on window: runs before any component's listener reads the stored snapshot.
-  win.addEventListener("message", onMessage, true);
-  return () => win.removeEventListener("message", onMessage, true);
+  if (!previewUrl(win)) return () => {};
+  return listen(win);
+}
+
+/**
+ * Every storefront part that follows Studio's unsaved design subscribes here instead of adding its own
+ * `message` listener (one origin/sender check, one copy of the snapshot). The listener runs for each accepted
+ * snapshot or design update; returns an unsubscribe function. Shoppers never receive anything.
+ */
+export function subscribePreview(fn: PreviewListener): () => void {
+  if (typeof window !== "undefined") listen(window as Win);
+  listeners.add(fn);
+  return () => { listeners.delete(fn); };
+}
+
+/** The newest accepted Studio message in this window, or null. */
+export function latestPreview(): PreviewMessage | null {
+  return latest;
 }
 
 /** Returns a cleanup function (used by tests); a no-op outside a preview tab. */

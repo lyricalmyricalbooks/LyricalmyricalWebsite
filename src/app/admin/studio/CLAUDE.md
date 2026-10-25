@@ -59,7 +59,9 @@ snapshot clone-safe (`toCloneable` strips `_lastDoc` Firestore snapshots — the
 `postMessage` throw `DataCloneError` and silently froze the preview once books loaded).
 In preview, `useSiteData` keeps the snapshot's books/pages/settings on `window.__studioPreviewState`
 so a late Firestore load never overwrites them; chrome outside that pipeline (cookie banner,
-boot splash) uses `useLiveDesign()`. **Preview in new tab** (Studio top bar) opens a full-screen
+boot splash) uses `useLiveDesign()` (every storefront receiver follows Studio through `subscribePreview` in
+`features/site/previewTab.ts`, which checks origin and sender once; never add another `message` listener for
+`STUDIO_PREVIEW_STATE`/`THEME_UPDATE`, `previewSubscribe.test.ts` fails). **Preview in new tab** (Studio top bar) opens a full-screen
 top-level `?preview=true` window: Studio posts the same snapshot on `BroadcastChannel("studio_preview")`
 and `features/site/previewTab.ts` (started in `main.tsx`) re-dispatches it as a window message, answers
 `PREVIEW_READY`, and keeps `?preview=true` on in-app navigation. Unsaved Studio › Pages edits ride
