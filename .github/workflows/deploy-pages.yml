@@ -55,7 +55,7 @@ jobs:
             echo "superseded=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # Deploy order contract (CLAUDE.md): Firestore rules, indexes and Functions go live BEFORE the frontend that
+  # Deploy order contract (.github/CLAUDE.md): Firestore rules, indexes and Functions go live BEFORE the frontend that
   # depends on them. When this push also changed a path deploy-firebase.yml watches, wait for that run and
   # require it to succeed. Scheduled and manual builds change no backend files, so they pass straight through.
   # It runs alongside build-hosting (building publishes nothing); only deploy-hosting waits for it.

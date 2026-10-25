@@ -219,7 +219,7 @@ jobs:
   studio-controls-shard:
     # Changes every Studio control in the fixture's preview of the live design and fails when one that used to
     # change the page no longer does, or a new control has no entry in scripts/studio-control-baseline/ (one file per control)
-    # (CLAUDE.md › Studio controls must reach the shop). Each machine checks every fourth control.
+    # (src/app/admin/studio/CLAUDE.md › Studio controls must reach the shop). Each machine checks every fourth control.
     name: studio-controls ${{ matrix.shard }}/4
     needs: changes
     if: needs.changes.outputs.studio == 'true'
