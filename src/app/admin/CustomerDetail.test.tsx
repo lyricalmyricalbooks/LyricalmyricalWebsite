@@ -52,3 +52,15 @@ describe("Customer window sub tabs", () => {
     expect(html).toMatch(/disabled[^>]*>Save note|<button[^>]*disabled[^>]*>Save note/);
   });
 });
+
+describe("Customer notes shortcuts", () => {
+  it("offers tags used on other customers that this one doesn't have yet", () => {
+    const html = renderToStaticMarkup(
+      <CustomerDetail customer={customer} tab="cust-notes" onTab={() => {}} draft={{ note: "", tags: "author", loaded: true }} onDraft={() => {}}
+        notesState="ok" onRetryNotes={() => {}} savingNote={false} onSaveNote={() => {}} knownTags={["Author", "wholesale"]} onOpenOrder={() => {}} />,
+    );
+    expect(html).toContain("+ wholesale");
+    expect(html).not.toContain("+ Author");
+    expect(html).toContain("Ctrl (or ⌘) + Enter saves");
+  });
+});
