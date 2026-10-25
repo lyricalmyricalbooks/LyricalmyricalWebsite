@@ -171,3 +171,54 @@ describe("admin: Add to the shop", () => {
     expect(stateOf(db).ignoredAppBooks).toEqual({});
   });
 });
+
+describe("review fixes", () => {
+  test("a book linked from the app waits for its past sales before stock follows the app", async () => {
+    const db = fakeDb({
+      "systemStatus/inventoryLink": { links: { b1: { _: "hound" } }, connection: { ok: true }, startDay: "2026-10-01",
+        backfill: { done: true }, autoSync: true, lastCatchUpAt: "2026-10-25T14:55:00Z", lastStockAt: "2026-10-25T14:00:00Z" },
+      "books/b1": { title: "The Hound", trackInventory: true, stockLevel: 5 },
+      "books/b2": { title: "Moth Hours", trackInventory: true, stockLevel: 5 },
+    });
+    const store = fakeStore();
+    store.catalog = [{ id: "hound", title: "The Hound" }, { id: "zine", title: "Zine" }];
+    store.feeds = { hound: { base: 5, onHand: 5 }, zine: { base: 8, onHand: 8 } };
+    store.appDoc = { linkRequests: { "b2|": { inventoryBookId: "zine" } } };
+    const out = await jobs.runSweep(deps(db, store));
+    expect(out.stock).toEqual({ catchingUp: true });
+    expect(db.docs["books/b2"].data.stockLevel).toBe(5);
+    expect(stateOf(db).relinkPending).toBe(true);
+  });
+  test("an answered request is never applied again, even a month after the owner unmatched the book", async () => {
+    const db = fakeDb({ "systemStatus/inventoryLink": { ...STATE }, "books/b1": { title: "The Hound" }, "books/b2": { title: "Moth Hours" } });
+    const store = fakeStore();
+    store.catalog = [{ id: "hound", title: "The Hound" }, { id: "zine", title: "Zine" }];
+    store.appDoc = { linkRequests: { "b2|": { inventoryBookId: "zine", at: "2026-10-25T14:00:00Z" } } };
+    await jobs.runSweep(deps(db, store));
+    expect(stateOf(db).links.b2).toEqual({ _: "zine" });
+    db.docs["systemStatus/inventoryLink"].data.links = { b1: { _: "hound" } };
+    now = new Date(now.getTime() + 31 * 24 * 3600 * 1000);
+    await jobs.runSweep(deps(db, store));
+    expect(stateOf(db).links.b2).toBeUndefined();
+    // Once the app drops the request, the answer goes after 30 days.
+    store.appDoc = {};
+    now = new Date(now.getTime() + 31 * 24 * 3600 * 1000);
+    await jobs.runSweep(deps(db, store));
+    expect(stateOf(db).appLinkReplies["b2|"]).toBeUndefined();
+  });
+  test("the website's own items never come back as the app's, and old covers still reach the app", () => {
+    expect(link.cleanAppTodo({ at: "x", items: [{ id: "stock-held", title: "Stock waits on the website" }, { id: "needs-you", title: "2 need you" }] }).items.map(i => i.id)).toEqual(["needs-you"]);
+    expect(link.smallCover({ photos: ["https://x/old.jpg"] })).toBe("https://x/old.jpg");
+    expect(link.smallCover({ coverImage: "https://x/cover.jpg" })).toBe("https://x/cover.jpg");
+  });
+  test("Save matches refuses when a match arrived from the app in the meantime", async () => {
+    const db = fakeDb({ "systemStatus/inventoryLink": { ...STATE }, "books/b1": { title: "The Hound" }, "books/b2": { title: "Moth Hours" } });
+    const store = fakeStore();
+    store.catalog = APP;
+    const read = store.readCatalog;
+    store.readCatalog = async () => { db.docs["systemStatus/inventoryLink"].data.links = { b1: { _: "hound" }, b2: { _: "zine" } }; return read(); };
+    const res = await inventoryLinkAdmin(deps(db, store), { op: "saveLinks", links: { b1: { _: "hound" }, b4: { _: "altrove" } } });
+    expect(res.status).toBe(409);
+    expect(stateOf(db).links.b2).toEqual({ _: "zine" });
+  });
+});

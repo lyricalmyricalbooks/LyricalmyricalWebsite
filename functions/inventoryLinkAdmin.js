@@ -1,7 +1,7 @@
 // Inventory › Inventory app link (admin): what each button asks the server to do. index.js checks the
 // admin's sign-in (requireAdmin) and passes `deps` (see inventoryLinkJobs.js) plus the store's
 // checkConnection/readCatalog/serviceAccountEmail. Returns { status, body } for the HTTP answer.
-const { validateLinks, paidDayOf, linkedEditions, openMatches, linkableEditions } = require("./inventoryLink");
+const { validateLinks, paidDayOf, linkedEditions, openMatches, linkableEditions, stable } = require("./inventoryLink");
 const { readState, runSweep, REHEARSAL_MS, STATE_DOC } = require("./inventoryLinkJobs");
 const { shopDate } = require("./paymentGuards");
 
@@ -9,7 +9,7 @@ const ok = body => ({ status: 200, body });
 const bad = (error, status = 400) => ({ status, body: { error } });
 const PUBLIC_STATE_KEYS = ["links", "startDay", "autoSync", "rehearsalUntil", "firstApplyAt", "backfill", "connection",
   "lastSync", "lastStockAt", "lastRunAt", "lastPush", "pendingImport", "app", "lastError", "relinkPending", "shipmentError", "pendingError", "shipmentIssues", "newMatches", "ignoredMatches",
-  "appOnlyBooks", "ignoredAppBooks"];
+  "appOnlyBooks", "ignoredAppBooks", "linkRequestError", "shopCatalogError", "websiteSideError"];
 
 async function counts(db) {
   const count = async query => { try { return (await query.count().get()).data().count; } catch { return null; } };
@@ -87,8 +87,16 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
     // Suggestions for editions (or inventory app books) matched now are done with; unmatching all clears them.
     const newMatches = trimmedMatches(state, links);
     const patch = { links, linksSavedAt: now.toISOString(), linksSavedBy: actor, ...(relink ? { relinkPending: true, relinkCursor: null } : {}), ...(newMatches ? { newMatches } : {}) };
-    // set() with merge replaces nested maps key by key; write `links` whole so a removed link is gone.
-    await ref.update(patch).catch(async () => { await ref.set(patch, { merge: true }); });
+    // In one transaction with a check that nobody (the sweep's "Add to the app", another tab) changed the matches
+    // since this save read them; `links` is written whole so a removed link is gone.
+    const moved = await db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      const fresh = snap.exists ? snap.data() : {};
+      if (stable(fresh.links || {}) !== stable(state.links || {})) return true;
+      if (snap.exists) tx.update(ref, patch); else tx.set(ref, patch, { merge: true });
+      return false;
+    });
+    if (moved) return bad("The matches changed while you were saving (a book was matched from the inventory app). Reload the page and save again.", 409);
     return ok({ links, errors });
   }
 
