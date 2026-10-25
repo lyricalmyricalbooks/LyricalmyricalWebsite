@@ -5,7 +5,8 @@ import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import type { InventoryAppBook, InventoryLinks, StockRow } from "./inventoryLink";
 
-export type LinkOp = "status" | "check" | "catalog" | "saveLinks" | "acceptMatches" | "ignoreMatches" | "setOptions" | "startSales" | "preview" | "apply" | "syncNow";
+export type LinkOp = "status" | "check" | "catalog" | "saveLinks" | "acceptMatches" | "ignoreMatches" | "setOptions" | "startSales" | "preview" | "apply" | "syncNow"
+  | "linkNewBook" | "ignoreAppBooks" | "unignoreAppBooks";
 
 export interface LinkStatus {
   state: any; undelivered: number | null; unlinkedOrders: number | null; earliestPaidDay: string | null;
@@ -38,6 +39,11 @@ export const inventoryLinkApi = {
   preview: () => call<{ run: any; stock: StockPreview | null }>("preview"),
   apply: (confirmHash: string) => call<{ run: any; stock: StockPreview | null }>("apply", { confirmHash }),
   syncNow: () => call<{ run: any; stock: StockPreview | null }>("syncNow"),
+  /** "Add to the shop": match a just-saved website book to the inventory app book it was made from. */
+  linkNewBook: (bookId: string, inventoryBookId: string, variantId: string | null = null) =>
+    call<{ links: InventoryLinks; already: boolean }>("linkNewBook", { bookId, inventoryBookId, ...(variantId ? { variantId } : {}) }),
+  ignoreAppBooks: (ids: string[]) => call<{ ignoredAppBooks: Record<string, string> }>("ignoreAppBooks", { ids }),
+  unignoreAppBooks: (ids: string[]) => call<{ ignoredAppBooks: Record<string, string> }>("unignoreAppBooks", { ids }),
   /** The links alone, for the stock guards (Inventory page, book editor). {} when not set up. */
   links: async (): Promise<InventoryLinks> => {
     const snap = await getDoc(doc(db, "systemStatus", "inventoryLink"));

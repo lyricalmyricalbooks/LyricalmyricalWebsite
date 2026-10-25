@@ -132,6 +132,10 @@ interface BookEditorProps {
   onClose: () => void;
   /** `stayOpen`: the owner pressed Save (not Save & close) — refresh lists but keep the editor open. */
   onSave: (opts?: { stayOpen?: boolean }) => void;
+  /** A new book only: fields to start from (e.g. "Add to the shop" from an inventory app book). */
+  prefill?: Record<string, any> | null;
+  /** A new book only: called once with its id after the first save creates it. */
+  onCreated?: (id: string) => void;
 }
 
 const DESC_TOOLS: { action: FormatAction; label: string; Icon: typeof Bold }[] = [
@@ -145,7 +149,7 @@ const DESC_TOOLS: { action: FormatAction; label: string; Icon: typeof Bold }[] =
   { action: "divider", label: "Divider line", Icon: Minus },
 ];
 
-export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps) {
+export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, onCreated }: BookEditorProps) {
   const { rates } = useCurrency();
   // The record being edited: the opened book, or the new one once a first Save has created it.
   const [book, setBook] = useState<Book | null>(bookProp);
@@ -360,6 +364,8 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
     } else {
       // Set initial data for new books to current empty formData state
       setInitialData(JSON.parse(JSON.stringify(formData)));
+      // Filled-in starting values count as unsaved edits until the owner saves.
+      if (prefill) setFormData((prev: any) => ({ ...prev, ...JSON.parse(JSON.stringify(prefill)) }));
     }
   }, [bookProp]);
 
@@ -612,6 +618,7 @@ export function BookEditor({ book: bookProp, onClose, onSave }: BookEditorProps)
       } else {
         const created = await adminApi.createBook(toSave);
         toast.success("New title added to library");
+        onCreated?.(created.id);
         // Further saves update this record instead of creating another copy.
         setBook({ ...toSave, id: created.id } as any);
       }

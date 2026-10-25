@@ -263,9 +263,10 @@ test("stockPatch matches the admin's planStockChange shape", () => {
 
 test("projectInventoryCatalog passes only safe fields", () => {
   const doc = { data: JSON.stringify({
-    hound: { id: "hound", title: "The Hound", author: "A", isbn: "—", maxPrint: 300, currency: "CA$", authorPassword: "secret", paymentLink: "https://x" },
+    hound: { id: "hound", title: "The Hound", author: "A", isbn: "—", maxPrint: 300, listPrice: 65, currency: "CA$", authorPassword: "secret", paymentLink: "https://x", productionCost: 15000 },
     _deletedDefaults: ["x"], _posExtra: { pos1: { id: "pos1" } },
   }) };
-  expect(projectInventoryCatalog(doc)).toEqual([{ id: "hound", title: "The Hound", author: "A", isbn: "", currency: "CA$", maxPrint: 300 }]);
+  // The list price is the book's public shop price ("Add to the shop" fills it in); costs and passwords never pass.
+  expect(projectInventoryCatalog(doc)).toEqual([{ id: "hound", title: "The Hound", author: "A", isbn: "", currency: "CA$", maxPrint: 300, price: 65 }]);
   expect(projectInventoryCatalog({ data: "not json" })).toEqual([]);
 });

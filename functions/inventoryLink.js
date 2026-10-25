@@ -474,13 +474,150 @@ function projectInventoryCatalog(doc) {
       id, title: text(book.title, 200) || id, author: text(book.author, 200),
       isbn: text(book.isbn, 40).replace(/^—$/, ""), currency: text(book.currency, 8),
       maxPrint: Number.isFinite(Number(book.maxPrint)) ? Number(book.maxPrint) : null,
+      price: Number(book.listPrice) > 0 ? Math.round(Number(book.listPrice) * 100) / 100 : null,
     });
   }
   return out.sort((a, b) => a.title.localeCompare(b.title));
+}
+
+/* ── One to-do list and new books (docs/INVENTORY_LINK.md › One to-do list and new books) ── */
+
+const MAX_SHOP_BOOKS = 200;
+const MAX_APP_ONLY = 100;
+const MAX_TODO = 10;
+const REPLY_KEEP_MS = 30 * 24 * 60 * 60 * 1000;
+
+const positivePrice = value => (Number(value) > 0 ? Math.round(Number(value) * 100) / 100 : null);
+const usedInventoryIds = links => new Set(Object.values(links || {}).flatMap(e => Object.values(e || {})));
+
+/** A small https copy of a book's first photo for the app's list ("" when none). */
+function smallCover(book) {
+  const photo = Array.isArray(book?.photos) ? book.photos.find(p => p && !p.videoUrl) : null;
+  if (!photo) return "";
+  const copies = String(photo.srcset || "").split(",").map(part => {
+    const [url, width] = part.trim().split(/\s+/);
+    return { url, width: parseInt(width, 10) || 0 };
+  }).filter(c => /^https:\/\//.test(c.url || "") && c.width > 0).sort((a, b) => a.width - b.width);
+  const url = (copies.find(c => c.width >= 240) || copies[copies.length - 1] || {}).url || photo.url || "";
+  return /^https:\/\//.test(url) ? text(url, 1000) : "";
+}
+
+const bookState = (book, now = Date.now()) => {
+  if (book?.status === "draft") return "draft";
+  const at = Date.parse(book?.scheduleDate || "");
+  return Number.isFinite(at) && at > now ? "scheduled" : "published";
+};
+
+/** Live match suggestions (pairs the owner hasn't said "Not these" to), by edition key. */
+function liveSuggestions(editions, appBooks, links, ignoredMatches = {}) {
+  const all = suggestLinks(editions, appBooks, links);
+  return Object.fromEntries(Object.entries(all).filter(([key, id]) => ignoredMatches?.[key] !== id));
+}
+
+/**
+ * Printed website editions the inventory app doesn't have: not matched, not archived, not a match suggestion
+ * (those are offered as matches instead) and not dismissed in the app. `websiteLink/catalog.books`.
+ */
+function shopBooksForApp(books, appBooks, links, { ignoredMatches = {}, dismissed = {}, now = Date.now() } = {}) {
+  const editions = linkableEditions(books).filter(e => !e.archived);
+  const suggested = liveSuggestions(editions, appBooks, links, ignoredMatches);
+  const byId = new Map((books || []).map(b => [b.id, b]));
+  return editions
+    .filter(e => !linkFor(links, e.bookId, e.variantId) && !suggested[e.key] && !(dismissed && dismissed[e.key]))
+    .slice(0, MAX_SHOP_BOOKS)
+    .map(e => {
+      const book = byId.get(e.bookId) || {};
+      const variant = e.variantId ? (book.variants || []).find(v => v && v.id === e.variantId) : null;
+      return {
+        key: e.key, bookId: e.bookId, variantId: e.variantId, title: text(e.title, 200), edition: text(e.edition, 100),
+        author: text(book.subtitle || book.authorName, 200), isbn: text(e.isbn, 40),
+        price: positivePrice(variant ? variant.price : book.retailPrice), cover: smallCover(book), status: bookState(book, now),
+      };
+    });
+}
+
+/**
+ * The inventory app's books no website edition is matched to, that aren't a match suggestion and that the owner
+ * hasn't marked "Not for the shop". `systemStatus/inventoryLink.appOnlyBooks.items`.
+ */
+function appBooksForShop(books, appBooks, links, { ignoredMatches = {}, ignoredAppBooks = {} } = {}) {
+  const used = usedInventoryIds(links);
+  const editions = linkableEditions(books).filter(e => !e.archived);
+  const suggested = new Set(Object.values(liveSuggestions(editions, appBooks, links, ignoredMatches)));
+  return (appBooks || [])
+    .filter(b => b && INVENTORY_ID_RE.test(b.id) && !used.has(b.id) && !suggested.has(b.id) && !(ignoredAppBooks && ignoredAppBooks[b.id]))
+    .slice(0, MAX_APP_ONLY)
+    .map(b => ({ id: b.id, title: text(b.title, 200) || b.id, author: text(b.author, 200), isbn: text(b.isbn, 40), price: positivePrice(b.price), currency: text(b.currency, 8) }));
+}
+
+/**
+ * The app's "Add to the app" requests, checked with Match these' guards. Returns { adds, replies }: the links to add
+ * and the answers to write (`websiteLink/website.linkReplies`). A request already answered for the same app book is
+ * skipped; one whose app book the catalog can't see yet gets no answer, so the next sweep tries again.
+ */
+function linkRequestPlan({ requests, replies = {}, links = {}, books = [], appBookIds = [], now = new Date() }) {
+  const at = now.toISOString();
+  const editions = new Map(linkableEditions(books).map(e => [e.key, e]));
+  const used = usedInventoryIds(links);
+  const known = new Set(appBookIds || []);
+  const adds = [];
+  const out = {};
+  for (const [key, request] of Object.entries(requests && typeof requests === "object" ? requests : {}).slice(0, 300)) {
+    const inventoryBookId = typeof request?.inventoryBookId === "string" ? request.inventoryBookId.trim() : "";
+    if (key.length > 300 || !INVENTORY_ID_RE.test(inventoryBookId)) continue;
+    if (replies?.[key]?.inventoryBookId === inventoryBookId) continue;
+    const edition = editions.get(key);
+    const answer = (result, reason) => { out[key] = { inventoryBookId, result, reason, at }; };
+    if (!edition) { answer("refused", "This book isn't on the website as a printed book any more."); continue; }
+    if (edition.archived) { answer("refused", "This book is archived on the website. Bring it back there, then match it on the website's Inventory app link page."); continue; }
+    const current = linkFor(links, edition.bookId, edition.variantId);
+    if (current === inventoryBookId) { answer("linked", "Linked on the website."); continue; }
+    if (current) { answer("refused", "This website book is already matched to another book in the app. Change it on the website's Inventory app link page."); continue; }
+    if (!known.has(inventoryBookId)) continue;
+    if (used.has(inventoryBookId)) { answer("refused", "This book in the app is already matched to another website book."); continue; }
+    used.add(inventoryBookId);
+    adds.push({ key, bookId: edition.bookId, variantId: edition.variantId, inventoryBookId });
+    answer("linked", "Linked on the website.");
+  }
+  return { adds, replies: out };
+}
+
+/** Answers younger than 30 days (the app shows them until the request leaves its list). */
+function keptReplies(replies, now = new Date()) {
+  const cutoff = now.getTime() - REPLY_KEEP_MS;
+  return Object.fromEntries(Object.entries(replies || {}).filter(([, r]) => r && Date.parse(r.at) > cutoff));
+}
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+/** What waits on the website, for the app's To-do list (`websiteLink/website.todo`). */
+function websiteTodo({ holds = [], newMatches = 0, appOnly = 0, adminUrl, now = new Date() }) {
+  const href = `${String(adminUrl || "").replace(/\/+$/, "")}#inventory/link`;
+  const items = [];
+  const heldBooks = new Set((holds || []).map(h => h && h.bookId).filter(Boolean)).size;
+  if (heldBooks) items.push({ id: "stock-held", count: heldBooks, title: `Stock for ${plural(heldBooks, "book waits", "books wait")} for your OK on the website`, href });
+  if (newMatches > 0) items.push({ id: "new-matches", count: newMatches, title: `${plural(newMatches, "website book looks", "website books look")} like a book in this app. Match ${newMatches === 1 ? "it" : "them"} on the website`, href });
+  if (appOnly > 0) items.push({ id: "app-books", count: appOnly, title: `${plural(appOnly, "book here isn't", "books here aren't")} in the shop yet`, href });
+  return { at: now.toISOString(), items: items.slice(0, MAX_TODO) };
+}
+
+/** The app's own to-do (`websiteLink/app.todo`), cleaned: text only, a safe #hash, at most 10. */
+function cleanAppTodo(todo) {
+  const items = Array.isArray(todo?.items) ? todo.items : [];
+  return {
+    at: typeof todo?.at === "string" ? todo.at.slice(0, 40) : null,
+    items: items.slice(0, MAX_TODO).map(item => ({
+      id: text(item?.id, 60).replace(/[^A-Za-z0-9_-]/g, ""),
+      count: Math.max(0, Math.min(9999, Math.floor(Number(item?.count) || 0))),
+      title: text(item?.title, 200),
+      hash: /^#[A-Za-z0-9_=-]{1,100}$/.test(String(item?.hash || "")) ? String(item.hash) : "#todo",
+    })).filter(item => item.id && item.title),
+  };
 }
 
 module.exports = {
   WEB_VERSION, websiteOrderNumber, paidDayOf, countsForInventory, pushKind, linkFor, lineKey, splitCents,
   orderFootprint, websiteOrder, stable, validateLinks, linkedEditions, liveStock, stockPlanFor, stockPatch,
   projectInventoryCatalog, isDigitalEdition, linkableEditions, suggestLinks, newMatchList, openMatches,
+  smallCover, shopBooksForApp, appBooksForShop, linkRequestPlan, keptReplies, websiteTodo, cleanAppTodo,
 };

@@ -3,7 +3,7 @@ import { labelRefundProblems } from "./labelRefunds";
 import { currentRows } from "./emailLogDisplay";
 import { describeBackup, type BackupRecord } from "./backupStatus";
 import { waitingPreorderLines, preorderClockStart } from "../features/site/preorder";
-import { openMatches } from "./inventoryLink";
+import { appOnlyBooks, openMatches } from "./inventoryLink";
 // Admin-wide alerts shown above every admin page (AdminAlerts.tsx). Pure, tested.
 // Payment problems come first: money that arrived but isn't recorded, or vice versa.
 
@@ -16,7 +16,9 @@ export type AdminAlert = {
   orderIds: string[];
   /** What the alert is about when no order is (held books…): a change brings a hidden alert back. */
   key?: string;
-  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "inventory";
+  action: "order" | "orders" | "webhook" | "notifications" | "payments" | "general" | "retry" | "inventory" | "inventoryApp";
+  /** action "inventoryApp": where in the inventory app the button opens (a `#…` the app handles). */
+  appHash?: string;
 };
 
 /** Where an alert's button opens: an admin page and, on pages split into sub tabs, the tab holding the fix. */
@@ -222,6 +224,28 @@ export function inventoryLinkAlerts(state: any, now = Date.now()): AdminAlert[] 
         `${names ? `${names}${holds.length > 3 ? " and more" : ""}. ` : ""}A big change, a book with no print run in the inventory app, or a matched book now sold in editions isn't applied automatically. Open the stock preview and press Apply, or leave it as it is.`),
       key: holds.map((h: any) => `${h.bookId}/${h.variantId || "_"}/${h.hold}/${h.to ?? ""}`).sort().join(","),
     });
+  }
+  // Books only the inventory app has: offered under Inventory app link › Add to the shop.
+  const onlyInApp = appOnlyBooks(state);
+  if (onlyInApp.length) {
+    const names = onlyInApp.slice(0, 3).map((b) => b.title).join(", ");
+    out.push({
+      ...link("inventory-link-app-books", "info", `${plural(onlyInApp.length, "book in the inventory app isn't", "books in the inventory app aren't")} in the shop yet`,
+        `${names}${onlyInApp.length > 3 ? " and more" : ""}. Add one as a draft website book in one click, or say it's not for the shop.`),
+      key: onlyInApp.map((b) => b.id).sort().join(","),
+    });
+  }
+  // The inventory app's own to-do (websiteLink/app.todo): what waits for you there. Gone after a week without the
+  // app open, since it can't have been checked since.
+  const appTodo = state.app?.todo;
+  const todoAt = Date.parse(appTodo?.at || "");
+  if (Array.isArray(appTodo?.items) && (!Number.isFinite(todoAt) || now - todoAt < 7 * DAY)) {
+    for (const item of appTodo.items.slice(0, 10)) {
+      if (!item?.id || !item?.title) continue;
+      out.push({ id: `inventory-app-${item.id}`, tone: "info", title: String(item.title).slice(0, 200),
+        detail: "Waiting in the inventory app. It updates there each time the app is open.", orderIds: [], action: "inventoryApp",
+        appHash: /^#[A-Za-z0-9_=-]{1,100}$/.test(String(item.hash || "")) ? item.hash : "#todo", key: String(item.count ?? "") });
+    }
   }
   for (const issue of Array.isArray(state.shipmentIssues) ? state.shipmentIssues : []) {
     if (!issue?.orderId) continue;

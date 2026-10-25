@@ -142,7 +142,7 @@ async function readCatalog() {
   const seen = new Set(books.map(book => book.id));
   // A book the catalog read couldn't see (e.g. still on the old storage) but which has published a count.
   for (const [id, feed] of Object.entries(feeds)) {
-    if (!seen.has(id)) books.push({ id, title: String(feed.title || id).slice(0, 200), author: "", isbn: "", currency: "", maxPrint: null });
+    if (!seen.has(id)) books.push({ id, title: String(feed.title || id).slice(0, 200), author: "", isbn: "", currency: "", maxPrint: null, price: null });
   }
   return books.map(book => {
     const feed = feeds[book.id];
@@ -165,6 +165,19 @@ async function pendingSummary() {
   return { count, oldestSince: oldest, capped: snap.size >= 500 };
 }
 
+/**
+ * The website's side of the shared to-do list and its answers to the app's "Add to the app" requests
+ * (`websiteLink/website.todo` / `.linkReplies`). Both fields are replaced whole, leaving the heartbeat alone.
+ */
+async function writeWebsiteSide({ todo, linkReplies }) {
+  await inventoryDb().collection("websiteLink").doc("website").set({ todo, linkReplies }, { mergeFields: ["todo", "linkReplies"] });
+}
+
+/** Printed website books the app doesn't have yet (`websiteLink/catalog`), replaced whole. */
+async function writeShopCatalog({ books, at }) {
+  await inventoryDb().collection("websiteLink").doc("catalog").set({ v: 1, at, books });
+}
+
 async function readAppHeartbeat() {
   const snap = await inventoryDb().collection("websiteLink").doc("app").get();
   return snap.exists ? snap.data() : null;
@@ -173,4 +186,5 @@ async function readAppHeartbeat() {
 module.exports = {
   INVENTORY_PROJECT, inventoryDb, serviceAccountEmail, connectionProblem, checkConnection, heartbeat, markPastOrders,
   writeWebsiteOrder, waitingShipments, replyShipment, readFeeds, readCatalog, pendingSummary, readAppHeartbeat,
+  writeWebsiteSide, writeShopCatalog,
 };

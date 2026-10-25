@@ -1,14 +1,15 @@
 // Inventory › Inventory app link (admin): what each button asks the server to do. index.js checks the
 // admin's sign-in (requireAdmin) and passes `deps` (see inventoryLinkJobs.js) plus the store's
 // checkConnection/readCatalog/serviceAccountEmail. Returns { status, body } for the HTTP answer.
-const { validateLinks, paidDayOf, linkedEditions, openMatches } = require("./inventoryLink");
+const { validateLinks, paidDayOf, linkedEditions, openMatches, linkableEditions } = require("./inventoryLink");
 const { readState, runSweep, REHEARSAL_MS, STATE_DOC } = require("./inventoryLinkJobs");
 const { shopDate } = require("./paymentGuards");
 
 const ok = body => ({ status: 200, body });
 const bad = (error, status = 400) => ({ status, body: { error } });
 const PUBLIC_STATE_KEYS = ["links", "startDay", "autoSync", "rehearsalUntil", "firstApplyAt", "backfill", "connection",
-  "lastSync", "lastStockAt", "lastRunAt", "lastPush", "pendingImport", "app", "lastError", "relinkPending", "shipmentError", "pendingError", "shipmentIssues", "newMatches", "ignoredMatches"];
+  "lastSync", "lastStockAt", "lastRunAt", "lastPush", "pendingImport", "app", "lastError", "relinkPending", "shipmentError", "pendingError", "shipmentIssues", "newMatches", "ignoredMatches",
+  "appOnlyBooks", "ignoredAppBooks"];
 
 async function counts(db) {
   const count = async query => { try { return (await query.count().get()).data().count; } catch { return null; } };
@@ -119,6 +120,58 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
     await ref.update(patch).catch(async () => { await ref.set(patch, { merge: true }); });
     const added = chosen.filter(m => links[m.bookId]?.[m.variantId || "_"] === m.inventoryBookId).length;
     return ok({ links, errors, added });
+  }
+
+  // "Add to the shop": the owner saved a new website book made from an app book; match the two. Same guards as
+  // Match these — the edition is printed and unmatched, the app book exists and isn't matched — and no match moves.
+  if (op === "linkNewBook") {
+    const bookId = typeof body.bookId === "string" ? body.bookId.trim() : "";
+    const variantId = typeof body.variantId === "string" && body.variantId.trim() ? body.variantId.trim() : null;
+    const inventoryBookId = typeof body.inventoryBookId === "string" ? body.inventoryBookId.trim() : "";
+    if (!bookId || !inventoryBookId || bookId.length > 200 || inventoryBookId.length > 200) return bad("Choose the book to match.");
+    let inventoryIds;
+    try {
+      inventoryIds = (await store.readCatalog()).map(book => book.id);
+    } catch {
+      return bad("The website can't read the inventory app right now. The book is saved; match it below once the connection is back.", 409);
+    }
+    if (!inventoryIds.includes(inventoryBookId)) return bad("That book isn't in the inventory app any more.", 409);
+    const bookSnap = await db.collection("books").doc(bookId).get();
+    if (!bookSnap.exists) return bad("That website book wasn't found.", 404);
+    const book = { id: bookSnap.id, ...bookSnap.data() };
+    const edition = linkableEditions([book]).find(e => (e.variantId || null) === variantId);
+    if (!edition) return bad("Only printed books can be matched to the inventory app.");
+    const result = await db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      const state = snap.exists ? snap.data() : {};
+      const current = state.links || {};
+      const used = new Set(Object.values(current).flatMap(e => Object.values(e || {})));
+      const existing = current[bookId]?.[variantId || "_"];
+      if (existing === inventoryBookId) return { links: current, already: true };
+      if (existing) return { error: "This website book is already matched to another book in the app." };
+      if (used.has(inventoryBookId)) return { error: "That book in the app is already matched to another website book." };
+      const links = { ...current, [bookId]: { ...(current[bookId] || {}), [variantId || "_"]: inventoryBookId } };
+      const items = (state.appOnlyBooks?.items || []).filter(b => b.id !== inventoryBookId);
+      tx.update(ref, {
+        links, linksSavedAt: now.toISOString(), linksSavedBy: actor,
+        ...(state.startDay ? { relinkPending: true, relinkCursor: null } : {}),
+        ...(state.appOnlyBooks ? { appOnlyBooks: { ...state.appOnlyBooks, items } } : {}),
+      });
+      return { links };
+    });
+    if (result.error) return bad(result.error, 409);
+    return ok({ links: result.links, already: !!result.already });
+  }
+
+  // "Not for the shop" (or bring one back): the app book stops being offered under Add to the shop.
+  if (op === "ignoreAppBooks" || op === "unignoreAppBooks") {
+    const ids = (Array.isArray(body.ids) ? body.ids : []).filter(id => typeof id === "string" && id && id.length <= 200).slice(0, 100);
+    if (!ids.length) return bad("Choose the books.");
+    const state = await readState(db);
+    const ignoredAppBooks = { ...(state.ignoredAppBooks || {}) };
+    ids.forEach(id => { if (op === "ignoreAppBooks") ignoredAppBooks[id] = now.toISOString(); else delete ignoredAppBooks[id]; });
+    await ref.update({ ignoredAppBooks }).catch(async () => { await ref.set({ ignoredAppBooks }, { merge: true }); });
+    return ok({ ignoredAppBooks });
   }
 
   // "Not these": the sweep stops suggesting these pairs (a different later suggestion still shows).

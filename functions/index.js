@@ -2223,7 +2223,7 @@ async function handleVerifyStripeKeys(req, res) {
 // Inventory › Inventory app link (docs/INVENTORY_LINK.md). Admin only; never a payment path.
 function inventoryLinkDeps() {
   const store = require("./inventoryLinkStore");
-  return { db, store, now: () => new Date() };
+  return { db, store, now: () => new Date(), adminUrl: siteLink("/admin") };
 }
 async function handleInventoryLinkAdmin(req, res) {
   const adminUser = await requireAdmin(req, res);

@@ -394,7 +394,15 @@ export function Dashboard() {
     setShowEditor(true);
   };
 
+  // A new book's starting values and what to do once it's saved ("Add to the shop" from an inventory app book).
+  const [newBookStart, setNewBookStart] = useState<{ prefill: Record<string, any>; onCreated: (id: string) => void } | null>(null);
   const handleAddBook = () => {
+    setNewBookStart(null);
+    setEditingBook(null);
+    setShowEditor(true);
+  };
+  const handleAddBookFrom = (prefill: Record<string, any>, onCreated: (id: string) => void) => {
+    setNewBookStart({ prefill, onCreated });
     setEditingBook(null);
     setShowEditor(true);
   };
@@ -495,7 +503,7 @@ export function Dashboard() {
         return <AnalyticsDashboard setActiveTab={(tab: string) => { if (tab === "general" || tab === "notifications" || tab === "taxes") { setSettingsTab(tab); setActiveTab("settings"); } else setActiveTab(tab); }} onEditBook={handleEditBook} />;
       case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
       case "customers": return <Customers initialQuery={searchCustomerQuery} />;
-      case "inventory": return <Inventory onEditBook={handleEditBook} subTab={subTab} onSubTabChange={openSubTab} />;
+      case "inventory": return <Inventory onEditBook={handleEditBook} onAddBook={handleAddBookFrom} subTab={subTab} onSubTabChange={openSubTab} />;
       case "discounts": return <Discounts />;
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
       case "reviews": return <ReviewsModeration />;
@@ -698,6 +706,8 @@ export function Dashboard() {
               <Suspense fallback={<LoadingState label="Opening book editor…" />}>
               <BookEditor
                 book={editingBook}
+                prefill={editingBook ? null : newBookStart?.prefill}
+                onCreated={editingBook ? undefined : newBookStart?.onCreated}
                 onClose={() => setShowEditor(false)}
                 onSave={(opts) => {
                   if (!opts?.stayOpen) setShowEditor(false);

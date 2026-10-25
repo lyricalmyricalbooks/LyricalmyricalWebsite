@@ -11,6 +11,7 @@ const crypto = require("crypto");
 const { FieldPath, FieldValue, AggregateField } = require("firebase-admin/firestore");
 const {
   pushKind, websiteOrder, linkedEditions, stockPlanFor, stockPatch, liveStock, stable, isDigitalEdition, newMatchList, openMatches,
+  validateLinks, shopBooksForApp, appBooksForShop, linkRequestPlan, keptReplies, websiteTodo, cleanAppTodo,
 } = require("./inventoryLink");
 const { externalDispatchProblem } = require("./fulfillmentGuard");
 const { catalogUnitPrice } = require("./catalogPrice");
@@ -25,6 +26,8 @@ const BACKFILL_PAGE = 100;
 const REHEARSAL_MS = 24 * 60 * 60 * 1000;
 // How often the sweep looks for website books it can suggest a match for (new books, mostly).
 const MATCH_EVERY_MS = 60 * 60 * 1000;
+// Holds only the owner can clear (adminAlerts.ts inventoryLinkAlerts names the same three).
+const OWNER_HOLDS = new Set(["big-change", "not-derived", "now-has-editions"]);
 // An automatic run may apply these; the owner's confirmed preview also applies "untracked" and "big-change".
 const CONFIRMED_HOLDS = new Set([null, "untracked", "big-change"]);
 
@@ -428,6 +431,15 @@ async function runSweep(deps, opts = {}) {
       return { ...out, connection: status.connection };
     }
 
+    // The app's own status doc: its to-do and its "Add to the app" requests (docs/INVENTORY_LINK.md › One to-do list).
+    let appDoc = null;
+    let appRead = false;
+    try { appDoc = await store.readAppHeartbeat(); appRead = true; } catch (err) { status.pendingError = errText(err); }
+    // The website's books and the app's catalog, read once per run and only when something needs them.
+    let catalogLoad = null;
+    const loadCatalogs = () => catalogLoad || (catalogLoad = Promise.all([db.collection("books").get(), store.readCatalog()])
+      .then(([booksSnap, appBooks]) => ({ books: booksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })), appBooks })));
+
     // Stock is only worked out when every order that may have changed is recorded (`recorded`).
     let recorded = true;
     if (salesOn(state)) {
@@ -472,11 +484,55 @@ async function runSweep(deps, opts = {}) {
         out.backfill = page.backfill;
       }
       try {
-        const [pending, app] = await Promise.all([store.pendingSummary(), store.readAppHeartbeat()]);
-        status.pendingImport = pending;
-        status.app = app ? { lastImportAt: app.lastImportAt || null, lastFeedAt: app.lastFeedAt || null, importConsentAt: app.importConsentAt || null } : null;
+        status.pendingImport = await store.pendingSummary();
       } catch (err) { status.pendingError = errText(err); }
     }
+    if (appRead) {
+      status.app = appDoc ? {
+        lastImportAt: appDoc.lastImportAt || null, lastFeedAt: appDoc.lastFeedAt || null, importConsentAt: appDoc.importConsentAt || null,
+        todo: cleanAppTodo(appDoc.todo),
+      } : null;
+    }
+
+    // "Add to the app": the owner saved a website book in the app; link the two with Match these' guards.
+    let replies = keptReplies(state.appLinkReplies, start);
+    const requests = appDoc && appDoc.linkRequests && typeof appDoc.linkRequests === "object" ? appDoc.linkRequests : {};
+    const unanswered = Object.entries(requests).some(([key, r]) => r && replies[key]?.inventoryBookId !== r.inventoryBookId);
+    if (Object.keys(state.links || {}).length && unanswered) {
+      try {
+        const { books, appBooks } = await loadCatalogs();
+        const appIds = appBooks.map(b => b.id);
+        const result = await db.runTransaction(async tx => {
+          const snap = await tx.get(ref);
+          const fresh = snap.exists ? snap.data() : {};
+          const current = fresh.links || {};
+          const plan = linkRequestPlan({ requests, replies, links: current, books, appBookIds: appIds, now: start });
+          if (!plan.adds.length) return { plan, links: current, saved: false };
+          const next = Object.fromEntries(Object.entries(current).map(([id, entry]) => [id, { ...entry }]));
+          plan.adds.forEach(a => { next[a.bookId] = { ...(next[a.bookId] || {}), [a.variantId || "_"]: a.inventoryBookId }; });
+          const { links, errors } = validateLinks(books, next, appIds);
+          const lost = linkedEditions(current).filter(e => links[e.bookId]?.[e.variantId || "_"] !== e.inventoryBookId);
+          const refuse = (a, reason) => { plan.replies[a.key] = { ...plan.replies[a.key], result: "refused", reason }; };
+          if (lost.length) {
+            plan.adds.forEach(a => refuse(a, "Matching it here would change books already matched, so nothing was saved. Match it on the website's Inventory app link page."));
+            return { plan, links: current, saved: false };
+          }
+          plan.adds.filter(a => links[a.bookId]?.[a.variantId || "_"] !== a.inventoryBookId)
+            .forEach(a => refuse(a, (errors.find(e => e.bookId === a.bookId)?.reason) || "The website couldn't match this book. Match it on the website's Inventory app link page."));
+          tx.update(ref, { links, linksSavedAt: iso(start), linksSavedBy: "Inventory app (Add to the app)", ...(fresh.startDay ? { relinkPending: true, relinkCursor: null } : {}) });
+          return { plan, links, saved: true, relink: !!fresh.startDay };
+        });
+        replies = { ...replies, ...result.plan.replies };
+        if (result.saved) {
+          state.links = result.links;
+          // New matches: orders with unmatched copies are sent again (this run's own relink status must not undo it).
+          if (result.relink) { status.relinkPending = true; status.relinkCursor = null; }
+        }
+        out.linkRequests = { answered: Object.keys(result.plan.replies).length, linked: result.saved ? result.plan.adds.length : 0 };
+        status.linkRequestError = null;
+      } catch (err) { status.linkRequestError = errText(err); }
+    }
+    status.appLinkReplies = replies;
 
     // Books added to both shops since the matching step: suggest their match (one click in the panel).
     // Throttled on the last attempt, so a failing read isn't retried every five minutes.
@@ -484,13 +540,21 @@ async function runSweep(deps, opts = {}) {
     if (Object.keys(state.links || {}).length && (!Number.isFinite(lastMatchCheck) || start.getTime() - lastMatchCheck >= MATCH_EVERY_MS - 60 * 1000)) {
       status.matchCheckedAt = iso(start);
       try {
-        const [booksSnap, catalog] = await Promise.all([db.collection("books").get(), store.readCatalog()]);
-        const items = newMatchList(booksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })), catalog, state.links, state.ignoredMatches || {});
+        const { books, appBooks } = await loadCatalogs();
+        const ignoredMatches = state.ignoredMatches || {};
+        const items = newMatchList(books, appBooks, state.links, ignoredMatches);
         status.newMatches = { at: iso(start), count: items.length, items: items.slice(0, 50) };
         status.matchError = null;
+        // Books in only one of the two: the app's books for "Add to the shop" here, the website's for "Add to the app".
+        status.appOnlyBooks = { at: iso(start), items: appBooksForShop(books, appBooks, state.links, { ignoredMatches, ignoredAppBooks: state.ignoredAppBooks || {} }) };
+        try {
+          await store.writeShopCatalog({ at: iso(start), books: shopBooksForApp(books, appBooks, state.links, { ignoredMatches, dismissed: appDoc?.dismissedShopBooks || {}, now: start.getTime() }) });
+          status.shopCatalogError = null;
+        } catch (err) { status.shopCatalogError = errText(err); }
       } catch (err) { status.matchError = errText(err); }
-    } else if (!Object.keys(state.links || {}).length && state.newMatches) {
+    } else if (!Object.keys(state.links || {}).length && (state.newMatches || state.appOnlyBooks)) {
       status.newMatches = null;
+      status.appOnlyBooks = null;
     }
 
     const backfillDone = (status.backfill || state.backfill)?.done === true;
@@ -525,6 +589,28 @@ async function runSweep(deps, opts = {}) {
         }
       }
     }
+
+    // What waits on the website, for the app's To-do list, and the answers to its requests. Written when it changes.
+    try {
+      const links = state.links || {};
+      const used = new Set(Object.values(links).flatMap(e => Object.values(e || {})));
+      const ignoredApp = state.ignoredAppBooks || {};
+      const matches = status.newMatches !== undefined ? status.newMatches : state.newMatches;
+      const appOnly = status.appOnlyBooks !== undefined ? status.appOnlyBooks : state.appOnlyBooks;
+      const todo = websiteTodo({
+        // The same holds the website's own alert names: automatic stock is on and the change needs the owner.
+        holds: state.autoSync ? ((status.lastSync || state.lastSync)?.holds || []).filter(h => OWNER_HOLDS.has(h && h.hold)) : [],
+        newMatches: matches ? openMatches(matches.items, links, state.ignoredMatches || {}).length : 0,
+        appOnly: (appOnly?.items || []).filter(b => !used.has(b.id) && !ignoredApp[b.id]).length,
+        adminUrl: deps.adminUrl || "https://lyricalmyrical-web-v2.web.app/admin",
+        now: start,
+      });
+      const signature = stable({ items: todo.items, replies });
+      if (signature !== state.websiteSideSig) {
+        await store.writeWebsiteSide({ todo, linkReplies: replies });
+        status.websiteSideSig = signature;
+      }
+    } catch (err) { status.websiteSideError = errText(err); }
     return out;
   } catch (err) {
     status.lastError = { at: iso(deps.now()), message: errText(err) };
