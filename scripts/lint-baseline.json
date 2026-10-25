@@ -9,7 +9,7 @@
   "src/app/admin/api.ts": 6,
   "src/app/admin/BookEditor.tsx": 1,
   "src/app/admin/bookPrivateApi.test.ts": 1,
-  "src/app/admin/Dashboard.tsx": 8,
+  "src/app/admin/Dashboard.tsx": 7,
   "src/app/admin/Discounts.tsx": 1,
   "src/app/admin/Inventory.tsx": 1,
   "src/app/admin/localFulfillmentSettings.test.ts": 1,
