@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { IconButton, PrimaryButton, SecondaryButton } from "./riso/components";
 import { alertRoute, alertSignature, type AdminAlert, type AlertRoute } from "./adminAlerts";
+import { INVENTORY_APP_URL, openInventoryApp } from "./appSwitch";
 
 const KEY = "admin-dismissed-alerts";
 /** Hidden alerts are remembered in this browser (not just this tab), newest last, so closing one keeps it closed. */
@@ -21,7 +22,7 @@ const WORD: Record<string, string> = { danger: "Urgent", warning: "Needs attenti
 
 const ACTION_LABEL: Record<string, string> = {
   retry: "Try again", inventory: "Open Inventory app link", general: "Open Backups", notifications: "Open email deliveries",
-  payments: "Open Payments", webhook: "Open webhook health", order: "Open order",
+  payments: "Open Payments", webhook: "Open webhook health", order: "Open order", inventoryApp: "Open the inventory app",
 };
 
 // Alerts shown above every admin page. Dismissing hides an alert in this browser until
@@ -52,12 +53,17 @@ export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, 
     setDismissed(next);
     try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* private mode */ }
   };
+  // The inventory app's own to-do: the app switch brings its tab forward (or the phone hands the link over).
+  const openApp = (hash = "#todo") => {
+    const url = `${INVENTORY_APP_URL}${hash}`;
+    if (!openInventoryApp(window, url)) window.open(url, "_blank", "noopener");
+  };
   const run = (a: AdminAlert) => {
     const route = onOpenRoute && alertRoute(a);
     if (route) onOpenRoute(route);
     else runAction(a);
   };
-  const runAction = (a: AdminAlert) => (a.action === "retry" ? onRetry?.() : a.action === "inventory" ? onOpenInventory?.()
+  const runAction = (a: AdminAlert) => (a.action === "inventoryApp" ? openApp(a.appHash) : a.action === "retry" ? onRetry?.() : a.action === "inventory" ? onOpenInventory?.()
     : a.action === "general" ? onOpenGeneral?.() : a.action === "notifications" ? onOpenNotifications()
       : a.action === "webhook" || a.action === "payments" ? onOpenWebhook()
         : a.action === "order" ? onOpenOrder(a.orderIds[0]) : onOpenOrders());

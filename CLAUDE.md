@@ -914,6 +914,16 @@ and stock; the contract is `docs/INVENTORY_LINK.md` (same file as the inventory 
   plain link so the phone hands it over. The count is `pendingImport.count` (null = link not connected, no badge), set with `startDay` by
   Dashboard's alert check (`setInventoryLink`). Order detail's toolbar has **See it in the inventory app** only for orders the
   link sent (`orderInInventoryApp` = the server's `countsForInventory`) with printed books.
+- **One to-do list and new books (25 October 2026):** docs/INVENTORY_LINK.md › One to-do list and new books. The sweep reads
+  `websiteLink/app` every run (`todo` → `state.app.todo` via `cleanAppTodo`; `linkRequests` = the app's "Add to the app", applied by
+  `linkRequestPlan` in a transaction with Match these' guards, answers in `state.appLinkReplies` → `websiteLink/website.linkReplies`),
+  writes `websiteLink/website.todo` (`websiteTodo`: owner holds, open matches, app-only books; only when its `stable` signature
+  changes) and, hourly with the match check, `websiteLink/catalog` (`shopBooksForApp`) and `state.appOnlyBooks` (`appBooksForShop`).
+  A link added there sets `status.relinkPending` too so the run's own relink can't clear it. Admin: alerts `inventory-app-<id>` (action
+  `inventoryApp`, button opens `INVENTORY_APP_URL + appHash` through the switch) and `inventory-link-app-books`; Inventory app link ›
+  **In the inventory app, not in the shop** › **Add to the shop** (BookEditor `prefill` + `onCreated` → op `linkNewBook`, draft only) /
+  **Not for the shop** (`ignoreAppBooks`, Undo = `unignoreAppBooks`). The app's list price reaches the website (`projectInventoryCatalog`
+  `price`); a draft gets it only in CAD (`shopDraftFrom`).
 - **Deploy** Firestore rules + Functions with the frontend. Local tests use in-memory fakes (`functions/inventoryLink.fakes.mjs`);
   they don't prove the IAM grant, the deployed trigger or the inventory app's import.
 

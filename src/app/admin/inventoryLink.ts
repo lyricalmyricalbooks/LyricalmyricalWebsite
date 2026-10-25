@@ -180,3 +180,31 @@ export function ago(iso: string | null | undefined, now = Date.now()): string {
 
 /** The Google Cloud page where the owner grants the website access to the inventory app. */
 export const IAM_URL = "https://console.cloud.google.com/iam-admin/iam?project=lyricalmyrical-37c46";
+
+/* ── Books only the inventory app has (docs/INVENTORY_LINK.md › One to-do list and new books) ── */
+
+export interface AppOnlyBook { id: string; title: string; author: string; isbn: string; price: number | null; currency: string }
+
+/** The inventory app books still worth offering under "Add to the shop": not matched since the check, not left out. */
+export function appOnlyBooks(state: any): AppOnlyBook[] {
+  const items: AppOnlyBook[] = Array.isArray(state?.appOnlyBooks?.items) ? state.appOnlyBooks.items : [];
+  const used = new Set(Object.values(state?.links || {}).flatMap((e: any) => Object.values(e || {})));
+  const ignored = state?.ignoredAppBooks || {};
+  return items.filter((b) => b && b.id && !used.has(b.id) && !ignored[b.id]);
+}
+
+/** Canadian dollars only: the shop's prices are in CAD, so a price kept in euros is left for the owner to set. */
+const isCad = (currency: string) => /^(ca\$|cad|\$|c\$)$/i.test(String(currency || "").trim());
+
+/** The new website book "Add to the shop" opens: a draft filled from the app book, nothing else. */
+export function shopDraftFrom(book: AppOnlyBook) {
+  return {
+    title: book.title,
+    subtitle: book.author || "",
+    isbn: book.isbn || "",
+    retailPrice: book.price && isCad(book.currency) ? book.price : 0,
+    status: "draft",
+    trackInventory: true,
+    format: "Paperback",
+  };
+}

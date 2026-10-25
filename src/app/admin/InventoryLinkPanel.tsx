@@ -4,13 +4,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, ExternalLink, RefreshCw } from "lucide-react";
 import {
-  DataTable, Dialog, EmptyState, ErrorState, LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField,
+  DataTable, Dialog, EmptyState, ErrorState, GhostButton, LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField,
   StatusBadge, TextField, Toggle, useRisoToast, type Column,
 } from "./riso/components";
 import { inventoryLinkApi, type LinkStatus, type StockPreview } from "./inventoryLinkApi";
 import {
-  IAM_URL, NO_COUNT_YET, ago, dayBefore, editionKey, holdWords, linkStep, linkableEditions, linkedTo, linksFromChoices, openMatches, suggestLinks,
-  type InventoryAppBook, type InventoryLinks, type LinkableEdition, type StockRow,
+  IAM_URL, NO_COUNT_YET, ago, appOnlyBooks, dayBefore, editionKey, holdWords, linkStep, linkableEditions, linkedTo, linksFromChoices, openMatches,
+  shopDraftFrom, suggestLinks, type AppOnlyBook, type InventoryAppBook, type InventoryLinks, type LinkableEdition, type StockRow,
 } from "./inventoryLink";
 import { inventoryApi } from "./inventoryApi";
 import { waitingReaders, wakesRestockEmails } from "./inventoryInsights";
@@ -23,8 +23,10 @@ const PROBLEM_WORDS: Record<string, string> = {
 
 const editionName = (e: { title: string; edition: string }) => (e.edition ? `${e.title} — ${e.edition}` : e.title);
 
-export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
+export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAddBook }: {
   books: any[]; onLinksChanged?: (links: InventoryLinks) => void; onStockChanged?: () => void;
+  /** "Add to the shop": open a new website book with these values; `onCreated` gets its id once saved. */
+  onAddBook?: (prefill: Record<string, any>, onCreated: (id: string) => void) => void;
 }) {
   const toast = useRisoToast();
   const [status, setStatus] = useState<LinkStatus | null>(null);
@@ -103,6 +105,22 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
 
   // The sweep's hourly check: website books it can match by ISBN or title, waiting for one click.
   const newMatches = openMatches(state.newMatches?.items, links, state.ignoredMatches || {});
+  // Books only the inventory app has (the hourly check): offered as new draft website books.
+  const onlyInApp = appOnlyBooks(state);
+  const addToShop = (book: AppOnlyBook) => onAddBook?.(shopDraftFrom(book), (id) => {
+    inventoryLinkApi.linkNewBook(id, book.id)
+      .then(() => toast(`Saved as a draft and matched to “${book.title}” in the inventory app. Publish it from Books when it's ready.`))
+      .catch((e: any) => toast(`Saved as a draft. ${e?.message || "It couldn't be matched yet."} You can match it in this list.`, { tone: "warn" }))
+      .finally(() => { void loadStatus(); });
+  });
+  const leaveOut = (book: AppOnlyBook) => run(`leave-${book.id}`, async () => {
+    await inventoryLinkApi.ignoreAppBooks([book.id]);
+    await loadStatus();
+    toast(`“${book.title}” won't be offered for the shop.`, {
+      actionLabel: "Undo",
+      onAction: () => { void inventoryLinkApi.unignoreAppBooks([book.id]).then(() => loadStatus()).catch(() => toast("Couldn't undo. Try again in a minute.", { tone: "err" })); },
+    });
+  });
 
   // The server adds them to the links as they are now and never replaces a match.
   const matchNew = () => run("links", async () => {
@@ -333,6 +351,26 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged }: {
                     <PrimaryButton disabled={!!busy} onClick={matchNew}>{busy === "links" ? "Saving…" : newMatches.length === 1 ? "Match this book" : `Match these ${newMatches.length} books`}</PrimaryButton>
                     <SecondaryButton disabled={!!busy} onClick={ignoreNew}>Not these</SecondaryButton>
                   </div>
+                </div>
+              )}
+              {onlyInApp.length > 0 && (
+                <div style={{ padding: 16, display: "grid", gap: 8, borderBottom: "1px solid var(--rp-border)" }} role="group" aria-labelledby="ilp-app-only-title">
+                  <div id="ilp-app-only-title" style={{ fontWeight: 600 }}>In the inventory app, not in the shop</div>
+                  <p className="rp-hint" style={{ margin: 0 }}>Add one as a draft website book filled in from the app. It's matched for you, and nothing is published until you publish it.</p>
+                  <ul className="rp-list" aria-label="Inventory app books not in the shop" style={{ margin: 0 }}>
+                    {onlyInApp.map((b) => (
+                      <li key={b.id} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                        <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                          <div>{b.title}</div>
+                          <div className="rp-hint">{[b.author, b.isbn && `ISBN ${b.isbn}`, b.price ? `${b.currency || ""}${b.price}` : ""].filter(Boolean).join(" · ") || "No other details in the app"}</div>
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                          {onAddBook && <SecondaryButton size="sm" disabled={!!busy} onClick={() => addToShop(b)}>Add to the shop</SecondaryButton>}
+                          <GhostButton size="sm" disabled={!!busy} busy={busy === `leave-${b.id}`} onClick={() => leaveOut(b)}>Not for the shop</GhostButton>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
               <DataTable caption="Book matches" columns={linkColumns} rows={shown} rowKey={(e) => e.key}

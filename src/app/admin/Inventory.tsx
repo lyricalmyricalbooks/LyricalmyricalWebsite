@@ -51,7 +51,7 @@ const rowCoverUrl = (r: InventoryRow): string => {
   return (typeof first === "string" ? first : smallPhotoUrl(first, 80)) || (typeof r.book?.coverImage === "string" ? r.book.coverImage : "");
 };
 
-function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
+function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: InventoryProps) {
   const toast = useRisoToast();
   const [ask, askNode] = useAsk();
   const [books, setBooks] = useState<any[]>([]);
@@ -451,7 +451,7 @@ function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
       </TabPanel>
       <TabPanel tabId="inv-link" active={view === "inv-link"}>
         <div className="rp-stack">
-          <InventoryLinkPanel books={books} onLinksChanged={setLinks} onStockChanged={refreshBooks} />
+          <InventoryLinkPanel books={books} onLinksChanged={setLinks} onStockChanged={refreshBooks} onAddBook={onAddBook} />
         </div>
       </TabPanel>
 
@@ -478,6 +478,8 @@ function InventoryPage({ onEditBook, subTab, onSubTabChange }: InventoryProps) {
 
 type InventoryProps = {
   onEditBook?: (book: any) => void;
+  /** "Add to the shop": open a new book with these values; `onCreated` gets its id after the first save. */
+  onAddBook?: (prefill: Record<string, any>, onCreated: (id: string) => void) => void;
   /** The open sub tab when the Dashboard keeps it in the address bar (`#inventory/link`). */
   subTab?: string;
   onSubTabChange?: (id: string | undefined) => void;
