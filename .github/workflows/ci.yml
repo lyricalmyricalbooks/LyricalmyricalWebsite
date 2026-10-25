@@ -78,6 +78,9 @@ jobs:
       - name: Type-check (no new errors)
         run: pnpm run typecheck
 
+      - name: Lint (no new problems)
+        run: pnpm run lint
+
       # Bundle only: the full `build` also prerenders live Firestore data, which the storefront workflow does.
       - name: Build
         run: pnpm exec vite build

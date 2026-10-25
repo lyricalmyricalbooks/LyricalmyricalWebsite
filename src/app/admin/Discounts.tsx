@@ -109,7 +109,7 @@ function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClo
         allowedCustomerEmails: automatic ? "" : form.allowedCustomerEmails || "",
         buyQuantity: form.type === "bogo" ? (Number(form.buyQuantity) || 1) : null,
         getQuantity: form.type === "bogo" ? (Number(form.getQuantity) || 1) : null,
-        getDiscountValue: form.type === "bogo" ? (Number(form.getDiscountValue) ?? 100) : null,
+        getDiscountValue: form.type === "bogo" ? Number(form.getDiscountValue ?? 100) : null,
         tiers: form.type === "tiered" ? (form.tiers || []) : null,
       });
     } finally {

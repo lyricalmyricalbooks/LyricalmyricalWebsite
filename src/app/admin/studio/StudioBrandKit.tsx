@@ -53,7 +53,7 @@ export function StudioBrandKit({ design, onPreview, onApply, onClose }: {
   useEffect(() => { if (step >= 1) onPreview(choice); }, [key, step]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onPreview(null), []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const useFile = async (file: File) => {
+  const readLogoFile = async (file: File) => {
     setLogoBusy(true); setLogoNote("");
     const [found] = await Promise.all([
       logoColours(file),
@@ -66,7 +66,7 @@ export function StudioBrandKit({ design, onPreview, onApply, onClose }: {
     else setLogoNote(n => n || "Couldn't read colours from this picture; pick a colour on the next step.");
     setLogoBusy(false);
   };
-  const useLibrary = async () => {
+  const pickLogoFromLibrary = async () => {
     try {
       const item = await media?.choose("Choose your logo");
       if (!item) return;
@@ -100,10 +100,10 @@ export function StudioBrandKit({ design, onPreview, onApply, onClose }: {
             {logoUrl || design?.logoUrl ? <img src={logoUrl || design.logoUrl} alt="Logo" /> : <span className="studio-hint">No logo picture yet: your shop shows its text wordmark.</span>}
           </div>
           <input ref={input} type="file" accept="image/*" hidden aria-label="Upload your logo"
-            onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void useFile(f); }} />
+            onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void readLogoFile(f); }} />
           <div className="studio-inline-actions">
             <SecondaryButton size="sm" disabled={logoBusy} onClick={() => input.current?.click()}><ImageUp size={14} aria-hidden /> {logoBusy ? "Reading your logo…" : "Upload your logo"}</SecondaryButton>
-            {media?.status === "ready" && <SecondaryButton size="sm" disabled={logoBusy} onClick={() => void useLibrary()}>Choose from library</SecondaryButton>}
+            {media?.status === "ready" && <SecondaryButton size="sm" disabled={logoBusy} onClick={() => void pickLogoFromLibrary()}>Choose from library</SecondaryButton>}
           </div>
           {colours.length > 0 && <p className="studio-hint" role="status">Colours found: <span className="studio-brand-swatches">{colours.map(c => <i key={c} style={{ background: c }} title={c} />)}</span></p>}
           {logoNote && <p className="studio-hint" role="alert">{logoNote}</p>}

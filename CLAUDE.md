@@ -1049,7 +1049,13 @@ it. Don't add new compat rules for new work; compose the components instead.
 - `npm test` (vitest, node env): includes the registry/renderer parity test, nav,
   discount-state, order-status/CSV, cart-quantity and the **theme draft/publish
   separation** test (Firestore mocked) — a draft/discard must never write `design`.
-- `tsconfig.json` (strict off, `noEmit`) exists for type-checking only; Vite does not use it.
+- `tsconfig.json` (`strict: true` since 25 October 2026, `noEmit`) exists for type-checking only; Vite does not use it.
+  The 70 errors strict mode found in older files are in `scripts/typecheck-baseline.json`; new code must be strict-clean.
+- **Lint:** `pnpm run lint` (`scripts/lint-ratchet.mjs`, CI step in `test`) runs oxlint with `.oxlintrc.json` (correctness
+  rules, `react-hooks/rules-of-hooks`, unused variables; `_`-prefixed names are allowed) over `src`, `functions`, `scripts`
+  and fails when a file gains problems over `scripts/lint-baseline.json`; run with `--update` after fixing some. React
+  Compiler rules and `exhaustive-deps` are off on purpose (fixing them changes behaviour). Functions named `use…` are hooks
+  to the linter: don't name a plain helper that way.
 - Use `pnpm install` (the lockfile pins `react`/`react-dom` 18.3.1, which are optional peer deps —
   a plain `npm install` leaves them out). Vitest also runs `functions/*.test.js`, so run
   `npm ci` in `functions/` first.
