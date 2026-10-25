@@ -16,4 +16,4 @@ here once, as a TypeScript module, instead of a hand-kept mirror pair with a par
   old parity test's cases, now run against the generated copy. Done so far: `preorder`. Next: shipping engine (needs
   `shippingGeo` and `weightGrams` moved first), discount maths, promotions, address rules.
 - `src/app/features/site/merchantFeed.mjs` keeps its own small copy of the pre-order date check because plain Node build
-  scripts can't import TypeScript; `merchantFeed.parity.test.ts` guards it.
+  scripts can't import TypeScript; `features/site/merchantFeed.test.ts` guards it.

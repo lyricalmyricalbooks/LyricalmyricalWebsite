@@ -805,8 +805,8 @@ Grouped footer navigation defaults to Explore and Participate & connect, with po
 
 ## Pre-orders
 
-A published book with `preorder: true` sells before its `publishDate` (see CLAUDE.md › Pre-orders). Keep
-`functions/preorder.js` and `features/site/preorder.ts` identical (`preorder.parity.test.ts`). Pre-orders never change
+A published book with `preorder: true` sells before its `publishDate` (see CLAUDE.md › Pre-orders). The rules live once in
+`src/shared/preorder.ts` (the Functions use its generated copy `functions/shared/preorder.js`; `pnpm run build:shared`). Pre-orders never change
 stock, price or payment authority; the server stamps `preorder`/`releaseDate` on order lines from the catalog, and the
 **Awaiting release** queue plus `labelProblem` keep parcels back until release or **Ready to ship now**.
 
