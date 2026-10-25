@@ -5,7 +5,7 @@ name: Keep scheduled SEO refresh alive
 # workflows in a public repository after 60 days without activity - silently, with no failed run.
 # Once a month this workflow asks GitHub to (re-)enable both scheduled workflows, which also restarts that
 # 60-day timer, and reports the state it found. It is itself scheduled, so it gets the same treatment.
-# See CLAUDE.md > Deployment > "Scheduled refresh keep-alive".
+# See .github/CLAUDE.md > Deployment > "Scheduled refresh keep-alive".
 
 on:
   schedule:
