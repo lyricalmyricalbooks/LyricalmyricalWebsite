@@ -7,7 +7,7 @@ import { trackLink } from "./features/site/orderStatus";
 import { liveCheckoutRates } from "./features/site/canadaPostRates";
 import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
 import { applyFavicon } from "./features/site/favicon";
-import React, { useState, useEffect, useMemo, useRef, useId } from "react";
+import React, { useState, useEffect, useMemo, useReducer, useRef, useId } from "react";
 import { Link } from "react-router";
 import { useCart, catalogUnitPrice, repriceCart } from "./CartContext";
 import { sameOrderLines } from "./features/site/orderLines";
@@ -42,6 +42,7 @@ import { CHECKOUT_ATTEMPT_KEY, orderAccessHeaders, rememberOrderAccess } from ".
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
 import { isStripePublishableKey, stripeCheckoutState, createCheckoutSubmission, onPageRestored } from "./features/site/stripeLifecycle";
+import { checkoutFlow, confirmationView, initialFlow, readReturn, stripeTookPayment } from "./features/site/checkoutFlow";
 import { checkoutDetailProblems, detailInputId, expressWalletEnabled, postalCodeOptional, type DetailField } from "./features/site/checkoutDetails";
 import { comboboxInputProps, optionId } from "./features/site/comboboxAria";
 import { createLatestGuard, signalWithTimeout, RATES_TIMEOUT_MS } from "./features/site/latestRequest";
@@ -324,7 +325,9 @@ export function Checkout() {
   const { currency, formatPrice, convertPrice } = useCurrency();
 
   const [isApplying, setIsApplying]     = useState(false);
-  const [isCompleting, setIsCompleting] = useState(false);
+  // Form → paying → confirming (features/site/checkoutFlow.ts); the page only draws it.
+  const [flow, dispatchFlow] = useReducer(checkoutFlow, initialFlow);
+  const isCompleting = flow.step === "paying";
   const submitPurchase = useRef(createCheckoutSubmission());
   const purchaseNavigating = useRef(false);
   const serverSaysFree = useRef(false);
@@ -339,17 +342,6 @@ export function Checkout() {
   const ratesGuard = useRef(createLatestGuard());
   // Announced inline message (replaces alert()); tone drives colour, glyph + words carry the meaning.
   const [notice, setNotice] = useState<null | { tone: "error" | "info"; text: string }>(null);
-  const [isSuccess, setIsSuccess]       = useState(false);
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
-  // Stripe reported the payment complete but our order record hasn't caught up yet.
-  const [paymentReceived, setPaymentReceived] = useState(false);
-  // A bank debit Stripe accepted but has not settled: it can still fail, so it is not "paid".
-  const [paymentProcessing, setPaymentProcessing] = useState(false);
-  const [confirmSlow, setConfirmSlow] = useState(false);
-  const [manualOrderReturn, setManualOrderReturn] = useState(false);
-  // The server refused a retry because the shopper's earlier attempt was already paid: this is that order.
-  const [previousPaidReturn, setPreviousPaidReturn] = useState(false);
-  const [orderNumber, setOrderNumber]   = useState("");
 
   const [discountCode, setDiscountCode]       = useState("");
   // Hidden behind a "Have a code?" link so shoppers without one don't leave to hunt for one.
@@ -1753,12 +1745,12 @@ export function Checkout() {
   const handleCompletePurchase = () => (typeof window !== "undefined" && window.location.search.includes("preview=true"))
     ? setNotice({ tone: "info", text: c("coPreviewNoPay") })
     : submitPurchase.current(async () => {
-    setIsCompleting(true);
+    dispatchFlow({ type: "pay" });
     try {
       await completePurchase();
       return purchaseNavigating.current;
     } finally {
-      if (!purchaseNavigating.current) setIsCompleting(false);
+      dispatchFlow({ type: "payEnded", leaving: purchaseNavigating.current });
     }
   });
 
@@ -1767,33 +1759,22 @@ export function Checkout() {
   useEffect(() => onPageRestored(window, () => {
     purchaseNavigating.current = false;
     submitPurchase.current.reset();
-    setIsCompleting(false);
+    dispatchFlow({ type: "restored" });
   }), []);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const oid = params.get("order_id") || "";
-    const isPayPalReturn = params.get("paypal_return") === "true";
-    const isSuccessReturn = params.get("success") === "true";
-    if (!oid || (!isPayPalReturn && !isSuccessReturn)) {
-      if (params.get("canceled")) setNotice({ tone: "info", text: c("coPaymentCanceled") });
+    const landing = readReturn(window.location.search, window.location.pathname);
+    if (!landing.landing) {
+      if (landing.canceled) setNotice({ tone: "info", text: c("coPaymentCanceled") });
       return;
     }
 
     let cancelled = false;
-    const stripeSessionId = params.get("session_id") || "";
-    const stripeIntentId = params.get("payment_intent") || "";
-    // Drop the one-time return flags so a refresh doesn't replay this landing.
-    const isManualReturn = params.get("manual") === "true";
-    const isPreviousPaid = params.get("previous_paid") === "true";
-    const settledUrl = `${window.location.pathname}?order_id=${encodeURIComponent(oid)}&success=true${isManualReturn ? "&manual=true" : ""}${isPreviousPaid ? "&previous_paid=true" : ""}`;
-    // A PayPal return keeps its token in the URL until the capture has run, so a
-    // refresh mid-capture retries it instead of losing the payment.
+    const { orderId: oid, stripeSessionId, stripeIntentId, settledUrl, paypal: isPayPalReturn, manual: isManualReturn, previousPaid: isPreviousPaid } = landing;
+    // Drop the one-time return flags so a refresh doesn't replay this landing. A PayPal return keeps its token in the
+    // URL until the capture has run, so a refresh mid-capture retries it instead of losing the payment.
     if (!isPayPalReturn) window.history.replaceState(null, "", settledUrl);
-    setOrderNumber(oid);
-    setIsSuccess(true);
-    setManualOrderReturn(isManualReturn);
-    setPreviousPaidReturn(isPreviousPaid);
+    dispatchFlow({ type: "landed", orderId: oid, manual: isManualReturn, previousPaid: isPreviousPaid });
 
     // Orders aren't publicly readable: the server returns this one for the email it was placed with.
     const lookupEmail = (() => { try { return localStorage.getItem("last_customer_email") || ""; } catch { return ""; } })();
@@ -1821,26 +1802,21 @@ export function Checkout() {
           }).catch(() => null);
           const statusData = statusRes && statusRes.ok ? await statusRes.json() : null;
           if (cancelled) return;
+          dispatchFlow({ type: "stripeStatus", status: statusData?.status });
           if (statusData?.status === "open" || statusData?.status === "expired") {
             window.history.replaceState(null, "", window.location.pathname);
-            setIsSuccess(false);
-            setOrderNumber("");
             setNotice({ tone: "info", text: c("coPaymentNotFinished") });
             return;
           }
-          // Stripe confirms the payment: the bag is bought, even if the webhook is still on its way.
-          if (statusData?.status === "complete") {
-            setPaymentReceived(true);
-            clearCart();
-            forgetAttempt(oid);
-          } else if (statusData?.status === "processing") {
-            setPaymentProcessing(true);
+          // Stripe took the payment (or a bank debit is under way): the bag is bought, even if the webhook is still on
+          // its way. A debit can still fail, so it is not "paid".
+          if (stripeTookPayment(statusData?.status)) {
             clearCart();
             forgetAttempt(oid);
           }
         }
         if (isPayPalReturn) {
-          const paypalOrderId = params.get("token");
+          const paypalOrderId = landing.paypalToken;
           const captureResponse = paypalOrderId ? await functionFetch("capturePayPalOrder", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1850,8 +1826,7 @@ export function Checkout() {
           if (!captureResponse || !captureResponse.ok) {
             // No money was taken: never show the "thank you / payment went through" screen.
             window.history.replaceState(null, "", window.location.pathname);
-            setIsSuccess(false);
-            setOrderNumber("");
+            dispatchFlow({ type: "paypalFailed" });
             setNotice({ tone: "error", text: c(paypalOrderId ? "coPaypalCaptureError" : "coErrPaypalToken") });
             return;
           }
@@ -1864,8 +1839,8 @@ export function Checkout() {
           const order: any = await adminApi.getPublicOrder(oid, { email: lookupEmail }).catch(() => null);
           if (cancelled) return;
           if (order) setSuccessOrder(order);
+          dispatchFlow({ type: "orderSeen", paymentStatus: order?.paymentStatus });
           if (order?.paymentStatus === "paid") {
-            setPaymentConfirmed(true);
             forgetAttempt(oid);
             // After "your earlier payment already went through", a bag of different books is a new
             // purchase in progress: leave it alone and don't count the old order's purchase again.
@@ -1890,9 +1865,9 @@ export function Checkout() {
           }
           await new Promise(resolve => setTimeout(resolve, 2500));
         }
-        if (!cancelled) setConfirmSlow(true);
+        if (!cancelled) dispatchFlow({ type: "gaveUp" });
       } catch (err) {
-        if (!cancelled) setConfirmSlow(true);
+        if (!cancelled) dispatchFlow({ type: "gaveUp" });
         console.error("Failed to confirm payment on success landing", err);
       }
     })();
@@ -1901,9 +1876,11 @@ export function Checkout() {
   }, []);
 
   // ── Success screen ──────────────────────────────────────────────────────────
-  if (isSuccess) {
-    const isManual = manualOrderReturn || successOrder?.paymentStatus === "pending";
-    const stampState = isManual ? "unpaid" : (paymentConfirmed || paymentReceived ? "paid" : "unpaid");
+  if (flow.step === "confirming") {
+    const view = confirmationView(flow, successOrder);
+    const isManual = view.manual;
+    const stampState = view.stamp;
+    const orderNumber = flow.orderId;
     const accountEmail = successOrder?.customer?.email || customer.email;
     return (
       <div data-fm-store data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout" data-fm-checkout className="fm-track min-h-screen fm-surface text-white relative overflow-x-hidden">
@@ -1915,9 +1892,7 @@ export function Checkout() {
           <header {...regionProps("checkoutSuccessHeader")} className="fm-track-card p-6 sm:p-10">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <p className="fm-track-mono" style={{ color: "var(--accent)" }}>
-                {isManual
-                  ? c("coOrderPlaced")
-                  : (paymentConfirmed || paymentReceived ? c("coOrderConfirmed") : c("coFinalizing"))}
+                {c(view.headline)}
               </p>
               <span className="fm-track-stamp" data-state={stampState}>
                 {stampState === "paid" ? <CheckCircle2 size={14} aria-hidden="true" /> : <AlertCircle size={14} aria-hidden="true" />}
@@ -1926,17 +1901,10 @@ export function Checkout() {
             </div>
             <h2 {...regionProps("checkoutSuccessHeading")} className="fm-track-display text-6xl sm:text-8xl mt-6 break-words">{c("coThanks")}</h2>
             <p className="fm-track-mono mt-5 border-t-2 fm-track-rule pt-4">{c("coOrderNumber", { number: orderNumber })}</p>
-            {previousPaidReturn && <div className="fm-track-notice mt-4" role="status"><p>{c("coPreviousPaid")}</p></div>}
-            {!isManual && (
+            {flow.previousPaid && <div className="fm-track-notice mt-4" role="status"><p>{c("coPreviousPaid")}</p></div>}
+            {view.status && (
               <p className="text-sm leading-6 text-white/70 mt-4" role="status">
-                {paymentConfirmed
-                  ? c("coConfirmationSent")
-                  : paymentProcessing
-                    ? c("coPaymentProcessing", { email: successOrder?.customer?.email || customer.email || "" })
-                    : confirmSlow
-                      // "Went through" only when Stripe itself said so; otherwise ask them to check.
-                      ? c(paymentReceived ? "coConfirmingSlow" : "coConfirmingUnverified", { email: successOrder?.customer?.email || customer.email || "" })
-                      : c("coConfirming")}
+                {c(view.status, { email: successOrder?.customer?.email || customer.email || "" })}
               </p>
             )}
           </header>

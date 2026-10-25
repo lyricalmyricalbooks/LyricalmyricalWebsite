@@ -41,7 +41,7 @@ describe("Checkout wiring (source text)", () => {
   });
 
   it("#23 a page restored from the back/forward cache unlocks Pay", () => {
-    expect(src).toMatch(/onPageRestored\(window, \(\) => \{[^}]*purchaseNavigating\.current = false;[^}]*submitPurchase\.current\.reset\(\);[^}]*setIsCompleting\(false\)/s);
+    expect(src).toMatch(/onPageRestored\(window, \(\) => \{[^}]*purchaseNavigating\.current = false;[^}]*submitPurchase\.current\.reset\(\);[^}]*dispatchFlow\(\{ type: "restored" \}\)/s);
   });
 
   it("#84 live rates ignore stale answers and time out", () => {
