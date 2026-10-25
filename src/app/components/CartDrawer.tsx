@@ -194,6 +194,7 @@ export function CartDrawer() {
   const showShipBy = cartShipByOn(design) && bagShipsOnSchedule(cart, booksMap);
   const fromLeft = design.cartDrawerSide === "left";
   const grayscaleThumbs = design.cartDrawerGrayscaleThumbs ?? false;
+  const showThumbs = design.cartDrawerShowThumbs ?? true;
   // Style › Cart drawer › Empty bag: the icon, the button and where the button goes.
   const showEmptyIcon = design.cartDrawerShowEmptyIcon ?? true;
   const showEmptyButton = design.cartDrawerShowEmptyButton ?? true;
@@ -343,9 +344,11 @@ export function CartDrawer() {
                     return (
                       <li key={key} className="fm-bag-item flex gap-4 py-5">
                         {showNumbers && <span className="fm-bag-num pt-0.5" aria-hidden="true">{pad2(idx + 1)}</span>}
-                        <div className="fm-bag-thumb">
-                          {item.photoUrl && <img src={item.photoUrl} alt="" loading="lazy" decoding="async" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />}
-                        </div>
+                        {showThumbs && (
+                          <div className="fm-bag-thumb">
+                            {item.photoUrl && <img src={item.photoUrl} alt="" loading="lazy" decoding="async" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />}
+                          </div>
+                        )}
                         <div className="flex-1 min-w-0 flex flex-col gap-1">
                           <div className="flex justify-between gap-3 items-start">
                             <h3 className="fm-bag-name max-md:[overflow-wrap:anywhere]">{item.title}</h3>
