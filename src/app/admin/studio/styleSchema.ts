@@ -8,6 +8,8 @@ import { PHOTO_OUTLINE_OPTIONS, PHOTO_RATIO_OPTIONS } from "../../features/site/
 import { REGION_GROUPS, REGION_DEVICES, REGION_DEVICE_LABELS, REGION_SUFFIXES, regionKey, regionFieldDevice, type RegionDevice } from "../../features/site/storefrontRegions";
 import { ELEMENT_SCHEME_TARGETS } from "../../features/site/colorSchemes";
 import { RADIUS_SCALES, TYPE_SCALES } from "../../features/site/designTokens";
+import { withFeatureStyle } from "../../features/site/extras/featureKit";
+import { STOREFRONT_FEATURES } from "../../features/site/extras/registry";
 
 // `defaultValue` is what the storefront itself uses when the key is unset, so an untouched slider or
 // toggle shows the real setting instead of its minimum / "off".
@@ -58,7 +60,7 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Bag total & checkout": /^(cartDrawer(ShowSummary|TotalSize|Checkout|ShowCheckoutArrow|ShowDeliveryNote|ShowTermsCheckbox|Show(Secure|Tracked|Returns)Badge)|showCartTrustBadges)/,
 };
 
-export const STYLE_GROUPS: StyleGroup[] = [
+export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
   ...REGION_GROUPS.map(group => ({ id: group.id, title: group.title,
     hint: "Words are in Text & labels. Blank styling inherits the current layout. Required forms, purchases and recovery actions stay available.",
     fields: group.regions.flatMap(region => REGION_DEVICES.flatMap(device => {
@@ -600,7 +602,6 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showPdpTaxNote", label: "Tax & shipping note under the price (“Taxes and shipping calculated at checkout.”, linking to your shipping policy; words: Text & labels › Product page)", kind: "toggle", defaultValue: false },
       { key: "pdpDescriptionFold", label: "“Read more” for long descriptions (a long book description shows its first lines, fading out, with a Read more button; the whole text stays in the page for search engines; words: Text & labels › Product page)", kind: "toggle", defaultValue: false },
       { key: "pdpDescriptionFoldLines", label: "“Read more”: lines shown before the button", kind: "number", min: 3, max: 40, step: 1, defaultValue: 8 },
-      { key: "showPdpPaymentIcons", label: "Payment icons under the buy buttons (the same card and wallet logos as the footer — pick them in Style › Payment icons; hidden while the book can't be bought; read-aloud words: Text & labels › Product page)", kind: "toggle", defaultValue: false },
       { key: "showPdpInBag", label: "“Already in your bag” line under the buy buttons (“2 copies already in your bag · View bag”, only once the shopper has that edition in the bag; words: Text & labels › Product page)", kind: "toggle", defaultValue: false },
       { key: "showPdpShipBy", label: "Ships-by line under the buy buttons (“Order now — ships by Monday, Oct 26”, printed books in stock only; words: Text & labels › Product page)", kind: "toggle", defaultValue: false },
       { key: "pdpShipByDays", label: "Ships-by line: working days you need to send an order (0 = the same day)", kind: "number", min: 0, max: 30, step: 1, defaultValue: 2 },
@@ -938,7 +939,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "customFooterScripts", label: "Footer scripts", kind: "textarea" },
     ],
   },
-];
+], STOREFRONT_FEATURES);
 
 /** Every surface that can carry its own copy of the style keys. */
 export { STATIC_SURFACES };
