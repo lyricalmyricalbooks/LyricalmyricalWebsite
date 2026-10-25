@@ -1027,7 +1027,7 @@ export function Checkout() {
  
 
   const physicalItems = useMemo(() => taxLines?.filter(item => item.physical) || [], [taxLines]);
-  // Pre-ordered printed books hold the parcel until the latest release (functions/preorder.js).
+  // Pre-ordered printed books hold the parcel until the latest release (src/shared/preorder.ts).
   const preorderShip = useMemo(() => bagPreorder(cart.filter(i => !catalogItems || catalogItems.some(ci => ci.id === i.id && (ci.variantId || "") === (i.variantId || "") && ci.physical))), [cart, catalogItems]);
   // Known to be e-books only (not just "catalog still loading").
   const digitalOnly = Boolean(catalogItems && catalogItems.length && !physicalItems.length);

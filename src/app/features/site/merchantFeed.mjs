@@ -2,7 +2,7 @@
 // Pure ESM so the build (scripts/generate-sitemap.mjs → dist/google-merchant-feed.xml) and the
 // admin's Books › Google Shopping feed panel use the same rules. Prices, sale windows, pre-orders
 // and stock follow the server's checkout rules (functions/catalogPrice.js, promotions.js,
-// preorder.js) — merchantFeed.parity.test.ts keeps them identical, because Google refuses items
+// src/shared/preorder.ts) — merchantFeed.parity.test.ts keeps them identical, because Google refuses items
 // whose feed price or availability differ from what the product page and checkout show.
 import { resolveProductRoutes } from './productRouteData.mjs';
 

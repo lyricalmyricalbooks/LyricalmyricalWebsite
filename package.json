@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build && node scripts/generate-sitemap.mjs && node scripts/build-storefront-data.mjs && node scripts/prerender-storefront.mjs",
+    "build:shared": "node scripts/build-shared.mjs",
     "build:sitemap": "node scripts/generate-sitemap.mjs",
     "dev": "vite",
     "preview": "vite preview",

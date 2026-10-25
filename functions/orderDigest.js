@@ -4,7 +4,7 @@ const UNSHIPPED_DAYS = 3;
 const TRANSIT_DAYS = 14; // Same as OVERDUE_TRANSIT_DAYS in src/app/admin/fulfillment.ts.
 
 const { isPhysicalItem } = require("./localFulfillment");
-const { waitingPreorderLines, preorderClockStart } = require("./preorder");
+const { waitingPreorderLines, preorderClockStart } = require("./shared/preorder");
 const methodOf = order => order.fulfillmentSelection?.method || order.fulfillment?.method || "shipping";
 const ageDays = (iso, now) => {
   const t = Date.parse(iso || "");
