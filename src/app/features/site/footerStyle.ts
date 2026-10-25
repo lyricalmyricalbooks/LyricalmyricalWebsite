@@ -73,6 +73,16 @@ export function footerStyleCss(d: any = {}): string {
   if (heading) css += `${s} .fm-footer-heading{color:${heading} !important;}`;
   if (hover) css += `${s} a:hover,${s} a:focus-visible{color:${hover} !important;}`;
   if (divider) css += `${s} .fm-footer-rule{border-color:${divider} !important;}`;
+  // Payment icons (Style › Footer & social links › What the footer shows): emitted only when changed, so the
+  // default draws exactly as the classes do (30% at rest, full on hover).
+  const iconRest = num(d.footerPaymentIconOpacity, 30, 10, 100);
+  const iconHover = num(d.footerPaymentIconHoverOpacity, 100, 10, 100);
+  if (iconRest !== 30 || iconHover !== 100) {
+    css += `${s} .fm-footer-pay-icon{opacity:${iconRest / 100} !important;}`
+      + `${s} .fm-footer-pay-icon:hover{opacity:${iconHover / 100} !important;}`;
+  }
+  const iconColour = colour(d.footerPaymentIconColor);
+  if (iconColour) css += `${s} .fm-footer-pay-icons{color:${iconColour} !important;}`;
   if (d.showFooterDividers === false) css += `${s} .fm-footer-rule{border-top-width:0 !important;}`;
   const accent = colour(d.footerAccentColor) || "var(--accent, currentColor)";
   const rule = divider || RULE;
