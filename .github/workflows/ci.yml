@@ -94,8 +94,6 @@ jobs:
     # before merge. Its packages go in a throwaway folder: they never touch the shop's lockfile.
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      RULES_TEST_DIR: ${{ runner.temp }}/rules-test
     steps:
       - uses: actions/checkout@v4
 
@@ -110,8 +108,8 @@ jobs:
 
       - name: Install the rules test packages
         run: |
-          mkdir -p "$RULES_TEST_DIR"
-          cd "$RULES_TEST_DIR"
+          mkdir -p "$RUNNER_TEMP/rules-test"
+          cd "$RUNNER_TEMP/rules-test"
           echo '{"type":"module","private":true}' > package.json
           npm install --no-audit --no-fund @firebase/rules-unit-testing@6.0.0 firebase@13.1.0 "firebase-tools@${FIREBASE_TOOLS_VERSION}"
           cp "$GITHUB_WORKSPACE/scripts/firestore-rules-emulator.mjs" .
