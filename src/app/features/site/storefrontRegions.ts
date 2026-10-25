@@ -1,9 +1,11 @@
 import { DEVICE_MEDIA, UP_TO } from "./breakpoints";
+import { withFeatureRegions } from "./extras/featureKit";
+import { STOREFRONT_FEATURES } from "./extras/registry";
 // One public-region contract shared by Studio's controls and the live CSS layer.
 // Defaults stay in the existing layouts; unset controls emit no overrides.
 export type Region = { id: string; label: string; required?: boolean; grid?: boolean; image?: boolean; copy?: string };
 export type RegionGroup = { id: string; title: string; copy: string; files: string[]; regions: Region[] };
-export const REGION_GROUPS: RegionGroup[] = [
+export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
   { id: "catalogElements", title: "Catalog & shared content · layout", copy: "Search & filters", files: ["features/site/CatalogControls.tsx", "features/site/RecentlyViewedRow.tsx", "components/MainSite.tsx", "features/site/StoreFooter.tsx", "features/site/BackToTop.tsx", "features/site/FooterCurrency.tsx"], regions: [
     { id: "catalogSearch", label: "Catalog search field" }, { id: "catalogSort", label: "Catalog sort selector" },
     { id: "catalogStock", label: "In-stock filter" }, { id: "catalogSale", label: "On-sale filter" }, { id: "catalogResults", label: "Filter result count" },
@@ -33,7 +35,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "footerBackToTop", label: "Back to top button", copy: "Footer" },
     { id: "footerCurrency", label: "Footer currency picker", copy: "Footer" },
   ] },
-  { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx", "features/site/PickupAvailability.tsx", "features/site/PdpFreeShipping.tsx", "features/site/PdpInBag.tsx", "features/site/PdpPaymentIcons.tsx", "features/site/PdpTaxNote.tsx", "features/site/PdpShipBy.tsx", "features/site/PdpAskQuestion.tsx", "features/site/SaleEndsLine.tsx", "features/site/ReleaseCountdownText.tsx"], regions: [
+  { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx", "features/site/PickupAvailability.tsx", "features/site/PdpFreeShipping.tsx", "features/site/PdpInBag.tsx", "features/site/PdpTaxNote.tsx", "features/site/PdpShipBy.tsx", "features/site/PdpAskQuestion.tsx", "features/site/SaleEndsLine.tsx", "features/site/ReleaseCountdownText.tsx"], regions: [
     { id: "productDescription", label: "Book description" }, { id: "productSpecs", label: "Book specifications" },
     { id: "productReviews", label: "Book reviews" },
     { id: "productSaleEnds", label: "Sale end date (under the price)" },
@@ -42,7 +44,6 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "productSaveBadge", label: "Sale savings badge (Save …)" },
     { id: "productAddOns", label: "Extras (signed copy, inscription, gift wrap)" },
     { id: "productBoxSet", label: "Box set contents" },
-    { id: "productPaymentIcons", label: "Payment icons (under the buy buttons)" },
     { id: "productInBag", label: "Already in your bag (under the buy buttons)" },
     { id: "productFreeShipping", label: "Free-shipping line (under the buy buttons)" },
     { id: "productShipBy", label: "Ships-by line (under the buy buttons)" },
@@ -149,7 +150,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "constructionTag", label: "Construction tag" }, { id: "constructionHeading", label: "Construction heading" },
     { id: "constructionBody", label: "Construction explanation" }, { id: "constructionFootnote", label: "Construction footnote" },
   ] },
-];
+], STOREFRONT_FEATURES);
 
 export function regionProps(id: string) {
   const group = REGION_GROUPS.find(g => g.regions.some(r => r.id === id));

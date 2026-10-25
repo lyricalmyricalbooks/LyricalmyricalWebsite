@@ -7,23 +7,23 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { expect, it, vi } from "vitest";
 
 const site = vi.hoisted(() => ({ data: {} as any, cart: [] as any[], opened: 0 }));
-vi.mock("./useSiteData", () => ({ useSiteData: () => site.data, useLiveDesign: () => site.data.settings?.design || {} }));
-vi.mock("../../CartContext", async (orig) => ({ ...(await orig() as any), useCart: () => ({ addToCart: () => true, setIsCartOpen: () => { site.opened++; }, cartCount: site.cart.length, cart: site.cart }) }));
-vi.mock("../../../lib/firebase", () => ({ db: {}, auth: {} }));
-vi.mock("./shippingProfilesLoad", () => ({ loadShippingProfiles: async () => [{ id: "p", freeShippingOver: 75, zones: [] }] }));
-vi.mock("../../lib/seo", () => ({ useSEO: () => {} }));
-vi.mock("../../lib/reviews", () => ({ reviewsApi: { listApproved: async () => [], summary: async () => null } }));
-vi.mock("../../lib/commerce", () => ({ funnelApi: new Proxy({}, { get: () => () => {} }) }));
-vi.mock("../../components/sectionRender", () => ({ TemplateSections: () => null, GlobalSections: () => null, SectionList: () => null }));
-vi.mock("./RecentlyViewedRow", () => ({ default: () => null }));
-vi.mock("./ReviewsSection", () => ({ default: () => null }));
-vi.mock("./StoreHeader", () => ({ StoreHeader: () => null }));
-vi.mock("./StoreFooter", () => ({ StoreFooter: () => null }));
+vi.mock("../../useSiteData", () => ({ useSiteData: () => site.data, useLiveDesign: () => site.data.settings?.design || {} }));
+vi.mock("../../../../CartContext", async (orig) => ({ ...(await orig() as any), useCart: () => ({ addToCart: () => true, setIsCartOpen: () => { site.opened++; }, cartCount: site.cart.length, cart: site.cart }) }));
+vi.mock("../../../../../lib/firebase", () => ({ db: {}, auth: {} }));
+vi.mock("../../shippingProfilesLoad", () => ({ loadShippingProfiles: async () => [{ id: "p", freeShippingOver: 75, zones: [] }] }));
+vi.mock("../../../../lib/seo", () => ({ useSEO: () => {} }));
+vi.mock("../../../../lib/reviews", () => ({ reviewsApi: { listApproved: async () => [], summary: async () => null } }));
+vi.mock("../../../../lib/commerce", () => ({ funnelApi: new Proxy({}, { get: () => () => {} }) }));
+vi.mock("../../../../components/sectionRender", () => ({ TemplateSections: () => null, GlobalSections: () => null, SectionList: () => null }));
+vi.mock("../../RecentlyViewedRow", () => ({ default: () => null }));
+vi.mock("../../ReviewsSection", () => ({ default: () => null }));
+vi.mock("../../StoreHeader", () => ({ StoreHeader: () => null }));
+vi.mock("../../StoreFooter", () => ({ StoreFooter: () => null }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 (globalThis as any).fetch = () => Promise.reject(new Error("offline"));
 
-const { default: BookDetail } = await import("./BookDetail");
-const { CurrencyProvider } = await import("../../CurrencyContext");
+const { default: BookDetail } = await import("../../BookDetail");
+const { CurrencyProvider } = await import("../../../../CurrencyContext");
 const { pdpPaymentBadges } = await import("./PdpPaymentIcons");
 
 const book = { id: "pb", slug: "pb", title: "Printed Book", status: "published", format: "Paperback", stockLevel: 4, trackInventory: true, retailPrice: 30, photos: [{ id: "p", url: "https://example.com/1.jpg" }] };

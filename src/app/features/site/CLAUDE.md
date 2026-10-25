@@ -2,6 +2,13 @@
 
 Shopper-facing pages, checkout (`src/app/Checkout.tsx` too), SEO and prerendering, photos and the storefront bundle. Every storefront part must be editable in Studio: read the rules under Theme editor in `src/app/admin/studio/CLAUDE.md` before adding one. The repo-wide rules are in the root `CLAUDE.md`.
 
+**New storefront extras live in one folder (25 October 2026).** A line, button or box a Studio switch turns on goes in
+`features/site/extras/<name>/`: its component, its tests and a `feature.ts` (`StorefrontFeature`, `extras/featureKit.ts`) listing its
+Style controls (group, `after`, sub-section), Text & labels words and click-to-edit regions. `extras/registry.ts` collects every folder
+(`import.meta.glob`), and STYLE_GROUPS, STYLE_SUBSECTIONS, COPY_SCHEMA and REGION_GROUPS add them, so a new extra edits none of those
+lists by hand. feature.ts holds data only (shopper code reads it). `extras/featureKit.test.ts` checks every folder. Move an older extra
+into a folder when you next change it; the first one moved is `pdp-payment-icons`.
+
 ## Public storefront readiness repairs (2 October 2026)
 
 Public product links retain unique slugs and use immutable book IDs when slugs collide; catalog records are never rewritten. The storefront reads the entire paginated catalog and the sitemap uses the same route resolver. Unknown URLs show editable recovery content. Custom pages share the support/policy footer, with **Show page footer** in Studio > Style > Custom pages.
@@ -669,7 +676,7 @@ nothing else keeps the usual row and heading. Kept out of `merchandising.ts` so 
 ## Payment icons on book pages (23 October 2026)
 
 Studio › Style › Book page · photos & layout › Extras on the page › **Payment icons under the buy buttons**
-(`showPdpPaymentIcons`, off by default) draws `features/site/PdpPaymentIcons.tsx` under the buy buttons (region
+(`showPdpPaymentIcons`, off by default) draws `features/site/extras/pdp-payment-icons/PdpPaymentIcons.tsx` (its controls, words and region are in that folder's `feature.ts`) under the buy buttons (region
 `productPaymentIcons`): the footer's card/wallet logos (`resolveFooterBadges`, picked in Style › Payment icons; the SVGs live in
 `features/site/paymentIcons.tsx`, shared with `StoreFooter`), unknown ids and repeats dropped (`pdpPaymentBadges`), hidden while
 sold out or Coming soon. One `role="img"` label, Text & labels › Product page › `pdpPaymentIconsLabel` ("Ways to pay: {methods}").

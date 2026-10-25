@@ -9,6 +9,8 @@
 import { REGION_GROUPS } from "../../features/site/storefrontRegions";
 import type { StudioOverlay } from "../../features/site/studioOverlay";
 import { readStyle, type StyleField, type StyleGroup } from "./styleSchema";
+import { withFeatureSubsections } from "../../features/site/extras/featureKit";
+import { STOREFRONT_FEATURES } from "../../features/site/extras/registry";
 
 /** Studio-only categories that are not STYLE_GROUPS (they have bespoke panels in StudioEditor). */
 export const EXTRA_STYLE_CATEGORIES: Record<string, { title: string; blurb: string }> = {
@@ -119,7 +121,7 @@ export const blurbFor = (group: StyleGroup | undefined, id: string): string =>
  * Sub-sections inside the bigger categories, so 20–45 controls read as a few short lists.
  * Keys not listed land in a final "More settings" sub-section — nothing can disappear.
  */
-export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }[]> = {
+export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }[]> = withFeatureSubsections({
   catalog: [
     { title: "Heading", keys: ["catalogHeading", "catalogHeadingFont", "catalogHeadingSize", "catalogHeadingSizeMobile", "catalogHeadingCase", "catalogHeadingColor", "showCatalogCount"] },
     { title: "Shop filter bar", keys: ["showShopFilterBar", "shopFilterBarCounts", "shopFilterBarInStock", "shopFilterBarFont", "shopFilterBarBorderColor", "shopFilterBarActiveColor"] },
@@ -184,7 +186,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Page layout", keys: ["productImageLayout", "productContentPosition", "productAlignment", "productDetailsLayout"] },
     { title: "Photos", keys: ["productImageMaxWidth", "productImageAspect", "productImageFrameMode", "productImageAspectLandscape", "productPhotoOutline", "productImageFit", "productImageShadow", "productImageHoverScale", "showZoom", "showPdpMagnifier", "pdpMagnifierLevel", "showPhotoLightbox", "showProductVideos", "showAmbientGlow", "glowIntensity", "productImageGlowColor"] },
     { title: "Title & add-to-bag button", keys: ["productTitleSize", "productSubtitleWeight", "addToBagLabel", "productCtaWidth", "productCtaSize", "productCtaAnimation"] },
-    { title: "Extras on the page", keys: ["showSpecs", "showPdpEditionDetails", "showPdpArtistLinks", "showSocialShare", "showPdpWishlist", "showBackInStock", "showComingSoonSignup", "showPdpSaleCountdown", "pdpSaleCountdownWithin", "showPdpTaxNote", "pdpDescriptionFold", "pdpDescriptionFoldLines", "showPdpReleaseCountdown", "pdpReleaseCountdownWithin", "showPdpPaymentIcons", "showPdpInBag", "showPdpFreeShipping", "showPdpShipBy", "pdpShipByDays", "pdpShipByCutoff", "pdpShipByCountdownHours", "pdpShipByClosedDays", "showPdpPickup", "showPdpAskQuestion", "showPdpArtistBio", "showPdpPolicyTab", "pdpTabOrder1", "pdpTabOrder2", "pdpTabOrder3", "pdpTabOrder4", "pdpTabOrder5", "showBundleWidget", "productBundleLayout", "showRelatedProducts", "relatedByArtist", "recentlyViewedCount", "lowStockProductThreshold"] },
+    { title: "Extras on the page", keys: ["showSpecs", "showPdpEditionDetails", "showPdpArtistLinks", "showSocialShare", "showPdpWishlist", "showBackInStock", "showComingSoonSignup", "showPdpSaleCountdown", "pdpSaleCountdownWithin", "showPdpTaxNote", "pdpDescriptionFold", "pdpDescriptionFoldLines", "showPdpReleaseCountdown", "pdpReleaseCountdownWithin", "showPdpInBag", "showPdpFreeShipping", "showPdpShipBy", "pdpShipByDays", "pdpShipByCutoff", "pdpShipByCountdownHours", "pdpShipByClosedDays", "showPdpPickup", "showPdpAskQuestion", "showPdpArtistBio", "showPdpPolicyTab", "pdpTabOrder1", "pdpTabOrder2", "pdpTabOrder3", "pdpTabOrder4", "pdpTabOrder5", "showBundleWidget", "productBundleLayout", "showRelatedProducts", "relatedByArtist", "recentlyViewedCount", "lowStockProductThreshold"] },
   ],
   productCard: [
     { title: "Buy card box", keys: ["pdpCardBg", "pdpCardBorderColor", "pdpCardBorderWidth", "pdpCardShadowColor", "pdpCardShadowOffset", "pdpCardPadding", "pdpCardDividerColor"] },
@@ -229,7 +231,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Text & column", keys: ["pageChromeStyle", "pageBodySize", "pageTextColor", "pageAlign", "pageWidth", "pageTextMeasure", "pageTextWidthPx"] },
     { title: "Line under the title", keys: ["pageShowRule", "pageRuleColor", "pageRuleWidth", "pageRuleSpacing"] },
   ],
-};
+}, STOREFRONT_FEATURES);
 
 export const MORE_SETTINGS = "More settings";
 

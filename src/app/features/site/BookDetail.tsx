@@ -52,7 +52,7 @@ import PdpFreeShipping from "./PdpFreeShipping";
 import PdpShipBy from "./PdpShipBy";
 import PdpAskQuestion from "./PdpAskQuestion";
 import PdpInBag from "./PdpInBag";
-import PdpPaymentIcons from "./PdpPaymentIcons";
+import PdpPaymentIcons from "./extras/pdp-payment-icons/PdpPaymentIcons";
 import { resolveFooterBadges } from "./paymentBadges";
 import PdpTaxNote from "./PdpTaxNote";
 import { taxCollectionOn } from "./taxRate";

@@ -1,7 +1,7 @@
-import { getCopy } from "./storeCopy";
-import { regionProps } from "./storefrontRegions";
-import { PAYMENT_BADGE_OPTIONS } from "./paymentBadges";
-import { PAYMENT_ICONS } from "./paymentIcons";
+import { getCopy } from "../../storeCopy";
+import { regionProps } from "../../storefrontRegions";
+import { PAYMENT_BADGE_OPTIONS } from "../../paymentBadges";
+import { PAYMENT_ICONS } from "../../paymentIcons";
 
 /** The payment icons the book page can draw: the footer's list, in its order, minus unknown ids and repeats. */
 export function pdpPaymentBadges(ids: unknown): string[] {
