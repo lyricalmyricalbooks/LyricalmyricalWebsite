@@ -88,6 +88,38 @@ jobs:
       - name: Firebase Hosting routing check
         run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-lyricalmyrical "node scripts/hosting-smoke.mjs"
 
+  firestore-rules:
+    # Runs scripts/firestore-rules-emulator.mjs against the real rules engine (Firestore emulator), so a rules change
+    # that refuses real shopper writes (it once refused every guest order by passing the 1,000-expression limit) fails
+    # before merge. Its packages go in a throwaway folder: they never touch the shop's lockfile.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install the rules test packages
+        run: |
+          mkdir -p "$RUNNER_TEMP/rules-test"
+          cd "$RUNNER_TEMP/rules-test"
+          echo '{"type":"module","private":true}' > package.json
+          npm install --no-audit --no-fund @firebase/rules-unit-testing@6.0.0 firebase@13.1.0 "firebase-tools@${FIREBASE_TOOLS_VERSION}"
+          cp "$GITHUB_WORKSPACE/scripts/firestore-rules-emulator.mjs" .
+
+      - name: Firestore rules behave as expected
+        working-directory: ${{ runner.temp }}/rules-test
+        env:
+          RULES_FILE: ${{ github.workspace }}/firestore.rules
+        run: npx firebase emulators:exec --only firestore --project demo-rules "node firestore-rules-emulator.mjs"
+
   dependency-audit:
     # Fails a pull request when an installed package has a known high or critical advisory (root: pnpm, Cloud Functions: npm).
     # Low and moderate advisories only print, so the unpatched Quill one (guarded by quillExport.guard.test.ts) doesn't block.
