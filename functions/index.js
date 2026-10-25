@@ -5875,7 +5875,8 @@ exports.createShippingLabel = onBrowserRequest(
 async function handleClientError(req, res) {
   const report = cleanReport(req.body.report);
   if (report && (await hitLimit(db, "client-error", req, LIMITS.clientError))) {
-    await recordClientError(db, report).catch(err => console.warn("clientError record failed:", err.message));
+    const result = await recordClientError(db, report).catch(err => { console.warn("clientError record failed:", err.message); return null; });
+    if (result === "full") console.warn("clientError: today's budget of new errors is used up; new errors aren't recorded until tomorrow.");
   }
   res.status(204).send("");
 }

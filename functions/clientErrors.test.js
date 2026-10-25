@@ -25,6 +25,11 @@ describe("cleanReport keeps nothing personal", () => {
     expect(r).toEqual({ kind: "page", message: "Can't read order [number] for [email]", stack: "at x (https://shop.example/assets/a.js)",
       path: "/track", section: "Heroscript", build: "abc123" });
   });
+  it("keeps Firefox/Safari stack frames and line breaks", () => {
+    const r = cleanReport({ message: "x", stack: "render@https://shop.example/assets/index-a.js:12:345\nrun@https://shop.example/assets/b.js:1:2" });
+    expect(r.stack).toBe("render@https://shop.example/assets/index-a.js:12:345\nrun@https://shop.example/assets/b.js:1:2");
+    expect(cleanReport({ message: "x", stack: "for ada@example.com\nat y" }).stack).toBe("for [email]\nat y");
+  });
   it("refuses an empty report and caps lengths", () => {
     expect(cleanReport(null)).toBeNull();
     expect(cleanReport({ message: "   " })).toBeNull();

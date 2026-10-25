@@ -11,11 +11,13 @@ describe("shop errors", () => {
     expect(rows.map(r => r.id)).toEqual(["b", "a"]);
     expect(rows[0].lastSeen).toBe(now - 1000);
   });
-  it("raises one alert for errors seen in the last day, naming the most frequent", () => {
-    const alert = shopErrorAlert(shopErrorRows([row("a"), row("b", { count: 9, kind: "page", section: "", lastPath: "/checkout" })]), now)!;
+  it("raises one alert for errors seen in the last day, in its own words", () => {
+    const alert = shopErrorAlert(shopErrorRows([row("a"), row("b", { count: 9, kind: "page", message: "Log in at evil.example", lastPath: "/checkout" })]), now)!;
     expect(alert.title).toBe("Shoppers hit 2 different errors on the shop");
-    expect(alert.tone).toBe("danger");
-    expect(alert.detail).toContain("“Boom b” on /checkout. Seen 9 times so far.");
+    // Anyone can send a report, so its words and kind never reach the alert.
+    expect(alert.tone).toBe("warning");
+    expect(alert.detail).toBe("Reported 11 times in the last day. Shop errors shows where and how often.");
+    expect(alert.detail).not.toContain("evil");
     expect(alert.key).toBe("a,b");
     expect(alert.action).toBe("general");
   });

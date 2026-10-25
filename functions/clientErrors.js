@@ -11,11 +11,14 @@ const MAX_PATHS = 5;
 const KINDS = ["page", "section", "script", "promise"];
 
 const text = (value, max) => String(value ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, max);
+// Stacks keep their line breaks (one frame per line in the admin's Details view).
+const lines = (value, max) => String(value ?? "").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000b-\u001f\u007f]+/g, " ").trim().slice(0, max);
 
 /** Removes anything that could identify a shopper: email addresses, long numbers, query strings and fragments. */
 function scrub(value) {
   return String(value)
-    .replace(/[^\s@"'<>]+@[^\s@"'<>]+\.[a-z]{2,}/gi, "[email]")
+    // A plain domain after the @, so Firefox/Safari stack frames ("fn@https://shop/assets/x.js:1:2") survive.
+    .replace(/[^\s@"'<>()]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b(?![:/])/gi, "[email]")
     .replace(/\?[^\s)'"]*/g, "")
     .replace(/#[^\s)'"]*/g, "")
     .replace(/\b\d{6,}\b/g, "[number]");
@@ -37,7 +40,7 @@ function cleanReport(body) {
   return {
     kind,
     message,
-    stack: scrub(text(body.stack, 2000)),
+    stack: scrub(lines(body.stack, 2000)),
     path: cleanPath(body.path),
     section: text(body.section, 60).replace(/[^\w-]/g, ""),
     build: text(body.build, 40).replace(/[^\w.-]/g, ""),
@@ -62,7 +65,7 @@ async function recordClientError(db, report, now = Date.now()) {
   const budgetRef = db.collection("systemStatus").doc("clientErrorBudget");
   const expiresAt = new Date(now + RETAIN_DAYS * 864e5);
   return db.runTransaction(async tx => {
-    const [snap, budgetSnap] = await Promise.all([tx.get(ref), tx.get(budgetRef)]);
+    const snap = await tx.get(ref);
     if (snap.exists) {
       const prev = snap.data() || {};
       const paths = Array.isArray(prev.paths) ? prev.paths.filter(p => typeof p === "string") : [];
@@ -71,6 +74,7 @@ async function recordClientError(db, report, now = Date.now()) {
         paths: nextPaths, stack: report.stack || prev.stack || "", build: report.build || prev.build || "", expiresAt }, { merge: true });
       return "counted";
     }
+    const budgetSnap = await tx.get(budgetRef);
     const day = torontoDay(now);
     const budget = budgetSnap.exists ? budgetSnap.data() || {} : {};
     const used = budget.day === day ? Number(budget.created || 0) : 0;

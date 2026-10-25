@@ -20,6 +20,12 @@ export function shouldIgnore(message: string): boolean {
   return !message.trim() || IGNORED.some(re => re.test(message.trim()));
 }
 
+/** Whether a rejected value is an Error raised in the shop's own bundle (a frame under <origin>/assets/). */
+export function fromShopCode(reason: unknown, origin: string): boolean {
+  const stack = reason instanceof Error ? String(reason.stack || "") : "";
+  return stack.includes(`${origin}/assets/`);
+}
+
 /** The report a caught error becomes (pure; the path never carries the query or fragment). */
 export function buildReport(kind: ErrorKind, error: unknown, where: { path: string; section?: string; build?: string }): ErrorReport {
   const err = error as { message?: unknown; stack?: unknown } | null;
@@ -77,5 +83,8 @@ export function installErrorReporting(): void {
     if (file && !file.startsWith(window.location.origin)) return;
     reportClientError("script", event.error || event.message);
   });
-  window.addEventListener("unhandledrejection", event => reportClientError("promise", event.reason));
+  // Other scripts' rejections (reCAPTCHA, Stripe, extensions) aren't the shop's code: only Errors thrown from its own bundle.
+  window.addEventListener("unhandledrejection", event => {
+    if (fromShopCode(event.reason, window.location.origin)) reportClientError("promise", event.reason);
+  });
 }

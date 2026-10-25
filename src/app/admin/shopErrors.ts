@@ -40,18 +40,20 @@ export function shopErrorRows(docs: any[]): ShopErrorRow[] {
   })).sort((a, b) => b.lastSeen - a.lastSeen);
 }
 
-/** One alert while any error was seen in the last day; a new distinct error brings a dismissed alert back. */
+/**
+ * One alert while any error was seen in the last day; a new distinct error brings a dismissed alert back. Reports come
+ * from anonymous browsers, so the alert never repeats their words or lets them choose its colour: the message, page
+ * and section are shown only in the Shop errors card.
+ */
 export function shopErrorAlert(rows: ShopErrorRow[], now = Date.now()): AdminAlert | null {
   const recent = rows.filter(r => now - r.lastSeen < DAY);
   if (!recent.length) return null;
-  const top = [...recent].sort((a, b) => b.count - a.count)[0];
-  const times = top.count;
-  const where = top.section ? `the ${top.section} section on ${top.lastPath}` : top.lastPath;
+  const times = recent.reduce((sum, r) => sum + r.count, 0);
   return {
     id: "shop-errors",
-    tone: top.kind === "page" ? "danger" : "warning",
+    tone: "warning",
     title: recent.length === 1 ? "A shopper hit an error on the shop" : `Shoppers hit ${recent.length} different errors on the shop`,
-    detail: `Most often: “${top.message.slice(0, 120)}” on ${where}. ${times === 1 ? "Seen once" : `Seen ${times} times`} so far. Details are in Shop errors.`,
+    detail: `${times === 1 ? "Reported once" : `Reported ${times} times`} in the last day. Shop errors shows where and how often.`,
     orderIds: [],
     key: recent.map(r => r.id).sort().join(","),
     action: "general",

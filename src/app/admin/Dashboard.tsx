@@ -196,7 +196,7 @@ export function Dashboard() {
             adminApi.getRecentEmailLog(50).catch(() => { failedParts.push("the email log"); return []; }),
             adminApi.getBackupStatus().catch(() => { failedParts.push("the backup status"); return undefined; }),
             inventoryLinkApi.state().catch(() => { failedParts.push("the inventory app link"); return null; }),
-            adminApi.getClientErrors(20).catch(() => []),
+            adminApi.getClientErrors(20).catch(() => { failedParts.push("the shop errors"); return []; }),
           ]);
           if (!alive) return;
           alertInputs.current = { webhook, emailLog, backup, linkState, shopErrors, failedParts };
