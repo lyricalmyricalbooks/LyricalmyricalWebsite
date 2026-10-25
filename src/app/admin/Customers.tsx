@@ -253,7 +253,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
       {open && (
         <Dialog open size="lg" title={open.name || open.email} description={`${open.email} · ${SEGMENT_LABELS[open.segment]} · Marketing: ${CONSENT_LABELS[consentFor(open)]}`} onClose={() => { void closeCustomer(); }}>
           <CustomerDetail customer={open} tab={detailTab} onTab={setDetailTab} draft={draft} onDraft={setDraft}
-            notesState={notesState} onRetryNotes={loadNotes} savingNote={savingNote} onSaveNote={saveNote} onOpenOrder={() => setOpen(null)} />
+            notesState={notesState} onRetryNotes={loadNotes} savingNote={savingNote} onSaveNote={saveNote} knownTags={allTags} onOpenOrder={() => setOpen(null)} />
         </Dialog>
       )}
       {confirmNode}
@@ -262,10 +262,10 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
 }
 
 /** One customer's window: Summary · Orders · Notes & tags. */
-export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesState, onRetryNotes, savingNote, onSaveNote, onOpenOrder }: {
+export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesState, onRetryNotes, savingNote, onSaveNote, knownTags = [], onOpenOrder }: {
   customer: CustomerRow; tab: CustomerTab; onTab: (t: CustomerTab) => void;
   draft: Draft | null; onDraft: (d: Draft) => void; notesState: "loading" | "ok" | "failed"; onRetryNotes: () => void;
-  savingNote: boolean; onSaveNote: () => void; onOpenOrder: () => void;
+  savingNote: boolean; onSaveNote: () => void; knownTags?: string[]; onOpenOrder: () => void;
 }) {
   const row = (label: string, value: React.ReactNode) => (
     <div style={{ display: "contents" }}><dt className="rp-hint">{label}</dt><dd style={{ margin: 0 }}>{value}</dd></div>
@@ -308,10 +308,24 @@ export function CustomerDetail({ customer: c, tab, onTab, draft, onDraft, notesS
       <TabPanel tabId="cust-notes" active={tab === "cust-notes"}>
         {draft && (
           <div className="rp-stack">
-            <TextArea label="Private note" hint="Only you can see this. Never shown to the customer." value={draft.note} maxLength={5000}
-              onChange={(e) => onDraft({ ...draft, note: e.target.value })} />
+            <TextArea label="Private note" hint="Only you can see this. Never shown to the customer. Ctrl (or ⌘) + Enter saves." value={draft.note} maxLength={5000}
+              onChange={(e) => onDraft({ ...draft, note: e.target.value })}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && draft.loaded && !savingNote) { e.preventDefault(); onSaveNote(); } }} />
             <TextField label="Tags" hint="Separate with commas, e.g. wholesale, author, festival" value={draft.tags}
               onChange={(e) => onDraft({ ...draft, tags: e.target.value })} />
+            {(() => {
+              const have = parseTags(draft.tags).map((t) => t.toLowerCase());
+              const suggestions = knownTags.filter((t) => !have.includes(t.toLowerCase())).slice(0, 12);
+              if (!suggestions.length) return null;
+              return (
+                <div role="group" aria-label="Tags you've used before" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                  <span className="rp-hint">Used before:</span>
+                  {suggestions.map((t) => (
+                    <SecondaryButton key={t} size="sm" onClick={() => onDraft({ ...draft, tags: [...parseTags(draft.tags), t].join(", ") })}>+ {t}</SecondaryButton>
+                  ))}
+                </div>
+              );
+            })()}
             {!draft.loaded && (
               <p className="rp-hint" role="status" style={{ margin: 0 }}>
                 {notesState === "failed"
