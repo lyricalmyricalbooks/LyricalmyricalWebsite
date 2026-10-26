@@ -508,7 +508,7 @@ not deployed functions, real payment/refund acceptance, carrier rates or email d
 
 Books › edit › Inventory › **Pre-order** (`preorder: true`) sells a published book before its **Publication date**
 (`publishDate`, YYYY-MM-DD, Toronto calendar; empty = "date to be announced"). On release day it becomes an ordinary
-book by itself. One rule, `functions/preorder.js` ↔ `features/site/preorder.ts` (`preorder.parity.test.ts`). Stock,
+book by itself. One rule, `src/shared/preorder.ts` (the Functions run its generated copy `functions/shared/preorder.js`; src/shared/CLAUDE.md). Stock,
 prices, holds and payment authority are unchanged: pre-orders use the book's normal inventory settings (stock caps
 pre-orders; backorders or untracked stock = unlimited). Both checkout item builders stamp each line with
 `preorder`/`releaseDate` from the catalog (`preorderLine`, a browser flag never sticks). Paid orders with a physical

@@ -5,7 +5,7 @@ import { buildAdminAlerts as adminAlerts } from "./adminAlerts";
 import { repriceCart } from "../CartContext";
 import { restampPreorderItems, preorderClockStart, waitingPreorderLines } from "../features/site/preorder";
 // @ts-ignore
-import * as serverRule from "../../../functions/preorder.js";
+import * as serverRule from "../../../functions/shared/preorder.js";
 const srvRule: any = (serverRule as any).default ?? serverRule;
 // @ts-ignore - CommonJS server modules
 import * as guard from "../../../functions/fulfillmentGuard.js";

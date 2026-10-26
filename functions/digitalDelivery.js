@@ -108,7 +108,7 @@ function nextDownloadCount(counts, key, limit = DOWNLOAD_LIMIT) {
 
 /**
  * The digital entries an order email lists. `loadBook(id)` returns the catalog book (or null);
- * `isPhysical(line)` and `catalogDigital(book, variant)` are index.js's own rules; `preorderActive` as in preorder.js.
+ * `isPhysical(line)` and `catalogDigital(book, variant)` are index.js's own rules; `preorderActive` as in shared/preorder.js.
  * Each entry: { itemId, variantId, title, pendingUntil } where pendingUntil is "" (downloadable now),
  * a YYYY-MM-DD date, or "announced" (pre-order with no date yet).
  */

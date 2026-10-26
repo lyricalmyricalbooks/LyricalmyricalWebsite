@@ -7,7 +7,7 @@ import { releaseArrived as buildRelease } from "../../../../scripts/publicStoref
 // @ts-ignore - CommonJS server modules
 import * as priceMod from "../../../../functions/catalogPrice.js";
 // @ts-ignore
-import * as preMod from "../../../../functions/preorder.js";
+import * as preMod from "../../../../functions/shared/preorder.js";
 // @ts-ignore
 import * as promoMod from "../../../../functions/promotions.js";
 const server: any = { ...((priceMod as any).default ?? priceMod), ...((preMod as any).default ?? preMod), ...((promoMod as any).default ?? promoMod) };

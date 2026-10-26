@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as client from "./preorder";
-// @ts-ignore - CommonJS server module
-import * as server from "../../../../functions/preorder.js";
+// @ts-ignore - the Functions' generated CommonJS copy (scripts/build-shared.mjs)
+import * as server from "../../../../functions/shared/preorder.js";
 const srv: any = (server as any).default ?? server;
 
 // 2026-10-08 noon in Toronto.
