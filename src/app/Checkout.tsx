@@ -821,7 +821,7 @@ export function Checkout() {
 
   const catalogItems = useMemo(() => catalogFulfillmentItems(cart, booksMap), [cart, booksMap]);
 
-  // Same arithmetic as the server (features/site/discountMath.ts mirrors functions/discountMath.js):
+  // Same arithmetic as the server (one shared copy, src/shared/discountMath.ts):
   // gift cards are never discounted; a code replaces automatic offers; a free gift is a line
   // whose price is the discount.
   const booksById = useMemo(() => Object.fromEntries(booksMap), [booksMap]);

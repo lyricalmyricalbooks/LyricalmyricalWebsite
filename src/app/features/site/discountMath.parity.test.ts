@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createRequire } from "node:module";
 import * as client from "./discountMath";
-const srv = createRequire(import.meta.url)("../../../../functions/discountMath.js");
+const srv = createRequire(import.meta.url)("../../../../functions/shared/discountMath.js");
 
 /** Same outcome on both sides: an equal value, or the same thrown message. */
 const outcome = (fn: () => unknown) => { try { return { ok: fn() }; } catch (e: any) { return { threw: e.message }; } };

@@ -543,9 +543,10 @@ drawer › **Pre-order note** (`cartDrawerShowPreorder`); words in Text & labels
 
 All five are priced on the server by **`priceOrder`** (`functions/index.js`), the one price builder every checkout
 path uses (card, PayPal, manual, free); `recalculateOrder` and the Stripe handler both call it. Pure rules live in
-`functions/promotions.js` (sale windows, add-ons, box sets, gift-card products), `functions/discountMath.js`
-(discount arithmetic, automatic choice, free gift) and `functions/giftCards.js` (codes, holds, debit/credit), mirrored
-for display in `features/site/promotions.ts` / `discountMath.ts` (`*.parity.test.ts`). Handler tests:
+`functions/promotions.js` (sale windows, add-ons, box sets, gift-card products), `functions/shared/discountMath.js`
+(discount arithmetic, automatic choice, free gift; generated from `src/shared/discountMath.ts`, one copy with the shop) and
+`functions/giftCards.js` (codes, holds, debit/credit); promotions are mirrored for display in `features/site/promotions.ts`
+(`promotions.parity.test.ts`). Handler tests:
 `functions/promotionsCheckout.test.js`, `functions/giftCardSettlement.test.js`.
 
 - **Scheduled sales:** `saleStartsAt` / `saleEndsAt` (plain Toronto dates, inclusive) bound `isOnSale`/`salePrice`
