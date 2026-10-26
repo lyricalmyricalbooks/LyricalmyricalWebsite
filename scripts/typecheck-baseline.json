@@ -24,6 +24,5 @@
   "src/app/features/site/merchandising.ts": 1,
   "src/app/features/site/navItems.ts": 2,
   "src/app/features/site/ProductOptions.tsx": 2,
-  "src/app/features/site/searchPanel.ts": 1,
-  "src/app/features/site/shippingEngine.ts": 1
+  "src/app/features/site/searchPanel.ts": 1
 }

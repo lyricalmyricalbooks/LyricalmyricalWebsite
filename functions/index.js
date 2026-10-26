@@ -25,7 +25,7 @@ function Stripe(...args) { return new (require("stripe"))(...args); }
 function Resend(...args) { return new (require("resend").Resend)(...args); }
 const nodemailer = { createTransport: (...args) => require("nodemailer").createTransport(...args) };
 const { calculateShipping, applyStockDelta } = require("./orderMath");
-const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
+const { quoteShipping, pickQuote, parseWeightGrams } = require("./shared/shippingEngine");
 const { labelProblem, addressKey: guardAddressKey, shippoTransactionOutcome, advancesTracking, shippoDefiniteRefusal, terminal: terminalOrder } = require("./fulfillmentGuard");
 const { labelHandedOver, transactionRefundState, findLabelTransaction, refundEntry, openRefunds, applyRefundChecks, REFUND_WINDOW_DAYS: LABEL_REFUND_WINDOW_DAYS } = require("./labelVoid");
 const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
@@ -43,7 +43,7 @@ const { addOnSelection, bundleComponents, bundleAvailable, isGiftCardProduct, gi
 const { expiryChange } = require("./giftCards");
 const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode, normalizeGiftCardCode, giftCardId, last4, giftCardProblem, availableMinor, allocateGiftCards, chargedRedemptions, reserveGiftCards, releaseGiftCards, readGiftCards, debitShortfall, writeGiftCardChange, cardsForOrder, withHistory } = require("./giftCards");
 const { readBooks, writeStock } = require("./inventory");
-const { resolveCountry } = require("./shippingGeo");
+const { resolveCountry } = require("./shared/shippingZones");
 const { emailIdentity, openClaims, limitReached } = require("./discountClaims");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, failedRefundId } = require("./stripeRecovery");
 const { orderMoneyFmt, chargedTotalFmt, refundAmountText, withoutTrackingLines, withoutCarrierLines, refundEmailFacts, withoutBankRefundSentences, forDigitalOnlyOrder } = require("./emailMoney");

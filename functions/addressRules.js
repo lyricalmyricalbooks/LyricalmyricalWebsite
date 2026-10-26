@@ -2,7 +2,7 @@
 // some have no postal code at all; demanding them turned valid addresses away from the address
 // check and the label tool. Mirrored by src/app/features/site/addressRules.ts
 // (addressRules.parity.test.ts), and by the checkout form (regionsFor + the no-postcode list).
-const { resolveCountry } = require("./shippingGeo");
+const { resolveCountry } = require("./shared/shippingZones");
 
 // Countries whose addresses have no postal code (same list the checkout form uses).
 const NO_POSTAL_CODE = new Set([

@@ -92,9 +92,10 @@ Secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`,
 
 ## Shipping engine
 
-`functions/shippingEngine.js` (server, authoritative) and `src/app/features/site/shippingEngine.ts`
-(display mirror) turn profiles → zones → rates into checkout quotes; `shippingEngine.parity.test.ts`
-keeps them identical, so change both together. Rate `type`: flat | order | weight | percent | free |
+`src/shared/shippingEngine.ts` (with `shippingZones.ts` and `weightGrams.ts` beside it) turns profiles → zones → rates
+into checkout quotes, once for both sides since 26 October 2026: the Functions run its generated copy
+`functions/shared/shippingEngine.js` (authoritative) and the shop runs the same code to display quotes. Change only the
+`src/shared` files and run `pnpm run build:shared` (src/shared/CLAUDE.md). Rate `type`: flat | order | weight | percent | free |
 pickup, plus conditions (order total / cart grams / item count), `freeOver`, `handlingFee`; profiles
 add `freeShippingOver`, `handlingFee`, `defaultItemWeightG`. The server charges the quote matching
 the customer's `shippingMethod` (else cheapest) and rejects unservable destinations; profiles with no
@@ -208,8 +209,8 @@ ignored. Dismiss hides one for the browser session until a new order joins it.
   on `createStripeCheckoutSession`), processing failures, signature failures recorded only for real Stripe-signed
   requests, reset clears old failures and asks first. Checkout refuses a payment whose server `stripeMode` differs
   from the card form's publishable key.
-- **Shipping:** zones store ISO codes (`toCountryCodes`); both engines match names too. `functions/shippingGeo.js` is
-  generated from `shippingZones.ts` COUNTRIES (`shippingGeo.parity.test.ts`). Profile rules persist. Quote ids are
+- **Shipping:** zones store ISO codes (`toCountryCodes`); both engines match names too. Geography is
+  `src/shared/shippingZones.ts` (`resolveCountry`, `matchShippingZone`), one copy for both sides. Profile rules persist. Quote ids are
   unique per option. A zone-less profile offers nothing once any profile has zones. Live rates resolve countries
   with `resolveCountry` and fall back to profile rates when Shippo has none; `SHIPPO_API_TOKEN` is declared on both
   checkout functions. Product assignment sends explicit removals; the panel reads the whole catalog (`getAllBooks`).

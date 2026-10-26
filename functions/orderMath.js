@@ -1,7 +1,7 @@
 // Pure order-math helpers shared across Cloud Functions. Kept free of any
 // firebase-admin / network dependency so it is unit-testable in isolation.
 
-const { matchShippingZone } = require("./shippingGeo");
+const { matchShippingZone } = require("./shared/shippingZones");
 
 // ──────────────────────────────────────────────────────────────
 // Dynamic shipping cost: highest base in the cart + per-item additional for the
