@@ -487,6 +487,14 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 @keyframes rp-shimmer { to { background-position: -200% 0; } }
 .rp-spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--rp-primary-tint); border-top-color: var(--rp-primary); animation: rp-spin 0.8s linear infinite; }
 @keyframes rp-spin { to { transform: rotate(360deg); } }
+.rp-page-skeleton { padding: var(--rp-space-5) 0; }
+.rp-page-skeleton-body { display: grid; gap: var(--rp-space-5); }
+.rp-page-skeleton-title { height: 36px; width: min(320px, 60%); }
+.rp-page-skeleton-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }
+.rp-page-skeleton-figure { height: 88px; }
+.rp-page-skeleton-table { display: grid; gap: 10px; }
+.rp-page-skeleton-row { height: 44px; }
+@media (prefers-reduced-motion: reduce) { .rp-skeleton { animation: none; } }
 
 /* ── Save bar ──────────────────────────────────────────────────────────── */
 .rp-savebar { position: sticky; bottom: 16px; z-index: 40; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: var(--rp-space-5); padding: 12px 16px; background: var(--rp-text); color: var(--rp-canvas); border-radius: var(--rp-radius-lg); box-shadow: var(--rp-shadow-lg); }
