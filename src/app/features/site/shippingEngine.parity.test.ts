@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { quoteShipping, pickQuote, parseWeightGrams } from "./shippingEngine";
 // @ts-ignore - CommonJS server module
-import * as server from "../../../../functions/shippingEngine.js";
+import * as server from "../../../../functions/shared/shippingEngine.js";
 const srv: any = (server as any).default ?? server;
 
 const profiles = [

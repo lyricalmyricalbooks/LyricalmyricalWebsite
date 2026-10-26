@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { COUNTRIES, findCountry, matchShippingZone } from "./shippingZones";
 // @ts-ignore - CommonJS server module
-import * as geoModule from "../../../../functions/shippingGeo.js";
+import * as geoModule from "../../../../functions/shared/shippingZones.js";
 const geo: any = (geoModule as any).default ?? geoModule;
 
 describe("server and browser country tables", () => {
   it("list the same countries (code, name, continent)", () => {
-    expect(geo.COUNTRIES.map(([code, name, continent]: string[]) => ({ code, name, continent })))
+    expect(geo.COUNTRIES.map(({ code, name, continent }: any) => ({ code, name, continent })))
       .toEqual(COUNTRIES.map(({ code, name, continent }) => ({ code, name, continent })));
   });
   it("resolve names, codes and aliases the same way", () => {

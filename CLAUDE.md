@@ -66,7 +66,7 @@ src/
   styles/                   Tailwind/global CSS, fonts
 functions/                  Firebase Cloud Functions (Node 22, separate package)
   index.js                  All functions (Stripe, webhook, emails, sweeps)
-  shippingGeo.js            Shipping zone matching
+  shared/                   Generated copies of src/shared rules (shipping, pre-orders)
 scripts/                    generate-sitemap, check-readability, verify-admin
 firestore.rules / .indexes  Firestore security rules + indexes
 storage.rules               Storage security rules

@@ -39,8 +39,8 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
   `shippingHealth.ts`. Carrier & labels also owns the country allowlist for
   Shippo live rates; countries outside it keep using regular profile/zone rates.
 - `functions/index.js` — Cloud Functions: Stripe checkout/webhook, digital
-  downloads, order emails, abandoned-cart sweep. `functions/shippingGeo.js` —
-  shipping zones.
+  downloads, order emails, abandoned-cart sweep. Shipping zones and quotes come from
+  `src/shared/` (generated copies in `functions/shared/`).
 - `firestore.rules` / `firestore.indexes.json` / `storage.rules` — server-side
   security and indexes.
 

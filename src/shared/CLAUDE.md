@@ -13,8 +13,8 @@ here once, as a TypeScript module, instead of a hand-kept mirror pair with a par
   copy works inside `functions/shared/` too. Types-only TypeScript is fine: the translation drops it.
 - Moving a mirror here: merge both copies into one file (the union of their exports, same behaviour), point the
   storefront file at it, point the Functions' `require`s at `./shared/<name>` and delete the old server file. Keep the
-  old parity test's cases, now run against the generated copy. Done so far: `preorder`. Next: shipping engine (needs
-  `shippingGeo` and `weightGrams` moved first), discount maths, promotions, address rules.
+  old parity test's cases, now run against the generated copy. Done so far: `preorder`, the shipping engine
+  (`shippingEngine`, `shippingZones`, `weightGrams`). Next: discount maths, promotions, address rules.
 - `src/app/features/site/merchantFeed.mjs` keeps its own small copy of the pre-order date check because plain Node build
   scripts can't import TypeScript; `features/site/merchantFeed.test.ts` guards it.
 
