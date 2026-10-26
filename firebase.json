@@ -61,6 +61,15 @@
         ]
       },
       {
+        "regex": "^/(?:favicon[^/]*|apple-touch-icon|icon-[^/]+|admin-icon-[^/]+)\\.(?:ico|png)$",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=604800"
+          }
+        ]
+      },
+      {
         "regex": "^/(?:|spa|404|(?:books|collections|page)/.*|(?:account|admin)(?:/.*)?|cart|checkout|track|wishlist|[^/]+\\.(?:xml|txt|json)|.*\\.html)$",
         "headers": [
           {
