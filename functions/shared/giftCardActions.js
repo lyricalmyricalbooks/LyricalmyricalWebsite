@@ -19,11 +19,11 @@ exports.GIFT_CARD_BODIES = {
         senderName: text(100),
         message: text(300),
         note: text(500),
-        expiresOn: text(10),
+        expiresOn: text(32),
         sendEmail: (0, edge_1.optional)((0, edge_1.boolean)()),
     }),
     setEnabled: (0, edge_1.object)({ id, enabled: (0, edge_1.boolean)() }),
     adjust: (0, edge_1.object)({ id, deltaMinor: (0, edge_1.number)(), reason: (0, edge_1.string)({ max: 300 }) }),
-    setExpiry: (0, edge_1.object)({ id, expiresOn: (0, edge_1.string)({ max: 10 }), reason: text(300) }),
+    setExpiry: (0, edge_1.object)({ id, expiresOn: (0, edge_1.string)({ max: 32 }), reason: text(300) }),
     resend: (0, edge_1.object)({ id, to: text(320) }),
 };

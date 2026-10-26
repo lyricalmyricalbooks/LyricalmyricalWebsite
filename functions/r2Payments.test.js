@@ -287,6 +287,10 @@ test('gift card actions in the wrong shape are refused before a card is read (sr
     expect(res.code).toBe(400);
     expect(res.value.error).toBe('Unknown gift card action.');
   }
+  // A mistyped year from the date field still gets the friendly answer, not a shape error.
+  const typo = await app.call('createStripeCheckoutSession', { action: 'giftCardAdmin', op: 'setExpiry', id: GC, expiresOn: '20266-01-01' }, { admin: true });
+  expect(typo.code).toBe(400);
+  expect(typo.value.error).toMatch(/real date/);
   expect(app.docs.giftCards[GC]).toEqual({ balanceMinor: 2000, history: [] });
 });
 

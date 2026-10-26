@@ -19,12 +19,12 @@ export const GIFT_CARD_BODIES = {
     senderName: text(100),
     message: text(300),
     note: text(500),
-    expiresOn: text(10),
+    expiresOn: text(32),
     sendEmail: optional(boolean()),
   }),
   setEnabled: object({ id, enabled: boolean() }),
   adjust: object({ id, deltaMinor: number(), reason: string({ max: 300 }) }),
-  setExpiry: object({ id, expiresOn: string({ max: 10 }), reason: text(300) }),
+  setExpiry: object({ id, expiresOn: string({ max: 32 }), reason: text(300) }),
   resend: object({ id, to: text(320) }),
 } as const;
 
