@@ -54,7 +54,7 @@ import PdpAskQuestion from "./PdpAskQuestion";
 import PdpInBag from "./PdpInBag";
 import PdpPaymentIcons from "./extras/pdp-payment-icons/PdpPaymentIcons";
 import { resolveFooterBadges } from "./paymentBadges";
-import PdpTaxNote from "./PdpTaxNote";
+import PdpTaxNote from "./extras/pdp-tax-note/PdpTaxNote";
 import { taxCollectionOn } from "./taxRate";
 import SaleEndsLine from "./SaleEndsLine";
 import ReleaseCountdownText from "./ReleaseCountdownText";

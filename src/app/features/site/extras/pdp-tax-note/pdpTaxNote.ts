@@ -1,4 +1,4 @@
-import { getCopy } from "./storeCopy";
+import { getCopy } from "../../storeCopy";
 
 // Style › Book page · photos & layout › Tax & shipping note (showPdpTaxNote, off by default): Shopify's
 // "Taxes and shipping calculated at checkout." line under the price. Which sentence depends on the book:

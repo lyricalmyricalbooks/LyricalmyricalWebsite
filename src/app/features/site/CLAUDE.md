@@ -7,7 +7,8 @@ Shopper-facing pages, checkout (`src/app/Checkout.tsx` too), SEO and prerenderin
 Style controls (group, `after`, sub-section), Text & labels words and click-to-edit regions. `extras/registry.ts` collects every folder
 (`import.meta.glob`), and STYLE_GROUPS, STYLE_SUBSECTIONS, COPY_SCHEMA and REGION_GROUPS add them, so a new extra edits none of those
 lists by hand. feature.ts holds data only (shopper code reads it). `extras/featureKit.test.ts` checks every folder. Move an older extra
-into a folder when you next change it; the first one moved is `pdp-payment-icons`.
+into a folder when you next change it. Moved so far: `pdp-payment-icons`, `pdp-tax-note`, `footer-back-to-top`,
+`cart-tab-reminder` (26 October 2026; each move left the four lists identical apart from the order of `files`).
 
 ## Public storefront readiness repairs (2 October 2026)
 
@@ -317,7 +318,7 @@ pre-orders, backorders, Coming soon, e-books, gift cards). Display only. Words: 
 ## Back to top button (22 October 2026)
 
 Studio › Style › Footer & social links › What the footer shows › **Show a “Back to top” button once shoppers scroll down**
-(`showBackToTop`, off by default) + **Back to top button corner** (`backToTopPosition`, right/left). `features/site/BackToTop.tsx`
+(`showBackToTop`, off by default) + **Back to top button corner** (`backToTopPosition`, right/left). `features/site/extras/footer-back-to-top/BackToTop.tsx`
 is rendered by `StoreFooter` (so every page with the shop footer has it; Checkout doesn't), fixed to a bottom corner, shown after
 1.5 screens (`backToTopShown`, pure rules + token-only CSS in `backToTop.ts`), moves above the book page's sticky add-to-bag bar,
 scrolls up (instant under reduced motion) and moves focus to the header. Region `footerBackToTop`; words Text & labels › Footer ›
@@ -600,7 +601,7 @@ Words: Text & labels › Cart (`cartEmptyPicks*`). Display only.
 Studio › Style › Cart drawer (shopping bag) › Total & checkout button › **Tab reminder** (`cartTabReminder`, off by default): while a
 shopper with books in the bag is on another browser tab (`visibilitychange`), the tab title becomes Text & labels › Cart ›
 `cartTabReminder` ("({count}) Your books are waiting"); the page's own title comes back on return unless something else changed it
-meanwhile (`titleToRestore`). Hook in `CartDrawer` (always mounted), pure rules in `features/site/tabReminder.ts`: never with an empty
+meanwhile (`titleToRestore`). Hook in `CartDrawer` (always mounted), pure rules in `features/site/extras/cart-tab-reminder/tabReminder.ts`: never with an empty
 bag, on `/admin` or in the Studio preview. Display only; no rules or Functions.
 
 ## Release countdown on pre-orders (23 October 2026)
@@ -623,7 +624,7 @@ prerender always shows the bar. Words: Text & labels › Header › `announceClo
 ## Tax & shipping note on book pages (23 October 2026)
 
 Studio › Style › Book page · photos & layout › Extras on the page › **Tax & shipping note** (`showPdpTaxNote`, off by default)
-draws `features/site/PdpTaxNote.tsx` under the price (region `productTaxNote`, priced books only): printed copies
+draws `features/site/extras/pdp-tax-note/PdpTaxNote.tsx` under the price (region `productTaxNote`, priced books only): printed copies
 (`isPickupItem`) "Taxes and [shipping] calculated at checkout.", tax switched off (`taxCollectionOn`) `pdpTaxNoteShippingOnly`,
 downloads `pdpTaxNoteTaxOnly`, gift cards nothing (pure `taxNoteKey` / `taxNoteParts` in `pdpTaxNote.ts`). The first [bracketed]
 words link to `/page/policy-shipping` when `settings.policies.shipping` has text, else the brackets are dropped. Display only.

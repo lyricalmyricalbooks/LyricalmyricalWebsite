@@ -38,7 +38,7 @@ import { useWishlist } from "../lib/wishlist";
 import { canSaveForLater, saveForLaterOn } from "../features/site/saveForLater";
 import { emptyBagPicks, emptyBagPicksCount, emptyBagPicksOn } from "../features/site/emptyBagPicks";
 import { bookSlug } from "../features/site/staffNotes";
-import { tabReminderApplies, tabReminderOn, tabReminderTitle, titleToRestore } from "../features/site/tabReminder";
+import { tabReminderApplies, tabReminderOn, tabReminderTitle, titleToRestore } from "../features/site/extras/cart-tab-reminder/tabReminder";
 
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
 // features/site/cartDrawerStyle.ts); its words are Studio › Text & labels › Cart.
