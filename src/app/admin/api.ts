@@ -1,5 +1,6 @@
 import { duplicateBookData } from "./catalogList";
 import type { OrderActionBody, RefundOrderBody } from "../../shared/orderActions";
+import type { GiftCardBody, GiftCardOp } from "../../shared/giftCardActions";
 import { changedBookFields, lockLinkedStock, removedBookFields, sameValue } from "./bookStockMerge";
 import { PRIVATE_BOOK_KEYS, mergeBookPrivate, privateKeysIn, splitBookPrivate } from "./bookPrivate";
 import { cleanRedirects, REDIRECTS_DOC, type Redirect } from "../features/site/redirects";
@@ -1772,7 +1773,7 @@ export const adminApi = {
     const snap = await getDoc(doc(db, "giftCards", id));
     return snap.exists() ? ({ id: snap.id, ...snap.data() } as any) : null;
   },
-  giftCardAdmin: async (op: "issue" | "setEnabled" | "adjust" | "resend" | "setExpiry", payload: Record<string, any> = {}) => {
+  giftCardAdmin: async <Op extends GiftCardOp>(op: Op, payload: GiftCardBody<Op>) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
     const response = await functionFetch("createStripeCheckoutSession", {

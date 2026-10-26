@@ -26,5 +26,8 @@ keep only the keys they list and ignore extras, so an older admin tab still work
 admin's refund (`refundOrderBody`) and cancel / payment-mismatch / restock actions (`orderActionBody`). The admin builds those
 bodies with `satisfies` on their types (`admin/api.ts`), and `functions/index.js` `readBody(req, res, schema)` refuses any other
 shape with 400 `bad_request` before touching the order. Friendly business checks (amount above zero, at most what is left)
-stay in the handlers. Next: the rest of the order and money actions, then one schema per Firestore collection for what
+stay in the handlers. `giftCardActions.ts` (26 October 2026) adds one schema per gift card `op` (`GIFT_CARD_BODIES`);
+`handleGiftCardAdmin` refuses an unknown op or a wrong shape before reading a card, and `adminApi.giftCardAdmin(op, body)` is
+typed per op. Manual local orders and the public checkout keep their hand-written field checks (`createManualLocalOrder`);
+discounts are written straight to Firestore under `firestore.rules`. Next: one schema per Firestore collection for what
 browsers may write (mirroring `firestore.rules`).

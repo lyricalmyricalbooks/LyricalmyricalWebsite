@@ -1,6 +1,7 @@
 // Admin › Gift cards: status, money and search helpers. Pure, tested.
 // Balances live in whole cents (CAD) on `giftCards/{id}`; only the server writes them.
 import { shopDate } from "../features/site/preorder";
+import type { GiftCardBody } from "../../shared/giftCardActions";
 import type { BadgeTone } from "./riso/components";
 
 export type GiftCardStatus = { key: "active" | "used" | "disabled" | "expired" | "test"; label: string; tone: BadgeTone };
@@ -39,7 +40,7 @@ export function matchesGiftCard(card: any, query: string): boolean {
 
 /** Issue form → server payload, or a list of problems to show. */
 export function issuePayload(form: { amount: string; recipientEmail: string; recipientName: string; message: string; expiresOn: string; note: string; sendEmail: boolean }, today: string = shopDate()):
-  { ok: true; payload: any } | { ok: false; problems: string[] } {
+  { ok: true; payload: GiftCardBody<"issue"> } | { ok: false; problems: string[] } {
   const problems: string[] = [];
   const amountMinor = dollarsToMinor(form.amount);
   // Same limits as the server (functions/index.js handleGiftCardAdmin).
