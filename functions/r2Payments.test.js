@@ -269,6 +269,31 @@ test('fault 131: gift-card adjust records the change that was applied, not the o
   expect(app.docs.giftCards[GC].history.at(-1)).toMatchObject({ type: 'adjusted', minor: -2000, requestedMinor: -5000 });
 });
 
+test('gift card actions in the wrong shape are refused before a card is read (src/shared/giftCardActions.ts)', async () => {
+  const app = harness({ docs: { giftCards: { [GC]: { balanceMinor: 2000, history: [] } }, settings: baseSettings() } });
+  for (const body of [
+    { op: 'adjust', id: GC, deltaMinor: '-5', reason: 'x' },
+    { op: 'adjust', id: GC, deltaMinor: -500 },
+    { op: 'setEnabled', id: GC, enabled: 'yes' },
+    { op: 'issue', amountMinor: 2500, recipientEmail: ['a@b.co'] },
+    { op: 'resend', id: { $gt: '' } },
+  ]) {
+    const res = await app.call('createStripeCheckoutSession', { action: 'giftCardAdmin', ...body }, { admin: true });
+    expect(res.code, JSON.stringify(body)).toBe(400);
+    expect(res.value.code).toBe('bad_request');
+  }
+  for (const op of ['toString', 'constructor', 'delete']) {
+    const res = await app.call('createStripeCheckoutSession', { action: 'giftCardAdmin', op, id: GC }, { admin: true });
+    expect(res.code).toBe(400);
+    expect(res.value.error).toBe('Unknown gift card action.');
+  }
+  // A mistyped year from the date field still gets the friendly answer, not a shape error.
+  const typo = await app.call('createStripeCheckoutSession', { action: 'giftCardAdmin', op: 'setExpiry', id: GC, expiresOn: '20266-01-01' }, { admin: true });
+  expect(typo.code).toBe(400);
+  expect(typo.value.error).toMatch(/real date/);
+  expect(app.docs.giftCards[GC]).toEqual({ balanceMinor: 2000, history: [] });
+});
+
 // ── Fault 148 ────────────────────────────────────────────────────────────────────────────
 test('fault 148: createPayPalOrder is bound to the Stripe secret its paid-twice guard reads', () => {
   const block = source.slice(source.indexOf('exports.createPayPalOrder'), source.indexOf('async (req, res)', source.indexOf('exports.createPayPalOrder')));

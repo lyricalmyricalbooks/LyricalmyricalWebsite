@@ -67,6 +67,7 @@ const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOw
 const { preorderActive, preorderLine, preorderEmailLines, releaseDateOf } = require("./shared/preorder");
 const { check: checkBody } = require("./shared/edge");
 const { orderActionBody, refundOrderBody } = require("./shared/orderActions");
+const { GIFT_CARD_BODIES } = require("./shared/giftCardActions");
 const digitalDelivery = require("./digitalDelivery");
 const { claimEmailSend, claimEmailSendDetailed, reminderFirstName, nextDailyCount } = require("./emailThrottle");
 const { paypalCredentials } = require("./paypalCredentials");
@@ -2254,7 +2255,11 @@ async function handleInventoryLinkAdmin(req, res) {
 async function handleGiftCardAdmin(req, res) {
   const adminUser = await requireAdmin(req, res);
   if (!adminUser) return;
-  const body = req.body || {};
+  const op = req.body?.op;
+  if (typeof op !== "string" || !Object.hasOwn(GIFT_CARD_BODIES, op)) return res.status(400).json({ error: "Unknown gift card action." });
+  const checked = readBody(req, res, GIFT_CARD_BODIES[op]);
+  if (!checked) return;
+  const body = { op, ...checked };
   const actor = adminUser.email || "admin";
   const now = new Date().toISOString();
   try {
