@@ -100,6 +100,14 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
     }
   });
 
+  it('keeps the unhashed icon pictures for a week instead of re-checking them every hour', () => {
+    const cache = (path: string) => headersFor(path).filter(h => h.key === 'Cache-Control').map(h => h.value);
+    for (const path of ['/favicon.ico', '/favicon-32.png', '/apple-touch-icon.png', '/icon-192.png', '/admin-icon-512.png']) {
+      expect(cache(path), path).toEqual(['public, max-age=604800']);
+    }
+    expect(cache('/site.webmanifest')).toEqual([]);
+  });
+
   it('sends the security headers everywhere, allowing only same-origin framing (Studio previews the shop in a frame)', () => {
     for (const path of samples) {
       const headers = Object.fromEntries(headersFor(path).map(h => [h.key, h.value]));
