@@ -1,6 +1,6 @@
 import { Link } from "react-router";
-import { policySlug } from "./policyPages";
-import { regionProps } from "./storefrontRegions";
+import { policySlug } from "../../policyPages";
+import { regionProps } from "../../storefrontRegions";
 import { taxNoteParts, taxNoteText } from "./pdpTaxNote";
 
 // "Taxes and shipping calculated at checkout." under the book page price (Studio › Style › Book page · photos

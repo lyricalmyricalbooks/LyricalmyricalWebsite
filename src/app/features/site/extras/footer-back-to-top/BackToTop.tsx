@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowUp } from "lucide-react";
-import { getCopy } from "./storeCopy";
-import { regionProps, regionVisible } from "./storefrontRegions";
+import { getCopy } from "../../storeCopy";
+import { regionProps, regionVisible } from "../../storefrontRegions";
 import { BACK_TO_TOP_CSS, backToTopOn, backToTopShown, backToTopSide } from "./backToTop";
 
 // Studio › Style › Footer & social links › Back to top button (off by default). Rendered by the one

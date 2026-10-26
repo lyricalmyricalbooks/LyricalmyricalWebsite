@@ -14,7 +14,7 @@ import { wordmarkSecondaryStyle } from "../../components/LogoMark";
 import { footerLinksAlign, footerStyleCss } from "./footerStyle";
 import { pageInFooter } from "./footerNavigation";
 import { elementScheme } from "./colorSchemes";
-import { BackToTop } from "./BackToTop";
+import { BackToTop } from "./extras/footer-back-to-top/BackToTop";
 import { FooterCurrency, footerCurrencyOn } from "./FooterCurrency";
 
 // ──────────────────────────────
