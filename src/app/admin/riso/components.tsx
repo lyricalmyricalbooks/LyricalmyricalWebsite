@@ -580,6 +580,24 @@ export function LoadingState({ label = "Loading…" }: { label?: string }) {
   );
 }
 
+/** A page-shaped placeholder (title, a row of figures, a table) shown while a page opens, so the layout doesn't jump when content arrives. */
+export function PageSkeleton({ label = "Opening page…" }: { label?: string }) {
+  return (
+    <div className="rp-page-skeleton" role="status" aria-live="polite" aria-busy="true">
+      <span className="rp-sr-only">{label}</span>
+      <div aria-hidden className="rp-page-skeleton-body">
+        <div className="rp-skeleton rp-page-skeleton-title" />
+        <div className="rp-page-skeleton-figures">
+          {[0, 1, 2, 3].map((i) => <div key={i} className="rp-skeleton rp-page-skeleton-figure" />)}
+        </div>
+        <div className="rp-page-skeleton-table">
+          {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="rp-skeleton rp-page-skeleton-row" />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ErrorState({ title = "Something went wrong", description, onRetry }: { title?: string; description?: string; onRetry?: () => void }) {
   return (
     <div className="rp-state" data-tone="danger" role="alert">

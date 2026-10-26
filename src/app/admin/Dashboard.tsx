@@ -24,7 +24,7 @@ import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
 import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton,
-  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, useConfirm, PageAlertsSlot, type NavEntry,
+  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot, type NavEntry,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";
@@ -665,7 +665,7 @@ export function Dashboard() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
             >
-              <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><Suspense fallback={<LoadingState label="Opening page…" />}>{content}</Suspense></PageAlertsSlot.Provider>
+              <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></PageAlertsSlot.Provider>
             </m.div>
           </AnimatePresence>
         </div>
