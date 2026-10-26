@@ -1,4 +1,5 @@
 import { duplicateBookData } from "./catalogList";
+import type { OrderActionBody, RefundOrderBody } from "../../shared/orderActions";
 import { changedBookFields, lockLinkedStock, removedBookFields, sameValue } from "./bookStockMerge";
 import { PRIVATE_BOOK_KEYS, mergeBookPrivate, privateKeysIn, splitBookPrivate } from "./bookPrivate";
 import { cleanRedirects, REDIRECTS_DOC, type Redirect } from "../features/site/redirects";
@@ -1274,7 +1275,7 @@ export const adminApi = {
     const response = await functionFetch("createStripeCheckoutSession", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
-      body: JSON.stringify({ action: "cancelOrder", orderId }),
+      body: JSON.stringify({ action: "cancelOrder", orderId } satisfies OrderActionBody & { action: string }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Couldn't cancel the order.");
@@ -1288,7 +1289,7 @@ export const adminApi = {
     const response = await functionFetch("createStripeCheckoutSession", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
-      body: JSON.stringify({ action: "resolvePaymentMismatch", orderId }),
+      body: JSON.stringify({ action: "resolvePaymentMismatch", orderId } satisfies OrderActionBody & { action: string }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Couldn't update the order.");
@@ -1301,7 +1302,7 @@ export const adminApi = {
     const response = await functionFetch("createStripeCheckoutSession", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
-      body: JSON.stringify({ action: "restockRefunded", orderId }),
+      body: JSON.stringify({ action: "restockRefunded", orderId } satisfies OrderActionBody & { action: string }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Couldn't put the books back in stock.");
@@ -1460,7 +1461,7 @@ export const adminApi = {
         restock: options?.restock !== false,
         ...(options?.amountMinor != null ? { amountMinor: options.amountMinor } : {}),
         ...(options?.restockLines ? { restockLines: options.restockLines } : {}),
-      }),
+      } satisfies RefundOrderBody),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Refund failed.");
