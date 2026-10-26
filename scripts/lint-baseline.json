@@ -1,9 +1,10 @@
 {
   "functions/emailAbuse.test.js": 2,
-  "functions/index.js": 8,
+  "functions/index.js": 7,
   "functions/inventoryLinkJobs.test.js": 1,
   "functions/r2Orders.test.js": 1,
   "functions/r2Payments.test.js": 2,
+  "functions/shippingLabels.js": 1,
   "scripts/firestore-rules-emulator.mjs": 1,
   "src/app/admin/AnalyticsDashboard.tsx": 1,
   "src/app/admin/api.ts": 6,

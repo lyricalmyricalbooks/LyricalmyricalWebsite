@@ -19,6 +19,11 @@ Server side: Stripe/PayPal, webhooks, refunds, stock holds, gift cards, discount
   `db`, `admin`, `requireAdmin`, `readAdminSecret`, `hitLimit` and `LIMITS` passed in rather than requiring them, so the
   vm-based handler tests' fakes reach it. Add a new pre-limit action as one line in the table; move further groups the
   same way (a module exporting a factory that takes index.js's guards).
+- **Shipping labels (26 October 2026):** `createShippingLabel` lives in `functions/shippingLabels.js` the same way:
+  `shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors, admin, requireAdmin, db, getShippoToken,
+  callShippo, IS_EMULATOR, originAddress, getStateCode, getCountryCode })`, and index.js keeps the
+  `exports.createShippingLabel =` line (tests slice index.js between export lines). Pass in everything index.js defines,
+  and copy require lines exactly: several are renamed on import (`terminal: terminalOrder`, `isSoldRate: isSoldRateName`).
 - `stripeWebhook` — the **only** path that marks Stripe orders paid; it also
   decrements stock, counts discount redemptions, and records revenue. Orders are
   created `unpaid` first.
