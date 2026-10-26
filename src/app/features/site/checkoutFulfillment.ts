@@ -1,5 +1,8 @@
 import type { FulfillmentSelection } from './FulfillmentMethodPicker';
 import { isGiftCardProduct } from './promotions';
+import { bogoPercent } from '../../../shared/discountMath';
+
+export { bogoPercent };
 
 export type CatalogFulfillmentItem = { id: string; variantId?: string; price: number; quantity: number; format: string; physical: boolean; promoGift?: boolean };
 const digitalFormat = /digital|ebook|e-book|epub|pdf|audiobook/i;
@@ -54,9 +57,3 @@ export function selectionAfterChange(selection: FulfillmentSelection, previousKe
   return previousKey === nextKey ? selection : { ...selection, optionId: '' };
 }
 
-/** BOGO "% off the free items": missing/blank/invalid means 100; otherwise clamped 0-100 (mirrors functions/localFulfillment.js). */
-export function bogoPercent(value: unknown): number {
-  if (value === undefined || value === null || value === '') return 100;
-  const n = Number(value);
-  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 100;
-}

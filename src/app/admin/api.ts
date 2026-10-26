@@ -1,6 +1,7 @@
 import { duplicateBookData } from "./catalogList";
 import type { OrderActionBody, RefundOrderBody } from "../../shared/orderActions";
 import type { GiftCardBody, GiftCardOp } from "../../shared/giftCardActions";
+import type { DiscountRecord } from "../../shared/discountMath";
 import { changedBookFields, lockLinkedStock, removedBookFields, sameValue } from "./bookStockMerge";
 import { PRIVATE_BOOK_KEYS, mergeBookPrivate, privateKeysIn, splitBookPrivate } from "./bookPrivate";
 import { cleanRedirects, REDIRECTS_DOC, type Redirect } from "../features/site/redirects";
@@ -1701,7 +1702,7 @@ export const adminApi = {
 
   saveDiscount: async (discount: any) => {
     const now = new Date().toISOString();
-    const payload = {
+    const payload: DiscountRecord = {
       code: discount.method === "automatic" ? "" : (discount.code || "").toUpperCase(),
       type: discount.type || "percentage",
       value: discount.value ?? 0,

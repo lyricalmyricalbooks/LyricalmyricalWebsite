@@ -14,7 +14,8 @@ here once, as a TypeScript module, instead of a hand-kept mirror pair with a par
 - Moving a mirror here: merge both copies into one file (the union of their exports, same behaviour), point the
   storefront file at it, point the Functions' `require`s at `./shared/<name>` and delete the old server file. Keep the
   old parity test's cases, now run against the generated copy. Done so far: `preorder`, the shipping engine
-  (`shippingEngine`, `shippingZones`, `weightGrams`). Next: discount maths, promotions, address rules.
+  (`shippingEngine`, `shippingZones`, `weightGrams`) and discount maths (`discountMath`, with `bogoPercent`; the shop's
+  `checkoutFulfillment.ts` and the server's `localFulfillment.js` re-export it). Next: promotions, address rules.
 - `src/app/features/site/merchantFeed.mjs` keeps its own small copy of the pre-order date check because plain Node build
   scripts can't import TypeScript; `features/site/merchantFeed.test.ts` guards it.
 
@@ -29,5 +30,6 @@ shape with 400 `bad_request` before touching the order. Friendly business checks
 stay in the handlers. `giftCardActions.ts` (26 October 2026) adds one schema per gift card `op` (`GIFT_CARD_BODIES`);
 `handleGiftCardAdmin` refuses an unknown op or a wrong shape before reading a card, and `adminApi.giftCardAdmin(op, body)` is
 typed per op. Manual local orders and the public checkout keep their hand-written field checks (`createManualLocalOrder`);
-discounts are written straight to Firestore under `firestore.rules`. Next: one schema per Firestore collection for what
+discounts are written straight to Firestore under `firestore.rules`; their stored shape is `DiscountRecord` in
+`discountMath.ts`, which `adminApi.saveDiscount` builds. Next: one schema per Firestore collection for what
 browsers may write (mirroring `firestore.rules`).

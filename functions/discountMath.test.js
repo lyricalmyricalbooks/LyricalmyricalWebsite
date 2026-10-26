@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
-const dm = require("./discountMath");
+const dm = require("./shared/discountMath");
 
 const items = [{ id: "a", price: 20, quantity: 2 }, { id: "b", price: 10, quantity: 1 }];
 const books = { a: { categories: ["poetry"] }, b: { categories: ["essays"] } };

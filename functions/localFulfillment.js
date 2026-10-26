@@ -1,10 +1,6 @@
 // BOGO "% off the free items": missing/blank/invalid means 100 (fully free);
 // otherwise clamped to 0-100. (`Number(x) ?? 100` never fell back: NaN or 0.)
-const bogoPercent = value => {
-  if (value === undefined || value === null || value === '') return 100;
-  const n = Number(value);
-  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 100;
-};
+const { bogoPercent } = require('./shared/discountMath');
 const normalizePostalCode = value => typeof value === 'string' ? value.toUpperCase().replace(/\s/g, '') : '';
 const postalPattern = /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z]\d[ABCEGHJ-NPRSTV-Z]\d$/;
 const prefixPattern = /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z]$/;
