@@ -15,7 +15,7 @@ import { AdminAlerts } from "./AdminAlerts.tsx";
 import { shopErrorAlert, shopErrorRows } from "./shopErrors";
 import { backupAlert, buildAdminAlerts, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
 import { inventoryLinkApi } from "./inventoryLinkApi";
-import { inventoryLinkView, setInventoryLink } from "./appSwitch";
+import { inventoryLinkView, setInventoryLink, type AppBookEntry } from "./appSwitch";
 import { AppSwitcher, AppSwitchPill, useWebsiteTabName } from "./AppSwitcher";
 import { getOrdersCached, peekOrders, setOrdersLoader } from "./ordersCache";
 import { anyDirty, useBeforeUnloadWhenDirty } from "./settingsDirty";
@@ -23,7 +23,7 @@ import { adminApi } from "./api";
 import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
 import {
-  AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton,
+  AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
   IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot, type NavEntry,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
@@ -31,7 +31,7 @@ import { WhatsNew } from "./WhatsNew";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, sidebarItems } from "./riso/nav";
-import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, settingsPageOf, subTabPage } from "./adminRoute";
+import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
 const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
@@ -94,6 +94,11 @@ export function Dashboard() {
   }, [subPage]);
   // The hash this page last read or wrote, so its own address changes are not applied twice.
   const lastHash = useRef(window.location.hash);
+  // Links from the inventory app's search: `#search=<text>` opens the admin search, `#catalog/book/<id>` a book.
+  const [searchRequest, setSearchRequest] = useState<{ q: string; n: number } | null>(null);
+  const [appSearch, setAppSearch] = useState<{ books: AppBookEntry[] | null; connected: boolean }>({ books: null, connected: false });
+  const openBookById = useRef<(id: string) => void>(() => {});
+  const [bookLinkProblem, setBookLinkProblem] = useState<string | null>(null);
   // Back/Forward must not close the book editor or Studio underneath unsaved work.
   const takeoverOpen = useRef(false);
   takeoverOpen.current = showEditor || (activeTab === "settings" && settingsTab === "designer");
@@ -108,6 +113,13 @@ export function Dashboard() {
       if (takeoverOpen.current && !studio) {
         // Put the address back rather than closing an editor that may hold unsaved changes.
         history.pushState(null, "", window.location.pathname + window.location.search + lastHash.current);
+        return;
+      }
+      const search = searchFromHash(hash);
+      if (search) {
+        // Open the search over the page on screen, and put that page's address back.
+        setSearchRequest({ q: search, n: Date.now() });
+        history.replaceState(null, "", window.location.pathname + window.location.search + lastHash.current);
         return;
       }
       lastHash.current = hash;
@@ -126,9 +138,14 @@ export function Dashboard() {
       setSubTabState({ page: subTabPage(route), id: route.subTab });
       setSelectedOrder(route.orderId ? { id: route.orderId } : null);
       setOpenGiftCard(route.giftCardId || null);
+      if (route.bookId) openBookById.current(route.bookId);
     };
     // The Overview names its sub tab in the address itself; remember it as seen.
     const overviewWrote = () => { lastHash.current = window.location.hash; };
+    // The admin opened from one of those links (the boot route already chose the page).
+    const bootSearch = searchFromHash(window.location.hash);
+    if (bootSearch) setSearchRequest({ q: bootSearch, n: Date.now() });
+    if (boot.bookId) openBookById.current(boot.bookId);
     openFromHash();
     window.addEventListener("hashchange", openFromHash);
     window.addEventListener("popstate", openFromHash);
@@ -201,7 +218,10 @@ export function Dashboard() {
           if (!alive) return;
           alertInputs.current = { webhook, emailLog, backup, linkState, shopErrors, failedParts };
           // The switcher's count; an unreadable link state keeps the last count rather than inventing one.
-          if (linkState) setInventoryLink(inventoryLinkView(linkState));
+          if (linkState) {
+            setInventoryLink(inventoryLinkView(linkState));
+            setAppSearch({ books: Array.isArray(linkState.appBookIndex?.items) ? linkState.appBookIndex.items : null, connected: linkState.connection?.ok === true });
+          }
           showAlerts(data);
         })
         // The orders themselves could not be read: say so instead of leaving a stale or empty list.
@@ -400,6 +420,11 @@ export function Dashboard() {
     setEditingBook(book);
     setShowEditor(true);
   };
+  openBookById.current = (id: string) => {
+    adminApi.getBook(id)
+      .then((book: any) => { if (book) handleEditBook(book); else setBookLinkProblem("That book isn't on the website any more. It may have been deleted."); })
+      .catch(() => setBookLinkProblem("That book couldn't be opened just now. Try the link again in a minute, or find it on this Books page."));
+  };
 
   const handleAddBook = () => {
     setNewBookStart(null);
@@ -567,6 +592,10 @@ export function Dashboard() {
 
   return (
     <ToastProvider>
+      <Dialog open={!!bookLinkProblem} onClose={() => setBookLinkProblem(null)} title="Couldn't open that book"
+        footer={<SecondaryButton data-autofocus onClick={() => setBookLinkProblem(null)}>Close</SecondaryButton>}>
+        <p style={{ margin: 0 }}>{bookLinkProblem}</p>
+      </Dialog>
       <AppShell
         appearance={appearance}
         overlay={<SyncChip state={online ? null : "offline"} />}
@@ -612,6 +641,7 @@ export function Dashboard() {
             {/* Phones: the wordmark sits in the top bar (the rail is a drawer there). */}
             <a className="rp-topbar-wordmark" href="#overview" onClick={(e) => { e.preventDefault(); void goTo("overview"); }}>Lyricalmyrical</a>
             <GlobalSearch destinations={destinations} onOpenBook={handleEditBook} shortcut={!showEditor && !(activeTab === "settings" && settingsTab === "designer")}
+              appBooks={appSearch.books} appConnected={appSearch.connected} request={searchRequest}
               onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
               onOpenCustomer={(q) => { setSearchCustomerQuery(q); goTo("customers"); }} />
             <div className="rp-topbar-actions">

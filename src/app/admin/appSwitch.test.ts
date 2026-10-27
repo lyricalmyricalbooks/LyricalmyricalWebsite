@@ -120,3 +120,20 @@ describe("switching between browser tabs", () => {
     expect(second.location.replace).toHaveBeenCalledWith(INVENTORY_APP_URL);
   });
 });
+
+describe("search across the apps", () => {
+  it("links into the app's book and search pages", async () => {
+    const { inventoryBookUrl, inventorySearchUrl } = await import("./appSwitch");
+    expect(inventoryBookUrl("moth/1")).toBe(`${INVENTORY_APP_URL}#book=moth%2F1`);
+    expect(inventorySearchUrl(" Moth hours ")).toBe(`${INVENTORY_APP_URL}#search=Moth%20hours`);
+  });
+  it("finds the app's books by title, author or ISBN", async () => {
+    const { matchAppBooks } = await import("./appSwitch");
+    const books = [{ id: "a", title: "Moth Hours", author: "Ana Ruiz", isbn: "978-1-23456-789-7" }, { id: "b", title: "Hound", author: "", isbn: "" }];
+    expect(matchAppBooks(books, "moth").map((b) => b.id)).toEqual(["a"]);
+    expect(matchAppBooks(books, "ruiz").map((b) => b.id)).toEqual(["a"]);
+    expect(matchAppBooks(books, "9781234").map((b) => b.id)).toEqual(["a"]);
+    expect(matchAppBooks(books, "  ")).toEqual([]);
+    expect(matchAppBooks(null, "moth")).toEqual([]);
+  });
+});

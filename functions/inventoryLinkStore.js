@@ -174,8 +174,8 @@ async function writeWebsiteSide({ todo, linkReplies }) {
 }
 
 /** Printed website books the app doesn't have yet (`websiteLink/catalog`), replaced whole. */
-async function writeShopCatalog({ books, at }) {
-  await inventoryDb().collection("websiteLink").doc("catalog").set({ v: 1, at, books });
+async function writeShopCatalog({ books, linked = [], at }) {
+  await inventoryDb().collection("websiteLink").doc("catalog").set({ v: 1, at, books, linked });
 }
 
 async function readAppHeartbeat() {

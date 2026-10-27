@@ -1,15 +1,19 @@
 // Inventory › Inventory app link (admin): what each button asks the server to do. index.js checks the
 // admin's sign-in (requireAdmin) and passes `deps` (see inventoryLinkJobs.js) plus the store's
 // checkConnection/readCatalog/serviceAccountEmail. Returns { status, body } for the HTTP answer.
-const { validateLinks, paidDayOf, linkedEditions, openMatches, linkableEditions, stable } = require("./inventoryLink");
+const {
+  validateLinks, paidDayOf, linkedEditions, openMatches, linkableEditions, stable, linkedForApp, detailDifferences, detailSignature,
+  detailPatch, detailValue, appBookIndex,
+} = require("./inventoryLink");
 const { readState, runSweep, REHEARSAL_MS, STATE_DOC } = require("./inventoryLinkJobs");
 const { shopDate } = require("./paymentGuards");
+const { saleActive } = require("./promotions");
 
 const ok = body => ({ status: 200, body });
 const bad = (error, status = 400) => ({ status, body: { error } });
 const PUBLIC_STATE_KEYS = ["links", "startDay", "autoSync", "rehearsalUntil", "firstApplyAt", "backfill", "connection",
   "lastSync", "lastStockAt", "lastRunAt", "lastPush", "pendingImport", "app", "lastError", "relinkPending", "shipmentError", "pendingError", "shipmentIssues", "newMatches", "ignoredMatches",
-  "appOnlyBooks", "ignoredAppBooks", "linkRequestError", "shopCatalogError", "websiteSideError"];
+  "appOnlyBooks", "ignoredAppBooks", "linkRequestError", "shopCatalogError", "websiteSideError", "detailDiffs", "keptDetails", "appBookIndex"];
 
 async function counts(db) {
   const count = async query => { try { return (await query.count().get()).data().count; } catch { return null; } };
@@ -169,6 +173,71 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
     });
     if (result.error) return bad(result.error, 409);
     return ok({ links: result.links, already: !!result.already });
+  }
+
+  // Book details in step: re-check now, copy the app's value onto the website book, or leave one as is.
+  if (op === "checkDetails" || op === "applyDetail") {
+    let books;
+    let appBooks;
+    try {
+      [books, appBooks] = await Promise.all([
+        db.collection("books").get().then(snap => snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
+        store.readCatalog(),
+      ]);
+    } catch {
+      return bad("The website can't read the inventory app right now. Try again in a few minutes.", 409);
+    }
+    const state = await readState(db);
+    const at = now.toISOString();
+    const items = detailDifferences(linkedForApp(books, state.links || {}), appBooks, state.keptDetails || {});
+    const save = async list => {
+      const patch = { detailDiffs: { at, items: list }, appBookIndex: { at, items: appBookIndex(appBooks) } };
+      await ref.update(patch).catch(async () => { await ref.set(patch, { merge: true }); });
+    };
+    if (op === "checkDetails") {
+      await save(items);
+      return ok({ detailDiffs: { at, items } });
+    }
+    const diff = items.find(d => d.id === body.id);
+    if (!diff || detailSignature(diff) !== body.signature) {
+      await save(items);
+      return bad("This changed in one of the apps since the list was made. The list is up to date now: check it again.", 409);
+    }
+    if (!diff.app) return bad("The inventory app has nothing to copy for this.");
+    const bookRef = db.collection("books").doc(diff.bookId);
+    const result = await db.runTransaction(async tx => {
+      const snap = await tx.get(bookRef);
+      if (!snap.exists) return { error: "That website book wasn't found." };
+      const book = { id: snap.id, ...snap.data() };
+      // Still the value the owner saw? (a save in the book editor meanwhile wins)
+      const fresh = linkedForApp([book], { [book.id]: (state.links || {})[book.id] }).find(r => r.inventoryBookId === diff.inventoryBookId);
+      if (!fresh || detailValue(diff.field, fresh[diff.field]) !== diff.shop) return { error: "This book was changed on the website meanwhile. Check the list again." };
+      // A book on sale is charged its sale price, so a new regular price alone wouldn't change what shoppers pay.
+      if (diff.field === "price" && !diff.variantId && saleActive(book, now)) {
+        return { error: "This book is on sale, so shoppers pay the sale price. Change its prices in the book editor." };
+      }
+      const patch = detailPatch(book, diff);
+      if (!patch) return { error: "This detail can't be copied onto the website book." };
+      tx.update(bookRef, { ...patch, updatedAt: at });
+      return { patch };
+    });
+    if (result.error) return bad(result.error, 409);
+    const rest = items.filter(d => d.id !== diff.id);
+    await save(rest);
+    // The app sees the new value at the next sweep instead of in an hour.
+    await ref.update({ detailsChangedAt: at }).catch(() => {});
+    return ok({ applied: diff, detailDiffs: { at, items: rest } });
+  }
+
+  if (op === "keepDetail") {
+    const id = typeof body.id === "string" ? body.id : "";
+    const signature = typeof body.signature === "string" ? body.signature : "";
+    if (!id || id.length > 300 || !signature || signature.length > 1000) return bad("Choose the detail.");
+    const state = await readState(db);
+    // Kept until either value changes (the signature then no longer matches); capped so the record stays small.
+    const keptDetails = Object.fromEntries([...Object.entries(state.keptDetails || {}).filter(([key]) => key !== id), [id, signature]].slice(-1000));
+    await ref.update({ keptDetails }).catch(async () => { await ref.set({ keptDetails }, { merge: true }); });
+    return ok({ keptDetails });
   }
 
   // "Not for the shop" (or bring one back): the app book stops being offered under Add to the shop.

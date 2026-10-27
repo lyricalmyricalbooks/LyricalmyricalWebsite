@@ -13,6 +13,22 @@ export const INVENTORY_TAB_NAME = "lm-inventory-app";
 /** The inventory app opened on a website order's sales (only the #fragment differs, so an open app doesn't reload). */
 export const inventoryOrderUrl = (orderId: string) => `${INVENTORY_APP_URL}#website-order=${encodeURIComponent(orderId)}`;
 
+/** The inventory app opened on one of its books, or on its search with this text (docs/INVENTORY_LINK.md › One search box). */
+export const inventoryBookUrl = (inventoryBookId: string) => `${INVENTORY_APP_URL}#book=${encodeURIComponent(inventoryBookId)}`;
+export const inventorySearchUrl = (text: string) => `${INVENTORY_APP_URL}#search=${encodeURIComponent(String(text).trim().slice(0, 100))}`;
+
+export interface AppBookEntry { id: string; title: string; author: string; isbn: string }
+/** The app's books matching what was typed (title, author or ISBN; ISBN ignores spaces and hyphens). */
+export function matchAppBooks(books: AppBookEntry[] | null | undefined, term: string, max = 4): AppBookEntry[] {
+  const t = term.trim().toLowerCase();
+  if (!t) return [];
+  const bare = t.replace(/[\s-]/g, "");
+  return (books || []).filter((b) => b && (
+    String(b.title || "").toLowerCase().includes(t) || String(b.author || "").toLowerCase().includes(t)
+    || (bare.length >= 4 && String(b.isbn || "").replace(/[\s-]/g, "").toLowerCase().includes(bare))
+  )).slice(0, max);
+}
+
 /** Website orders waiting for the inventory app, or null when the link isn't connected (no badge, never a made-up 0). */
 export function inventoryWaiting(state: any): number | null {
   if (state?.connection?.ok !== true) return null;
