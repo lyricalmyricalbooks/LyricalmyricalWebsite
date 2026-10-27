@@ -1,6 +1,6 @@
 import { summarizeShipping } from "./shippingHealth";
 import { paymentHealth } from "./paymentHealth";
-import { isRealPaidOrder } from "./overviewInsights";
+import { isRealPaidOrder } from "./overview/overviewInsights";
 import { taxCollectionOn, uncoveredTaxRegions } from "../features/site/taxRate";
 
 /** Admin-only "Ready to sell?" checks. Read-only guidance; nothing here changes data. */

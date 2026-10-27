@@ -3,7 +3,7 @@ import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import { cleanMeasurementId } from "../lib/ga4";
 import { forgetDailyTraffic } from "./dailyTrafficCache";
-import { clearShared } from "./overviewShared";
+import { clearShared } from "./overview/overviewShared";
 import { cleanBigQueryDataset, type JourneyAnswer } from "./bigQueryJourneys";
 
 // Google Analytics 4 for the admin. The measurement ID ("G-…") is public (shoppers' browsers load it from

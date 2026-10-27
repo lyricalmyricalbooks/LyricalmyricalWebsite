@@ -42,7 +42,7 @@ const GiftCards = lazy(() => import("./GiftCards").then(m => ({ default: m.GiftC
 const Customers = lazy(() => import("./Customers").then(m => ({ default: m.Customers })));
 const Inventory = lazy(() => import("./Inventory").then(m => ({ default: m.Inventory })));
 const OrdersDesk = lazy(() => import("./OrdersDesk.tsx").then(m => ({ default: m.OrdersDesk })));
-const AnalyticsDashboard = lazy(() => import("./AnalyticsDashboard").then(m => ({ default: m.AnalyticsDashboard })));
+const AnalyticsDashboard = lazy(() => import("./overview/AnalyticsDashboard").then(m => ({ default: m.AnalyticsDashboard })));
 const ShopSettings = lazy(() => import("./ShopSettings").then(m => ({ default: m.ShopSettings })));
 const ReviewsModeration = lazy(() => import("./ReviewsModeration"));
 const Messages = lazy(() => import("./Messages"));

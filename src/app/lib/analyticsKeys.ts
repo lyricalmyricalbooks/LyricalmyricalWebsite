@@ -1,5 +1,5 @@
 // Pure helpers shared by the storefront's analytics writes (lib/commerce.ts) and the admin Overview's reads.
-// They live here, not in admin/overviewTraffic.ts, so the shopper bundle never pulls in admin analytics code.
+// They live here, not in admin/overview/overviewTraffic.ts, so the shopper bundle never pulls in admin analytics code.
 
 /**
  * The key a source/category/book is stored under in a daily `analytics/<date>` map: Firestore dislikes some

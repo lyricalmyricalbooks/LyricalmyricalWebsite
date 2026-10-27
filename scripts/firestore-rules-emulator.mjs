@@ -210,7 +210,7 @@ await check("anon can't write the private document", assertFails(setDoc(doc(anon
   await check("admin reads the private document", assertSucceeds(getDoc(doc(admin, "books/pub/private/admin"))));
   await check("admin reads every private document (collection group)", assertSucceeds(getDocs(collectionGroup(admin, "private"))));
   await check("admin writes the private document", assertSucceeds(setDoc(doc(admin, "books/pub/private/admin"), { costPrice: 7 }, { merge: true })));
-  // Overview sales notes (admin/overviewNotesStore.ts): admin-only, same shape as the boards.
+  // Overview sales notes (admin/overview/overviewNotesStore.ts): admin-only, same shape as the boards.
   await check("admin saves the Overview notes", assertSucceeds(setDoc(doc(admin, "adminPrefs/overviewNotes"), { data: "[]", updatedAt: Date.now() })));
   await check("admin reads the Overview notes", assertSucceeds(getDoc(doc(admin, "adminPrefs/overviewNotes"))));
   await check("Overview notes refuse extra keys", assertFails(setDoc(doc(admin, "adminPrefs/overviewNotes"), { data: "[]", updatedAt: Date.now(), extra: 1 })));

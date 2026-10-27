@@ -2,7 +2,7 @@
 // writes to Firestore or affects charging. Lifetime value is net of refunds: a partial
 // refund comes off (refundedAmount), and a fully refunded order counts as 0 but keeps the
 // customer listed with that order in their history.
-import { refundedAmount } from "./overviewInsights";
+import { refundedAmount } from "./overview/overviewInsights";
 
 export type CustomerSegment = "vip" | "vip-lapsed" | "returning" | "new" | "at-risk";
 

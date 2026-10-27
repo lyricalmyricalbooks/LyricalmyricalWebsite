@@ -1,7 +1,7 @@
 // Inventory rules for the admin Inventory page. Pure (no Firestore): which rows a book gets
 // (one per edition), how each row's stock is classified, how a count change is applied to the
 // live book without undoing a sale made meanwhile, and the shared low-stock threshold.
-import { isDigitalBook } from "./overviewInsights";
+import { isDigitalBook } from "./overview/overviewInsights";
 import { bundleAvailable, isBundle, isGiftCardProduct } from "../features/site/promotions";
 
 export type StockStatus = "out" | "low" | "reprint" | "ok" | "digital" | "untracked" | "bundle" | "giftCard";
