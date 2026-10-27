@@ -166,7 +166,8 @@ describe('#108 errors for anonymous callers', () => {
     const regions = {
       createPayPalOrder: between('exports.createPayPalOrder =', 'exports.capturePayPalOrder ='),
       capturePayPalOrder: between('exports.capturePayPalOrder =', 'exports.paypalWebhook ='),
-      createStripeCheckoutSession: between('exports.createStripeCheckoutSession =', 'function looksLikeStripeSignature'),
+      // Its payment steps live in checkoutPayment.js (moved out of index.js as is).
+      createStripeCheckoutSession: between('exports.createStripeCheckoutSession =', 'function looksLikeStripeSignature') + fs.readFileSync(path.join(here, 'checkoutPayment.js'), 'utf8'),
       // handleCheckoutStatus lives in orderRequests.js (moved out of index.js as is).
       handleCheckoutStatus: (() => { const text = fs.readFileSync(path.join(here, 'orderRequests.js'), 'utf8'); const i = text.indexOf('async function handleCheckoutStatus'); const j = text.indexOf('async function handleTrackingLink', i); expect(i).toBeGreaterThan(-1); expect(j).toBeGreaterThan(i); return text.slice(i, j); })(),
       getShippoRates: between('exports.getShippoRates =', 'exports.saveShippoConfig ='),

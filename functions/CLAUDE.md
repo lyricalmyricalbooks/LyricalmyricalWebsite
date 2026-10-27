@@ -14,7 +14,8 @@ Server side: Stripe/PayPal, webhooks, refunds, stock holds, gift cards, discount
   older saved redirect settings no longer move the shopper to hosted Checkout.
 - **Action table (25 October 2026):** `createStripeCheckoutSession` routes `body.action` through `CHECKOUT_FUNCTION_ACTIONS`
   (own keys only, string actions only) before its checkout rate limit; payment creation, `createManualLocalOrder`,
-  `unsubscribe` and `completeFreeOrder` stay inline below the limit. The admin report actions (`backups`, `aiWrite`,
+  `unsubscribe` and `completeFreeOrder` run below the limit, from `checkoutPayment.js` (`checkoutPaymentActions`,
+  built just above the endpoint; the endpoint itself is now only CORS, the action table, the limit and the dispatch). The admin report actions (`backups`, `aiWrite`,
   `ga4Report`, `searchConsole`, `bigQueryJourneys`, `resetTraffic`) live in `functions/adminReports.js`, which gets
   `db`, `admin`, `requireAdmin`, `readAdminSecret`, `hitLimit` and `LIMITS` passed in rather than requiring them, so the
   vm-based handler tests' fakes reach it. Add a new pre-limit action as one line in the table; move further groups the
