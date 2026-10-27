@@ -7,7 +7,8 @@
 //   SMOKE_URL=https://…               (check a running site instead of serving dist/)
 //
 // It writes nothing: the cookie banner is answered "Reject" (no analytics, no saved cart), automated browsers are never
-// counted (trackingGuard), no email is typed at checkout and no payment is attempted.
+// counted (trackingGuard), no email is typed at checkout and no payment is attempted. Checkout is filled in up to the
+// Pay button (name and a Toronto address, then a delivery choice) and left there.
 import { chromium } from "playwright";
 import { preview } from "vite";
 
@@ -42,7 +43,8 @@ const step = async (name, fn, on = page) => {
   catch (e) { failures.push(`${name}: ${String(e.message).split("\n")[0]}`); console.log(`✗ ${name} — ${String(e.message).split("\n")[0]}`); }
 };
 
-const desktop = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+// en-CA: checkout's country guess (from the browser's language) is Canada, so the Toronto address below fits.
+const desktop = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: "en-CA" });
 const page = await desktop.newPage();
 watch(page, "[desktop]");
 const settle = () => page.waitForTimeout(1500);
@@ -94,6 +96,36 @@ await step("the bag leads to checkout", async () => {
   await page.waitForURL(/\/checkout/, { timeout: 20000 });
   await page.waitForSelector("form input[type=email]", { timeout: 20000 });
   await page.waitForTimeout(4000); // card form and shipping quotes load
+});
+await step("checkout fills in up to Pay (nothing is sent)", async () => {
+  if (!added) throw new Error("skipped: nothing in the bag");
+  // Live carrier quotes (Shippo) and the Google address finder cost money per call and count against the shop's daily
+  // budgets, so they are cut off here: checkout falls back to the shop's own rates and the free map finder, also when
+  // SMOKE_URL points at the live shop.
+  await page.route(/\/(getShippoRates|validateAddress)\b/, (route) => route.abort());
+  // Field ids come from checkoutDetails.ts (detailInputId); the words on the page are editable in Studio, so none are matched.
+  const country = await page.inputValue("#co-field-country");
+  if (!/canada/i.test(country)) throw new Error(`country guessed as "${country}", expected Canada`);
+  await page.fill("#co-field-name", "Storefront Smoke");
+  const ships = await page.locator("#co-field-street").count();
+  if (ships) {
+    await page.fill("#co-field-street", "100 Queen St W");
+    await page.fill("#co-field-city", "Toronto");
+    await page.selectOption("#co-field-state", "ON");
+    await page.fill("#co-field-zip", "M5H 2N2");
+    await page.locator("#co-field-zip").blur();
+    // Delivery choices for the address: carrier quotes, the shop's own rates or local pickup.
+    const choice = page.locator("input[name=fulfillment-option]").first();
+    await choice.waitFor({ timeout: 30000 });
+    await choice.check({ force: true });
+  }
+  // The Pay button is on the page from the start; what proves the steps worked is the payment total: a delivery choice
+  // turns its "chosen at the next step" words into an amount. (Pay is never pressed.)
+  await page.locator("button[type=submit].fm-co-paybtn-main").waitFor({ timeout: 10000 });
+  const total = page.locator("[data-studio-label='Payment total'] strong");
+  if (!(await total.count())) throw new Error("no payment total on checkout");
+  await page.waitForFunction(() => /\d/.test(document.querySelector("[data-studio-label='Payment total'] strong")?.textContent || ""), null, { timeout: 15000 });
+  await settle();
 });
 for (const [name, path, selector] of [
   ["collection page", "/collections/publications", ".fm-card-title"],
