@@ -14,7 +14,8 @@ Server side: Stripe/PayPal, webhooks, refunds, stock holds, gift cards, discount
   older saved redirect settings no longer move the shopper to hosted Checkout.
 - **Action table (25 October 2026):** `createStripeCheckoutSession` routes `body.action` through `CHECKOUT_FUNCTION_ACTIONS`
   (own keys only, string actions only) before its checkout rate limit; payment creation, `createManualLocalOrder`,
-  `unsubscribe` and `completeFreeOrder` stay inline below the limit. The admin report actions (`backups`, `aiWrite`,
+  `unsubscribe` and `completeFreeOrder` run below the limit, from `checkoutPayment.js` (`checkoutPaymentActions`,
+  built just above the endpoint; the endpoint itself is now only CORS, the action table, the limit and the dispatch). The admin report actions (`backups`, `aiWrite`,
   `ga4Report`, `searchConsole`, `bigQueryJourneys`, `resetTraffic`) live in `functions/adminReports.js`, which gets
   `db`, `admin`, `requireAdmin`, `readAdminSecret`, `hitLimit` and `LIMITS` passed in rather than requiring them, so the
   vm-based handler tests' fakes reach it. Add a new pre-limit action as one line in the table; move further groups the
@@ -26,6 +27,9 @@ Server side: Stripe/PayPal, webhooks, refunds, stock holds, gift cards, discount
   so every dependency passed in must exist by then: a `const` defined further down is still uninitialised there (use a
   function declaration, as `siteLink` and `escapeHtml` now are). Handler tests reassign `sendEmail` after loading index.js,
   so it is passed as `lateSendEmail`; pass any other name a test reassigns the same way.
+  Whole endpoints move the same way: `shippoEndpoints.js` (`shippoEndpoints`, built as `shippo` just above
+  `exports.getShippoConfig`) holds the Shippo config, dynamic rates, saved key, checkout rates, address check and
+  tracking webhook; index.js keeps each `exports.<name> = shippo.<name>;` line where it was.
 - **Shipping labels (26 October 2026):** `createShippingLabel` lives in `functions/shippingLabels.js` the same way:
   `shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors, admin, requireAdmin, db, getShippoToken,
   callShippo, IS_EMULATOR, originAddress, getStateCode, getCountryCode })`, and index.js keeps the
