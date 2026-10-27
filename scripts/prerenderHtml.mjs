@@ -51,7 +51,14 @@ export function captureDocument({ template, publicUrl, localOrigin }) {
   clone.querySelectorAll('*').forEach(element => {
     for (const attribute of [...element.attributes]) {
       if (/^on/i.test(attribute.name)) element.removeAttribute(attribute.name);
-      else if (attribute.value.includes(localOrigin)) element.setAttribute(attribute.name, attribute.value.replaceAll(localOrigin, new URL(publicUrl).origin));
+      else if (attribute.value.includes(localOrigin)) {
+        // Code and styles the app asked for while rendering stay on whatever address serves the page. Pinned to the
+        // shop's own domain, the default Firebase address (which only redirects there) would load them cross-origin
+        // and the browser would block the lazy chunks (no CORS header).
+        const fetched = (element.localName === 'link' && /modulepreload|preload|stylesheet/.test(element.getAttribute('rel') || '') && attribute.name === 'href')
+          || (element.localName === 'script' && attribute.name === 'src');
+        element.setAttribute(attribute.name, attribute.value.replaceAll(localOrigin, fetched ? '' : new URL(publicUrl).origin));
+      }
     }
   });
   // Google Fonts stylesheets must not hold up the first paint of the snapshot (each is a round trip to
