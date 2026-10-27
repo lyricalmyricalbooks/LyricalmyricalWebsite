@@ -338,7 +338,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   };
 
   const inlineCell = (b: any, field: "retailPrice" | "stockLevel", shown: React.ReactNode) => {
-    if (inline?.id === b.id && inline.field === field) {
+    if (inline && inline.id === b.id && inline.field === field) {
       return (
         <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
           <input className="rp-input" style={{ width: 90 }} type="number" min={0} step={field === "retailPrice" ? "0.01" : "1"} autoFocus

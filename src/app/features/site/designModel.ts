@@ -21,7 +21,7 @@ export const ROOT_ONLY_KEYS = new Set(["menus", "categories", "navOrder", "secon
 /** Maps whose entries merge one by one (page entry wins), instead of replacing the whole map. */
 export const MERGED_MAPS = new Set(["copy", "regions"]);
 
-const plain = (v: any) => !!v && typeof v === "object" && !Array.isArray(v);
+const plain = (v: any): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 
 /** Lay page surfaces over a base design, most specific last. */
 export function layerDesign(base: any, ...surfaces: any[]) {

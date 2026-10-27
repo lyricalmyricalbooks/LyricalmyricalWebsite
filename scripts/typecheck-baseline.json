@@ -1,13 +1,9 @@
 {
-  "src/app/admin/BookCatalog.tsx": 3,
   "src/app/admin/BookEditor.tsx": 1,
   "src/app/admin/dndSortable.tsx": 1,
   "src/app/admin/overview/OverviewMarketingExtras.tsx": 1,
-  "src/app/admin/studio/StudioEditor.tsx": 10,
   "src/app/admin/studio/StudioInspector.tsx": 1,
   "src/app/admin/studio/StudioOutline.tsx": 1,
   "src/app/App.tsx": 1,
-  "src/app/components/GroupedFooterNavigation.tsx": 1,
-  "src/app/features/site/BookDetail.tsx": 2,
-  "src/app/features/site/designModel.ts": 2
+  "src/app/features/site/BookDetail.tsx": 2
 }

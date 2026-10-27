@@ -2557,7 +2557,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           {workbenchPanel}
         </main>
   );
-  const inspectorPanel = (
+  const inspectorPanel = selected && (
           <StudioInspector section={selected} blockId={blockId} onSelectBlock={setBlockId} colorSchemes={colorSchemes}
             device={device} sharedBlocks={design.sharedBlocks || []} onSaveShared={saveSharedBlock} onPatchShared={patchSharedBlock} onInsertShared={insertSharedBlock}
             onAddBlock={() => openBlockPicker(selected.id)} onCopyBlock={id => copyBlockNow(selected, id)}
