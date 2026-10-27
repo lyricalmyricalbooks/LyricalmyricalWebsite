@@ -26,6 +26,20 @@ export type StorefrontFeature = {
   regions?: Placed<FeatureRegion> & { group: string; files: string[] };
 };
 
+/** Folder-name order, except that a feature placed after a key or id another feature adds comes after that feature. */
+export function orderFeatures(features: StorefrontFeature[]): StorefrontFeature[] {
+  const adds = (f: StorefrontFeature) => [...(f.style?.fields || []).map(x => x.key), ...(f.copy?.fields || []).map(x => x.key), ...(f.regions?.fields || []).map(x => x.id)];
+  const anchors = (f: StorefrontFeature) => [f.style?.after, f.style?.subsectionAfter, f.copy?.after, f.regions?.after].filter((a): a is string => !!a);
+  const left = [...features], out: StorefrontFeature[] = [];
+  while (left.length) {
+    const pending = new Set(left.flatMap(adds));
+    const next = left.findIndex(f => { const own = new Set(adds(f)); return anchors(f).every(a => own.has(a) || !pending.has(a)); });
+    if (next < 0) throw new Error(`extras: ${left.map(f => f.id).join(", ")} are placed after each other`);
+    out.push(...left.splice(next, 1));
+  }
+  return out;
+}
+
 /** Inserts `items` after the entry whose `idOf` is `after` (else at the end). Throws on an unknown anchor. */
 export function insertAfter<T>(list: T[], items: T[], after: string | undefined, idOf: (item: T) => string, where: string): T[] {
   if (!items.length) return list;

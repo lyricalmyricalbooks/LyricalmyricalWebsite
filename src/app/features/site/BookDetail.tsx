@@ -56,7 +56,7 @@ import { resolveFooterBadges } from "./paymentBadges";
 import PdpTaxNote from "./extras/pdp-tax-note/PdpTaxNote";
 import { taxCollectionOn } from "./taxRate";
 import SaleEndsLine from "./extras/pdp-sale-countdown/SaleEndsLine";
-import ReleaseCountdownText from "./ReleaseCountdownText";
+import ReleaseCountdownText from "./extras/pdp-release-countdown/ReleaseCountdownText";
 import { pdpFreeShipping } from "./extras/pdp-free-shipping/pdpFreeShipping";
 import { pdpPolicyEntries } from "./pdpPolicyTab";
 import { policyHtml, policySlug, policyTitle } from "./policyPages";

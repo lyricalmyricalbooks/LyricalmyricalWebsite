@@ -9,9 +9,10 @@ Style controls (group, `after`, sub-section), Text & labels words and click-to-e
 lists by hand. feature.ts holds data only (shopper code reads it). `extras/featureKit.test.ts` checks every folder. Move an older extra
 into a folder when you next change it. Moved so far: `pdp-payment-icons`, `pdp-tax-note`, `footer-back-to-top`,
 `cart-tab-reminder` (26 October 2026), `pdp-in-bag`, `pdp-free-shipping`, `pdp-ship-by`, `pdp-ask-question`,
-`pdp-sale-countdown`, `footer-currency` (27 October 2026); each move left the four lists identical apart from the order of
-`files`. Folders apply in name order, so an `after` anchor may name a key only an earlier folder adds (`pdp-tax-note` anchors
-on `pdp-sale-countdown`'s keys); a missing anchor throws.
+`pdp-sale-countdown`, `footer-currency`, `pdp-release-countdown` (27 October 2026); each move left the four lists identical
+apart from the order of `files`. Folders apply in name order, except that a folder whose anchor (`after`, `subsectionAfter`, copy or
+regions `after`) names a key or id another folder adds applies after that folder (`orderFeatures` in featureKit.ts; `pdp-free-shipping` anchors on
+`pdp-release-countdown`'s keys); a missing anchor, or two folders anchored on each other, throws.
 
 ## Public storefront readiness repairs (2 October 2026)
 
@@ -615,7 +616,7 @@ bag, on `/admin` or in the Studio preview. Display only; no rules or Functions.
 
 Studio › Style › Book page · photos & layout › Extras on the page › **Release countdown** (`showPdpReleaseCountdown`, off by
 default) + `pdpReleaseCountdownWithin` (hours, default 72): a pre-order book with a Publication date swaps its stock line for
-"Pre-order · out in 2d 5h" in the last hours before midnight Toronto on that date (pure `features/site/releaseCountdown.ts`,
+"Pre-order · out in 2d 5h" in the last hours before midnight Toronto on that date (pure `extras/pdp-release-countdown/releaseCountdown.ts`,
 `ReleaseCountdownText.tsx`), ticking every 30 s; release day brings the usual words back. The clock starts after mount, so the
 prerender keeps "Pre-order · ships {date}". Display only. Words: Text & labels › Product page (`pdpReleaseCountdown*`).
 

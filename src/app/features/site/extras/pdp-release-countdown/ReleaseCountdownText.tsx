@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { getCopy } from "./storeCopy";
-import { designNumber } from "./designNumber";
+import { getCopy } from "../../storeCopy";
+import { designNumber } from "../../designNumber";
 import { releaseCountdown, releaseCountdownCopy } from "./releaseCountdown";
 
 // The pre-order stock line's words. With Studio › Style › Book page · photos & layout › showPdpReleaseCountdown on
