@@ -78,13 +78,19 @@ describe("the sweep", () => {
     expect(stateOf(db).appBookIndex.items.map(b => b.id)).toEqual(["hound", "set"]);
   });
   test("a detail copied in the admin brings the next check forward", async () => {
-    const db = seed({ matchCheckedAt: "2026-10-27T14:50:00Z", detailsDirty: true });
+    const db = seed({ matchCheckedAt: "2026-10-27T14:50:00Z", detailsChangedAt: "2026-10-27T14:55:00Z" });
     const store = fakeStore();
     store.catalog = APP;
     store.appDoc = {};
     await jobs.runSweep(deps(db, store));
     expect(store.shopCatalog).not.toBeNull();
-    expect(stateOf(db).detailsDirty).toBe(false);
+    // Without a copy since the last check, the hourly timing holds.
+    const quiet = seed({ matchCheckedAt: "2026-10-27T14:50:00Z", detailsChangedAt: "2026-10-27T14:40:00Z" });
+    const store2 = fakeStore();
+    store2.catalog = APP;
+    store2.appDoc = {};
+    await jobs.runSweep(deps(quiet, store2));
+    expect(store2.shopCatalog).toBeNull();
   });
 });
 
@@ -103,7 +109,7 @@ describe("admin: details that differ", () => {
     expect(db.docs["books/b1"].data.retailPrice).toBe(70);
     expect(db.docs["books/b1"].data.subtitle).toBe("Ana Lee");
     expect(stateOf(db).detailDiffs.items.map(d => d.id)).toEqual(["hound|author"]);
-    expect(stateOf(db).detailsDirty).toBe(true);
+    expect(stateOf(db).detailsChangedAt).toBe(now.toISOString());
   });
   test("refuses when the app has changed its value meanwhile", async () => {
     const db = seed();

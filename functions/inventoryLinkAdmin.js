@@ -220,7 +220,7 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
     const rest = items.filter(d => d.id !== diff.id);
     await save(rest);
     // The app sees the new value at the next sweep instead of in an hour.
-    await ref.update({ detailsDirty: true }).catch(() => {});
+    await ref.update({ detailsChangedAt: at }).catch(() => {});
     return ok({ applied: diff, detailDiffs: { at, items: rest } });
   }
 

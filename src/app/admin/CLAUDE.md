@@ -65,7 +65,7 @@ and stock; the contract is `docs/INVENTORY_LINK.md` (same file as the inventory 
   match check also writes `websiteLink/catalog.linked` (`linkedForApp`), `state.detailDiffs` (`detailDifferences`, the rule both apps
   share, pinned by `docs/link-details-fixture.json` in both repos) and `state.appBookIndex` (`appBookIndex`). Inventory app link ›
   **Details that differ from the app**: **Use the app's** (op `applyDetail`: re-reads both sides, refuses a changed signature, writes one
-  field via `detailPatch`, sets `detailsDirty` so the next sweep refreshes the app's copy) / **Leave as is** (op `keepDetail`,
+  field via `detailPatch`, stamps `detailsChangedAt` so the next sweep refreshes the app's copy) / **Leave as is** (op `keepDetail`,
   `keptDetails { id: signature }`); opening the page runs op `checkDetails`. Alert `inventory-link-details`. Admin search
   (`GlobalSearch` `appBooks`/`appConnected`) adds **In the inventory app** rows (`matchAppBooks`, `inventoryBookUrl`) and **Search the
   inventory app for “…”** (`inventorySearchUrl`); deep links into the admin: `#search=<text>` (`searchFromHash`, opens the search and puts

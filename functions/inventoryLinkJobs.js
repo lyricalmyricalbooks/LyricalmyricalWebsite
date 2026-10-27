@@ -540,10 +540,11 @@ async function runSweep(deps, opts = {}) {
     // Books added to both shops since the matching step: suggest their match (one click in the panel).
     // Throttled on the last attempt, so a failing read isn't retried every five minutes.
     const lastMatchCheck = Date.parse(state.matchCheckedAt || state.newMatches?.at || "");
-    // A detail copied in the admin (detailsDirty) brings it forward, so the app sees the new value soon.
-    if (Object.keys(state.links || {}).length && (state.detailsDirty === true || !Number.isFinite(lastMatchCheck) || start.getTime() - lastMatchCheck >= MATCH_EVERY_MS - 60 * 1000)) {
+    // A detail copied in the admin since the last check (detailsChangedAt) brings it forward, so the app sees the new
+    // value soon. A copy made while this run works is newer than this run's check time, so the next run picks it up.
+    const detailsChanged = Date.parse(state.detailsChangedAt || "") > (Number.isFinite(lastMatchCheck) ? lastMatchCheck : -Infinity);
+    if (Object.keys(state.links || {}).length && (detailsChanged || !Number.isFinite(lastMatchCheck) || start.getTime() - lastMatchCheck >= MATCH_EVERY_MS - 60 * 1000)) {
       status.matchCheckedAt = iso(start);
-      status.detailsDirty = false;
       try {
         const { books, appBooks } = await loadCatalogs();
         const ignoredMatches = state.ignoredMatches || {};
