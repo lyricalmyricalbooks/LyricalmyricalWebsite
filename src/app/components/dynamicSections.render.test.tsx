@@ -1,7 +1,7 @@
 // Studio 2.7: connected fields render the page's details on the storefront; "Hide when empty" leaves a section out.
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 const { StaticRouter } = await import("react-router");
 const { SectionList } = await import("./sectionRender");

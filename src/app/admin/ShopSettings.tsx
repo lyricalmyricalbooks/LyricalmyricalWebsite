@@ -766,7 +766,6 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
     return books.filter((b: any) => b.shippingProfileId === profileId);
   };
 
-  const money = (n: any) => `$${Number(n || 0).toFixed(2)}`;
   const shippoConnected = !!shippoConfig?.configured;
   const shippingSummary = useMemo(() => summarizeShipping(profiles, books), [profiles, books]);
   // Every open problem, each fixed on one sub tab (shippingIssueTab).

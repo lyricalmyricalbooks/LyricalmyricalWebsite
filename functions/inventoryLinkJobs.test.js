@@ -58,7 +58,7 @@ describe("pushOrder", () => {
 });
 
 describe("planStock / applyStock", () => {
-  const sumNet = db => async inv => Object.values(db.docs).filter((_, i) => true)
+  const sumNet = db => async inv => Object.values(db.docs)
     .filter(d => d.data && d.data.net && !d.data.test).reduce((n, d) => n + (d.data.net[inv] || 0), 0);
   test("website stock = the app's count minus website copies it hasn't imported; a log row explains it", async () => {
     const db = fakeDb({ "books/b1": { title: "The Hound", trackInventory: true, stockLevel: 5 }, "inventoryPushes/A-1": { net: { hound: 1 } } });

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { createElement as h, act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 // React 19 removed react-dom/test-utils' Simulate: set the value the way a browser does and fire real events.
 const Simulate = {
   change(el: Element, init: { target: { value: string } }) {

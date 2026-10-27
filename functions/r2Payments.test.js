@@ -103,7 +103,7 @@ function harness({ docs = {}, intents = {}, charge = null, refunds = [], stripeR
     return realRequire(name);
   };
   const mod = { exports: {} };
-  const mockFetch = async (url, options) => {
+  const mockFetch = async (url) => {
     const text = String(url);
     if (text.includes('er-api')) return { ok: true, json: async () => ({ rates: { USD: 1, EUR: 1 } }) };
     if (text.includes('shippo') || text.includes('goshippo')) {
@@ -305,7 +305,7 @@ test('fault 41: an earlier paid order only blocks a new order that buys the same
   expect(sameOrderLines([{ id: 'a', quantity: 1 }], [{ id: 'a', variantId: null, quantity: 1 }, { id: 'g', promoGift: true, quantity: 1 }])).toBe(true);
   expect(sameOrderLines([{ id: 'a', quantity: 1 }], [{ id: 'b', quantity: 1 }])).toBe(false);
   expect(sameOrderLines([{ id: 'a', quantity: 1 }], [{ id: 'a', quantity: 2 }])).toBe(false);
-  const mk = (currentItems) => harness({ docs: { settings: baseSettings(), orders: { prev: { customer: { email: 'Reader@Example.com' }, paymentStatus: 'paid', status: 'open', items: [{ id: 'a', quantity: 1 }] } } } });
+  const mk = () => harness({ docs: { settings: baseSettings(), orders: { prev: { customer: { email: 'Reader@Example.com' }, paymentStatus: 'paid', status: 'open', items: [{ id: 'a', quantity: 1 }] } } } });
   const same = await mk().releaseSupersededAttempt({ body: { previousOrderId: 'prev' } }, 'reader@example.com', 'new', [{ id: 'a', quantity: 1 }]);
   expect(same).toEqual({ paidOrderId: 'prev' });
   const different = await mk().releaseSupersededAttempt({ body: { previousOrderId: 'prev' } }, 'reader@example.com', 'new', [{ id: 'b', quantity: 1 }]);

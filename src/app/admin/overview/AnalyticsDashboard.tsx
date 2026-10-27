@@ -14,7 +14,7 @@ import {
   splitRange, stockValue, titleStock, toFulfil, totals, REORDER_COVER_DAYS,
 } from "./overviewInsights";
 import { recordedSince, sumMap } from "./overviewTraffic";
-import { PRESETS, rangeWords, resolveRange, trafficShift, trafficWindow, type CompareMode, type Preset } from "./overviewRange";
+import { PRESETS, resolveRange, trafficShift, trafficWindow, type CompareMode, type Preset } from "./overviewRange";
 import { monthPace } from "./overviewSeries";
 import { mergeNewestPage } from "../ordersDesk";
 import { pickTraffic, shopRowsIn, shopTraffic } from "./overviewSources";

@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { createRequire } from "module";
-import { vi } from "vitest";
 import { describe, expect, it } from "vitest";
 import { getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, SECTION_REGISTRY } from "../ThemeEditorExtensions";
 import { canRewrite, DRAFT_TYPES, keepsTokens, MOVED_MARK, normalizeRichText, protectRichText, REWRITE_MAX, restoreRichText, rewriteFormat, rewriteProblem, richTextSignature, sectionFromDraft, SIMPLE_TAGS, tokensOf } from "./aiStudio";

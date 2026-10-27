@@ -1,7 +1,7 @@
 import { layerDesign } from "./designModel";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PAGE_TEMPLATES } from "../../admin/ThemeEditorExtensions";

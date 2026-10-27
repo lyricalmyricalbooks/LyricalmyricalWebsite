@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode, type SyntheticEvent } from "react";
-import { collection, doc, getDoc, getDocs, limit, orderBy, query, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { db, auth } from "../../lib/firebase";
 import toast from "react-hot-toast";
 import { placeItemsTable, risoButton, risoLayout, safeLogoUrl } from "./emailTheme";

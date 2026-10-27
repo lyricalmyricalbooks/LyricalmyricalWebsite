@@ -15,7 +15,7 @@ import {
 } from "./inventoryInsights";
 import {
   Checkbox, DataTable, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, MetricCard,
-  Pagination, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextField,
+  Pagination, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs,
   ToastProvider, useRisoToast, type BadgeTone, type Column,
 } from "./riso/components";
 

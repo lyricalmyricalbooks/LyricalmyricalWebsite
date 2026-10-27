@@ -3,11 +3,11 @@ import { StudioCopyField, CopyTargetContext } from "./StudioCopyField";
 import { StudioRegionBrowser } from "./StudioRegionBrowser";
 import { REGION_GROUPS, REGION_SUFFIXES, REGION_DEVICE_LABELS, regionFieldDevice, regionKey, regionValue, type RegionDevice } from "../../features/site/storefrontRegions";
 import { canInlineFormat } from "./richText";
-import { applyContextAction, applySpacing, contextCapabilities, GAP_KEYS, PADDING_KEYS, spacingKey } from "./canvasTools";
+import { applyContextAction, applySpacing, contextCapabilities, GAP_KEYS, PADDING_KEYS } from "./canvasTools";
 import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles,
-  ArrowLeft, ChevronDown, Clock, ChevronUp, Clipboard, Copy, Eye, EyeOff, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
-  Download, Globe, ListChecks, Pencil, Tablet, Trash2, Undo2, Upload, X,
+  ArrowLeft, ChevronDown, Clock, ChevronUp, Clipboard, Copy, Eye, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
+  Download, Globe, ListChecks, Pencil, Tablet, Trash2, Undo2, Upload,
 } from "lucide-react";
 import { adminApi } from "../api";
 import { uploadStudioImage } from "./mediaUpload";
@@ -17,12 +17,12 @@ import {
 } from "../ThemeEditorExtensions";
 import { CATEGORIES } from "../../features/site/constants";
 import { designEqual } from "../../features/site/designEqual";
-import { splitNavigation, buildNavItems, childCategories, moveNavItem, normalizeCategories, parentOf, reslotPages } from "../../features/site/navItems";
+import { splitNavigation, buildNavItems, moveNavItem, normalizeCategories, parentOf, reslotPages } from "../../features/site/navItems";
 import { COPY_SCHEMA, DEFAULT_COPY, getCopy } from "../../features/site/storeCopy";
 import { automaticFooterItems, footerGroup } from "../../features/site/footerNavigation";
 import { MENU_LINK_TYPES, newMenuItem, slugify, type MenuItem } from "../../features/site/storeMenu";
 import {
-  commit, duplicateSection, findBlock, getSections, initHistory, insertBlockAfter, insertSection, makeSection, mapBlock, moveBlockBefore, newId, normalizeDesign,
+  commit, duplicateSection, findBlock, getSections, initHistory, insertBlockAfter, insertSection, makeSection, mapBlock, newId, normalizeDesign,
   HISTORY_LIMIT, jumpBy, patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo, undoLabel, redoLabel, moveSection,
   resolveSharedBlocks, withPageText, type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
@@ -51,7 +51,7 @@ import { StudioInspector } from "./StudioInspector";
 import { StudioSearch } from "./StudioSearch.tsx";
 import { buildStudioIndex, contextCommands, searchedDevice, type SearchEntry } from "./studioSearch";
 import { resolveProductRoutes } from "../../features/site/productRoutes";
-import { groupLabel, isGroupSurface, SECTION_GROUP_KEYS, SECTION_GROUPS, type SectionGroupKey } from "../../features/site/sectionGroups";
+import { groupLabel, isGroupSurface, SECTION_GROUP_KEYS, type SectionGroupKey } from "../../features/site/sectionGroups";
 import { autoFitSections, autoFitRegions } from "./autoMobile";
 import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, moveBlockTo, moveSectionTo, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, samePreviewPage, sectionEntries, updateSectionsById, withDraftPage, writeSections } from "./studioWorkflow";
 import { sectionStyleFields, SPACING_CARD_KEYS } from "./sectionStyleSchema";

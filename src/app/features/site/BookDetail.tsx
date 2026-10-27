@@ -61,7 +61,6 @@ import { pdpFreeShipping } from "./extras/pdp-free-shipping/pdpFreeShipping";
 import { pdpPolicyEntries } from "./pdpPolicyTab";
 import { policyHtml, policySlug, policyTitle } from "./policyPages";
 import { quickAddChoice } from "./buyable";
-import { resolveLogoDesign } from "./selectors";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "./themeTokens";
 import { StorefrontOverrides } from "./StorefrontOverrides";
 import { resolveProductDesign } from "./surfaceDesign";
@@ -117,12 +116,11 @@ export default function BookDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const { books, settings, pages, loading: siteLoading, fresh, loadError, retry } = useSiteData();
-  const { addToCart, setIsCartOpen, cartCount, cart } = useCart();
+  const { addToCart, setIsCartOpen, cart } = useCart();
   const { currency, formatPrice, formatBookPrice, getBookPrice, convertPrice } = useCurrency();
 
   const primaryColor  = settings?.design?.primaryColor || "#e8402a";
   const font          = settings?.design?.font || "Inter";
-  const logoDesign    = resolveLogoDesign(settings?.design?.storefront, [settings?.design?.heroPage, settings?.design]);
 
   const [activePhoto, setActivePhoto] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -142,7 +140,6 @@ export default function BookDetail() {
     const r = el ? photoRatio(el.naturalWidth, el.naturalHeight) : undefined;
     if (url && r !== undefined) setPhotoRatios((prev) => (prev[url] === r ? prev : { ...prev, [url]: r }));
   };
-  const [imgBg, setImgBg]             = useState("transparent");
   const [selectedVariant, setSelectedVariant] = useState<any>(null);
   const [qty, setQty]                 = useState(1);
   // Buy-card extras: ticked add-ons (with inscription wording) and a gift card's recipient.
@@ -272,9 +269,6 @@ export default function BookDetail() {
 
   const storefrontBg       = settings?.design?.backgroundColor || "#050508";
   const storefrontText     = settings?.design?.textColor || "#ffffff";
-  const headerBgColor      = settings?.design?.headerBg || `${storefrontBg}cc`;
-  const headerTextColor    = settings?.design?.headerColor || storefrontText;
-  const headerBorderColor  = settings?.design?.headerColor ? `${settings.design.headerColor}1a` : `${storefrontText}1a`;
 
   const btnHoverBg = settings?.design?.buttonHoverBgColor || "#C1BBBB";
   const btnHoverText = settings?.design?.buttonHoverTextColor || "#FFFFFF";
@@ -676,7 +670,6 @@ export default function BookDetail() {
   // The photo actually on screen: a pinned edition photo is one of the gallery photos (or none of them),
   // so the current thumbnail, caption number and alt text follow it rather than the last picked photo.
   const shownIndex    = editionPhotoShown ? photos.findIndex((p: any) => p?.url === activeUrl) : activePhoto;
-  const shownPhoto    = shownIndex >= 0 ? photos[shownIndex] : undefined;
   const mediaName     = (item: any, i: number) => describedAlt(item?.altText) || getCopy(settings?.design, isVideoItem(item) ? "bookVideoLabel" : "bookPhotoAlt", { title: book?.title ?? "", n: i + 1 });
   const carouselIndex = shownIndex >= 0 ? shownIndex : Math.min(activePhoto, photos.length - 1);
   const shownVideo    = !(editionPhotoShown && shownIndex < 0) && isVideoItem(photos[carouselIndex]) ? photos[carouselIndex] : null;

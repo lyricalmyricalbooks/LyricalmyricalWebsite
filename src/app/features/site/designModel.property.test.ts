@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import live from "./__fixtures__/liveDesign.json";
-import { compactDesign, isSurfaceKey, layerDesign, pageOverrides, ROOT_ONLY_KEYS, writeDesignValue } from "./designModel";
+import { compactDesign, isSurfaceKey, pageOverrides, ROOT_ONLY_KEYS, writeDesignValue } from "./designModel";
 import { resolveMainDesign, resolveProductDesign, resolveSurfaceDesign } from "./surfaceDesign";
 
 // "What you see in Studio is what goes live": every storefront route resolves its design through

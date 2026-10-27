@@ -1,10 +1,9 @@
 // Pure traffic, marketing and audience calculations for the admin Overview.
 // Inputs are the daily `analytics/<date>` docs and the paid, non-test orders already loaded by the page.
 // Nothing is estimated: a signal that was never recorded is reported as missing (`recordedSince` is null), not as 0.
-import { addDays, dayOf, isRealPaidOrder, orderDay, periodKeys, shopDayKey, trafficPeriodKeys, refundedAmount, type Book, type Order } from "./overviewInsights";
+import { addDays, dayOf, isRealPaidOrder, orderDay, shopDayKey, trafficPeriodKeys, refundedAmount, type Book, type Order } from "./overviewInsights";
 import { analyticsKey } from "../../lib/analyticsKeys";
 
-const DAY = 86_400_000;
 export const SHOP_TIME_ZONE = "America/Toronto";
 
 export type Daily = Record<string, any>;

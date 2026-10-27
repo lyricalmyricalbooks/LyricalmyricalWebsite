@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 // Studio 2.3: links, books, videos and fonts are picked, not typed. Every section and block field
 // whose key says it holds one of those must use the matching picker kind, so a new "…Url" field

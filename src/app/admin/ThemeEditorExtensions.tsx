@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { MediaLibraryButton, uploadIntoField, useMediaPicker } from "./studio/mediaPicker";
 import { SortableList, SortableRow } from "./dndSortable";
 import {
@@ -7,11 +7,9 @@ import {
   GripVertical,
   Trash2,
   Image as ImageIcon,
-  Upload,
 } from "lucide-react";
 import RichTextEditor from "../components/RichTextEditor";
 import { uploadErrorMessage } from "./studio/mediaUpload";
-import { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
 import { PHOTO_RATIO_OPTIONS } from "../features/site/photoShapes";
 import { IMAGE_FILTER_PRESETS } from "../components/sectionStyleHelpers";
 import { isPickerKind, LinkPicker, PickerField, type PickerKind } from "./studio/StudioPickers";

@@ -9,7 +9,7 @@ import { PRIVATE_BOOK_KEYS, mergeBookPrivate, privateKeysIn, splitBookPrivate } 
 import { cleanRedirects, REDIRECTS_DOC, type Redirect } from "../features/site/redirects";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
-import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
+import { newOrderAccessKey, rememberOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
 import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
 import { deleteRefusal } from "./orderListHelpers";
 import { restampPreorderItems } from "../features/site/preorder";
@@ -52,7 +52,6 @@ import {
   runTransaction,
   deleteField,
   serverTimestamp,
-  increment,
   Timestamp,
 } from "firebase/firestore";
 import { 
@@ -72,8 +71,8 @@ const loadLegacy = () => import("../../lib/legacyFirebase");
 import { CATEGORIES } from "../features/site/constants";
 import { appendCategory, categoryBookPatch, directlyAssigned, type CategoryAction } from "./studio/categoryManager";
 import { normalizeCategories } from "../features/site/navItems";
-import { RISO_NOIR_ID, RISO_NOIR_TOKENS, withRisoNoirDefault } from "../features/site/risoNoir";
-import type { Book, Page, SiteSettings } from "../features/site/types";
+import { withRisoNoirDefault } from "../features/site/risoNoir";
+import type { Page } from "../features/site/types";
 import { validateLocalFulfillment } from "../features/site/localFulfillment";
 import type { LocalFulfillmentConfig } from "../features/site/types";
 import { dailyTrafficBetween } from "./dailyTrafficCache";

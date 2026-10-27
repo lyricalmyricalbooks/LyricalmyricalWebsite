@@ -1,7 +1,7 @@
 // PR 2 (email abuse and correctness): a shop-wide budget for anonymous-triggered email, one plain
 // recipient, proof-of-owner before reminder/alert email, readable CTA buttons, digital-only
 // confirmation wording, the Resend secret everywhere, Gmail timeouts and the postal-address gate.
-import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, test } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
@@ -61,7 +61,7 @@ function load({ db = makeDb(), users = {}, realSend = false } = {}) {
   const transports = [];
   const exportsOf = {};
   const admin = { initializeApp() {}, firestore: Object.assign(() => db, { FieldValue: { increment: n => n } }), auth: () => ({ getUserByEmail: async e => { if (users[e]) return users[e]; const err = new Error('no user'); err.code = 'auth/user-not-found'; throw err; } }), appCheck: () => ({ verifyToken: async () => ({}) }) };
-  const capture = name => (...args) => { const handler = args.at(-1); if (typeof handler === 'function') handler.__opts = args.length > 1 ? args[0] : {}; return handler; };
+  const capture = _name => (...args) => { const handler = args.at(-1); if (typeof handler === 'function') handler.__opts = args.length > 1 ? args[0] : {}; return handler; };
   const mockRequire = name => {
     if (name === 'firebase-admin') return admin;
     if (name === 'stripe') return class { constructor() { this.paymentIntents = {}; } };

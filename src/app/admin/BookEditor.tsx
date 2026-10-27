@@ -4,7 +4,6 @@ import {
   X, 
   Save, 
   ArrowLeft, 
-  Image as LucideImage, 
   Upload, 
   Trash2, 
   ExternalLink,

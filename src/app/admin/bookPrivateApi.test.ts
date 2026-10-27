@@ -48,7 +48,6 @@ import { adminApi } from "./api";
 
 beforeEach(() => { records.clear(); writes.length = 0; tx.update.mockClear(); tx.set.mockClear(); getDocs.mockReset(); getDownloadURL.mockClear(); uploadBytes.mockClear(); });
 
-const publicWrites = () => writes.filter(w => w.path === "books" || w.path === "books/b1" || w.path === "books/new1");
 
 describe("private book fields", () => {
   it("createBook keeps the cost price off the public document", async () => {

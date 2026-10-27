@@ -43,7 +43,7 @@ function OrderTrackingContent() {
   // How the shopper proved the order is theirs (email typed, or the emailed link key); requests reuse it.
   const [access, setAccess] = useState<{ email?: string; key?: string }>({});
   
-  const { formatPrice, currency: defaultCurrency } = useCurrency();
+  const { formatPrice } = useCurrency();
   const { settings, books } = useSiteData();
   useSEO({ title: getCopy(settings?.design, "trackTitle"), description: getCopy(settings?.design, "trackSubtitle"), noindex: true });
 

@@ -24,7 +24,7 @@ const { risoButton, risoLayout, placeItemsTable } = require("./emailTheme");
 function Stripe(...args) { return new (require("stripe"))(...args); }
 function Resend(...args) { return new (require("resend").Resend)(...args); }
 const nodemailer = { createTransport: (...args) => require("nodemailer").createTransport(...args) };
-const { calculateShipping, applyStockDelta } = require("./orderMath");
+const { calculateShipping } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shared/shippingEngine");
 const { addressKey: guardAddressKey, advancesTracking } = require("./fulfillmentGuard");
 const { transactionRefundState, openRefunds, applyRefundChecks } = require("./labelVoid");
@@ -33,7 +33,7 @@ const { checkoutRate } = require("./checkoutRate");
 const { liveRateExtra, withLiveRateExtra, cleanLiveRateExtra } = require("./liveRateExtra");
 const { FALLBACK_COPY_GRAMS, parcelGrams } = require("./parcelWeight");
 const { addressMissing } = require("./shared/addressRules");
-const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./shared/localFulfillment");
+const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { expandDiscountCategories } = require("./shared/discountCategories");
 const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./shared/discountMath");
@@ -49,7 +49,7 @@ const { pendingRecord, confirmedRecord, confirmationEmail } = require("./newslet
 const { findByEmail: findByEmailData, neverPaid, redactedOrderFields, redactedOperationsFields, giftCardsFor, reviewErasure, GIFT_CARD_PERSONAL } = require("./privacyData");
 const { optOutId, unsubscribeToken, tokenMatches, purposeToken, purposeTokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { runReviewRequests, REVIEW_REQUEST_TEMPLATE } = require("./reviewRequests");
-const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines, shopDate } = require("./paymentGuards");
+const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, previousAttemptPaid, paypalRefundedTotalMinor, sameOrderLines, shopDate } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { encodeAcquisition } = require("./acquisition");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
@@ -70,7 +70,7 @@ const { privacyActions } = require("./privacyRequests");
 const { orderRequestActions } = require("./orderRequests");
 const { shippingLabelEndpoints } = require("./shippingLabels");
 const { publicErrorMessage } = require("./publicErrors");
-const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
+const { reserveStock, releaseStock, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
 const { preorderActive, preorderLine, preorderEmailLines, releaseDateOf } = require("./shared/preorder");
 const { check: checkBody } = require("./shared/edge");
 const { orderActionBody, refundOrderBody } = require("./shared/orderActions");
@@ -332,7 +332,6 @@ async function retrieveOrderPayment(orderId, order, { paymentIntentId, sessionId
   return null;
 }
 
-const FROM = "Lyricalmyrical Books <orders@lyricalmyricalbooks.com>";
 const ADMIN_TO = "lyricalmyricalbooks@gmail.com";
 
 function moneyFmt(n) {
