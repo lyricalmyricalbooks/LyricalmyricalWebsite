@@ -1,11 +1,11 @@
 import { orderAccessHeaders } from "./orderAccessClient";
 import { AppVerificationError } from "../../lib/appVerification";
-import { shopProfile } from "../../lib/shopProfile";
 
-// Central resolver for Cloud Function endpoints. The project and region come from the shop profile
-// (lib/shopProfile). Override with VITE_FUNCTIONS_BASE when the backend moves (e.g. a proxy domain).
-const PROJECT_ID = shopProfile.firebase.projectId;
-const REGION = shopProfile.functionsRegion;
+// Central resolver for Cloud Function endpoints so the project/region is
+// defined in exactly one place. Override with VITE_FUNCTIONS_BASE when the
+// backend moves (e.g. a different project or a proxy domain).
+const PROJECT_ID = "lyricalmyrical-web-v2";
+const REGION = "us-central1";
 
 export function functionUrl(name: string): string {
   const override = import.meta.env.VITE_FUNCTIONS_BASE as string | undefined;
