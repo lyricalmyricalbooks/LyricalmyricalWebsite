@@ -63,6 +63,13 @@ describe('public HTML snapshots', () => {
     // The shop's own stylesheet still loads first, as before.
     expect(doc.querySelector('link[href="/shop/assets/index.css"]')?.getAttribute('rel')).toBe('stylesheet');
   });
+  it('keeps chunk preloads on the address serving the page, so the default Firebase address does not load them cross-origin', () => {
+    document.documentElement.innerHTML = '<head><link rel="modulepreload" href="http://localhost/assets/CartDrawer.js"><link rel="stylesheet" href="http://localhost/assets/a.css"><meta property="og:image" content="http://localhost/a.jpg"></head><body><div id="root"><p>A</p></div></body>';
+    const doc = new DOMParser().parseFromString(captureDocument({ template: '<html></html>', publicUrl: base + '/', localOrigin: 'http://localhost' }), 'text/html');
+    expect(doc.querySelector('link[rel="modulepreload"]')?.getAttribute('href')).toBe('/assets/CartDrawer.js');
+    expect(doc.querySelector('link[rel="stylesheet"]')?.getAttribute('href')).toBe('/assets/a.css');
+    expect(doc.querySelector('meta[property="og:image"]')?.getAttribute('content')).toBe(new URL(base).origin + '/a.jpg');
+  });
   it('shows book photos in the saved page instead of their loading placeholder', () => {
     document.documentElement.innerHTML = '<head></head><body><div id="root"><div><div data-fm-skeleton class="animate-pulse"></div><img data-fm-fade class="w-full opacity-0" src="/a.webp" alt="A"><p>A</p></div></div></body>';
     const html = captureDocument({ template: '<html></html>', publicUrl: base + '/', localOrigin: 'http://localhost' });
