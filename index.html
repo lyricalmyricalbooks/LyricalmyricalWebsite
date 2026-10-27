@@ -119,6 +119,13 @@
       })();
     </script>
 
+    <!--
+      The shop profile (src/lib/shopProfile.ts): this shop's Firebase settings, address and bot-check key. `defer` runs it
+      after parsing and before the app script below, in page order, without holding up the page. The platform writes a
+      different file per shop, so one build serves every shop; without it the app uses its built-in settings.
+    -->
+    <script defer src="%BASE_URL%shop-profile.js"></script>
+
     <style>
       html, body { height: 100%; margin: 0; background: #030213; }
       #root { height: 100%; }

@@ -702,3 +702,14 @@ Google Analytics (`lib/ga4.ts`) and Clarity (`lib/clarity.ts`) add their third-p
 (`lib/afterPageLoad.ts`: window `load`, then idle, 4 s at most), so they no longer compete with the first photos and shop code.
 Both queue their calls until the script arrives, so no event is lost; consent and path checks are unchanged. Keep any new
 third-party tag behind the same helper.
+
+## Shop profile read at page open (27 October 2026)
+
+First step of making the shop anyone's (code plan item 1.2 in LMB-PLATFORM `docs/code-plan.md`). `src/lib/shopProfile.ts`
+is the only door to this shop's Firebase web settings, functions project/region and bot-check site key. `index.html` loads
+`/shop-profile.js` with `defer` just before the app script (defer and module scripts run in page order, after parsing), and
+that file sets `window.__SHOP_PROFILE__`; `firebaseApp.ts`, `functionsBase.ts` and `appCheck.ts` read `shopProfile`. The
+profile's site key wins over `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY`, which stays the fallback. No file, or a broken one, means
+`DEFAULT_SHOP_PROFILE` (today's values), all or nothing so two projects never mix. `public/shop-profile.js` must equal
+`DEFAULT_SHOP_PROFILE` (tested); Hosting serves it `no-cache`. The format's master copy is `profile/` in LMB-PLATFORM; never
+put plan, test mode, Stripe account or emails in it (they are server-only).

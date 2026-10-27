@@ -16,6 +16,11 @@ describe("reCAPTCHA Enterprise initialization", () => {
     expect(initializeBrowserAppCheck({} as any, { VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: " registered-key " } as any)).toEqual({ initialized: true });
     expect(configs).toEqual([{ provider: { key: "registered-key" }, isTokenAutoRefreshEnabled: true }]);
   });
+  it("prefers the shop profile's key over the build setting", () => {
+    initializeBrowserAppCheck({} as any, { VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: "build-key" } as any, " shop-key ");
+    initializeBrowserAppCheck({} as any, { VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: "build-key" } as any, "");
+    expect(configs.map(config => config.provider.key)).toEqual(["shop-key", "build-key"]);
+  });
   it("does not activate a debug credential in production", () => {
     initializeBrowserAppCheck({} as any, { VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: "key", VITE_APP_CHECK_DEBUG_TOKEN: "private-debug-token", DEV: false } as any);
     expect((self as any).FIREBASE_APPCHECK_DEBUG_TOKEN).toBeUndefined();
