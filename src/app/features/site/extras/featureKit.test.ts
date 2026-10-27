@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { insertAfter, withFeatureCopy, withFeatureRegions, withFeatureStyle, withFeatureSubsections, type StorefrontFeature } from "./featureKit";
+import { insertAfter, orderFeatures, withFeatureCopy, withFeatureRegions, withFeatureStyle, withFeatureSubsections, type StorefrontFeature } from "./featureKit";
 import { STOREFRONT_FEATURES } from "./registry";
 import { STYLE_GROUPS } from "../../../admin/studio/styleSchema";
 import { STYLE_SUBSECTIONS } from "../../../admin/studio/settingsMap";
@@ -32,6 +32,15 @@ describe("featureKit", () => {
     expect(regions[0].files).toEqual(["a.tsx", "features/site/extras/demo/Demo.tsx"]);
     expect(withFeatureSubsections({ g: [{ title: "Extras", keys: ["a", "b"] }] }, [feature]).g[0].keys).toEqual(["a", "x", "b"]);
   });
+  it("applies a feature after the feature whose entry it is placed after, else in folder order", () => {
+    const a: StorefrontFeature = { id: "a", style: { group: "g", after: "z1", fields: [toggle("a1")] } };
+    const b: StorefrontFeature = { id: "b", copy: { group: "Words", fields: [{ key: "b1", label: "b", default: "" }] } };
+    const z: StorefrontFeature = { id: "z", style: { group: "g", after: "a", fields: [toggle("z1"), toggle("z2")] } };
+    expect(orderFeatures([a, b, z]).map(f => f.id)).toEqual(["b", "z", "a"]);
+    expect(orderFeatures([b, z]).map(f => f.id)).toEqual(["b", "z"]);
+    const loop: StorefrontFeature = { id: "y", style: { group: "g", after: "a1", fields: [toggle("y1")] } };
+    expect(() => orderFeatures([a, { ...z, style: { ...z.style!, after: "y1" } }, loop])).toThrow(/placed after each other/);
+  });
   it("refuses a group or sub-section that doesn't exist", () => {
     expect(() => withFeatureStyle([{ id: "other", fields: [] }], [feature])).toThrow(/no group "g"/);
     expect(() => withFeatureSubsections({ g: [] }, [feature])).toThrow(/no "Extras"/);
@@ -43,7 +52,7 @@ describe("every extras folder", () => {
   const folders = readdirSync(here, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort();
   it("has a feature.ts named after it, collected by the registry", () => {
     for (const name of folders) expect(existsSync(join(here, name, "feature.ts")), name).toBe(true);
-    expect(STOREFRONT_FEATURES.map(f => f.id)).toEqual(folders);
+    expect(STOREFRONT_FEATURES.map(f => f.id).sort()).toEqual(folders);
   });
   it("feature.ts holds data only (shopper code reads it), and its files sit in its folder", () => {
     for (const name of folders) {

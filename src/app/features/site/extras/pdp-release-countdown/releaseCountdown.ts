@@ -2,8 +2,8 @@
 // off by default). A pre-order with a Publication date (Books › edit › Inventory, a Toronto shop date) opens at
 // midnight Toronto that day (`releaseArrived` in liveBook.ts); inside the last `withinHours` the stock line counts down
 // to it instead of "Pre-order · ships {date}". Pure.
-import { shopInstant } from "./shopTime";
-import type { SaleCountdown } from "./saleCountdown";
+import { shopInstant } from "../../shopTime";
+import type { SaleCountdown } from "../../saleCountdown";
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
