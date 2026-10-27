@@ -51,7 +51,7 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
     } catch (error: any) { toast.error(error.message || "Could not update return."); }
     finally { setBusy(false); }
   };
-  const set = (index: number, patch: Partial<Row>) => setInspection(previous => ({ ...previous, [index]: { quantity: "", condition: "", ...previous[index], ...patch } }));
+  const set = (index: number, patch: Partial<Row>) => setInspection(previous => ({ ...previous, [index]: { quantity: "", condition: "", ...(previous[index] as Row | undefined), ...patch } }));
   const lineOk = (item: any) => {
     const row = inspection[item.index];
     const qty = whole(row?.quantity);

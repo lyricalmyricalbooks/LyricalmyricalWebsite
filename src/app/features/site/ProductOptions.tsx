@@ -45,7 +45,7 @@ export function AddOnPicker({ design, addOns, picks, onChange, error, formatPric
   unitPrice: number;
 }) {
   if (!addOns.length || !regionVisible(design, "productAddOns")) return null;
-  const set = (id: string, patch: Partial<{ on: boolean; text: string }>) => onChange({ ...picks, [id]: { on: false, text: "", ...picks[id], ...patch } });
+  const set = (id: string, patch: Partial<{ on: boolean; text: string }>) => onChange({ ...picks, [id]: { on: false, text: "", ...(picks[id] as Partial<{ on: boolean; text: string }> | undefined), ...patch } });
   const extra = addOnsPrice(addOns, picks);
   return (
     <fieldset {...regionProps("productAddOns")} className="fm-pdp-addons w-full flex flex-col gap-2.5 text-left">

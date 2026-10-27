@@ -219,7 +219,7 @@ function Queue() {
                       <div style={{ minWidth: 0 }}>
                         <div className="rp-row-meta" style={{ marginBottom: 8 }}>
                           <Stars rating={r.rating} />
-                          <StatusBadge tone={TONE[r.status]}>{STATUS_WORD[r.status] || r.status}</StatusBadge>
+                          <StatusBadge tone={TONE[r.status as Review["status"]]}>{STATUS_WORD[r.status as Review["status"]] || r.status}</StatusBadge>
                           {verified(r) && <StatusBadge tone="success">✓ Verified purchase</StatusBadge>}
                           {r.featured && <StatusBadge tone="info">Pinned to top</StatusBadge>}
                           <time dateTime={r.createdAt}>{new Date(r.createdAt).toLocaleString()}</time>
