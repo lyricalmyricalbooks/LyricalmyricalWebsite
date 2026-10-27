@@ -162,7 +162,9 @@ describe('#108 errors for anonymous callers', () => {
     expect(publicErrorMessage(new Error('x'.repeat(400)), 'fallback')).toBe('fallback');
   });
   test('no anonymous handler returns a raw err.message any more', () => {
-    const between = (from, to) => { const i = source.indexOf(from); const j = source.indexOf(to, i + from.length); expect(i, from).toBeGreaterThan(-1); expect(j, to).toBeGreaterThan(i); return source.slice(i, j); };
+    const betweenIn = (text, from, to) => { const i = text.indexOf(from); const j = text.indexOf(to, i + from.length); expect(i, from).toBeGreaterThan(-1); expect(j, to).toBeGreaterThan(i); return text.slice(i, j); };
+    const between = (from, to) => betweenIn(source, from, to);
+    const shippoSource = fs.readFileSync(path.join(here, 'shippoEndpoints.js'), 'utf8');
     const regions = {
       createPayPalOrder: between('exports.createPayPalOrder =', 'exports.capturePayPalOrder ='),
       capturePayPalOrder: between('exports.capturePayPalOrder =', 'exports.paypalWebhook ='),
@@ -170,8 +172,9 @@ describe('#108 errors for anonymous callers', () => {
       createStripeCheckoutSession: between('exports.createStripeCheckoutSession =', 'function looksLikeStripeSignature') + fs.readFileSync(path.join(here, 'checkoutPayment.js'), 'utf8'),
       // handleCheckoutStatus lives in orderRequests.js (moved out of index.js as is).
       handleCheckoutStatus: (() => { const text = fs.readFileSync(path.join(here, 'orderRequests.js'), 'utf8'); const i = text.indexOf('async function handleCheckoutStatus'); const j = text.indexOf('async function handleTrackingLink', i); expect(i).toBeGreaterThan(-1); expect(j).toBeGreaterThan(i); return text.slice(i, j); })(),
-      getShippoRates: between('exports.getShippoRates =', 'exports.saveShippoConfig ='),
-      validateAddress: between('exports.validateAddress =', 'exports.createShippingLabel ='),
+      // The Shippo endpoints live in shippoEndpoints.js (moved out of index.js as is).
+      getShippoRates: betweenIn(shippoSource, 'const getShippoRates =', 'const saveShippoConfig ='),
+      validateAddress: betweenIn(shippoSource, 'const validateAddress =', 'const shippoWebhook ='),
       validateDiscountCode: between('exports.validateDiscountCode =', 'exports.onOrderCreated ='),
     };
     for (const [name, text] of Object.entries(regions)) expect(text, name).not.toMatch(/error: (?:err|pricingErr)\.message(?!\s*,\s*\.\.\.\(pricingErr)/);

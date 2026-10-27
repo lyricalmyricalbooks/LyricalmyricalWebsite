@@ -27,6 +27,9 @@ Server side: Stripe/PayPal, webhooks, refunds, stock holds, gift cards, discount
   so every dependency passed in must exist by then: a `const` defined further down is still uninitialised there (use a
   function declaration, as `siteLink` and `escapeHtml` now are). Handler tests reassign `sendEmail` after loading index.js,
   so it is passed as `lateSendEmail`; pass any other name a test reassigns the same way.
+  Whole endpoints move the same way: `shippoEndpoints.js` (`shippoEndpoints`, built as `shippo` just above
+  `exports.getShippoConfig`) holds the Shippo config, dynamic rates, saved key, checkout rates, address check and
+  tracking webhook; index.js keeps each `exports.<name> = shippo.<name>;` line where it was.
 - **Shipping labels (26 October 2026):** `createShippingLabel` lives in `functions/shippingLabels.js` the same way:
   `shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors, admin, requireAdmin, db, getShippoToken,
   callShippo, IS_EMULATOR, originAddress, getStateCode, getCountryCode })`, and index.js keeps the
