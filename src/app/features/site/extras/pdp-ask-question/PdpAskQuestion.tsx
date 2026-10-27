@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { MessageCircleQuestion } from "lucide-react";
-import { getCopy } from "./storeCopy";
-import { regionProps } from "./storefrontRegions";
-import { submitContactMessage } from "./contactMessages";
-import { inEditorPreview } from "../../lib/trackingGuard";
+import { getCopy } from "../../storeCopy";
+import { regionProps } from "../../storefrontRegions";
+import { submitContactMessage } from "../../contactMessages";
+import { inEditorPreview } from "../../../../lib/trackingGuard";
 import { questionProblem, questionSubject } from "./askQuestion";
 
 // "Ask a question about this book" under the buy buttons (Studio › Style › Book page · photos & layout ›

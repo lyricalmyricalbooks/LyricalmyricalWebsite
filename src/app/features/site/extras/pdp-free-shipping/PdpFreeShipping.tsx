@@ -1,6 +1,6 @@
 import { Truck } from "lucide-react";
-import { getCopy } from "./storeCopy";
-import { regionProps } from "./storefrontRegions";
+import { getCopy } from "../../storeCopy";
+import { regionProps } from "../../storefrontRegions";
 import type { PdpFreeShip } from "./pdpFreeShipping";
 
 // The free-shipping line under the buy buttons (Studio › Style › Book page · photos & layout ›

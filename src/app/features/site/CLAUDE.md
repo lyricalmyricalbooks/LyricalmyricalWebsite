@@ -271,7 +271,7 @@ Words: Text & labels › Product page (`pdpPickup*`).
 ## Free-shipping line on book pages (22 October 2026)
 
 Studio › Style › Book page · photos & layout › Extras on the page › **Free-shipping line** (`showPdpFreeShipping`, off by default)
-draws "Free shipping on orders over {threshold}" under the buy buttons (`features/site/PdpFreeShipping.tsx`, region
+draws "Free shipping on orders over {threshold}" under the buy buttons (`features/site/extras/pdp-free-shipping/PdpFreeShipping.tsx`, region
 `productFreeShipping`), switching to "Add {amount} more…" / "Your order ships free" from the printed books already in the bag.
 Pure `pdpFreeShipping` (`pdpFreeShipping.ts`) uses the bag bar's rule (`shopFreeShipThreshold`, `shippableBagTotal`) and
 checkout's physical rule (`isPickupItem`); hidden for e-books, gift cards, sold-out and Coming soon. Display only.
@@ -315,7 +315,7 @@ words Text & labels › Product page (`tabShippingReturns`, `pdpPolicyReadMore`)
 Studio › Style › Book page · photos & layout › Extras on the page › **Ships-by line** (`showPdpShipBy`, off by default) +
 `pdpShipByDays` (working days, default 2), `pdpShipByCutoff` (Toronto hour, default 14), `pdpShipByCountdownHours` (default 4,
 0 = no countdown) and `pdpShipByClosedDays` (YYYY-MM-DD list): "Order now — ships by {date}" under the buy buttons
-(`features/site/PdpShipBy.tsx`, region `productShipBy`), "Order within {hours}h {minutes}m" near the cut-off. Pure `shipBy.ts`
+(`features/site/extras/pdp-ship-by/PdpShipBy.tsx`, region `productShipBy`), "Order within {hours}h {minutes}m" near the cut-off. Pure `shipBy.ts`
 (Mon–Fri Toronto minus closed days). Drawn only after mount (never in the prerender), only for printed copies in stock (not
 pre-orders, backorders, Coming soon, e-books, gift cards). Display only. Words: Text & labels › Product page (`pdpShipBy*`).
 
@@ -538,7 +538,7 @@ text can't follow later React updates, so live money (card/PDP price, bag lines 
 ## Ask a question on book pages (22 October 2026)
 
 Studio › Style › Book page · photos & layout › Extras on the page › **Ask a question** (`showPdpAskQuestion`, off by default)
-draws `features/site/PdpAskQuestion.tsx` under the buy buttons (region `productAskQuestion`, every book, sold out too): a folded
+draws `features/site/extras/pdp-ask-question/PdpAskQuestion.tsx` under the buy buttons (region `productAskQuestion`, every book, sold out too): a folded
 form (name, email, question, honeypot) that sends one `contactMessages` row through `submitContactMessage` (same path and rule as
 the Contact form section, so Admin › Messages, the reply tool and `onContactMessage`'s budgeted emails all apply). Subject =
 Text & labels › Product page › `pdpAskSubject` with the title (+ edition), rules in pure `askQuestion.ts`. Never sends from the
@@ -579,7 +579,7 @@ stack. No words, rules or Functions.
 ## Already in your bag on book pages (23 October 2026)
 
 Studio › Style › Book page · photos & layout › Extras on the page › **Already in your bag** (`showPdpInBag`, off by default)
-draws `features/site/PdpInBag.tsx` under the buy buttons (region `productInBag`) once the bag holds the chosen edition: "2 copies
+draws `features/site/extras/pdp-in-bag/PdpInBag.tsx` under the buy buttons (region `productInBag`) once the bag holds the chosen edition: "2 copies
 already in your bag · View bag" (BookDetail's `inBag` count; the link calls `setIsCartOpen`). Display only. Words: Text & labels ›
 Product page (`pdpInBagOne`, `pdpInBagMany` with `{count}`, `pdpInBagView`; empty link = no link).
 
