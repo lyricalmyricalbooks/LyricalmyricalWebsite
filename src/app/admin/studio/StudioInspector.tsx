@@ -62,7 +62,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   const fields = (block ? getBlockFields(section.type) : getSectionFields(section.type)).filter(f => `${f.label} ${f.key}`.toLowerCase().includes(search.toLowerCase()));
   const patchBlock = (patch: any) => {
     if (placement?.sharedBlockId && !Object.keys(patch).some(k => k === "grid" || k === "responsive" || k === "hidden")) onPatchShared(placement.sharedBlockId, patch);
-    else onPatch(updateBlocks(section, key, list => mapBlock(list, block.id, b => ({ ...b, ...patch }))));
+    else if (block) onPatch(updateBlocks(section, key, list => mapBlock(list, block.id, b => ({ ...b, ...patch }))));
   };
   const patchResponsive = (group: "responsive" | "grid", field: string, value: any) => patchBlock({
     [group]: { ...(block?.[group] || {}), [device]: { ...(block?.[group]?.[device] || {}), [field]: value } },

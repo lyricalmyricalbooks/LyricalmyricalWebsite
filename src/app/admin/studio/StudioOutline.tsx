@@ -56,7 +56,7 @@ function NestedBlocks({ blocks, section, depth, selectedId, blockId, label, onSe
           <div className="studio-tree-row" data-selected={selectedId === section.id && blockId === block.id} data-hidden={block.hidden}>
             <button {...handleProps} className="studio-grip" title="Drag to reorder this block" aria-label={`Reorder ${nameOf(block, i, "Block")}`}><GripVertical size={13} /></button>
             <button className="studio-tree-label" aria-current={selectedId === section.id && blockId === block.id} onClick={() => onSelect(section.id, block.id)}>
-              {nameOf(block, i)}<small>{block.sharedBlockId ? "Reusable block" : BLOCK_KIND_NAMES[block.type] || label}{block.children?.length ? ` · ${block.children.length} children` : ""}</small>
+              {nameOf(block, i)}<small>{block.sharedBlockId ? "Reusable block" : BLOCK_KIND_NAMES[block.type ?? ""] || label}{block.children?.length ? ` · ${block.children.length} children` : ""}</small>
             </button>
             <IconButton label={block.hidden ? "Show block" : "Hide block"} onClick={() => onChange(mapBlock(blocks, block.id, b => ({ ...b, hidden: !b.hidden })))}>{block.hidden ? <EyeOff size={13} /> : <Eye size={13} />}</IconButton>
             {onMoveBlock && <IconButton label={`Move ${nameOf(block, i)} to another section`} onClick={() => onMoveBlock(section.id, block.id)}><ArrowRightLeft size={13} /></IconButton>}

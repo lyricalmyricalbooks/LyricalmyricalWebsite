@@ -88,7 +88,7 @@ export function SortableRow({
     ref: setActivatorNodeRef,
     ...attributes,
     ...listeners,
-    "aria-label": attributes["aria-label"] ?? "Drag to reorder",
+    "aria-label": "Drag to reorder", // dnd-kit sets no aria-label of its own
     title: "Drag to reorder",
     style: { touchAction: "none", userSelect: "none" },
     // The handle should never trigger the row's select/expand onClick.

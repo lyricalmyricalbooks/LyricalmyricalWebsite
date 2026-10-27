@@ -677,7 +677,7 @@ export default function BookDetail() {
   // so the current thumbnail, caption number and alt text follow it rather than the last picked photo.
   const shownIndex    = editionPhotoShown ? photos.findIndex((p: any) => p?.url === activeUrl) : activePhoto;
   const shownPhoto    = shownIndex >= 0 ? photos[shownIndex] : undefined;
-  const mediaName     = (item: any, i: number) => describedAlt(item?.altText) || getCopy(settings?.design, isVideoItem(item) ? "bookVideoLabel" : "bookPhotoAlt", { title: book?.title, n: i + 1 });
+  const mediaName     = (item: any, i: number) => describedAlt(item?.altText) || getCopy(settings?.design, isVideoItem(item) ? "bookVideoLabel" : "bookPhotoAlt", { title: book?.title ?? "", n: i + 1 });
   const carouselIndex = shownIndex >= 0 ? shownIndex : Math.min(activePhoto, photos.length - 1);
   const shownVideo    = !(editionPhotoShown && shownIndex < 0) && isVideoItem(photos[carouselIndex]) ? photos[carouselIndex] : null;
   // A video stops when the shopper swipes away from it.
@@ -1050,7 +1050,7 @@ export default function BookDetail() {
                             aria-invalid={!!editionError}
                             aria-describedby={editionError ? "pdp-edition-error" : undefined}
                             value={selectedVariant?.id || ""}
-                            onChange={(e) => { setSelectedVariant(book.variants.find((v: any) => v.id === e.target.value) || null); setEditionError(""); ga4PdpInteract("edition_switch"); }}
+                            onChange={(e) => { setSelectedVariant(book.variants?.find((v: any) => v.id === e.target.value) || null); setEditionError(""); ga4PdpInteract("edition_switch"); }}
                             className="fm-pdp-select"
                           >
                             <option value="" disabled>{getCopy(settings?.design, "pdpEditionChoose")}</option>

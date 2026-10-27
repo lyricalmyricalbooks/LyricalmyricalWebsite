@@ -202,7 +202,7 @@ export function FoundOnGoogleCard({ range, setActiveTab, part }: {
   if (state.status === "error") return <SectionCard title={cardTitle}><ErrorState title="Search Console couldn't be read" description={state.message} onRetry={() => setAttempt(a => a + 1)} /></SectionCard>;
   const a = state.answer;
   if (!a.connected || !a.report) {
-    return <SearchConsoleOff title={cardTitle} part={part} message={a.code === "no_token" ? a.error : `Not connected yet. ${a.error || ""}`} setActiveTab={setActiveTab} />;
+    return <SearchConsoleOff title={cardTitle} part={part} message={a.code === "no_token" ? a.error ?? "" : `Not connected yet. ${a.error || ""}`} setActiveTab={setActiveTab} />;
   }
   const { totals, queries, pages } = a.report;
   return (

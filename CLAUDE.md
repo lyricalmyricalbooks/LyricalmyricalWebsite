@@ -164,7 +164,8 @@ npm run logs
   discount-state, order-status/CSV, cart-quantity and the **theme draft/publish
   separation** test (Firestore mocked) — a draft/discard must never write `design`.
 - `tsconfig.json` (`strict: true` since 25 October 2026, `noEmit`) exists for type-checking only; Vite does not use it.
-  The errors strict mode found in older files (70, down to 8 on 27 October 2026) are in `scripts/typecheck-baseline.json`; new code must be strict-clean.
+  The 70 errors strict mode found in older files were all fixed on 27 October 2026, so `scripts/typecheck-baseline.json` is
+  empty and any type error now fails CI; keep new code strict-clean.
 - **Lint:** `pnpm run lint` (`scripts/lint-ratchet.mjs`, CI step in `test`) runs oxlint with `.oxlintrc.json` (correctness
   rules, `react-hooks/rules-of-hooks`, unused variables; `_`-prefixed names are allowed) over `src`, `functions`, `scripts`
   and fails when a file gains problems over `scripts/lint-baseline.json`; run with `--update` after fixing some. React

@@ -44,7 +44,7 @@ const OrderTracking = lazy(() => import("./features/site/OrderTracking"));
 // the page instead of inside the first download. It still mounts on every page as soon as it arrives.
 // If its code can't load (a dropped connection, a page open across a deploy) the page carries on without the bag
 // rather than falling into the route's error view.
-const CartDrawer = lazy(() => import("./components/CartDrawer")
+const CartDrawer = lazy<() => ReactNode>(() => import("./components/CartDrawer")
   .then(m => ({ default: m.CartDrawer }))
   .catch(() => ({ default: () => null })));
 

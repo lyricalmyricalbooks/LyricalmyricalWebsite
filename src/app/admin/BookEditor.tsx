@@ -991,7 +991,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const photosToDescribe = (formData.photos || []).filter((p: any) => !isVideoItem(p) && !describedAlt(p.altText));
   const describeAllPhotos = async () => {
     if (!String(formData.title || "").trim()) { toast.error("Give the book a title first."); return; }
-    const todo = photosToDescribe.map((p: any) => ({ photo: p, index: formData.photos.findIndex((x: any) => x.id === p.id) }));
+    const todo: { photo: any; index: number }[] = photosToDescribe.map((p: any) => ({ photo: p, index: formData.photos.findIndex((x: any) => x.id === p.id) }));
     if (!todo.length) return;
     setDescribeAll({ done: 0, total: todo.length });
     let finished = 0;
