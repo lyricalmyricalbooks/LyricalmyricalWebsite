@@ -33,6 +33,9 @@ Server side: Stripe/PayPal, webhooks, refunds, stock holds, gift cards, discount
   `scheduledJobs.js` (`scheduledJobs`, built as `jobs` just above `exports.dailyOrderDigest`) holds the daily digest,
   weekly summary, abandoned bag sweep, photo sweep and back-in-stock sweep; the requires and `RESTOCK_BUDGET_MS` they
   need sit above that call, since a `const` must exist before the factory runs.
+  `digitalDownloadEndpoint.js` (`downloads`) holds `downloadDigitalAsset`, and `shopEmails.js` (`shopMail`) holds
+  `onContactMessage`, `onCustomerCreated` and `sendTestEmail`. The order emails (`onOrderCreated`, `onOrderUpdated`) and
+  `unpaidPaymentSweep` stay in index.js: they share gift card, stock and payment helpers with the webhook.
 - **Shipping labels (26 October 2026):** `createShippingLabel` lives in `functions/shippingLabels.js` the same way:
   `shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors, admin, requireAdmin, db, getShippoToken,
   callShippo, IS_EMULATOR, originAddress, getStateCode, getCountryCode })`, and index.js keeps the
