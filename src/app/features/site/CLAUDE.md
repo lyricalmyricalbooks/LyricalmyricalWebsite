@@ -21,6 +21,10 @@ Checkout rejects placeholder/wrong-mode publishable keys and disables payment un
 
 ## Checkout order slip (22 October 2026)
 
+**Checkout page files (27 October 2026):** `Checkout.tsx` is being split by section, moving code as is. The form fields
+(`Field`, `RegionField`, `AddressField`, `FieldError`, `SectionHead`, the `LabelsAbove` context) are in
+`features/site/CheckoutFields.tsx`; source-text tests (`checkoutWiring.test.ts`) read that file for field wiring.
+
 `Checkout.tsx` is concept A "Order slip" (Julian's pick): a ruled header (back link, wordmark with the last word in the accent,
 Secure), a one-page form of lettered sections (`SectionHead`: Contact · Ship to · Delivery · Pay) and an outlined **Order slip**
 aside (numbered lines with covers, discount/gift-card boxes, ledger, big total, footer strip). Every class is `fm-co-*`, all CSS
@@ -430,7 +434,7 @@ so no countdown. Words: Text & labels › Header (`announceEnds*`). Display only
 
 ## Checkout address finder (12 October 2026)
 
-`features/site/addressSuggest.ts` feeds the street box's suggestions (`AddressField` in `Checkout.tsx`). It first asks the
+`features/site/addressSuggest.ts` feeds the street box's suggestions (`AddressField` in `features/site/CheckoutFields.tsx`). It first asks the
 `validateAddress` Function (`action: "addressSuggest"`, then `"addressDetails"` on pick; Google Places (New) with a session
 token, `functions/addressLookup.js`) and falls back to Photon/OpenStreetMap when the answer has `fallback: true` (no key, Google
 error, rate limit; the browser then skips Google for 30 / 2 minutes). The Google key lives only in admin-only
