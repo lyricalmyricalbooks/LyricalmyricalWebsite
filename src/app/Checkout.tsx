@@ -39,14 +39,12 @@ import { StripeCardForm, type StripeCardFormHandle } from "./features/site/Strip
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
 import { isStripePublishableKey, stripeCheckoutState, createCheckoutSubmission, onPageRestored } from "./features/site/stripeLifecycle";
 import { checkoutFlow, confirmationView, initialFlow, readReturn, stripeTookPayment } from "./features/site/checkoutFlow";
-import { checkoutDetailProblems, detailInputId, expressWalletEnabled, postalCodeOptional, type DetailField } from "./features/site/checkoutDetails";
+import { checkoutDetailProblems, detailInputId, expressWalletEnabled, type DetailField } from "./features/site/checkoutDetails";
 import { createLatestGuard, signalWithTimeout, RATES_TIMEOUT_MS } from "./features/site/latestRequest";
 import { liveRatesAddressReady, shouldRefetchRates } from "./features/site/liveRateRequest";
 import { holdLimitsFrom, holdWarnings } from "./features/site/holdLimits";
-import { applySuggestion } from "./features/site/addressSuggest";
 import { freeShippingGap } from "./features/site/checkoutNudges";
 import { guessCountryName, parsePinned } from "./features/site/countryPicker";
-import { CountryField } from "./features/site/CountryField";
 import { activeTaxRates, matchTaxRate } from "./features/site/taxRate";
 import { designNumber } from "./features/site/designNumber";
 import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
@@ -65,12 +63,15 @@ import { isLiveBook } from "./features/site/liveBook";
 import { previewSampleCart } from "./features/site/previewSampleCart";
 import { inEditorPreview } from "./lib/trackingGuard";
 import { componentsSummary } from "./features/site/orderLineNotes";
-import { FulfillmentMethodPicker, bestFirst, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
+import { bestFirst, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
 import { smallPhotoUrl } from "./features/site/photoSources";
 import { googleFontHref } from "./features/site/fonts";
 import { checkoutLabelsAbove, checkoutMarker, checkoutPayBarOn, checkoutPayTabs, checkoutSlipCss, checkoutSlipFontNames, splitBrand } from "./features/site/checkoutSlipStyle";
 
-import { LabelsAbove, RegionField, Field, AddressField, SectionHead } from "./features/site/CheckoutFields";
+import { LabelsAbove } from "./features/site/CheckoutFields";
+import { CheckoutAddressStep, type CheckoutCustomer } from "./features/site/CheckoutAddressStep";
+import { CheckoutDeliveryStep } from "./features/site/CheckoutDeliveryStep";
+import { CheckoutPaymentStep } from "./features/site/CheckoutPaymentStep";
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -149,7 +150,7 @@ export function Checkout() {
 
   const cartDestination = useRef(readCartDestination());
   const initialCountry = useRef(cartDestination.current?.country || guessCountryName() || "Canada");
-  const [customer, setCustomer] = useState({
+  const [customer, setCustomer] = useState<CheckoutCustomer>({
     name: "", email: "", phone: "",
     address: { street: "", unit: "", city: "", state: "", zip: cartDestination.current?.postalCode || "", country: initialCountry.current },
     billingAddress: { state: "", country: "Canada" }
@@ -1971,102 +1972,13 @@ export function Checkout() {
               </div>
             )}
 
-            <section className="fm-co-section">
-              <SectionHead marker={mark("contact")} title={c("coContact")} />
-              {currentUser ? (
-                <div className="fm-co-box flex items-center justify-between gap-4">
-                  <div>
-                    <p className="fm-co-mono">{c("coSignedIn")}</p>
-                    <p className="fm-co-note">{currentUser.email}</p>
-                  </div>
-                  <CheckCircle2 size={20} style={{ color: "var(--success)" }} />
-                </div>
-              ) : accountsEnabled(checkoutDesign) && (
-                <button type="button" onClick={handleGoogleLogin} className="fm-co-btn-outline fm-co-mono w-full">
-                  {c("coGoogle")}
-                </button>
-              )}
-              <div className="flex flex-col gap-2">
-                <Field label={c("coEmail")} type="email" value={customer.email} onChange={v => setCustomer({ ...customer, email: v })} autoComplete="email" inputMode="email" required id={detailInputId("email")} error={fieldErrors.email} />
-                {c("coEmailNote") && <p className="fm-co-note">{c("coEmailNote")}</p>}
-              </div>
-              <div className="fm-co-row fm-co-row-phone-stack">
-                <Field label={c("coName")} value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required id={detailInputId("name")} error={fieldErrors.name} />
-                <Field label={c("coPhone")} type="tel" value={customer.phone} onChange={v => setCustomer({ ...customer, phone: v })} autoComplete="tel" inputMode="tel" />
-              </div>
-            </section>
-
-            {showShipTo && (
-            <section className="fm-co-section">
-              <SectionHead marker={mark("shipTo")} title={c(digitalOnly ? "coYourLocation" : "coShipTo")} />
-              <CountryField label={c("coCountry")} id={detailInputId("country")} error={fieldErrors.country} stacked={labelsAbove}
-                pinnedCodes={pinnedCountryCodes} showFlags={!checkoutDesign.hideCountryFlags}
-                words={{ search: c("coCountrySearch"), popular: c("coCountryPopular"), all: c("coCountryAll"), none: (q: string) => c("coCountryNone", { query: q }) }}
-                value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v, state: v === customer.address.country ? customer.address.state : "" } })} />
-              {!digitalOnly && (checkoutDesign.hideAddressSuggestions
-                ? <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="address-line1" required id={detailInputId("street")} error={fieldErrors.street} />
-                : <AddressField label={c("coAddress")} value={customer.address.street} country={customer.address.country} state={customer.address.state} id={detailInputId("street")} error={fieldErrors.street}
-                    listLabel={c("coAddressSuggestions")} attribution={c("coAddressAttribution")} googleAttribution={c("coAddressAttributionGoogle")} enterHint={c("coAddressEnter")}
-                    onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: v } }))}
-                    onPick={sug => setCustomer(prev => ({ ...prev, address: { ...prev.address, ...applySuggestion(prev.address, sug, { unitField: !checkoutDesign.hideCheckoutAddressUnit }) } }))} />)}
-              {!digitalOnly && (
-                <div className={checkoutDesign.hideCheckoutAddressUnit ? "" : "fm-co-row fm-co-row-phone-stack"}>
-                  {!checkoutDesign.hideCheckoutAddressUnit && <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Apartment or unit"><Field label={c("coAddressUnit")} value={customer.address.unit} onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, unit: v } }))} autoComplete="address-line2" /></div>}
-                  <Field label={c("coCity")} value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required id={detailInputId("city")} error={fieldErrors.city} />
-                </div>
-              )}
-              <div className={digitalOnly ? "" : "fm-co-row"}>
-                {regionsFor(customer.address.country)
-                  ? <RegionField id={detailInputId("state")} error={fieldErrors.state} label={c("coState")} choose={c("coStateChoose")} regions={regionsFor(customer.address.country)!} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} />
-                  : <Field label={c("coState")} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" id={detailInputId("state")} error={fieldErrors.state} />}
-                {!digitalOnly && <Field label={c("coZip")} value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" required={!postalCodeOptional(customer.address.country)} id={detailInputId("zip")} error={fieldErrors.zip} />}
-              </div>
-            </section>
-            )}
+            <CheckoutAddressStep c={c} mark={mark} checkoutDesign={checkoutDesign} currentUser={currentUser} handleGoogleLogin={handleGoogleLogin} customer={customer} setCustomer={setCustomer}
+              fieldErrors={fieldErrors} labelsAbove={labelsAbove} pinnedCountryCodes={pinnedCountryCodes} showShipTo={showShipTo} digitalOnly={digitalOnly} />
 
             {!digitalOnly && (
-            <section className="fm-co-section">
-              <SectionHead marker={mark("delivery")} title={c("coDelivery")} tag={c("coDeliveryTag")} />
-              {physicalItems.length > 0 && <FulfillmentMethodPicker
-                method={fulfillmentSelection.method}
-                optionId={fulfillmentSelection.optionId}
-                onSelect={selectFulfillment}
-                shippingQuotes={availableRates}
-                localQuotes={localQuotes}
-                availableMethods={availableFulfillmentMethods}
-                loading={shippoRatesLoading && fulfillmentSelection.method !== "local_delivery"}
-                words={{
-                  group: c("coFulfillmentGroup"),
-                  shipping: c("coFulfillmentShipping"),
-                  pickup: c("coFulfillmentPickup"),
-                  local_delivery: c("coFulfillmentDelivery"),
-                  review: c("coFulfillmentReview"),
-                  unavailable: c("coFulfillmentUnavailable"),
-                  addressPrompt: c("coFulfillmentAddressPrompt"),
-                  loading: c("coRates"),
-                  instructions: c("coFulfillmentInstructions"),
-                  hours: c("coFulfillmentHours"),
-                  estimate: c("coFulfillmentEstimate"),
-                  carrierTransit: c("coCarrierTransit"),
-                  carrierUnavailable: c("coCarrierTimingUnavailable"),
-                  deliveryDays: c("coEstimated"),
-                  free: c("coFree"),
-                }}
-                formatPrice={formatPrice}
-              />}
-              {c("coShipMethodNote") && <p className="fm-co-note">{c("coShipMethodNote")}</p>}
-              {fulfillmentSelection.method === "pickup" && !pickupNeedsAddress && <section {...regionProps("checkoutFulfillment")} className="fm-co-box flex flex-col gap-4">
-                <div><h3 className="fm-co-mono">{c("coBillingTitle")}</h3><p className="fm-co-note mt-1">{c("coBillingNote")}</p></div>
-                <CountryField label={c("coBillCountry")} stacked={labelsAbove}
-                  pinnedCodes={pinnedCountryCodes} showFlags={!checkoutDesign.hideCountryFlags}
-                  words={{ search: c("coCountrySearch"), popular: c("coCountryPopular"), all: c("coCountryAll"), none: (q: string) => c("coCountryNone", { query: q }) }}
-                  value={customer.billingAddress.country} onChange={v => setCustomer(prev => ({ ...prev, billingAddress: { country: v, state: v === prev.billingAddress.country ? prev.billingAddress.state : "" } }))} />
-                {regionsFor(customer.billingAddress.country)
-                  ? <RegionField label={c("coBillState")} choose={c("coBillStateChoose")} regions={regionsFor(customer.billingAddress.country)!} value={customer.billingAddress.state} onChange={v => setCustomer(prev => ({ ...prev, billingAddress: { ...prev.billingAddress, state: v } }))} />
-                  : <Field label={c("coBillState")} value={customer.billingAddress.state} onChange={v => setCustomer(prev => ({ ...prev, billingAddress: { ...prev.billingAddress, state: v } }))} autoComplete="billing address-level1" required />}
-                {selectedLocalQuote?.address && <p className="fm-co-note">{c("coFulfillmentTaxLocation")} {selectedLocalQuote.address.city}, {selectedLocalQuote.address.state}</p>}
-              </section>}
-            </section>
+            <CheckoutDeliveryStep c={c} mark={mark} checkoutDesign={checkoutDesign} physicalItems={physicalItems} fulfillmentSelection={fulfillmentSelection} selectFulfillment={selectFulfillment}
+              availableRates={availableRates} localQuotes={localQuotes} availableFulfillmentMethods={availableFulfillmentMethods} shippoRatesLoading={shippoRatesLoading} formatPrice={formatPrice}
+              pickupNeedsAddress={pickupNeedsAddress} labelsAbove={labelsAbove} pinnedCountryCodes={pinnedCountryCodes} customer={customer} setCustomer={setCustomer} selectedLocalQuote={selectedLocalQuote} />
             )}
 
             {orderNoteBoxOn(checkoutDesign) && (
@@ -2084,125 +1996,56 @@ export function Checkout() {
               </section>
             )}
 
-            <section className="fm-co-section">
-              <SectionHead marker={mark("pay")} title={c("coPayment")} />
-              {c("coPaymentNote") && <p className="fm-co-note">{c("coPaymentNote")}</p>}
-              {!checkoutDesign.hideCheckoutPaymentTotal && <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Payment total" className="fm-co-mono flex items-baseline justify-between gap-4" aria-live="polite"><span className="fm-co-muted">{c("summaryTotal")}</span><strong className="font-normal" translate="no">{needsDeliveryChoice ? c("coPaymentTotalPending") : formatPrice(finalTotal)}</strong></div>}
-              <div className="fm-co-pay" data-pay-tabs={payTabs ? "tabs" : "list"}>
-                {hasStripe && (
-                  <StripePaymentSection
-                    design={checkoutDesign}
-                    tabs={payTabs}
-                    selected={selectedPaymentMethod === "stripe"}
-                    configured={useCardForm}
-                    canRetry={stripeRoute.canRetry}
-                    busy={isCompleting}
-                    onSelect={() => setSelectedPaymentMethod("stripe")}
-                    onRetry={() => {
-                      if (inlineAttemptStarted || isCompleting) return;
-                      setCardState("loading");
-                      setCardFormAttempt(attempt => attempt + 1);
-                      setNotice(null);
-                    }}
-                  >
-                    <StripeCardForm
-                      key={cardFormAttempt}
-                      ref={cardFormRef}
-                      publishableKey={stripePublicKey}
-                      amountCents={Math.round(convertPrice(finalTotal) * 100)}
-                      currency={currency}
-                      loadingText={c("coStripeLoading")}
-                      errorText={c("coStripeLoadError")}
-                      validationText={c("coCardValidationError")}
-                      paymentErrorText={c("coCardPaymentError")}
-                      onStateChange={setCardState}
-                      expressText={c("coExpressCheckout")}
-                      showExpress={!checkoutDesign.hideCheckoutExpressWallets}
-                      expressEnabled={expressWalletEnabled({ isCompleting, canPay: stripeRoute.canPay, needsDeliveryChoice, catalogReady: catalogState === "ready", total: finalTotal, problems: detailProblems, termsAccepted: !termsRequired || termsAccepted })}
-                      onExpressConfirm={async () => { await handleCompletePurchase(); return purchaseNavigating.current; }}
-                      fontName={checkoutDesign.checkoutFieldFont || checkoutDesign.checkoutFont || checkoutDesign.font || checkoutDesign.bodyFont || undefined}
-                      fieldBackground={checkoutDesign.checkoutFieldBg || undefined}
-                      fieldText={checkoutDesign.checkoutFieldText || undefined}
-                      fieldBorder={checkoutDesign.checkoutFieldBorder || undefined}
-                      accentColor={checkoutDesign.checkoutAccentColor || undefined}
-                      fieldRadius={checkoutDesign.checkoutInputRadius}
-                      style={{
-                        background: checkoutDesign.stripeFormBg || undefined,
-                        padding: checkoutDesign.stripeFormPadding != null ? `${checkoutDesign.stripeFormPadding}px` : undefined,
-                        borderRadius: checkoutDesign.checkoutInputRadius != null ? `${checkoutDesign.checkoutInputRadius}px` : undefined,
-                      }}
-                    />
-                  </StripePaymentSection>
-                )}
-                {hasPaypal && (
-                  <label className="fm-co-pay-tab fm-co-mono" data-studio-target="copy:Checkout" data-studio-label="PayPal option">
-                    <input type="radio" name="payment-method" disabled={isCompleting} checked={selectedPaymentMethod === "paypal"} onChange={() => setSelectedPaymentMethod("paypal")} />
-                    <span>{c("coPaypalOption")}</span>
-                  </label>
-                )}
-                {enabledManualMethods.map((method: any) => (
-                  <label key={method.id} className="fm-co-pay-tab fm-co-mono">
-                    <input type="radio" name="payment-method" disabled={isCompleting} checked={selectedPaymentMethod === `manual_${method.id}`} onChange={() => setSelectedPaymentMethod(`manual_${method.id}`)} />
-                    <span>{method.name}</span>
-                  </label>
-                ))}
-                {!hasStripe && !hasPaypal && enabledManualMethods.length === 0 && (
-                  <div className="fm-co-empty fm-co-pay-body flex items-start gap-3">
-                    <AlertCircle size={18} className="mt-0.5 shrink-0 text-amber-600" />
-                    {c("coNoPayment")}
-                  </div>
-                )}
-              </div>
-              {hasCodeBoxes && <div className="fm-co-codes fm-co-pay-codes">{codeBoxes}</div>}
-
-              {holdIssues.length > 0 && (
-                <div {...regionProps("checkoutHoldWarning")} role="status" className="space-y-2 border px-4 py-3 text-sm" style={{ borderColor: "var(--warning, #b45309)", color: "var(--warning, #b45309)" }}>
-                  {holdIssues.map(issue => (
-                    <p key={issue.kind === "perBook" ? issue.id : "units"}><span aria-hidden="true">⚠ </span>{issue.kind === "perBook"
-                      ? c("coHoldWarning", { count: issue.count, title: issue.title, limit: issue.limit })
-                      : c("coHoldWarningUnits", { count: issue.count, limit: issue.limit })}</p>
-                  ))}
-                </div>
-              )}
-              {notice && (
-                <div ref={noticeRef} role={notice.tone === "error" ? "alert" : "status"} className="border px-4 py-3 text-sm"
-                  style={{ borderColor: notice.tone === "error" ? "var(--danger, #b4271a)" : "var(--muted, #94a3b8)", color: notice.tone === "error" ? "var(--danger, #b4271a)" : "inherit", background: notice.tone === "error" ? "rgba(var(--danger-rgb, 232, 64, 42), .08)" : "transparent" }}>
-                  <span aria-hidden="true">{notice.tone === "error" ? "✕ " : "ℹ "}</span>{notice.text}
-                </div>
-              )}
-              {catalogState === "failed" && !notice && (
-                <p role="alert" className="text-sm" style={{ color: "var(--danger, #b4271a)" }}>{c("coCatalogFailed")}</p>
-              )}
-              {termsRequired && (
-                <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Policy tick box" className="text-sm leading-6">
-                  <label htmlFor="checkout-terms" className="flex items-start gap-2.5">
-                    <input id="checkout-terms" type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)}
-                      aria-invalid={termsError || undefined} aria-describedby={termsError ? "checkout-terms-error" : undefined}
-                      className="mt-1 h-4 w-4 shrink-0 accent-[color:var(--accent)]" />
-                    <span>{c("coTermsAgree")}{" "}{policyLinks}</span>
-                  </label>
-                  {termsError && <p id="checkout-terms-error" className="mt-1 text-xs" style={{ color: "var(--danger, #b4271a)" }}>{c("coErrTerms")}</p>}
-                </div>
-              )}
-              <button type="submit" disabled={payDisabled} aria-label={isCompleting ? undefined : paymentLabel}
-                className={`fm-co-paybtn fm-co-paybtn-main${isCompleting ? " fm-co-paybtn-busy" : ""}`}>
-                {isCompleting
-                  ? <><Loader2 size={20} className="animate-spin" aria-hidden="true" /> {c("coProcessing")}</>
-                  : <><span>{payLabel}</span>{payTotal && <span translate="no">{payTotal}</span>}</>}
-              </button>
-              {c("coGuarantee") && (
-                <p {...regionProps("checkoutPromise")} className="fm-co-note text-center">{c("coGuarantee")}</p>
-              )}
-              <div className="flex flex-col gap-2">
-                {c("coPrivacyNote") && <p className="fm-co-fine fm-co-mono" data-studio-target="copy:Checkout" data-studio-label="Payment privacy note">{c("coPrivacyNote")}</p>}
-                {!termsRequired && !checkoutDesign.hideCheckoutPolicyLinks && checkoutPolicies.length > 0 && (
-                  // Card networks and PayPal expect the refund/terms policies to be visible where shoppers pay.
-                  <p data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout policy links" className="fm-co-fine fm-co-mono">
-                    {c("coPolicyAgree")}{" "}{policyLinks}
-                  </p>
-                )}
-              </div>
-            </section>
+            <CheckoutPaymentStep c={c} mark={mark} checkoutDesign={checkoutDesign} needsDeliveryChoice={needsDeliveryChoice} formatPrice={formatPrice} finalTotal={finalTotal}
+              payTabs={payTabs} hasStripe={hasStripe} hasPaypal={hasPaypal} isCompleting={isCompleting} selectedPaymentMethod={selectedPaymentMethod} setSelectedPaymentMethod={setSelectedPaymentMethod}
+              enabledManualMethods={enabledManualMethods} hasCodeBoxes={hasCodeBoxes} codeBoxes={codeBoxes} holdIssues={holdIssues} notice={notice} noticeRef={noticeRef} catalogState={catalogState}
+              termsRequired={termsRequired} termsAccepted={termsAccepted} setTermsAccepted={setTermsAccepted} termsError={termsError} policyLinks={policyLinks}
+              payDisabled={payDisabled} paymentLabel={paymentLabel} payLabel={payLabel} payTotal={payTotal} checkoutPolicies={checkoutPolicies}
+              stripeOption={hasStripe && (
+              <StripePaymentSection
+                design={checkoutDesign}
+                tabs={payTabs}
+                selected={selectedPaymentMethod === "stripe"}
+                configured={useCardForm}
+                canRetry={stripeRoute.canRetry}
+                busy={isCompleting}
+                onSelect={() => setSelectedPaymentMethod("stripe")}
+                onRetry={() => {
+                  if (inlineAttemptStarted || isCompleting) return;
+                  setCardState("loading");
+                  setCardFormAttempt(attempt => attempt + 1);
+                  setNotice(null);
+                }}
+              >
+                <StripeCardForm
+                  key={cardFormAttempt}
+                  ref={cardFormRef}
+                  publishableKey={stripePublicKey}
+                  amountCents={Math.round(convertPrice(finalTotal) * 100)}
+                  currency={currency}
+                  loadingText={c("coStripeLoading")}
+                  errorText={c("coStripeLoadError")}
+                  validationText={c("coCardValidationError")}
+                  paymentErrorText={c("coCardPaymentError")}
+                  onStateChange={setCardState}
+                  expressText={c("coExpressCheckout")}
+                  showExpress={!checkoutDesign.hideCheckoutExpressWallets}
+                  expressEnabled={expressWalletEnabled({ isCompleting, canPay: stripeRoute.canPay, needsDeliveryChoice, catalogReady: catalogState === "ready", total: finalTotal, problems: detailProblems, termsAccepted: !termsRequired || termsAccepted })}
+                  onExpressConfirm={async () => { await handleCompletePurchase(); return purchaseNavigating.current; }}
+                  fontName={checkoutDesign.checkoutFieldFont || checkoutDesign.checkoutFont || checkoutDesign.font || checkoutDesign.bodyFont || undefined}
+                  fieldBackground={checkoutDesign.checkoutFieldBg || undefined}
+                  fieldText={checkoutDesign.checkoutFieldText || undefined}
+                  fieldBorder={checkoutDesign.checkoutFieldBorder || undefined}
+                  accentColor={checkoutDesign.checkoutAccentColor || undefined}
+                  fieldRadius={checkoutDesign.checkoutInputRadius}
+                  style={{
+                    background: checkoutDesign.stripeFormBg || undefined,
+                    padding: checkoutDesign.stripeFormPadding != null ? `${checkoutDesign.stripeFormPadding}px` : undefined,
+                    borderRadius: checkoutDesign.checkoutInputRadius != null ? `${checkoutDesign.checkoutInputRadius}px` : undefined,
+                  }}
+                />
+              </StripePaymentSection>
+              )} />
 
             {checkoutDesign.showCheckoutTrustRow && (
               <footer data-studio-target="copy:Checkout|style:checkout" data-studio-label="Trust badges" className="fm-co-mono fm-co-muted flex flex-wrap justify-center gap-x-6 gap-y-2 border-t pt-6" style={{ borderColor: "var(--co-rule)" }}>

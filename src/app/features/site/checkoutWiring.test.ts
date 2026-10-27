@@ -10,21 +10,26 @@ const src = readFileSync(join(__dirname, "..", "..", "Checkout.tsx"), "utf8");
 const fields = readFileSync(join(__dirname, "CheckoutFields.tsx"), "utf8");
 const currency = readFileSync(join(__dirname, "..", "..", "CurrencyContext.tsx"), "utf8");
 const country = readFileSync(join(__dirname, "CountryField.tsx"), "utf8");
+// Checkout.tsx draws its three steps with these (display only; the state and checks stay in Checkout.tsx).
+const address = readFileSync(join(__dirname, "CheckoutAddressStep.tsx"), "utf8");
+const delivery = readFileSync(join(__dirname, "CheckoutDeliveryStep.tsx"), "utf8");
+const payment = readFileSync(join(__dirname, "CheckoutPaymentStep.tsx"), "utf8");
+const page = src + address + delivery + payment;
 
 describe("Checkout wiring (source text)", () => {
   it("#74 never calls an IP-geolocation service or sends the street to a third party on load", () => {
-    expect(src + fields).not.toMatch(/ipapi|ip-api|ipinfo|geojs|ipgeolocation/i);
-    expect(src + fields).not.toMatch(/fetch\(\s*["'`]https?:/);
+    expect(page + fields).not.toMatch(/ipapi|ip-api|ipinfo|geojs|ipgeolocation/i);
+    expect(page + fields).not.toMatch(/fetch\(\s*["'`]https?:/);
   });
 
   it("#76 the street box uses address-line1, never street-address", () => {
-    expect(src + fields).not.toContain('autoComplete="street-address"');
-    expect(((src + fields).match(/autoComplete="address-line1"/g) || []).length).toBeGreaterThanOrEqual(2);
+    expect(page + fields).not.toContain('autoComplete="street-address"');
+    expect(((page + fields).match(/autoComplete="address-line1"/g) || []).length).toBeGreaterThanOrEqual(2);
   });
 
   it("#24 the form is a real <form noValidate> with a submit button and per-field errors", () => {
     expect(src).toMatch(/<form noValidate onSubmit=/);
-    expect(src).toMatch(/type="submit"/);
+    expect(payment).toMatch(/type="submit"/);
     expect(src).toContain("checkoutDetailProblems(");
     expect(fields).toContain("aria-invalid={error ? true : undefined}");
     expect(src).toMatch(/document\.getElementById\(detailInputId\(first\)\)\?\.focus\(\)/);
@@ -39,7 +44,8 @@ describe("Checkout wiring (source text)", () => {
   });
 
   it("#77 the fulfilment heading is hidden for e-book-only bags", () => {
-    expect(src).toMatch(/\{!digitalOnly && \(\s*<section className="fm-co-section">\s*<SectionHead [^>]*title=\{c\("coDelivery"\)\}/);
+    expect(src).toMatch(/\{!digitalOnly && \(\s*<CheckoutDeliveryStep /);
+    expect(delivery).toMatch(/return \(\s*<section className="fm-co-section">\s*<SectionHead [^>]*title=\{c\("coDelivery"\)\}/);
   });
 
   it("#23 a page restored from the back/forward cache unlocks Pay", () => {
@@ -56,7 +62,7 @@ describe("Checkout wiring (source text)", () => {
   });
 
   it("#45 the bag warns before Pay about copies over the hold cap", () => {
-    expect(src).toContain('regionProps("checkoutHoldWarning")');
+    expect(payment).toContain('regionProps("checkoutHoldWarning")');
     expect(src).toContain("holdWarnings(cart, booksMap, holdLimitsFrom(settings))");
   });
 
