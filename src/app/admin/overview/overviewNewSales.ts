@@ -154,7 +154,7 @@ export function parseGoal(text: string): number | null {
 
 /** Days from payment (or a pre-order's release) to dispatch; null when not shipped or unreadable. */
 export function daysToShip(o: Order): number | null {
-  const paid = Date.parse(o.paidAt || o.createdAt), sent = Date.parse(o.shippedAt || "");
+  const paid = Date.parse(o.paidAt || o.createdAt || ""), sent = Date.parse(o.shippedAt || "");
   if (Number.isNaN(paid) || Number.isNaN(sent)) return null;
   const start = Math.max(paid, preorderClockStart(o, o.operations || {}));
   return sent < start ? (sent >= paid ? 0 : null) : (sent - start) / DAY;

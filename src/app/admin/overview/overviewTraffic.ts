@@ -141,7 +141,7 @@ export function weekdayMix(orders: Order[], timeZone = SHOP_TIME_ZONE) {
   const fmt = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone });
   const rows = WEEKDAYS.map(day => ({ day, orders: 0, revenue: 0 }));
   orders.forEach(o => {
-    const t = new Date(o.createdAt).getTime(); if (Number.isNaN(t)) return;
+    const t = new Date(o.createdAt ?? "").getTime(); if (Number.isNaN(t)) return;
     const r = rows.find(x => x.day === fmt.format(t)); if (!r) return;
     r.orders += 1; r.revenue += Math.max(0, num(o.total) - refundedAmount(o));
   });

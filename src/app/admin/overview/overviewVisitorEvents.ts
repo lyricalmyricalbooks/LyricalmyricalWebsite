@@ -10,9 +10,11 @@
 //     never a made-up zero. The data functions treat a null key the same way, so callers choose the message.
 import type { Ga4Report } from "../googleAnalytics";
 import { pageLabel } from "./overviewVisitors";
+import type { BookRecord } from "../../../shared/records";
 
 type Report = Ga4Report | null | undefined;
-type Book = Record<string, any>;
+type Book = BookRecord;
+
 
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? Math.max(0, n) : 0; };
 const text = (v: unknown) => String(v ?? "").trim();

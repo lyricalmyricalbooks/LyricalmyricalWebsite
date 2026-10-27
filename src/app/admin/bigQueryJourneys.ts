@@ -5,8 +5,9 @@
 import { addDays } from "../lib/shopDay";
 import { rangeWords } from "./overview/overviewRange";
 import { pageLabel } from "./overview/overviewVisitors";
+import type { BookRecord } from "../../shared/records";
 
-type Book = Record<string, any>;
+type Book = BookRecord;
 
 /** The server reads at most this many days per request (functions/bigQueryJourneys.js MAX_DAYS). */
 export const JOURNEY_MAX_DAYS = 31;

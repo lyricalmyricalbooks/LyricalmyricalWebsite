@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import { discountCategoryChoices } from "../features/site/discountCategories";
 import { discountState as state, today } from "./discountState";
 import { discountPerformance, duplicateDiscount, perfKey } from "./discountPerformance";
-import { validateDiscountDraft } from "./discountValidation";
+import { validateDiscountDraft, draftFrom } from "./discountValidation";
 import { describeDiscount, tierSummary } from "./discountDescribe";
 import { copyText } from "./clipboard";
 import { discountShareLink } from "../features/site/sharedDiscount";
@@ -47,9 +47,10 @@ const EMPTY: any = {
 
 // ─── Create / edit dialog ─────────────────────────────────────────────────────
 
+
 function DiscountDialog({ initial, otherCodes = [], books, shopCategories, onClose, onSave, onSaveBatch }: { initial?: any; otherCodes?: string[]; books: any[] | null; shopCategories: any[] | null; onClose: () => void; onSave: (data: any) => Promise<void>; onSaveBatch: (data: any, codes: string[]) => Promise<void> }) {
   const isEdit = !!initial?.id;
-  const [form, setForm] = useState<any>(initial ? { ...EMPTY, ...initial, method: initial.method === "automatic" ? "automatic" : "code" } : EMPTY);
+  const [form, setForm] = useState<any>(initial ? draftFrom(initial, EMPTY) : EMPTY);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [giftSearch, setGiftSearch] = useState("");
@@ -415,7 +416,7 @@ export function Discounts() {
     }
     if (!failed) toast.success(`${created.length} single-use codes created`);
     else if (created.length) toast.error(`${created.length} codes created; ${failed} failed. Create the rest again.`);
-    else toast.error("No codes could be created. Please try again.");
+    else toast.error(plainError((results.find(r => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason, "No codes could be created"));
     // Nothing created: keep the dialog (and what was typed) as it is for another try.
     if (created.length) { setDialogOpen(false); setEditing(null); load(); }
   };
