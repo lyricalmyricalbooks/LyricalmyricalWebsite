@@ -10,6 +10,7 @@
 // their query string, so only `ref`/`utm_*`/click ids are kept.
 import { CONSENT_EVENT, consentAllows } from "./consent";
 import { googleTrackingAllowed } from "./trackingGuard";
+import { afterPageLoad } from "./afterPageLoad";
 import { readSiteCache } from "../features/site/siteCache";
 
 type Params = Record<string, unknown>;
@@ -88,10 +89,12 @@ function load(id: string) {
   // (session start, engagement) read the page address and referrer from here, so they get the cleaned ones too.
   const page_referrer = cleanLocation(document.referrer || "");
   w.gtag("config", id, { send_page_view: false, page_location: cleanLocation(window.location.href), ...(page_referrer ? { page_referrer } : {}) });
-  const s = document.createElement("script");
-  s.async = true;
-  s.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
-  document.head.appendChild(s);
+  afterPageLoad(() => {
+    const s = document.createElement("script");
+    s.async = true;
+    s.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
+    document.head.appendChild(s);
+  });
 }
 
 async function flush() {

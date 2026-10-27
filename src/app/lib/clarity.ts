@@ -8,6 +8,7 @@
 // and is told analytics storage is granted only when the shopper explicitly accepted analytics cookies.
 import { CONSENT_EVENT, CONSENT_KEY, consentAllows } from "./consent";
 import { googleTrackingAllowed } from "./trackingGuard";
+import { afterPageLoad } from "./afterPageLoad";
 
 const BASE = (import.meta.env?.BASE_URL || "/").replace(/\/$/, "");
 
@@ -62,10 +63,12 @@ function load(id: string) {
   if (loaded || typeof document === "undefined") return;
   loaded = true;
   clarity("consentv2", consentSignal());
-  const s = document.createElement("script");
-  s.async = true;
-  s.src = `https://www.clarity.ms/tag/${encodeURIComponent(id)}`;
-  document.head.appendChild(s);
+  afterPageLoad(() => {
+    const s = document.createElement("script");
+    s.async = true;
+    s.src = `https://www.clarity.ms/tag/${encodeURIComponent(id)}`;
+    document.head.appendChild(s);
+  });
 }
 
 const here = () => (typeof window === "undefined" ? "/" : window.location.pathname);
