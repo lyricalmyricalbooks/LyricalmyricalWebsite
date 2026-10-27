@@ -3,7 +3,7 @@ import { createRequire } from "module";
 import { expandDiscountCategories, discountCategoryChoices } from "./discountCategories";
 import { bookInCategory } from "./categoryMembership.mjs";
 
-const server = createRequire(import.meta.url)("../../../../functions/discountCategories.js");
+const server = createRequire(import.meta.url)("../../../../functions/shared/discountCategories.js");
 const cats: any[] = [
   { id: "p", name: "PUBLICATIONS" },
   { id: "b", name: "BOOKS", aliases: ["Novels"] },
