@@ -146,8 +146,8 @@ New panels say "Not recorded yet" until data exists — never a made-up zero.
 
 **Not yet rebuilt** (still legacy markup, styled by the scoped compatibility layer in
 `theme.css` under `.admin-reso[data-admin-theme="reso"]`, which maps old dark utilities
-and violet/blue accents onto Riso tokens): Taxes/Communications
-(not in the nav) and the theme editor's panels. The Book editor and catalog are Riso components plus `admin/books.css`.
+and violet/blue accents onto Riso tokens): the theme editor's panels. (Taxes is Riso now.)
+The order page's return panel opens with a four-step tracker (`returnStepsDone`, `.fw-return-steps`). The Book editor and catalog are Riso components plus `admin/books.css`.
 **Admin UX pass (19 October 2026):** top bar `ShopStatusMenu` (`riso/shellParts.tsx`: Shop open/closed/Checkout paused, Close/Open
 the shop through the existing confirm, Store status settings); Help and appearance are also in the avatar menu; search opens from a
 magnifier on phones. `AdminAlerts` sorts urgent first and folds after two. `DataTable` `stackOnPhone` turns rows into cards at ≤767px;
