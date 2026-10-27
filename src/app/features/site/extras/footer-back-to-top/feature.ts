@@ -11,7 +11,7 @@ export default {
     ],
   },
   copy: {
-    group: "Footer", after: "footerCurrencyEUR",
+    group: "Footer", after: "footerAdmin",
     fields: [
       { key: "backToTop", label: "Back to top button", default: "Back to top", hint: "Shown when Style › Footer & social links › Back to top button is on. Phones show only the arrow; screen readers read these words." },
     ],

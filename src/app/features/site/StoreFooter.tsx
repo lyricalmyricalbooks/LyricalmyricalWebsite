@@ -15,7 +15,7 @@ import { footerLinksAlign, footerStyleCss } from "./footerStyle";
 import { pageInFooter } from "./footerNavigation";
 import { elementScheme } from "./colorSchemes";
 import { BackToTop } from "./extras/footer-back-to-top/BackToTop";
-import { FooterCurrency, footerCurrencyOn } from "./FooterCurrency";
+import { FooterCurrency, footerCurrencyOn } from "./extras/footer-currency/FooterCurrency";
 
 // ──────────────────────────────
 // The one storefront footer (Studio 2.0 · 2.1): home, catalog, collections, product, custom pages,

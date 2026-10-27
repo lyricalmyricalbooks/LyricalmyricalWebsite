@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { getCopy } from "./storeCopy";
-import { regionProps } from "./storefrontRegions";
-import { formatReleaseDate } from "./preorder";
-import { designNumber } from "./designNumber";
-import { saleCountdown, saleCountdownCopy } from "./saleCountdown";
+import { getCopy } from "../../storeCopy";
+import { regionProps } from "../../storefrontRegions";
+import { formatReleaseDate } from "../../preorder";
+import { designNumber } from "../../designNumber";
+import { saleCountdown, saleCountdownCopy } from "../../saleCountdown";
 
 // "Sale ends {date}" under the book page price. With Studio › Style › Book page · photos & layout ›
 // showPdpSaleCountdown on (`look` = the book page's resolved design; words come from `design`), the sale's last hours count down instead ("Sale ends in 5h 12m"). The clock starts

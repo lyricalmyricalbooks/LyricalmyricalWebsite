@@ -170,7 +170,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Footer text & lines", keys: ["footerTextSize", "footerTextColor", "footerHeadingColor", "footerLinkHoverColor", "showFooterDividers", "footerDividerColor"] },
     { title: "Footer accent", keys: ["showFooterAccentLine", "footerAccentLineWidth", "footerAccentColor", "footerGroupHeadingsAccent", "footerSocialBoxes", "footerSocialHoverColor"] },
     { title: "Footer logo", keys: ["footerLogo", "footerLogoUrl", "footerLogoWidth"] },
-    { title: "What the footer shows", keys: ["showFooterExplore", "showFooterConnect", "showFooterLegalHeading", "showFooterLocation", "hideNewsletter", "hideRecentlyViewed", "showSocialInFooter", "showPaymentBadges", "footerPaymentIconOpacity", "footerPaymentIconHoverOpacity", "footerPaymentIconColor", "showPoweredBy", "showFooterAdminLink", "showFooterCurrency"] },
+    { title: "What the footer shows", keys: ["showFooterExplore", "showFooterConnect", "showFooterLegalHeading", "showFooterLocation", "hideNewsletter", "hideRecentlyViewed", "showSocialInFooter", "showPaymentBadges", "footerPaymentIconOpacity", "footerPaymentIconHoverOpacity", "footerPaymentIconColor", "showPoweredBy", "showFooterAdminLink"] },
     { title: "Social links", keys: ["social.instagram", "social.twitter", "social.facebook", "social.tiktok"] },
   ],
   products: [
@@ -186,7 +186,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Page layout", keys: ["productImageLayout", "productContentPosition", "productAlignment", "productDetailsLayout"] },
     { title: "Photos", keys: ["productImageMaxWidth", "productImageAspect", "productImageFrameMode", "productImageAspectLandscape", "productPhotoOutline", "productImageFit", "productImageShadow", "productImageHoverScale", "showZoom", "showPdpMagnifier", "pdpMagnifierLevel", "showPhotoLightbox", "showProductVideos", "showAmbientGlow", "glowIntensity", "productImageGlowColor"] },
     { title: "Title & add-to-bag button", keys: ["productTitleSize", "productSubtitleWeight", "addToBagLabel", "productCtaWidth", "productCtaSize", "productCtaAnimation"] },
-    { title: "Extras on the page", keys: ["showSpecs", "showPdpEditionDetails", "showPdpArtistLinks", "showSocialShare", "showPdpWishlist", "showBackInStock", "showComingSoonSignup", "showPdpSaleCountdown", "pdpSaleCountdownWithin", "pdpDescriptionFold", "pdpDescriptionFoldLines", "showPdpReleaseCountdown", "pdpReleaseCountdownWithin", "showPdpPickup", "showPdpArtistBio", "showPdpPolicyTab", "pdpTabOrder1", "pdpTabOrder2", "pdpTabOrder3", "pdpTabOrder4", "pdpTabOrder5", "showBundleWidget", "productBundleLayout", "showRelatedProducts", "relatedByArtist", "recentlyViewedCount", "lowStockProductThreshold"] },
+    { title: "Extras on the page", keys: ["showSpecs", "showPdpEditionDetails", "showPdpArtistLinks", "showSocialShare", "showPdpWishlist", "showBackInStock", "showComingSoonSignup", "pdpDescriptionFold", "pdpDescriptionFoldLines", "showPdpReleaseCountdown", "pdpReleaseCountdownWithin", "showPdpPickup", "showPdpArtistBio", "showPdpPolicyTab", "pdpTabOrder1", "pdpTabOrder2", "pdpTabOrder3", "pdpTabOrder4", "pdpTabOrder5", "showBundleWidget", "productBundleLayout", "showRelatedProducts", "relatedByArtist", "recentlyViewedCount", "lowStockProductThreshold"] },
   ],
   productCard: [
     { title: "Buy card box", keys: ["pdpCardBg", "pdpCardBorderColor", "pdpCardBorderWidth", "pdpCardShadowColor", "pdpCardShadowOffset", "pdpCardPadding", "pdpCardDividerColor"] },

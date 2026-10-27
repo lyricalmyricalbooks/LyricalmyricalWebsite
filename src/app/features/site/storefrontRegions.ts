@@ -6,7 +6,7 @@ import { STOREFRONT_FEATURES } from "./extras/registry";
 export type Region = { id: string; label: string; required?: boolean; grid?: boolean; image?: boolean; copy?: string };
 export type RegionGroup = { id: string; title: string; copy: string; files: string[]; regions: Region[] };
 export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
-  { id: "catalogElements", title: "Catalog & shared content · layout", copy: "Search & filters", files: ["features/site/CatalogControls.tsx", "features/site/RecentlyViewedRow.tsx", "components/MainSite.tsx", "features/site/StoreFooter.tsx", "features/site/FooterCurrency.tsx"], regions: [
+  { id: "catalogElements", title: "Catalog & shared content · layout", copy: "Search & filters", files: ["features/site/CatalogControls.tsx", "features/site/RecentlyViewedRow.tsx", "components/MainSite.tsx", "features/site/StoreFooter.tsx"], regions: [
     { id: "catalogSearch", label: "Catalog search field" }, { id: "catalogSort", label: "Catalog sort selector" },
     { id: "catalogStock", label: "In-stock filter" }, { id: "catalogSale", label: "On-sale filter" }, { id: "catalogResults", label: "Filter result count" },
     { id: "catalogFormat", label: "Format filter" }, { id: "catalogPrice", label: "Price filter" },
@@ -32,12 +32,10 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "footerLegal", label: "Footer legal row", copy: "Footer" },
     { id: "footerBottom", label: "Footer bottom bar", copy: "Footer" },
     { id: "footerAdmin", label: "Footer admin link", copy: "Footer" },
-    { id: "footerCurrency", label: "Footer currency picker", copy: "Footer" },
   ] },
-  { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx", "features/site/PickupAvailability.tsx", "features/site/SaleEndsLine.tsx", "features/site/ReleaseCountdownText.tsx"], regions: [
+  { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx", "features/site/ProductOptions.tsx", "features/site/PickupAvailability.tsx", "features/site/ReleaseCountdownText.tsx"], regions: [
     { id: "productDescription", label: "Book description" }, { id: "productSpecs", label: "Book specifications" },
     { id: "productReviews", label: "Book reviews" },
-    { id: "productSaleEnds", label: "Sale end date (under the price)" },
     { id: "productOldPrice", label: "Old price (crossed out during a sale)" },
     { id: "productSaveBadge", label: "Sale savings badge (Save …)" },
     { id: "productAddOns", label: "Extras (signed copy, inscription, gift wrap)" },

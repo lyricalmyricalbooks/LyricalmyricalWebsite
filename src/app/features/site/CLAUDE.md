@@ -8,7 +8,10 @@ Style controls (group, `after`, sub-section), Text & labels words and click-to-e
 (`import.meta.glob`), and STYLE_GROUPS, STYLE_SUBSECTIONS, COPY_SCHEMA and REGION_GROUPS add them, so a new extra edits none of those
 lists by hand. feature.ts holds data only (shopper code reads it). `extras/featureKit.test.ts` checks every folder. Move an older extra
 into a folder when you next change it. Moved so far: `pdp-payment-icons`, `pdp-tax-note`, `footer-back-to-top`,
-`cart-tab-reminder` (26 October 2026; each move left the four lists identical apart from the order of `files`).
+`cart-tab-reminder` (26 October 2026), `pdp-in-bag`, `pdp-free-shipping`, `pdp-ship-by`, `pdp-ask-question`,
+`pdp-sale-countdown`, `footer-currency` (27 October 2026); each move left the four lists identical apart from the order of
+`files`. Folders apply in name order, so an `after` anchor may name a key only an earlier folder adds (`pdp-tax-note` anchors
+on `pdp-sale-countdown`'s keys); a missing anchor throws.
 
 ## Public storefront readiness repairs (2 October 2026)
 
@@ -331,7 +334,7 @@ scrolls up (instant under reduced motion) and moves focus to the header. Region 
 ## Footer currency picker (22 October 2026)
 
 Studio › Style › Footer & social links › What the footer shows › **Currency picker in the footer** (`showFooterCurrency`, off by
-default) draws `features/site/FooterCurrency.tsx` in `StoreFooter`'s bottom bar: a labelled CAD/USD/EUR drop-down that calls the
+default) draws `features/site/extras/footer-currency/FooterCurrency.tsx` in `StoreFooter`'s bottom bar: a labelled CAD/USD/EUR drop-down that calls the
 same `useCurrency().setCurrency` as the header picker (mounted only while on, so footers without a `CurrencyProvider` still render).
 Region `footerCurrency`; words Text & labels › Footer (`footerCurrencyLabel`, `footerCurrencyCAD/USD/EUR`). Display only.
 
@@ -348,7 +351,7 @@ its own `top` after an 8 px move down once the page has passed the header and ba
 
 Studio › Style › Book page · photos & layout › Extras on the page › **Sale countdown** (`showPdpSaleCountdown`, off by default) +
 `pdpSaleCountdownWithin` (hours, default 72): in a dated sale's last hours the "Sale ends {date}" line under the price
-(`features/site/SaleEndsLine.tsx`, region `productSaleEnds`) counts down to the real end, midnight Toronto after `saleEndsAt`
+(`features/site/extras/pdp-sale-countdown/SaleEndsLine.tsx`, region `productSaleEnds`) counts down to the real end, midnight Toronto after `saleEndsAt`
 (pure `saleCountdown.ts`), ticking every 30 s, and hides once the sale has ended. The clock starts after mount, so the prerender
 keeps the date line. Display only (the server's `saleActive` still decides the price). Words: Text & labels › Product page
 (`pdpSaleCountdownDays/Hours/Minutes`).
