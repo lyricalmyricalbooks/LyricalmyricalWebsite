@@ -169,7 +169,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Footer spacing", keys: ["footerPaddingY", "footerPaddingYMobile", "footerBarPaddingY", "footerColumnGap", "footerLinkGap"] },
     { title: "Footer text & lines", keys: ["footerTextSize", "footerTextColor", "footerHeadingColor", "footerLinkHoverColor", "showFooterDividers", "footerDividerColor"] },
     { title: "Footer accent", keys: ["showFooterAccentLine", "footerAccentLineWidth", "footerAccentColor", "footerGroupHeadingsAccent", "footerSocialBoxes", "footerSocialHoverColor"] },
-    { title: "Footer logo", keys: ["footerLogo", "footerLogoUrl", "footerLogoWidth"] },
+    { title: "Footer logo & shop name", keys: ["footerLogo", "footerLogoUrl", "footerLogoWidth", "footerNameSize", "footerNameSizeMobile", "footerNameColor"] },
     { title: "What the footer shows", keys: ["showFooterExplore", "showFooterConnect", "showFooterLegalHeading", "showFooterLocation", "hideNewsletter", "hideRecentlyViewed", "showSocialInFooter", "showPaymentBadges", "footerPaymentIconOpacity", "footerPaymentIconHoverOpacity", "footerPaymentIconColor", "showPoweredBy", "showFooterAdminLink"] },
     { title: "Social links", keys: ["social.instagram", "social.twitter", "social.facebook", "social.tiktok"] },
   ],
