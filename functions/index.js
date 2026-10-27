@@ -37,7 +37,7 @@ const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoP
 const { catalogUnitPrice } = require("./catalogPrice");
 const { expandDiscountCategories } = require("./discountCategories");
 const { discountableItems, discountAmountFor, pickAutomaticDiscount } = require("./shared/discountMath");
-const { addOnSelection, bundleComponents, bundleAvailable, isGiftCardProduct, giftCardDetails } = require("./promotions");
+const { addOnSelection, bundleComponents, bundleAvailable, isGiftCardProduct, giftCardDetails } = require("./shared/promotions");
 const { expiryChange } = require("./giftCards");
 const { MAX_CARDS_PER_ORDER, GIFT_CARD_MESSAGES, GiftCardError, newGiftCardCode, normalizeGiftCardCode, giftCardId, last4, giftCardProblem, availableMinor, allocateGiftCards, chargedRedemptions, reserveGiftCards, releaseGiftCards, readGiftCards, debitShortfall, writeGiftCardChange, cardsForOrder, withHistory } = require("./giftCards");
 const { readBooks, writeStock } = require("./inventory");

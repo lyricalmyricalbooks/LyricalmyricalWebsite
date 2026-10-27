@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createRequire } from "node:module";
 import * as client from "./promotions";
-const srv = createRequire(import.meta.url)("../../../../functions/promotions.js");
+const srv = createRequire(import.meta.url)("../../../../functions/shared/promotions.js");
 
 // 2026-10-08 noon in Toronto.
 const now = new Date("2026-10-08T16:00:00Z");

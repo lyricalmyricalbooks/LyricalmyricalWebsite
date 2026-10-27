@@ -5,7 +5,7 @@
 // sets each linked edition's stock from the count the app publishes (stockPlanFor).
 // Nothing here is a payment path: it never decides whether an order is paid.
 const crypto = require("crypto");
-const { stockLines, isBundle, isGiftCardProduct } = require("./promotions");
+const { stockLines, isBundle, isGiftCardProduct } = require("./shared/promotions");
 const { isPhysicalItem } = require("./localFulfillment");
 const { shopDate } = require("./paymentGuards");
 

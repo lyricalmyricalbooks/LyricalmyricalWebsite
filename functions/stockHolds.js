@@ -7,7 +7,7 @@
 // confirmed (webhook / verified capture), exactly as before.
 
 const crypto = require("crypto");
-const { stockLines } = require("./promotions");
+const { stockLines } = require("./shared/promotions");
 const { ipKey } = require("./rateLimit");
 const { readStockPools, poolMembers } = require("./stockPools");
 

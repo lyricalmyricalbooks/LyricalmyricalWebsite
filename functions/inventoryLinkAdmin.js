@@ -7,7 +7,7 @@ const {
 } = require("./inventoryLink");
 const { readState, runSweep, REHEARSAL_MS, STATE_DOC } = require("./inventoryLinkJobs");
 const { shopDate } = require("./paymentGuards");
-const { saleActive } = require("./promotions");
+const { saleActive } = require("./shared/promotions");
 
 const ok = body => ({ status: 200, body });
 const bad = (error, status = 400) => ({ status, body: { error } });

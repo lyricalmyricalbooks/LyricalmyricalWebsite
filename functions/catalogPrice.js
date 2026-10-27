@@ -3,7 +3,7 @@
 // sale), else the sale price only while the sale is on (a positive price, inside its
 // optional start/end dates), else the retail price.
 // NaN means "no usable price": callers refuse the line instead of charging $0.
-const { saleActive } = require("./promotions");
+const { saleActive } = require("./shared/promotions");
 
 function catalogUnitPrice(book, variant, now = new Date()) {
   if (variant) {

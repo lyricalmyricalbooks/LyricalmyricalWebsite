@@ -5,7 +5,7 @@ import {
 } from "./productExtras";
 // The server rule the editor mirrors.
 
-import * as promotions from "../../../functions/promotions.js";
+import * as promotions from "../../../functions/shared/promotions.js";
 
 // 2026-10-09 at 03:00 UTC is still 2026-10-08 in Toronto.
 const lateNightUtc = new Date("2026-10-09T03:00:00Z");

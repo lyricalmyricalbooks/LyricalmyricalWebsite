@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
-const promo = require("./promotions");
+const promo = require("./shared/promotions");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { stockChanges } = require("./inventory");
 const { linesByBook } = require("./stockHolds");
