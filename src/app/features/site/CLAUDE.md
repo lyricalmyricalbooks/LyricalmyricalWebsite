@@ -690,3 +690,10 @@ Studio › Style › Book page · photos & layout › Extras on the page › **P
 `features/site/paymentIcons.tsx`, shared with `StoreFooter`), unknown ids and repeats dropped (`pdpPaymentBadges`), hidden while
 sold out or Coming soon. One `role="img"` label, Text & labels › Product page › `pdpPaymentIconsLabel` ("Ways to pay: {methods}").
 Display only — checkout still decides which methods are offered.
+
+## Analytics tags load after the page (27 October 2026)
+
+Google Analytics (`lib/ga4.ts`) and Clarity (`lib/clarity.ts`) add their third-party `<script>` through `afterPageLoad`
+(`lib/afterPageLoad.ts`: window `load`, then idle, 4 s at most), so they no longer compete with the first photos and shop code.
+Both queue their calls until the script arrives, so no event is lost; consent and path checks are unchanged. Keep any new
+third-party tag behind the same helper.
