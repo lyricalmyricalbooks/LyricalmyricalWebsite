@@ -28,6 +28,15 @@ describe("footer style controls", () => {
     expect(css).toContain("border-top-width:0");
   });
 
+  it("leaves the footer shop name as drawn until a size or colour is chosen", () => {
+    expect(footerStyleCss({})).not.toContain("fm-footer-name");
+    const css = footerStyleCss({ footerNameSize: 28, footerNameSizeMobile: 99, footerNameColor: "#ffcc00" });
+    expect(css).toContain(".fm-footer-name{font-size:28px !important;}");
+    expect(css).toContain(".fm-footer-name{font-size:64px !important;}}");
+    expect(css).toContain(".fm-footer-name{color:#ffcc00 !important;}");
+    expect(footerStyleCss({ footerNameColor: "red;}x{" })).not.toContain("red;}x{");
+  });
+
   it("defaults the link groups to the right", () => {
     expect(footerLinksAlign({})).toBe("end");
     expect(footerLinksAlign({ footerLinksAlign: "spread" })).toBe("spread");

@@ -65,6 +65,14 @@ export function footerStyleCss(d: any = {}): string {
     + `${s} .fm-footer-brand>[data-empty]{display:none !important;}`
     + `${s} .fm-footer-bar{padding-top:${barPad}px;padding-bottom:${barPad}px;}`
     + phoneTapTargetsCss(linkGap);
+  // Shop name in the footer brand (Style › Footer & social links › Footer logo & shop name): 0 = the name's own size
+  // (20px for the two-part name, 12px for the plain one); a phone size of 0 follows the desktop one.
+  const nameSize = num(d.footerNameSize, 0, 0, 64);
+  const nameSizePhone = num(d.footerNameSizeMobile, 0, 0, 64);
+  if (nameSize > 0) css += `${s} .fm-footer-name{font-size:${nameSize}px !important;}`;
+  if (nameSizePhone > 0) css += `@media${DEVICE_MEDIA.mobile}{${s} .fm-footer-name{font-size:${nameSizePhone}px !important;}}`;
+  const nameColour = colour(d.footerNameColor);
+  if (nameColour) css += `${s} .fm-footer-name{color:${nameColour} !important;}`;
   const text = colour(d.footerTextColor);
   const heading = colour(d.footerHeadingColor);
   const hover = colour(d.footerLinkHoverColor);
