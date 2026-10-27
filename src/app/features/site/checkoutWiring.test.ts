@@ -14,7 +14,8 @@ const country = readFileSync(join(__dirname, "CountryField.tsx"), "utf8");
 const address = readFileSync(join(__dirname, "CheckoutAddressStep.tsx"), "utf8");
 const delivery = readFileSync(join(__dirname, "CheckoutDeliveryStep.tsx"), "utf8");
 const payment = readFileSync(join(__dirname, "CheckoutPaymentStep.tsx"), "utf8");
-const page = src + address + delivery + payment;
+const summary = readFileSync(join(__dirname, "CheckoutOrderSummary.tsx"), "utf8");
+const page = src + address + delivery + payment + summary;
 
 describe("Checkout wiring (source text)", () => {
   it("#74 never calls an IP-geolocation service or sends the street to a third party on load", () => {
@@ -67,7 +68,7 @@ describe("Checkout wiring (source text)", () => {
   });
 
   it("the packed & tracked note under the total is a Studio region (show/hide + click-to-edit)", () => {
-    expect(src).toContain('regionProps("checkoutReassurance")');
+    expect(summary).toContain('regionProps("checkoutReassurance")');
   });
 
   it("#79 the country list and address list wire combobox ARIA", () => {
