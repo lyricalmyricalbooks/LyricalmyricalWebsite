@@ -1,6 +1,6 @@
 // Per-code performance from paid, non-test orders. Read-only.
 // Revenue follows the Overview rule (overviewInsights.ts): the CAD order total, less partial refunds.
-import { isRealPaidOrder, refundedAmount } from "./overviewInsights";
+import { isRealPaidOrder, refundedAmount } from "./overview/overviewInsights";
 export interface CodePerformance { orders: number; revenue: number; discountGiven: number; avgOrder: number; /** What to show: the code, or an automatic offer's title (its key is an opaque id). */ label: string }
 
 export function discountPerformance(orders: any[]): Map<string, CodePerformance> {

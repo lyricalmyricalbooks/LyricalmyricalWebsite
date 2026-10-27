@@ -254,7 +254,7 @@ The private operations, label purchase safeguards, payment authority and server 
 
 ## Overview analytics 2.0 + Google Analytics (13 October 2026)
 
-- **Ranges:** `admin/overviewRange.ts` `resolveRange(preset, { custom, compare })` — Today / 7 / 30 / 90 days, This month,
+- **Ranges:** `admin/overview/overviewRange.ts` `resolveRange(preset, { custom, compare })` — Today / 7 / 30 / 90 days, This month,
   Last month, This year, 12 months, Custom (clamped to today, ≤ 731 days); compare = the equally long block before or
   `lastYear` (`yearEarlier`). Toronto day keys; `trafficShift` moves a range ending today onto the UTC-keyed traffic docs
   (same as the old rolling windows); `trafficWindow` gives the UTC days `adminApi.getDailyAnalyticsBetween` reads (the
@@ -292,6 +292,9 @@ The private operations, label purchase safeguards, payment authority and server 
 
 ## Overview analytics 3.0 + your own visits (18 October 2026)
 
+- **Where the files live (27 October 2026):** every Overview-only file (`AnalyticsDashboard.tsx`, `Overview*`, `overview*`,
+  `salesReport.ts`) is in `admin/overview/`. Helpers the Overview shares with Settings cards (`googleAnalytics.ts`,
+  `bigQueryJourneys.ts`, `clarityAdmin.ts`, `dailyTrafficCache.ts`) stay in `admin/`.
 - **Owner never counted:** `lib/ownerDevice.ts` (pure). A browser is the owner's (`localStorage lm:owner-device` = on) after the
   first admin sign-in there (`markOwnerDeviceOnSignIn` in `Dashboard.tsx`, unless the owner chose "off"), via Settings › General ›
   **Your own visits** (`OwnVisitsCard.tsx`), or by opening any page with `?owner-device=on|off` (`takeOwnerDeviceLink`, first in
@@ -306,7 +309,7 @@ The private operations, label purchase safeguards, payment authority and server 
   closed sooner are often lost). `firestore.rules` checks only the maps a write changes (`ch`), because a merge write carries the
   whole day doc and checking every map overran the 1,000-expression budget; the emulator script's "busy day" checks guard it.
   Add a step to both `CHECKOUT_STEPS` and `checkoutStepOk`. The "delivery" step counts only once the address is complete.
-- **Panels** (pure maths in `admin/overviewSignals.ts`, UI in `OverviewMarketingExtras.tsx`): Titles › Into bag + flags (`titleFlag`);
+- **Panels** (pure maths in `admin/overview/overviewSignals.ts`, UI in `OverviewMarketingExtras.tsx`): Titles › Into bag + flags (`titleFlag`);
   Marketing › Where checkout loses people, Campaigns and links that sell (order `acquisition`, GA4 batch 3 `campaigns`), Pages that
   start sales, Page speed for real shoppers, Found on Google; Customers › Did the reminder emails work? + Newsletter sign-ups by week
   (`getAudienceSnapshot().pendingSubscribers`); Stock › Wanted but can't be bought. Never draw a zero for a signal never recorded.

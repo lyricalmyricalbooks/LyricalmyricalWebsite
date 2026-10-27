@@ -1,9 +1,9 @@
 // PR 10 (reports, analytics and performance): regression tests for the Overview figures and the admin refreshes.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { buildSeries, dailyDocsNeeded, dailyWindow, sourcePerformance } from "./overviewTraffic";
-import { periodKeys, splitPeriods, toFulfil, totals } from "./overviewInsights";
-import { salesReportCsv } from "./salesReport";
+import { buildSeries, dailyDocsNeeded, dailyWindow, sourcePerformance } from "./overview/overviewTraffic";
+import { periodKeys, splitPeriods, toFulfil, totals } from "./overview/overviewInsights";
+import { salesReportCsv } from "./overview/salesReport";
 import { discountPerformance } from "./discountPerformance";
 import { backupAlert, checkFailedAlert } from "./adminAlerts";
 import { mergeNewestPage } from "./ordersDesk";

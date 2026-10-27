@@ -3,8 +3,8 @@
 // read-only query with the Functions' own service account). Pure helpers here; the request goes through the same admin
 // call as Google Analytics and Search Console (googleAnalyticsApi), loaded only when a widget asks.
 import { addDays } from "../lib/shopDay";
-import { rangeWords } from "./overviewRange";
-import { pageLabel } from "./overviewVisitors";
+import { rangeWords } from "./overview/overviewRange";
+import { pageLabel } from "./overview/overviewVisitors";
 
 type Book = Record<string, any>;
 
