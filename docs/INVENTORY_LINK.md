@@ -321,7 +321,8 @@ linked: [ {                               // ≤ 500: every printed website edit
   title,                                  // the website book's own title (no edition name)
   edition: "" | "Signed", author: "",     // author = the website's Author / contributors box
   isbn: "",                               // the edition's own ISBN, else the book's
-  price: 40 | null,                       // CAD regular price of this edition (else the book), null when none
+  price: 40 | null,                       // CAD regular price: the edition's own (an edition without one has none),
+                                          // the book's for a book without editions; null when none
   sharedWith: 1,                          // how many website editions are matched to this same app book
 } ]
 ```
@@ -340,15 +341,17 @@ Both apps work out the differences with the same rule (`detailDifferences(linked
   "isbn" | "price", title, shop, app }`. `variantId` is the edition's (null for a group of several), `title` is the website
   title for display, and `shop`/`app` are the tidied values. Sorted by title, then title, author, isbn, price. At most 100.
 - A difference's **signature** is `JSON.stringify([shop, app])`. A "Leave as is" choice is remembered with it, so the
-  difference comes back only when either value changes.
+  difference comes back only when either value changes. Kept differences are left out *before* the list is cut to 100
+  (`detailDifferences(linked, appBooks, kept)`), so they never hide later ones.
 - An app only offers to copy a value that isn't empty: the website offers **Use the app's** when `app` isn't empty, the
   app offers **Use the website's** when `shop` isn't empty. Nothing ever blanks a field.
 
 Where they show:
 - **Website:** Inventory › Inventory app link › **Details that differ from the app** (and an admin alert). **Use the
   app's** writes that one field of the website book (title → title, author → Author / contributors, ISBN → the edition's
-  ISBN when it has its own, else the book's, price → the edition's price, else the book's regular price) after the
-  server re-reads both sides and finds the same signature (op `applyDetail`); **Leave as is** (op `keepDetail`) stores
+  ISBN when it has its own, else the book's, price → the edition's price, or the regular price of a book without
+  editions) after the server re-reads both sides and finds the same signature (op `applyDetail`); a book-level price is
+  refused while the book is on sale (shoppers pay the sale price), with a pointer to the book editor; **Leave as is** (op `keepDetail`) stores
   `systemStatus/inventoryLink.keptDetails { id: signature }`. Opening the page re-checks against the app (op `checkDetails`).
 - **App:** its own list, **Details that differ from the website**, worked out from `catalog.linked` and the app's own books,
   with **Use the website's** (changes the app book through its normal save) and **Leave as is** (kept in the app's own

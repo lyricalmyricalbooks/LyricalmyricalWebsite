@@ -642,7 +642,8 @@ function linkedForApp(books, links) {
     return {
       key: e.key, bookId: e.bookId, variantId: e.variantId, inventoryBookId, title: text(book.title, 200), edition: text(e.edition, 100),
       author: text(book.subtitle || book.authorName, 200), isbn: text(e.isbn, 40),
-      price: positivePrice(variant && variant.price !== undefined && variant.price !== "" ? variant.price : book.retailPrice),
+      // An edition sells at its own price only (no price = can't be bought), so never fall back to the book's.
+      price: positivePrice(e.variantId ? variant && variant.price : book.retailPrice),
       sharedWith: shared.get(inventoryBookId),
     };
   });
@@ -656,8 +657,11 @@ function detailValue(field, value) {
   return v;
 }
 
-/** The book details the two apps disagree on (the rule both apps share; tested against docs/link-details-fixture.json). */
-function detailDifferences(linked, appBooks) {
+/**
+ * The book details the two apps disagree on (the rule both apps share; tested against docs/link-details-fixture.json).
+ * `kept` ({ id: signature }, "Leave as is") is left out before the list is cut to 100, so kept rows never hide later ones.
+ */
+function detailDifferences(linked, appBooks, kept = {}) {
   const app = new Map((appBooks || []).filter(b => b && b.id).map(b => [b.id, b]));
   const groups = new Map();
   for (const row of linked || []) {
@@ -679,6 +683,7 @@ function detailDifferences(linked, appBooks) {
       const shop = detailValue(field, first[field]);
       const theirValue = detailValue(field, theirs[field]);
       if (shop === theirValue) continue;
+      if (kept && kept[`${inventoryBookId}|${field}`] === JSON.stringify([shop, theirValue])) continue;
       out.push({ id: `${inventoryBookId}|${field}`, inventoryBookId, bookId: first.bookId, variantId: single ? (first.variantId || null) : null,
         field, title: text(first.title, 200), shop, app: theirValue });
     }
@@ -708,7 +713,7 @@ function detailPatch(book, diff) {
   if (diff.field === "price") {
     const price = Number(diff.app);
     if (!(price > 0)) return null;
-    return variant && variant.price !== undefined && variant.price !== "" ? withVariant({ price }) : { retailPrice: price };
+    return variant ? withVariant({ price }) : { retailPrice: price };
   }
   return null;
 }

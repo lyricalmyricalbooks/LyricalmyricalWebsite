@@ -7,6 +7,7 @@ const {
 } = require("./inventoryLink");
 const { readState, runSweep, REHEARSAL_MS, STATE_DOC } = require("./inventoryLinkJobs");
 const { shopDate } = require("./paymentGuards");
+const { saleActive } = require("./promotions");
 
 const ok = body => ({ status: 200, body });
 const bad = (error, status = 400) => ({ status, body: { error } });
@@ -188,7 +189,7 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
     }
     const state = await readState(db);
     const at = now.toISOString();
-    const items = detailDifferences(linkedForApp(books, state.links || {}), appBooks);
+    const items = detailDifferences(linkedForApp(books, state.links || {}), appBooks, state.keptDetails || {});
     const save = async list => {
       const patch = { detailDiffs: { at, items: list }, appBookIndex: { at, items: appBookIndex(appBooks) } };
       await ref.update(patch).catch(async () => { await ref.set(patch, { merge: true }); });
@@ -211,6 +212,10 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
       // Still the value the owner saw? (a save in the book editor meanwhile wins)
       const fresh = linkedForApp([book], { [book.id]: (state.links || {})[book.id] }).find(r => r.inventoryBookId === diff.inventoryBookId);
       if (!fresh || detailValue(diff.field, fresh[diff.field]) !== diff.shop) return { error: "This book was changed on the website meanwhile. Check the list again." };
+      // A book on sale is charged its sale price, so a new regular price alone wouldn't change what shoppers pay.
+      if (diff.field === "price" && !diff.variantId && saleActive(book, now)) {
+        return { error: "This book is on sale, so shoppers pay the sale price. Change its prices in the book editor." };
+      }
       const patch = detailPatch(book, diff);
       if (!patch) return { error: "This detail can't be copied onto the website book." };
       tx.update(bookRef, { ...patch, updatedAt: at });
@@ -229,10 +234,8 @@ async function inventoryLinkAdmin(deps, body = {}, actor = "admin") {
     const signature = typeof body.signature === "string" ? body.signature : "";
     if (!id || id.length > 300 || !signature || signature.length > 1000) return bad("Choose the detail.");
     const state = await readState(db);
-    const keptDetails = { ...(state.keptDetails || {}), [id]: signature };
-    // Forget choices for details that no longer differ, so the map stays small.
-    const live = new Set((state.detailDiffs?.items || []).map(d => d.id));
-    for (const key of Object.keys(keptDetails)) if (key !== id && !live.has(key)) delete keptDetails[key];
+    // Kept until either value changes (the signature then no longer matches); capped so the record stays small.
+    const keptDetails = Object.fromEntries([...Object.entries(state.keptDetails || {}).filter(([key]) => key !== id), [id, signature]].slice(-1000));
     await ref.update({ keptDetails }).catch(async () => { await ref.set({ keptDetails }, { merge: true }); });
     return ok({ keptDetails });
   }

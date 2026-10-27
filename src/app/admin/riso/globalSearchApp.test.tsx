@@ -23,6 +23,18 @@ const mount = async (props: any) => {
 const options = () => [...document.querySelectorAll('[role="option"]')].map((o) => o.textContent || "");
 
 describe("admin search across the apps", () => {
+  // First: the catalog is read once per page, so this must run before the others load it.
+  it("shows no app rows while the website's own books are still loading, so Enter can't jump to the app", async () => {
+    const { adminApi } = await import("../api");
+    let fail: (e: Error) => void = () => {};
+    (adminApi.getAllBooks as any).mockImplementationOnce(() => new Promise((_ok, no) => { fail = no; }));
+    await mount({ appConnected: true, appBooks: [{ id: "moth-app", title: "Moth Hours", author: "", isbn: "" }], request: { q: "zz", n: 1 } });
+    expect(document.body.textContent).toContain("Loading…");
+    expect(document.body.textContent).not.toContain("In the inventory app");
+    // A failed read is forgotten, so the next test reads the catalog afresh.
+    await act(async () => { fail(new Error("offline")); });
+    await flush();
+  });
   it("opens with a #search= request, lists the app's books after the website's, and opens them in the app", async () => {
     await mount({ appConnected: true, appBooks: [{ id: "moth-app", title: "Moth Hours", author: "", isbn: "" }], request: { q: "moth", n: 1 } });
     expect((document.querySelector("input[type='search']") as HTMLInputElement).value).toBe("moth");
@@ -39,3 +51,4 @@ describe("admin search across the apps", () => {
     expect(document.body.textContent).not.toContain("In the inventory app");
   });
 });
+

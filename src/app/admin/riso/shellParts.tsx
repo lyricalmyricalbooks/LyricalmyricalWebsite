@@ -105,14 +105,15 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
       key: `customer-${c.email}`, label: c.name ? `${c.name} · ${c.email}` : c.email, kind: "Customer",
       run: () => onOpenCustomer(c.email),
     })) : [];
-    const inApp = appConnected ? [
+    // Only once the website's own books are in, so Enter never jumps to the app while they load.
+    const inApp = appConnected && booksState === "ready" ? [
       ...matchAppBooks(appBooks, term).map((b) => ({
         key: `app-${b.id}`, label: b.author ? `${b.title} · ${b.author}` : b.title, kind: APP_KIND, run: () => openInApp(inventoryBookUrl(b.id)),
       })),
       { key: "app-search", label: `Search the inventory app for “${q.trim()}”`, kind: APP_KIND, run: () => openInApp(inventorySearchUrl(q)) },
     ] : [];
     return [...nav, ...bk, ...ord, ...cust, ...inApp];
-  }, [q, books, orders, destinations, onOpenBook, onOpenOrder, onOpenCustomer, appBooks, appConnected]);
+  }, [q, books, booksState, orders, destinations, onOpenBook, onOpenOrder, onOpenCustomer, appBooks, appConnected]);
   // What this admin found itself (the inventory app rows don't count as "something found").
   const ownCount = results.filter((r) => r.kind !== APP_KIND).length;
 

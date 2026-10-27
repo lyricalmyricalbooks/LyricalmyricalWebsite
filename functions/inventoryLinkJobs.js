@@ -556,7 +556,7 @@ async function runSweep(deps, opts = {}) {
         // Without the app's doc its dismissed books are unknown: keep the list it has rather than bring them back.
         // Details the two apps disagree on, and the app's books for the admin search.
         const linked = linkedForApp(books, state.links);
-        status.detailDiffs = { at: iso(start), items: detailDifferences(linked, appBooks) };
+        status.detailDiffs = { at: iso(start), items: detailDifferences(linked, appBooks, state.keptDetails || {}) };
         status.appBookIndex = { at: iso(start), items: appBookIndex(appBooks) };
         if (appRead) try {
           await store.writeShopCatalog({ at: iso(start), linked, books: shopBooksForApp(books, appBooks, state.links, { ignoredMatches, dismissed: appDoc?.dismissedShopBooks || {}, now: start.getTime() }) });
@@ -640,6 +640,9 @@ async function runSweep(deps, opts = {}) {
         const items = openMatches(status.newMatches.items, fresh.links || {}, fresh.ignoredMatches || {});
         status.newMatches = { ...status.newMatches, items, count: Math.max(0, status.newMatches.count - (status.newMatches.items.length - items.length)) };
       }
+      // The admin re-checked or copied a detail while this run worked: its list is newer than this run's.
+      const fresh = snap.exists ? snap.data() : {};
+      if (status.detailDiffs && Date.parse(fresh.detailDiffs?.at || "") > start.getTime()) { delete status.detailDiffs; delete status.appBookIndex; }
       tx.set(ref, { ...status, ...(lease?.runId === runId ? { lease: FieldValue.delete() } : {}) }, { merge: true });
       // A merge keeps map keys the run dropped, so pruned answers are replaced as a whole field.
       if (status.appLinkReplies !== undefined) tx.update(ref, { appLinkReplies: status.appLinkReplies });

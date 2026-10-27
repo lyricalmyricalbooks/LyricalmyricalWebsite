@@ -126,6 +126,40 @@ describe("admin: details that differ", () => {
     const db = seed({ detailDiffs: { at: "x", items: [{ id: "hound|author" }, { id: "gone|title" }] }, keptDetails: { "old|price": "[]" } });
     const res = await inventoryLinkAdmin(deps(db, fakeStore()), { op: "keepDetail", id: "hound|author", signature: "[\"a\",\"b\"]" });
     expect(res.status).toBe(200);
-    expect(stateOf(db).keptDetails).toEqual({ "hound|author": "[\"a\",\"b\"]" });
+    expect(stateOf(db).keptDetails).toEqual({ "old|price": "[]", "hound|author": "[\"a\",\"b\"]" });
+  });
+});
+
+describe("fixes from review", () => {
+  test("a book on sale keeps its prices: Use the app's price is refused and points to the book editor", async () => {
+    const db = seed();
+    db.docs["books/b1"].data = { ...db.docs["books/b1"].data, isOnSale: true, salePrice: 50 };
+    const store = fakeStore();
+    store.catalog = APP;
+    const { body } = await inventoryLinkAdmin(deps(db, store), { op: "checkDetails" });
+    const price = body.detailDiffs.items.find(d => d.field === "price");
+    const res = await inventoryLinkAdmin(deps(db, store), { op: "applyDetail", id: price.id, signature: link.detailSignature(price) });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/on sale/);
+    expect(db.docs["books/b1"].data.retailPrice).toBe(65);
+  });
+  test("kept rows are left out before the list is cut, so later ones still show", () => {
+    const linked = Array.from({ length: 120 }, (_, i) => ({ key: `b${i}|`, bookId: `b${i}`, variantId: null, inventoryBookId: `i${i}`,
+      title: `Book ${String(i).padStart(3, "0")}`, author: "A", isbn: "", price: null, sharedWith: 1 }));
+    const app = linked.map(r => ({ id: r.inventoryBookId, title: r.title, author: "B", isbn: "", price: null, currency: "" }));
+    const kept = Object.fromEntries(linked.slice(0, 100).map(r => [`${r.inventoryBookId}|author`, JSON.stringify(["A", "B"])]));
+    expect(link.detailDifferences(linked, app, kept).map(d => d.inventoryBookId)).toEqual(linked.slice(100).map(r => r.inventoryBookId));
+    // A kept row comes back when either value changes.
+    expect(link.detailDifferences(linked.slice(0, 1), [{ ...app[0], author: "C" }], kept)).toHaveLength(1);
+  });
+  test("Leave as is keeps earlier choices, even for rows not in the stored list", async () => {
+    const db = seed({ keptDetails: { "far|title": "[\"x\",\"y\"]" } });
+    await inventoryLinkAdmin(deps(db, fakeStore()), { op: "keepDetail", id: "hound|author", signature: "[\"a\",\"b\"]" });
+    expect(Object.keys(stateOf(db).keptDetails).sort()).toEqual(["far|title", "hound|author"]);
+  });
+  test("an edition without its own price has none (it can't be sold), and a copied price goes on the edition", () => {
+    const book = { id: "b9", title: "T", retailPrice: 30, variants: [{ id: "x", name: "Signed" }] };
+    expect(link.linkedForApp([book], { b9: { x: "inv" } })[0].price).toBeNull();
+    expect(link.detailPatch(book, { field: "price", variantId: "x", app: "40.00" }).variants[0].price).toBe(40);
   });
 });
