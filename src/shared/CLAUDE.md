@@ -36,6 +36,8 @@ shape with 400 `bad_request` before touching the order. Friendly business checks
 stay in the handlers. `giftCardActions.ts` (26 October 2026) adds one schema per gift card `op` (`GIFT_CARD_BODIES`);
 `handleGiftCardAdmin` refuses an unknown op or a wrong shape before reading a card, and `adminApi.giftCardAdmin(op, body)` is
 typed per op. Manual local orders and the public checkout keep their hand-written field checks (`createManualLocalOrder`);
-discounts are written straight to Firestore under `firestore.rules`; their stored shape is `DiscountRecord` in
-`discountMath.ts`, which `adminApi.saveDiscount` builds. Next: one schema per Firestore collection for what
+discounts are written straight to Firestore under `firestore.rules`; their stored shape is the `discountRecord` schema in
+`discountRecord.ts` (`DiscountRecord` is its type; `discountMath.ts` re-exports it). `adminApi.saveDiscount` checks the
+whole record and `updateDiscount` checks the fields it writes (`discountUpdate`; other keys pass untouched), so a
+wrong-typed field is refused with a plain message before any write. Next: one schema per Firestore collection for what
 browsers may write (mirroring `firestore.rules`).

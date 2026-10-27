@@ -2,6 +2,8 @@ import { duplicateBookData } from "./catalogList";
 import type { OrderActionBody, RefundOrderBody } from "../../shared/orderActions";
 import type { GiftCardBody, GiftCardOp } from "../../shared/giftCardActions";
 import type { DiscountRecord } from "../../shared/discountMath";
+import { discountRecord, discountUpdate } from "../../shared/discountRecord";
+import { check } from "../../shared/edge";
 import { changedBookFields, lockLinkedStock, removedBookFields, sameValue } from "./bookStockMerge";
 import { PRIVATE_BOOK_KEYS, mergeBookPrivate, privateKeysIn, splitBookPrivate } from "./bookPrivate";
 import { cleanRedirects, REDIRECTS_DOC, type Redirect } from "../features/site/redirects";
@@ -93,6 +95,11 @@ async function readAllPrivateBookFields(): Promise<Map<string, any>> {
 
 /** deleteField() for each private key now stored in the private document, so the public record stops carrying it. */
 const scrubPrivateKeys = (priv: Record<string, any>) => Object.fromEntries(privateKeysIn(priv).map(key => [key, deleteField()]));
+
+// A discount write whose shape is wrong (src/shared/discountRecord.ts) is refused before it reaches Firestore.
+function assertDiscountShape(result: { ok: true } | { ok: false; error: { path: string } }) {
+  if (!result.ok) throw new Error(`The ${result.error.path || "discount"} field has the wrong kind of value, so nothing was saved`);
+}
 
 export const adminApi = {
   // Authentication
@@ -1733,6 +1740,7 @@ export const adminApi = {
       createdAt: now,
       updatedAt: now,
     };
+    assertDiscountShape(check(discountRecord, payload));
     const docRef = await addDoc(collection(db, "discounts"), payload);
     await adminApi.recordAuditLog("campaigns", `Created campaign: ${payload.code || payload.title || "automatic offer"}`);
     return { id: docRef.id, ...payload };
@@ -1747,6 +1755,7 @@ export const adminApi = {
     // the editor loaded earlier would undo uses made since and let a capped code run over.
     delete payload.usageCount;
     delete payload.createdAt;
+    assertDiscountShape(check(discountUpdate, payload));
     await updateDoc(doc(db, "discounts", id), payload);
     await adminApi.recordAuditLog("campaigns", `Updated campaign: ${payload.code || payload.title || id}`);
     return { id, ...payload };

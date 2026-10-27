@@ -4,46 +4,8 @@
 // free-gift line are never discounted. Thrown messages are the server's English text; checkout shows its
 // own Text & labels copy chosen from `DiscountProblem.code`.
 
-/** The kinds of discount the admin can make (`discounts/{id}.type`). */
-export type DiscountType = "percentage" | "fixed" | "freeship" | "bogo" | "tiered" | "gift";
-
-/** One tier of a "spend more, save more" discount. */
-export type DiscountTier = { minSpend: number | string; value: number | string; type: "percentage" | "fixed" };
-
-/**
- * A `discounts/{id}` document as the admin saves it (adminApi.saveDiscount). Older records can miss
- * fields or carry `active` instead of `isActive`, so readers keep their own fallbacks.
- */
-export type DiscountRecord = {
-  code: string;
-  type: DiscountType;
-  value: number;
-  isActive: boolean;
-  startDate: string | null;
-  expiryDate: string | null;
-  minOrderAmount: number | null;
-  minQuantity: number | null;
-  maxDiscountAmount: number | null;
-  usageLimit: number | null;
-  usageCount: number;
-  onePerCustomer: boolean;
-  appliesTo: "all" | "categories" | "products";
-  selectedCategories: string[];
-  selectedProducts: string[];
-  allowedEmailDomains: string;
-  allowedCustomerEmails: string;
-  description: string;
-  buyQuantity: number | null;
-  getQuantity: number | null;
-  getDiscountValue: number | null;
-  tiers: DiscountTier[] | null;
-  method: "code" | "automatic";
-  title: string;
-  giftBookId: string | null;
-  giftVariantId: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
+// The stored discount shape lives in ./discountRecord (with the schema the Discounts screen checks saves against).
+export type { DiscountType, DiscountTier, DiscountRecord } from "./discountRecord";
 
 /** Percent off the "get" items of a buy-X-get-Y offer: missing means fully free, others clamp to 0-100. */
 export function bogoPercent(value: unknown): number {
