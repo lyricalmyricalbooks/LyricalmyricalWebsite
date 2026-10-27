@@ -1,49 +1,12 @@
-import { useState, useEffect, useId, useMemo, useRef } from "react";
-import { 
-  ArrowLeft,
-  Search,
-  Edit,
-  ExternalLink, 
-  Globe, 
-  Mail,
-  Percent,
-  Plus,
-  Trash2,
-  Check,
-  Lock,
-  Phone,
-  Building,
-  Hash,
-  X,
-  RefreshCw,
-  Database,
-  CheckCircle,
-  AlertCircle as AlertCircleIcon,
-  Clock,
-  Link,
-  MapPin,
-  CreditCard,
-  ShieldCheck,
-  Package,
-  Truck,
-  History,
-  TrendingUp,
-  Map,
-  DollarSign,
-  ChevronDown,
-  Eye,
-  EyeOff,
-  KeyRound,
-  Save
-} from "lucide-react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { POLICY_KEYS, POLICY_TITLES, policySlug, type PolicyKey } from "../features/site/policyPages";
-import { ActionMenu, Checkbox, ConfirmDialog, LoadingState, MetricCard, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
+import { ActionMenu, Checkbox, ConfirmDialog, LoadingState, MetricCard, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm } from "./riso/components";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import { NotificationEditor } from "./NotificationEditor";
-import { COUNTRIES, CONTINENTS, describeZoneGeography } from "../features/site/shippingZones";
+import { COUNTRIES, CONTINENTS } from "../features/site/shippingZones";
 import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPES, starterZones, carrierIssues, issuesForTab, shippingIssueTab, SHIPPING_ISSUE_TAB_LABELS, type ShippingIssue, type ShippingIssueTab } from "./shippingHealth";
 import { quoteShipping } from "../features/site/shippingEngine";
 import { LocalFulfillmentSettings, useLocalFulfillmentDraft } from "./LocalFulfillmentSettings";
@@ -69,7 +32,7 @@ import { TaxesSettings } from "./TaxesSettings";
 import { BackupsExportCard } from "./BackupsExportCard";
 import { ShopErrorsCard } from "./ShopErrorsCard";
 import { useSettingsDirty } from "./settingsDirty";
-import { HowTo, SettingsAnchor, SettingsGroup, SettingsTabs, friendlyError, useSubTab, type SettingsTab } from "./settingsLayout";
+import { SettingsAnchor, SettingsGroup, SettingsTabs, friendlyError, useSubTab, type SettingsTab } from "./settingsLayout";
 import { testSaleSteps } from "./testSaleWalkthrough";
 import { studioHash } from "../lib/studioLocation";
 

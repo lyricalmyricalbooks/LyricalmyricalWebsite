@@ -14,10 +14,7 @@ import { sameOrderLines } from "./features/site/orderLines";
 import { amountIn, orderMoney, orderChargedTotal, totalNeedsConfirming } from "./features/site/orderMoney";
 import { cardAttemptKey, intentIdOf, mayHaveGoneThrough, paymentSettled, reusableCardOrder, type PendingCardOrder } from "./features/site/cardAttempt";
 import { POLICY_KEYS, policySlug, policyTitle } from "./features/site/policyPages";
-import {
-  ChevronLeft, Tag, ShieldCheck, X, AlertCircle, CreditCard,
-  Package, Truck, CheckCircle2, Loader2, Lock, Building, Check
-} from "lucide-react";
+import { ChevronLeft, Tag, X, AlertCircle, CreditCard, Package, CheckCircle2, Loader2, Lock, Building } from "lucide-react";
 import { m } from "motion/react";
 import { adminApi } from "./admin/api";
 import { publicApi } from "./lib/publicApi";
@@ -26,7 +23,6 @@ import { ga4Items, ga4Once } from "./lib/ga4";
 import { functionFetch } from "./lib/functionsBase";
 import { useSEO } from "./lib/seo";
 import { useCurrency } from "./CurrencyContext";
-import { COUNTRIES } from "./features/site/shippingZones";
 import { quoteShipping, parseWeightGrams } from "./features/site/shippingEngine";
 import { TemplateSections, GlobalSections } from "./components/sectionRender";
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
@@ -48,7 +44,7 @@ import { createLatestGuard, signalWithTimeout, RATES_TIMEOUT_MS } from "./featur
 import { liveRatesAddressReady, shouldRefetchRates } from "./features/site/liveRateRequest";
 import { holdLimitsFrom, holdWarnings } from "./features/site/holdLimits";
 import { applySuggestion } from "./features/site/addressSuggest";
-import { arrivalDateLabel, freeShippingGap } from "./features/site/checkoutNudges";
+import { freeShippingGap } from "./features/site/checkoutNudges";
 import { guessCountryName, parsePinned } from "./features/site/countryPicker";
 import { CountryField } from "./features/site/CountryField";
 import { activeTaxRates, matchTaxRate } from "./features/site/taxRate";
@@ -58,7 +54,7 @@ import { readSiteCache } from "./features/site/siteCache";
 import { loadCatalog } from "./features/site/loadCatalog";
 import { currentStorefrontData, fetchStorefrontDataFile, shippingProfilesFrom } from "./features/site/storefrontDataFile";
 import { quoteLocalFulfillment } from "./features/site/localFulfillment";
-import { catalogFulfillmentItems, discountedPhysicalSubtotal, bogoPercent } from "./features/site/checkoutFulfillment";
+import { catalogFulfillmentItems, discountedPhysicalSubtotal } from "./features/site/checkoutFulfillment";
 import { bagPreorder, linePreorderNote, formatReleaseDate } from "./features/site/preorder";
 import { discountAmountFor, discountableItems, pickAutomaticDiscount } from "./features/site/discountMath";
 import { expandDiscountCategories } from "./features/site/discountCategories";

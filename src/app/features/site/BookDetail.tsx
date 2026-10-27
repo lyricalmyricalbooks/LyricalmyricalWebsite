@@ -43,7 +43,6 @@ import { galleryPhotos, isVideoItem, muteVideo } from "./bookVideo";
 import { PhotoCarousel } from "./PhotoCarousel";
 import { PhotoMagnifier } from "./PhotoMagnifier";
 import { magnifierLevel, magnifierOn } from "./photoMagnifier";
-import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 import BackInStockForm from "./BackInStockForm";
 import PickupAvailability from "./PickupAvailability";
