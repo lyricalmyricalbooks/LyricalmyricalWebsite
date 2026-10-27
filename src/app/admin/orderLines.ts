@@ -141,6 +141,21 @@ export function returnStepLabel(state: string): string {
   }
 }
 
+export const RETURN_STEPS = ["Decide", "Parcel back", "Inspect", "Refund"] as const;
+
+/** How many of the four return steps are finished (4 = all). -1 hides the tracker: declined or closed returns have no steps left. */
+export function returnStepsDone(state: string): number {
+  switch (state) {
+    case "requested": return 0;
+    case "approved": return 1;
+    case "received": return 2;
+    case "inspected": return 3;
+    case "refund_pending":
+    case "completed": return 4;
+    default: return -1;
+  }
+}
+
 /** mailto: link with the order number in the subject (encoded), or "" without a usable email. */
 export function customerMailto(order: any): string {
   const email = String(order?.customer?.email || "").trim();

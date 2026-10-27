@@ -574,3 +574,29 @@ ul.fw-problems {
   .fw-detail .fw-step[data-active="true"] .fw-actions:has(> .rp-btn-primary) > .rp-btn-primary { flex: 1 1 100%; min-height: 48px; font-size: 15px; }
   .fw-detail .fw-step[data-active="true"] .fw-actions:has(> .rp-btn-primary) > .rp-hint { flex: 1 1 100%; text-align: center; }
 }
+
+/* Return tracker: four numbered steps above the return workbench; finished ones show a tick, the current one is inked. */
+.fw-return-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: var(--rp-text-sm);
+  color: var(--rp-text-subtle);
+}
+.fw-return-steps li { display: inline-flex; align-items: center; gap: 8px; }
+.fw-return-steps li[aria-current="step"] { color: var(--rp-text); font-weight: 600; }
+.fw-return-steps li[data-done] { color: var(--rp-success); }
+.fw-return-step-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-family: var(--rp-font-mono, monospace);
+  font-size: var(--rp-text-xs);
+}
+.fw-return-steps li[aria-current="step"] .fw-return-step-mark { background: var(--rp-text); color: var(--rp-surface); border-color: var(--rp-text); }

@@ -51,3 +51,12 @@ describe("fulfillment with gift cards and box sets", () => {
     expect(queueOf({ ...order, giftCardConflict: { resolvedAt: "y" } })).toBe("Unpaid");
   });
 });
+
+describe("returnStepsDone", () => {
+  it("counts finished return steps and hides the tracker once a return is over without a refund", async () => {
+    const { returnStepsDone } = await import("./orderLines");
+    expect(["requested", "approved", "received", "inspected", "refund_pending", "completed"].map(returnStepsDone)).toEqual([0, 1, 2, 3, 4, 4]);
+    expect(returnStepsDone("closed")).toBe(-1);
+    expect(returnStepsDone("rejected")).toBe(-1);
+  });
+});

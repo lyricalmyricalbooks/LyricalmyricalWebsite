@@ -2,7 +2,7 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
 import { isDigitalItem } from "./fulfillment";
-import { chargedOf, formatMinor, parseMoneyToMinor, refundableMinor, returnStepLabel, returnedValueMinor } from "./orderLines";
+import { RETURN_STEPS, chargedOf, formatMinor, parseMoneyToMinor, refundableMinor, returnStepLabel, returnStepsDone, returnedValueMinor } from "./orderLines";
 import { SectionCard, TextArea, TextField, SelectField, PrimaryButton, SecondaryButton, GhostButton, ConfirmDialog } from "./riso/components";
 
 type Row = { quantity: string; condition: string; restockQuantity?: string };
@@ -66,8 +66,15 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
   const completeInspection = lines.length > 0 && lines.every(lineOk) && totalBack > 0;
   const missing = lines.reduce((n: number, item: any) => n + Math.max(0, Number(item.quantity) - (whole(inspection[item.index]?.quantity) ?? Number(item.quantity))), 0);
 
+  const stepsDone = returnStepsDone(state);
   return <SectionCard title="Customer return" description={returnStepLabel(state)}>
     <div className="rp-stack">
+      {stepsDone >= 0 && <ol className="fw-return-steps" aria-label="Return progress">
+        {RETURN_STEPS.map((name, i) => <li key={name} data-done={i < stepsDone || undefined} aria-current={i === stepsDone ? "step" : undefined}>
+          <span className="fw-return-step-mark" aria-hidden>{i < stepsDone ? "✓" : i + 1}</span>{name}
+          <span className="rp-sr-only">{i < stepsDone ? " (done)" : i === stepsDone ? " (current step)" : ""}</span>
+        </li>)}
+      </ol>}
       {order.customerRequest?.message && <div className="fw-notice" style={{ margin: 0 }}><div><span className="rp-label">Customer wrote</span><p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{order.customerRequest.message}</p></div></div>}
       <p className="rp-hint">When every book comes back, the whole order is refunded (shipping, tax and digital items too). When only some come back, you refund what they're worth — you can change the amount. Only inspected, resellable printed copies go back to stock.</p>
       {state === "requested" && <>
