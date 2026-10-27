@@ -42,3 +42,16 @@ export function validateDiscountDraft(form: any, now = today(), otherCodes: stri
     errors.code = "Another discount already uses this code. Edit or delete that one instead.";
   return errors;
 }
+
+/**
+ * The dialog's form for a saved discount. Saved records keep empty fields as null ("no usage limit"); the form keeps
+ * them as its blank defaults (`empty`), so editing a code with no limit isn't refused as a limit of 0 and an older
+ * record's missing text reads as empty.
+ */
+export function draftFrom(initial: Record<string, any>, empty: Record<string, any>): Record<string, any> {
+  return {
+    ...empty,
+    ...Object.fromEntries(Object.entries(initial).filter(([, v]) => v != null)),
+    method: initial.method === "automatic" ? "automatic" : "code",
+  };
+}

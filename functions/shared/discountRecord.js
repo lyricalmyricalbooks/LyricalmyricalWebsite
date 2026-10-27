@@ -30,7 +30,8 @@ const fields = {
     usageLimit: count,
     usageCount: (0, edge_1.number)({ min: 0 }),
     onePerCustomer: (0, edge_1.boolean)(),
-    appliesTo: (0, edge_1.oneOf)(["all", "categories", "products"]),
+    // "catalog" is an older name for "all" that checkout still reads.
+    appliesTo: (0, edge_1.oneOf)(["all", "catalog", "categories", "products"]),
     selectedCategories: (0, edge_1.array)((0, edge_1.string)()),
     selectedProducts: (0, edge_1.array)((0, edge_1.string)()),
     allowedEmailDomains: (0, edge_1.string)(),

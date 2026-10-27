@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateDiscountDraft } from "./discountValidation";
+import { draftFrom, validateDiscountDraft } from "./discountValidation";
 
 const valid = { code: "SAVE10", type: "percentage", value: 10, appliesTo: "all", expiryDate: "", usageLimit: "", minOrderAmount: "", minQuantity: "" };
 
@@ -56,3 +56,14 @@ describe("editing expired codes", () => {
     expect(validateDiscountDraft({ ...valid, expiryDate: "2026-02-01" }, "2026-10-09", [], undefined, "2026-01-01").expiryDate).toBeTruthy();
   });
 });
+
+describe("draftFrom", () => {
+  it("lets a saved code with no usage limit be edited", () => {
+    const saved = { id: "d1", ...valid, usageLimit: null, minOrderAmount: null, minQuantity: null, description: null, method: "code" };
+    const form = draftFrom(saved, valid);
+    expect(form.usageLimit).toBe("");
+    expect(form.description).toBeUndefined();
+    expect(validateDiscountDraft(form, "2026-09-29")).toEqual({});
+  });
+});
+

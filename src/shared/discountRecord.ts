@@ -29,7 +29,8 @@ const fields = {
   usageLimit: count,
   usageCount: number({ min: 0 }),
   onePerCustomer: boolean(),
-  appliesTo: oneOf(["all", "categories", "products"] as const),
+  // "catalog" is an older name for "all" that checkout still reads.
+  appliesTo: oneOf(["all", "catalog", "categories", "products"] as const),
   selectedCategories: array(string()),
   selectedProducts: array(string()),
   allowedEmailDomains: string(),
