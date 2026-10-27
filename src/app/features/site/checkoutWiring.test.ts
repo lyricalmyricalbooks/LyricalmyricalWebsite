@@ -6,25 +6,27 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const src = readFileSync(join(__dirname, "..", "..", "Checkout.tsx"), "utf8");
+// The form fields (text boxes, address box with suggestions, field errors) live in CheckoutFields.tsx.
+const fields = readFileSync(join(__dirname, "CheckoutFields.tsx"), "utf8");
 const currency = readFileSync(join(__dirname, "..", "..", "CurrencyContext.tsx"), "utf8");
 const country = readFileSync(join(__dirname, "CountryField.tsx"), "utf8");
 
 describe("Checkout wiring (source text)", () => {
   it("#74 never calls an IP-geolocation service or sends the street to a third party on load", () => {
-    expect(src).not.toMatch(/ipapi|ip-api|ipinfo|geojs|ipgeolocation/i);
-    expect(src).not.toMatch(/fetch\(\s*["'`]https?:/);
+    expect(src + fields).not.toMatch(/ipapi|ip-api|ipinfo|geojs|ipgeolocation/i);
+    expect(src + fields).not.toMatch(/fetch\(\s*["'`]https?:/);
   });
 
   it("#76 the street box uses address-line1, never street-address", () => {
-    expect(src).not.toContain('autoComplete="street-address"');
-    expect((src.match(/autoComplete="address-line1"/g) || []).length).toBeGreaterThanOrEqual(2);
+    expect(src + fields).not.toContain('autoComplete="street-address"');
+    expect(((src + fields).match(/autoComplete="address-line1"/g) || []).length).toBeGreaterThanOrEqual(2);
   });
 
   it("#24 the form is a real <form noValidate> with a submit button and per-field errors", () => {
     expect(src).toMatch(/<form noValidate onSubmit=/);
     expect(src).toMatch(/type="submit"/);
     expect(src).toContain("checkoutDetailProblems(");
-    expect(src).toContain("aria-invalid={error ? true : undefined}");
+    expect(fields).toContain("aria-invalid={error ? true : undefined}");
     expect(src).toMatch(/document\.getElementById\(detailInputId\(first\)\)\?\.focus\(\)/);
   });
 
@@ -65,8 +67,8 @@ describe("Checkout wiring (source text)", () => {
   it("#79 the country list and address list wire combobox ARIA", () => {
     expect(country).toContain("comboboxInputProps(");
     expect(country).toContain("id={optionId(listId, i)}");
-    expect(src).toContain("comboboxInputProps(");
-    expect(src).toContain("id={optionId(listId, i)}");
+    expect(fields).toContain("comboboxInputProps(");
+    expect(fields).toContain("id={optionId(listId, i)}");
   });
 
   it("#88 the browser rates come from the timed, cached loader", () => {
