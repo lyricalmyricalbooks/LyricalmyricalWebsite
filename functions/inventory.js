@@ -11,7 +11,7 @@
 // Box-set lines count as the books inside them (promotions.stockLines).
 // Editions sharing one pile (stockPools.js; carried on `books[POOLS]` by readBooks)
 // all move together: a sale of one takes the copy off each of them.
-const { stockLines } = require("./promotions");
+const { stockLines } = require("./shared/promotions");
 const { POOLS, readStockPools, poolMembers } = require("./stockPools");
 
 function stockChanges(items, books, sign) {

@@ -9,7 +9,7 @@ import * as priceMod from "../../../../functions/catalogPrice.js";
 // @ts-ignore
 import * as preMod from "../../../../functions/shared/preorder.js";
 // @ts-ignore
-import * as promoMod from "../../../../functions/promotions.js";
+import * as promoMod from "../../../../functions/shared/promotions.js";
 const server: any = { ...((priceMod as any).default ?? priceMod), ...((preMod as any).default ?? preMod), ...((promoMod as any).default ?? promoMod) };
 
 // 2026-10-08 noon in Toronto.

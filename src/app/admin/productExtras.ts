@@ -1,5 +1,5 @@
 // Books › edit: scheduled sales, paid add-ons, box sets and gift-card products. Pure, tested.
-// The server (functions/promotions.js) is the authority for prices and stock; these helpers
+// The server (functions/shared/promotions.js) is the authority for prices and stock; these helpers
 // only mirror its rules so the editor can explain what shoppers will see before saving.
 import { shopDate } from "../features/site/preorder";
 

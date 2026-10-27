@@ -1,7 +1,7 @@
 // Google Merchant Center product feed (Google Shopping / free product listings).
 // Pure ESM so the build (scripts/generate-sitemap.mjs → dist/google-merchant-feed.xml) and the
 // admin's Books › Google Shopping feed panel use the same rules. Prices, sale windows, pre-orders
-// and stock follow the server's checkout rules (functions/catalogPrice.js, promotions.js,
+// and stock follow the server's checkout rules (functions/catalogPrice.js, shared/promotions.js,
 // src/shared/preorder.ts) — merchantFeed.parity.test.ts keeps them identical, because Google refuses items
 // whose feed price or availability differ from what the product page and checkout show.
 import { resolveProductRoutes } from './productRouteData.mjs';
@@ -58,7 +58,7 @@ function bundleParts(book) {
     .map(p => ({ id: p.bookId, variantId: typeof p.variantId === 'string' && p.variantId ? p.variantId : null, quantity: Math.max(1, Math.min(20, Math.floor(Number(p.quantity) || 1))) }));
 }
 
-/** Copies available to sell: Infinity when stock isn't tracked or backorders are allowed (promotions.js partStock). */
+/** Copies available to sell: Infinity when stock isn't tracked or backorders are allowed (shared promotions partStock). */
 export function stockOf(book, variantId) {
   if (!book) return 0;
   if (book.trackInventory !== true || book.allowBackorder === true) return Infinity;
