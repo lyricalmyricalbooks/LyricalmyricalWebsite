@@ -12,8 +12,10 @@ export const REORDER_COVER_DAYS = 30;
 export const DORMANT_DAYS = 90;
 const DIGITAL_FORMATS = ["E-book (PDF)", "E-book (EPUB)", "Audiobook"];
 
-export type Order = Record<string, any>;
-export type Book = Record<string, any>;
+import type { BookRecord, OrderRecord } from "../../../shared/records";
+
+export type Order = OrderRecord;
+export type Book = BookRecord;
 
 export const isRealPaidOrder = (o: Order) => o?.isTest !== true && o?.paymentStatus === "paid";
 const ts = (v: any) => { const t = new Date(v).getTime(); return Number.isNaN(t) ? 0 : t; };
@@ -142,7 +144,7 @@ export function topCountries(orders: Order[], limit = 5) {
   return [...map.values()].sort((a, b) => b.revenue - a.revenue).slice(0, limit);
 }
 
-export const isDigitalBook = (b?: Book) => !!b && DIGITAL_FORMATS.includes(b.format);
+export const isDigitalBook = (b?: Book) => !!b && DIGITAL_FORMATS.includes(b.format ?? "");
 
 /** Format words that mean an e-book or audiobook (the same words the fulfilment desk treats as never shipped). */
 const DIGITAL_FORMAT_RE = /digital|e-book|ebook|epub|pdf|audiobook|audio book/i;

@@ -39,5 +39,7 @@ typed per op. Manual local orders and the public checkout keep their hand-writte
 discounts are written straight to Firestore under `firestore.rules`; their stored shape is the `discountRecord` schema in
 `discountRecord.ts` (`DiscountRecord` is its type; `discountMath.ts` re-exports it). `adminApi.saveDiscount` checks the
 whole record and `updateDiscount` checks the fields it writes (`discountUpdate`; other keys pass untouched), so a
-wrong-typed field is refused with a plain message before any write. Next: one schema per Firestore collection for what
+wrong-typed field is refused with a plain message before any write. `records.ts` (types only) holds `OrderRecord` / `BookRecord`, the stored
+`orders` and `books` shapes: the common fields typed, the rest open. The Overview's `Order` / `Book` (`overviewInsights.ts`)
+and the other admin files that used `Record<string, any>` for them now use these; type new admin code with them too. Next: one schema per Firestore collection for what
 browsers may write (mirroring `firestore.rules`).

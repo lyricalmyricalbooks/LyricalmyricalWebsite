@@ -47,7 +47,7 @@ export function cohortRetention(paid: Order[], todayKey: string, months = 12, sp
 export function repeatTiming(paid: Order[], now = Date.now()) {
   const times = new Map<string, number[]>();
   for (const o of paid) {
-    const e = emailOf(o); const t = Date.parse(o.createdAt);
+    const e = emailOf(o); const t = Date.parse(o.createdAt ?? "");
     if (!e || Number.isNaN(t)) continue;
     times.set(e, [...(times.get(e) || []), t]);
   }
@@ -91,7 +91,7 @@ export function operations(current: Order[]) {
   const hours: number[] = [];
   let shippedWithin2Days = 0;
   current.forEach(o => {
-    const paid = Date.parse(o.paidAt || o.createdAt), sent = Date.parse(o.shippedAt || "");
+    const paid = Date.parse(o.paidAt || o.createdAt || ""), sent = Date.parse(o.shippedAt || "");
     if (Number.isNaN(paid) || Number.isNaN(sent) || sent < paid) return;
     const h = (sent - paid) / 3_600_000; hours.push(h);
     if (h <= 48) shippedWithin2Days++;
@@ -118,7 +118,7 @@ const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 export function hourHeatmap(current: Order[]) {
   const grid = DAYS.map(day => ({ day, hours: Array.from({ length: 24 }, () => 0) }));
   current.forEach(o => {
-    const t = Date.parse(o.createdAt); if (Number.isNaN(t)) return;
+    const t = Date.parse(o.createdAt ?? ""); if (Number.isNaN(t)) return;
     const parts = HOUR_FMT.formatToParts(t);
     const wd = parts.find(p => p.type === "weekday")?.value?.slice(0, 3) || "";
     const h = Number(parts.find(p => p.type === "hour")?.value) % 24;

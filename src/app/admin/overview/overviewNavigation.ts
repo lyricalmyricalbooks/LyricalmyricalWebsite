@@ -4,9 +4,11 @@
 // check `report.moves === undefined` ("Needs the latest server update").
 import type { Ga4Report } from "../googleAnalytics";
 import { pageLabel } from "./overviewVisitors";
+import type { BookRecord } from "../../../shared/records";
 
 type Report = Ga4Report | null | undefined;
-type Book = Record<string, any>;
+type Book = BookRecord;
+
 
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const cleanPath = (p: string) => {

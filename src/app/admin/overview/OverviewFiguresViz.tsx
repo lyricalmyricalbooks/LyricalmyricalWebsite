@@ -82,7 +82,7 @@ export function NewestOrdersList({ orders, books }: { orders: Order[]; books: Bo
                 </span>
               </span>
               <span className="rp-viz-order-end">
-                <span className="rp-viz-rank-value">{money(o.total)}</span>
+                <span className="rp-viz-rank-value">{money(o.total ?? 0)}</span>
                 <StatusBadge tone={pill.tone} glyph={pill.glyph}>{pill.word}</StatusBadge>
               </span>
             </div>

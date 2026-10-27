@@ -5,9 +5,11 @@
 // callers detect that with `report.pageTime === undefined` ("Needs the latest server update").
 import type { Ga4Report } from "../googleAnalytics";
 import { smallPhotoUrl } from "../../features/site/photoSources";
+import type { BookRecord } from "../../../shared/records";
 
 type Report = Ga4Report | null | undefined;
-type Book = Record<string, any>;
+type Book = BookRecord;
+
 
 // ---------------------------------------------------------------------------------------------------------------
 // Public signatures (builder B imports exactly these).

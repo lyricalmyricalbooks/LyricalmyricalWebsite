@@ -16,7 +16,7 @@ export function soldInWindow(paid: Order[], row: Pick<StockRow, "bookId" | "vari
   const from = now - days * DAY;
   let n = 0;
   for (const o of paid) {
-    const t = Date.parse(o.createdAt);
+    const t = Date.parse(o.createdAt ?? "");
     if (Number.isNaN(t) || t < from || t > now) continue;
     for (const line of o.items || []) {
       if (String(line?.id || "") !== row.bookId) continue;

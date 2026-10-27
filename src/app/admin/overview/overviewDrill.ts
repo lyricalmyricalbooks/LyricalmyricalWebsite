@@ -93,7 +93,7 @@ export const giftCardOrders = (orders: Order[]) => orders.filter(o => num(o.gift
 
 /** Hours from payment to dispatch, as operations() measures it; null when not shipped. */
 export function hoursToShip(o: Order): number | null {
-  const paid = Date.parse(o.paidAt || o.createdAt), sent = Date.parse(o.shippedAt || "");
+  const paid = Date.parse(o.paidAt || o.createdAt || ""), sent = Date.parse(o.shippedAt || "");
   return Number.isNaN(paid) || Number.isNaN(sent) || sent < paid ? null : (sent - paid) / 3_600_000;
 }
 export const shipTimeText = (h: number) => (h < 48 ? `${Math.round(h)} hours to ship` : `${(h / 24).toFixed(1)} days to ship`);
