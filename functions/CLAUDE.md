@@ -19,6 +19,13 @@ Server side: Stripe/PayPal, webhooks, refunds, stock holds, gift cards, discount
   `db`, `admin`, `requireAdmin`, `readAdminSecret`, `hitLimit` and `LIMITS` passed in rather than requiring them, so the
   vm-based handler tests' fakes reach it. Add a new pre-limit action as one line in the table; move further groups the
   same way (a module exporting a factory that takes index.js's guards).
+  **27 October 2026:** the side actions moved the same way: `checkoutAdmin.js` (`checkoutAdminActions`: Stripe key test,
+  webhook health, payment domains, gift card admin, inventory link), `orderRequests.js` (`orderRequestActions`: status,
+  track, tracking link, order request, cancel unpaid, resolve mismatch) and `privacyRequests.js` (`privacyActions`:
+  newsletter signup/confirm, privacy request/export/erase). index.js builds them just above `CHECKOUT_FUNCTION_ACTIONS`,
+  so every dependency passed in must exist by then: a `const` defined further down is still uninitialised there (use a
+  function declaration, as `siteLink` and `escapeHtml` now are). Handler tests reassign `sendEmail` after loading index.js,
+  so it is passed as `lateSendEmail`; pass any other name a test reassigns the same way.
 - **Shipping labels (26 October 2026):** `createShippingLabel` lives in `functions/shippingLabels.js` the same way:
   `shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors, admin, requireAdmin, db, getShippoToken,
   callShippo, IS_EMULATOR, originAddress, getStateCode, getCountryCode })`, and index.js keeps the
