@@ -99,8 +99,8 @@ service cloud.firestore {
     match /adminSecrets/{docId} {
       allow read, write: if isAdmin();
     }
-    // The owner's admin screen layouts (Overview boards: admin/overviewBoardStore.ts) and the Overview's sales notes
-    // (admin/overviewNotesStore.ts). Admin-only, one JSON string each.
+    // The owner's admin screen layouts (Overview boards: admin/overview/overviewBoardStore.ts) and the Overview's sales notes
+    // (admin/overview/overviewNotesStore.ts). Admin-only, one JSON string each.
     match /adminPrefs/{docId} {
       allow read: if isAdmin();
       allow write: if isAdmin() && (docId == "overviewBoard" || docId == "overviewNotes")

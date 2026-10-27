@@ -301,9 +301,12 @@ The private operations, label purchase safeguards, payment authority and server 
 
 ## Overview analytics 3.0 + your own visits (18 October 2026)
 
-- **Where the files live (27 October 2026):** every Overview-only file (`AnalyticsDashboard.tsx`, `Overview*`, `overview*`,
-  `salesReport.ts`) is in `admin/overview/`. Helpers the Overview shares with Settings cards (`googleAnalytics.ts`,
-  `bigQueryJourneys.ts`, `clarityAdmin.ts`, `dailyTrafficCache.ts`) stay in `admin/`.
+- **Where the files live (27 October 2026):** the Overview's files (`AnalyticsDashboard.tsx`, `Overview*`, `overview*`,
+  `salesReport.ts`) are in `admin/overview/`. Helpers the Overview shares with Settings cards (`googleAnalytics.ts`,
+  `bigQueryJourneys.ts`, `clarityAdmin.ts`, `dailyTrafficCache.ts`) stay in `admin/`. Four files in the folder are used
+  outside the Overview too, so check those screens when changing them: `overview/overviewInsights.ts` (paid-order and
+  refund rules behind Inventory, Customers, Discounts and launch readiness) and `overviewShared.ts`, `overviewRange.ts`,
+  `overviewVisitors.ts` (used by `googleAnalytics.ts` and `bigQueryJourneys.ts`).
 - **Owner never counted:** `lib/ownerDevice.ts` (pure). A browser is the owner's (`localStorage lm:owner-device` = on) after the
   first admin sign-in there (`markOwnerDeviceOnSignIn` in `Dashboard.tsx`, unless the owner chose "off"), via Settings › General ›
   **Your own visits** (`OwnVisitsCard.tsx`), or by opening any page with `?owner-device=on|off` (`takeOwnerDeviceLink`, first in
