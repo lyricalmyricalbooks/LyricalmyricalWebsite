@@ -61,6 +61,15 @@ and stock; the contract is `docs/INVENTORY_LINK.md` (same file as the inventory 
   **In the inventory app, not in the shop** › **Add to the shop** (BookEditor `prefill` + `onCreated` → op `linkNewBook`, draft only) /
   **Not for the shop** (`ignoreAppBooks`, Undo = `unignoreAppBooks`). The app's list price reaches the website (`projectInventoryCatalog`
   `price`); a draft gets it only in CAD (`shopDraftFrom`).
+- **Book details in step + one search (27 October 2026):** docs/INVENTORY_LINK.md › Book details in step, and one search. The hourly
+  match check also writes `websiteLink/catalog.linked` (`linkedForApp`), `state.detailDiffs` (`detailDifferences`, the rule both apps
+  share, pinned by `docs/link-details-fixture.json` in both repos) and `state.appBookIndex` (`appBookIndex`). Inventory app link ›
+  **Details that differ from the app**: **Use the app's** (op `applyDetail`: re-reads both sides, refuses a changed signature, writes one
+  field via `detailPatch`, stamps `detailsChangedAt` so the next sweep refreshes the app's copy) / **Leave as is** (op `keepDetail`,
+  `keptDetails { id: signature }`); opening the page runs op `checkDetails`. Alert `inventory-link-details`. Admin search
+  (`GlobalSearch` `appBooks`/`appConnected`) adds **In the inventory app** rows (`matchAppBooks`, `inventoryBookUrl`) and **Search the
+  inventory app for “…”** (`inventorySearchUrl`); deep links into the admin: `#search=<text>` (`searchFromHash`, opens the search and puts
+  the page's address back) and `#catalog/book/<id>` (route `bookId`, opens the book editor, address becomes `#catalog`).
 - **Deploy** Firestore rules + Functions with the frontend. Local tests use in-memory fakes (`functions/inventoryLink.fakes.mjs`);
   they don't prove the IAM grant, the deployed trigger or the inventory app's import.
 

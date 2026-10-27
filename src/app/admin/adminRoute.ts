@@ -4,7 +4,7 @@
 // A page split into sub tabs adds a readable slug for the open one (`#settings/general/visitors`, `#inventory/link`);
 // the first (default) sub tab has none, so the older addresses stay as they were.
 
-export type AdminRoute = { tab: string; settingsTab?: string; orderId?: string; giftCardId?: string; subTab?: string };
+export type AdminRoute = { tab: string; settingsTab?: string; orderId?: string; giftCardId?: string; subTab?: string; bookId?: string };
 
 export const ADMIN_TABS = ["overview", "analytics", "orders", "customers", "inventory", "catalog", "discounts", "giftCards", "reviews", "messages", "settings"] as const;
 /** Old Settings page ids that now open another page (Email sender was merged into the one email page). */
@@ -57,6 +57,11 @@ export function routeFromHash(hash: string): AdminRoute | null {
   const [head, rest] = [h.split("/")[0], h.split("/").slice(1).join("/")];
   if (head === "gift-cards") return { tab: "giftCards", ...(rest ? { giftCardId: decode(rest) } : {}) };
   if (head === "orders") return { tab: "orders", ...(rest ? { orderId: decode(rest) } : {}) };
+  // A book opened from the inventory app's search: Books with that book in the editor.
+  if (head === "catalog" && rest.startsWith("book/")) {
+    const bookId = decode(rest.slice(5)).trim();
+    return BOOK_ID.test(bookId) ? { tab: "catalog", bookId } : { tab: "catalog" };
+  }
   const [page, slug] = rest.split("/");
   if (head === "settings") {
     const known = SETTINGS.has(page) && page !== "designer";
@@ -68,6 +73,18 @@ export function routeFromHash(hash: string): AdminRoute | null {
   if (head === "shipping" || head === "payments") return withSub({ tab: "settings", settingsTab: head }, page);
   if (TABS.has(head)) return withSub({ tab: head }, page);
   return null;
+}
+
+const BOOK_ID = /^[^/\s]{1,200}$/;
+export const SEARCH_HASH_KEY = "search";
+const SEARCH_MAX = 100;
+
+/** `#search=<text>` (the inventory app's "Search the website for …"): the text to open the admin search with, else null. */
+export function searchFromHash(hash: string): string | null {
+  const raw = hash.replace(/^#/, "");
+  if (!raw.startsWith(`${SEARCH_HASH_KEY}=`)) return null;
+  const text = decode(raw.slice(SEARCH_HASH_KEY.length + 1)).replace(/\s+/g, " ").trim().slice(0, SEARCH_MAX);
+  return text || null;
 }
 
 /** The hash for the page on screen. Studio returns `#designer` (its own links add the query). */

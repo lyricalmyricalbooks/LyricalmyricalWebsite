@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_TABS, SETTINGS_TABS, SUB_TABS, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, settingsPageOf, subTabPage } from "./adminRoute";
+import { ADMIN_TABS, SETTINGS_TABS, SUB_TABS, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, settingsPageOf, searchFromHash, subTabPage } from "./adminRoute";
 
 describe("admin route ↔ hash", () => {
   it("round-trips every page", () => {
@@ -86,5 +86,23 @@ describe("admin route ↔ hash", () => {
     expect(keepsSubTab("#overview/visitors/move", "#overview")).toBe(true);
     expect(keepsSubTab("#overview", "#overview")).toBe(false);
     expect(keepsSubTab("#overview/visitors", "#orders")).toBe(false);
+  });
+});
+
+describe("links from the inventory app's search", () => {
+  it("opens a book in the editor, and only a plausible book id", () => {
+    expect(routeFromHash("#catalog/book/abc123")).toEqual({ tab: "catalog", bookId: "abc123" });
+    expect(routeFromHash("#catalog/book/a%20b")).toEqual({ tab: "catalog" });
+    expect(routeFromHash("#catalog/book/")).toEqual({ tab: "catalog" });
+    // The address written back afterwards is the plain Books page, so a reload doesn't reopen the editor.
+    expect(hashForRoute({ tab: "catalog", bookId: "abc123" })).toBe("#catalog");
+  });
+  it("reads the text to search for, tidied and at most 100 characters", () => {
+    expect(searchFromHash("#search=Moth%20%20Hours")).toBe("Moth Hours");
+    expect(searchFromHash("search=x".padEnd(200, "y"))!.length).toBe(100);
+    expect(searchFromHash("#search=")).toBeNull();
+    expect(searchFromHash("#searching")).toBeNull();
+    expect(searchFromHash("#orders")).toBeNull();
+    expect(routeFromHash("#search=moth")).toBeNull();
   });
 });

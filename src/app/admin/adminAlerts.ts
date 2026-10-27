@@ -3,7 +3,7 @@ import { labelRefundProblems } from "./labelRefunds";
 import { currentRows } from "./emailLogDisplay";
 import { describeBackup, type BackupRecord } from "./backupStatus";
 import { waitingPreorderLines, preorderClockStart } from "../features/site/preorder";
-import { appOnlyBooks, openMatches } from "./inventoryLink";
+import { appOnlyBooks, detailDiffs, openMatches } from "./inventoryLink";
 // Admin-wide alerts shown above every admin page (AdminAlerts.tsx). Pure, tested.
 // Payment problems come first: money that arrived but isn't recorded, or vice versa.
 
@@ -239,6 +239,15 @@ export function inventoryLinkAlerts(state: any, now = Date.now()): AdminAlert[] 
       ...link("inventory-link-app-books", "info", `${plural(onlyInApp.length, "book in the inventory app isn't", "books in the inventory app aren't")} in the shop yet`,
         `${names}${onlyInApp.length > 3 ? " and more" : ""}. Add one as a draft website book in one click, or say it's not for the shop.`),
       key: onlyInApp.map((b) => b.id).sort().join(","),
+    });
+  }
+  const differing = detailDiffs(state);
+  if (differing.length) {
+    const names = [...new Set(differing.map((d) => d.title))];
+    out.push({
+      ...link("inventory-link-details", "info", `${plural(names.length, "book's details differ", "books' details differ")} from the inventory app`,
+        `${names.slice(0, 3).join(", ")}${names.length > 3 ? " and more" : ""}: title, author, ISBN or price. Choose which to keep.`),
+      key: differing.map((d) => `${d.id}:${d.shop}:${d.app}`).sort().join(","),
     });
   }
   // The inventory app's own to-do (websiteLink/app.todo): what waits for you there. Gone after a week without the

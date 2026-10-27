@@ -208,3 +208,26 @@ export function shopDraftFrom(book: AppOnlyBook) {
     format: "Paperback",
   };
 }
+
+/* ── Book details that differ (docs/INVENTORY_LINK.md › Book details that differ) ── */
+
+export type DetailField = "title" | "author" | "isbn" | "price";
+export interface DetailDiff { id: string; inventoryBookId: string; bookId: string; variantId: string | null; field: DetailField; title: string; shop: string; app: string }
+
+/** A difference's signature: "Leave as is" holds until either value changes (the server's detailSignature). */
+export const detailSignature = (d: Pick<DetailDiff, "shop" | "app">) => JSON.stringify([d.shop, d.app]);
+
+/** The differences still worth showing: not left as is with the same two values. */
+export function detailDiffs(state: any): DetailDiff[] {
+  const items: DetailDiff[] = Array.isArray(state?.detailDiffs?.items) ? state.detailDiffs.items : [];
+  const kept: Record<string, string> = state?.keptDetails || {};
+  return items.filter((d) => d && d.id && kept[d.id] !== detailSignature(d));
+}
+
+export const DETAIL_LABELS: Record<DetailField, string> = { title: "Title", author: "Author", isbn: "ISBN", price: "Price" };
+
+/** A value as the owner reads it ("Not filled in" for an empty one, CA$ for a price). */
+export function detailText(field: DetailField, value: string): string {
+  if (!value) return "Not filled in";
+  return field === "price" ? `CA$${value}` : value;
+}

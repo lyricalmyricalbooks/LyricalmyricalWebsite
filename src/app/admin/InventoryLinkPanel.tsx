@@ -5,12 +5,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, ExternalLink, RefreshCw } from "lucide-react";
 import {
   DataTable, Dialog, EmptyState, ErrorState, GhostButton, LoadingState, PrimaryButton, SecondaryButton, SectionCard, SelectField,
-  StatusBadge, TextField, Toggle, useRisoToast, type Column,
+  StatusBadge, TextField, Toggle, useConfirm, useRisoToast, type Column,
 } from "./riso/components";
 import { inventoryLinkApi, type LinkStatus, type StockPreview } from "./inventoryLinkApi";
 import {
-  IAM_URL, NO_COUNT_YET, ago, appOnlyBooks, dayBefore, editionKey, holdWords, linkStep, linkableEditions, linkedTo, linksFromChoices, openMatches,
-  shopDraftFrom, suggestLinks, type AppOnlyBook, type InventoryAppBook, type InventoryLinks, type LinkableEdition, type StockRow,
+  DETAIL_LABELS, IAM_URL, NO_COUNT_YET, ago, appOnlyBooks, detailDiffs, detailSignature, detailText, dayBefore, editionKey, holdWords, linkStep, linkableEditions, linkedTo, linksFromChoices, openMatches,
+  shopDraftFrom, suggestLinks, type AppOnlyBook, type DetailDiff, type InventoryAppBook, type InventoryLinks, type LinkableEdition, type StockRow,
 } from "./inventoryLink";
 import { inventoryApi } from "./inventoryApi";
 import { waitingReaders, wakesRestockEmails } from "./inventoryInsights";
@@ -29,6 +29,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
   onAddBook?: (prefill: Record<string, any>, onCreated: (id: string) => void) => void;
 }) {
   const toast = useRisoToast();
+  const [confirm, confirmNode] = useConfirm();
   const [status, setStatus] = useState<LinkStatus | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -83,6 +84,15 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
     catch (e: any) { setCatalogError(e?.message || "The inventory app's books couldn't be read."); }
   };
   useEffect(() => { void loadStatus(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Opening the page checks book details against the app again (the sweep only does it hourly).
+  const detailsChecked = useRef(false);
+  useEffect(() => {
+    if (detailsChecked.current || !status?.state?.connection?.ok || !Object.keys(status.state.links || {}).length) return;
+    detailsChecked.current = true;
+    inventoryLinkApi.checkDetails()
+      .then(({ detailDiffs: fresh }) => setStatus((s) => (s ? { ...s, state: { ...s.state, detailDiffs: fresh } } : s)))
+      .catch(() => { /* the saved list from the last hourly check stays */ });
+  }, [status]);
 
   const run = async (label: string, fn: () => Promise<void>) => {
     setBusy(label);
@@ -120,6 +130,36 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
       actionLabel: "Undo",
       onAction: () => { void inventoryLinkApi.unignoreAppBooks([book.id]).then(() => loadStatus()).catch(() => toast("Couldn't undo. Try again in a minute.", { tone: "err" })); },
     });
+  });
+
+  // Book details the two apps disagree on: copy the app's value onto the website book, or leave it.
+  const differing = detailDiffs(state);
+  const takeAppValue = async (d: DetailDiff) => {
+    const label = DETAIL_LABELS[d.field].toLowerCase();
+    const yes = await confirm({
+      title: `Use the app's ${label}?`,
+      message: `“${d.title}” on the website changes from ${detailText(d.field, d.shop)} to ${detailText(d.field, d.app)}.`
+        + (d.field === "price" ? " Shoppers pay the new price from now on." : " Shoppers see it straight away."),
+      confirmLabel: `Use the app's ${label}`,
+    });
+    if (!yes) return;
+    await run(`detail-${d.id}`, async () => {
+      try {
+        const res = await inventoryLinkApi.applyDetail(d.id, detailSignature(d));
+        setStatus((s) => (s ? { ...s, state: { ...s.state, detailDiffs: res.detailDiffs } } : s));
+        toast(`Website ${label} updated for “${d.title}”.`);
+        onStockChanged?.();
+      } catch (e: any) {
+        toast(e?.message || "That didn't work. Try again in a minute.", { tone: "warn" });
+        const fresh = await inventoryLinkApi.checkDetails().catch(() => null);
+        if (fresh) setStatus((s) => (s ? { ...s, state: { ...s.state, detailDiffs: fresh.detailDiffs } } : s));
+      }
+    });
+  };
+  const leaveDetail = (d: DetailDiff) => run(`keep-${d.id}`, async () => {
+    const res = await inventoryLinkApi.keepDetail(d.id, detailSignature(d));
+    setStatus((s) => (s ? { ...s, state: { ...s.state, keptDetails: res.keptDetails } } : s));
+    toast(`Left as is. It comes back only if one of the two changes.`);
   });
 
   // The server adds them to the links as they are now and never replaces a match.
@@ -282,6 +322,7 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
 
   return (
     <div className="rp-stack">
+      {confirmNode}
       <SectionCard title="Connect"
         description="One-time access, given in Google Cloud."
         actions={<StatusBadge tone={connection.ok ? "success" : "warning"}>{connection.ok ? "Connected" : "Not connected yet"}</StatusBadge>}>
@@ -367,6 +408,26 @@ export function InventoryLinkPanel({ books, onLinksChanged, onStockChanged, onAd
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                           {onAddBook && <SecondaryButton size="sm" disabled={!!busy} onClick={() => addToShop(b)}>Add to the shop</SecondaryButton>}
                           <GhostButton size="sm" disabled={!!busy} busy={busy === `leave-${b.id}`} onClick={() => leaveOut(b)}>Not for the shop</GhostButton>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {differing.length > 0 && (
+                <div style={{ padding: 16, display: "grid", gap: 8, borderBottom: "1px solid var(--rp-border)" }} role="group" aria-labelledby="ilp-details-title">
+                  <div id="ilp-details-title" style={{ fontWeight: 600 }}>Details that differ from the app</div>
+                  <p className="rp-hint" style={{ margin: 0 }}>Matched books whose title, author, ISBN or price isn't the same in both. Nothing changes until you choose.</p>
+                  <ul className="rp-list" aria-label="Book details that differ from the inventory app" style={{ margin: 0 }}>
+                    {differing.map((d) => (
+                      <li key={d.id} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                        <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                          <div>{d.title} · {DETAIL_LABELS[d.field]}</div>
+                          <div className="rp-hint">Website: {detailText(d.field, d.shop)} · Inventory app: {detailText(d.field, d.app)}</div>
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                          {d.app && <SecondaryButton size="sm" disabled={!!busy} busy={busy === `detail-${d.id}`} onClick={() => void takeAppValue(d)}>Use the app's</SecondaryButton>}
+                          <GhostButton size="sm" disabled={!!busy} busy={busy === `keep-${d.id}`} onClick={() => leaveDetail(d)}>Leave as is</GhostButton>
                         </div>
                       </li>
                     ))}
