@@ -66,7 +66,7 @@ src/
   styles/                   Tailwind/global CSS, fonts
 functions/                  Firebase Cloud Functions (Node 22, separate package)
   index.js                  All functions (Stripe, webhook, emails, sweeps)
-  shared/                   Generated copies of src/shared rules (shipping, discounts, promotions, addresses, local pickup, pre-orders)
+  shared/                   Generated copies of src/shared rules (shipping, discounts, categories, promotions, addresses, pickup, pre-orders)
 scripts/                    generate-sitemap, check-readability, verify-admin
 firestore.rules / .indexes  Firestore security rules + indexes
 storage.rules               Storage security rules

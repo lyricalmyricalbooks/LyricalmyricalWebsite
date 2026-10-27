@@ -219,8 +219,8 @@ The private operations, label purchase safeguards, payment authority and server 
   in admin-only `customerNotes/{sha256(email)}`. Overview › Download sales report (`salesReport.ts`).
 - **Messages:** replies via `sendTestEmail` `action: "replyToMessage"` (`functions/messageReply.js`), stored in
   `contactMessages.replies`, status `replied`; paged 100 at a time with server counts.
-- **Discounts/Gift cards/Reviews:** category discounts follow storefront membership (`functions/discountCategories.js` ↔
-  `features/site/discountCategories.ts`, parity-tested). `/?discount=CODE` share links (`features/site/sharedDiscount.ts`,
+- **Discounts/Gift cards/Reviews:** category discounts follow storefront membership (one shared copy,
+  `src/shared/discountCategories.ts`; the parity test runs on the generated server copy). `/?discount=CODE` share links (`features/site/sharedDiscount.ts`,
   from `main.tsx`) pre-fill checkout; server stays authoritative. Summaries `admin/discountDescribe.ts`. Gift-card expiry:
   `giftCardAdmin` `op: "setExpiry"`. Reviews: admin-set `verified` and `featured` (Studio-editable badge/label); deleting a
   review deletes its `reviewContacts`. Review-request email `functions/reviewRequests.js` inside `unpaidPaymentSweep`
