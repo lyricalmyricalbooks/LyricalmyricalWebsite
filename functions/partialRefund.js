@@ -3,7 +3,7 @@
 // refund (order stays paid, `partiallyRefunded` + `refundedAmountMinor`, the same state a
 // Stripe Dashboard partial refund leaves) or reaches what is left (today's full refund).
 // Nothing is restocked unless the owner ticks specific lines; never more than was charged.
-const { isPhysicalItem } = require("./localFulfillment");
+const { isPhysicalItem } = require("./shared/localFulfillment");
 
 const fail = (message, status = 400) => { const error = new Error(message); error.status = status; throw error; };
 

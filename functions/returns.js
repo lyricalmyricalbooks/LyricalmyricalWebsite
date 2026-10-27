@@ -1,5 +1,5 @@
 // Pure return transitions. Stock and refunds stay in the verified refund path.
-const { isPhysicalItem } = require("./localFulfillment");
+const { isPhysicalItem } = require("./shared/localFulfillment");
 const fail = message => { const error = new Error(message); error.status = 409; throw error; };
 function physicalLines(order) {
   return (order.items || []).map((item, index) => ({ ...item, index })).filter(item => isPhysicalItem({ ...item, format: item.format || item.variantName || "" }));

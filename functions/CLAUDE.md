@@ -137,7 +137,7 @@ on the order). Both checks run in `fetchValidDiscount` / both checkout paths; to
 - **Checkout shipping:** until the shopper picks a rate, the best current quote stays selected, including after the
   address changes the quotes. With no option selected, the summary shows Text & labels › Checkout › `coShipChoose`
   instead of "Free". The IP country lookup only fills a form nobody has touched yet. BOGO "% off" uses `bogoPercent`
-  (client `checkoutFulfillment.ts`, server `functions/localFulfillment.js`): missing means 100.
+  (client `checkoutFulfillment.ts`, shared `src/shared/discountMath.ts`): missing means 100.
 - **Abandoned carts:** `firestore.rules` limits browser writes to the cart fields and blocks `notified*`, and a
   recovered cart can't be reopened. `abandonedCartSweep` rebuilds items and prices from `books`, escapes the text,
   skips carts older than 7 days and sends one reminder per address ever (`abandoned-cart-throttle`, no TTL on those records,

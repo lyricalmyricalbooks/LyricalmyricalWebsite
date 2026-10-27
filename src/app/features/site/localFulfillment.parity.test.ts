@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
 import { quoteLocalFulfillment, normalizePostalCode, validateLocalFulfillment } from './localFulfillment';
-const server = createRequire(import.meta.url)('../../../../functions/localFulfillment.js');
+const server = createRequire(import.meta.url)('../../../../functions/shared/localFulfillment.js');
 const config: any = { enabled: true, pickupLocations: [{ id: 'store', enabled: true, name: 'Store', price: 0, address: { street: '1 Real St', city: 'Toronto', state: 'ON', zip: 'M6G3H1', country: 'Canada' } }], deliveryZones: [{ id: 'west', enabled: true, name: 'West', postalPrefixes: ['m6g'], postalCodes: ['M5V 2T6'], price: 4, minimumSubtotal: 20 }, { id: 'overlap', enabled: true, name: 'Overlap', postalPrefixes: ['M6G'], postalCodes: [], price: 8, minimumSubtotal: 0 }] };
 const destination = { zip: 'm6g 3h1', country: 'CA' };
 describe('local fulfillment browser/server parity', () => {

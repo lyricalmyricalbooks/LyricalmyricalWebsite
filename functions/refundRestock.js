@@ -11,7 +11,7 @@
 const { readBooks, writeStock } = require("./inventory");
 const { returnRestockItems } = require("./returns");
 const { withoutRestocked } = require("./partialRefund");
-const { isPhysicalItem } = require("./localFulfillment");
+const { isPhysicalItem } = require("./shared/localFulfillment");
 
 const LEFT_STATES = ["shipped", "out_for_delivery", "delivered", "collected", "completed"];
 
