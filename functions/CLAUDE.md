@@ -757,3 +757,13 @@ order-confirmation email both use them. Emailed download links stay outside brow
 - **File:** signed URL has `responseDisposition: attachment; filename="<title>.<ext>"` (the upload's epoch prefix dropped) and
   `responseType` from the extension (pdf, epub, mp3, m4a, zip).
 - Deploy Functions with the frontend. No rule or index change (`downloadCounts` is written by Functions and by the admin).
+
+## One door for Stripe (27 October 2026)
+
+Code plan item 1.11 (LMB-PLATFORM `docs/code-plan.md`). `functions/payments/index.js` (`paymentKeys`) now holds which key a
+shop pays with and in which mode: `withPrivateStripeKeys`, `getStripeClientForMode`, `stripeSecretFor`, `shopTestMode`,
+`readStripeKeys`, moved out of index.js unchanged. index.js passes in its `db`, `Stripe` wrapper, `STRIPE_SECRET_KEY` and
+`readAdminSecret` (so the vm handler tests' fakes still apply) and destructures them right after `readAdminSecret`. Next
+steps move the remaining `new Stripe(...)` calls (`checkoutPayment.js`, `checkoutAdmin.js`, the webhook) behind this module,
+so a platform shop can later ask the platform payment service instead of holding a key. Never add a new direct Stripe
+client outside it.

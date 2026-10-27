@@ -240,66 +240,9 @@ async function readAdminSecret(id) {
   }
 }
 
-async function withPrivateStripeKeys(stripeSettings) {
-  const merged = { ...(stripeSettings || {}) };
-  const priv = await readAdminSecret("stripe");
-  if (priv.secretKey) merged.secretKey = priv.secretKey;
-  if (priv.testSecretKey) merged.testSecretKey = priv.testSecretKey;
-  return merged;
-}
-
-async function getStripeClientForMode(mode, stripeAccountId = null) {
-  const settingsDoc = await db.collection("settings").doc("website").get();
-  const settings = settingsDoc.exists ? settingsDoc.data() || {} : {};
-  const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
-  const stripeSecret = mode === "test"
-    ? stripeSettings.testSecretKey
-    : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
-
-  if (!stripeSecret) {
-    throw new Error(`Stripe ${mode === "test" ? "test" : "live"} secret key is not configured.`);
-  }
-
-  return {
-    stripe: new Stripe(stripeSecret),
-    requestOptions: stripeAccountId ? { stripeAccount: stripeAccountId } : {},
-  };
-}
-
-// The secret key for one Stripe mode, or "" when none is set (never throws).
-async function stripeSecretFor(mode) {
-  const settingsDoc = await db.collection("settings").doc("website").get();
-  const settings = settingsDoc.exists ? settingsDoc.data() || {} : {};
-  const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
-  if (mode === "test") return stripeSettings.testSecretKey || "";
-  try { return stripeSettings.secretKey || STRIPE_SECRET_KEY.value() || ""; } catch { return stripeSettings.secretKey || ""; }
-}
-
-async function shopTestMode() {
-  const settingsDoc = await db.collection("settings").doc("website").get();
-  return !!(settingsDoc.exists && settingsDoc.data()?.payments?.testMode);
-}
-
-// The shop's Stripe mode and both secret keys, read once for a whole sweep (the sweep asks Stripe about
-// many orders; each call used to read settings/website and adminSecrets/stripe again). Same keys as
-// shopTestMode/stripeSecretFor. Throws when either read fails, so the caller falls back to per-call reads
-// instead of running a whole sweep on a fallback key.
-async function readStripeKeys() {
-  const [settingsDoc, secretDoc] = await Promise.all([
-    db.collection("settings").doc("website").get(),
-    db.collection("adminSecrets").doc("stripe").get(),
-  ]);
-  const stripe = settingsDoc.exists ? settingsDoc.data()?.payments?.stripe || {} : {};
-  const priv = secretDoc.exists ? secretDoc.data() || {} : {};
-  let live = priv.secretKey || stripe.secretKey || "";
-  if (!live) { try { live = STRIPE_SECRET_KEY.value() || ""; } catch { live = ""; } }
-  return {
-    testMode: !!(settingsDoc.exists && settingsDoc.data()?.payments?.testMode),
-    secrets: { test: priv.testSecretKey || stripe.testSecretKey || "", live },
-    // A slow Stripe answer must not run the sweep past its 300 s limit: give up sooner, retry next sweep.
-    clientOptions: { timeout: 20 * 1000, maxNetworkRetries: 1 },
-  };
-}
+// Which Stripe key and mode a shop pays with, and its Stripe client: functions/payments (one door for Stripe).
+const { withPrivateStripeKeys, getStripeClientForMode, stripeSecretFor, shopTestMode, readStripeKeys } =
+  require("./payments").paymentKeys({ db, Stripe, STRIPE_SECRET_KEY, readAdminSecret });
 
 // Asks Stripe (test and live accounts, the order's own mode first) for one of the
 // order's saved payments. Returns { found, mode } or null when no account knows it.
