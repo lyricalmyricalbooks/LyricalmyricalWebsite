@@ -19,6 +19,7 @@ import { splitWebsiteSecrets, splitNotificationSecrets, resendKeyProblem, type S
 import { toCountryCodes } from "./shippingCountries";
 import { keepPhotoCopies, removedPhotos, shownUrls, unusedBookFiles } from "./bookFileCleanup";
 import { mediaApi } from "./mediaApi";
+import { auditLog } from "./auditLog";
 /** Cache-Control for uploaded shop pictures (mirrors functions/imageCopies.js IMMUTABLE). */
 export const PUBLIC_FILE_CACHE = "public, max-age=31536000, immutable";
 
@@ -957,11 +958,7 @@ export const adminApi = {
   getDefaultSettings: defaultSettings,
 
   // Audit Log
-  getAuditLog: async (limitCount = 100) => {
-    const q = query(collection(db, "audit-log"), orderBy("createdAt", "desc"), limit(limitCount));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  },
+  getAuditLog: (limitCount = 100) => auditLog.list(limitCount),
 
   // ORDERS
   // Every order, newest first, read in pages so nothing is cut off at a fixed count.
@@ -1959,15 +1956,5 @@ export const adminApi = {
     }
   },
 
-  recordAuditLog: async (type: string, message: string) => {
-    try {
-      await addDoc(collection(db, "audit-log"), {
-        type,
-        message,
-        createdAt: new Date().toISOString()
-      });
-    } catch (err) {
-      console.warn("Could not save audit log:", err);
-    }
-  },
+  recordAuditLog: (type: string, message: string) => auditLog.record(type, message),
 };

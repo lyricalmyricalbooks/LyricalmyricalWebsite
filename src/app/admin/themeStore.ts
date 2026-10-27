@@ -9,7 +9,7 @@
 // read, Studio says so instead of saving drafts where shoppers can download them.
 import { deleteField, doc, getDoc, collection, getDocs, onSnapshot, runTransaction, setDoc, writeBatch } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { adminApi } from "./api";
+import { auditLog } from "./auditLog";
 import { sameDesign } from "./studio/studioModel";
 
 export type Workspace = { draft: any; rev: number; savedThemes: any[] };
@@ -194,14 +194,14 @@ export async function saveDraft(_ws: Workspace, design: any, expectedRev: number
 export async function publishDesign(_ws: Workspace, design: any, expectedRev: number): Promise<number> {
   const snapshot = clone(design);
   const rev = await backend.write(expectedRev, snapshot, snapshot);
-  await adminApi.recordAuditLog("settings", "Published the Studio design").catch(() => {});
+  await auditLog.record("settings", "Published the Studio design").catch(() => {});
   return rev;
 }
 
 /** Discard draft: the working copy goes back to the published design. */
 export async function discardDraft(_ws: Workspace, published: any, expectedRev: number): Promise<number> {
   const rev = await backend.write(expectedRev, clone(published));
-  await adminApi.recordAuditLog("settings", "Discarded unpublished theme changes").catch(() => {});
+  await auditLog.record("settings", "Discarded unpublished theme changes").catch(() => {});
   return rev;
 }
 

@@ -2,6 +2,11 @@
 
 The admin (route `/admin`): Riso Press design system, Orders/fulfilment, Overview analytics, inventory app link, settings. Studio (the theme editor) has its own guide in `studio/CLAUDE.md`. The repo-wide rules are in the root `CLAUDE.md`.
 
+**No import loop through `api.ts` (27 October 2026).** Most screens import `adminApi` from `api.ts`, so nothing `api.ts`
+imports may import it back: a loop makes one of the two run half set up. `themeStore.ts` did, for the audit log, which
+now lives in `auditLog.ts` (`adminApi.recordAuditLog` / `getAuditLog` hand on to it). A helper `api.ts` uses that needs
+another admin call takes it from its own small file the same way. `adminApiImports.test.ts` fails on any new loop.
+
 ## Inventory app link (11 October 2026)
 
 The shop and the inventory app (`lyricalmyricalbooks/lyrical-inventory`, Firebase project `lyricalmyrical-37c46`) share sales

@@ -58,6 +58,7 @@ vi.mock("../../lib/legacyFirebase", () => ({ legacyDb: {}, legacyAuth: {} }));
 
 const themeStore = await import("./themeStore");
 const { adminApi } = await import("./api");
+const { auditLog } = await import("./auditLog");
 const { openWorkspace, saveDraft, publishDesign, discardDraft, saveSavedThemes, ThemeConflictError, ThemeStoreUnavailableError } = themeStore;
 
 const live = { primaryColor: "black", heroPage: { sections: [] } };
@@ -67,7 +68,7 @@ const theme = { id: "t1", name: "Spring", design: { primaryColor: "green" }, sav
 beforeEach(() => {
   store.clear(); denyPrivate = false;
   store.set("settings/website", { design: live, draftDesign: draft, savedThemes: [theme], info: { name: "Shop" } });
-  vi.spyOn(adminApi, "recordAuditLog").mockResolvedValue(undefined as any);
+  vi.spyOn(auditLog, "record").mockResolvedValue(undefined as any);
 });
 
 describe("Studio theme store", () => {
