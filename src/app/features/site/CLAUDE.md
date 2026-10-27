@@ -32,7 +32,9 @@ The three steps draw in `CheckoutAddressStep.tsx` (contact and ship-to), `Checko
 pickup billing region) and `CheckoutPaymentStep.tsx` (total, payment choices, notices, policy tick box, Pay button). They are
 display only: every value and handler comes in as a prop, the state, checks and payment calls stay in `Checkout.tsx`, and the
 card form (`StripeCardForm`, its express-wallet gate and retry) is built there and handed in as `stripeOption`. Their regions
-are listed with `Checkout.tsx` in `checkoutLayout`'s files; `checkoutWiring.test.ts` reads them too.
+are listed with `Checkout.tsx` in `checkoutLayout`'s files; `checkoutWiring.test.ts` reads them too. The order summary beside
+the form (phone summary bar, lines, free gift, pre-order note, ledger, nudge, total, slip extras) draws in
+`CheckoutOrderSummary.tsx` the same way: display only, every amount worked out in `Checkout.tsx`.
 
 `Checkout.tsx` is concept A "Order slip" (Julian's pick): a ruled header (back link, wordmark with the last word in the accent,
 Secure), a one-page form of lettered sections (`SectionHead`: Contact · Ship to · Delivery · Pay) and an outlined **Order slip**
