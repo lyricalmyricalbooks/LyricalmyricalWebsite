@@ -150,7 +150,7 @@ npm run logs
   and written only through `scripts/studioControlBaseline.mjs`, so parallel PRs adding controls never conflict. A branch that still edits the old `.json`: merge main, run
   `node scripts/studioControlBaseline.mjs scripts/studio-control-baseline.json`, then delete the `.json`.
 - **Shopper click-through:** CI job `storefront-smoke` (same pull requests as the Studio checks) serves `vite build` and runs
-  `pnpm run test:storefront` (`scripts/storefront-smoke.mjs`): home, book page, add to bag, checkout, collection, wishlist,
+  `pnpm run test:storefront` (`scripts/storefront-smoke.mjs`): home, book page, add to bag, checkout (filled in up to Pay: name, a Toronto address, a delivery choice), collection, wishlist,
   tracking, account, admin sign-in, 404, search and phone against the live published catalog. It fails on a page error,
   on the error panel and on a caught section/page crash ("failed to render" / "Storefront render error"), never writes
   (cookies rejected, no email typed, nothing paid). `CHROMIUM_PATH` reuses a local browser; `SMOKE_URL` checks a running site.
