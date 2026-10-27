@@ -14,6 +14,15 @@ const block = (start, end) => {
   const j = end ? source.indexOf(end, i + start.length) : source.length;
   return source.slice(i, j);
 };
+// The scheduled jobs live in scheduledJobs.js (index.js keeps their export lines).
+const jobsSource = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "scheduledJobs.js"), "utf8");
+const jobBlock = (start, end) => {
+  const i = jobsSource.indexOf(start);
+  expect(i).toBeGreaterThan(-1);
+  const j = end ? jobsSource.indexOf(end, i + start.length) : jobsSource.length;
+  expect(j).toBeGreaterThan(i);
+  return jobsSource.slice(i, j);
+};
 
 describe("runInBatches", () => {
   it("runs a few at a time, never more than the batch size at once", async () => {
@@ -45,7 +54,7 @@ describe("#19 back-in-stock emails", () => {
   });
   it("alerts the run cannot reach stay pending and a scheduled sweep finishes them", () => {
     expect(trigger).toContain("restockPending: true");
-    const sweep = block("exports.backInStockSweep = onSchedule(", "// 12. Low Stock Alerts");
+    const sweep = jobBlock("const backInStockSweep = onSchedule(");
     expect(sweep).toContain('schedule: "every 15 minutes"');
     expect(sweep).toMatch(/timeoutSeconds:\s*300/);
     expect(sweep).toContain('where("restockPending", "==", true)');
@@ -100,7 +109,7 @@ describe("#68 unpaidPaymentSweep", () => {
 
 describe("#71 dailyOrderDigest", () => {
   it("reads a bounded window of paid orders and the private record only for open orders", () => {
-    const job = block("exports.dailyOrderDigest = onSchedule(", "// Secret for signing unsubscribe links");
+    const job = jobBlock("const dailyOrderDigest = onSchedule(", "const weeklySummary =");
     expect(job).toContain('.where("createdAt", ">=", digestSince())');
     expect(job).toContain(".limit(DIGEST_ORDER_LIMIT)");
     expect(job).not.toContain('db.collection("order-operations").get()');
@@ -118,7 +127,7 @@ describe("#71 dailyOrderDigest", () => {
 });
 
 describe("#82 abandonedCartSweep", () => {
-  const sweep = block("exports.abandonedCartSweep = onSchedule(", "// 7. HTTP Endpoint: Validate Address via Shippo");
+  const sweep = jobBlock("const abandonedCartSweep = onSchedule(", "const storageImageSweep =");
   it("reads only the 7-day window, newest first, capped, with a longer timeout", () => {
     expect(sweep).toMatch(/timeoutSeconds:\s*300/);
     expect(sweep).toContain('.where("updatedAt", ">=", oldestUpdated)');
@@ -143,6 +152,6 @@ describe("#82 abandonedCartSweep", () => {
     expect(deleted).toEqual(["r1", "r2", "r3"]);
     const cutoff = new Date(now - CART_KEEP_DAYS * 86400000).toISOString();
     expect(queries.every(f => f.some(x => x.field === "updatedAt" && x.op === "<" && x.value === cutoff))).toBe(true);
-    expect(source).toContain("pruneOldCarts(db)");
+    expect(jobsSource).toContain("pruneOldCarts(db)");
   });
 });

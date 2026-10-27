@@ -30,6 +30,9 @@ Server side: Stripe/PayPal, webhooks, refunds, stock holds, gift cards, discount
   Whole endpoints move the same way: `shippoEndpoints.js` (`shippoEndpoints`, built as `shippo` just above
   `exports.getShippoConfig`) holds the Shippo config, dynamic rates, saved key, checkout rates, address check and
   tracking webhook; index.js keeps each `exports.<name> = shippo.<name>;` line where it was.
+  `scheduledJobs.js` (`scheduledJobs`, built as `jobs` just above `exports.dailyOrderDigest`) holds the daily digest,
+  weekly summary, abandoned bag sweep, photo sweep and back-in-stock sweep; the requires and `RESTOCK_BUDGET_MS` they
+  need sit above that call, since a `const` must exist before the factory runs.
 - **Shipping labels (26 October 2026):** `createShippingLabel` lives in `functions/shippingLabels.js` the same way:
   `shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors, admin, requireAdmin, db, getShippoToken,
   callShippo, IS_EMULATOR, originAddress, getStateCode, getCountryCode })`, and index.js keeps the
