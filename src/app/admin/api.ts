@@ -9,7 +9,7 @@ import { PRIVATE_BOOK_KEYS, mergeBookPrivate, privateKeysIn, splitBookPrivate } 
 import { cleanRedirects, REDIRECTS_DOC, type Redirect } from "../features/site/redirects";
 import { BOOK_FIELDS_DOC, cleanBookFields, type BookFieldDef } from "../features/site/bookFields";
 import { alternatesFor, type AltBase, type AlternateTemplate } from "../features/site/templateAlternates";
-import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
+import { newOrderAccessKey, rememberOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
 import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
 import { deleteRefusal } from "./orderListHelpers";
 import { restampPreorderItems } from "../features/site/preorder";
@@ -19,6 +19,7 @@ import { splitWebsiteSecrets, splitNotificationSecrets, resendKeyProblem, type S
 import { toCountryCodes } from "./shippingCountries";
 import { keepPhotoCopies, removedPhotos, shownUrls, unusedBookFiles } from "./bookFileCleanup";
 import { mediaApi } from "./mediaApi";
+import { auditLog } from "./auditLog";
 /** Cache-Control for uploaded shop pictures (mirrors functions/imageCopies.js IMMUTABLE). */
 export const PUBLIC_FILE_CACHE = "public, max-age=31536000, immutable";
 
@@ -52,7 +53,6 @@ import {
   runTransaction,
   deleteField,
   serverTimestamp,
-  increment,
   Timestamp,
 } from "firebase/firestore";
 import { 
@@ -72,8 +72,8 @@ const loadLegacy = () => import("../../lib/legacyFirebase");
 import { CATEGORIES } from "../features/site/constants";
 import { appendCategory, categoryBookPatch, directlyAssigned, type CategoryAction } from "./studio/categoryManager";
 import { normalizeCategories } from "../features/site/navItems";
-import { RISO_NOIR_ID, RISO_NOIR_TOKENS, withRisoNoirDefault } from "../features/site/risoNoir";
-import type { Book, Page, SiteSettings } from "../features/site/types";
+import { withRisoNoirDefault } from "../features/site/risoNoir";
+import type { Page } from "../features/site/types";
 import { validateLocalFulfillment } from "../features/site/localFulfillment";
 import type { LocalFulfillmentConfig } from "../features/site/types";
 import { dailyTrafficBetween } from "./dailyTrafficCache";
@@ -958,11 +958,7 @@ export const adminApi = {
   getDefaultSettings: defaultSettings,
 
   // Audit Log
-  getAuditLog: async (limitCount = 100) => {
-    const q = query(collection(db, "audit-log"), orderBy("createdAt", "desc"), limit(limitCount));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  },
+  getAuditLog: (limitCount = 100) => auditLog.list(limitCount),
 
   // ORDERS
   // Every order, newest first, read in pages so nothing is cut off at a fixed count.
@@ -1960,15 +1956,5 @@ export const adminApi = {
     }
   },
 
-  recordAuditLog: async (type: string, message: string) => {
-    try {
-      await addDoc(collection(db, "audit-log"), {
-        type,
-        message,
-        createdAt: new Date().toISOString()
-      });
-    } catch (err) {
-      console.warn("Could not save audit log:", err);
-    }
-  },
+  recordAuditLog: (type: string, message: string) => auditLog.record(type, message),
 };

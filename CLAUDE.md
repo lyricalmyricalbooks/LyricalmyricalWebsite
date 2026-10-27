@@ -168,7 +168,8 @@ npm run logs
   empty and any type error now fails CI; keep new code strict-clean.
 - **Lint:** `pnpm run lint` (`scripts/lint-ratchet.mjs`, CI step in `test`) runs oxlint with `.oxlintrc.json` (correctness
   rules, `react-hooks/rules-of-hooks`, unused variables; `_`-prefixed names are allowed) over `src`, `functions`, `scripts`
-  and fails when a file gains problems over `scripts/lint-baseline.json`; run with `--update` after fixing some. React
+  and fails when a file gains problems over `scripts/lint-baseline.json`; run with `--update` after fixing some. The baseline has been empty since 27 October 2026 (all 94 old unused names removed), so any new
+  problem fails CI. React
   Compiler rules and `exhaustive-deps` are off on purpose (fixing them changes behaviour). Functions named `use…` are hooks
   to the linter: don't name a plain helper that way.
 - Use `pnpm install` (the lockfile pins `react`/`react-dom` 18.3.1, which are optional peer deps —

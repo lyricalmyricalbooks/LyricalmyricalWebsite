@@ -40,7 +40,6 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
   const fourCol = d?.footerLayout === "4col";
   // "Multi-column footer" off → the columns stack into one.
   const multiColumn = d?.footerColumns !== false;
-  const headingFontFamily = d?.headingFont ? `'${d.headingFont}', serif` : undefined;
   // Typography › Logo wordmark font, like the header's logo (LogoMark); empty = the heading font.
   const wordmarkFontFamily = (d?.wordmarkFont || d?.headingFont) ? `'${d.wordmarkFont || d.headingFont}', serif` : undefined;
   // Footer logo picture: "image" (instead of the name) or "both" (above it); empty = the name only, as before.

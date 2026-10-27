@@ -8,7 +8,7 @@ import { discountCategoryChoices } from "../features/site/discountCategories";
 import { discountState as state, today } from "./discountState";
 import { discountPerformance, duplicateDiscount, perfKey } from "./discountPerformance";
 import { validateDiscountDraft, draftFrom } from "./discountValidation";
-import { describeDiscount, tierSummary } from "./discountDescribe";
+import { describeDiscount } from "./discountDescribe";
 import { copyText } from "./clipboard";
 import { discountShareLink } from "../features/site/sharedDiscount";
 import { MAX_BATCH, batchCodes, cleanPrefix, codesCsv, randomCode } from "./discountCodes";

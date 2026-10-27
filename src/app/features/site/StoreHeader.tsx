@@ -14,7 +14,7 @@ import { PHONE_MAX } from "./breakpoints";
 import { isLiveBook } from "./liveBook";
 import { MobileStorefrontNav } from "./MobileStorefrontNav";
 import { NavDropdown, selectInPlace, type NavDropdownEntry } from "./NavDropdown";
-import { buildNavItems, childCategories, parentOf, referenceNavCategories, splitNavigation, usesReferenceHeader, type NavItem } from "./navItems";
+import { buildNavItems, childCategories, referenceNavCategories, splitNavigation, usesReferenceHeader, type NavItem } from "./navItems";
 // Search loads the first time it opens (button, Ctrl/⌘+K or Studio's Search pop-over), not with every page.
 const SearchOverlay = lazy(() => import("./SearchOverlay").then(m => ({ default: m.SearchOverlay })));
 import { SecondaryStorefrontNav } from "./SecondaryStorefrontNav";

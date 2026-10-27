@@ -192,7 +192,6 @@ export function auditDocument(doc: Document, win: Window = doc.defaultView as Wi
   for (const img of Array.from(body.querySelectorAll("img")).filter(i => !skip(i))) {
     if (!shown(img)) continue;
     const owner = ownerOf(img);
-    const linked = img.closest("a[href],button");
     if (!img.hasAttribute("alt")) {
       add("alt", { category: "images", severity: "issue", owner, element: img, title: "A picture has no description",
         detail: "Screen readers can't describe it. Add a description (alt text) in the picture's field, or in Media for library pictures." });

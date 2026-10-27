@@ -75,7 +75,6 @@ import { CheckoutOrderSummary } from "./features/site/CheckoutOrderSummary";
 // ─── Main component ───────────────────────────────────────────────────────────
 
 // Practical email check before any order is created: something@domain.tld, no spaces.
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 // Stripe and PayPal refuse charges below about 50 cents in CAD, USD and EUR.
 const MIN_CARD_CHARGE = 0.5;
 

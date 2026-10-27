@@ -303,7 +303,6 @@ function shippingLabelEndpoints({ onBrowserRequest, SHIPPO_API_TOKEN, applyCors,
         const shippoOrderBody = () => {
           const currency = (order.checkoutCurrency || order.currency || "CAD").toUpperCase();
           const orderItems = (order.items || []).filter(item => item && isPhysicalItem(item));
-          const orderQty = orderItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
           return {
             to_address: addressTo,
             from_address: addressFrom,

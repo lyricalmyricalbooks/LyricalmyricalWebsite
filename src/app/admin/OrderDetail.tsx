@@ -31,7 +31,6 @@ import { usePhone } from "./usePhone";
 import { inventoryOrderUrl, orderInInventoryApp, useInventoryLink } from "./appSwitch";
 import { InventoryOrderLink } from "./AppSwitcher";
 import toast from "react-hot-toast";
-import { formatGrams } from "../features/site/metricWeight";
 import {
   ActionMenu,
   Checkbox,

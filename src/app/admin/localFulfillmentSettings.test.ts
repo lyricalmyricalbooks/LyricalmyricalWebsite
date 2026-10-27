@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const { tx, records } = vi.hoisted(() => {
+const { tx } = vi.hoisted(() => {
  const records = new Map<string, any>();
  const tx = { get: vi.fn(async (ref: any) => ({ exists: () => records.has(ref.path), data: () => records.get(ref.path) })), update: vi.fn(), set: vi.fn() };
  return { tx, records };

@@ -32,8 +32,7 @@ import { QuickView } from "../features/site/QuickView";
 import { isEmailAddress, subscribeNewsletter } from "../features/site/newsletterSignup";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
 import { SectionPageContext } from "./sectionCopy";
-import { useWishlist, liveWishlistCount } from "../lib/wishlist";
-import { isLiveBook } from "../features/site/liveBook";
+import { useWishlist } from "../lib/wishlist";
 import { displayPrice as cardDisplayPrice, showsSale, salePercentOff } from "../features/site/displayPrice";
 import { useSEO } from "../lib/seo";
 import { ga4FilterUse } from "../lib/ga4";
@@ -373,7 +372,7 @@ function collectionCategory(collectionSlug: string, categories: any[]): any {
   return categories.find((c: any) => categoryNames(c).some((n: string) => slugOf(n) === collectionSlug)) ?? "ALL";
 }
 
-export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
+export default function MainSite({ setShowCatalog, showCatalog }: any) {
   // Landing here as server-rendered HTML: the books are already on screen, so they don't fade in a second time.
   const [skipEntrance] = useState(arrivedPrerendered);
   const navigate = useNavigate();
@@ -401,7 +400,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontLogoDesign = resolveLogoDesign(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
   const storefrontLogoPosition = resolveLogoPosition(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   // Prioritize global categories if they exist (new behavior), otherwise fall back to storefront or legacy
   // Published designs can outlive older editor schemas. Never let a malformed
   // legacy category value crash the storefront when returning from checkout.
@@ -585,8 +583,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     return () => observer.disconnect();
   }, [autoLoad, autoRounds, hasMoreBooks, filteredItems.length, pageSize]);
 
-  const { has: isWished, toggle: toggleWish, ids: wishedIds } = useWishlist();
-  const wishlistCount = liveWishlistCount(wishedIds, books, isLiveBook);
+  const { has: isWished, toggle: toggleWish } = useWishlist();
 
   const getBookSlug = (book: Book) =>
     (book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -713,15 +710,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       : storefrontDesktopColumns === 6
       ? "lg:grid-cols-6"
       : "lg:grid-cols-4";
-
-  const scroll = (direction: 'left' | 'right') => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollBy({
-        left: direction === 'left' ? -300 : 300,
-        behavior: 'smooth'
-      });
-    }
-  };
 
   if (loading) {
     return (

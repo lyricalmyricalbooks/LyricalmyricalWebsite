@@ -4,8 +4,7 @@ import { markOwnerDeviceOnSignIn, SHOP_OWNER_EMAIL } from "../lib/ownerDevice";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import {
-  BookOpen, Settings, LayoutDashboard, LogOut, History, Tag, BadgePercent,
-  Layers, ShoppingCart, Globe, Menu, HelpCircle, Sun, Moon, ChevronDown,
+  BookOpen, LogOut, History, Globe, Menu, HelpCircle, Sun, Moon, ChevronDown,
 } from "lucide-react";
 
 import { Login } from "./Login";
@@ -24,7 +23,7 @@ import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
 import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
-  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot, type NavEntry,
+  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";

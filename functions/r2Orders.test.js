@@ -81,7 +81,6 @@ function harness({ order = baseOrder(), ops = {}, books, secret = "shippo_live_t
   return { call, label, docs, calls, log, exports: module.exports, ops: () => docs["order-operations"].A, order: () => docs.orders.A };
 }
 
-const quotedOps = { quotedShipmentId: "sh_1" };
 const quotedFor = order => ({ quotedShipmentId: "sh_1", quotedAddress: JSON.stringify(order.customer.address) });
 const shipmentRates = [{ object_id: "r1", provider: "Canada Post", amount: "12.00", servicelevel: { name: "Expedited Parcel", token: "canada_post_expedited_parcel" } }];
 

@@ -1,7 +1,7 @@
 // Studio 2.8: a page using an alternate template shows that template's sections; one without its own shows the default's.
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 const { StaticRouter } = await import("react-router");
 const { TemplateSections } = await import("./sectionRender");

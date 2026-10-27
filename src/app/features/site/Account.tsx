@@ -33,7 +33,7 @@ import {
 import { auth, db, googleProvider } from "../../../lib/firebase";
 import { 
   ArrowLeft, LogOut, Package, Heart, MapPin, User as UserIcon, Loader2, 
-  ChevronDown, ChevronUp, Copy, Check, Mail, ExternalLink, Download 
+  ChevronDown, ChevronUp, Mail, ExternalLink, Download 
 } from "lucide-react";
 import { useSEO } from "../../lib/seo";
 import { useWishlist, liveWishlistCount } from "../../lib/wishlist";
@@ -44,7 +44,6 @@ import { getCopy } from "./storeCopy";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
-import { adminApi } from "../../admin/api";
 import { functionUrl } from "../../lib/functionsBase";
 import toast from "react-hot-toast";
 import { useCart } from "../../CartContext";

@@ -36,7 +36,6 @@ function setMeta(selector: string, attr: string, value: string) {
   let el = document.head.querySelector(selector) as HTMLMetaElement | null;
   if (!el) {
     el = document.createElement("meta");
-    const [, key] = selector.match(/\[(name|property)="([^"]+)"\]/) ?? [];
     if (selector.includes("name=")) {
       el.setAttribute("name", selector.match(/name="([^"]+)"/)![1]);
     } else if (selector.includes("property=")) {

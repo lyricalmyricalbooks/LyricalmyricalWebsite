@@ -16,8 +16,8 @@ import { CHART_METRICS, type ChartMetric } from "./overviewSeries";
 import { readLocalBoards, readRemoteBoards, writeLocalBoards, writeRemoteBoards } from "./overviewBoardStore";
 import { OVERVIEW_HASH_EVENT } from "../adminRoute";
 import {
-  DEFAULT_TAB, groupOf, hashForTab, readSavedTab, saveTab, settleTab, tabForType, tabFromHash, topTabs, visitorGroups,
-  type OverviewTab, type TopTab, type VisitorGroup,
+  DEFAULT_TAB, hashForTab, readSavedTab, saveTab, settleTab, tabForType, tabFromHash, topTabs,
+  type OverviewTab, type TopTab,
 } from "./overviewTabs";
 
 export type SaveState = "loading" | "saving" | "saved" | "local" | "error";
@@ -502,7 +502,6 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
 
   const allFolded = board.bands.every(b => b.collapsed || b.widgets.every(w => w.collapsed));
   const bands = visibleBands(board, editing);
-  const subGroups = visitorGroups(board);
   // The bands and widgets the open tab shows. Editing shows a whole topic, so moving a widget never skips hidden ones.
   const shownBands = tab.band === "all" ? bands : bands.filter(b => b.id === tab.band);
   const shownWidgets = (band: BoardBand) => band.widgets;
