@@ -44,3 +44,28 @@ describe("review fixes", () => {
     expect(alerts.find((a) => a.id === "inventory-link-exchange")).toMatchObject({ tone: "warning", action: "inventory" });
   });
 });
+
+describe("details that differ from the app", () => {
+  const diff = (id: string, field: string, shop: string, app: string, title = "The Hound") =>
+    ({ id, inventoryBookId: "hound", bookId: "b1", variantId: null, field, title, shop, app });
+  it("leaves out a difference kept as is until one of its values changes", async () => {
+    const { detailDiffs, detailSignature } = await import("./inventoryLink");
+    const items = [diff("hound|price", "price", "65.00", "70.00"), diff("hound|author", "author", "Ana", "Ana Lee")];
+    const kept = { "hound|price": detailSignature(items[0]) };
+    expect(detailDiffs({ detailDiffs: { items }, keptDetails: kept }).map((d) => d.id)).toEqual(["hound|author"]);
+    // The app's price changed again: it is asked about again.
+    expect(detailDiffs({ detailDiffs: { items: [diff("hound|price", "price", "65.00", "72.00")] }, keptDetails: kept })).toHaveLength(1);
+    expect(detailDiffs({})).toEqual([]);
+  });
+  it("words the values for the owner", async () => {
+    const { detailText } = await import("./inventoryLink");
+    expect(detailText("price", "40.00")).toBe("CA$40.00");
+    expect(detailText("isbn", "")).toBe("Not filled in");
+  });
+  it("raises one alert naming the books, opening the link page", () => {
+    const alerts = inventoryLinkAlerts({ ...base, detailDiffs: { items: [diff("hound|price", "price", "65.00", "70.00"), diff("hound|title", "title", "Hound", "The Hound")] } }, NOW);
+    const alert = alerts.find((a) => a.id === "inventory-link-details");
+    expect(alert).toMatchObject({ tone: "info", action: "inventory" });
+    expect(alert?.title).toBe("1 book's details differ from the inventory app");
+  });
+});

@@ -623,9 +623,100 @@ function cleanAppTodo(todo) {
   };
 }
 
+/* ── Book details in step, and one search (docs/INVENTORY_LINK.md › Book details in step, and one search) ── */
+
+const MAX_LINKED = 500;
+const MAX_DETAILS = 100;
+const MAX_APP_INDEX = 1000;
+const DETAIL_FIELDS = ["title", "author", "isbn", "price"];
+
+/** Every printed website edition matched to an app book, for the app (`websiteLink/catalog.linked`). */
+function linkedForApp(books, links) {
+  const byId = new Map((books || []).map(b => [b.id, b]));
+  const rows = linkableEditions(books).map(e => ({ e, inventoryBookId: linkFor(links, e.bookId, e.variantId) })).filter(r => r.inventoryBookId);
+  const shared = new Map();
+  for (const r of rows) shared.set(r.inventoryBookId, (shared.get(r.inventoryBookId) || 0) + 1);
+  return rows.slice(0, MAX_LINKED).map(({ e, inventoryBookId }) => {
+    const book = byId.get(e.bookId) || {};
+    const variant = e.variantId ? (book.variants || []).find(v => v && v.id === e.variantId) : null;
+    return {
+      key: e.key, bookId: e.bookId, variantId: e.variantId, inventoryBookId, title: text(book.title, 200), edition: text(e.edition, 100),
+      author: text(book.subtitle || book.authorName, 200), isbn: text(e.isbn, 40),
+      price: positivePrice(variant && variant.price !== undefined && variant.price !== "" ? variant.price : book.retailPrice),
+      sharedWith: shared.get(inventoryBookId),
+    };
+  });
+}
+
+/** A value tidied for comparing (see the contract): spaces folded, ISBN bare, price with two decimals. */
+function detailValue(field, value) {
+  if (field === "price") return Number(value) > 0 ? (Math.round(Number(value) * 100) / 100).toFixed(2) : "";
+  const v = String(value ?? "").trim().replace(/\s+/g, " ");
+  if (field === "isbn") return v === "—" ? "" : v.replace(/[\s-]+/g, "").toUpperCase();
+  return v;
+}
+
+/** The book details the two apps disagree on (the rule both apps share; tested against docs/link-details-fixture.json). */
+function detailDifferences(linked, appBooks) {
+  const app = new Map((appBooks || []).filter(b => b && b.id).map(b => [b.id, b]));
+  const groups = new Map();
+  for (const row of linked || []) {
+    if (!row || !row.inventoryBookId) continue;
+    if (!groups.has(row.inventoryBookId)) groups.set(row.inventoryBookId, []);
+    groups.get(row.inventoryBookId).push(row);
+  }
+  const out = [];
+  for (const [inventoryBookId, rows] of groups) {
+    const theirs = app.get(inventoryBookId);
+    if (!theirs || new Set(rows.map(r => r.bookId)).size > 1) continue;
+    const first = rows[0];
+    const single = Number(first.sharedWith) === 1;
+    // Canadian dollars, as the admin's shopDraftFrom reads the app's currency.
+    const cad = /^(|cad|ca\$|c\$|\$)$/i.test(String(theirs.currency || "").trim());
+    for (const field of DETAIL_FIELDS) {
+      if ((field === "isbn" || field === "price") && !single) continue;
+      if (field === "price" && !cad) continue;
+      const shop = detailValue(field, first[field]);
+      const theirValue = detailValue(field, theirs[field]);
+      if (shop === theirValue) continue;
+      out.push({ id: `${inventoryBookId}|${field}`, inventoryBookId, bookId: first.bookId, variantId: single ? (first.variantId || null) : null,
+        field, title: text(first.title, 200), shop, app: theirValue });
+    }
+  }
+  return out.sort((a, b) => a.title.localeCompare(b.title) || DETAIL_FIELDS.indexOf(a.field) - DETAIL_FIELDS.indexOf(b.field)).slice(0, MAX_DETAILS);
+}
+
+/** A difference's signature: a "Leave as is" choice holds until either value changes. */
+const detailSignature = d => JSON.stringify([d.shop, d.app]);
+
+/** The app's books for the website admin's search (`systemStatus/inventoryLink.appBookIndex.items`). */
+function appBookIndex(appBooks) {
+  return (appBooks || []).filter(b => b && INVENTORY_ID_RE.test(b.id)).slice(0, MAX_APP_INDEX)
+    .map(b => ({ id: b.id, title: text(b.title, 200) || b.id, author: text(b.author, 200), isbn: text(b.isbn, 40).replace(/^—$/, "") }));
+}
+
+/** The patch "Use the app's" writes to the website book, or null when the field can't be written. */
+function detailPatch(book, diff) {
+  if (!book || !diff || !diff.app) return null;
+  const variants = Array.isArray(book.variants) ? book.variants : [];
+  const variant = diff.variantId ? variants.find(v => v && v.id === diff.variantId) : null;
+  if (diff.variantId && !variant) return null;
+  const withVariant = fields => ({ variants: variants.map(v => (v && v.id === diff.variantId ? { ...v, ...fields } : v)) });
+  if (diff.field === "title") return { title: diff.app };
+  if (diff.field === "author") return { subtitle: diff.app };
+  if (diff.field === "isbn") return variant && String(variant.isbn || "").trim() ? withVariant({ isbn: diff.app }) : { isbn: diff.app };
+  if (diff.field === "price") {
+    const price = Number(diff.app);
+    if (!(price > 0)) return null;
+    return variant && variant.price !== undefined && variant.price !== "" ? withVariant({ price }) : { retailPrice: price };
+  }
+  return null;
+}
+
 module.exports = {
   WEB_VERSION, websiteOrderNumber, paidDayOf, countsForInventory, pushKind, linkFor, lineKey, splitCents,
   orderFootprint, websiteOrder, stable, validateLinks, linkedEditions, liveStock, stockPlanFor, stockPatch,
   projectInventoryCatalog, isDigitalEdition, linkableEditions, suggestLinks, newMatchList, openMatches,
   smallCover, shopBooksForApp, appBooksForShop, linkRequestPlan, keptReplies, websiteTodo, cleanAppTodo,
+  linkedForApp, detailValue, detailDifferences, detailSignature, appBookIndex, detailPatch,
 };

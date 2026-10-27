@@ -3,10 +3,10 @@
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
-import type { InventoryAppBook, InventoryLinks, StockRow } from "./inventoryLink";
+import type { DetailDiff, InventoryAppBook, InventoryLinks, StockRow } from "./inventoryLink";
 
 export type LinkOp = "status" | "check" | "catalog" | "saveLinks" | "acceptMatches" | "ignoreMatches" | "setOptions" | "startSales" | "preview" | "apply" | "syncNow"
-  | "linkNewBook" | "ignoreAppBooks" | "unignoreAppBooks";
+  | "linkNewBook" | "ignoreAppBooks" | "unignoreAppBooks" | "checkDetails" | "applyDetail" | "keepDetail";
 
 export interface LinkStatus {
   state: any; undelivered: number | null; unlinkedOrders: number | null; earliestPaidDay: string | null;
@@ -44,6 +44,10 @@ export const inventoryLinkApi = {
     call<{ links: InventoryLinks; already: boolean }>("linkNewBook", { bookId, inventoryBookId, ...(variantId ? { variantId } : {}) }),
   ignoreAppBooks: (ids: string[]) => call<{ ignoredAppBooks: Record<string, string> }>("ignoreAppBooks", { ids }),
   unignoreAppBooks: (ids: string[]) => call<{ ignoredAppBooks: Record<string, string> }>("unignoreAppBooks", { ids }),
+  /** Book details that differ from the app: check again now, copy the app's value here, or leave one as is. */
+  checkDetails: () => call<{ detailDiffs: { at: string; items: DetailDiff[] } }>("checkDetails"),
+  applyDetail: (id: string, signature: string) => call<{ applied: DetailDiff; detailDiffs: { at: string; items: DetailDiff[] } }>("applyDetail", { id, signature }),
+  keepDetail: (id: string, signature: string) => call<{ keptDetails: Record<string, string> }>("keepDetail", { id, signature }),
   /** The links alone, for the stock guards (Inventory page, book editor). {} when not set up. */
   links: async (): Promise<InventoryLinks> => {
     const snap = await getDoc(doc(db, "systemStatus", "inventoryLink"));

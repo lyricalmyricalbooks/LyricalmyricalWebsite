@@ -13,6 +13,9 @@ const link = vi.hoisted(() => ({
   preview: vi.fn(),
   apply: vi.fn(),
   syncNow: vi.fn(),
+  checkDetails: vi.fn(async () => { throw new Error("offline"); }),
+  applyDetail: vi.fn(),
+  keepDetail: vi.fn(async (id: string, signature: string) => ({ keptDetails: { [id]: signature } })),
 }));
 vi.mock("./inventoryLinkApi", () => ({ inventoryLinkApi: link }));
 vi.mock("./inventoryApi", () => ({ inventoryApi: { stockAlerts: vi.fn(async () => [{ status: "waiting", email: "a@x.com", variantId: null }]) } }));
@@ -83,5 +86,34 @@ describe("InventoryLinkPanel", () => {
     const toggle = [...document.querySelectorAll("input[type=checkbox], button[role=switch]")].find((el) => el.closest("label")?.textContent?.includes("automatically") || el.getAttribute("aria-label")?.includes("automatically")) as HTMLInputElement;
     expect(toggle).toBeTruthy();
     expect(toggle.disabled).toBe(true);
+  });
+
+  it("lists details that differ and copies the app's value only after the owner confirms", async () => {
+    const price = { id: "hound|price", inventoryBookId: "hound", bookId: "b1", variantId: null, field: "price", title: "The Hound", shop: "65.00", app: "70.00" };
+    const author = { ...price, id: "hound|author", field: "author", shop: "Ana", app: "" };
+    link.status.mockResolvedValue(status({ connection: { ok: true }, links: { b1: { _: "hound" } }, detailDiffs: { at: "x", items: [price, author] } }));
+    link.checkDetails.mockResolvedValueOnce({ detailDiffs: { at: "y", items: [price, author] } });
+    link.applyDetail.mockResolvedValue({ applied: price, detailDiffs: { at: "z", items: [author] } });
+    const onStockChanged = vi.fn();
+    await mount(onStockChanged);
+    expect(link.checkDetails).toHaveBeenCalledTimes(1);
+    const text = document.body.textContent || "";
+    expect(text).toContain("Details that differ from the app");
+    expect(text).toContain("Website: CA$65.00 · Inventory app: CA$70.00");
+    // Nothing to copy from an empty app value: only "Leave as is" is offered for the author.
+    expect([...document.querySelectorAll("button")].filter((b) => b.textContent === "Use the app's")).toHaveLength(1);
+    await act(async () => { button("Use the app's").click(); });
+    await flush();
+    expect(link.applyDetail).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("Shoppers pay the new price from now on.");
+    await act(async () => { button("Use the app's price").click(); });
+    await flush();
+    expect(link.applyDetail).toHaveBeenCalledWith("hound|price", JSON.stringify(["65.00", "70.00"]));
+    expect(document.body.textContent).not.toContain("CA$70.00");
+    expect(onStockChanged).toHaveBeenCalled();
+    await act(async () => { button("Leave as is").click(); });
+    await flush();
+    expect(link.keepDetail).toHaveBeenCalledWith("hound|author", JSON.stringify(["Ana", ""]));
+    expect(document.body.textContent).not.toContain("Details that differ from the app");
   });
 });

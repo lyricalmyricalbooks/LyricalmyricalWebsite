@@ -12,6 +12,7 @@ const { FieldPath, FieldValue, AggregateField } = require("firebase-admin/firest
 const {
   pushKind, websiteOrder, linkedEditions, stockPlanFor, stockPatch, liveStock, stable, isDigitalEdition, newMatchList, openMatches,
   validateLinks, shopBooksForApp, appBooksForShop, linkRequestPlan, keptReplies, websiteTodo, cleanAppTodo,
+  linkedForApp, detailDifferences, appBookIndex,
 } = require("./inventoryLink");
 const { externalDispatchProblem } = require("./fulfillmentGuard");
 const { catalogUnitPrice } = require("./catalogPrice");
@@ -539,8 +540,10 @@ async function runSweep(deps, opts = {}) {
     // Books added to both shops since the matching step: suggest their match (one click in the panel).
     // Throttled on the last attempt, so a failing read isn't retried every five minutes.
     const lastMatchCheck = Date.parse(state.matchCheckedAt || state.newMatches?.at || "");
-    if (Object.keys(state.links || {}).length && (!Number.isFinite(lastMatchCheck) || start.getTime() - lastMatchCheck >= MATCH_EVERY_MS - 60 * 1000)) {
+    // A detail copied in the admin (detailsDirty) brings it forward, so the app sees the new value soon.
+    if (Object.keys(state.links || {}).length && (state.detailsDirty === true || !Number.isFinite(lastMatchCheck) || start.getTime() - lastMatchCheck >= MATCH_EVERY_MS - 60 * 1000)) {
       status.matchCheckedAt = iso(start);
+      status.detailsDirty = false;
       try {
         const { books, appBooks } = await loadCatalogs();
         const ignoredMatches = state.ignoredMatches || {};
@@ -550,14 +553,19 @@ async function runSweep(deps, opts = {}) {
         // Books in only one of the two: the app's books for "Add to the shop" here, the website's for "Add to the app".
         status.appOnlyBooks = { at: iso(start), items: appBooksForShop(books, appBooks, state.links, { ignoredMatches, ignoredAppBooks: state.ignoredAppBooks || {} }) };
         // Without the app's doc its dismissed books are unknown: keep the list it has rather than bring them back.
+        // Details the two apps disagree on, and the app's books for the admin search.
+        const linked = linkedForApp(books, state.links);
+        status.detailDiffs = { at: iso(start), items: detailDifferences(linked, appBooks) };
+        status.appBookIndex = { at: iso(start), items: appBookIndex(appBooks) };
         if (appRead) try {
-          await store.writeShopCatalog({ at: iso(start), books: shopBooksForApp(books, appBooks, state.links, { ignoredMatches, dismissed: appDoc?.dismissedShopBooks || {}, now: start.getTime() }) });
+          await store.writeShopCatalog({ at: iso(start), linked, books: shopBooksForApp(books, appBooks, state.links, { ignoredMatches, dismissed: appDoc?.dismissedShopBooks || {}, now: start.getTime() }) });
           status.shopCatalogError = null;
         } catch (err) { status.shopCatalogError = errText(err); console.error("inventory link: shop catalog", err); }
       } catch (err) { status.matchError = errText(err); }
     } else if (!Object.keys(state.links || {}).length && (state.newMatches || state.appOnlyBooks)) {
       status.newMatches = null;
       status.appOnlyBooks = null;
+      status.detailDiffs = null;
     }
 
     const backfillDone = (status.backfill || state.backfill)?.done === true;

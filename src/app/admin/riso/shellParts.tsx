@@ -3,6 +3,7 @@ import { ChevronDown, Construction, DoorOpen, MoreHorizontal, Search, SlidersHor
 import { adminApi } from "../api";
 import { getOrdersCached } from "../ordersCache";
 import { matchCustomers, matchOrders } from "../globalSearch";
+import { INVENTORY_APP_URL, inventoryBookUrl, inventorySearchUrl, matchAppBooks, openInventoryApp, type AppBookEntry } from "../appSwitch";
 import {
   Dialog, EmptyState, ErrorState, IconButton, LoadingState, SearchField, SecondaryButton, StatusBadge, Tabs,
   type BadgeTone,
@@ -19,13 +20,22 @@ export type SearchTarget = { key: string; label: string; kind: string; run: () =
  * Combobox over admin destinations plus the book catalog (fetched once, on
  * first focus). Arrow keys move, Enter runs, Escape closes.
  */
-export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCustomer, shortcut = true }: {
+/** Opens the inventory app at this address through the app switch (a plain new tab when the switch can't). */
+const openInApp = (url: string = INVENTORY_APP_URL) => { if (!openInventoryApp(window, url)) window.open(url, "_blank", "noopener"); };
+
+export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCustomer, shortcut = true, appBooks = null, appConnected = false, request }: {
   destinations: Array<{ id: string; label: string; run: () => void }>;
   onOpenBook: (book: any) => void;
   onOpenOrder?: (id: string) => void;
   onOpenCustomer?: (email: string) => void;
   /** Ctrl/Cmd+K focuses the box (off while a full-screen editor with its own shortcut is open). */
   shortcut?: boolean;
+  /** The inventory app's books (the link's hourly list), found too and opened in the app. */
+  appBooks?: AppBookEntry[] | null;
+  /** The inventory app link is connected: offer "Search the inventory app for …". */
+  appConnected?: boolean;
+  /** Open the search with this text (a `#search=` link from the inventory app); `n` makes a repeat count. */
+  request?: { q: string; n: number } | null;
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -68,6 +78,16 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
     return () => window.removeEventListener("keydown", onKey);
   }, [shortcut]);
 
+  // A link from the inventory app's search: open the box with its text.
+  useEffect(() => {
+    if (!request?.q) return;
+    setQ(request.q);
+    setPhoneOpen(true);
+    setOpen(true);
+    void ensureData();
+    requestAnimationFrame(() => boxRef.current?.querySelector<HTMLInputElement>("input[type='search']")?.focus());
+  }, [request?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const results = useMemo<SearchTarget[]>(() => {
     const term = q.trim().toLowerCase();
     if (!term) return [];
@@ -85,8 +105,16 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
       key: `customer-${c.email}`, label: c.name ? `${c.name} · ${c.email}` : c.email, kind: "Customer",
       run: () => onOpenCustomer(c.email),
     })) : [];
-    return [...nav, ...bk, ...ord, ...cust];
-  }, [q, books, orders, destinations, onOpenBook, onOpenOrder, onOpenCustomer]);
+    const inApp = appConnected ? [
+      ...matchAppBooks(appBooks, term).map((b) => ({
+        key: `app-${b.id}`, label: b.author ? `${b.title} · ${b.author}` : b.title, kind: APP_KIND, run: () => openInApp(inventoryBookUrl(b.id)),
+      })),
+      { key: "app-search", label: `Search the inventory app for “${q.trim()}”`, kind: APP_KIND, run: () => openInApp(inventorySearchUrl(q)) },
+    ] : [];
+    return [...nav, ...bk, ...ord, ...cust, ...inApp];
+  }, [q, books, orders, destinations, onOpenBook, onOpenOrder, onOpenCustomer, appBooks, appConnected]);
+  // What this admin found itself (the inventory app rows don't count as "something found").
+  const ownCount = results.filter((r) => r.kind !== APP_KIND).length;
 
   useEffect(() => setActive(0), [q]);
   useEffect(() => {
@@ -128,15 +156,17 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
       {open && !q.trim() && (
         <div className="rp-search-results rp-search-tip" role="note">
           Type a book title, author or ISBN, an order number (with or without #), a customer's name or email, or a page such as <em>Shipping</em>.
+          {appConnected && " Books in the inventory app are found too."}
         </div>
       )}
       {showList && (
         <ul id={listId} role="listbox" className="rp-search-results" aria-label="Search results">
-          {results.length === 0
-            ? <li role="option" aria-selected="false" aria-disabled="true"><Search size={14} aria-hidden />{" "}
+          {ownCount === 0 && (
+            <li role="option" aria-selected="false" aria-disabled="true"><Search size={14} aria-hidden />{" "}
               {booksState === "loading" || booksState === "idle" ? "Loading…"
-                : booksState === "error" ? "Couldn't load books — keep typing to try again" : `Nothing matches “${q.trim()}”`}</li>
-            : results.map((r, i) => (
+                : booksState === "error" ? "Couldn't load books — keep typing to try again" : `Nothing on the website matches “${q.trim()}”`}</li>
+          )}
+          {results.map((r, i) => (
               <Fragment key={r.key}>
                 {r.kind !== results[i - 1]?.kind && <li role="presentation" className="rp-search-group">{GROUP_LABEL[r.kind] || r.kind}</li>}
                 <li id={`${listId}-${i}`} role="option" aria-selected={i === active}
@@ -151,7 +181,8 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
   );
 }
 
-const GROUP_LABEL: Record<string, string> = { "Go to": "Admin pages", Book: "Books", Order: "Orders", Customer: "Customers" };
+const APP_KIND = "Inventory app";
+const GROUP_LABEL: Record<string, string> = { "Go to": "Admin pages", Book: "Books", Order: "Orders", Customer: "Customers", [APP_KIND]: "In the inventory app" };
 
 /* ── Activity logs ───────────────────────────────────────────────────── */
 
