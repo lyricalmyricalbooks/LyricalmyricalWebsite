@@ -60,6 +60,9 @@ const { hitLimit, LIMITS, clientIpOf, serverGeoCountry } = require("./rateLimit"
 const { cleanReport, recordClientError } = require("./clientErrors");
 const { ADDRESS_ACTIONS, addressKeyProblem, handleAddressLookup } = require("./addressLookup");
 const { adminReportActions } = require("./adminReports");
+const { checkoutAdminActions } = require("./checkoutAdmin");
+const { privacyActions } = require("./privacyRequests");
+const { orderRequestActions } = require("./orderRequests");
 const { shippingLabelEndpoints } = require("./shippingLabels");
 const { publicErrorMessage } = require("./publicErrors");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner, holdLimitsFrom } = require("./stockHolds");
@@ -195,6 +198,7 @@ exports.deleteTestOrders = onBrowserRequest(async (req, res) => {
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
+const STRIPE_WEBHOOK_URL = "https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/stripeWebhook";
 const PAYPAL_CLIENT_ID = defineSecret("PAYPAL_CLIENT_ID");
 const PAYPAL_CLIENT_SECRET = defineSecret("PAYPAL_CLIENT_SECRET");
 const PAYPAL_WEBHOOK_ID = defineSecret("PAYPAL_WEBHOOK_ID");
@@ -1716,6 +1720,29 @@ exports.paypalWebhook = onRequest(
   }
 );
 
+const { handleVerifyStripeKeys, handleInventoryLinkAdmin, handleGiftCardAdmin, handleWebhookHealth, handleRegisterPaymentDomain } = checkoutAdminActions({
+  db, Stripe, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_URL, ALLOWED_ORIGINS, GIFT_CARD_BODIES, REQUIRED_WEBHOOK_EVENTS, webhookEndpointReport, emailGiftCard, expiryChange, giftCardId, last4, newGiftCardCode, withHistory, readAdminSecret, readBody, requireAdmin, shopTestMode, stripeSecretFor, withPrivateStripeKeys, inventoryLinkDeps,
+});
+
+// Handler tests replace sendEmail after loading index.js; this keeps the moved handlers on the current one.
+const lateSendEmail = (...args) => sendEmail(...args);
+
+const { handleCancelOrder, handleResolveMismatch, handleCheckoutStatus, handleTrackingLink, handleTrackOrder, handleOrderRequest } = orderRequestActions({
+  db, admin, crypto, ADMIN_TO, LIMITS, RESEND_API_KEY, canViewOrder, cancelRefusal, chargedRedemptions,
+  checkStripeReversal, claimEmailSend, escapeHtml, getStripeClientForMode, hitLimit, intentAsSession,
+  normMarketingEmail, orderActionBody, orderRequestIdentity, orderRequestKey, orderRequestProblem,
+  orderRequestRecord, publicErrorMessage, publicOrderView, readBody, recordStripeReconciliation,
+  releaseGiftCards, releaseStock, requireAdmin, retrieveOrderPayment, sendEmail: lateSendEmail, siteLink, stripePaymentTaken,
+});
+
+const { handleNewsletterSignup, handleNewsletterConfirm, handlePrivacyRequest, handlePrivacyAdmin } = privacyActions({
+  db, admin, ADMIN_TO, GIFT_CARD_PERSONAL, LIMITS, RESEND_API_KEY, claimEmailSendDetailed, confirmationEmail,
+  confirmedRecord, escapeHtml, findByEmailData, footerAddress, giftCardsFor, hitLimit, marketingUnsubscribeKey,
+  neverPaid, normMarketingEmail, optOutId, pendingRecord, privacyRequestRecord, publicOutboxEntry,
+  purposeToken, purposeTokenMatches, readAdminSecret, redactedOperationsFields, redactedOrderFields,
+  requireAdmin, reviewErasure, sendEmail: lateSendEmail, siteLink, unsubscribeToken,
+});
+
 // The actions createStripeCheckoutSession answers before its checkout rate limit, by body.action. Payment
 // creation, manual local orders, unsubscribe and free orders stay inline below the limit.
 const CHECKOUT_FUNCTION_ACTIONS = {
@@ -2162,14 +2189,6 @@ exports.createStripeCheckoutSession = onBrowserRequest(
   }
 );
 
-// Read-only status check for the checkout return page. Only reports on a
-// session that belongs to the given order, and never marks anything paid —
-// the webhook stays the single source of truth for payment.
-// Admin-only: register the storefront domain with Stripe so Apple Pay and
-// Google Pay appear in the card form. Only allowed origins can be registered.
-// Served through createStripeCheckoutSession (body.action) so no new public
-// function needs deploying — the CI deploy account can't set IAM on new ones.
-const STRIPE_WEBHOOK_URL = "https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/stripeWebhook";
 
 // Stripe signs every delivery with "t=<timestamp>,v1=<signature>[,…]".
 function looksLikeStripeSignature(sig) {
@@ -2184,290 +2203,12 @@ async function recordWebhookProcessingFailure(event, err) {
     lastProcessingFailure: `${event?.type || "event"}: ${String(err?.message || err).slice(0, 300)}`,
   }, { merge: true }).catch(() => {});
 }
-
-// Admin: "Test connection" — does each saved Stripe secret key work, which Stripe
-// account and mode is it, and do the publishable keys match their mode?
-async function handleVerifyStripeKeys(req, res) {
-  if (!await requireAdmin(req, res)) return;
-  try {
-    const settingsDoc = await db.collection("settings").doc("website").get();
-    const settings = settingsDoc.exists ? settingsDoc.data() || {} : {};
-    const stripeSettings = settings.payments?.stripe || {};
-    const priv = await readAdminSecret("stripe");
-    const results = {};
-    for (const mode of ["live", "test"]) {
-      const stored = mode === "live" ? priv.secretKey : priv.testSecretKey;
-      let fallback = "";
-      if (mode === "live" && !stored) { try { fallback = STRIPE_SECRET_KEY.value() || ""; } catch { fallback = ""; } }
-      const key = stored || fallback;
-      const publishable = String((mode === "live" ? stripeSettings.publicKey : stripeSettings.testPublicKey) || "").trim();
-      const r = {
-        source: stored ? "stored" : fallback ? "functions" : "none",
-        publishableKeyMode: /^pk_live_/.test(publishable) ? "live" : /^pk_test_/.test(publishable) ? "test" : publishable ? "invalid" : "missing",
-      };
-      if (key) {
-        r.keyMode = /_live_/.test(key) ? "live" : /_test_/.test(key) ? "test" : "unknown";
-        try {
-          const account = await new Stripe(key).accounts.retrieve();
-          Object.assign(r, { ok: true, accountId: account.id, accountName: account.settings?.dashboard?.display_name || account.business_profile?.name || null, chargesEnabled: account.charges_enabled !== false });
-        } catch (err) {
-          // Restricted keys may not read the account: a balance read still proves the key works.
-          try { await new Stripe(key).balance.retrieve(); Object.assign(r, { ok: true, accountId: null }); }
-          catch (err2) { Object.assign(r, { ok: false, error: err2?.message || err?.message || "Stripe rejected the key." }); }
-        }
-      }
-      results[mode] = r;
-    }
-    const activeMode = settings.payments?.testMode ? "test" : "live";
-    const sameAccount = results.live.accountId && results.test.accountId ? results.live.accountId === results.test.accountId : null;
-    res.status(200).json({ activeMode, ...results, sameAccount });
-  } catch (err) {
-    console.error("Stripe key check failed:", err);
-    res.status(500).json({ error: err.message });
-  }
-}
-
-// Admin: checks (and with fix: true repairs) the Stripe webhook endpoint for the
-// mode the shop is using. Repair adds missing events, re-enables a disabled
-// endpoint, or creates the endpoint and saves its signing secret privately in
-// adminSecrets/stripeWebhook so stripeWebhook can verify it.
-// Admin › Gift cards: issue, disable/enable, adjust a balance or resend the email. The browser
-// can read gift cards (admin only) but never write them; every change goes through here.
 // Inventory › Inventory app link (docs/INVENTORY_LINK.md). Admin only; never a payment path.
 function inventoryLinkDeps() {
   const store = require("./inventoryLinkStore");
   return { db, store, now: () => new Date(), adminUrl: siteLink("/admin") };
 }
-async function handleInventoryLinkAdmin(req, res) {
-  const adminUser = await requireAdmin(req, res);
-  if (!adminUser) return;
-  try {
-    const { inventoryLinkAdmin } = require("./inventoryLinkAdmin");
-    const { status, body } = await inventoryLinkAdmin(inventoryLinkDeps(), req.body || {}, adminUser.email || "admin");
-    res.status(status).json(body);
-  } catch (err) {
-    console.error("inventoryLink admin failed:", err);
-    res.status(500).json({ error: "The inventory app link didn't answer. Try again in a minute." });
-  }
-}
 
-async function handleGiftCardAdmin(req, res) {
-  const adminUser = await requireAdmin(req, res);
-  if (!adminUser) return;
-  const op = req.body?.op;
-  if (typeof op !== "string" || !Object.hasOwn(GIFT_CARD_BODIES, op)) return res.status(400).json({ error: "Unknown gift card action." });
-  const checked = readBody(req, res, GIFT_CARD_BODIES[op]);
-  if (!checked) return;
-  const body = { op, ...checked };
-  const actor = adminUser.email || "admin";
-  const now = new Date().toISOString();
-  try {
-    if (body.op === "issue") {
-      const amountMinor = Math.floor(Number(body.amountMinor));
-      if (!Number.isFinite(amountMinor) || amountMinor < 100 || amountMinor > 1000000) return res.status(400).json({ error: "Enter an amount between CA$1 and CA$10,000." });
-      const recipientEmail = String(body.recipientEmail || "").trim().toLowerCase().slice(0, 320);
-      if (recipientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(recipientEmail)) return res.status(400).json({ error: "Check the recipient's email address." });
-      const expiresOn = String(body.expiresOn || "").slice(0, 10);
-      if (expiresOn && !/^\d{4}-\d{2}-\d{2}$/.test(expiresOn)) return res.status(400).json({ error: "Use a date for the expiry." });
-      if (body.sendEmail === true && !recipientEmail) return res.status(400).json({ error: "Add the recipient's email address to send the code." });
-      let code = "";
-      let id = "";
-      const data = {
-        last4: "", initialMinor: amountMinor, balanceMinor: amountMinor, currency: "CAD", enabled: true,
-        ...(expiresOn ? { expiresOn } : {}),
-        recipientEmail, recipientName: String(body.recipientName || "").trim().slice(0, 100),
-        senderName: String(body.senderName || "Lyricalmyrical Books").trim().slice(0, 100),
-        message: String(body.message || "").trim().slice(0, 300), note: String(body.note || "").trim().slice(0, 500),
-        source: "admin", issuedBy: actor, holds: {},
-        history: [{ type: "issued", minor: amountMinor, actor, at: now }],
-        createdAt: now, updatedAt: now,
-      };
-      // A fresh random code; create() refuses the (astronomically unlikely) duplicate.
-      for (let attempt = 0; attempt < 3 && !id; attempt++) {
-        code = newGiftCardCode();
-        try {
-          await db.collection("giftCards").doc(giftCardId(code)).create({ ...data, code, last4: last4(code) });
-          id = giftCardId(code);
-        } catch (err) {
-          if (attempt === 2) throw err;
-        }
-      }
-      let emailError = null;
-      if (body.sendEmail === true) {
-        try {
-          await emailGiftCard(id, { ...data, code, last4: last4(code) });
-        } catch (err) {
-          emailError = err.message;
-        }
-      }
-      return res.status(200).json({ id, code, last4: last4(code), ...(emailError ? { emailError } : {}) });
-    }
-    const id = typeof body.id === "string" && /^[a-f0-9]{40}$/.test(body.id) ? body.id : "";
-    if (!id) return res.status(400).json({ error: "Missing gift card." });
-    const ref = db.collection("giftCards").doc(id);
-    if (body.op === "setEnabled") {
-      await db.runTransaction(async tx => {
-        const snap = await tx.get(ref);
-        if (!snap.exists) throw new Error("Gift card not found.");
-        const card = snap.data();
-        const enabled = body.enabled === true;
-        tx.update(ref, { enabled, history: withHistory(card, { type: enabled ? "enabled" : "disabled", minor: 0, actor, at: now }), updatedAt: now });
-      });
-      return res.status(200).json({ ok: true });
-    }
-    if (body.op === "adjust") {
-      const delta = Math.trunc(Number(body.deltaMinor));
-      const reason = String(body.reason || "").trim().slice(0, 300);
-      if (!Number.isFinite(delta) || !delta || Math.abs(delta) > 1000000) return res.status(400).json({ error: "Enter an amount to add or remove." });
-      if (!reason) return res.status(400).json({ error: "Add a reason for the change." });
-      let balanceMinor = 0, appliedMinor = 0;
-      await db.runTransaction(async tx => {
-        const snap = await tx.get(ref);
-        if (!snap.exists) throw new Error("Gift card not found.");
-        const card = snap.data();
-        const before = Math.floor(Number(card.balanceMinor) || 0);
-        balanceMinor = Math.max(0, before + delta);
-        // The history records what really changed (the balance never goes below zero), so it always sums to the balance.
-        appliedMinor = balanceMinor - before;
-        tx.update(ref, { balanceMinor, history: withHistory(card, { type: "adjusted", minor: appliedMinor, ...(appliedMinor !== delta ? { requestedMinor: delta } : {}), reason, actor, at: now }), updatedAt: now });
-      });
-      return res.status(200).json({ ok: true, balanceMinor, appliedMinor, clamped: appliedMinor !== delta });
-    }
-    if (body.op === "setExpiry") {
-      let expiresOn = "";
-      await db.runTransaction(async tx => {
-        const snap = await tx.get(ref);
-        if (!snap.exists) throw new Error("Gift card not found.");
-        const update = expiryChange(snap.data(), body.expiresOn, { actor, reason: body.reason });
-        expiresOn = update.expiresOn;
-        tx.update(ref, update);
-      });
-      return res.status(200).json({ ok: true, expiresOn });
-    }
-    if (body.op === "resend") {
-      const snap = await ref.get();
-      if (!snap.exists) return res.status(404).json({ error: "Gift card not found." });
-      const to = String(body.to || "").trim().toLowerCase();
-      await emailGiftCard(id, snap.data(), { to });
-      return res.status(200).json({ ok: true });
-    }
-    return res.status(400).json({ error: "Unknown gift card action." });
-  } catch (err) {
-    console.error("giftCardAdmin failed:", err);
-    return res.status(400).json({ error: err.message });
-  }
-}
-
-async function handleWebhookHealth(req, res) {
-  if (!await requireAdmin(req, res)) return;
-  try {
-    const testMode = await shopTestMode();
-    const mode = testMode ? "test" : "live";
-    const secret = await stripeSecretFor(mode);
-    if (!secret) { res.status(400).json({ error: `Add your Stripe ${mode} secret key first.` }); return; }
-    const stripe = new Stripe(secret);
-    const listed = await stripe.webhookEndpoints.list({ limit: 100 });
-    let report = webhookEndpointReport(listed.data, STRIPE_WEBHOOK_URL);
-    const actions = [];
-    // Stripe only reveals an endpoint's signing secret when it is created. If the
-    // signatures keep failing, replace the endpoint so a known secret is saved.
-    if (req.body?.recreate === true && report.found) {
-      await stripe.webhookEndpoints.del(report.endpointId);
-      report = webhookEndpointReport([], STRIPE_WEBHOOK_URL);
-      actions.push("Removed the old webhook endpoint (its signing secret didn't match).");
-    }
-    if (req.body?.fix === true || req.body?.recreate === true) {
-      if (!report.found) {
-        const created = await stripe.webhookEndpoints.create({
-          url: STRIPE_WEBHOOK_URL,
-          enabled_events: REQUIRED_WEBHOOK_EVENTS,
-          description: "Lyricalmyrical shop orders (created by Admin › Payments)",
-        });
-        await db.collection("adminSecrets").doc("stripeWebhook").set({ [mode]: created.secret, [`${mode}EndpointId`]: created.id, updatedAt: new Date().toISOString() }, { merge: true });
-        // A fresh endpoint with a known secret: older signature failures no longer apply.
-        await db.collection("adminSecrets").doc("stripeWebhookStatus").set({ lastFailureAt: null, lastFailure: null, resetAt: new Date().toISOString() }, { merge: true });
-        actions.push("Created the webhook endpoint in Stripe and saved its signing secret.");
-      } else {
-        const update = {};
-        if (report.missingEvents.length) {
-          const current = (listed.data.find(e => e.id === report.endpointId)?.enabled_events) || [];
-          update.enabled_events = Array.from(new Set([...current, ...report.missingEvents]));
-          actions.push(`Turned on ${report.missingEvents.length} missing event${report.missingEvents.length === 1 ? "" : "s"}: ${report.missingEvents.join(", ")}.`);
-        }
-        if (!report.enabled) { update.disabled = false; actions.push("Re-enabled the endpoint."); }
-        if (report.wrongUrl) { update.url = STRIPE_WEBHOOK_URL; actions.push("Pointed the endpoint at the shop's webhook address."); }
-        if (Object.keys(update).length) await stripe.webhookEndpoints.update(report.endpointId, update);
-      }
-      const relisted = await stripe.webhookEndpoints.list({ limit: 100 });
-      report = webhookEndpointReport(relisted.data, STRIPE_WEBHOOK_URL);
-    }
-    const status = (await db.collection("adminSecrets").doc("stripeWebhookStatus").get()).data() || {};
-    const saved = await readAdminSecret("stripeWebhook");
-    let deployedSecret = false;
-    try { deployedSecret = !!STRIPE_WEBHOOK_SECRET.value(); } catch { deployedSecret = false; }
-    const forMode = status[mode] || {};
-    res.status(200).json({
-      mode,
-      url: STRIPE_WEBHOOK_URL,
-      ...report,
-      savedSecret: !!saved[mode],
-      deployedSecret,
-      // This account's own deliveries only (older records without per-mode data fall back).
-      lastReceivedAt: forMode.lastReceivedAt || (status.lastMode === mode ? status.lastReceivedAt : null) || null,
-      lastEventType: forMode.lastEventType || (status.lastMode === mode ? status.lastEventType : null) || null,
-      lastProcessingFailureAt: status.lastProcessingFailureAt || null,
-      lastProcessingFailure: status.lastProcessingFailure || null,
-      lastFailureAt: status.lastFailureAt || null,
-      lastFailure: status.lastFailure || null,
-      actions,
-    });
-  } catch (err) {
-    console.error("Webhook health check failed:", err);
-    res.status(500).json({ error: err.message });
-  }
-}
-
-async function handleRegisterPaymentDomain(req, res) {
-  {
-    if (!await requireAdmin(req, res)) return;
-    const origin = ALLOWED_ORIGINS.find(o => o === req.body?.origin);
-    if (!origin) {
-      res.status(400).json({ error: "That address isn't an allowed storefront origin." });
-      return;
-    }
-    const domainName = new URL(origin).hostname;
-    if (domainName === "localhost" || domainName === "127.0.0.1") {
-      res.status(400).json({ error: "Wallets can't be registered for localhost." });
-      return;
-    }
-    try {
-      const settingsDoc = await db.collection("settings").doc("website").get();
-      const settings = settingsDoc.exists ? settingsDoc.data() : {};
-      const testMode = settings.payments?.testMode || false;
-      const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
-      const stripeSecret = testMode
-        ? stripeSettings.testSecretKey
-        : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
-      if (!stripeSecret) throw new Error("Stripe is not configured.");
-      const stripe = new Stripe(stripeSecret);
-      const existing = await stripe.paymentMethodDomains.list({ domain_name: domainName, limit: 1 });
-      let domain = existing.data[0];
-      if (!domain) domain = await stripe.paymentMethodDomains.create({ domain_name: domainName, enabled: true });
-      else domain = await stripe.paymentMethodDomains.validate(domain.id);
-      res.status(200).json({
-        domain: domainName,
-        applePay: domain.apple_pay?.status || "unknown",
-        googlePay: domain.google_pay?.status || "unknown",
-      });
-    } catch (err) {
-      console.error("Payment domain registration failed:", err);
-      res.status(500).json({ error: err.message });
-    }
-  }
-}
-
-// Served through createStripeCheckoutSession (body.action) so no new public
-// function needs deploying — the CI deploy account can't set IAM on new ones.
 // Marks a Stripe-paid order paid: stock, discount usage, download token and
 // analytics, once (idempotent — a repeat sees "paid" and only refreshes the
 // Stripe ids). `session` is a Checkout Session, or a PaymentIntent shaped like
@@ -2938,490 +2679,6 @@ async function recordStripeReconciliation(orderId, session) {
     if (!snap.exists || snap.data().paymentStatus === "paid") return;
     tx.update(ref, { reconciliationPending: { provider: "stripe", providerStatus: "paid", paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null, sessionId: session.id || null, checkedAt: new Date().toISOString() } });
   });
-}
-
-// Admin: cancel an unpaid order. Done in a transaction so an order that was paid a moment
-// ago (webhook) is refused instead of quietly hidden, then the payment the shopper may still
-// be completing is stopped (Stripe PaymentIntent cancelled / Checkout Session expired).
-async function handleCancelOrder(req, res) {
-  const adminUser = await requireAdmin(req, res);
-  if (!adminUser) return;
-  const body = readBody(req, res, orderActionBody);
-  if (!body) return;
-  const { orderId } = body;
-  const ref = db.collection("orders").doc(orderId);
-  try {
-    // Ask Stripe first: an order still "unpaid" here may already be paid there (missed webhook).
-    // Cancelling it would leave a charged customer with no books and no alert.
-    const before = await ref.get();
-    const pre = before.exists ? before.data() : null;
-    const intentId = String(pre?.stripePaymentIntentId || "");
-    const sessionId = String(pre?.stripeCheckoutSessionId || "");
-    let stripeCtx = null, intent = null, session = null;
-    if (pre && !cancelRefusal(pre) && (intentId.startsWith("pi_") || sessionId.startsWith("cs_"))) {
-      try {
-        stripeCtx = await getStripeClientForMode(pre.stripeMode === "test" ? "test" : "live", pre.stripeAccountId || null);
-        if (intentId.startsWith("pi_")) intent = await stripeCtx.stripe.paymentIntents.retrieve(intentId, {}, stripeCtx.requestOptions);
-        if (sessionId.startsWith("cs_")) session = await stripeCtx.stripe.checkout.sessions.retrieve(sessionId, {}, stripeCtx.requestOptions);
-      } catch (err) {
-        if (!(err?.code === "resource_missing" || err?.statusCode === 404)) {
-          return res.status(503).json({ error: "Couldn't check this payment with Stripe. Try again in a minute.", code: "stripe_unreachable" });
-        }
-      }
-      if (stripePaymentTaken(intent, session)) {
-        await recordStripeReconciliation(orderId, { id: session?.id || null, payment_intent: intent?.id || session?.payment_intent || null }).catch(() => {});
-        return res.status(409).json({ error: "Stripe shows this order as paid. Don't cancel it: resend the payment event from Stripe (Webhook health), then ship or refund it.", code: "paid_in_stripe" });
-      }
-    }
-    const order = await db.runTransaction(async tx => {
-      const snap = await tx.get(ref);
-      const current = snap.exists ? snap.data() : null;
-      const refusal = cancelRefusal(current);
-      if (refusal) {
-        const message = refusal === "paid" ? "This order has just been paid. Refund it instead of cancelling."
-          : refusal === "refunded" ? "This order is being refunded." : refusal === "missing" ? "Order not found" : "This order is already closed.";
-        const err = new Error(message); err.status = refusal === "missing" ? 404 : 409; err.code = refusal; throw err;
-      }
-      const now = new Date().toISOString();
-      tx.update(ref, {
-        status: "cancelled", cancelledAt: now, cancelledBy: adminUser.email || adminUser.uid, updatedAt: now,
-        activity: admin.firestore.FieldValue.arrayUnion({ type: "event", message: `Unpaid order cancelled by ${adminUser.email || "administrator"}.`, createdAt: now }),
-      });
-      return current;
-    });
-    // Best effort: stop a payment the shopper may still finish. A payment that slips through
-    // anyway is recorded as "paid after cancelling" by the webhook, and the sweep still checks
-    // cancelled orders with a Stripe payment.
-    const stopped = [];
-    try {
-      if (stripeCtx) {
-        const { stripe, requestOptions } = stripeCtx;
-        if (session && session.status === "open") {
-          await stripe.checkout.sessions.expire(session.id, {}, requestOptions).then(() => stopped.push("checkout")).catch(() => {});
-        }
-        if (intent && ["requires_payment_method", "requires_confirmation", "requires_action"].includes(intent.status)) {
-          await stripe.paymentIntents.cancel(intent.id, {}, requestOptions).then(() => stopped.push("card")).catch(() => {});
-        }
-      }
-    } catch (err) {
-      console.warn(`cancelOrder ${orderId}: could not stop the Stripe payment:`, err.message);
-    }
-    await releaseStock(db, orderId, order.items || []);
-    await releaseGiftCards(db, orderId, [...chargedRedemptions(order), ...(order.giftCardRedemptions || [])]);
-    return res.status(200).json({ cancelled: true, stopped });
-  } catch (err) {
-    return res.status(err.status || 500).json({ error: err.message, code: err.code });
-  }
-}
-
-// Admin: the extra/late payment on this order has been refunded in Stripe or PayPal.
-async function handleResolveMismatch(req, res) {
-  const adminUser = await requireAdmin(req, res);
-  if (!adminUser) return;
-  const body = readBody(req, res, orderActionBody);
-  if (!body) return;
-  const { orderId } = body;
-  const ref = db.collection("orders").doc(orderId);
-  const snap = await ref.get();
-  const current = snap.exists ? snap.data() : null;
-  if (!current || (!current.paymentMismatch && !current.giftCardConflict)) return res.status(404).json({ error: "Nothing to resolve on this order." });
-  const now = new Date().toISOString();
-  const by = adminUser.email || adminUser.uid;
-  await ref.update({
-    ...(current.paymentMismatch ? { "paymentMismatch.resolvedAt": now, "paymentMismatch.resolvedBy": by } : {}),
-    ...(current.giftCardConflict ? { "giftCardConflict.resolvedAt": now, "giftCardConflict.resolvedBy": by } : {}),
-    updatedAt: now,
-    activity: admin.firestore.FieldValue.arrayUnion({ type: "event", message: `Payment problem marked as refunded/resolved by ${adminUser.email || "administrator"}.`, createdAt: now }),
-  });
-  return res.status(200).json({ resolved: true });
-}
-
-async function handleCheckoutStatus(req, res) {
-  let { orderId, sessionId, paymentIntentId } = req.body || {};
-  if (typeof orderId !== "string" || !orderId || orderId.includes("/")) {
-    res.status(400).json({ error: "Missing orderId" });
-    return;
-  }
-  // Each call can reach Stripe (live and test), so it is limited per visitor like the other order-key actions.
-  if (!(await hitLimit(db, "status", req, LIMITS.status))) { res.status(429).json({ error: "Too many requests. Please wait a few minutes and try again." }); return; }
-  try {
-    const orderSnap = await db.collection("orders").doc(orderId).get();
-    if (!orderSnap.exists) { res.status(404).json({ error: "Order not found" }); return; }
-    const saved = orderSnap.data() || {};
-    if (!canViewOrder(saved, { key: orderRequestKey(req), identity: await orderRequestIdentity(req) })) return res.status(403).json({ error: "access_required" });
-    if (saved.paymentStatus === "paid") {
-      // Already paid: still ask Stripe whether it was since refunded or disputed (this is what the
-      // admin's "Sync with Stripe" relies on). Throttled to once a minute per order.
-      let paymentStatus = "paid";
-      if (String(saved.stripePaymentIntentId || "").startsWith("pi_") && !(Date.now() - Date.parse(saved.stripeCheckedAt || "") < 60 * 1000)) {
-        try {
-          await checkStripeReversal(orderId, saved, "status check");
-          paymentStatus = (await db.collection("orders").doc(orderId).get()).data()?.paymentStatus || "paid";
-        } catch (err) {
-          console.warn(`Refund/dispute check failed for ${orderId}:`, err.message);
-        }
-      }
-      res.status(200).json({ status: "complete", paymentStatus });
-      return;
-    }
-    // The tracking page and the admin may only know the order number: fall back to
-    // the payment ids this server saved on the order when it created the payment.
-    // Only the payment ids this server saved on the order are looked up: an id typed into the request
-    // that the order doesn't carry never triggers a Stripe call (#106).
-    const savedIntent = typeof saved.stripePaymentIntentId === "string" && saved.stripePaymentIntentId.startsWith("pi_") ? saved.stripePaymentIntentId : "";
-    const savedSession = typeof saved.stripeCheckoutSessionId === "string" && saved.stripeCheckoutSessionId.startsWith("cs_") ? saved.stripeCheckoutSessionId : "";
-    paymentIntentId = typeof paymentIntentId === "string" && paymentIntentId === savedIntent ? savedIntent : "";
-    sessionId = typeof sessionId === "string" && sessionId === savedSession ? savedSession : "";
-    if (!paymentIntentId && !sessionId) {
-      paymentIntentId = savedIntent;
-      sessionId = savedSession;
-    }
-    if (!paymentIntentId && !sessionId) {
-      res.status(200).json({ status: "open", paymentStatus: "unpaid" });
-      return;
-    }
-
-    const found = await retrieveOrderPayment(orderId, saved, paymentIntentId ? { paymentIntentId } : { sessionId });
-    if (!found) { res.status(404).json({ error: "Payment not found" }); return; }
-
-    if (found.intent) {
-      const intent = found.intent;
-      const settled = intent.status === "succeeded";
-      if (settled) await recordStripeReconciliation(orderId, intentAsSession(intent));
-      const status = settled ? "complete" : intent.status === "processing" ? "processing" : "open";
-      res.status(200).json({ status, paymentStatus: saved.paymentStatus, providerPaymentStatus: intent.status, awaitingWebhook: settled, mode: found.mode });
-      return;
-    }
-    const session = found.session;
-    if (session.payment_status === "paid") {
-      await recordStripeReconciliation(orderId, session);
-    }
-    res.status(200).json({ status: session.status, paymentStatus: saved.paymentStatus, providerPaymentStatus: session.payment_status, awaitingWebhook: session.payment_status === "paid", mode: found.mode });
-  } catch (err) {
-    console.error("Stripe status check failed:", err);
-    res.status(500).json({ error: publicErrorMessage(err, "Something went wrong. Please try again.") });
-  }
-}
-
-// Guest order lookup (tracking page + checkout thank-you page). Orders are not
-// publicly readable in Firestore; this returns one only to its owner: the
-// matching customer email or the private key from the order email link.
-// Served through createStripeCheckoutSession (body.action): no new public function.
-async function handleTrackingLink(req, res) {
-  const { orderId, email } = req.body || {};
-  const accepted = () => res.status(200).json({ accepted: true });
-  if (typeof orderId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(orderId) || typeof email !== "string" || email.length > 254) return accepted();
-  if (!(await hitLimit(db, "tracking-link", req, { max: 5, windowMs: 10 * 60 * 1000 }))) return res.status(429).json({ error: "too_many" });
-  try {
-    const ref = db.collection("orders").doc(orderId);
-    let order = null;
-    await db.runTransaction(async tx => {
-      order = null;
-      const snap = await tx.get(ref);
-      if (!snap.exists) return;
-      const saved = snap.data();
-      if (normMarketingEmail(saved.customer?.email) !== normMarketingEmail(email)) return;
-      if (Date.now() - Date.parse(saved.trackingLinkSentAt || "") < 60_000) return;
-      const trackingKey = typeof saved.trackingKey === "string" && /^[a-f0-9]{32,64}$/.test(saved.trackingKey) ? saved.trackingKey : crypto.randomBytes(32).toString("hex");
-      tx.update(ref, { trackingKey, trackingLinkSentAt: new Date().toISOString() });
-      order = { ...saved, trackingKey };
-    });
-    if (order) {
-      const settings = (await db.collection("settings").doc("website").get()).data() || {};
-      const copy = settings.design?.copy || {};
-      const url = siteLink(`/track?orderId=${encodeURIComponent(orderId)}&key=${order.trackingKey}`);
-      await sendEmail({ to: order.customer.email, secret: RESEND_API_KEY.value(),
-        subject: String(copy.trackLinkEmailSubject ?? "Your secure order link"),
-        html: `<p>${escapeHtml(copy.trackLinkEmailIntro ?? "Use this private link to view your order and delivery updates.")}</p><p><a href="${escapeHtml(url)}">${escapeHtml(copy.trackLinkEmailButton ?? "View my order")}</a></p>` });
-    }
-  } catch (err) { console.warn("Tracking link could not be sent:", err.message); }
-  return accepted();
-}
-
-async function handleTrackOrder(req, res) {
-  const { orderId } = req.body || {};
-  if (typeof orderId !== "string" || !orderId || orderId.length > 64 || orderId.includes("/")) {
-    res.status(400).json({ error: "not_found" });
-    return;
-  }
-  if (!(await hitLimit(db, "track", req, LIMITS.track))) {
-    res.status(429).json({ error: "too_many" });
-    return;
-  }
-  try {
-    const snap = await db.collection("orders").doc(orderId).get();
-    if (!snap.exists) { res.status(404).json({ error: "not_found" }); return; }
-    const order = snap.data() || {};
-    if (!canViewOrder(order, { key: orderRequestKey(req), identity: await orderRequestIdentity(req) })) {
-      res.status(403).json({ error: "email_mismatch" });
-      return;
-    }
-    res.status(200).json({ order: publicOrderView(snap.id, order) });
-  } catch (err) {
-    console.error("Order lookup failed:", err);
-    res.status(500).json({ error: "failed" });
-  }
-}
-
-// A shopper asks to cancel an order or to return it. Same proof as order tracking (email
-// or the emailed key). Nothing about money or stock changes here: the request is put on
-// the order (Orders › Needs attention) and the shop is emailed to decide.
-async function handleOrderRequest(req, res) {
-  const { orderId, email, key, type, message } = req.body || {};
-  if (typeof orderId !== "string" || !orderId || orderId.length > 64 || orderId.includes("/")) {
-    res.status(400).json({ error: "not_found" });
-    return;
-  }
-  if (!(await hitLimit(db, "track", req, LIMITS.track))) {
-    res.status(429).json({ error: "too_many" });
-    return;
-  }
-  try {
-    const orderRef = db.collection("orders").doc(orderId);
-    let problem = null;
-    let order = null;
-    const identity = await orderRequestIdentity(req);
-    await db.runTransaction(async tx => {
-      const snap = await tx.get(orderRef);
-      order = snap.exists ? snap.data() : null;
-      if (order && !canViewOrder(order, { key: orderRequestKey(req), identity })) {
-        problem = "email_mismatch";
-        return;
-      }
-      problem = orderRequestProblem(order, type);
-      if (problem) return;
-      const record = orderRequestRecord(type, message);
-      tx.update(orderRef, {
-        customerRequest: record,
-        updatedAt: record.createdAt,
-        activity: [...(order.activity || []), { type: "event", message: `Customer asked to ${type === "cancel" ? "cancel this order" : "return this order"}${record.message ? `: "${record.message}"` : "."}`, createdAt: record.createdAt }],
-      });
-      order = { ...order, customerRequest: record };
-    });
-    if (problem) {
-      res.status(problem === "not_found" ? 404 : problem === "email_mismatch" ? 403 : 409).json({ error: problem });
-      return;
-    }
-    const request = order.customerRequest;
-    // The request itself is saved on the order; the shop-wide email budget only decides whether it is also mailed.
-    if (await claimEmailSend(db, "orderRequestNotify", orderId, { failOpen: true })) await sendEmail({
-      queue: "orderRequest",
-      secret: RESEND_API_KEY.value(),
-      to: ADMIN_TO,
-      subject: `${request.type === "cancel" ? "Cancellation" : "Return"} request · order ${orderId}`,
-      html: `<p>${escapeHtml(order.customer?.name || order.customer?.email || "A customer")} asked to <strong>${request.type === "cancel" ? "cancel" : "return"}</strong> order <strong>${escapeHtml(orderId)}</strong>.</p>${request.message ? `<blockquote>${escapeHtml(request.message)}</blockquote>` : ""}<p>Open it in Admin › Orders (Needs me). Refunds and cancellations are done from the order as usual; mark the request handled when you have replied.</p>`,
-    }).catch(err => console.warn("order request email failed:", err.message));
-    res.status(200).json({ order: publicOrderView(orderId, order) });
-  } catch (err) {
-    console.error("Order request failed:", err);
-    res.status(500).json({ error: "failed" });
-  }
-}
-
-// ──────────────────────────────────────────────────────────────
-// Newsletter double opt-in. Signup stores a PENDING record (+ consent text and time) and mails a signed
-// confirmation link; only the link makes the address a subscriber. Browsers never write `newsletter`
-// (firestore.rules), so a stranger cannot seed the list. Unsubscribe is the shared signed link
-// (`action: "unsubscribe"`), which deletes newsletter/<email> and records the opt-out.
-// ──────────────────────────────────────────────────────────────
-const newsletterLinks = async email => {
-  const key = await marketingUnsubscribeKey();
-  const e = encodeURIComponent(normMarketingEmail(email));
-  return {
-    confirmUrl: siteLink(`/track?newsletter_confirm=1&e=${e}&t=${purposeToken(email, key, "newsletter-confirm")}`),
-    unsubscribeUrl: siteLink(`/track?unsubscribe=1&e=${e}&t=${unsubscribeToken(email, key)}`),
-  };
-};
-
-async function handleNewsletterSignup(req, res) {
-  if (!(await hitLimit(db, "track", req, LIMITS.track))) return res.status(429).json({ error: "too_many" });
-  const email = normMarketingEmail(req.body?.email);
-  if (!/^[^\s@/]+@[^\s@/]+\.[^\s@/]{2,}$/.test(email) || email.length > 254) return res.status(400).json({ error: "invalid" });
-  try {
-    const ref = db.collection("newsletter").doc(email);
-    const existing = await ref.get();
-    // Already confirmed (or a legacy subscriber): nothing to send, and the answer looks the same.
-    if (existing.exists && existing.data()?.status !== "pending") return res.status(200).json({ ok: true });
-    const claim = await claimEmailSendDetailed(db, "newsletterConfirm", email, { failOpen: false });
-    if (!claim.allowed) {
-      // A confirmation went to this address in the last day: stay quiet. Over the shop-wide budget: ask to retry.
-      if (claim.reason === "address") return res.status(200).json({ ok: true });
-      return res.status(429).json({ error: "busy" });
-    }
-    await ref.set(pendingRecord(email, req.body?.source, new Date().toISOString()));
-    const { confirmUrl, unsubscribeUrl } = await newsletterLinks(email);
-    const website = (await db.collection("settings").doc("website").get()).data() || {};
-    const mail = confirmationEmail({ shopName: "Lyricalmyrical Books", confirmUrl, unsubscribeUrl, address: footerAddress(website.location) });
-    await sendEmail({ queue: "newsletterConfirm", secret: RESEND_API_KEY.value(), to: email, subject: mail.subject, html: mail.html })
-      .catch(err => console.warn("newsletter confirmation email failed:", err.message));
-    return res.status(200).json({ ok: true });
-  } catch (err) {
-    console.error("Newsletter signup failed:", err);
-    return res.status(500).json({ error: "failed" });
-  }
-}
-
-async function handleNewsletterConfirm(req, res) {
-  if (!(await hitLimit(db, "track", req, LIMITS.track))) return res.status(429).json({ error: "too_many" });
-  const email = normMarketingEmail(req.body?.email);
-  const key = (await readAdminSecret("marketing")).unsubscribeKey;
-  if (!email || !purposeTokenMatches(email, String(req.body?.token || ""), key, "newsletter-confirm")) return res.status(400).json({ error: "invalid_link" });
-  try {
-    const ref = db.collection("newsletter").doc(email);
-    const snap = await ref.get();
-    // No record: it was removed (unsubscribed or erased) after the email went out, so the old link must not revive it.
-    if (!snap.exists) return res.status(410).json({ error: "expired" });
-    const next = confirmedRecord(snap.data(), new Date().toISOString());
-    if (next !== snap.data()) await ref.set(next);
-    return res.status(200).json({ confirmed: true });
-  } catch (err) {
-    console.error("Newsletter confirm failed:", err);
-    return res.status(500).json({ error: "failed" });
-  }
-}
-
-// A privacy request (copy of my data / delete my data). Anyone can ask, so nothing is
-// sent or deleted automatically: the shop confirms the person owns the address (reply
-// from it), then uses Settings › Privacy requests to export or erase.
-async function handlePrivacyRequest(req, res) {
-  const { email, type, message } = req.body || {};
-  if (!(await hitLimit(db, "track", req, LIMITS.track))) {
-    res.status(429).json({ error: "too_many" });
-    return;
-  }
-  const record = privacyRequestRecord(email, type, message);
-  if (!record) {
-    res.status(400).json({ error: "invalid" });
-    return;
-  }
-  try {
-    // Anyone can type any address: the same address asking again within a day adds neither a
-    // second record nor a second email, and the shop-wide email budget caps the rest. A request
-    // over the budget is still recorded (Settings › General › Privacy requests) but not mailed.
-    const claim = await claimEmailSendDetailed(db, "privacyNotify", record.email, { failOpen: true });
-    if (!claim.allowed && claim.reason === "address") {
-      res.status(200).json({ ok: true });
-      return;
-    }
-    await db.collection("privacyRequests").add(record);
-    if (!claim.allowed) {
-      res.status(200).json({ ok: true });
-      return;
-    }
-    await sendEmail({
-      queue: "privacyRequest",
-      secret: RESEND_API_KEY.value(),
-      to: ADMIN_TO,
-      subject: `Privacy request (${record.type === "delete" ? "delete data" : "copy of data"}) · ${record.email}`,
-      html: `<p><strong>${escapeHtml(record.email)}</strong> asked for ${record.type === "delete" ? "their personal data to be deleted" : "a copy of their personal data"}.</p>${record.message ? `<blockquote>${escapeHtml(record.message)}</blockquote>` : ""}<p>Confirm the request by email with that address first, then open Admin › Settings › General › Privacy requests.</p>`,
-    }).catch(err => console.warn("privacy request email failed:", err.message));
-    res.status(200).json({ ok: true });
-  } catch (err) {
-    console.error("Privacy request failed:", err);
-    res.status(500).json({ error: "failed" });
-  }
-}
-
-// Everything the shop holds about one email address (any capitalisation: see privacyData.js).
-async function personalDataFor(email) {
-  const [orders, alerts, carts, contacts, messages, newsletter, queuedEmails, emailRows, giftCards] = await Promise.all([
-    findByEmailData(db, "orders", "customer.email", email), findByEmailData(db, "stockAlerts", "email", email),
-    findByEmailData(db, "abandoned-carts", "email", email), findByEmailData(db, "reviewContacts", "email", email),
-    findByEmailData(db, "contactMessages", "email", email), db.collection("newsletter").doc(email).get(),
-    // Emails waiting in the retry queue to or about this person, and their delivery-log rows
-    // (`to` can list several recipients, so it is matched as a list).
-    db.collection("emailOutbox").where("toLower", "array-contains", email).get().then(s => s.docs),
-    findByEmailData(db, "emailLog", "to", email, { contains: true }),
-    giftCardsFor(db, email),
-  ]);
-  // Private fulfilment notes kept about the person's orders (admin-only order-operations).
-  const operations = orders.length ? (await db.getAll(...orders.map(o => db.collection("order-operations").doc(o.id)))).filter(d => d.exists) : [];
-  let user = null;
-  try { user = await admin.auth().getUserByEmail(email); } catch { user = null; }
-  const profile = user ? await db.collection("customers").doc(user.uid).get() : null;
-  const reviews = contacts.length
-    ? (await Promise.all(contacts.map(c => db.collection("reviews").doc(c.id).get()))).filter(r => r.exists)
-    : [];
-  const incompleteScan = [["orders", orders], ["stockAlerts", alerts], ["abandoned-carts", carts], ["reviewContacts", contacts], ["contactMessages", messages], ["emailLog", emailRows]].filter(([, d]) => d.truncated).map(([n]) => n);
-  return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews, queuedEmails, emailRows, giftCards, operations, incompleteScan };
-}
-
-async function handlePrivacyAdmin(req, res) {
-  const adminUser = await requireAdmin(req, res);
-  if (!adminUser) return;
-  const email = String(req.body?.email || "").trim().toLowerCase();
-  if (!/^[^\s@/]+@[^\s@/]+\.[^\s@/]{2,}$/.test(email)) {
-    res.status(400).json({ error: "Enter the customer's email address." });
-    return;
-  }
-  const requestId = typeof req.body?.requestId === "string" ? req.body.requestId : "";
-  try {
-    const data = await personalDataFor(email);
-    const rows = docs => docs.map(d => ({ id: d.id, ...d.data() }));
-    if (req.body.action === "privacyExport") {
-      const strip = o => { const { downloadToken, trackingKey, clientIp, ...rest } = o; return rest; };
-      res.status(200).json({
-        email,
-        exportedAt: new Date().toISOString(),
-        account: data.user ? { uid: data.user.uid, createdAt: data.user.metadata?.creationTime || null } : null,
-        profile: data.profile?.exists ? data.profile.data() : null,
-        newsletter: data.newsletter.exists ? data.newsletter.data() : null,
-        orders: rows(data.orders).map(strip),
-        orderNotesAndHistory: rows(data.operations),
-        backInStockAlerts: rows(data.alerts),
-        savedCarts: rows(data.carts),
-        reviews: data.reviews.map(r => ({ id: r.id, ...r.data() })),
-        contactMessages: rows(data.messages),
-        giftCards: rows(data.giftCards).map(({ code, holds, ...card }) => card),
-        emailDeliveryLog: rows(data.emailRows).map(({ toLower, ...row }) => row),
-        emailsWaitingToSend: data.queuedEmails.map(d => publicOutboxEntry(d.id, d.data())),
-        ...(data.incompleteScan.length ? { incompleteScan: data.incompleteScan } : {}),
-      });
-      if (requestId) await db.collection("privacyRequests").doc(requestId).set({ status: "exported", handledAt: new Date().toISOString(), handledBy: adminUser.email }, { merge: true });
-      return;
-    }
-    // Erase: delete marketing, cart, alert, contact and account data. Orders that were never paid
-    // lose the customer's details; paid orders stay (tax and accounting records) with their
-    // private notes blanked. Gift cards keep their balance but lose names, emails and message.
-    // Reviews lose the name, and (admin's choice) are unpublished or lose their text.
-    const reviewMode = ["unpublish", "remove-text"].includes(req.body?.reviewAction) ? req.body.reviewAction : "anonymize";
-    const now = new Date().toISOString();
-    const ops = [];
-    for (const d of [...data.alerts, ...data.carts, ...data.contacts, ...data.messages, ...data.queuedEmails, ...data.emailRows]) ops.push(b => b.delete(d.ref));
-    if (data.newsletter.exists) ops.push(b => b.delete(data.newsletter.ref));
-    if (data.profile?.exists) ops.push(b => b.delete(data.profile.ref));
-    for (const r of data.reviews) ops.push(b => b.update(r.ref, reviewErasure(reviewMode)));
-    const redactedOrders = data.orders.filter(d => neverPaid(d.data()));
-    const keptOrders = data.orders.filter(d => !neverPaid(d.data()));
-    const redactedIds = new Set(redactedOrders.map(d => d.id));
-    for (const d of redactedOrders) ops.push(b => b.update(d.ref, redactedOrderFields(now)));
-    for (const d of data.operations) {
-      if (redactedIds.has(d.id)) ops.push(b => b.delete(d.ref));
-      else ops.push(b => b.set(d.ref, redactedOperationsFields(d.data(), now), { merge: true }));
-    }
-    for (const d of data.giftCards) ops.push(b => b.update(d.ref, { ...GIFT_CARD_PERSONAL, privacyRedactedAt: now }));
-    for (let i = 0; i < ops.length; i += 400) {
-      const batch = db.batch();
-      for (const op of ops.slice(i, i + 400)) op(batch);
-      await batch.commit();
-    }
-    if (data.user) await admin.auth().deleteUser(data.user.uid);
-    await db.collection("marketing-optout").doc(optOutId(email)).set({ at: now, source: "privacy-erase" }).catch(() => {});
-    const summary = {
-      deleted: { backInStockAlerts: data.alerts.length, savedCarts: data.carts.length, reviewContacts: data.contacts.length, contactMessages: data.messages.length, queuedEmails: data.queuedEmails.length, emailLogRows: data.emailRows.length, newsletter: data.newsletter.exists ? 1 : 0, account: data.user ? 1 : 0 },
-      anonymizedReviews: data.reviews.length,
-      reviewAction: reviewMode,
-      redactedUnpaidOrders: redactedOrders.map(d => d.id),
-      redactedGiftCards: data.giftCards.length,
-      keptOrders: keptOrders.map(d => d.id),
-      ...(data.incompleteScan.length ? { incompleteScan: data.incompleteScan } : {}),
-    };
-    if (requestId) await db.collection("privacyRequests").doc(requestId).set({ status: "erased", handledAt: now, handledBy: adminUser.email, summary }, { merge: true });
-    res.status(200).json(summary);
-  } catch (err) {
-    console.error("Privacy action failed:", err);
-    res.status(500).json({ error: "The privacy action failed. Try again; nothing is half-deleted that a retry won't finish." });
-  }
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -4111,7 +3368,9 @@ async function customerAccountsEnabled() {
 
 // Keep in step with src/app/lib/tracking.ts. A publisher-entered link (manual
 // dispatch with a carrier we don't recognise) wins over the built-in pages.
-const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
 
 // How the order reaches the customer, for the order confirmation email.
 // Pickup or local delivery (the server-priced choice, else the shopper's selection).
@@ -4150,7 +3409,7 @@ const isPhysicalAny = order => (order?.items || []).some(item => item && isPhysi
 // Public storefront address for links in emails (Firebase Hosting). When the shop gets its own domain, set the
 // repository variable SITE_URL: deploy-firebase.yml writes it into the Functions env (functions/.env.<project>).
 const SITE_URL = String(process.env.SITE_URL || "https://lyricalmyrical-web-v2.web.app").replace(/\/+$/, "");
-const siteLink = path => `${SITE_URL}${path}`;
+function siteLink(path) { return `${SITE_URL}${path}`; }
 
 // One-click order link for emails: /track opens the order straight away when the
 // key matches, instead of asking the customer to type the order number and email.
