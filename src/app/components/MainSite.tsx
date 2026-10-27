@@ -1,6 +1,6 @@
 import { m, AnimatePresence } from "motion/react";
 import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, X, Send, Heart, Zap } from "lucide-react";
+import { Send, Heart, Zap } from "lucide-react";
 import { queryFromSearch } from "../features/site/searchResultsLink";
 import { catalogStateInUrlOn, catalogUrlSearch, readCatalogUrl } from "../features/site/catalogUrlState";
 import { inEditorPreview } from "../lib/trackingGuard";
@@ -8,14 +8,7 @@ import { Link, useNavigate, useLocation, useParams } from "react-router";
 import { CATEGORIES, placeholderImage, DEFAULT_SOCIAL } from "../features/site/constants";
 import { subscribePreview } from "../features/site/previewTab";
 import { aspectRatioValue } from "../features/site/imageAspect";
-import {
-  getFeaturedBooks,
-  getFilteredItems,
-  getPublications,
-  getPublishedBooks,
-  resolveLogoDesign,
-  resolveLogoPosition,
-} from "../features/site/selectors";
+import { getFilteredItems, getPublishedBooks, resolveLogoDesign, resolveLogoPosition } from "../features/site/selectors";
 import type { Book } from "../features/site/types";
 import { useSiteData } from "../features/site/useSiteData";
 import { BootSplash } from "./BootSplash";
