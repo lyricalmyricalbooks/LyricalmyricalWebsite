@@ -3,12 +3,10 @@
 import { COUNTRIES } from "./shippingZones";
 import { regionsFor } from "./postalRegion";
 
-// Countries whose addresses have no postal code. Asking for one would turn valid shoppers away.
-export const NO_POSTAL_CODE = new Set([
-  "AO", "AG", "AW", "BS", "BZ", "BJ", "BW", "BF", "BI", "CM", "CF", "KM", "CG", "CD", "CK", "CI", "DJ", "DM", "ER", "FJ",
-  "GM", "GH", "GD", "GY", "HK", "KI", "MO", "ML", "MR", "NR", "NU", "QA", "RW", "KN", "LC", "ST", "SC", "SL", "SB", "SR",
-  "SY", "TL", "TG", "TK", "TO", "TT", "TV", "UG", "VU", "YE", "ZW", "AE",
-]);
+// Countries whose addresses have no postal code: asking for one would turn valid shoppers away.
+// One list for the form, the admin and the server (src/shared/addressRules.ts).
+import { NO_POSTAL_CODE } from "../../../shared/addressRules";
+export { NO_POSTAL_CODE };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
