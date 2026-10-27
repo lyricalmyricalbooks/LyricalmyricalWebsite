@@ -505,7 +505,7 @@ export function Checkout() {
       const hasMatchingCategory = cartItems.some(item => {
         const catalogBook = catalogMap.get(item.id);
         const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-        return bookCats.some(cat => selectedCats.has(cat));
+        return bookCats.some((cat: string) => selectedCats.has(cat));
       });
       if (!hasMatchingCategory) {
         throw new CopyError(checkoutDesign, "coErrCategories", { categories: (discount.selectedCategories || []).join(", ") });
@@ -534,7 +534,7 @@ export function Checkout() {
         if (discount.appliesTo === "categories") {
           const catalogBook = catalogMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          return bookCats.some(cat => bogoCats.has(cat));
+          return bookCats.some((cat: string) => bogoCats.has(cat));
         }
         if (discount.appliesTo === "products") {
           return bogoProds.has(item.id);
@@ -565,7 +565,7 @@ export function Checkout() {
         if (discount.appliesTo === "categories") {
           const catalogBook = catalogMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => tierCats.has(cat));
+          qualifies = bookCats.some((cat: string) => tierCats.has(cat));
         } else if (discount.appliesTo === "products") {
           qualifies = tierProds.has(item.id);
         }
