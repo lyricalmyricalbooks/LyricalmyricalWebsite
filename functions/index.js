@@ -32,7 +32,7 @@ const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
 const { liveRateExtra, withLiveRateExtra, cleanLiveRateExtra } = require("./liveRateExtra");
 const { FALLBACK_COPY_GRAMS, parcelGrams } = require("./parcelWeight");
-const { addressMissing } = require("./addressRules");
+const { addressMissing } = require("./shared/addressRules");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
 const { expandDiscountCategories } = require("./discountCategories");
@@ -5277,7 +5277,7 @@ exports.saveShippoConfig = onBrowserRequest(async (req, res) => {
 async function autoApproveShippingAddress(orderId, order) {
   const method = order.fulfillmentSelection?.method || order.fulfillment?.method || "shipping";
   const address = order.customer?.address || {};
-  // Countries with no province list or no postal code are checked too (addressRules.js).
+  // Countries with no province list or no postal code are checked too (shared/addressRules).
   if (method !== "shipping" || order.isTest || addressMissing(address).length) return;
   const shippoToken = await getShippoToken();
   if (!shippoToken) return;

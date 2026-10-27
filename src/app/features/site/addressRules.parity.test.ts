@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import * as client from "./addressRules";
 import { NO_POSTAL_CODE as CHECKOUT_LIST } from "./checkoutDetails";
 // @ts-ignore - CommonJS server module
-import * as serverModule from "../../../../functions/addressRules.js";
+import * as serverModule from "../../../../functions/shared/addressRules.js";
 const server: any = (serverModule as any).default ?? serverModule;
 
 describe("server and browser address rules", () => {

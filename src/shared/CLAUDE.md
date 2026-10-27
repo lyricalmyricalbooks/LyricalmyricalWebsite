@@ -17,7 +17,8 @@ here once, as a TypeScript module, instead of a hand-kept mirror pair with a par
   (`shippingEngine`, `shippingZones`, `weightGrams`) and discount maths (`discountMath`, with `bogoPercent`; the shop's
   `checkoutFulfillment.ts` and the server's `localFulfillment.js` re-export it), and promotions (`promotions`: sale
   windows, add-ons, box sets, gift-card products; the server now throws the shop's `PromotionProblem`, same messages).
-  Next: address rules, local fulfillment, discount categories.
+  Address rules (`addressRules`, which also owns the
+  checkout form's no-postcode list). Next: local fulfillment, discount categories.
 - `src/app/features/site/merchantFeed.mjs` keeps its own small copy of the pre-order date check because plain Node build
   scripts can't import TypeScript; `features/site/merchantFeed.test.ts` guards it.
 

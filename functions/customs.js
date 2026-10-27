@@ -3,7 +3,7 @@
 // hsTariffNumber, customsOriginCountry. Blank = the defaults below, which suit printed books.
 // Pure (no Firestore, no Shippo): index.js reads the catalog and posts what this builds.
 const { isPhysicalItem } = require("./localFulfillment");
-const { countryCodeOf } = require("./addressRules");
+const { countryCodeOf } = require("./shared/addressRules");
 
 const DEFAULT_DESCRIPTION = "Printed books";
 const DEFAULT_HS_CODE = "4901.99"; // Printed books, brochures and similar: other (not single sheets)

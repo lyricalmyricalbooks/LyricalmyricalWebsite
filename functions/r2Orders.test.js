@@ -9,7 +9,7 @@ const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
 const { addressKey, packingKey, advancesTracking, shippoDefiniteRefusal } = require("./fulfillmentGuard.js");
 const { customsItems, needsCustoms, validHsCode } = require("./customs.js");
 const { labelRatesFor, isPurchasableRate } = require("./labelRates.js");
-const { addressMissing } = require("./addressRules.js");
+const { addressMissing } = require("./shared/addressRules.js");
 
 const ADMIN = { email: "lyricalmyricalbooks@gmail.com", email_verified: true };
 const DELETE = { __delete: true };

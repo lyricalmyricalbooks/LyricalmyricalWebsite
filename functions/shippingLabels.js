@@ -3,7 +3,7 @@
 // guards and Shippo helpers, so the vm-based handler tests' fakes still reach this code.
 const { labelHandedOver, transactionRefundState, findLabelTransaction, refundEntry, openRefunds, REFUND_WINDOW_DAYS: LABEL_REFUND_WINDOW_DAYS } = require("./labelVoid");
 const { labelProblem, shippoTransactionOutcome, shippoDefiniteRefusal, terminal: terminalOrder } = require("./fulfillmentGuard");
-const { addressMissing } = require("./addressRules");
+const { addressMissing } = require("./shared/addressRules");
 const { isPhysicalItem } = require("./localFulfillment");
 const { lineCopyGrams, parcelGrams, FALLBACK_COPY_GRAMS } = require("./parcelWeight");
 const { labelRatesFor, isPurchasableRate, isSoldRate: isSoldRateName, isCanadaPostRate: isCanadaPostRateName, soldName } = require("./labelRates");
