@@ -1,7 +1,7 @@
 // "Ask a question about this book" (Studio › Style › Book page · photos & layout › showPdpAskQuestion).
 // Pure rules: what the little form needs before it may send, and the subject the shop sees in Messages.
 // The limits match firestore.rules' contactMessages create rule, so a valid form is never refused for size.
-import { isValidAlertEmail } from "./BackInStockForm";
+import { isValidAlertEmail } from "../../BackInStockForm";
 
 export type QuestionDraft = { name: string; email: string; message: string };
 

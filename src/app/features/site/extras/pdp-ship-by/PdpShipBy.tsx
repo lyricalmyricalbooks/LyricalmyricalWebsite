@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { PackageCheck } from "lucide-react";
-import { getCopy } from "./storeCopy";
-import { regionProps } from "./storefrontRegions";
-import { designNumber } from "./designNumber";
-import { closedDays, formatShipDate, shipBy, shipByCopy } from "./shipBy";
+import { getCopy } from "../../storeCopy";
+import { regionProps } from "../../storefrontRegions";
+import { designNumber } from "../../designNumber";
+import { closedDays, formatShipDate, shipBy, shipByCopy } from "../../shipBy";
 
 // "Order now — ships by {date}" under the buy buttons (Studio › Style › Book page · photos & layout › showPdpShipBy;
 // `look` = the book page's resolved design, words from `design`). The date depends on the shopper's clock, so it is

@@ -1,6 +1,6 @@
 import { ShoppingBag } from "lucide-react";
-import { getCopy } from "./storeCopy";
-import { regionProps } from "./storefrontRegions";
+import { getCopy } from "../../storeCopy";
+import { regionProps } from "../../storefrontRegions";
 
 /** The words for "N already in your bag" — one copy and several copies have their own Text & labels entries. */
 export function inBagText(design: any, count: number): string {

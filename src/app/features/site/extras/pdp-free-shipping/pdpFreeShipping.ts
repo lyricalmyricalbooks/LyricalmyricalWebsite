@@ -2,8 +2,8 @@
 // Style › Book page · photos & layout › showPdpFreeShipping (off by default). It promises only what the
 // bag's free-shipping bar promises (bagFreeShipThreshold: a rule that makes every option free everywhere),
 // counts printed books only (shippableBagTotal) and is display only: checkout still prices shipping.
-import { shopFreeShipThreshold, shippableBagTotal } from "./freeShipThreshold";
-import { isPickupItem } from "./pickupAvailability";
+import { shopFreeShipThreshold, shippableBagTotal } from "../../freeShipThreshold";
+import { isPickupItem } from "../../pickupAvailability";
 
 export type PdpFreeShip =
   | { kind: "over"; threshold: number }
