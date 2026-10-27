@@ -4,11 +4,11 @@
 import { act, createElement as h } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
-import { CurrencyProvider, useCurrency } from "../../CurrencyContext";
+import { CurrencyProvider, useCurrency } from "../../../../CurrencyContext";
 import { FooterCurrency, footerCurrencyOn } from "./FooterCurrency";
 
-vi.mock("./exchangeRates", async (orig) => ({ ...(await orig<any>()), loadRates: () => new Promise(() => {}) }));
-vi.mock("./visitorCurrency", async (orig) => ({ ...(await orig<any>()), loadVisitorCountry: () => new Promise(() => {}) }));
+vi.mock("../../exchangeRates", async (orig) => ({ ...(await orig<any>()), loadRates: () => new Promise(() => {}) }));
+vi.mock("../../visitorCurrency", async (orig) => ({ ...(await orig<any>()), loadVisitorCountry: () => new Promise(() => {}) }));
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | null = null; let el: HTMLElement | null = null;

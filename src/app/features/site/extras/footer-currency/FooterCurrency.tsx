@@ -3,9 +3,9 @@
 // there. It uses the same choice as the header's picker (CurrencyContext, remembered in fm_currency), so prices
 // everywhere switch together. Display only: checkout still charges the CAD price × today's rate.
 import { ChevronDown } from "lucide-react";
-import { useCurrency, type Currency } from "../../CurrencyContext";
-import { getCopy } from "./storeCopy";
-import { regionProps } from "./storefrontRegions";
+import { useCurrency, type Currency } from "../../../../CurrencyContext";
+import { getCopy } from "../../storeCopy";
+import { regionProps } from "../../storefrontRegions";
 
 export const FOOTER_CURRENCIES: { code: Currency; copyKey: string }[] = [
   { code: "CAD", copyKey: "footerCurrencyCAD" },
