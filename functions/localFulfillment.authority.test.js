@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest';
 import { createRequire } from 'node:module';
-const { discountedPhysicalSubtotal, resolveLocalSelection } = createRequire(import.meta.url)('./localFulfillment');
+const { discountedPhysicalSubtotal, resolveLocalSelection } = createRequire(import.meta.url)('./shared/localFulfillment');
 const config = {
   enabled: true,
   pickupLocations: [{ id: 'shop', enabled: true, name: 'Shop', price: 2, address: { street: '1 Main', city: 'Toronto', state: 'ON', zip: 'M6G 3H1', country: 'CA' }, instructions: 'Call on arrival', hours: '10–5', estimate: 'Tomorrow' }],

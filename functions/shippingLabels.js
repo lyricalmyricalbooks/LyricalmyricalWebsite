@@ -4,7 +4,7 @@
 const { labelHandedOver, transactionRefundState, findLabelTransaction, refundEntry, openRefunds, REFUND_WINDOW_DAYS: LABEL_REFUND_WINDOW_DAYS } = require("./labelVoid");
 const { labelProblem, shippoTransactionOutcome, shippoDefiniteRefusal, terminal: terminalOrder } = require("./fulfillmentGuard");
 const { addressMissing } = require("./shared/addressRules");
-const { isPhysicalItem } = require("./localFulfillment");
+const { isPhysicalItem } = require("./shared/localFulfillment");
 const { lineCopyGrams, parcelGrams, FALLBACK_COPY_GRAMS } = require("./parcelWeight");
 const { labelRatesFor, isPurchasableRate, isSoldRate: isSoldRateName, isCanadaPostRate: isCanadaPostRateName, soldName } = require("./labelRates");
 const { needsCustoms, customsItems, customsDeclaration } = require("./customs");

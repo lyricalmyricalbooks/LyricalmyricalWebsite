@@ -6,7 +6,7 @@
 // Nothing here is a payment path: it never decides whether an order is paid.
 const crypto = require("crypto");
 const { stockLines, isBundle, isGiftCardProduct } = require("./shared/promotions");
-const { isPhysicalItem } = require("./localFulfillment");
+const { isPhysicalItem } = require("./shared/localFulfillment");
 const { shopDate } = require("./paymentGuards");
 
 const WEB_VERSION = 1;

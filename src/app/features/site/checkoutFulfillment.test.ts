@@ -19,7 +19,7 @@ it('clears a changed option but keeps the selected method for review', () => {
 
 it('mirrors the server for a free gift: only a physical gift line is paid for by the discount', async () => {
   const { createRequire } = await import('node:module');
-  const server = createRequire(import.meta.url)('../../../../functions/localFulfillment.js');
+  const server = createRequire(import.meta.url)('../../../../functions/shared/localFulfillment.js');
   const catalog = new Map<string, any>([...books, ['gift', { format: 'Paperback' }], ['card', { productType: 'giftCard', variants: [{ id: 'g25', name: 'CA$25', price: 25, format: 'Paperback' }] }]]);
   const items = catalogFulfillmentItems([{ id: 'print', price: 20, quantity: 1 }, { id: 'gift', price: 8, quantity: 1, promoGift: true }, { id: 'card', variantId: 'g25', price: 25, quantity: 1 }], catalog)!;
   expect(items.map(item => item.physical)).toEqual([true, true, false]);

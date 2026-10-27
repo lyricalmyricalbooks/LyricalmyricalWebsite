@@ -15,10 +15,12 @@ here once, as a TypeScript module, instead of a hand-kept mirror pair with a par
   storefront file at it, point the Functions' `require`s at `./shared/<name>` and delete the old server file. Keep the
   old parity test's cases, now run against the generated copy. Done so far: `preorder`, the shipping engine
   (`shippingEngine`, `shippingZones`, `weightGrams`) and discount maths (`discountMath`, with `bogoPercent`; the shop's
-  `checkoutFulfillment.ts` and the server's `localFulfillment.js` re-export it), and promotions (`promotions`: sale
+  `checkoutFulfillment.ts` and the shared `localFulfillment` re-export it), and promotions (`promotions`: sale
   windows, add-ons, box sets, gift-card products; the server now throws the shop's `PromotionProblem`, same messages).
   Address rules (`addressRules`, which also owns the
-  checkout form's no-postcode list). Next: local fulfillment, discount categories.
+  checkout form's no-postcode list). Local pickup and delivery (`localFulfillment`: quotes,
+  settings check, the server's choice check and physical subtotal; the config types now live here and `types.ts`
+  re-exports them). Next: discount categories.
 - `src/app/features/site/merchantFeed.mjs` keeps its own small copy of the pre-order date check because plain Node build
   scripts can't import TypeScript; `features/site/merchantFeed.test.ts` guards it.
 

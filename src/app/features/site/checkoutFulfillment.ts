@@ -32,7 +32,7 @@ export function discountedPhysicalSubtotal(items: CatalogFulfillmentItem[], disc
     : discount?.appliesTo === 'categories'
       ? (books.get(item.id)?.categories || []).some((category: string) => (discount.selectedCategories || []).includes(category))
       : true;
-  // A free gift's discount pays for the gift line itself (functions/localFulfillment.js).
+  // A free gift's discount pays for the gift line itself (shared/localFulfillment.ts).
   if (discount?.type === 'gift') {
     const gift = items.find(item => item.promoGift === true);
     const giftCents = gift && gift.physical ? cents(gift.price) * gift.quantity : 0;

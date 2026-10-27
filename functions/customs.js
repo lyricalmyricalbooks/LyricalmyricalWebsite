@@ -2,7 +2,7 @@
 // Per-book answers live on the book (Books › edit › Details › Customs): customsDescription,
 // hsTariffNumber, customsOriginCountry. Blank = the defaults below, which suit printed books.
 // Pure (no Firestore, no Shippo): index.js reads the catalog and posts what this builds.
-const { isPhysicalItem } = require("./localFulfillment");
+const { isPhysicalItem } = require("./shared/localFulfillment");
 const { countryCodeOf } = require("./shared/addressRules");
 
 const DEFAULT_DESCRIPTION = "Printed books";

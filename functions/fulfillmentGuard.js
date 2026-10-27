@@ -1,4 +1,4 @@
-const { isPhysicalItem } = require("./localFulfillment");
+const { isPhysicalItem } = require("./shared/localFulfillment");
 const { waitingPreorderLines, shipDateOf } = require("./shared/preorder");
 // Kept in parity with admin/fulfillment.ts; money-spending label operations recheck fresh records.
 // The admin stores these exact strings when the address is reviewed / items are packed.
