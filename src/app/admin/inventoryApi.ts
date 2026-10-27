@@ -6,10 +6,11 @@ import {
   collection, doc, getDoc, getDocs, limit, orderBy, query, runTransaction, setDoc, where,
 } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
-import { planStockChange, type AdjustReason, type StockChange } from "./inventoryInsights";
+import { planStockChange, type AdjustReason, type StockChange, type StockPlan } from "./inventoryInsights";
 import { isStockLinked } from "./inventoryLink";
 
-export type StockResult = { ok: boolean; from?: number; to?: number; patch?: Record<string, any>; reason?: "missing" | "not-counted" | "conflict" | "linked"; live?: number };
+/** What a stock change did: the plan it saved, or why nothing was saved (a linked book is counted in the inventory app). */
+export type StockResult = StockPlan | { ok: false; reason: "linked"; live?: number };
 
 export interface InventoryLogEntry {
   id: string; bookId: string; variantId: string | null; title: string; edition: string;
