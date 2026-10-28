@@ -569,6 +569,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "productPhotoOutline", label: "Photo outline (arch, circle, hexagon…)", kind: "select", options: [{ value: "grid", label: "Same as shop grid" }, ...PHOTO_OUTLINE_OPTIONS] },
       { key: "productImageFit", label: "Photo fit", kind: "select", options: [{ value: "cover", label: "Full bleed (fill & crop)" }, { value: "contain", label: "Fit whole image" }] },
       { key: "productImageShadow", label: "Image shadow", kind: "select", options: [{ value: "none", label: "None" }, { value: "sm", label: "Sm" }, { value: "md", label: "Md" }, { value: "lg", label: "Lg" }, { value: "xl", label: "Xl" }] },
+      { key: "productImageShadowColor", label: "Image shadow colour (empty = black; shows when Image shadow is on)", kind: "color" },
       { key: "productImageHoverScale", label: "Image hover zoom", kind: "range", defaultValue: 1.05, min: 1, max: 1.3, step: 0.01 },
       { key: "showAmbientGlow", label: "Ambient glow behind image", kind: "toggle", defaultValue: true },
       { key: "glowIntensity", label: "Glow strength", kind: "range", defaultValue: 18, min: 0, max: 60, step: 1, suffix: "%" },

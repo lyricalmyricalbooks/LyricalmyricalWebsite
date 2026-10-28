@@ -205,6 +205,25 @@ export function photoViewerCss(d: any): string {
   return css;
 }
 
+/** Each "Image shadow" size (Style › Book page · photos & layout › Photos) as offset + blur and how
+ *  strong its colour shows; the first two match Tailwind's shadow-sm / shadow-md, the last two the
+ *  arbitrary shadows BookDetail uses when no colour is picked. */
+const PHOTO_SHADOWS: Record<string, [string, number]> = {
+  sm: ["0 1px 2px 0", 5],
+  md: ["0 4px 6px -1px", 10],
+  lg: ["0 40px 120px", 70],
+  xl: ["0 50px 150px", 85],
+};
+
+/** The main book photo's shadow in the "Image shadow colour" control, or undefined (keep the black
+ *  Tailwind shadow) when no colour is picked or the shadow is off. */
+export function photoShadow(design: any): string | undefined {
+  const d = design || {};
+  const size = PHOTO_SHADOWS[d.productImageShadow || "none"];
+  if (!size || !has(d.productImageShadowColor)) return undefined;
+  return `${size[0]} color-mix(in srgb, ${clean(d.productImageShadowColor)} ${size[1]}%, transparent)`;
+}
+
 export function productPageCss(design: any): string {
   const d = design || {};
 
