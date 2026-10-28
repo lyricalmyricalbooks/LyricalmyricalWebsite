@@ -609,16 +609,51 @@ export function ErrorState({ title = "Something went wrong", description, onRetr
   );
 }
 
+/** True for Ctrl+S / ⌘S pressed on its own (no Shift or Alt). */
+export function isSaveShortcut(e: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey">) {
+  return (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "s";
+}
+
+/** Save bars on screen, oldest first; Ctrl/⌘+S goes to the first one the owner can actually see. */
+const saveBars: Array<{ el: HTMLElement | null; save: () => void }> = [];
+let saveListening = false;
+function onSaveKey(e: KeyboardEvent) {
+  if (e.defaultPrevented || !isSaveShortcut(e)) return;
+  const bar = saveBars.find((b) => b.el && b.el.getClientRects().length > 0);
+  if (!bar) return;
+  // A dialog that does not hold the bar owns the keyboard (its own form, its own Save).
+  const modal = document.querySelector('[aria-modal="true"]');
+  if (modal && !modal.contains(bar.el)) return;
+  e.preventDefault(); // never open the browser's "Save page" box over unsaved settings
+  bar.save();
+}
+
 export function SaveBar({ dirty, saving, onSave, onDiscard, message }: {
   dirty: boolean; saving?: boolean; onSave: () => void; onDiscard: () => void; message?: string;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const latest = useRef({ saving, onSave });
+  latest.current = { saving, onSave };
+  useEffect(() => {
+    if (!dirty) return;
+    const entry = { el: ref.current, save: () => { if (!latest.current.saving) latest.current.onSave(); } };
+    saveBars.push(entry);
+    if (!saveListening) { document.addEventListener("keydown", onSaveKey); saveListening = true; }
+    return () => {
+      saveBars.splice(saveBars.indexOf(entry), 1);
+      if (!saveBars.length) { document.removeEventListener("keydown", onSaveKey); saveListening = false; }
+    };
+  }, [dirty]);
   if (!dirty) return null;
+  const mac = typeof navigator !== "undefined" && /mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent || "");
   return (
-    <div className="rp-savebar" role="region" aria-label="Unsaved changes">
+    <div className="rp-savebar" role="region" aria-label="Unsaved changes" ref={ref}>
       <span role="status">{message || "You have unsaved changes."}</span>
       <span style={{ display: "flex", gap: 8 }}>
         <SecondaryButton onClick={onDiscard} disabled={saving}>Discard</SecondaryButton>
-        <PrimaryButton onClick={onSave} disabled={saving}>{saving ? "Saving…" : "Save changes"}</PrimaryButton>
+        <PrimaryButton onClick={onSave} disabled={saving} aria-keyshortcuts="Control+S Meta+S" title={`Save changes (${mac ? "⌘S" : "Ctrl+S"})`}>
+          {saving ? "Saving…" : "Save changes"}
+        </PrimaryButton>
       </span>
     </div>
   );
