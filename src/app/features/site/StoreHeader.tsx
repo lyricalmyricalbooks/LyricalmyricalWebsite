@@ -259,6 +259,8 @@ function AnnouncementBar({ design, copyDesign, show, fallback, shop }: { design:
   if (!shop) {
     return (
       <div
+        role="region"
+        aria-label={getCopy(copyDesign, "announceLabel")}
         data-studio-target="style:header"
         data-studio-label="Announcement bar"
         className={`fm-announce ${sidePad} py-2.5 text-center uppercase`}
@@ -273,7 +275,7 @@ function AnnouncementBar({ design, copyDesign, show, fallback, shop }: { design:
   const colors = { backgroundColor: design?.announcementBg || "#e8402a", color: design?.announcementColor || "#100f0d" };
   if (design?.announcementScrolling) {
     return (
-      <div data-section="announcements" data-studio-target="style:header" data-studio-label="Announcement bar" className="fm-announce overflow-hidden py-2.5 sticky top-0 z-[60]" style={colors}>
+      <div data-section="announcements" role="region" aria-label={getCopy(copyDesign, "announceLabel")} data-studio-target="style:header" data-studio-label="Announcement bar" className="fm-announce overflow-hidden py-2.5 sticky top-0 z-[60]" style={colors}>
         <div
           className="flex w-max animate-marquee font-bold uppercase"
           style={{
@@ -299,7 +301,7 @@ function AnnouncementBar({ design, copyDesign, show, fallback, shop }: { design:
     );
   }
   return (
-    <div data-section="announcements" data-studio-target="style:header" data-studio-label="Announcement bar" className={`fm-announce text-center py-2.5 ${dismissible ? "px-10" : "px-6"} uppercase sticky top-0 z-[60]`} style={{ ...colors, ...announceText(design) }} {...pause}>
+    <div data-section="announcements" role="region" aria-label={getCopy(copyDesign, "announceLabel")} data-studio-target="style:header" data-studio-label="Announcement bar" className={`fm-announce text-center py-2.5 ${dismissible ? "px-10" : "px-6"} uppercase sticky top-0 z-[60]`} style={{ ...colors, ...announceText(design) }} {...pause}>
       <AnnouncementMessage key={index} text={current.text} link={current.link} editable={single} countdown={countdownOf(current)} />
       {dismissible && <AnnouncementClose copyDesign={copyDesign} onClose={onClose} />}
     </div>

@@ -59,6 +59,18 @@ describe("announcement bar messages", () => {
   });
 });
 
+describe("announcement bar landmark", () => {
+  it("is a named region so screen readers don't find it outside every landmark", async () => {
+    await mount({ showAnnouncement: true, announcementText: "Hello" });
+    expect(bar()?.getAttribute("role")).toBe("region");
+    expect(bar()?.getAttribute("aria-label")).toBe("Announcement");
+  });
+  it("takes its name from Text & labels", async () => {
+    await mount({ showAnnouncement: true, announcementText: "Hello", copy: { announceLabel: "Shop news" } });
+    expect(bar()?.getAttribute("aria-label")).toBe("Shop news");
+  });
+});
+
 describe("announcement countdown", () => {
   const ending = { showAnnouncement: true, announcements: [{ id: "1", text: "Sale today", until: "2026-10-09" }] };
   it("adds nothing while the switch is off (default)", async () => {
