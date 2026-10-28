@@ -74,7 +74,7 @@ import { orderTabs } from "./pdpTabOrder";
 import { DescriptionText } from "./DescriptionText";
 import DescriptionFold from "./DescriptionFold";
 import { googleFontHref } from "./fonts";
-import { productPageCss, productPageFontNames, titleFitSize } from "./productPageStyle";
+import { photoShadow, productPageCss, productPageFontNames, titleFitSize } from "./productPageStyle";
 import { schemeButtonColors } from "./colorSchemes";
 
 import { findProduct } from "./productRoutes";
@@ -203,6 +203,8 @@ export default function BookDetail() {
   const productBorderRadius    = storefrontDesign.productBorderRadius    ?? settings?.design?.productBorderRadius ?? 32;
   const productImageGlowColor  = storefrontDesign.productImageGlowColor  || primaryColor;
   const productImageShadow     = storefrontDesign.productImageShadow     || "none";
+  // Photos › Image shadow colour: replaces the black shadow; undefined keeps the class's own shadow.
+  const productImageBoxShadow  = photoShadow(storefrontDesign);
   // "Image zoom" off turns the hover zoom off entirely, whatever the zoom amount is set to.
   // Style › Book page · photos & layout › Photos › Zoom follows the mouse (off by default): it replaces the
   // gentle hover zoom, so the two never stack.
@@ -1432,7 +1434,7 @@ export default function BookDetail() {
                         productImageShadow === "md" ? "shadow-md" :
                         productImageShadow === "xl" ? "shadow-[0_50px_150px_rgba(0,0,0,0.85)]" : "shadow-[0_40px_120px_rgba(0,0,0,0.7)]"
                       }`}
-                      style={{ borderRadius: `${productBorderRadius}px`, aspectRatio: frameFor(activeUrl) }}
+                      style={{ borderRadius: `${productBorderRadius}px`, aspectRatio: frameFor(activeUrl), boxShadow: productImageBoxShadow }}
                     >
                       {/* Still placeholder while the first photo loads (no pulsing: it flashed over the photo). */}
                       {!imageLoaded && (
