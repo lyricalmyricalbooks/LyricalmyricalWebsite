@@ -28,7 +28,7 @@ import { googleFontHref } from "../features/site/fonts";
 import { useCurrency } from "../CurrencyContext";
 import { useCart } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
-import { QuickView } from "../features/site/QuickView";
+import { QuickView } from "../features/site/extras/card-quick-view/QuickView";
 import { isEmailAddress, subscribeNewsletter } from "../features/site/newsletterSignup";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
 import { SectionPageContext } from "./sectionCopy";
@@ -1189,7 +1189,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
               </button>
             </div>
           )}
-          {quickViewBook && <QuickView book={quickViewBook} design={activeDesign} onClose={() => setQuickViewBook(null)} />}
+          {quickViewBook && <QuickView book={quickViewBook} design={activeDesign} look={storefrontDesign} onClose={() => setQuickViewBook(null)} />}
         </main>
         )}
 

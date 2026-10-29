@@ -262,7 +262,6 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "productDescriptionStyle", label: "Description style", kind: "select", options: [{ value: "plain", label: "Plain" }, { value: "designed", label: "Designed card" }] },
       { key: "showPriceOnHover", label: "Show price only on hover", kind: "toggle" },
       { key: "showQuickAdd", label: "“Add to bag” button under each book in the shop grid (books with several editions get “Choose options”)", kind: "toggle" },
-      { key: "showQuickView", label: "“Quick view” button on shop cards (opens a pop-up with the photo, price, short description and Add to bag; words: Text & labels › Catalog & empty states)", kind: "toggle", defaultValue: false },
       { key: "showCardWishlist", label: "Heart (save to wishlist) button on shop cards", kind: "toggle", defaultValue: true },
       { key: "showWishlistShare", label: "Wishlist share button (shoppers send their saved books as a link; the link opens a shared list with Add all to bag; words: Text & labels › Collection & wishlist pages)", kind: "toggle", defaultValue: false },
       { key: "showSoldOutBadge", label: "Show “sold out” badge", kind: "toggle" },
