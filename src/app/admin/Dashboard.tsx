@@ -29,6 +29,7 @@ import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "
 import { WhatsNew } from "./WhatsNew";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
+import { isHelpShortcut } from "./riso/helpShortcut";
 import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, sidebarItems } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 
@@ -261,6 +262,14 @@ export function Dashboard() {
     if (userMenuOpen) userMenuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, [userMenuOpen]);
   const [helpOpen, setHelpOpen] = useState(false);
+  // "?" opens Help & shortcuts from anywhere that isn't a text box or another pop-up window.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isHelpShortcut(e, !!document.querySelector('[aria-modal="true"]'))) { e.preventDefault(); setHelpOpen(true); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   const [adminTheme, setAdminTheme] = useState(() => {
     // Reso is the admin's primary design, not an optional storefront skin.
@@ -709,7 +718,8 @@ export function Dashboard() {
             <dt><kbd>J</kbd> / <kbd>K</kbd></dt><dd>Orders: next / previous order.</dd>
             <dt><kbd>/</kbd></dt><dd>Orders: jump to the search box (<kbd>Esc</kbd> clears it).</dd>
             <dt><kbd>Esc</kbd></dt><dd>Close any dialog; you go back to where you were.</dd>
-            <dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>S</kbd></dt><dd>Design studio: save the draft (<kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd> opens Find anything there).</dd>
+            <dt><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>S</kbd></dt><dd>Save: on any Settings page with unsaved changes, or the draft in Design studio (<kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd> opens Find anything there).</dd>
+            <dt><kbd>?</kbd></dt><dd>Open this help from anywhere you aren't typing.</dd>
           </dl>
           <h3 className="rp-help-head">How things work</h3>
           <ul className="rp-help-list">

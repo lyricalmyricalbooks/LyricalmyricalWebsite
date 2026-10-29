@@ -168,6 +168,7 @@ The open sub tab is in the address bar (`#settings/general/visitors`, `#inventor
 tabs to `SUB_TABS` in `adminRoute.ts` and take `subTab` / `onSubTabChange` through `useSubTab` (`settingsLayout.tsx`); switching
 replaces the history entry, and an alert's button opens the tab holding its fix (`alertRoute` in `adminAlerts.ts`).
 **Settings look (22 October 2026, owner):** every Settings page renders inside `.rp-settings` (ShopSettings root): cards are flat ruled rows (no box/shadow), the fold chevron sits at the row's right end, buttons are flat and sentence case, `HowTo` is one underlined toggle (`.rp-howto`), `SettingsGroup` has no line under the tab. A card `description` is one short line (≤70 characters, `settingsWording.test.ts`); no explanatory paragraphs, no `rp-kicker`.
+**Help key (29 October 2026):** `?` opens Help & shortcuts from any admin page (`riso/helpShortcut.ts`, pure + tested; ignored while typing, with Ctrl/⌘/Alt, or under another `aria-modal`). Keep the shortcut list in `Dashboard.tsx` in step when you add a key.
 Never wrap `rp-*` chrome in `.admin-light` — its `aside button` / `input` rules override
 it. Don't add new compat rules for new work; compose the components instead.
 
