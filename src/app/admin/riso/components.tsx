@@ -385,12 +385,17 @@ export function FilterBar({ children }: { children: ReactNode }) {
 }
 
 export function Pagination({ page, pageCount, onPage }: { page: number; pageCount: number; onPage: (p: number) => void }) {
+  const last = Math.max(pageCount, 1);
+  // First / Last only earn their place once the list is long enough that Previous / Next means many clicks.
+  const jumps = last > 4;
   return (
     <nav className="rp-pagination" aria-label="Pagination">
-      <span aria-live="polite">Page {page} of {Math.max(pageCount, 1)}</span>
+      <span aria-live="polite">Page {page} of {last}</span>
       <span style={{ display: "flex", gap: 8 }}>
+        {jumps && <SecondaryButton size="sm" disabled={page <= 1} onClick={() => onPage(1)}>First</SecondaryButton>}
         <SecondaryButton size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>Previous</SecondaryButton>
         <SecondaryButton size="sm" disabled={page >= pageCount} onClick={() => onPage(page + 1)}>Next</SecondaryButton>
+        {jumps && <SecondaryButton size="sm" disabled={page >= pageCount} onClick={() => onPage(last)}>Last</SecondaryButton>}
       </span>
     </nav>
   );
