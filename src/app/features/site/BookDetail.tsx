@@ -1675,9 +1675,9 @@ export default function BookDetail() {
               {!pdpDetailsBelow && detailsBlock}
 
               {/* Frequently Bought Together Widget */}
-              {showBundleWidget !== false && bundleBook && (
-                <div className="mt-8 pt-8 border-t border-white/5 space-y-6">
-                  <h4 className="text-[10px] font-black tracking-[0.3em] uppercase text-white/40">{getCopy(settings?.design, "bundleHeading")}</h4>
+              {showBundleWidget !== false && bundleBook && regionVisible(regionDesign, "productBundle") && (
+                <div {...regionProps("productBundle")} className="mt-8 pt-8 border-t border-white/5 space-y-6">
+                  <h4 {...regionProps("productBundleHeading")} className="text-[10px] font-black tracking-[0.3em] uppercase text-white/40">{getCopy(settings?.design, "bundleHeading")}</h4>
                   <div className={`flex flex-col sm:flex-row items-center gap-6 rounded-3xl p-6 relative overflow-hidden group/bundle transition-all duration-300 ${
                     productBundleLayout === "glassmorphic"
                       ? "bg-white/[0.01] backdrop-blur-xl border border-white/10 fm-accent-hover-border"
@@ -1686,11 +1686,11 @@ export default function BookDetail() {
                       : "bg-white/[0.02] border border-white/5 fm-accent-hover-border"
                   }`}>
                     {/* Cover Art Previews */}
-                    <div className="flex items-center gap-4">
+                    <div {...regionProps("productBundleCovers")} className="flex items-center gap-4">
                       <div className="w-16 fm-surface rounded-xl border border-white/10 shadow-lg shrink-0 overflow-hidden" style={{ aspectRatio: productImageAspect }}>
                         <img src={smallPhotoUrl(photos[0]) || placeholderImage(settings?.design)} alt={book.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
                       </div>
-                      <span className="text-white/20 font-black text-lg">+</span>
+                      <span className="text-white/20 font-black text-lg" aria-hidden="true">+</span>
                       <div className="w-16 fm-surface rounded-xl border border-white/10 shadow-lg shrink-0 overflow-hidden" style={{ aspectRatio: productImageAspect }}>
                         <img loading="lazy" decoding="async" src={smallPhotoUrl(bundleBook.photos?.[0]) || placeholderImage(settings?.design)} alt={bundleBook.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
                       </div>
@@ -1698,13 +1698,14 @@ export default function BookDetail() {
 
                     {/* Bundle Info & CTA */}
                     <div className="flex-1 flex flex-col gap-4 text-center sm:text-left">
-                      <div>
+                      <div {...regionProps("productBundleTotal")}>
                         <p className="text-[11px] font-bold text-white uppercase leading-tight truncate max-w-[200px]">{book.title} + {bundleBook.title}</p>
                         <p className="text-[10px] text-white/40 mt-1.5 font-mono">
                           {getCopy(settings?.design, "bundleTotal")} <span className="text-white font-black">{formatPrice((Number(isOnSale ? salePrice : retailPrice) || 0) + (catalogUnitPrice(bundleBook, quickAddChoice(bundleBook).variant) || 0))}</span>
                         </p>
                       </div>
                       <button
+                        {...regionProps("productBundleButton")}
                         onClick={handleAddBothToBag}
                         disabled={addingBoth || isOutOfStock}
                         className={`w-full sm:w-fit text-[9px] font-black tracking-[0.2em] px-6 py-3.5 transition-all active:scale-95 custom-btn ${
