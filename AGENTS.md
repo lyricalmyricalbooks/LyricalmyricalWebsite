@@ -364,6 +364,8 @@ Style › Book page · buy box & details (see CLAUDE.md). Trust-signal lines wer
 
 ## Working rules
 
+- Follow the owner's 6-step workflow in `CLAUDE.md` › *How to work*: review `tasks/lessons.md` first, plan
+  non-trivial tasks from `tasks/todo.md`, and add a lesson after every correction.
 - Match the surrounding code's style, naming, and patterns.
 - Prefer composing existing **shadcn/ui** primitives in
   `src/app/components/ui/` over hand-rolling new UI.

@@ -12,6 +12,30 @@ Guidance for working in this repository.
 > `AGENTS.md` conflicts with this file, follow `CLAUDE.md` for repo facts and
 > `AGENTS.md` for how to work, and call out the conflict.
 
+## How to work (owner's 6-step workflow, 3 November 2026)
+
+Applies to every task. `tasks/lessons.md` holds the rules learned from the owner's corrections: **review it at the
+start of every task**, before planning.
+
+1. **Plan first.** Any non-trivial task (3+ steps or an architectural decision) gets a written plan with checkable items
+   (copy `tasks/todo.md` to `tasks/todo/YYYY-MM-DD-<topic>.md`, one file per task so parallel PRs never conflict; commit
+   it with the PR). Plan the verification too, not just the build. If something goes sideways, stop and re-plan.
+2. **Subagents.** Use them for research, exploration and parallel analysis, one focused task each, to keep the main
+   context clean. Ship what is done early rather than waiting on every helper.
+3. **Self-improvement loop.** After any correction from the owner, add the lesson to `tasks/lessons.md` (and project
+   memory) as a rule that prevents the same mistake.
+4. **Verify before done.** Never call work complete without proof: run the tests, check logs, diff behaviour against
+   `main`, take screenshots for UI. Ask "would a staff engineer approve this?"
+5. **Demand elegance (balanced).** For non-trivial changes, ask "is there a more elegant way?" and replace a hacky fix
+   with the clean one. Don't over-engineer simple, obvious fixes. Challenge your own work before presenting it.
+6. **Autonomous bug fixing.** Given a bug report or failing CI, just fix it: find the logs, errors and failing tests
+   yourself, with no hand-holding needed from the owner.
+
+Track progress by ticking the plan's items, give a short summary at each step, and finish with a *Review* section in the
+plan file. Core principles: **simplicity first** (smallest change that solves it), **no laziness** (root causes, no
+temporary fixes), **minimal impact** (touch only what's necessary). "Check in before starting" means a decision card
+only when a choice changes the owner's goal; otherwise act (see *General Principles* and *Pull Requests*).
+
 ## What this is
 
 An e-commerce storefront + admin for **Lyricalmyrical Books**, a publisher.
