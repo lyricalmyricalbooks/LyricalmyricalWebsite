@@ -1,8 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { extraFieldsCss, phoneThumbsCss, photoViewerCss, productPageCss, productPageFontNames, signupBoxCss, titleFitSize } from "./productPageStyle";
+import { extraFieldsCss, phoneThumbsCss, photoShadow, photoViewerCss, productPageCss, productPageFontNames, signupBoxCss, titleFitSize } from "./productPageStyle";
 import { STYLE_GROUPS } from "../../admin/studio/styleSchema";
 
 describe("product page (catalogue card) CSS", () => {
+  it("Image shadow colour: unset or shadow off keeps today's black shadow, a colour tints each size", () => {
+    expect(photoShadow({})).toBeUndefined();
+    expect(photoShadow({ productImageShadow: "lg" })).toBeUndefined();
+    expect(photoShadow({ productImageShadow: "none", productImageShadowColor: "#e8402a" })).toBeUndefined();
+    expect(photoShadow({ productImageShadow: "lg", productImageShadowColor: "#e8402a" })).toBe("0 40px 120px color-mix(in srgb, #e8402a 70%, transparent)");
+    expect(photoShadow({ productImageShadow: "sm", productImageShadowColor: "red;}" })).toBe("0 1px 2px 0 color-mix(in srgb, red 5%, transparent)");
+    expect(STYLE_GROUPS.flatMap((g) => g.fields).some((f) => f.key === "productImageShadowColor" && f.kind === "color")).toBe(true);
+  });
+
+
   it("Thumbnails on phones: same as computer by default, one line or hidden only below the phone breakpoint", () => {
     expect(phoneThumbsCss({})).toBe("");
     expect(phoneThumbsCss({ pdpThumbsPhone: "" })).toBe("");
