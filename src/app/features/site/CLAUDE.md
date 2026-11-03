@@ -9,7 +9,8 @@ Style controls (group, `after`, sub-section), Text & labels words and click-to-e
 lists by hand. feature.ts holds data only (shopper code reads it). `extras/featureKit.test.ts` checks every folder. Move an older extra
 into a folder when you next change it. Moved so far: `pdp-payment-icons`, `pdp-tax-note`, `footer-back-to-top`,
 `cart-tab-reminder` (26 October 2026), `pdp-in-bag`, `pdp-free-shipping`, `pdp-ship-by`, `pdp-ask-question`,
-`pdp-sale-countdown`, `footer-currency`, `pdp-release-countdown` (27 October 2026); each move left the four lists identical
+`pdp-sale-countdown`, `footer-currency`, `pdp-release-countdown` (27 October 2026), `card-quick-view` (29 October 2026: its
+pop-up parts became regions `quickView*` in Catalog & shared content · layout, plus `quickViewBlurbLength`); each move left the four lists identical
 apart from the order of `files`. Folders apply in name order, except that a folder whose anchor (`after`, `subsectionAfter`, copy or
 regions `after`) names a key or id another folder adds applies after that folder (`orderFeatures` in featureKit.ts; `pdp-free-shipping` anchors on
 `pdp-release-countdown`'s keys); a missing anchor, or two folders anchored on each other, throws.

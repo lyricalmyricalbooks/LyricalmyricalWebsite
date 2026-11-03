@@ -3,15 +3,17 @@ import { createPortal } from "react-dom";
 import { Link } from "react-router";
 import { X } from "lucide-react";
 import toast from "react-hot-toast";
-import { useCart } from "../../CartContext";
-import { useCurrency } from "../../CurrencyContext";
-import { useFocusTrap } from "../../lib/useFocusTrap";
-import { quickAddChoice } from "./buyable";
-import { getCopy } from "./storeCopy";
-import { placeholderImage } from "./constants";
-import { photoSrcSet } from "./photoSources";
-import { framingStyle } from "./photoFraming";
-import { PhotoToneDefs } from "./PhotoToneDefs";
+import { useCart } from "../../../../CartContext";
+import { useCurrency } from "../../../../CurrencyContext";
+import { useFocusTrap } from "../../../../lib/useFocusTrap";
+import { quickAddChoice } from "../../buyable";
+import { getCopy } from "../../storeCopy";
+import { placeholderImage } from "../../constants";
+import { photoSrcSet } from "../../photoSources";
+import { framingStyle } from "../../photoFraming";
+import { PhotoToneDefs } from "../../PhotoToneDefs";
+import { designNumber } from "../../designNumber";
+import { regionProps } from "../../storefrontRegions";
 
 /** Plain-text blurb from a book's description (which may hold HTML), cut on a word. */
 export function quickViewBlurb(description: unknown, max = 320): string {
@@ -31,9 +33,10 @@ export function quickViewNeedsChoice(book: any): boolean {
 
 /**
  * Shopify-style "Quick view": a pop-up on a shop card with the photo, price, a short blurb and
- * Add to bag. Switched on by Studio › Style › Book cards › Quick view (`showQuickView`, off by default).
+ * Add to bag. Switched on by Studio › Style › Book cards › Quick view (`showQuickView`, off by default); `look` is the
+ * shop-grid design holding the description length. Each part is a region in Catalog & shared content · layout.
  */
-export function QuickView({ book, design, onClose }: { book: any; design: any; onClose: () => void }) {
+export function QuickView({ book, design, look, onClose }: { book: any; design: any; look?: any; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const { addToCart } = useCart();
   const { formatBookPrice } = useCurrency();
@@ -43,10 +46,11 @@ export function QuickView({ book, design, onClose }: { book: any; design: any; o
   const needsChoice = quickViewNeedsChoice(book);
   const canBuy = choice.inStock && !needsChoice;
   const photo = book.photos?.[0];
-  const blurb = quickViewBlurb(book.description);
+  const blurb = quickViewBlurb(book.description, Math.max(40, designNumber(look, "quickViewBlurbLength", 320)));
   const title = getCopy(design, "quickViewAria", { title: book.title });
   const viewer = (
     <div
+      {...regionProps("quickViewShade")}
       className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/80"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
@@ -56,8 +60,7 @@ export function QuickView({ book, design, onClose }: { book: any; design: any; o
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        data-studio-target="style:products|copy:Catalog & empty states"
-        data-studio-label="Quick view"
+        {...regionProps("quickViewPanel")}
         className="fm-surface fm-quick-view relative w-full max-w-3xl max-h-[90vh] overflow-auto border border-white/10 grid md:grid-cols-2"
         style={{ color: "rgb(var(--fg-rgb, 255, 255, 255))" }}
       >
@@ -65,11 +68,12 @@ export function QuickView({ book, design, onClose }: { book: any; design: any; o
           type="button"
           onClick={onClose}
           aria-label={getCopy(design, "quickViewClose")}
+          {...regionProps("quickViewCloseButton")}
           className="absolute top-2 right-2 z-10 w-10 h-10 flex items-center justify-center border border-white/20 bg-black/40"
         >
           <X size={16} />
         </button>
-        <div className="relative aspect-[3/4] md:aspect-auto md:min-h-[24rem] overflow-hidden">
+        <div {...regionProps("quickViewPhoto")} className="relative aspect-[3/4] md:aspect-auto md:min-h-[24rem] overflow-hidden">
           <img
             src={photo?.url || placeholderImage(design)}
             {...photoSrcSet(photo, "(min-width: 768px) 384px, 90vw")}
@@ -80,14 +84,15 @@ export function QuickView({ book, design, onClose }: { book: any; design: any; o
           <PhotoToneDefs photo={photo} />
         </div>
         <div className="p-6 flex flex-col gap-4">
-          <h2 className="text-xl font-black tracking-tight leading-tight pr-10">{book.title}</h2>
-          <p translate="no" className="font-mono text-base font-bold">{formatBookPrice(book)}</p>
-          {blurb && <p className="text-sm leading-relaxed text-white/70">{blurb}</p>}
+          <h2 {...regionProps("quickViewTitle")} className="text-xl font-black tracking-tight leading-tight pr-10">{book.title}</h2>
+          <p translate="no" {...regionProps("quickViewPrice")} className="font-mono text-base font-bold">{formatBookPrice(book)}</p>
+          {blurb && <p {...regionProps("quickViewBlurb")} className="text-sm leading-relaxed text-white/70">{blurb}</p>}
           <div className="mt-auto flex flex-col gap-2">
             {canBuy && (
               <button
                 type="button"
                 data-autofocus
+                {...regionProps("quickViewAdd")}
                 onClick={() => {
                   if (addToCart(book, choice.variant)) onClose();
                   else toast.error(getCopy(design, "addToBagFailed"));
@@ -100,6 +105,7 @@ export function QuickView({ book, design, onClose }: { book: any; design: any; o
             <Link
               to={`/books/${slug}`}
               onClick={onClose}
+              {...regionProps("quickViewLink")}
               className="min-h-[44px] flex items-center justify-center text-[10px] font-bold tracking-[0.2em] uppercase border border-current"
             >
               {getCopy(design, needsChoice ? "quickAddChoose" : "quickViewDetails")}
