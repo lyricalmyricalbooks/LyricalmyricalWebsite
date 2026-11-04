@@ -953,9 +953,17 @@ export function OrderDetail({
           )}
           {Array.isArray(order.duplicatePayments) && order.duplicatePayments.length > 0 && (
             <SectionCard title="Paid twice">
-              <p className="fw-summary">Stripe took more than one payment for this order. Keep the first and refund the extra in the Stripe Dashboard:</p>
+              <p className="fw-summary">More than one payment was taken for this order. Keep the first and refund the extra:</p>
               <ul className="fw-summary">
                 {order.duplicatePayments.map((d: any, i: number) => {
+                  if (d?.provider === "paypal") {
+                    return (
+                      <li key={i}>
+                        PayPal capture <span className="rp-mono">{String(d.captureId || "")}</span>
+                        {d?.amountMinor != null ? ` · ${formatMinor(Number(d.amountMinor), d.currency || "CAD")}` : ""}
+                      </li>
+                    );
+                  }
                   const id = String(d?.paymentIntentId || d?.id || d || "");
                   return (
                     <li key={i}>

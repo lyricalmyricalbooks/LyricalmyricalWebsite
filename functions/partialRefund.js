@@ -98,7 +98,12 @@ function withoutRestocked(itemList, order) {
 }
 
 /** Idempotency key: a double click sends the same refund; a later, deliberate one is new. */
-const partialRefundKey = (orderId, already, amountMinor) => `order-refund-${orderId}-partial-${already}-${amountMinor}`;
+// A partial refund the bank rejected puts `already` back where it was; the retry gets its own key
+// so Stripe's idempotency cache doesn't hand back the failed refund.
+const partialRefundKey = (orderId, already, amountMinor, order = null) => {
+  const failed = (Array.isArray(order?.partialRefunds) ? order.partialRefunds : []).filter(r => r?.status === "failed").length;
+  return `order-refund-${orderId}-partial-${already}-${amountMinor}${failed ? `-retry${failed}` : ""}`;
+};
 
 // A refund the bank rejected (order back to paid, refund.status "failed") must not be replayed by the
 // provider's idempotency cache when the owner presses Refund again: the retry gets its own key.

@@ -87,9 +87,16 @@ test('PayPal: a cancelled order or a wrong amount is recorded, not paid', async 
   expect(short.docs.orders.o1.paymentMismatch).toBeTruthy();
 });
 
-test('PayPal: a capture for a different PayPal order is refused', async () => {
+// The capture is PayPal's own word (verified webhook, or the capture call): an earlier PayPal
+// checkout of this order that another tab replaced still took real money. It settles the order
+// through the same amount check instead of throwing (which made PayPal retry for days).
+test('PayPal: a capture for an earlier PayPal checkout of the order settles through the amount check', async () => {
   const app = harness(baseOrder({ paypalOrderId: 'other', paypalMode: 'test' }));
-  await expect(app.markOrderPaidFromPayPal('o1', capture())).rejects.toThrow(/does not match/);
+  expect(await app.markOrderPaidFromPayPal('o1', capture())).toBe(true);
+  expect(app.docs.orders.o1).toMatchObject({ paymentStatus: 'paid', paypalOrderId: 'pp1', paypalCaptureId: 'cap1' });
+  const short = harness(baseOrder({ paypalOrderId: 'other', paypalMode: 'test' }));
+  expect(await short.markOrderPaidFromPayPal('o1', capture('1.00'))).toBe(false);
+  expect(short.docs.orders.o1.paymentStatus).not.toBe('paid');
 });
 
 test('manual payment: marked paid once with stock and discount counted once', async () => {
