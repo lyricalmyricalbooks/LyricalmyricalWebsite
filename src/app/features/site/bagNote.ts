@@ -5,7 +5,8 @@ const KEY = "lm_bag_note";
 export const ORDER_NOTE_MAX = 500;
 
 type Store = Pick<Storage, "getItem" | "setItem" | "removeItem"> | undefined;
-const session = (): Store => (typeof sessionStorage === "undefined" ? undefined : sessionStorage);
+// With site data blocked, even naming sessionStorage throws: that must not crash the bag.
+const session = (): Store => { try { return typeof sessionStorage === "undefined" ? undefined : sessionStorage; } catch { return undefined; } };
 
 export function bagNote(storage: Store = session()): string {
   try {

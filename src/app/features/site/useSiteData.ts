@@ -148,13 +148,16 @@ export function useSiteData() {
           cachedAt: new Date().toISOString() 
         });
 
-        const sessionKey = `fm_visit_${new Date().toISOString().split("T")[0]}`;
-        if (!isPreview && !sharing && consentAllows("analytics") && !sessionStorage.getItem(sessionKey)) {
-          publicApi.recordVisit();
-          // Where the session came from and on what kind of screen (its own best-effort write).
-          funnelApi.trackSession();
-          sessionStorage.setItem(sessionKey, "true");
-        }
+        // Its own try: blocked site storage must not turn a catalog that loaded fine into an error.
+        try {
+          const sessionKey = `fm_visit_${new Date().toISOString().split("T")[0]}`;
+          if (!isPreview && !sharing && consentAllows("analytics") && !sessionStorage.getItem(sessionKey)) {
+            publicApi.recordVisit();
+            // Where the session came from and on what kind of screen (its own best-effort write).
+            funnelApi.trackSession();
+            sessionStorage.setItem(sessionKey, "true");
+          }
+        } catch { /* storage blocked: the visit isn't counted */ }
       } catch {
         if (cancelled) return;
         failed = true;

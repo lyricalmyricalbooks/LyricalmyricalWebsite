@@ -117,12 +117,23 @@ function OrderTrackingContent() {
   }, []);
 
   // Order numbers are shown in capitals; accept them typed in any case.
-  const findOrder = async (input: string, email: string) => {
+  // Also returns the order number that exists, so a private link asked for with a lower-case
+  // number goes to the real order instead of being "sent" to nothing.
+  const findOrder = async (input: string, email: string): Promise<{ order: any; id: string }> => {
     const typed = normalizeOrderNumber(input);
-    if (!typed) return null;
-    const exact = await publicApi.getPublicOrder(typed, { email });
-    if (exact || typed === typed.toUpperCase()) return exact;
-    return publicApi.getPublicOrder(typed.toUpperCase(), { email });
+    if (!typed) return { order: null, id: "" };
+    const tries = typed === typed.toUpperCase() ? [typed] : [typed, typed.toUpperCase()];
+    let existing = "";
+    for (const id of tries) {
+      try {
+        const found = await publicApi.getPublicOrder(id, { email });
+        if (found) return { order: found, id };
+      } catch (err: any) {
+        if (err?.code !== "email_mismatch") throw err;
+        existing ||= id;
+      }
+    }
+    return { order: null, id: existing || typed };
   };
 
   const handleTrack = async (e: React.FormEvent) => {
@@ -138,17 +149,14 @@ function OrderTrackingContent() {
 
     setLinkSent(false);
     try {
-      let foundOrder: any = null;
-      try { foundOrder = await findOrder(orderIdInput, emailInput.trim()); } catch (err: any) {
-        if (!["email_mismatch"].includes(err?.code)) throw err;
-      }
+      const { order: foundOrder, id: orderNumber } = await findOrder(orderIdInput, emailInput.trim());
       if (foundOrder) {
         setOrder(foundOrder);
         setAccess({ key: savedOrderAccess(foundOrder.id) });
       } else {
         const response = await functionFetch("createStripeCheckoutSession", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "trackingLink", orderId: normalizeOrderNumber(orderIdInput), email: emailInput.trim() }),
+          body: JSON.stringify({ action: "trackingLink", orderId: orderNumber, email: emailInput.trim() }),
         });
         if (!response.ok) throw Object.assign(new Error("tracking_link_failed"), { code: response.status === 429 ? "too_many" : "failed" });
         setLinkSent(true);

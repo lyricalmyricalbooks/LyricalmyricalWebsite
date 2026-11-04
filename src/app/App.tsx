@@ -110,14 +110,18 @@ export default function App() {
   // Capture referral traffic source if present in query parameters or HTTP referrer
   useEffect(() => {
     if (typeof window !== "undefined" && consentAllows("analytics")) {
-      const params = new URLSearchParams(window.location.search);
-      const ref = params.get("ref");
-      if (ref) {
-        window.sessionStorage.setItem("referral_source", ref.toLowerCase());
-      } else if (!window.sessionStorage.getItem(REFERRAL_KEY) && document.referrer) {
-        const source = referralSourceOf(document.referrer, window.location.hostname);
-        if (source) window.sessionStorage.setItem(REFERRAL_KEY, source);
-      }
+      // A browser that blocks site data throws on any storage access; nothing above App would
+      // catch it, so the whole shop would go blank.
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const ref = params.get("ref");
+        if (ref) {
+          window.sessionStorage.setItem("referral_source", ref.toLowerCase());
+        } else if (!window.sessionStorage.getItem(REFERRAL_KEY) && document.referrer) {
+          const source = referralSourceOf(document.referrer, window.location.hostname);
+          if (source) window.sessionStorage.setItem(REFERRAL_KEY, source);
+        }
+      } catch { /* storage blocked: no referral note */ }
       // The fuller record (campaign tags, landing page) that goes on the order as `acquisition`.
       // Not from the Studio preview (same test as trackingGuard's inEditorPreview).
       if (!window.location.search.includes("preview=true")) recordVisitSource();

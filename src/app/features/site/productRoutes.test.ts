@@ -29,3 +29,10 @@ describe("product destinations", () => {
     expect(resolveProductRoutes([{id:"a",slug:"b"},{id:"b",title:""}]).map(b=>b.slug)).toEqual(["a", "b"]);
   });
 });
+
+it("finds a book from a capitalised address", () => {
+  const books = [{ id: "a", slug: "night-pages", title: "Night Pages" }, { id: "b", title: "Day Book" }];
+  expect(findProduct(books, "Night-Pages")?.id).toBe("a");
+  expect(findProduct(books, "Day-Book")?.id).toBe("b");
+  expect(findProduct(books, "night-pages")?.id).toBe("a");
+});

@@ -12,8 +12,11 @@ import {
   POPUP_SEEN_KEY, POPUP_SUPPRESS_KEY, type PopupFrequency,
 } from "./sectionGroups";
 
-const read = (store: Storage | undefined, key: string) => { try { return store?.getItem(key) ?? null; } catch { return null; } };
-const write = (store: Storage | undefined, key: string, value: string) => { try { store?.setItem(key, value); } catch { /* storage blocked */ } };
+// Takes the store as a getter: with site data blocked, even reading window.sessionStorage throws.
+const read = (store: () => Storage | undefined, key: string) => { try { return store()?.getItem(key) ?? null; } catch { return null; } };
+const write = (store: () => Storage | undefined, key: string, value: string) => { try { store()?.setItem(key, value); } catch { /* storage blocked */ } };
+const session = () => window.sessionStorage;
+const local = () => window.localStorage;
 
 /**
  * The pop-up section group (Studio › Page layout › Pop-up). It waits until the shopper has answered
@@ -38,10 +41,10 @@ export function PopupSections({ design, books = [] }: { design: any; books?: any
 
   useEffect(() => {
     if (preview || !sections.length || typeof window === "undefined") return;
-    if (read(window.sessionStorage, POPUP_SUPPRESS_KEY) === "1") return;
+    if (read(session, POPUP_SUPPRESS_KEY) === "1") return;
     if (hideOnPhones && window.matchMedia?.("(max-width: 767px)").matches) return;
     const key = `${POPUP_SEEN_KEY}:${version}`;
-    const seen = { session: read(window.sessionStorage, key) === "1", ever: read(window.localStorage, key) === "1" };
+    const seen = { session: read(session, key) === "1", ever: read(local, key) === "1" };
     if (!popupAllowed(frequency, seen)) return;
     let timer = 0;
     let armed = false;
@@ -66,7 +69,7 @@ export function PopupSections({ design, books = [] }: { design: any; books?: any
       if (trigger === "scroll") { armed = true; window.addEventListener("scroll", onScroll, { passive: true }); onScroll(); return; }
       timer = window.setTimeout(() => setOpen(true), delay);
     };
-    const answered = () => !bannerOn || read(window.localStorage, CONSENT_KEY) !== null;
+    const answered = () => !bannerOn || read(local, CONSENT_KEY) !== null;
     if (answered()) start();
     const onConsent = () => { if (answered()) start(); };
     window.addEventListener(CONSENT_EVENT, onConsent);
@@ -77,8 +80,8 @@ export function PopupSections({ design, books = [] }: { design: any; books?: any
     setOpen(false);
     if (preview) return;
     const key = `${POPUP_SEEN_KEY}:${version}`;
-    write(window.sessionStorage, key, "1");
-    write(window.localStorage, key, "1");
+    write(session, key, "1");
+    write(local, key, "1");
   };
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref as any, open && !preview, close);

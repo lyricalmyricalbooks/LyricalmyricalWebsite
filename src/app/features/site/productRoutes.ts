@@ -8,6 +8,10 @@ export function findProduct<T extends Product>(books: T[], slug: string | undefi
   if (byId) return byId;
   const exact = visible.filter(b => b.slug === slug);
   if (exact.length) return exact.length === 1 ? exact[0] : undefined;
-  const byTitle = visible.filter(b => titleSlug(b.title) === slug);
+  // A capitalised link (/books/Night-Pages, from print or social posts) still finds its book.
+  const lower = slug.toLowerCase();
+  const anyCase = visible.filter(b => typeof b.slug === "string" && b.slug.toLowerCase() === lower);
+  if (anyCase.length) return anyCase.length === 1 ? anyCase[0] : undefined;
+  const byTitle = visible.filter(b => titleSlug(b.title) === lower);
   return byTitle.length === 1 ? byTitle[0] : undefined;
 }

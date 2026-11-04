@@ -436,7 +436,8 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
   // nothing. autoAll remembers that "ALL" was this fallback rather than the shopper's pick, so
   // categories that arrive later (catalog load, Studio edit) still open on the first one as before.
   // /collections/<slug> (header links on other pages, product breadcrumbs) opens this shop on that category.
-  const { slug: collectionSlug } = useParams();
+  // Collection addresses match in any case (/collections/Zines opens Zines).
+  const collectionSlug = useParams().slug?.toLowerCase();
   // On a collection URL the first render already shows that category: starting on the first category and
   // switching in an effect drew one frame of the wrong books (a layout shift on load).
   const [activeCategory, setActiveCategory] = useState<any>(() => (collectionSlug ? collectionCategory(collectionSlug, categories) : categories[0]) ?? "ALL");

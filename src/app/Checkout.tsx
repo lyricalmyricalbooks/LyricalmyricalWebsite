@@ -10,6 +10,8 @@ import { applyFavicon } from "./features/site/favicon";
 import React, { useState, useEffect, useMemo, useReducer, useRef } from "react";
 import { Link } from "react-router";
 import { useCart, catalogUnitPrice, repriceCart } from "./CartContext";
+import { withBundleStock } from "./features/site/bundleStock";
+import { shippableBagTotal } from "./features/site/freeShipThreshold";
 import { sameOrderLines } from "./features/site/orderLines";
 import { amountIn, orderMoney, orderChargedTotal, totalNeedsConfirming } from "./features/site/orderMoney";
 import { cardAttemptKey, intentIdOf, mayHaveGoneThrough, paymentSettled, reusableCardOrder, type PendingCardOrder } from "./features/site/cardAttempt";
@@ -93,6 +95,15 @@ function rememberAttempt(orderId: string) {
 function forgetAttempt(orderId: string) {
   try { if (sessionStorage.getItem(ATTEMPT_KEY) === orderId) sessionStorage.removeItem(ATTEMPT_KEY); } catch { /* storage blocked */ }
 }
+// A browser that blocks site data throws on any storage access: that must never stop a sale
+// (Pay showed "Checkout failed" every time) or the bag recovery.
+const storeOf = (area: "sessionStorage" | "localStorage") => ({
+  get: (key: string): string | null => { try { return window[area].getItem(key); } catch { return null; } },
+  set: (key: string, value: string) => { try { window[area].setItem(key, value); } catch { /* storage blocked */ } },
+  remove: (key: string) => { try { window[area].removeItem(key); } catch { /* storage blocked */ } },
+});
+const safeSession = storeOf("sessionStorage");
+const safeLocal = storeOf("localStorage");
 
 export function Checkout() {
   const { cart: shopperCart, cartTotal: shopperTotal, cartCount: shopperCount, clearCart, setCart: setShopperCart } = useCart();
@@ -352,7 +363,8 @@ export function Checkout() {
           }
 
           // Save cart ID in sessionStorage to keep updating it and resolve it later
-          sessionStorage.setItem("fm_checkout_cart_id", urlCartId);
+          safeSession.set("fm_checkout_cart_id", urlCartId);
+          recoveryCartRef.current = urlCartId;
 
           // Restore cart items
           const localBooksMap = new Map(books.map(b => [b.id, b]));
@@ -403,8 +415,10 @@ export function Checkout() {
             };
           });
 
-          if (restoredItems.length > 0) {
-            clearCart();
+          // The reminder link on the device that left the bag: the bag is still here, with its
+          // inscriptions, extras and gift-card recipients (the saved copy keeps none of those), so keep it.
+          const bagStillHere = restoredItems.every((saved: any) => cart.some(line => line.id === saved.id && (line.variantId || "") === (saved.variantId || "")));
+          if (restoredItems.length > 0 && !bagStillHere) {
             setCart(restoredItems);
           }
         }
@@ -418,11 +432,13 @@ export function Checkout() {
   // the catalog the server will charge from, and say what changed.
   useEffect(() => {
     if (catalogState !== "ready" || !cart.length) return;
-    const next = repriceCart(cart, books);
+    // Box sets get the stock their parts allow, the same caps the bag and the server use: with the
+    // raw catalog (box sets saved untracked) this and the bag's check undid each other forever.
+    const next = repriceCart(cart, withBundleStock(books, books));
     if (!next.changed) return;
     setCart(next.cart);
-    if (next.removed.length || next.repriced.length) {
-      setNotice({ tone: "info", text: c("coBagUpdated", { items: [...next.removed, ...next.repriced].join(", ") }) });
+    if (next.removed.length || next.repriced.length || next.reduced.length) {
+      setNotice({ tone: "info", text: c("coBagUpdated", { items: [...new Set([...next.removed, ...next.repriced, ...next.reduced])].join(", ") }) });
     }
   }, [catalogState, books, cart]);
 
@@ -669,18 +685,23 @@ export function Checkout() {
       (p.zones || []).forEach((z: any) => (z.rates || []).forEach((r: any) => { if (Number(r.freeOver) > 0) candidates.add(Number(r.freeOver)); }));
     });
     const country = customer.address.country || "Canada";
-    const base = shippingItemsForCart();
-    for (const t of [...candidates].filter(t => t > cartTotal).sort((a, b) => a - b).slice(0, 6)) {
-      const gap = freeShippingGap(cartTotal, t);
+    // Shipping is quoted on printed lines only (as on the server): e-books and gift cards in the
+    // bag must not count toward free shipping, or the hint promises what checkout won't give.
+    const all = shippingItemsForCart();
+    const base = catalogItems ? all.filter((_, i) => catalogItems[i]?.physical) : all;
+    if (!base.length) return null;
+    const shippable = shippableBagTotal(catalogItems, cartTotal);
+    for (const t of [...candidates].filter(t => t > shippable).sort((a, b) => a - b).slice(0, 6)) {
+      const gap = freeShippingGap(shippable, t);
       if (!gap) continue;
-      const probe = [...base, { price: gap, quantity: 1, shippingProfileId: cart[0]?.shippingProfileId || null, weightGrams: 0 }];
+      const probe = [...base, { price: gap, quantity: 1, shippingProfileId: base[0]?.shippingProfileId || null, weightGrams: 0 }];
       const quotes = quoteShipping(probe, { country }, shippingProfiles);
       const same = quotes.find(q => q.name === selected.name);
       if ((same ? same.price : quotes[0]?.price) === 0) return { gap, threshold: t };
     }
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart, cartTotal, shippingProfiles, availableRates, fulfillmentSelection, customer.address.country, checkoutDesign.hideCheckoutFreeShipNudge]);
+  }, [cart, cartTotal, catalogItems, shippingProfiles, availableRates, fulfillmentSelection, customer.address.country, checkoutDesign.hideCheckoutFreeShipNudge]);
 
   const calculateStaticProfileRates = () => {
     if (cart.length === 0 || shippingProfiles.length === 0) {
@@ -1020,17 +1041,23 @@ export function Checkout() {
     }
   }, []);
 
+  // The saved bag's id for this visit, also kept here so blocked storage doesn't make a new one each time.
+  const recoveryCartRef = useRef<string | null>(null);
+  // The saved bag's id, read the same way everywhere (the order's cartId, marking it recovered),
+  // so a paying shopper with blocked storage never gets a "you left something" email.
+  const currentCartId = () => safeSession.get("fm_checkout_cart_id") || recoveryCartRef.current;
   useEffect(() => {
     // The cookie banner lists cart reminders under Marketing: a shopper who declined gets none.
     // The Studio preview never saves a cart (its bag may be the display-only sample).
     if (inEditorPreview() || !customer.email || !customer.email.includes("@") || cart.length === 0 || !consentAllows("marketing")) return;
     const t = setTimeout(() => {
-      let recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id");
+      let recoveryCartId = currentCartId();
       if (!recoveryCartId) {
         const newRef = doc(collection(db, "abandoned-carts"));
         recoveryCartId = newRef.id;
-        sessionStorage.setItem("fm_checkout_cart_id", recoveryCartId);
+        safeSession.set("fm_checkout_cart_id", recoveryCartId);
       }
+      recoveryCartRef.current = recoveryCartId;
 
       abandonedCartApi.upsert(recoveryCartId, {
         email: customer.email,
@@ -1221,11 +1248,11 @@ export function Checkout() {
         manualMethod = (settings?.payments?.manualMethods || []).find((m: any) => m.id === manualId);
       }
 
-      const referralSource = typeof window !== "undefined" ? window.sessionStorage.getItem("referral_source") : null;
+      const referralSource = safeSession.get("referral_source");
       // Campaign tags, referring page and landing page (lib/visitSource.ts); null when nothing was recorded.
       const acquisition = orderAcquisition();
 
-      const checkoutCartId = sessionStorage.getItem("fm_checkout_cart_id");
+      const checkoutCartId = currentCartId();
       const orderData = {
         // Lowercased so Account › My orders (matched on the sign-in email) finds it.
         customer: { ...customer, email: String(customer.email || "").trim().toLowerCase() },
@@ -1272,7 +1299,7 @@ export function Checkout() {
       };
       
       // Save customer email in localStorage to recover cart on payment success landing
-      localStorage.setItem("last_customer_email", customer.email);
+      safeLocal.set("last_customer_email", customer.email);
       
       // The code is part of the key: removing a refused code must make a fresh order, even when the total is unchanged.
       const cardKey = cardAttemptKey({ items: orderData.items, total: orderData.total, customer: orderData.customer, currency, fulfillmentSelection, discountCode: orderData.appliedDiscount?.code || null, giftCardCodes: giftCards.map(card => card.code), orderNote: (orderData as any).orderNote, addressVerified });
@@ -1561,10 +1588,10 @@ export function Checkout() {
           if (order) setSuccessOrder(order);
           clearCart();
           forgetAttempt(oid);
-          const email = order?.customer?.email || localStorage.getItem("last_customer_email") || "";
-          const recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id") || `active_${email.toLowerCase()}`;
+          const email = order?.customer?.email || safeLocal.get("last_customer_email") || "";
+          const recoveryCartId = currentCartId() || `active_${email.toLowerCase()}`;
           abandonedCartApi.markRecovered(recoveryCartId);
-          sessionStorage.removeItem("fm_checkout_cart_id");
+          safeSession.remove("fm_checkout_cart_id"); recoveryCartRef.current = null;
           return;
         }
         if (stripeSessionId.startsWith("cs_") || stripeIntentId.startsWith("pi_")) {
@@ -1622,20 +1649,20 @@ export function Checkout() {
             if (isPreviousPaid && !sameOrderLines(cartRef.current, order.items)) return;
             clearCart();
             funnelApi.trackPurchase(oid, order);
-            const email = order.customer?.email || localStorage.getItem("last_customer_email") || "";
-            const recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id") || `active_${email.toLowerCase()}`;
+            const email = order.customer?.email || safeLocal.get("last_customer_email") || "";
+            const recoveryCartId = currentCartId() || `active_${email.toLowerCase()}`;
             abandonedCartApi.markRecovered(recoveryCartId);
-            sessionStorage.removeItem("fm_checkout_cart_id");
+            safeSession.remove("fm_checkout_cart_id"); recoveryCartRef.current = null;
             return;
           }
           if (order?.paymentStatus === "pending") {
             clearCart();
             forgetAttempt(oid);
             funnelApi.trackPurchase(oid, order);
-            const email = order.customer?.email || localStorage.getItem("last_customer_email") || "";
-            const recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id") || `active_${email.toLowerCase()}`;
+            const email = order.customer?.email || safeLocal.get("last_customer_email") || "";
+            const recoveryCartId = currentCartId() || `active_${email.toLowerCase()}`;
             abandonedCartApi.markRecovered(recoveryCartId);
-            sessionStorage.removeItem("fm_checkout_cart_id");
+            safeSession.remove("fm_checkout_cart_id"); recoveryCartRef.current = null;
             return;
           }
           await new Promise(resolve => setTimeout(resolve, 2500));
@@ -1784,6 +1811,8 @@ export function Checkout() {
           </div>
           <p className="text-[9px] font-black tracking-[0.5em] text-white/20 uppercase mb-4">{c("coEmptyEyebrow")}</p>
           <h2 className="text-4xl font-black tracking-tighter uppercase italic text-white mb-12">{c("coEmptyTitle")}</h2>
+          {/* The bag emptied itself here (everything sold out or came off sale): say why. */}
+          {notice && <p role="status" className="max-w-sm -mt-6 mb-10 text-sm leading-relaxed opacity-70">{notice.text}</p>}
           <Link to="/"
             className="fm-active px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase hover:bg-white/90 transition-all active:scale-95">
             {c("coEmptyButton")}
