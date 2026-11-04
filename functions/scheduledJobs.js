@@ -170,6 +170,11 @@ function scheduledJobs({
         // cart stays un-notified (and the address unthrottled) so tomorrow's sweep can still send it.
         const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
         const dailyRef = db.collection("abandoned-cart-throttle").doc("_daily");
+        const releaseDailySlot = () => db.runTransaction(async tx => {
+          const d = await tx.get(dailyRef);
+          const saved = d.exists ? d.data() : null;
+          if (saved?.day === day && saved.count > 0) tx.set(dailyRef, { ...saved, count: saved.count - 1 });
+        }).catch(() => {});
         const underCap = await db.runTransaction(async tx => {
           const d = await tx.get(dailyRef);
           const next = nextDailyCount(d.exists ? d.data() : null, day);
@@ -180,6 +185,9 @@ function scheduledJobs({
         // The shop-wide hourly/daily budget for anonymous-triggered email also applies.
         if (!underCap || !(await claimEmailSend(db, "abandonedCart", "", { failOpen: false }))) {
           await (previousThrottle ? throttleRef.set(previousThrottle) : throttleRef.delete()).catch(() => {});
+          // A refused send gives back its place under the daily cap, so a busy email day can't
+          // use up every reminder slot without sending one.
+          if (underCap) await releaseDailySlot();
           return;
         }
 
@@ -217,12 +225,17 @@ function scheduledJobs({
             html: compiled.html,
             secret: RESEND_API_KEY.value(),
           });
-          await doc.ref.update({ notified: true, notifiedAt: new Date().toISOString() });
         } catch (err) {
-          // Release the claim so a failed send doesn't block this address's reminder.
+          // Release the claim (and the day's slot) so a failed send doesn't block this address's reminder.
           await (previousThrottle ? throttleRef.set(previousThrottle) : throttleRef.delete()).catch(() => {});
+          await releaseDailySlot();
           console.error("Abandoned cart email failed", err);
+          return;
         }
+        // Outside the send's try: the email went out, so a failed bookkeeping write must never
+        // release the address's one-reminder record (that would email it again next hour).
+        await doc.ref.update({ notified: true, notifiedAt: new Date().toISOString() })
+          .catch(err => console.error("Abandoned cart sent but not marked", err));
       }, { deadline: sweepDeadline });
     },
   );

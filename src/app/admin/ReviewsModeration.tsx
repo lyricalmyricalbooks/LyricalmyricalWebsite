@@ -39,7 +39,7 @@ function Queue() {
   const [rating, setRating] = useState("all");
   const [titles, setTitles] = useState<Record<string, string>>({});
   const [slugs, setSlugs] = useState<Record<string, string>>({});
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[] | null>(null);
   const [replying, setReplying] = useState<Review | null>(null);
   const [replyText, setReplyText] = useState("");
   // The browse list is capped at the newest 200; pending reviews load one page at a time (reviewQueue.ts).
@@ -95,8 +95,22 @@ function Queue() {
     // Paid orders, to mark reviews by people who bought the book. Best-effort.
     getOrdersCached().then(setOrders).catch(() => {});
   }, []);
-  const purchases = useMemo(() => purchaseIndex(orders), [orders]);
-  const verified = (r: Review) => isVerifiedPurchase(r, purchases);
+  const purchases = useMemo(() => purchaseIndex(orders || []), [orders]);
+  // The reviewer's email lives in admin-only reviewContacts, not on the review itself.
+  const verified = (r: Review) => r.verified === true || isVerifiedPurchase({ ...r, email: r.email || emails[r.id] }, purchases);
+  // The "Verified purchase" stamp for an approval, from each reviewer's stored email. Left out
+  // (the review keeps whatever it had) when the orders or the emails could not be read, so a
+  // failed lookup never stamps a real buyer's review as unverified.
+  async function verifiedStamps(approving: Review[]): Promise<Map<string, { verified?: boolean }>> {
+    if (!orders || !approving.length) return new Map();
+    try {
+      const found = await reviewsApi.contactsFor(approving);
+      return new Map(approving.map((r) => {
+        const email = r.email || found[r.id];
+        return [r.id, email ? { verified: isVerifiedPurchase({ ...r, email }, purchases) } : {}];
+      }));
+    } catch { return new Map(); }
+  }
   const bookUrl = (id: string) => `${import.meta.env.BASE_URL}books/${encodeURIComponent(slugs[id] || id)}`;
   const stats = useMemo(() => reviewStats(reviews), [reviews]);
 
@@ -114,9 +128,8 @@ function Queue() {
     // Each review is its own write: some can succeed while others fail. Report both and
     // always reload, so the list never shows a state that isn't saved.
     // Approving stamps the public "Verified purchase" mark from the reviewer's paid orders.
-    const byId = new Map(reviews.map((r) => [r.id, r]));
-    const results = await Promise.allSettled(ids.map((id) => reviewsApi.setStatus(id, status,
-      status === "approved" && byId.get(id) ? { verified: verified(byId.get(id)!) } : {})));
+    const stamps = status === "approved" ? await verifiedStamps(reviews.filter((r) => ids.includes(r.id))) : new Map();
+    const results = await Promise.allSettled(ids.map((id) => reviewsApi.setStatus(id, status, stamps.get(id) || {})));
     const { done, failed, message } = moderationOutcome(ids, results, status);
     setSelected(new Set(failed));
     toast(message, {
@@ -148,7 +161,7 @@ function Queue() {
       await reviewsApi.setReply(review.id, replyText);
     } catch { toast("Could not save the reply.", { tone: "err" }); load(); return; }
     if (approve) {
-      try { await reviewsApi.setStatus(review.id, "approved", { verified: verified(review) }); }
+      try { await reviewsApi.setStatus(review.id, "approved", (await verifiedStamps([review])).get(review.id) || {}); }
       catch { toast("The reply was saved, but the review couldn't be approved. Approve it again from the list.", { tone: "err" }); load(); return; }
     }
     toast(approve ? "Reply saved and review approved" : replyText.trim() ? "Reply published" : "Reply removed");

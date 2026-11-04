@@ -733,7 +733,7 @@ TTL 30 days on `expiresAt`). Admin: Settings › General › Tools & records ›
   (`inEditorPreview()` inside `subscribeNewsletter`, `saveStockAlert`, `reviewsApi.create`); the book page's review count/average come
   from Firestore aggregation (`reviewsApi.summary`, also the JSON-LD `aggregateRating`) with a **Show more reviews** button
   (Text & labels › Reviews › `reviewsMore`; Style › Reviews · layout & elements › Show more reviews button); Admin › Reviews loads
-  50 pending reviews at a time with a server-side total and fetches a reviewer's email only on **Show email** (`admin/reviewQueue.ts`;
+  50 pending reviews at a time with a server-side total and fetches a reviewer's email only on **Show email** or when approving (the Verified purchase stamp needs it; left unchanged when orders or emails can't be read) (`admin/reviewQueue.ts`;
   needs the `reviews (status, createdAt desc)` index). All CSV exports guard leading tab/CR as well as `= + - @`.
 
 ## Round-2 digital downloads (10 October 2026)

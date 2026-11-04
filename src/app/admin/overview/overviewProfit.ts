@@ -6,6 +6,7 @@
 import { titleFlag, TITLE_FLAG_WORDS, type TitleFlag } from "./overviewSignals";
 import { isDigitalBook, type Book, type Order } from "./overviewInsights";
 import type { TitleStock } from "./overviewInsights";
+import { csvCell } from "../csvCell";
 
 const num = (v: unknown) => Number(v) || 0;
 
@@ -141,7 +142,7 @@ export function sortTitles(rows: TitleRow[], by: TitleSort): TitleRow[] {
   return [...rows].sort((a, b) => key(b) - key(a) || b.revenue - a.revenue || a.title.localeCompare(b.title));
 }
 
-const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""').replace(/^([=+\-@\t\r])/, "'$1")}"`;
+const cell = csvCell;
 const m2 = (n: number | null) => (n === null ? "" : (Math.round(n * 100) / 100).toFixed(2));
 
 /** The table as CSV (CSV-injection safe), for Overview › Titles › Download. */

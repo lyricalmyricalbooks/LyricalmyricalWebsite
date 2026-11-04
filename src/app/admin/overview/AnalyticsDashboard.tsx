@@ -86,10 +86,17 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
 
   // Every daily traffic doc of the range AND its comparison window, however long ago (a year-on-year view needs ~2 years).
   const { fromKey: trafficFrom, toKey: trafficTo } = trafficWindow(range);
+  // Only the newest read lands: switching 7 days → 12 months while the short read is still out
+  // must not leave the 12-month figures counting 7 days of visits.
+  const dailyRequest = useRef(0);
   const loadDaily = useCallback(() => {
+    const request = ++dailyRequest.current;
     setDaily(d => ({ rows: d.rows, error: false }));
-    adminApi.getDailyAnalyticsBetween(trafficFrom, trafficTo).then((rows: any[]) => setDaily({ rows, error: false }))
-      .catch((err: unknown) => { console.error(err); setDaily({ rows: null, error: true }); toast.error("Traffic figures could not be loaded"); });
+    adminApi.getDailyAnalyticsBetween(trafficFrom, trafficTo).then((rows: any[]) => { if (request === dailyRequest.current) setDaily({ rows, error: false }); })
+      .catch((err: unknown) => {
+        if (request !== dailyRequest.current) return;
+        console.error(err); setDaily({ rows: null, error: true }); toast.error("Traffic figures could not be loaded");
+      });
   }, [trafficFrom, trafficTo]);
   useEffect(() => { loadDaily(); }, [reloadKey, loadDaily]);
 
@@ -143,7 +150,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         setAllOrders(a => (a.orders ? { orders: mergeNewestPage(a.orders, shared), error: false } : a));
         setLoadedAt(new Date());
         return Promise.resolve();
-      })() ?? adminApi.getOrders(50).then((page: any[]) => {
+      // With each order's private record, like the shared copy: queue and hold states read it.
+      })() ?? adminApi.getRecentFulfillmentOrders(50).then((page: any[]) => {
         const clean = page.map(({ _lastDoc, ...o }: any) => o);
         setAllOrders(a => (a.orders ? { orders: mergeNewestPage(a.orders, clean), error: false } : a));
         setLoadedAt(new Date());

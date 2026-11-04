@@ -54,11 +54,12 @@ describe("review moderation queue", () => {
 });
 
 describe("the Reviews screen", () => {
-  it("fetches an email only when asked, one review at a time", async () => {
+  it("fetches an email only when asked: Show email, or approving (for the Verified purchase stamp)", async () => {
     const { readFileSync } = await import("node:fs");
     const screen = readFileSync(new URL("./ReviewsModeration.tsx", import.meta.url), "utf8");
     expect(screen).not.toMatch(/contactsFor\(list\)/);
     expect(screen).toMatch(/reviewsApi\.contactsFor\(\[r\]\)/);
+    expect(screen).toMatch(/reviewsApi\.contactsFor\(approving\)/);
     expect(screen).toMatch(/Show email/);
   });
 });

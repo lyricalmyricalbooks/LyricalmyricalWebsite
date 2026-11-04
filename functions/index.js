@@ -26,7 +26,7 @@ function Resend(...args) { return new (require("resend").Resend)(...args); }
 const nodemailer = { createTransport: (...args) => require("nodemailer").createTransport(...args) };
 const { calculateShipping } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shared/shippingEngine");
-const { addressKey: guardAddressKey, advancesTracking } = require("./fulfillmentGuard");
+const { addressKey: guardAddressKey, advancesTracking, trackingStep } = require("./fulfillmentGuard");
 const { transactionRefundState, openRefunds, applyRefundChecks } = require("./labelVoid");
 const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
@@ -3565,7 +3565,7 @@ exports.abandonedCartSweep = jobs.abandonedCartSweep;
 const shippo = shippoEndpoints({
   onBrowserRequest, onRequest, db, applyCors, requireAdmin, hitLimit, LIMITS, IS_EMULATOR, RESEND_API_KEY,
   SHIPPO_API_TOKEN, SHIPPO_CONFIG_DOC, ADDRESS_ACTIONS, FALLBACK_COPY_GRAMS, addressKeyProblem, addressMissing,
-  advancesTracking, bundleComponents, callShippo, catalogDigital, catalogFormat, checkoutRate,
+  advancesTracking, trackingStep, bundleComponents, callShippo, catalogDigital, catalogFormat, checkoutRate,
   cleanLiveRateExtra, getCountryCode, getShippoToken, getStateCode, handleAddressLookup, isPhysicalItem,
   itemWeightGrams, liveRateExtra, originAddress, parcelGrams, publicErrorMessage, readAdminSecret,
   withLiveRateExtra,

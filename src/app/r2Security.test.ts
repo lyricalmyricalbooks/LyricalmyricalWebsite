@@ -88,8 +88,10 @@ describe("spreadsheet exports neutralise tab and carriage-return formulas (#120)
   });
 
   it("every CSV cell guard in the admin uses the same character set", () => {
-    for (const file of ["bulkPricing.ts", "inventoryInsights.ts", "customerInsights.ts", "overview/salesReport.ts"]) {
-      expect(read(`src/app/admin/${file}`), file).toMatch(/\[=\+\\-@\\t\\r\]/);
+    // One shared guard (csvCell.ts) for these downloads; each must use it rather than its own copy.
+    expect(read("src/app/admin/csvCell.ts")).toMatch(/\[=\+\\-@\\t\\r\]/);
+    for (const file of ["bulkPricing.ts", "inventoryInsights.ts", "customerInsights.ts", "overview/salesReport.ts", "overview/overviewProfit.ts"]) {
+      expect(read(`src/app/admin/${file}`), file).toMatch(/import \{ csvCell \} from/);
     }
     expect(read("src/app/admin/catalogImport.ts")).toMatch(/\[=\+\\-@\\t\\r\]/);
   });

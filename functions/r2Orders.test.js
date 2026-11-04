@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
-const { addressKey, packingKey, advancesTracking, shippoDefiniteRefusal } = require("./fulfillmentGuard.js");
+const { addressKey, packingKey, advancesTracking, trackingStep, shippoDefiniteRefusal } = require("./fulfillmentGuard.js");
 const { customsItems, needsCustoms, validHsCode } = require("./customs.js");
 const { labelRatesFor, isPurchasableRate } = require("./labelRates.js");
 const { addressMissing } = require("./shared/addressRules.js");
@@ -306,7 +306,10 @@ test("fault 35: customs items skip e-books, share a discount and ignore bad tari
 // Fault 96 -----------------------------------------------------------------------------------------------
 const webhookOrder = fulfillmentStatus => baseOrder({ fulfillmentStatus, trackingNumber: "T1", trackingCarrier: "Canada Post", status: fulfillmentStatus === "delivered" ? "completed" : "processing" });
 const webhookPatch = "sendEmail = async (m) => { __log.push('email:' + m.subject); return { ok: true }; };";
-const trackFetch = status => c => c.url.includes("tracks/") ? ok({ tracking_status: { status } }) : ok({});
+// Shippo's real shape: "out for delivery" is TRANSIT with a substatus code.
+const trackFetch = status => c => c.url.includes("tracks/")
+  ? ok({ tracking_status: status === "OUT_FOR_DELIVERY" ? { status: "TRANSIT", substatus: { code: "out_for_delivery" } } : { status } })
+  : ok({});
 
 test("fault 96: a late 'out for delivery' update never moves a delivered order backwards or emails the customer", async () => {
   const app = harness({ order: webhookOrder("delivered"), fetchImpl: trackFetch("OUT_FOR_DELIVERY"), patch: webhookPatch });
@@ -328,6 +331,42 @@ test("fault 96: forward progress still updates the order (without emailing the c
   expect(advancesTracking("delivered", "out_for_delivery")).toBe(false);
   expect(advancesTracking("shipped", "out_for_delivery")).toBe(true);
   expect(advancesTracking("processing", "delivered")).toBe(true);
+});
+
+test("a label the owner never dispatched: the first carrier scan marks it shipped, with its date", async () => {
+  const app = harness({ order: webhookOrder("processing"), fetchImpl: trackFetch("TRANSIT"), patch: webhookPatch });
+  await app.call("shippoWebhook", { data: { tracking_number: "T1", carrier: "canada_post" } });
+  expect(app.order().fulfillmentStatus).toBe("shipped");
+  expect(app.order().status).toBe("completed");
+  expect(typeof app.order().shippedAt).toBe("string");
+});
+
+test("a delivery scan on a never-dispatched parcel records both dates", async () => {
+  const app = harness({ order: webhookOrder("processing"), fetchImpl: trackFetch("DELIVERED"), patch: webhookPatch });
+  await app.call("shippoWebhook", { data: { tracking_number: "T1", carrier: "canada_post" } });
+  expect(app.order().fulfillmentStatus).toBe("delivered");
+  expect(typeof app.order().shippedAt).toBe("string");
+  expect(typeof app.order().deliveredAt).toBe("string");
+});
+
+test("an order refunded while Shippo is asked is left as the owner left it", async () => {
+  const app = harness({ order: webhookOrder("processing"), fetchImpl: c => {
+    if (c.url.includes("tracks/")) { Object.assign(app.order(), { paymentStatus: "refunded", status: "cancelled" }); return ok({ tracking_status: { status: "TRANSIT" } }); }
+    return ok({});
+  }, patch: webhookPatch });
+  await app.call("shippoWebhook", { data: { tracking_number: "T1", carrier: "canada_post" } });
+  expect(app.order().fulfillmentStatus).toBe("processing");
+  expect(app.order().status).toBe("cancelled");
+});
+
+test("trackingStep reads Shippo's statuses and substatus", () => {
+  expect(trackingStep("PRE_TRANSIT", null, "processing")).toBe(null);
+  expect(trackingStep("TRANSIT", null, "processing")).toBe("shipped");
+  expect(trackingStep("TRANSIT", "out_for_delivery", "processing")).toBe("shipped");
+  expect(trackingStep("TRANSIT", "out_for_delivery", "shipped")).toBe("out_for_delivery");
+  expect(trackingStep("TRANSIT", "package_accepted", "shipped")).toBe("shipped");
+  expect(trackingStep("DELIVERED", null, "processing")).toBe("delivered");
+  expect(trackingStep("RETURNED", null, "shipped")).toBe(null);
 });
 
 // One email per shipped parcel: "out for delivery" never emails the customer (owner's request).
