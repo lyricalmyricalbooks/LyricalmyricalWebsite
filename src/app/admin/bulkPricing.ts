@@ -1,3 +1,4 @@
+import { csvCell } from "./csvCell";
 // Bulk price maths for the Books catalog. Pure; the caller writes the results.
 export type PriceMode = "percent" | "amount" | "set";
 
@@ -84,7 +85,7 @@ export function catalogToCsv(books: any[]): string {
   ].map(cell).join(","))].join("\n");
 }
 
-const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""').replace(/^([=+\-@\t\r])/, "'$1")}"`;
+const cell = csvCell;
 
 /**
  * Books › Export › Inventory only: one line per book, or per edition for books sold in editions, for a stock

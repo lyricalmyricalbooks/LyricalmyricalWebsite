@@ -3,6 +3,7 @@
 // refund comes off (refundedAmount), and a fully refunded order counts as 0 but keeps the
 // customer listed with that order in their history.
 import { refundedAmount } from "./overview/overviewInsights";
+import { csvCell } from "./csvCell";
 
 export type CustomerSegment = "vip" | "vip-lapsed" | "returning" | "new" | "at-risk";
 
@@ -118,7 +119,7 @@ export function parseTags(input: string): string[] {
   return out.slice(0, 20);
 }
 
-const csvCell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""').replace(/^([=+\-@\t\r])/, "'$1")}"`;
+
 
 export function customersToCsv(rows: CustomerRow[], consent?: (c: CustomerRow) => Consent, tags?: (c: CustomerRow) => string[]): string {
   const head = ["Email", "Name", "Segment", "Orders", "Total spent (net)", "Avg order", "First order", "Last order", "City", "Country", "Consented to marketing", "Tags"];

@@ -276,10 +276,12 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
       const failedCosts = costResults.filter((c) => c.status === "rejected").length;
       setResults(out);
       setReceive((d) => Object.fromEntries(Object.entries(d).filter(([id]) => out[id] && !out[id].ok)));
-      setCostDrafts({});
+      // Only saved cost prices leave the form; a failed one stays typed in for another try.
+      const failedCostIds = new Set(pendingCosts.filter((_, i) => costResults[i].status === "rejected").map(([id]) => id));
+      setCostDrafts((d) => Object.fromEntries(Object.entries(d).filter(([id]) => failedCostIds.has(id))));
       const okCount = Object.values(out).filter((x) => x.ok).length;
       const failCount = Object.values(out).length - okCount;
-      toast(`${okCount} saved${failCount ? `, ${failCount} not saved (still filled in)` : ""}${failedCosts ? `, ${failedCosts} cost price(s) not saved` : ""}`, { tone: failCount || failedCosts ? "warn" : "ok" });
+      toast(`${okCount} saved${failCount ? `, ${failCount} not saved (still filled in)` : ""}${failedCosts ? `, ${failedCosts} cost price(s) not saved (still filled in)` : ""}`, { tone: failCount || failedCosts ? "warn" : "ok" });
     } finally { bulkInFlight.current = false; setBulkSaving(false); }
   };
 

@@ -693,6 +693,16 @@ describe("abandoned-cart reminders can't be used to spam strangers", () => {
     expect(app.docs["abandoned-cart-throttle"][key]).toEqual({ lastSentAt: "2026-01-01T00:00:00.000Z" });
   });
 
+  test("a send the shop-wide email budget refuses gives back its daily slot", async () => {
+    const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const full = { windowStart: Date.now(), count: 40 };
+    const app = harness({ gmailFails: false, docs: docs({ "abandoned-cart-throttle": { _daily: { day, count: 3 } }, "contact-email-throttle": { _global_hour: full } }) });
+    await app.exports.abandonedCartSweep();
+    expect(app.delivered).toHaveLength(0);
+    expect(app.docs["abandoned-cart-throttle"]._daily).toEqual({ day, count: 3 });
+    expect(app.docs["abandoned-carts"].c1.notified).toBeUndefined();
+  });
+
   test("over the daily cap nothing is sent and the cart waits for tomorrow", async () => {
     const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     const app = harness({ gmailFails: false, docs: docs({ "abandoned-cart-throttle": { _daily: { day, count: 25 } } }) });

@@ -3,6 +3,7 @@
 // live book without undoing a sale made meanwhile, and the shared low-stock threshold.
 import { isDigitalBook } from "./overview/overviewInsights";
 import { bundleAvailable, isBundle, isGiftCardProduct } from "../features/site/promotions";
+import { csvCell } from "./csvCell";
 
 export type StockStatus = "out" | "low" | "reprint" | "ok" | "digital" | "untracked" | "bundle" | "giftCard";
 /** What kind of row: a shelf count the owner edits, or something whose stock isn't counted here. */
@@ -245,7 +246,7 @@ export const ADJUST_REASONS = ["Received", "Reprint", "Damaged", "Count correcti
 export type AdjustReason = (typeof ADJUST_REASONS)[number] | "Undo";
 
 export function inventoryToCsv(rows: InventoryRow[]): string {
-  const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""').replace(/^([=+\-@\t\r])/, "'$1")}"`;
+  const cell = csvCell;
   const head = ["Title", "Edition", "Format", "Status", "On hand", "Shelf", "Price", "Stock value", "Sold (30d)", "Days of cover"];
   return [head.map(cell).join(","), ...rows.map((r) => [
     r.title, r.edition, r.format, STATUS_LABELS[r.status], r.kind === "stock" ? r.stock : r.kind === "bundle" ? (r.bundleSets ?? "") : "",

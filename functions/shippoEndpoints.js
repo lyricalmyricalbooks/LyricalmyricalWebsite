@@ -6,7 +6,7 @@
 function shippoEndpoints({
   onBrowserRequest, onRequest, db, applyCors, requireAdmin, hitLimit, LIMITS, IS_EMULATOR, RESEND_API_KEY,
   SHIPPO_API_TOKEN, SHIPPO_CONFIG_DOC, ADDRESS_ACTIONS, FALLBACK_COPY_GRAMS, addressKeyProblem, addressMissing,
-  advancesTracking, bundleComponents, callShippo, catalogDigital, catalogFormat, checkoutRate,
+  advancesTracking, trackingStep, bundleComponents, callShippo, catalogDigital, catalogFormat, checkoutRate,
   cleanLiveRateExtra, getCountryCode, getShippoToken, getStateCode, handleAddressLookup, isPhysicalItem,
   itemWeightGrams, liveRateExtra, originAddress, parcelGrams, publicErrorMessage, readAdminSecret,
   withLiveRateExtra,
@@ -424,12 +424,14 @@ function shippoEndpoints({
         // The webhook body is unsigned, so the status is read back from Shippo itself:
         // a forged "DELIVERED" for a known tracking number changes nothing.
         let trackingStatus = null;
+        let trackingSubstatus = null;
         try {
           const token = await getShippoToken();
           const carrierCode = String(carrier || order.trackingCarrier || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
           if (token && carrierCode) {
             const track = await callShippo(`tracks/${encodeURIComponent(carrierCode)}/${encodeURIComponent(trackingNum)}`, "GET", null, token);
             trackingStatus = track?.tracking_status?.status || null;
+            trackingSubstatus = track?.tracking_status?.substatus?.code || null;
           }
         } catch (err) {
           console.warn(`Shippo webhook: could not confirm tracking ${trackingNum}:`, err.message);
@@ -440,15 +442,7 @@ function shippoEndpoints({
         }
 
         const prevFulfillmentStatus = order.fulfillmentStatus;
-        let nextFulfillmentStatus = null;
-        let orderStatus = order.status;
-
-        if (trackingStatus === "DELIVERED") {
-          nextFulfillmentStatus = "delivered";
-          orderStatus = "completed";
-        } else if (trackingStatus === "OUT_FOR_DELIVERY") {
-          nextFulfillmentStatus = "out_for_delivery";
-        }
+        const nextFulfillmentStatus = trackingStep(trackingStatus, trackingSubstatus, prevFulfillmentStatus);
 
         // Forward only: "delivered" stays delivered, and nothing moves back to "out for delivery".
         // The check runs again inside the write so two quick updates cannot undo each other.
@@ -457,16 +451,19 @@ function shippoEndpoints({
           advanced = await db.runTransaction(async tx => {
             const fresh = (await tx.get(orderDoc.ref)).data() || {};
             if (!advancesTracking(fresh.fulfillmentStatus, nextFulfillmentStatus)) return false;
-            const newNote = {
-              type: "event",
-              message: `Shippo tracking update: ${trackingStatus.replace(/_/g, " ")}.`,
-              createdAt: new Date().toISOString()
-            };
+            const now = new Date().toISOString();
+            const label = trackingSubstatus === "out_for_delivery" ? "out for delivery" : String(trackingStatus).replace(/_/g, " ").toLowerCase();
+            const newNote = { type: "event", message: `Shippo tracking update: ${label}.`, createdAt: now };
+            // Same fields as the admin's Dispatch / Delivered buttons, so order tracking, review
+            // requests and reports see the dates whichever way the parcel moved on.
             tx.update(orderDoc.ref, {
               fulfillmentStatus: nextFulfillmentStatus,
-              status: orderStatus,
+              status: "completed",
+              ...(fresh.shippedAt ? {} : { shippedAt: now }),
+              ...(nextFulfillmentStatus === "out_for_delivery" ? { outForDeliveryAt: now } : {}),
+              ...(nextFulfillmentStatus === "delivered" ? { deliveredAt: now } : {}),
               activity: [...(fresh.activity || []), newNote],
-              updatedAt: new Date().toISOString()
+              updatedAt: now
             });
             return true;
           });
