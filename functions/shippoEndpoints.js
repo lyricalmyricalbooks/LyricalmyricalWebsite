@@ -451,6 +451,8 @@ function shippoEndpoints({
           advanced = await db.runTransaction(async tx => {
             const fresh = (await tx.get(orderDoc.ref)).data() || {};
             if (!advancesTracking(fresh.fulfillmentStatus, nextFulfillmentStatus)) return false;
+            // Refunded or cancelled while Shippo was being asked: leave it as the owner left it.
+            if (fresh.paymentStatus !== "paid" || fresh.status === "cancelled") return false;
             const now = new Date().toISOString();
             const label = trackingSubstatus === "out_for_delivery" ? "out for delivery" : String(trackingStatus).replace(/_/g, " ").toLowerCase();
             const newNote = { type: "event", message: `Shippo tracking update: ${label}.`, createdAt: now };

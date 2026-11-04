@@ -170,6 +170,11 @@ function scheduledJobs({
         // cart stays un-notified (and the address unthrottled) so tomorrow's sweep can still send it.
         const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
         const dailyRef = db.collection("abandoned-cart-throttle").doc("_daily");
+        const releaseDailySlot = () => db.runTransaction(async tx => {
+          const d = await tx.get(dailyRef);
+          const saved = d.exists ? d.data() : null;
+          if (saved?.day === day && saved.count > 0) tx.set(dailyRef, { ...saved, count: saved.count - 1 });
+        }).catch(() => {});
         const underCap = await db.runTransaction(async tx => {
           const d = await tx.get(dailyRef);
           const next = nextDailyCount(d.exists ? d.data() : null, day);
@@ -182,11 +187,7 @@ function scheduledJobs({
           await (previousThrottle ? throttleRef.set(previousThrottle) : throttleRef.delete()).catch(() => {});
           // A refused send gives back its place under the daily cap, so a busy email day can't
           // use up every reminder slot without sending one.
-          if (underCap) await db.runTransaction(async tx => {
-            const d = await tx.get(dailyRef);
-            const saved = d.exists ? d.data() : null;
-            if (saved?.day === day && saved.count > 0) tx.set(dailyRef, { ...saved, count: saved.count - 1 });
-          }).catch(() => {});
+          if (underCap) await releaseDailySlot();
           return;
         }
 
@@ -225,8 +226,9 @@ function scheduledJobs({
             secret: RESEND_API_KEY.value(),
           });
         } catch (err) {
-          // Release the claim so a failed send doesn't block this address's reminder.
+          // Release the claim (and the day's slot) so a failed send doesn't block this address's reminder.
           await (previousThrottle ? throttleRef.set(previousThrottle) : throttleRef.delete()).catch(() => {});
+          await releaseDailySlot();
           console.error("Abandoned cart email failed", err);
           return;
         }

@@ -349,6 +349,16 @@ test("a delivery scan on a never-dispatched parcel records both dates", async ()
   expect(typeof app.order().deliveredAt).toBe("string");
 });
 
+test("an order refunded while Shippo is asked is left as the owner left it", async () => {
+  const app = harness({ order: webhookOrder("processing"), fetchImpl: c => {
+    if (c.url.includes("tracks/")) { Object.assign(app.order(), { paymentStatus: "refunded", status: "cancelled" }); return ok({ tracking_status: { status: "TRANSIT" } }); }
+    return ok({});
+  }, patch: webhookPatch });
+  await app.call("shippoWebhook", { data: { tracking_number: "T1", carrier: "canada_post" } });
+  expect(app.order().fulfillmentStatus).toBe("processing");
+  expect(app.order().status).toBe("cancelled");
+});
+
 test("trackingStep reads Shippo's statuses and substatus", () => {
   expect(trackingStep("PRE_TRANSIT", null, "processing")).toBe(null);
   expect(trackingStep("TRANSIT", null, "processing")).toBe("shipped");

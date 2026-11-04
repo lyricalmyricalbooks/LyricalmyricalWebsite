@@ -703,6 +703,14 @@ describe("abandoned-cart reminders can't be used to spam strangers", () => {
     expect(app.docs["abandoned-carts"].c1.notified).toBeUndefined();
   });
 
+  test("a send that fails gives back its daily slot", async () => {
+    const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const app = harness({ gmailFails: true, docs: docs({ "abandoned-cart-throttle": { _daily: { day, count: 3 } } }) });
+    await app.exports.abandonedCartSweep();
+    expect(app.docs["abandoned-cart-throttle"]._daily).toEqual({ day, count: 3 });
+    expect(app.docs["abandoned-carts"].c1.notified).toBeUndefined();
+  });
+
   test("over the daily cap nothing is sent and the cart waits for tomorrow", async () => {
     const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     const app = harness({ gmailFails: false, docs: docs({ "abandoned-cart-throttle": { _daily: { day, count: 25 } } }) });
