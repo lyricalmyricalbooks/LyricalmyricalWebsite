@@ -92,3 +92,15 @@ describe("Show more books", () => {
     expect(el.querySelector('[data-store-region="catalogShowMore"]')).toBeNull();
   });
 });
+
+describe("MainSite home page heading", () => {
+  const home = (design: any) => {
+    site.data = { settings: { design: { categories: [], copy: {}, homepageSections: [{ id: "s1", type: "hero" }], ...design } }, pages: [], books, loading: false, fresh: true };
+    return renderToStaticMarkup(h(MemoryRouter, { initialEntries: ["/"] }, h(CurrencyProvider, null, h(MainSite, { showCatalog: false, setShowCatalog: () => {} }))));
+  };
+  it("always has one screen-reader <h1> with the site name when no heading is set", () => {
+    const html = home({});
+    expect(html.match(/<h1/g)?.length).toBe(1);
+    expect(html).toMatch(/<h1 class="sr-only[^"]*">Lyricalmyrical Books<\/h1>/);
+  });
+});
