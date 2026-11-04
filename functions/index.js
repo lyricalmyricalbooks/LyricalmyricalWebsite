@@ -1506,6 +1506,7 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
     // PayPal sandbox capture: a rehearsal — test order, no stock, discount or revenue.
     sandbox: order => order.paypalMode === "test",
     receipt: {
+      ...(paypalData.paypalOrderId ? { paypalOrderId: paypalData.paypalOrderId } : {}),
       paypalCaptureId: paypalData.captureId || null,
       paypalPayerId: paypalData.payerId || null,
       paypalTransactionId: paypalData.transactionId || paypalData.captureId || null,
@@ -1513,8 +1514,23 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
       paypalCapture: paypalData.capture || null,
     },
     verify: (order, at) => {
-      if (order.paymentStatus === "paid") return { reason: "already-paid" };
-      if (order.paypalOrderId !== paypalData.paypalOrderId) throw new Error("PayPal order does not match checkout order.");
+      if (order.paymentStatus === "paid") {
+        const captureId = paypalData.captureId || null;
+        if (!captureId || !order.paypalCaptureId || order.paypalCaptureId === captureId) return { reason: "already-paid" };
+        // A second PayPal checkout of an already-paid order (two tabs, a retry) was captured too:
+        // keep the first payment's ids and flag the extra one for a refund, once.
+        if ((order.duplicatePayments || []).some(p => p.captureId === captureId)) return { reason: "duplicate" };
+        const amount = paypalData.capture?.amount || {};
+        return { reason: "duplicate", update: {
+          duplicatePayments: [...(order.duplicatePayments || []), { provider: "paypal", captureId, paypalOrderId: paypalData.paypalOrderId || null,
+            amountMinor: amount.value != null ? toMinor(amount.value) : null, currency: amount.currency_code || null, at }],
+          updatedAt: at,
+          activity: [...(order.activity || []), { type: "event", message: `A second PayPal payment (capture ${captureId}) arrived for this already-paid order. Refund it in PayPal.`, createdAt: at }],
+        } };
+      }
+      // An earlier PayPal checkout of this order (another tab started a new one meanwhile) was
+      // captured. Its money is real: settle with it when it matches the order's amount; otherwise
+      // the amount check below records the mismatch. Never throw (PayPal would retry for days).
       if (order.status === "cancelled") {
         if (order.paymentMismatch?.paidAfterCancel) return { reason: "cancelled" };
         return { reason: "cancelled", update: {
@@ -1704,6 +1720,8 @@ exports.paypalWebhook = onRequest(
             await applyOrderRefund(match.docs[0].id, {
               provider: "paypal", refundId: refund.id || null, amountMinor: refundedMinor, currency: refund.amount?.currency_code || null,
               status: "succeeded", actor: "paypal", note: req.body.event_type === "PAYMENT.CAPTURE.REFUNDED" ? "refunded in PayPal" : "payment reversed by PayPal",
+              // A reversal is a chargeback; a denied capture never paid, so its gift cards come back.
+              chargeback: req.body.event_type === "PAYMENT.CAPTURE.REVERSED",
             });
           } else {
             const now = new Date().toISOString();
@@ -1925,7 +1943,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
 // dispute): stock back (unless declined), the discount use given back and revenue
 // reversed — each at most once. A pending refund does all of that now and only
 // flips paymentStatus to "refunded" when it completes.
-async function applyOrderRefund(orderId, { provider, refundId = null, amountMinor = null, currency = null, status = "succeeded", restock, reason = "", actor = "system", note = "" }) {
+async function applyOrderRefund(orderId, { provider, refundId = null, amountMinor = null, currency = null, status = "succeeded", restock, reason = "", actor = "system", note = "", chargeback = provider === "dispute" }) {
   const orderRef = db.collection("orders").doc(orderId);
   let reversal = null;
   let alreadyRecorded = false;
@@ -1970,9 +1988,11 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     const shouldReverseDiscount = !sandboxPaid && order.appliedDiscount?.id && order.discountUsageReversedAt == null;
     const discountRef = shouldReverseDiscount ? db.collection("discounts").doc(order.appliedDiscount.id) : null;
     const discountDoc = discountRef ? await transaction.get(discountRef) : null;
-    // A full refund also gives back what gift cards paid, once.
+    // A full refund also gives back what gift cards paid, once. A lost chargeback or a PayPal
+    // reversal only pulls back the card/PayPal money: the gift-card part was never disputed, so
+    // crediting it back would hand the customer that money a second time.
     const charged = chargedRedemptions(order);
-    const shouldRestoreGiftCards = !!order.giftCardsDebitedAt && !order.giftCardsRestoredAt && charged.length > 0;
+    const shouldRestoreGiftCards = !chargeback && !!order.giftCardsDebitedAt && !order.giftCardsRestoredAt && charged.length > 0;
     const giftCards = shouldRestoreGiftCards ? await readGiftCards(transaction, db, charged) : new Map();
     // Gift cards this order bought stop working once their purchase is refunded.
     const issuedCards = !order.giftCardsVoidedAt ? await readGiftCards(transaction, db, order.giftCardsIssued) : new Map();
@@ -2109,6 +2129,42 @@ async function revertFailedRefund(orderId, { refundId = null, source = "", charg
     const snap = await transaction.get(orderRef);
     if (!snap.exists) return;
     const order = snap.data();
+    // A partial refund the bank rejected: the order stayed paid, so take that refund back off the
+    // running total and take its restocked copies back out of stock (once, by refund id).
+    const partials = Array.isArray(order.partialRefunds) ? order.partialRefunds : [];
+    const failedPartial = refundId && order.paymentStatus === "paid" ? partials.find(r => r && r.id === refundId && r.provider === "stripe" && r.status !== "failed") : null;
+    if (failedPartial) {
+      const now = new Date().toISOString();
+      const items = Array.isArray(order.items) ? order.items : [];
+      const lines = (Array.isArray(failedPartial.restocked) ? failedPartial.restocked : [])
+        .filter(row => Number.isInteger(row?.index) && items[row.index] && Number(row.quantity) > 0)
+        .map(row => {
+          const item = items[row.index];
+          return { index: row.index, id: item.id, variantId: item.variantId || null, quantity: Math.floor(Number(row.quantity)),
+            ...(Array.isArray(item.components) && item.components.length ? { components: item.components } : {}) };
+        });
+      const books = lines.length && order.sandboxPayment !== true ? await readBooks(transaction, db, lines) : new Map();
+      const oversold = books.size ? writeStock(transaction, db, lines, books, -1, now) : false;
+      const left = Math.max(0, (Number(order.refundedAmountMinor) || 0) - (Number(failedPartial.amountMinor) || 0));
+      const cur = String(failedPartial.currency || "").toUpperCase();
+      // Rows this refund added to partialRestockedItems share its createdAt.
+      const restockedRows = Array.isArray(order.partialRestockedItems) ? order.partialRestockedItems : [];
+      transaction.update(orderRef, {
+        refundedAmountMinor: left || null,
+        partiallyRefunded: left > 0,
+        partialRefunds: partials.map(r => (r === failedPartial ? { ...r, status: "failed", failedAt: now } : r)),
+        ...(lines.length ? { partialRestockedItems: restockedRows.filter(row => !(row && row.at === failedPartial.createdAt)) } : {}),
+        refundFailedAt: now,
+        updatedAt: now,
+        activity: [...(order.activity || []), {
+          type: "event",
+          message: `Stripe partial refund failed${source ? ` (${source})` : ""}: ${((Number(failedPartial.amountMinor) || 0) / 100).toFixed(2)} ${cur} was not refunded${lines.length ? "; restocked copies taken back out of stock" : ""}${oversold ? "; some had already sold, so stock may be oversold" : ""}. Refund again or contact the customer.`,
+          createdAt: now,
+        }],
+      });
+      reverted = true;
+      return;
+    }
     // A refund Stripe reported as succeeded (card refunds usually do) or one made in the Dashboard can
     // still be rejected by the issuer later. Undo a "refunded" Stripe order only when this is that
     // refund's id, or the caller read the charge and saw nothing was refunded.
@@ -2680,7 +2736,7 @@ exports.refundOrder = onBrowserRequest(
           ...(plan.kind === "partial" ? { amount: plan.amountMinor } : {}),
           reason: "requested_by_customer",
           metadata: { order_id: orderId, admin_email: adminUser.email || "", reason: reasonText },
-        }, { ...requestOptions, idempotencyKey: plan.kind === "partial" ? partialRefundKey(orderId, plan.already, plan.amountMinor) : `order-refund-${orderId}-full${refundRetrySuffix(order)}` });
+        }, { ...requestOptions, idempotencyKey: plan.kind === "partial" ? partialRefundKey(orderId, plan.already, plan.amountMinor, order) : `order-refund-${orderId}-full${refundRetrySuffix(order)}` });
         if (!["succeeded", "pending"].includes(refund.status)) {
           throw new Error(`Stripe refund was not accepted (status: ${refund.status}).`);
         }
@@ -4145,7 +4201,10 @@ async function completeOrderWithoutCard(orderId, message, { reserve = true, req 
     await reserveCheckout(orderId, pending.items || [], pending, pending.giftCardRedemptions, (await shopTestMode()), req);
   }
   // false when nothing was marked paid (a gift card could no longer cover its part).
-  const result = await settlePayment(orderId, { provider: "Checkout", message });
+  // Re-checked inside the payment write: an order cancelled or refunded since the checks above
+  // must not come back to life (stock taken, gift cards debited, revenue counted).
+  const result = await settlePayment(orderId, { provider: "Checkout", message,
+    verify: order => (order.paymentStatus !== "paid" && (order.status === "cancelled" || String(order.paymentStatus || "").startsWith("refund")) ? { reason: "cancelled" } : null) });
   return result.paid || result.reason === "already-paid";
 }
 

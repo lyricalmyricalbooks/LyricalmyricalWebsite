@@ -54,7 +54,7 @@ function harness(order, { refunds = [], intent = null } = {}) {
     return realRequire(name);
   };
   const module = { exports: {} };
-  const exposed = `${source}\nmodule.exports.__test = { applyOrderRefund, revertFailedRefund, checkStripeReversal };`;
+  const exposed = `${source}\nmodule.exports.__test = { applyOrderRefund, applyPartialRefund, revertFailedRefund, checkStripeReversal };`;
   vm.runInNewContext(exposed, { module, exports: module.exports, require: mockRequire, process, Buffer, console, setTimeout, clearTimeout, URL, AbortController, fetch: async () => { throw new Error('no network'); } }, { filename: 'index.js' });
   return { docs, increments, ...module.exports.__test, webhook: module.exports.stripeWebhook };
 }
@@ -141,4 +141,32 @@ test('failedRefundId waits while any refund is still pending or succeeded', () =
   expect(failedRefundId(order, { amount_refunded: 3000 }, [{ id: 're_1', status: 'failed' }])).toBeNull();
   expect(failedRefundId({ ...order, paymentStatus: 'paid' }, charge, [{ id: 're_1', status: 'failed' }])).toBeNull();
   expect(failedRefundId(order, charge, [])).toBeNull();
+});
+
+test('a partial refund the bank rejects comes off the running total and its restocked copies, once', async () => {
+  const app = harness(paidOrder());
+  await app.applyPartialRefund('o1', { provider: 'stripe', refundId: 're_p', amountMinor: 1000, currency: 'cad', status: 'succeeded',
+    restockLines: [{ index: 0, id: 'book', variantId: null, quantity: 1 }], actor: 'admin' });
+  expect(app.docs.orders.o1.refundedAmountMinor).toBe(1000);
+  expect(app.docs.books.book.stockLevel).toBe(6);
+  expect((await app.revertFailedRefund('o1', { refundId: 're_p', source: 'test' })).reverted).toBe(true);
+  const order = app.docs.orders.o1;
+  expect(order.paymentStatus).toBe('paid');
+  expect(order.partiallyRefunded).toBe(false);
+  expect(order.refundedAmountMinor).toBeNull();
+  expect(order.partialRefunds[0]).toMatchObject({ id: 're_p', status: 'failed' });
+  expect(order.partialRestockedItems).toEqual([]);
+  expect(order.activity.at(-1).message).toMatch(/partial refund failed/i);
+  expect(app.docs.books.book.stockLevel).toBe(5);
+  // A retried webhook changes nothing more.
+  expect((await app.revertFailedRefund('o1', { refundId: 're_p' })).reverted).toBe(false);
+  expect(app.docs.books.book.stockLevel).toBe(5);
+});
+
+test('retrying a partial refund after the bank rejected one uses a new idempotency key', () => {
+  const { partialRefundKey } = realRequire('./partialRefund.js');
+  const before = partialRefundKey('o1', 0, 1000, { partialRefunds: [] });
+  const after = partialRefundKey('o1', 0, 1000, { partialRefunds: [{ id: 're_p', status: 'failed' }] });
+  expect(before).toBe('order-refund-o1-partial-0-1000');
+  expect(after).not.toBe(before);
 });

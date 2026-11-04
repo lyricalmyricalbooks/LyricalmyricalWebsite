@@ -86,6 +86,18 @@ test('a full refund puts the gift-card money back once and stops cards the order
   expect(app.docs.giftCards.gc1.balanceMinor).toBe(800);
 });
 
+test('a lost chargeback does not put the gift-card part back on the card', async () => {
+  const app = harness(order(), card(800));
+  await app.markStripeOrderPaid('o1', session, { message: 'paid' });
+  expect(app.docs.giftCards.gc1.balanceMinor).toBe(300);
+  await app.syncStripeReversal('o1', { charge: { amount: 1500, amount_refunded: 0, refunded: false, currency: 'cad', disputed: true }, dispute: { status: 'lost' }, source: 'test' });
+  expect(app.docs.orders.o1.paymentStatus).toBe('refunded');
+  expect(app.docs.orders.o1.refund.provider).toBe('dispute');
+  // The customer got the card money back from their bank; the gift-card spend stands.
+  expect(app.docs.giftCards.gc1.balanceMinor).toBe(300);
+  expect(app.docs.orders.o1.giftCardsRestoredAt).toBeUndefined();
+});
+
 test('settles the gift-card amounts the live payment was created for, not a later re-pricing', async () => {
   // A retry re-priced the order to CA$1 of gift card, but the payment in flight was made for CA$5.
   const app = harness({ ...order(), giftCardRedemptions: [{ id: 'gc1', minor: 100 }], chargedGiftCards: [{ id: 'gc1', minor: 500 }] }, card(800));
