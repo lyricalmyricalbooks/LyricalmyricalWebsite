@@ -30,6 +30,22 @@ describe("repriceCart", () => {
     const r = repriceCart([line({ quantity: 5 })], [{ id: "b1", retailPrice: 20, trackInventory: true, stockLevel: 3 }]);
     expect(r.cart[0].quantity).toBe(3);
     expect(r.cart[0].stockLimit).toBe(3);
+    // Named, so checkout tells the shopper instead of quietly charging for fewer copies.
+    expect(r.reduced).toEqual([r.cart[0].title || "b1"]);
+  });
+
+  it("gives a box set the same stock cap whichever catalog copy checks it (no bag/checkout tug of war)", async () => {
+    const { withBundleStock } = await import("./features/site/bundleStock");
+    const raw = [
+      { id: "set", retailPrice: 40, bundleItems: [{ bookId: "p1", quantity: 1 }, { bookId: "p2", quantity: 1 }] },
+      { id: "p1", retailPrice: 20, trackInventory: true, stockLevel: 4 },
+      { id: "p2", retailPrice: 20 },
+    ];
+    const bag = [line({ id: "set", price: 40, quantity: 1 })];
+    const first = repriceCart(bag, withBundleStock(raw, raw));
+    expect(first.cart[0].stockLimit).toBe(4);
+    const again = repriceCart(first.cart, withBundleStock(raw, raw));
+    expect(again.changed).toBe(false);
   });
 
   it("leaves an up-to-date bag alone (no re-render loop)", () => {
@@ -71,5 +87,22 @@ describe("totalNeedsConfirming", () => {
     expect(totalNeedsConfirming(7338, 7308)).toBe(true); // no currency = CAD
     expect(totalNeedsConfirming(7313, 7308, "CAD")).toBe(false);
     expect(totalNeedsConfirming(7338, 7308, "USD")).toBe(false);
+  });
+});
+
+describe("the bag's own check", () => {
+  it("updates prices but keeps a quantity that is over today's stock for checkout to explain, without looping", async () => {
+    const { bagRepriceLines } = await import("./CartContext");
+    const bag = [
+      { id: "a", title: "A", price: 20, quantity: 1, stockLimit: 999, lineKey: "a::" },
+      { id: "b", title: "B", price: 10, quantity: 3, stockLimit: 999, lineKey: "b::" },
+    ] as any[];
+    const books = [{ id: "a", retailPrice: 25 }, { id: "b", retailPrice: 10, trackInventory: true, stockLevel: 2 }];
+    const lines = bagRepriceLines(bag, repriceCart(bag, books))!;
+    expect(lines[0].price).toBe(25);
+    expect(lines[1].quantity).toBe(3);
+    expect(lines[1].stockLimit).toBe(2);
+    // The next check finds nothing new to write.
+    expect(bagRepriceLines(lines, repriceCart(lines, books))).toBeNull();
   });
 });

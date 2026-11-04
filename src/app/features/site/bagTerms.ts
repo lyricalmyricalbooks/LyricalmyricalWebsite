@@ -4,7 +4,8 @@
 const KEY = "lm_bag_terms";
 
 type Store = Pick<Storage, "getItem" | "setItem" | "removeItem"> | undefined;
-const session = (): Store => (typeof sessionStorage === "undefined" ? undefined : sessionStorage);
+// With site data blocked, even naming sessionStorage throws: that must not crash the bag.
+const session = (): Store => { try { return typeof sessionStorage === "undefined" ? undefined : sessionStorage; } catch { return undefined; } };
 
 export function termsAgreed(storage: Store = session()): boolean {
   try { return storage?.getItem(KEY) === "1"; } catch { return false; }

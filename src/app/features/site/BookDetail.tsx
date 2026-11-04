@@ -487,6 +487,12 @@ export default function BookDetail() {
     setActivePhoto(0);
     setImageLoaded(false);
     setQty(1);
+    // The page stays mounted from book to book: nothing of the last book's view carries over
+    // (an open photo viewer locking the page, "Added", an edition error, the Reviews tab).
+    setLightboxOpen(false);
+    setAdded(false);
+    setEditionError("");
+    setDetailsTab("description");
     if (typeof window !== "undefined" && window.location.search.includes("preview=true")) {
       window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
     }

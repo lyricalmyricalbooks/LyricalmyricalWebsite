@@ -71,8 +71,12 @@ export function PageView() {
 
   // Tab title + description follow Text & labels › Site & sharing (title format, site name).
   const seoPage: any = policyPage || page;
+  // A missing page is a 404 to search engines too: noindex and the not-found title, never an
+  // indexable copy of the home page's title.
+  const notFound = !seoPage && !loadError && !siteLoading && !!fresh;
   useSEO({
-    title: seoPage ? seoPage.seoTitle || seoPage.title : undefined,
+    title: seoPage ? seoPage.seoTitle || seoPage.title : notFound ? getCopy(settings?.design, "notFoundTitle") : undefined,
+    noindex: notFound,
     description: seoPage ? seoPage.metaDescription || String(seoPage.body || "").replace(/<[^>]+>/g, " ").replace(/[#*]/g, "").replace(/\s+/g, " ").trim().substring(0, 160) : undefined,
     type: "article",
     // The page's own sharing image, else its first uploaded picture; seo.ts falls back to the shop's share image.
@@ -116,7 +120,7 @@ export function PageView() {
   const themedText = d?.textColor || "#f3f1ee";
 
   const shown = page || policyPage;
-  const missing = !shown && !loadError && !siteLoading && !!fresh;
+  const missing = notFound;
   useMissingRedirect(missing);
   // Google Analytics: only once the fresh read confirms the page doesn't exist.
   useEffect(() => { if (missing) ga4PageNotFound(); }, [missing, slug]);

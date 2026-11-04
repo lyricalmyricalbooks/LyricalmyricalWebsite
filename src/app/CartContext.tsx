@@ -120,11 +120,13 @@ export function lineQuantityCap(stockLimit?: number): number {
  * longer be bought removed. `changed` lists what moved so checkout can tell the shopper.
  * Exported for tests.
  */
-export function repriceCart(cart: CartItem[], books: any[]): { cart: CartItem[]; changed: boolean; removed: string[]; repriced: string[] } {
+export function repriceCart(cart: CartItem[], books: any[]): { cart: CartItem[]; changed: boolean; removed: string[]; repriced: string[]; reduced: string[] } {
   const byId = new Map((books || []).map((b: any) => [b.id, b]));
   const out: CartItem[] = [];
   const removed: string[] = [];
   const repriced: string[] = [];
+  // Lines whose quantity had to come down to today's stock: the shopper must be told, not just see a smaller number.
+  const reduced: string[] = [];
   let changed = false;
   const drop = (line: CartItem) => { removed.push(line.title || line.id); changed = true; };
   for (const line of cart) {
@@ -151,6 +153,7 @@ export function repriceCart(cart: CartItem[], books: any[]): { cart: CartItem[];
     // A book switched back to Coming soon can't be bought until it is out (the server refuses it too).
     if (stockLimit === 0 || comingSoonActive(book)) { drop(line); continue; }
     const quantity = Math.min(line.quantity, lineQuantityCap(stockLimit));
+    if (quantity < line.quantity) reduced.push(line.title || line.id);
     // Pre-order wording follows the live catalog: a book released since it was added loses it.
     const preorder = preorderActive(book);
     const releaseDate = preorder ? releaseDateOf(book) : "";
@@ -169,7 +172,18 @@ export function repriceCart(cart: CartItem[], books: any[]): { cart: CartItem[];
     next.lineKey = cartLineKey(next);
     out.push(next);
   }
-  return { cart: changed ? out : cart, changed, removed, repriced };
+  return { cart: changed ? out : cart, changed, removed, repriced, reduced };
+}
+
+/**
+ * The bag's own check (away from checkout): today's prices and caps, but quantities the shopper
+ * chose are kept, so checkout (which says why) is where a line comes down to the stock left.
+ * Null when there is nothing to change. Only for a result with nothing removed (same line order).
+ */
+export function bagRepriceLines(cart: CartItem[], next: ReturnType<typeof repriceCart>): CartItem[] | null {
+  if (!next.changed || next.removed.length) return null;
+  const lines = next.reduced.length ? next.cart.map((line, i) => ({ ...line, quantity: Math.max(line.quantity, cart[i]?.quantity ?? line.quantity) })) : next.cart;
+  return JSON.stringify(lines) === JSON.stringify(cart) ? null : lines;
 }
 
 /**

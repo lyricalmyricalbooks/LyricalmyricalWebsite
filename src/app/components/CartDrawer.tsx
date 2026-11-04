@@ -11,7 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { m, AnimatePresence } from "motion/react";
 import { Link, useLocation, useNavigate } from "react-router";
 import toast from "react-hot-toast";
-import { useCart, catalogUnitPrice, MAX_LINE_QUANTITY, repriceCart } from "../CartContext";
+import { useCart, catalogUnitPrice, MAX_LINE_QUANTITY, repriceCart, bagRepriceLines } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
 import { dailyBagSuggestion } from "../features/site/bagSuggestion";
 import { isLiveBook } from "../features/site/liveBook";
@@ -69,13 +69,17 @@ export function CartDrawer() {
   const removeFromCart: typeof shopper.removeFromCart = (...args) => { if (isSample) setSampleRemoved(true); else shopper.removeFromCart(...args); };
   const addToCart: typeof shopper.addToCart = ((...args: Parameters<typeof shopper.addToCart>) => (isSample ? false : shopper.addToCart(...args))) as typeof shopper.addToCart;
   // A bag saved earlier shows today's prices and stock caps once the live catalog has loaded,
-  // so its subtotal matches checkout. Lines that can no longer be bought are left for checkout,
+  // so its subtotal matches checkout. Lines that can no longer be bought (or only fewer copies) are left for checkout,
   // which removes them and tells the shopper why. Never in a Studio preview (draft catalog).
   useEffect(() => {
     if (!fresh || !books?.length || !cart.length) return;
     if (new URLSearchParams(window.location.search).get("preview") === "true") return;
+    // Checkout runs its own check (and tells the shopper what changed); two checks on one bag fight.
+    if (/\/checkout\/?$/.test(window.location.pathname)) return;
     const next = repriceCart(cart, books);
-    if (next.changed && next.removed.length === 0) setCart(next.cart);
+    // Prices and caps update here; a quantity cut to today's stock (and a removal) is left for checkout, which says why.
+    const lines = bagRepriceLines(cart, next);
+    if (lines) setCart(lines);
   }, [fresh, books, cart]);
   const { formatPrice } = useCurrency();
   // Remove acts at once; the toast's Undo puts the same line (quantity, extras, gift details) back where it was.

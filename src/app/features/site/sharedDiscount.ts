@@ -21,8 +21,11 @@ export function captureSharedDiscount(win: Window | undefined = typeof window ==
   }
 }
 
+// With site data blocked, even naming sessionStorage throws: that must not crash the bag or checkout.
+const sessionStore = (): Storage | undefined => { try { return typeof sessionStorage === "undefined" ? undefined : sessionStorage; } catch { return undefined; } };
+
 /** The remembered code, if any (not cleared: call clearSharedDiscount once checkout has tried it). */
-export function sharedDiscount(storage: Storage | undefined = typeof sessionStorage === "undefined" ? undefined : sessionStorage): string {
+export function sharedDiscount(storage: Storage | undefined = sessionStore()): string {
   try {
     const code = String(storage?.getItem(KEY) || "");
     return VALID.test(code) ? code : "";
@@ -36,14 +39,14 @@ export function sharedDiscount(storage: Storage | undefined = typeof sessionStor
  * Kept in the same place as a shared link's code, so checkout fills and checks it the same way.
  * Returns the saved code, or "" when it can't be a discount code (nothing is saved then).
  */
-export function rememberDiscountCode(raw: string, storage: Storage | undefined = typeof sessionStorage === "undefined" ? undefined : sessionStorage): string {
+export function rememberDiscountCode(raw: string, storage: Storage | undefined = sessionStore()): string {
   const code = String(raw || "").trim().toUpperCase();
   if (!VALID.test(code)) return "";
   try { storage?.setItem(KEY, code); } catch { return ""; }
   return code;
 }
 
-export function clearSharedDiscount(storage: Storage | undefined = typeof sessionStorage === "undefined" ? undefined : sessionStorage) {
+export function clearSharedDiscount(storage: Storage | undefined = sessionStore()) {
   try { storage?.removeItem(KEY); } catch { /* nothing to clear */ }
 }
 
