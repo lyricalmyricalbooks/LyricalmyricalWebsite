@@ -401,6 +401,16 @@ export function Pagination({ page, pageCount, onPage }: { page: number; pageCoun
   );
 }
 
+/** Which tab a key moves to: arrows step (wrapping), Home / End jump to the first / last. `null` = not a tab key. */
+export function nextTabIndex(key: string, index: number, count: number): number | null {
+  if (count < 1) return null;
+  if (key === "ArrowRight") return (index + 1) % count;
+  if (key === "ArrowLeft") return (index + count - 1) % count;
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  return null;
+}
+
 export function Tabs<T extends string>({ tabs, value, onChange, label, idPrefix = "", variant }: {
   /** `unsaved` marks a sub tab holding edits that aren't saved yet (a dot, read out as "unsaved changes"). */
   tabs: Array<{ id: T; label: string; count?: number; unsaved?: boolean }>; value: T; onChange: (id: NoInfer<T>) => void; label: string;
@@ -410,9 +420,10 @@ export function Tabs<T extends string>({ tabs, value, onChange, label, idPrefix 
   variant?: "page";
 }) {
   const onKey = (e: React.KeyboardEvent, i: number) => {
-    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const to = nextTabIndex(e.key, i, tabs.length);
+    if (to === null) return;
     e.preventDefault();
-    const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+    const next = tabs[to];
     onChange(next.id);
     requestAnimationFrame(() => document.getElementById(`rp-tab-${idPrefix}${next.id}`)?.focus());
   };
