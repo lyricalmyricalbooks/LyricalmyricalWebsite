@@ -763,6 +763,11 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
 
         {onHome ? (
           <main className="relative w-auto flex-1 overflow-hidden">
+            {/* The home page's one <h1> for screen readers and search engines: the site name (Text & labels › Site name),
+                shown only when no Home section writes its own heading. */}
+            {!storefrontDesign?.catalogHeading && (settings?.info?.name || getCopy(activeDesign, "siteName")) && (
+              <h1 className="sr-only [main:has(h1:not(.sr-only))_&]:hidden">{settings?.info?.name || getCopy(activeDesign, "siteName")}</h1>
+            )}
             <SectionList
               sections={homeSections}
               colorSchemes={heroDesign.colorSchemes?.length > 0 ? heroDesign.colorSchemes : activeDesign.colorSchemes}
