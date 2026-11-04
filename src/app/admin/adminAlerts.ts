@@ -80,7 +80,7 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
 
   const paidTwice = orders.filter((o) => Array.isArray(o.duplicatePayments) && o.duplicatePayments.length && o.paymentStatus === "paid" && !isFinished(o));
   if (paidTwice.length) out.push(alert("paid-twice", "danger", `${plural(paidTwice.length, "order was", "orders were")} paid twice`,
-    `Stripe took a second payment for an order that was already paid: ${list(paidTwice)}. Refund the extra payment in the Stripe Dashboard.`, paidTwice));
+    `A second payment came in for an order that was already paid: ${list(paidTwice)}. Refund the extra payment in Stripe or PayPal.`, paidTwice));
 
   const overLimit = orders.filter((o) => o.discountOverLimit && o.paymentStatus === "paid" && !isFinished(o));
   if (overLimit.length) out.push(alert("discount-over-limit", "warning", `${plural(overLimit.length, "order used", "orders used")} a discount code past its limit`,

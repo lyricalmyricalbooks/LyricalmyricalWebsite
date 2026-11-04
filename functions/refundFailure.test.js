@@ -54,7 +54,7 @@ function harness(order, { refunds = [], intent = null } = {}) {
     return realRequire(name);
   };
   const module = { exports: {} };
-  const exposed = `${source}\nmodule.exports.__test = { applyOrderRefund, applyPartialRefund, revertFailedRefund, checkStripeReversal };`;
+  const exposed = `${source}\nmodule.exports.__test = { applyOrderRefund, applyPartialRefund, revertFailedRefund, checkStripeReversal, syncStripeReversal };`;
   vm.runInNewContext(exposed, { module, exports: module.exports, require: mockRequire, process, Buffer, console, setTimeout, clearTimeout, URL, AbortController, fetch: async () => { throw new Error('no network'); } }, { filename: 'index.js' });
   return { docs, increments, ...module.exports.__test, webhook: module.exports.stripeWebhook };
 }
@@ -169,4 +169,30 @@ test('retrying a partial refund after the bank rejected one uses a new idempoten
   const after = partialRefundKey('o1', 0, 1000, { partialRefunds: [{ id: 're_p', status: 'failed' }] });
   expect(before).toBe('order-refund-o1-partial-0-1000');
   expect(after).not.toBe(before);
+});
+
+test('a failed partial refund the safety check already counted is not taken off twice', async () => {
+  const app = harness(paidOrder());
+  await app.applyPartialRefund('o1', { provider: 'stripe', refundId: 're_A', amountMinor: 1000, currency: 'cad', status: 'succeeded', actor: 'admin' });
+  await app.applyPartialRefund('o1', { provider: 'stripe', refundId: 're_B', amountMinor: 500, already: 1000, currency: 'cad', status: 'succeeded', actor: 'admin' });
+  expect(app.docs.orders.o1.refundedAmountMinor).toBe(1500);
+  // The check reads the charge first: Stripe no longer counts the rejected 5.00.
+  await app.syncStripeReversal('o1', { charge: { amount: 3000, amount_refunded: 1000, refunded: false, currency: 'cad' }, source: 'test' });
+  expect(app.docs.orders.o1.refundedAmountMinor).toBe(1000);
+  await app.revertFailedRefund('o1', { refundId: 're_B' });
+  expect(app.docs.orders.o1.refundedAmountMinor).toBe(1000);
+  expect(app.docs.orders.o1.partiallyRefunded).toBe(true);
+});
+
+test('a partial refund that fails after a full refund is recorded for the owner', async () => {
+  const app = harness(paidOrder());
+  await app.applyPartialRefund('o1', { provider: 'stripe', refundId: 're_A', amountMinor: 500, currency: 'cad', status: 'succeeded', actor: 'admin' });
+  await app.applyOrderRefund('o1', { provider: 'stripe', refundId: 're_full', amountMinor: 3000, currency: 'cad', status: 'succeeded', restock: false });
+  expect(app.docs.orders.o1.paymentStatus).toBe('refunded');
+  expect((await app.revertFailedRefund('o1', { refundId: 're_A' })).reverted).toBe(true);
+  const order = app.docs.orders.o1;
+  expect(order.paymentStatus).toBe('refunded');
+  expect(order.partialRefunds[0].status).toBe('failed');
+  expect(order.refundFailedAt).toBeTruthy();
+  expect(order.activity.at(-1).message).toMatch(/partial refund failed/i);
 });

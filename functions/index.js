@@ -2132,7 +2132,24 @@ async function revertFailedRefund(orderId, { refundId = null, source = "", charg
     // A partial refund the bank rejected: the order stayed paid, so take that refund back off the
     // running total and take its restocked copies back out of stock (once, by refund id).
     const partials = Array.isArray(order.partialRefunds) ? order.partialRefunds : [];
-    const failedPartial = refundId && order.paymentStatus === "paid" ? partials.find(r => r && r.id === refundId && r.provider === "stripe" && r.status !== "failed") : null;
+    const failedPartial = refundId ? partials.find(r => r && r.id === refundId && r.provider === "stripe" && r.status !== "failed") : null;
+    // The order was fully refunded since: the rest went back, this part didn't. Record it and
+    // tell the owner; stock is untouched (the full refund's restock already left these copies out).
+    if (failedPartial && order.paymentStatus !== "paid") {
+      const now = new Date().toISOString();
+      transaction.update(orderRef, {
+        partialRefunds: partials.map(r => (r === failedPartial ? { ...r, status: "failed", failedAt: now } : r)),
+        refundFailedAt: now,
+        updatedAt: now,
+        activity: [...(order.activity || []), {
+          type: "event",
+          message: `Stripe partial refund failed${source ? ` (${source})` : ""}: ${((Number(failedPartial.amountMinor) || 0) / 100).toFixed(2)} ${String(failedPartial.currency || "").toUpperCase()} never reached the customer. Send it again in Stripe or contact the customer.`,
+          createdAt: now,
+        }],
+      });
+      reverted = true;
+      return;
+    }
     if (failedPartial) {
       const now = new Date().toISOString();
       const items = Array.isArray(order.items) ? order.items : [];
@@ -2145,7 +2162,10 @@ async function revertFailedRefund(orderId, { refundId = null, source = "", charg
         });
       const books = lines.length && order.sandboxPayment !== true ? await readBooks(transaction, db, lines) : new Map();
       const oversold = books.size ? writeStock(transaction, db, lines, books, -1, now) : false;
-      const left = Math.max(0, (Number(order.refundedAmountMinor) || 0) - (Number(failedPartial.amountMinor) || 0));
+      // The refund/dispute check may already have set the total from Stripe's charge (which no
+      // longer counts the failed refund): never go below what the refunds still standing add up to.
+      const standing = partials.filter(r => r && r !== failedPartial && r.status !== "failed").reduce((sum, r) => sum + (Number(r.amountMinor) || 0), 0);
+      const left = Math.max(0, (Number(order.refundedAmountMinor) || 0) - (Number(failedPartial.amountMinor) || 0), standing);
       const cur = String(failedPartial.currency || "").toUpperCase();
       // Rows this refund added to partialRestockedItems share its createdAt.
       const restockedRows = Array.isArray(order.partialRestockedItems) ? order.partialRestockedItems : [];
@@ -4225,7 +4245,11 @@ exports.markOrderPaid = onBrowserRequest(
       if (refusal === "missing") { res.status(404).json({ error: "Order not found" }); return; }
       if (refusal === "closed") { res.status(409).json({ error: "This order is cancelled or refunded, so it can't be marked paid." }); return; }
       if (refusal === "provider") { res.status(409).json({ error: "Card and PayPal orders are marked paid only when the payment provider confirms the payment. Use Check payment with Stripe, or check PayPal." }); return; }
-      await completeOrderWithoutCard(orderId, `Payment confirmed manually by ${adminUser.email}.`, { reserve: false });
+      // Cancelled or refunded in the moment since the check above: say so instead of "done".
+      if (!(await completeOrderWithoutCard(orderId, `Payment confirmed manually by ${adminUser.email}.`, { reserve: false }))) {
+        res.status(409).json({ error: "This order changed while saving and wasn't marked paid. Reload it." });
+        return;
+      }
       res.status(200).json({ success: true });
     } catch (err) {
       console.error("markOrderPaid failed:", err);
