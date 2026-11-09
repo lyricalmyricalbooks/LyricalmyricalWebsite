@@ -158,7 +158,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   // Unknown links (the check failed) keep stock read-only rather than looking editable.
   const [stockLinksFailed, setStockLinksFailed] = useState(false);
   useEffect(() => { inventoryLinkApi.links().then(setStockLinks).catch(() => { setStockLinks({}); setStockLinksFailed(true); }); }, []);
-  const LINKED_HINT = "Counted in the inventory app. Change it there; the website follows it (Inventory › Inventory app link).";
+  const LINKED_HINT = "Counted in the inventory app. Change it there; the website follows it (Inventory › Inventory app).";
   const LINKS_FAILED_HINT = "Couldn't check whether this stock is counted in the inventory app. Close and reopen the book to edit it.";
   const stockLocked = (variantId: string | null) => !!book?.id && (stockLinksFailed || isStockLinked(stockLinks, book.id, variantId));
   const stockLockHint = (variantId: string | null) => (stockLocked(variantId) ? (stockLinksFailed ? LINKS_FAILED_HINT : LINKED_HINT) : undefined);

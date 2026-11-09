@@ -1,6 +1,8 @@
 // The Overview's "Needs you" strip (Pressroom refreshed, 9 November 2026): one ink line under the title that lists
 // the jobs waiting right now, each a link to the page that does it, and one flare button for the biggest job.
 // Pure and tested; NeedsStrip.tsx draws it. Counts are live (not tied to the Overview's period).
+import { tabCountsFor } from "../ordersTable";
+import { isArchived } from "../orderListHelpers";
 
 export type NeedsInput = {
   /** Orders in the "Ready to pack" queue. */ toPack: number | null;
@@ -10,6 +12,24 @@ export type NeedsInput = {
   /** Unread contact-form messages. */ messages: number | null;
   /** The title closest to selling out (first of the reprint watch). */ lowest: { title: string; stock: number } | null;
   /** Print books or editions with no copies left. */ soldOut: number | null;
+  /** A read behind these counts failed, so a missing count is unknown, not zero. */ failed?: boolean;
+};
+
+/**
+ * The order counts, by the same rule as the Orders tabs a click opens (real orders, archived left out), so the strip
+ * never promises "1 order to pack" on a tab that shows none. Null while orders are not loaded.
+ */
+export function orderNeeds(orders: any[] | null): Pick<NeedsInput, "toPack" | "toShip" | "requests"> {
+  if (!orders) return { toPack: null, toShip: null, requests: null };
+  const tabs = tabCountsFor(orders, { orderType: "production", range: "all", query: "" });
+  const requests = orders.filter(o => o && o.isTest !== true && !isArchived(o) && o.customerRequest?.status === "open").length;
+  return { toPack: tabs["Ready to pack"] ?? 0, toShip: tabs["Ready to ship"] ?? 0, requests };
+}
+
+/** The book closest to selling out that still has copies (a sold-out one is counted under "sold out"). */
+export const lowestInStock = (rows: Array<{ title: string; stock: number }>) => {
+  const r = rows.find(x => x.stock > 0);
+  return r ? { title: r.title, stock: r.stock } : null;
 };
 
 export type NeedsLink = { tab: string; queue?: string };
@@ -40,5 +60,9 @@ export function needsAction(i: NeedsInput): NeedsAction | null {
   return null;
 }
 
-/** True while any count is still loading (null). */
-export const needsLoading = (i: NeedsInput) => i.toPack === null || i.toShip === null || i.reviews === null || i.messages === null;
+/** What the strip says when no job is listed: still counting, a read failed, or truly nothing. */
+export function needsCalm(i: NeedsInput): string {
+  if (i.failed) return "Some counts could not be loaded. Refresh to try again.";
+  const loading = i.toPack === null || i.toShip === null || i.reviews === null || i.messages === null;
+  return loading ? "Counting…" : "Nothing needs you right now.";
+}

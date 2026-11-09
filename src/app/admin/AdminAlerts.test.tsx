@@ -38,7 +38,7 @@ it("opens the exact page and sub tab when the Dashboard passes onOpenRoute", asy
   await act(async () => root.render(<AdminAlerts alerts={[a("l1", "danger", "inventory"), a("o1", "warning", "orders")]}
     onOpenOrder={() => {}} onOpenOrders={onOpenOrders} onOpenWebhook={() => {}} onOpenNotifications={() => {}} onOpenInventory={onOpenInventory} onOpenRoute={onOpenRoute} />));
   const button = (label: string) => Array.from(container.querySelectorAll("button")).find((b) => b.textContent === label)!;
-  await act(async () => button("Open Inventory app link").click());
+  await act(async () => button("Open Inventory app").click());
   expect(onOpenRoute).toHaveBeenCalledWith({ tab: "inventory", subTab: "inv-link" });
   expect(onOpenInventory).not.toHaveBeenCalled();
   await act(async () => button("Review orders").click());

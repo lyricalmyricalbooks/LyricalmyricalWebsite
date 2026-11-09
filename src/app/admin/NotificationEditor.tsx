@@ -592,7 +592,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
   }
   const resendStored = !!(data.brand?.resendApiKey || data.brand?.resendApiKeyStored);
 
-  // Sub tabs: Emails (templates and shop alerts), Sending setup, Deliveries. All stay mounted, so one Save bar covers
+  // Sub tabs: Emails (templates and shop alerts), Sender, Sent. All stay mounted, so one Save bar covers
   // template and branding edits whichever tab they were made on.
   const savedData = (() => { try { return JSON.parse(original); } catch { return {}; } })();
   const brandDirty = JSON.stringify(data.brand || {}) !== JSON.stringify(savedData.brand || {});
@@ -603,10 +603,10 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
 
   return (
     <div className="rp-stack">
-      <Tabs<EmailView> variant="page" label="Email sender" value={view} onChange={setView} tabs={[
+      <Tabs<EmailView> variant="switch" label="Email sender" value={view} onChange={setView} tabs={[
         { id: "email-templates", label: "Emails", unsaved: templatesDirty, ...(Object.keys(allProblems).length ? { count: Object.keys(allProblems).length } : {}) },
-        { id: "email-setup", label: "Sending setup", unsaved: brandDirty || senderDirty },
-        { id: "email-deliveries", label: "Deliveries", ...(queue.length + attentionCount ? { count: queue.length + attentionCount } : {}) },
+        { id: "email-setup", label: "Sender", unsaved: brandDirty || senderDirty },
+        { id: "email-deliveries", label: "Sent", ...(queue.length + attentionCount ? { count: queue.length + attentionCount } : {}) },
       ]} />
       {/* At a glance: what needs the owner, whichever sub tab is open. */}
       <nav aria-label="Email sender at a glance" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>

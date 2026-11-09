@@ -102,13 +102,20 @@ masthead: `Dashboard` skips `PageHeader` there and passes the alerts through `Pa
 
 **Pressroom refreshed (9 November 2026, owner picked direction D, https://claude.ai/artifact/PhkLDg7HR26ow7NYk6QDgp):**
 the Overview header shows an ink **Needs you** strip under the title (`overview/NeedsStrip.tsx`, pure `needsStrip.ts`;
-`BoardHeader.needs`): live counts from the queues "Ready to pack"/"Ready to ship", open requests, reviews, messages, the first
-reprint-watch title and sold-out count, each a link (orders open on their queue via `openOrdersQueue`), plus one flare button
+`BoardHeader.needs`): live counts by the Orders tabs' own rule (`orderNeeds` → `tabCountsFor`, so archived/test orders never count) for "Ready to pack"/"Ready to ship", open requests, reviews, messages, the first
+reprint-watch title that still has copies and the sold-out count (a failed read says so, never a false calm), each a link (orders open on their queue via `openOrdersQueue`), plus one flare button
 (Start packing, else Ship orders). The board widget it summarises is now titled **Every open job**. Headline/Key figures feet
 say what moved in words (`TrendWords`, pure `trendWords.ts`: "CA$96.00 more than yesterday", "Down from 3.4%"); the `%`
 badge `Trend` stays for other panels. Orders rows (table and phone cards) end with a **Next step** button (`orderNextStep.ts`:
 Pack, Ship, Review, Hand over…) that only opens the order. Not built: an "N low" count on the Inventory rail item (it would
 need a books read in the shell every 5 minutes); the strip carries the low-stock line instead.
+
+**Sub tabs as an ink switch (9 November 2026, owner picked direction C, https://claude.ai/artifact/NRoSaz44MZurtuncspS8Rj):**
+`Tabs variant="switch"` draws a page's sub tabs as one ink bar (rail colour) with the chosen tab a cream block; used by
+`SettingsTabs` (General, Payments), Shipping, Email sender and Inventory. Other `variant="page"` rows (Orders queues, Book editor,
+Overview topics, shipping profile) keep the underlined look. Names: General = Status · Shop info · Visitors · Upkeep; Payments =
+Status · Ways to pay · On the shop; Shipping = Status · Rates · Labels · Pickup & local; Email sender = Emails · Sender · Sent;
+Inventory = Stock · Inventory app. Tab ids and address slugs did not change, so old links still open the same tab.
 
 - `riso.css` — semantic `--rp-*` tokens (light + night) and every `rp-*` component
   class; reduced motion, 44px coarse-pointer targets, visible focus, print.

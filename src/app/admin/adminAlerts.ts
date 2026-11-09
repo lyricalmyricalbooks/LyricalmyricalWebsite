@@ -185,7 +185,7 @@ export function inventoryLinkAlerts(state: any, now = Date.now()): AdminAlert[] 
   const link = (id: string, tone: AlertTone, title: string, detail: string): AdminAlert => ({ id, tone, title, detail, orderIds: [], action: "inventory" });
   if (state.connection && state.connection.ok === false) {
     out.push(link("inventory-link-down", "danger", "The inventory app link isn't working",
-      "Website sales and stock aren't being shared with the inventory app. Open Inventory › Inventory app link and press Check connection."));
+      "Website sales and stock aren't being shared with the inventory app. Open Inventory › Inventory app and press Check connection."));
   }
   const lastRun = Date.parse(state.lastRunAt || "");
   if (Number.isFinite(lastRun) && now - lastRun > 60 * MIN) {
@@ -204,7 +204,7 @@ export function inventoryLinkAlerts(state: any, now = Date.now()): AdminAlert[] 
   if (open.length) {
     const names = open.slice(0, 3).map((m: any) => (m.edition ? `${m.title} (${m.edition})` : m.title)).join(", ");
     out.push(link("inventory-link-new-books", "info", `${plural(open.length, "book", "books")} can be matched to the inventory app`,
-      `${names}${open.length > 3 ? " and more" : ""}. Until they're matched, their website sales don't reach the inventory app. Open Inventory › Inventory app link to match them in one click.`));
+      `${names}${open.length > 3 ? " and more" : ""}. Until they're matched, their website sales don't reach the inventory app. Open Inventory › Inventory app to match them in one click.`));
   }
   if (Number(state.lastPush?.failed) > 0) {
     out.push(link("inventory-link-push", "warning", `${plural(Number(state.lastPush.failed), "website sale", "website sales")} couldn't be sent to the inventory app yet`,

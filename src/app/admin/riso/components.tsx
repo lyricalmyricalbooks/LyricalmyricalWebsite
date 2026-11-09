@@ -416,8 +416,9 @@ export function Tabs<T extends string>({ tabs, value, onChange, label, idPrefix 
   tabs: Array<{ id: T; label: string; count?: number; unsaved?: boolean }>; value: T; onChange: (id: NoInfer<T>) => void; label: string;
   /** Keeps button ids unique when two tab rows on one page share a tab id (the Overview's "all"). */
   idPrefix?: string;
-  /** "page" draws a plain underlined row for a page's own sections; filter rows keep the boxed look. */
-  variant?: "page";
+  /** "page" draws a plain underlined row for a page's own sections; "switch" is the ink bar under a page title
+   *  (Settings pages, Shipping, Email sender, Inventory); filter rows keep the boxed look. */
+  variant?: "page" | "switch";
 }) {
   const onKey = (e: React.KeyboardEvent, i: number) => {
     const to = nextTabIndex(e.key, i, tabs.length);
@@ -434,7 +435,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, label, idPrefix 
           aria-selected={value === t.id} tabIndex={value === t.id ? 0 : -1}
           onClick={() => onChange(t.id)} onKeyDown={(e) => onKey(e, i)}>
           {t.label}{t.count !== undefined && <span className="rp-tab-count">{t.count}</span>}
-          {t.unsaved && <><span aria-hidden="true" style={{ color: "var(--rp-warning)" }}>●</span><span className="rp-sr-only">(unsaved changes)</span></>}
+          {t.unsaved && <><span aria-hidden="true" className="rp-tab-unsaved">●</span><span className="rp-sr-only">(unsaved changes)</span></>}
         </button>
       ))}
     </div>

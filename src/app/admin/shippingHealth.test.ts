@@ -108,7 +108,7 @@ describe("shipping problems by sub tab", () => {
     const all = [{ id: "no-profiles", label: "", detail: "" }, ...carrier];
     expect(issuesForTab(all, "carrier")).toEqual(carrier);
     expect(issuesForTab(all, "profiles").map((issue) => issue.id)).toEqual(["no-profiles"]);
-    expect(SHIPPING_ISSUE_TAB_LABELS.carrier).toBe("Carrier & labels");
+    expect(SHIPPING_ISSUE_TAB_LABELS.carrier).toBe("Labels");
   });
 
   it("reports no carrier problems when Shippo isn't connected or is fully set up", () => {
