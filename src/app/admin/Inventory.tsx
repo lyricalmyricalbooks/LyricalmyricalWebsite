@@ -394,9 +394,9 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
           <SecondaryButton size="sm" onClick={load}>Retry</SecondaryButton>
         </div>
       )}
-      <Tabs variant="page" label="Inventory" value={view} onChange={setView} tabs={[
+      <Tabs variant="switch" label="Inventory" value={view} onChange={setView} tabs={[
         { id: "inv-stock", label: "Stock" },
-        { id: "inv-link", label: "Inventory app link" },
+        { id: "inv-link", label: "Inventory app" },
       ]} />
       <TabPanel tabId="inv-stock" active={view === "inv-stock"}>
       <div className="rp-stack">

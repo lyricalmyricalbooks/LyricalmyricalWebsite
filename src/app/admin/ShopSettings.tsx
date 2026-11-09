@@ -156,10 +156,10 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const desc = settings.info?.description || "";
   const [view, setView] = useSubTab<string>("gs-store", subTab, onSubTabChange);
   const tabs: SettingsTab[] = [
-    { id: "gs-store", title: "Shop status & checkout", unsaved: hasChanges("maintenance") || hasChanges("stockHolds") },
-    { id: "gs-details", title: "Shop details", unsaved: ["info", "location", "policies", "domain"].some((k) => hasChanges(k)) },
-    { id: "gs-visitors", title: "Visitors & Google" },
-    { id: "gs-tools", title: "Tools & records" },
+    { id: "gs-store", title: "Status", unsaved: hasChanges("maintenance") || hasChanges("stockHolds") },
+    { id: "gs-details", title: "Shop info", unsaved: ["info", "location", "policies", "domain"].some((k) => hasChanges(k)) },
+    { id: "gs-visitors", title: "Visitors" },
+    { id: "gs-tools", title: "Upkeep" },
   ];
 
   return (
@@ -962,12 +962,12 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
   if (selectedProfileId === null || !editingProfile) {
     return (
       <div className="rp-stack">
-        <Tabs variant="page" label="Shipping settings" value={shippingView} onChange={setShippingView} tabs={[
-          { id: "overview", label: "Overview" },
+        <Tabs variant="switch" label="Shipping settings" value={shippingView} onChange={setShippingView} tabs={[
+          { id: "overview", label: "Status" },
           // Tab counts are open problems (none = no count); the profile count is on Overview.
-          { id: "profiles", label: "Profiles", count: profileProblems.length || undefined },
-          { id: "carrier", label: "Carrier & labels", count: carrierProblems.length || undefined },
-          { id: "local", label: "Pickup & local delivery" },
+          { id: "profiles", label: "Rates", count: profileProblems.length || undefined },
+          { id: "carrier", label: "Labels", count: carrierProblems.length || undefined },
+          { id: "local", label: "Pickup & local" },
         ]} />
         {shippingView === "local" && <LocalFulfillmentSettings draft={localFulfillmentDraft} />}
         {(shippingView === "overview" || shippingView === "profiles") && (profilesError || booksError) && (
@@ -1504,9 +1504,9 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
   const blockingCount = paymentIssues.filter((i) => i.severity === "blocking").length;
   const [view, setView] = useSubTab<string>("pay-status", subTab, onSubTabChange);
   const tabs: SettingsTab[] = [
-    { id: "pay-status", title: "Ready to take payments?", count: blockingCount },
+    { id: "pay-status", title: "Status", count: blockingCount },
     { id: "pay-methods", title: "Ways to pay" },
-    { id: "pay-more", title: "On the shop & related settings" },
+    { id: "pay-more", title: "On the shop" },
   ];
 
   const removeMethod = async (m: any) => {
@@ -1698,7 +1698,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, setOriginal
         </SettingsAnchor>
         <SettingsAnchor id="pay-shippo">
           <SectionCard title="Shippo" description="Lives with your shipping rules."
-            actions={<SecondaryButton size="sm" onClick={() => onOpenShipping?.()}>Open Shipping › Carrier &amp; labels</SecondaryButton>}>
+            actions={<SecondaryButton size="sm" onClick={() => onOpenShipping?.()}>Open Shipping › Labels</SecondaryButton>}>
             <p className="rp-hint" style={{ margin: 0 }}>Key and live-rate countries, in one place.</p>
           </SectionCard>
         </SettingsAnchor>

@@ -21,7 +21,7 @@ const GLYPH: Record<string, string> = { danger: "✕", warning: "⚠" };
 const WORD: Record<string, string> = { danger: "Urgent", warning: "Needs attention" };
 
 const ACTION_LABEL: Record<string, string> = {
-  retry: "Try again", inventory: "Open Inventory app link", general: "Open Backups", notifications: "Open email deliveries",
+  retry: "Try again", inventory: "Open Inventory app", general: "Open Backups", notifications: "Open email deliveries",
   payments: "Open Payments", webhook: "Open webhook health", order: "Open order", inventoryApp: "Open the inventory app",
 };
 

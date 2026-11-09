@@ -1921,3 +1921,33 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-trend-words { color: var(--rp-text-muted); }
 .rp-trend-words[data-tone="good"] { color: var(--rp-success); }
 .rp-trend-words[data-tone="bad"] { color: var(--rp-danger); }
+
+/* Sub tabs as an ink switch (9 November 2026, owner picked direction C, https://claude.ai/artifact/NRoSaz44MZurtuncspS8Rj):
+ * Tabs variant="switch" under a page title (Settings pages, Shipping, Email sender, Inventory). One ink bar in the rail's
+ * colour; the chosen tab is a cream block cut out of it. Counts are flare numbers, unsaved edits a flare dot. */
+.rp-tab-unsaved { color: var(--rp-warning); }
+.rp:not(.studio-editor) .rp-tabs[data-variant="switch"] {
+  display: flex; flex-wrap: wrap; gap: 4px; width: 100%; box-sizing: border-box; padding: 4px; border: 0; border-radius: 0;
+  background: var(--rp-rail, #100f0d);
+}
+.rp:not(.studio-editor) .rp-tabs[data-variant="switch"] .rp-tab,
+.rp:not(.studio-editor) .rp-tabs[data-variant="switch"] .rp-tab[aria-selected="true"] {
+  min-height: 44px; padding: 0 22px; margin: 0; border: 0; border-radius: 0; box-shadow: none; text-transform: none; letter-spacing: 0;
+  background: transparent; color: var(--rp-rail-text, rgba(250, 246, 236, 0.78)); font: 500 15px/1 var(--rp-font-body); gap: 8px;
+}
+.rp:not(.studio-editor) .rp-tabs[data-variant="switch"] .rp-tab:hover { color: var(--rp-on-inverse); background: rgba(250, 246, 236, 0.08); }
+.rp:not(.studio-editor) .rp-tabs[data-variant="switch"] .rp-tab[aria-selected="true"] { background: var(--rp-canvas); color: var(--rp-text); font-weight: 700; }
+.rp:not(.studio-editor) .rp-tabs[data-variant="switch"] .rp-tab:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp:not(.studio-editor) .rp-tabs[data-variant="switch"] .rp-tab-count { font: 700 12px/1 var(--rp-font-body); color: #ff8a78; }
+.rp:not(.studio-editor) .rp-tabs[data-variant="switch"] .rp-tab[aria-selected="true"] .rp-tab-count { color: var(--rp-danger); }
+.rp:not(.studio-editor) .rp-tabs[data-variant="switch"] .rp-tab-unsaved { color: var(--rp-primary); }
+.rp:not(.studio-editor)[data-rp-appearance="dark"] .rp-tabs[data-variant="switch"] { border: 1px solid var(--rp-border); }
+/* Night: the chosen tab stays a cream block (the night canvas is too close to the bar to read as "on"). */
+.rp:not(.studio-editor)[data-rp-appearance="dark"] .rp-tabs[data-variant="switch"] .rp-tab[aria-selected="true"] { background: #faf6ec; color: #100f0d; }
+.rp:not(.studio-editor)[data-rp-appearance="dark"] .rp-tabs[data-variant="switch"] .rp-tab[aria-selected="true"] .rp-tab-count { color: #b4271a; }
+@media (max-width: 767px) {
+  /* Phones: one row that slides sideways, so the bar keeps its shape instead of stacking. */
+  .rp:not(.studio-editor) .rp-tabs[data-variant="switch"] { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .rp:not(.studio-editor) .rp-tabs[data-variant="switch"] .rp-tab { flex: none; padding: 0 16px; }
+}
+@media print { .rp-tabs[data-variant="switch"] { background: none; border: 1px solid #000; } }

@@ -22,7 +22,7 @@ export const SUB_TABS: Record<string, Array<[slug: string, id: string]>> = {
   shipping: [["overview", "overview"], ["profiles", "profiles"], ["carrier", "carrier"], ["local", "local"]],
   inventory: [["stock", "inv-stock"], ["link", "inv-link"]],
 };
-/** Old Settings page ids that open a particular sub tab (Email sender's address opens Sending setup). */
+/** Old Settings page ids that open a particular sub tab (Email sender's address opens Sender). */
 const ALIAS_SUB_TABS: Record<string, string> = { communications: "email-setup" };
 
 /** The page whose sub tabs a route names: the Settings page (aliases resolved) or the top-level tab. */

@@ -110,6 +110,13 @@ badge `Trend` stays for other panels. Orders rows (table and phone cards) end wi
 Pack, Ship, Review, Hand over…) that only opens the order. Not built: an "N low" count on the Inventory rail item (it would
 need a books read in the shell every 5 minutes); the strip carries the low-stock line instead.
 
+**Sub tabs as an ink switch (9 November 2026, owner picked direction C, https://claude.ai/artifact/NRoSaz44MZurtuncspS8Rj):**
+`Tabs variant="switch"` draws a page's sub tabs as one ink bar (rail colour) with the chosen tab a cream block; used by
+`SettingsTabs` (General, Payments), Shipping, Email sender and Inventory. Other `variant="page"` rows (Orders queues, Book editor,
+Overview topics, shipping profile) keep the underlined look. Names: General = Status · Shop info · Visitors · Upkeep; Payments =
+Status · Ways to pay · On the shop; Shipping = Status · Rates · Labels · Pickup & local; Email sender = Emails · Sender · Sent;
+Inventory = Stock · Inventory app. Tab ids and address slugs did not change, so old links still open the same tab.
+
 - `riso.css` — semantic `--rp-*` tokens (light + night) and every `rp-*` component
   class; reduced motion, 44px coarse-pointer targets, visible focus, print.
 - `components.tsx` — AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, SectionCard,

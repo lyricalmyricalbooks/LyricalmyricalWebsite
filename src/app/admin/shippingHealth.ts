@@ -83,7 +83,7 @@ export function summarizeShipping(profiles: any[] = [], books: any[] = []): Ship
       }
       const offerable = rates.filter((rate: any) => rate?.enabled !== false && (rate?.type || "flat") !== "pickup");
       if (rates.length > 0 && offerable.length === 0) {
-        issues.push({ id: `profile:${profile.id}:zone:${zone.id}:offerable`, label: `${zone.name || "Untitled zone"} has no rate customers can choose`, detail: "Every rate here is switched off or is a pickup rate (pickup lives under Pickup & local delivery). Turn on or add a shipping rate.", profileId: profile.id, severity: "blocking" });
+        issues.push({ id: `profile:${profile.id}:zone:${zone.id}:offerable`, label: `${zone.name || "Untitled zone"} has no rate customers can choose`, detail: "Every rate here is switched off or is a pickup rate (pickup lives under Pickup & local). Turn on or add a shipping rate.", profileId: profile.id, severity: "blocking" });
       }
       const rateNames = new Set<string>();
       rates.forEach((rate: any) => {
@@ -141,8 +141,8 @@ export const RATE_TYPES: { id: string; label: string; help: string }[] = [
 export type ShippingIssueTab = "profiles" | "carrier";
 
 export const SHIPPING_ISSUE_TAB_LABELS: Record<ShippingIssueTab, string> = {
-  profiles: "Profiles",
-  carrier: "Carrier & labels",
+  profiles: "Rates",
+  carrier: "Labels",
 };
 
 /** Pure: which sub tab fixes this problem. Carrier problems have ids starting with "carrier:"; everything
