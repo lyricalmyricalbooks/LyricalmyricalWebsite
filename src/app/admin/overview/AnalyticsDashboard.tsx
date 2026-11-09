@@ -37,7 +37,7 @@ import { OverviewNewSales, type NewSalesWidget } from "./OverviewNewSales";
 import { figureSeries, figureSpark, NewestOrdersList } from "./OverviewFiguresViz";
 import { OverviewNewLive, type NewLiveWidget } from "./OverviewNewLive";
 import { NeedsStrip } from "./NeedsStrip";
-import { queueOf } from "../fulfillment";
+import { lowestInStock, orderNeeds } from "./needsStrip";
 import { OverviewBoard, useBoardStore, type BoardHeader, type RenderWidget } from "./OverviewBoard";
 import { DEFAULT_FIGURES, FIGURES, widgetMeta, type BoardView, type FigureId } from "./overviewBoard";
 import { clearShared } from "./overviewShared";
@@ -300,16 +300,14 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const openTodos = insights && reviews && todos ? insights.fulfil.length + reviews.pending + insights.reprint.length + insights.shelf.soldOut
     + todos.requests.length + todos.giftCardsMissing.length + todos.awaitingRelease.length
     + (counts?.unreadMessages || 0) + (counts?.openPrivacyRequests || 0) : null;
-  // The "Needs you" strip counts from the same live copies as the run sheet (all orders, not the period).
-  const liveOrders = allOrders.orders ? allOrders.orders.filter(o => o && o.isTest !== true) : null;
-  const inQueue = (q: string) => (liveOrders ? liveOrders.filter(o => queueOf(o) === q).length : null);
+  // The "Needs you" strip: live counts (all orders, not the period), the order ones by the Orders tabs' own rule.
   const needsInput = {
-    toPack: inQueue("Ready to pack"), toShip: inQueue("Ready to ship"),
-    requests: todos ? todos.requests.length : null,
-    reviews: reviews ? reviews.pending ?? 0 : counts ? counts.pendingReviews ?? 0 : null,
-    messages: counts ? counts.unreadMessages ?? 0 : null,
-    lowest: insights && insights.reprint[0] ? { title: insights.reprint[0].title, stock: insights.reprint[0].stock } : null,
+    ...orderNeeds(allOrders.orders),
+    reviews: reviews ? (typeof reviews.pending === "number" ? reviews.pending : null) : counts ? counts.pendingReviews ?? null : null,
+    messages: counts ? counts.unreadMessages : null,
+    lowest: insights ? lowestInStock(insights.reprint) : null,
     soldOut: insights ? insights.shelf.soldOut : null,
+    failed: !!(allOrders.error || stock.error || (counts && counts.unreadMessages === null) || (audience.error && !(typeof counts?.pendingReviews === "number"))),
   };
   const cartStep = funnel && funnel.add_to_cart > 0 ? (funnel.checkout_start / funnel.add_to_cart) * 100 : null;
   const profit = insights?.profit;

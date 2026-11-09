@@ -102,8 +102,8 @@ masthead: `Dashboard` skips `PageHeader` there and passes the alerts through `Pa
 
 **Pressroom refreshed (9 November 2026, owner picked direction D, https://claude.ai/artifact/PhkLDg7HR26ow7NYk6QDgp):**
 the Overview header shows an ink **Needs you** strip under the title (`overview/NeedsStrip.tsx`, pure `needsStrip.ts`;
-`BoardHeader.needs`): live counts from the queues "Ready to pack"/"Ready to ship", open requests, reviews, messages, the first
-reprint-watch title and sold-out count, each a link (orders open on their queue via `openOrdersQueue`), plus one flare button
+`BoardHeader.needs`): live counts by the Orders tabs' own rule (`orderNeeds` → `tabCountsFor`, so archived/test orders never count) for "Ready to pack"/"Ready to ship", open requests, reviews, messages, the first
+reprint-watch title that still has copies and the sold-out count (a failed read says so, never a false calm), each a link (orders open on their queue via `openOrdersQueue`), plus one flare button
 (Start packing, else Ship orders). The board widget it summarises is now titled **Every open job**. Headline/Key figures feet
 say what moved in words (`TrendWords`, pure `trendWords.ts`: "CA$96.00 more than yesterday", "Down from 3.4%"); the `%`
 badge `Trend` stays for other panels. Orders rows (table and phone cards) end with a **Next step** button (`orderNextStep.ts`:
