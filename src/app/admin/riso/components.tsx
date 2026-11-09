@@ -615,13 +615,15 @@ export function PageSkeleton({ label = "Opening page…" }: { label?: string }) 
   );
 }
 
-export function ErrorState({ title = "Something went wrong", description, onRetry }: { title?: string; description?: string; onRetry?: () => void }) {
+/** `retryLabel` renames the button; `action` adds a second one beside it (e.g. a way out of a full-screen view). */
+export function ErrorState({ title = "Something went wrong", description, onRetry, retryLabel = "Try again", action }: { title?: string; description?: string; onRetry?: () => void; retryLabel?: string; action?: ReactNode }) {
+  const retry = onRetry && <SecondaryButton onClick={onRetry}>{retryLabel}</SecondaryButton>;
   return (
     <div className="rp-state" data-tone="danger" role="alert">
       <div className="rp-state-icon" aria-hidden="true">{stateIcon("⚠")}</div>
       <h3 className="rp-state-title">{title}</h3>
       {description && <p className="rp-state-desc">{description}</p>}
-      {onRetry && <SecondaryButton onClick={onRetry}>Try again</SecondaryButton>}
+      {action ? <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>{retry}{action}</div> : retry}
     </div>
   );
 }

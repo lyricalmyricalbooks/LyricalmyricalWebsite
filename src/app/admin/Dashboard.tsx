@@ -27,6 +27,7 @@ import {
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";
+import { AdminPageBoundary } from "./AdminPageBoundary";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { isHelpShortcut } from "./riso/helpShortcut";
@@ -703,7 +704,7 @@ export function Dashboard() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
             >
-              <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></PageAlertsSlot.Provider>
+              <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><AdminPageBoundary resetKey={activeTab + (selectedOrder ? "-detail" : "") + settingsTab}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></AdminPageBoundary></PageAlertsSlot.Provider>
             </m.div>
           </AnimatePresence>
         </div>
@@ -747,6 +748,7 @@ export function Dashboard() {
               className="rp-dialog rp-editor-panel"
               role="dialog" aria-modal="true" aria-label={editingBook ? "Edit book" : "New book"}
             >
+              <AdminPageBoundary label="The book editor" onClose={() => setShowEditor(false)}>
               <Suspense fallback={<LoadingState label="Opening book editor…" />}>
               <BookEditor
                 book={editingBook}
@@ -761,6 +763,7 @@ export function Dashboard() {
                 }}
               />
               </Suspense>
+              </AdminPageBoundary>
             </m.div>
           </div>
         )}
@@ -777,6 +780,8 @@ export function Dashboard() {
               transition={{ duration: 0.4, ease: "circOut" }}
               className="fixed inset-0 z-[200] bg-black"
             >
+              <AdminPageBoundary label="Design studio" closeLabel="Back to settings" onClose={() => setSettingsTab("general")}
+                frame={appearance}>
               <Suspense fallback={<div className="rp" data-rp-appearance={appearance} style={{ height: "100%", display: "grid", placeItems: "center" }}><LoadingState label="Opening Design studio…" /></div>}>
               <StudioEditor
                 key={studioLocation?.key}
@@ -789,6 +794,7 @@ export function Dashboard() {
                 }
               />
               </Suspense>
+              </AdminPageBoundary>
             </m.div>
           </div>
         )}

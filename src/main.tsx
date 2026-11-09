@@ -12,9 +12,13 @@
   import { listenShopSignals } from "./app/lib/shopSignals";
   import { watchPageSpeed } from "./app/lib/pageSpeed";
   import { installErrorReporting } from "./app/lib/errorReport";
+  import { installStaleBuildRecovery } from "./app/lib/staleBuild";
+  import { ErrorBoundary } from "./app/components/ErrorBoundary";
 
   // A shopper's browser that hits an error tells the shop (Settings › General › Tools & records › Shop errors).
   installErrorReporting();
+  // A page left open across a deploy reloads once into the new build instead of failing to open the next page.
+  installStaleBuildRecovery();
 
   // Shoppers may translate the page with Google Translate: keep React from crashing on the translated text.
   installTranslateSafeDom();
@@ -37,5 +41,6 @@
   keepPrerenderedPage(document.getElementById("root"));
   if (arrivedPrerendered()) preloadSiteData()?.catch(() => {});
 
-  createRoot(document.getElementById("root")!).render(<App />);
+  // The outermost guard: an error in the shop's providers (bag, currency, theme) shows a reload button, not a blank page.
+  createRoot(document.getElementById("root")!).render(<ErrorBoundary bare><App /></ErrorBoundary>);
   
