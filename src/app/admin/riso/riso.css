@@ -1884,3 +1884,40 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-app-deeplink:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
 @media (pointer: coarse) { .rp-app-deeplink { min-height: var(--rp-touch); } }
 @media print { .rp-app-switch, .rp-app-pill, .rp-app-deeplink { display: none !important; } }
+
+/* Pressroom refreshed (9 November 2026): the Overview's ink "Needs you" strip under the title (overview/NeedsStrip.tsx).
+ * Rail colours, so it reads as part of the shell in both appearances; the one flare button keeps ink text. */
+.rp:not(.studio-editor) .rp-needs {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 32px; margin: 20px 0 24px; padding: 20px 24px;
+  background: var(--rp-rail); color: var(--rp-on-inverse);
+}
+.rp:not(.studio-editor)[data-rp-appearance="dark"] .rp-needs { border: 1px solid var(--rp-border); }
+.rp:not(.studio-editor) .rp-needs-title { margin: 0; font: 400 28px/1 var(--rp-font-display); color: var(--rp-on-inverse); }
+.rp:not(.studio-editor) .rp-needs-list { display: flex; flex-wrap: wrap; gap: 4px 24px; flex: 1 1 360px; margin: 0; padding: 0; list-style: none; }
+.rp:not(.studio-editor) .rp-needs-link {
+  min-height: 32px; padding: 0; border: 0; background: none; cursor: pointer; color: var(--rp-on-inverse);
+  font: 500 15px/1.4 var(--rp-font-body); text-decoration: underline; text-underline-offset: 4px;
+  text-decoration-color: var(--rp-rail-faint);
+}
+.rp:not(.studio-editor) .rp-needs-link:hover { text-decoration-color: currentColor; }
+.rp:not(.studio-editor) .rp-needs-link[data-warn] { color: #ff8a78; }
+.rp:not(.studio-editor) .rp-needs-link:focus-visible,
+.rp:not(.studio-editor) .rp-needs-action:focus-visible { outline: 2px solid var(--rp-focus); outline-offset: 2px; }
+.rp:not(.studio-editor) .rp-needs-calm { flex: 1 1 360px; margin: 0; color: var(--rp-rail-text); font: 400 15px/1.4 var(--rp-font-body); }
+.rp:not(.studio-editor) .rp-needs-action {
+  height: 36px; padding: 0 16px; border: 0; background: var(--rp-primary); color: var(--rp-on-primary);
+  font: 700 14px/1 var(--rp-font-body); cursor: pointer; white-space: nowrap;
+}
+.rp:not(.studio-editor) .rp-needs-action:hover { background: var(--rp-primary-hover); }
+@media (pointer: coarse) {
+  .rp:not(.studio-editor) .rp-needs-link, .rp:not(.studio-editor) .rp-needs-action { min-height: var(--rp-touch); }
+}
+@media (max-width: 767px) {
+  .rp:not(.studio-editor) .rp-needs { padding: 16px; gap: 8px 16px; }
+  .rp:not(.studio-editor) .rp-needs-action { width: 100%; }
+}
+@media print { .rp-needs { display: none !important; } }
+/* Headline figures say what moved in words (overview/OverviewParts.tsx TrendWords): glyph + sentence, tinted by meaning. */
+.rp-trend-words { color: var(--rp-text-muted); }
+.rp-trend-words[data-tone="good"] { color: var(--rp-success); }
+.rp-trend-words[data-tone="bad"] { color: var(--rp-danger); }

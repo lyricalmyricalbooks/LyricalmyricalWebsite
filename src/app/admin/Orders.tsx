@@ -6,6 +6,7 @@ import { Download, Trash2 } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { WORK_QUEUES, queueOf, packingKey, daysInTransit, isOverdueInTransit } from "./fulfillment";
+import { nextStepFor } from "./orderNextStep";
 import { printOrders } from "./orderPrint";
 import { mergeNewestPage, mergeOrder } from "./ordersDesk";
 import { noteLoadedOrders, patchCachedOrder } from "./ordersCache";
@@ -503,6 +504,17 @@ export function Orders({
         </>
       ),
     },
+    {
+      key: "next",
+      header: "Next step",
+      render: (o) => {
+        const step = nextStepFor(queueOf(o));
+        return step ? (
+          <SecondaryButton size="sm" className="fw-next-step" aria-label={`${step}: open order ${o.orderId}`}
+            onClick={() => onSelectOrder(o, filteredOrders.map((x) => x.id))}>{step}</SecondaryButton>
+        ) : null;
+      },
+    },
   ];
 
   return (
@@ -768,6 +780,10 @@ export function Orders({
                       )}
                       <span className="rp-mono">{showMoney(o)}</span>
                     </div>
+                    {nextStepFor(queueOf(o)) && (
+                      <SecondaryButton size="sm" className="fw-next-step" aria-label={`${nextStepFor(queueOf(o))}: open order ${o.orderId}`}
+                        onClick={() => onSelectOrder(o, filteredOrders.map((x) => x.id))}>{nextStepFor(queueOf(o))}</SecondaryButton>
+                    )}
                   </div>
                 </article>
               ))}

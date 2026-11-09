@@ -23,7 +23,7 @@ import { profitSummary, titlePerformance } from "./overviewProfit";
 import { forgetReports, googleAnalyticsApi } from "../googleAnalytics";
 import { shopDayKey } from "../../lib/shopDay";
 import { isOwnOrder } from "../../lib/ownerDevice";
-import { ChangeList, Figure, ReadinessStrip, RunList, RunRow, Trend, money, moneyFigure, percent } from "./OverviewParts";
+import { ChangeList, Figure, ReadinessStrip, RunList, RunRow, Trend, TrendWords, money, moneyFigure, percent } from "./OverviewParts";
 import { readinessSummary } from "../launchReadiness";
 import { leadStory } from "./overviewStory";
 import { OverviewSales } from "./OverviewSales";
@@ -36,6 +36,8 @@ import { OverviewChart } from "./OverviewChart";
 import { OverviewNewSales, type NewSalesWidget } from "./OverviewNewSales";
 import { figureSeries, figureSpark, NewestOrdersList } from "./OverviewFiguresViz";
 import { OverviewNewLive, type NewLiveWidget } from "./OverviewNewLive";
+import { NeedsStrip } from "./NeedsStrip";
+import { queueOf } from "../fulfillment";
 import { OverviewBoard, useBoardStore, type BoardHeader, type RenderWidget } from "./OverviewBoard";
 import { DEFAULT_FIGURES, FIGURES, widgetMeta, type BoardView, type FigureId } from "./overviewBoard";
 import { clearShared } from "./overviewShared";
@@ -298,6 +300,17 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const openTodos = insights && reviews && todos ? insights.fulfil.length + reviews.pending + insights.reprint.length + insights.shelf.soldOut
     + todos.requests.length + todos.giftCardsMissing.length + todos.awaitingRelease.length
     + (counts?.unreadMessages || 0) + (counts?.openPrivacyRequests || 0) : null;
+  // The "Needs you" strip counts from the same live copies as the run sheet (all orders, not the period).
+  const liveOrders = allOrders.orders ? allOrders.orders.filter(o => o && o.isTest !== true) : null;
+  const inQueue = (q: string) => (liveOrders ? liveOrders.filter(o => queueOf(o) === q).length : null);
+  const needsInput = {
+    toPack: inQueue("Ready to pack"), toShip: inQueue("Ready to ship"),
+    requests: todos ? todos.requests.length : null,
+    reviews: reviews ? reviews.pending ?? 0 : counts ? counts.pendingReviews ?? 0 : null,
+    messages: counts ? counts.unreadMessages ?? 0 : null,
+    lowest: insights && insights.reprint[0] ? { title: insights.reprint[0].title, stock: insights.reprint[0].stock } : null,
+    soldOut: insights ? insights.shelf.soldOut : null,
+  };
   const cartStep = funnel && funnel.add_to_cart > 0 ? (funnel.checkout_start / funnel.add_to_cart) * 100 : null;
   const profit = insights?.profit;
 
@@ -310,12 +323,12 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const figure = (id: FigureId) => {
     const wait = { value: "…", foot: KPI_WAIT };
     switch (id) {
-      case "revenue": return insights ? { spark: figureSpark(lines?.revenue, insights.cur.net, insights.prev.net), value: moneyFigure(insights.cur.net), foot: <><Trend now={insights.cur.net} before={insights.prev.net} /> after refunds</> } : wait;
-      case "orders": return insights ? { spark: figureSpark(lines?.orders, insights.cur.orders, insights.prev.orders), value: insights.cur.orders.toLocaleString(), foot: <><Trend now={insights.cur.orders} before={insights.prev.orders} /> paid orders</> } : wait;
-      case "units": return insights ? { spark: figureSpark(lines?.units, insights.cur.units, insights.prev.units), value: insights.cur.units.toLocaleString(), foot: <><Trend now={insights.cur.units} before={insights.prev.units} /> copies</> } : wait;
-      case "aov": return insights ? { spark: figureSpark(lines?.aov, insights.cur.aov, insights.prev.aov), value: moneyFigure(insights.cur.aov), foot: <><Trend now={insights.cur.aov} before={insights.prev.aov} /> per paid order</> } : wait;
-      case "visitors": return trafficReady ? { spark: figureSpark(lines?.visitors, visits.cur, visits.prev), value: visits.cur.toLocaleString(), foot: <><Trend now={visits.cur} before={visits.prev} /> {sourceName}</> } : { value: trafficFailed ? "—" : "…", foot: trafficFooter(KPI_WAIT) };
-      case "conversion": return conv ? { spark: figureSpark(lines?.conversion, conv.cur, conv.prev), value: percent(conv.cur), foot: <><Trend now={conv.cur} before={conv.prev} /> paid orders ÷ visitors</> } : { value: trafficFailed ? "—" : "…", foot: trafficFooter(KPI_WAIT) };
+      case "revenue": return insights ? { spark: figureSpark(lines?.revenue, insights.cur.net, insights.prev.net), value: moneyFigure(insights.cur.net), foot: <TrendWords now={insights.cur.net} before={insights.prev.net} kind="money" than={range.before} /> } : wait;
+      case "orders": return insights ? { spark: figureSpark(lines?.orders, insights.cur.orders, insights.prev.orders), value: insights.cur.orders.toLocaleString(), foot: <TrendWords now={insights.cur.orders} before={insights.prev.orders} kind="count" than={range.before} /> } : wait;
+      case "units": return insights ? { spark: figureSpark(lines?.units, insights.cur.units, insights.prev.units), value: insights.cur.units.toLocaleString(), foot: <TrendWords now={insights.cur.units} before={insights.prev.units} kind="count" than={range.before} /> } : wait;
+      case "aov": return insights ? { spark: figureSpark(lines?.aov, insights.cur.aov, insights.prev.aov), value: moneyFigure(insights.cur.aov), foot: <TrendWords now={insights.cur.aov} before={insights.prev.aov} kind="money" than={range.before} /> } : wait;
+      case "visitors": return trafficReady ? { spark: figureSpark(lines?.visitors, visits.cur, visits.prev), value: visits.cur.toLocaleString(), foot: <TrendWords now={visits.cur} before={visits.prev} kind="count" than={range.before} /> } : { value: trafficFailed ? "—" : "…", foot: trafficFooter(KPI_WAIT) };
+      case "conversion": return conv ? { spark: figureSpark(lines?.conversion, conv.cur, conv.prev), value: percent(conv.cur), foot: <TrendWords now={conv.cur} before={conv.prev} kind="percent" than={range.before} /> } : { value: trafficFailed ? "—" : "…", foot: trafficFooter(KPI_WAIT) };
       case "cartStep": return trafficReady
         ? { value: cartStep !== null ? percent(cartStep, 0) : "—", foot: funnel && funnel.add_to_cart > 0 ? `${funnel.checkout_start.toLocaleString()} checkouts from ${funnel.add_to_cart.toLocaleString()} bag adds` : "no bag adds recorded yet" }
         : { value: "…", foot: trafficFooter(KPI_WAIT) };
@@ -346,7 +359,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   )));
 
   const runSheet = (
-    <aside className="rp-ov-run" aria-label="Needs you">
+    <aside className="rp-ov-run" aria-label="Every open job">
       <div className="rp-ov-eyebrow">Live — not tied to the period</div>
       <div className="rp-ov-run-total" aria-hidden="true">{openTodos === null ? "…" : openTodos}</div>
       <p className="rp-ov-run-sub">{openTodos === null ? "Counting…" : openTodos === 0 ? "Nothing needs you right now." : `${openTodos} thing${openTodos === 1 ? "" : "s"} need${openTodos === 1 ? "s" : ""} you`}</p>
@@ -548,6 +561,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         {(["revenue", "orders", "visitors", "conversion"] as FigureId[]).map(id => { const f = figure(id); return <Figure key={id} label={FIGURES.find(x => x.id === id)!.label} value={f.value} foot={f.foot} tone={(f as any).tone} />; })}
       </section>
     ),
+    needs: <NeedsStrip setActiveTab={setActiveTab} input={needsInput} />,
     viewName: range.phrase,
     view, onApplyView: applyView,
     onExport: downloadReport, exportReady: !!periods,

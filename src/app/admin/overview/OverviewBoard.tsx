@@ -219,6 +219,8 @@ export type BoardHeader = {
   summary: ReactNode;
   /** The headline numbers strip (revenue, orders, visitors, conversion). */
   figures?: ReactNode;
+  /** The ink "Needs you" strip, right under the title (live, not tied to the period). */
+  needs?: ReactNode;
   /** The period's name ("the last 12 months"), for "Open this board on these dates". */
   viewName: string;
   view: BoardView;
@@ -618,6 +620,7 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
           <div className="rp-wb-period" ref={periodRef} role="group" aria-label="Period and comparison" onKeyDown={periodKeys}>{header.period}</div>
         </div>
       </header>
+      {header.needs}
       {pageAlerts}
       <p className="rp-sr-only" role="status" aria-live="polite">{announce}</p>
     </>
