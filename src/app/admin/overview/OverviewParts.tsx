@@ -1,4 +1,5 @@
 import { Children, isValidElement, useId, useState, type ReactElement, type ReactNode } from "react";
+import { trendWords, type TrendKind } from "./trendWords";
 import "./overviewViz.css";
 import { SecondaryButton, SectionCard, StatusBadge, GhostButton, ErrorState, type BadgeTone } from "../riso/components";
 import { change } from "./overviewInsights";
@@ -46,6 +47,18 @@ export function Trend({ now, before, goodWhen = "up" }: { now: number; before: n
     <StatusBadge tone={tone} glyph={dir === "up" ? "▲" : dir === "down" ? "▼" : "="}>
       <span className="rp-sr-only">{dir === "same" ? "no change, " : `${dir} `}</span>{`${v > 0 ? "+" : ""}${v.toFixed(1)}%`}
     </StatusBadge>
+  );
+}
+
+/** What moved, in words with a glyph ("▲ CA$96.00 more than yesterday"): the headline figures' foot (trendWords.ts). */
+export function TrendWords({ now, before, kind, than, goodWhen = "up" }: {
+  now: number; before: number; kind: TrendKind; than: string; goodWhen?: "up" | "down" | "neutral";
+}) {
+  const t = trendWords(now, before, { kind, before: than, money, goodWhen });
+  return (
+    <span className="rp-trend-words" data-tone={t.tone}>
+      <span aria-hidden="true">{t.dir === "up" ? "▲" : t.dir === "down" ? "▼" : "="} </span>{t.text}
+    </span>
   );
 }
 

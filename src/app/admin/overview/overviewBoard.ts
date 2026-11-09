@@ -86,7 +86,7 @@ export type WidgetMeta = {
 };
 
 export const WIDGETS: WidgetMeta[] = [
-  { type: "needs", band: "today", title: "Needs you", blurb: "Orders to ship, requests, reprints, reviews and messages waiting for you", size: "m" },
+  { type: "needs", band: "today", title: "Every open job", blurb: "The full list behind Needs you: orders, requests, reprints, gift cards, pre-orders and more", size: "m" },
   { type: "changes", band: "today", title: "What changed", blurb: "The biggest moves against the period before", size: "m" },
   { type: "newest", band: "today", title: "Newest orders", blurb: "The latest real sales and their status", size: "m" },
   { type: "readiness", band: "today", title: "Ready to sell?", blurb: "Launch checks still open, or a tick once all pass", size: "m" },

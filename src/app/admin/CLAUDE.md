@@ -100,6 +100,16 @@ Every Pressroom selector is scoped `.rp:not(.studio-editor)` so Studio keeps its
 masthead: `Dashboard` skips `PageHeader` there and passes the alerts through `PageAlertsSlot` (`riso/components.tsx`), so
 `OverviewBoard` renders title + period chips → alerts → tabs → figures with the updated line and board actions under them.
 
+**Pressroom refreshed (9 November 2026, owner picked direction D, https://claude.ai/artifact/PhkLDg7HR26ow7NYk6QDgp):**
+the Overview header shows an ink **Needs you** strip under the title (`overview/NeedsStrip.tsx`, pure `needsStrip.ts`;
+`BoardHeader.needs`): live counts from the queues "Ready to pack"/"Ready to ship", open requests, reviews, messages, the first
+reprint-watch title and sold-out count, each a link (orders open on their queue via `openOrdersQueue`), plus one flare button
+(Start packing, else Ship orders). The board widget it summarises is now titled **Every open job**. Headline/Key figures feet
+say what moved in words (`TrendWords`, pure `trendWords.ts`: "CA$96.00 more than yesterday", "Down from 3.4%"); the `%`
+badge `Trend` stays for other panels. Orders rows (table and phone cards) end with a **Next step** button (`orderNextStep.ts`:
+Pack, Ship, Review, Hand over…) that only opens the order. Not built: an "N low" count on the Inventory rail item (it would
+need a books read in the shell every 5 minutes); the strip carries the low-stock line instead.
+
 - `riso.css` — semantic `--rp-*` tokens (light + night) and every `rp-*` component
   class; reduced motion, 44px coarse-pointer targets, visible focus, print.
 - `components.tsx` — AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, SectionCard,
