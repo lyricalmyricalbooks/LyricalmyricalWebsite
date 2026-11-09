@@ -2,11 +2,11 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
     <loc>https://lyricalmyrical-web-v2.web.app/</loc>
-    <lastmod>2026-11-08</lastmod>
+    <lastmod>2026-10-21</lastmod>
   </url>
   <url>
     <loc>https://lyricalmyrical-web-v2.web.app/books/lyricalmyrical-collections-1-collective-photobook</loc>
-    <lastmod>2026-10-23</lastmod>
+    <lastmod>2026-10-20</lastmod>
     <image:image>
       <image:loc>https://firebasestorage.googleapis.com/v0/b/lyricalmyrical-web-v2.firebasestorage.app/o/products%2F1791666954090-01.jpg?alt=media&amp;token=39b7224d-741e-42ab-a31f-188efffd743f</image:loc>
     </image:image>
@@ -40,7 +40,7 @@
   </url>
   <url>
     <loc>https://lyricalmyrical-web-v2.web.app/books/the-hound</loc>
-    <lastmod>2026-10-27</lastmod>
+    <lastmod>2026-10-20</lastmod>
     <image:image>
       <image:loc>https://firebasestorage.googleapis.com/v0/b/lyricalmyrical-web-v2.firebasestorage.app/o/products%2F1792459842560-preview_DL01130214-Topaz-Sharpen-Auto-Denoise-2-3-3200w.webp?alt=media&amp;token=4b6bf474-809f-4565-acad-3ea5b1ae9d04</image:loc>
     </image:image>
@@ -161,7 +161,7 @@
   </url>
   <url>
     <loc>https://lyricalmyrical-web-v2.web.app/books/injured-zine</loc>
-    <lastmod>2026-10-21</lastmod>
+    <lastmod>2026-10-18</lastmod>
     <image:image>
       <image:loc>https://firebasestorage.googleapis.com/v0/b/lyricalmyrical-web-v2.firebasestorage.app/o/products%2F1791667303637-01.jpg?alt=media&amp;token=f2453f3d-a066-40ae-88c7-da35585715dd</image:loc>
     </image:image>
@@ -180,7 +180,7 @@
   </url>
   <url>
     <loc>https://lyricalmyrical-web-v2.web.app/books/un-fantastico-altrove</loc>
-    <lastmod>2026-10-27</lastmod>
+    <lastmod>2026-10-20</lastmod>
     <image:image>
       <image:loc>https://firebasestorage.googleapis.com/v0/b/lyricalmyrical-web-v2.firebasestorage.app/o/products%2F1791666999347-01.jpg?alt=media&amp;token=89d96431-8722-43bf-b21a-0ba02ee5dad9</image:loc>
     </image:image>
@@ -282,7 +282,7 @@
   </url>
   <url>
     <loc>https://lyricalmyrical-web-v2.web.app/page/book-fairs</loc>
-    <lastmod>2026-11-08</lastmod>
+    <lastmod>2026-10-21</lastmod>
   </url>
   <url>
     <loc>https://lyricalmyrical-web-v2.web.app/page/about</loc>
@@ -290,7 +290,7 @@
   </url>
   <url>
     <loc>https://lyricalmyrical-web-v2.web.app/page/stockists</loc>
-    <lastmod>2026-11-08</lastmod>
+    <lastmod>2026-10-21</lastmod>
   </url>
   <url>
     <loc>https://lyricalmyrical-web-v2.web.app/page/submissions</loc>
