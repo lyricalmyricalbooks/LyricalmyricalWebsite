@@ -5,17 +5,17 @@ import { adminApi } from "./api";
 import { getOrdersCached } from "./ordersCache";
 import toast from "react-hot-toast";
 import { discountCategoryChoices } from "../features/site/discountCategories";
-import { discountState as state, today } from "./discountState";
+import { discountState as state, today, NEW_DISCOUNT_EVENT } from "./discountState";
 import { discountPerformance, duplicateDiscount, perfKey } from "./discountPerformance";
 import { validateDiscountDraft, draftFrom } from "./discountValidation";
-import { describeDiscount } from "./discountDescribe";
+import { describeDiscount, discountStub } from "./discountDescribe";
 import { copyText } from "./clipboard";
 import { discountShareLink } from "../features/site/sharedDiscount";
 import { MAX_BATCH, batchCodes, cleanPrefix, codesCsv, randomCode } from "./discountCodes";
 import {
-  ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState,
-  MetricCard, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField,
-  Tabs, Toggle, useConfirm, type Column,
+  ActionMenu, Checkbox, ConfirmDialog, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState,
+  PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField,
+  Tabs, Toggle, useConfirm,
 } from "./riso/components";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -437,47 +437,19 @@ export function Discounts() {
     });
   }, [discounts, filter, search]);
 
-  const totalGiven = useMemo(() => Array.from(perf.values()).reduce((a, p) => a + p.discountGiven, 0), [perf]);
-  const totalCodeRevenue = useMemo(() => Array.from(perf.values()).reduce((a, p) => a + p.revenue, 0), [perf]);
-  const totalRedemptions = discounts.reduce((a, d) => a + (d.usageCount || 0), 0);
-  const activeCodes = discounts.filter(d => state(d).key === "active").length;
   const statusCounts = useMemo(() => discounts.reduce((counts, discount) => {
     counts[state(discount).key] += 1;
     return counts;
   }, { active: 0, scheduled: 0, paused: 0, expired: 0, exhausted: 0 }), [discounts]);
 
   const edit = (d: any) => { setEditing(d); setDialogOpen(true); };
-  const nowrap = { whiteSpace: "nowrap" } as const;
-  const columns: Column<any>[] = [
-    { key: "code", header: "Code or title", lead: true, render: d => (
-      <div style={{ minWidth: 200, maxWidth: 420 }}>
-        <span style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <button type="button" onClick={() => edit(d)} aria-label={`Edit ${discountName(d)}`}
-            className={isAutomatic(d) ? "rp-row-link" : "rp-row-link rp-mono"}>
-            {discountName(d)}
-          </button>
-          {isAutomatic(d)
-            ? <StatusBadge tone="info">Automatic</StatusBadge>
-            : <IconButton label={`Share link for ${d.code}`} onClick={() => setSharing(d.code)}><Link2 size={16} aria-hidden /></IconButton>}
-        </span>
-        <div className="rp-hint" style={{ overflowWrap: "anywhere", marginTop: 2 }}>{describeDiscount(d, books || [])}</div>
-        {d.description && <div className="rp-hint" style={{ overflowWrap: "anywhere" }}>{d.description}</div>}
-      </div>
-    ) },
-    { key: "status", header: "Status", render: d => { const s = state(d); return <span style={nowrap}><StatusBadge tone={s.tone}>{s.label}</StatusBadge></span>; } },
-    { key: "used", header: "Used", numeric: true, render: d => <span style={nowrap}>{d.usageCount || 0} / {d.usageLimit ?? "∞"}</span> },
-    { key: "results", header: "Paid orders", numeric: true, render: d => {
-      const p = perf.get(perfKey(d));
-      return (
-        <div style={nowrap}>
-          <div>{p?.orders ?? 0} order{(p?.orders ?? 0) === 1 ? "" : "s"}</div>
-          <div className="rp-hint">{fmt(p?.revenue ?? 0)} sales</div>
-          <div className="rp-hint">{fmt(p?.discountGiven ?? 0)} off</div>
-        </div>
-      );
-    } },
-    { key: "expiry", header: "Expires", render: d => <span style={nowrap}>{d.expiryDate ? shopDay(d.expiryDate) : "Never"}</span> },
-    { key: "actions", header: "Actions", render: d => (
+  // "+ New discount" sits in the page header (Dashboard), which asks through this event.
+  useEffect(() => {
+    const open = () => { setEditing(null); setDialogOpen(true); };
+    window.addEventListener(NEW_DISCOUNT_EVENT, open);
+    return () => window.removeEventListener(NEW_DISCOUNT_EVENT, open);
+  }, []);
+  const actionsOf = (d: any) => (
       <ActionMenu label={`Actions for ${discountName(d)}`} actions={[
         { label: "Edit", onSelect: () => edit(d) },
         { label: d.isActive ? "Pause" : "Activate", onSelect: () => handleToggle(d) },
@@ -488,20 +460,13 @@ export function Discounts() {
         ]),
         { label: "Delete", tone: "danger", onSelect: () => setDeleting(d) },
       ]} />
-    ) },
-  ];
+  );
 
   if (loading) return <LoadingState label="Loading discounts…" />;
   if (failed) return <ErrorState description="Discount codes could not be loaded." onRetry={load} />;
 
   return (
     <div className="rp-stack">
-      <div className="rp-kpi-grid">
-        <MetricCard label="Active discounts" value={activeCodes} footer={`${discounts.length} total`} />
-        <MetricCard label="Redemptions" value={totalRedemptions.toLocaleString()} footer="Counted by the payment webhook" />
-        <MetricCard label="Revenue with a discount" value={fmt(totalCodeRevenue)} footer="Paid orders, less refunds (CAD)" />
-        <MetricCard label="Discounts given" value={fmt(totalGiven)} footer="Total taken off those orders" />
-      </div>
 
       {discounts.length === 0 ? (
         <SectionCard>
@@ -520,13 +485,40 @@ export function Discounts() {
           ]} />
           <FilterBar>
             <div className="rp-grow"><SearchField label="Search discounts" placeholder="Search codes, titles or descriptions…" value={search} onChange={e => setSearch(e.target.value)} /></div>
-            <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setEditing(null); setDialogOpen(true); }}>New discount</PrimaryButton>
           </FilterBar>
-          <SectionCard flush collapsible={false} title="Discounts" description={`${rows.length} of ${discounts.length} · one discount per order, the biggest saving wins.`}>
-            <DataTable caption="Discounts" columns={columns} rows={rows} rowKey={d => d.id}
-              empty={<EmptyState title="No codes match" description="Try a different status or search."
-                action={<SecondaryButton onClick={() => { setFilter("all"); setSearch(""); }}>Reset filters</SecondaryButton>} />} />
-          </SectionCard>
+          {rows.length === 0
+            ? <EmptyState title="No codes match" description="Try a different status or search."
+                action={<SecondaryButton onClick={() => { setFilter("all"); setSearch(""); }}>Reset filters</SecondaryButton>} />
+            : (
+              <ul className="dc-grid" aria-label={`Discounts: ${rows.length} of ${discounts.length}`}>
+                {rows.map(d => {
+                  const st = state(d);
+                  const p = perf.get(perfKey(d));
+                  const used = st.key === "scheduled" ? st.label : `${d.usageCount || 0}${d.usageLimit ? ` of ${d.usageLimit}` : ""} used`;
+                  return (
+                    <li key={d.id} className="dc-card" data-state={st.key}>
+                      <span className="dc-stub" aria-hidden="true">{discountStub(d)}</span>
+                      <div className="dc-body">
+                        <div className="dc-head">
+                          <button type="button" onClick={() => edit(d)} aria-label={`Edit ${discountName(d)}`}
+                            className={isAutomatic(d) ? "dc-code dc-code-auto" : "dc-code"}>{discountName(d)}</button>
+                          {actionsOf(d)}
+                        </div>
+                        <p className="dc-desc">{describeDiscount(d, books || [])}{d.expiryDate ? ` · ends ${shopDay(d.expiryDate)}` : ""}</p>
+                        <div className="dc-foot">
+                          <span className="dc-used">{used}{p?.orders ? ` · ${fmt(p.revenue)} sales` : ""}</span>
+                          <span className="dc-chips">
+                            {isAutomatic(d) && <StatusBadge tone="info" glyph={false}>Automatic</StatusBadge>}
+                            <StatusBadge tone={st.key === "expired" ? "neutral" : st.tone} glyph={false}>{st.key === "scheduled" ? "Scheduled" : st.label}</StatusBadge>
+                            {!isAutomatic(d) && <IconButton label={`Share link for ${d.code}`} onClick={() => setSharing(d.code)}><Link2 size={16} aria-hidden /></IconButton>}
+                          </span>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
         </>
       )}
 

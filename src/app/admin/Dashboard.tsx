@@ -10,6 +10,7 @@ import {
 import { Login } from "./Login";
 import { BookCatalog } from "./BookCatalog";
 import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
+import { NEW_DISCOUNT_EVENT } from "./discountState";
 import { AdminAlerts } from "./AdminAlerts.tsx";
 import { shopErrorAlert, shopErrorRows } from "./shopErrors";
 import { backupAlert, buildAdminAlerts, checkFailedAlert, inventoryLinkAlerts, settingsAlerts, type AdminAlert, type AlertRoute } from "./adminAlerts";
@@ -23,7 +24,7 @@ import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
 import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
-  IconButton, Dialog, ToastProvider, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot,
+  IconButton, Dialog, ToastProvider, Tabs, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";
@@ -31,7 +32,7 @@ import { AdminPageBoundary } from "./AdminPageBoundary";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { isHelpShortcut } from "./riso/helpShortcut";
-import { NAV, PAGE_COPY, SETTINGS_ITEM_PREFIX, sidebarItems } from "./riso/nav";
+import { NAV, PAGE_COPY, SETTINGS_COPY } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
@@ -46,6 +47,7 @@ const OrdersDesk = lazy(() => import("./OrdersDesk.tsx").then(m => ({ default: m
 const AnalyticsDashboard = lazy(() => import("./overview/AnalyticsDashboard").then(m => ({ default: m.AnalyticsDashboard })));
 const ShopSettings = lazy(() => import("./ShopSettings").then(m => ({ default: m.ShopSettings })));
 const ReviewsModeration = lazy(() => import("./ReviewsModeration"));
+const DesignPage = lazy(() => import("./DesignPage").then(m => ({ default: m.DesignPage })));
 const Messages = lazy(() => import("./Messages"));
 
 // Every shared orders load also refreshes the Orders list memory (its instant return and "Ship orders").
@@ -470,6 +472,9 @@ export function Dashboard() {
     setSidebarOpen(false);
     return true;
   };
+  // Studio (the page editor) opens over everything from the Design page and returns there.
+  const openStudio = (at?: StudioLocation) => { setStudioLocation(at ? { ...at, key: Date.now() } : null); setShowEditor(false); setSelectedOrder(null); setActiveTab("settings"); setSettingsTab("designer"); };
+  const closeStudio = () => { setSettingsTab("general"); setActiveTab("design"); };
   const goToChild = async (_parent: string, child: string) => {
     if (child !== navChild && !(await leaveSettings())) return;
     setActiveTab("settings");
@@ -478,7 +483,8 @@ export function Dashboard() {
   };
 
   // Shipping/Payments can also be entered as top-level tabs by ShopSettings.
-  const navActive = activeTab === "shipping" || activeTab === "payments" ? "settings" : activeTab === "analytics" ? "overview" : activeTab;
+  const navActive = activeTab === "settings" && settingsTab === "designer" ? "design"
+    : activeTab === "shipping" || activeTab === "payments" ? "settings" : activeTab === "analytics" ? "overview" : activeTab;
   // An old page id (e.g. Email sender's "communications" from older What's new shortcuts) highlights the page it opens.
   const navChild = activeTab === "shipping" || activeTab === "payments" ? activeTab : settingsPageOf(settingsTab);
   // A Settings page picked straight from the sidebar: leaves the book editor / an open order too.
@@ -533,8 +539,43 @@ export function Dashboard() {
     })),
   ];
 
+  // Overview and Orders keep their own look (owner, 10 November 2026); every other page takes the Riso redesign.
+  const keepsOldLook = activeTab === "overview" || activeTab === "analytics" || activeTab === "orders" || !!selectedOrder;
+  const settingsCopy = SETTINGS_COPY[navChild];
+  const settingsAction = settingsCopy?.action;
+  // Save changes in the header saves whatever the page's save bar holds (the same path as Ctrl/⌘+S).
+  const saveSettings = () => {
+    if (!anyDirty()) { toast("Nothing to save: every change is already saved."); return; }
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true, cancelable: true }));
+  };
+  const settingsHeader = isSettingsPage && !selectedOrder && settingsCopy ? (
+    <>
+      <PageHeader
+        breadcrumbs={<Breadcrumbs trail={[{ label: "Settings", onClick: () => { void goToChild("settings", "general"); } }, { label: childLabel || "General" }]} />}
+        title={childLabel || "Settings"}
+        description={settingsCopy.description}
+        actions={<>
+          {settingsAction && <SecondaryButton onClick={() => {
+            if (settingsAction.kind === "storefront") openSite();
+            else if (settingsAction.kind === "stripe") window.open("https://dashboard.stripe.com/", "_blank", "noopener");
+          }}>{settingsAction.label}</SecondaryButton>}
+          <PrimaryButton onClick={saveSettings}>Save changes</PrimaryButton>
+        </>}
+      />
+      <Tabs label="Settings pages" idPrefix="settings-page-" variant="page" value={navChild}
+        tabs={(NAV.find((n) => n.id === "settings")?.children || []).map((c) => ({ id: c.id, label: c.label }))}
+        onChange={(id) => { void goToChild("settings", id); }} />
+    </>
+  ) : null;
+  const headerActions = activeTab === "catalog" ? <PrimaryButton onClick={handleAddBook}>+ New book</PrimaryButton>
+    : activeTab === "discounts" ? <PrimaryButton onClick={() => window.dispatchEvent(new Event(NEW_DISCOUNT_EVENT))}>+ New discount</PrimaryButton>
+    : activeTab === "design" ? <>
+      <SecondaryButton onClick={openSite}>Preview site</SecondaryButton>
+      <PrimaryButton onClick={() => openStudio()}>Open page editor</PrimaryButton>
+    </> : undefined;
+
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications"));
+  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "design" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "giftCards" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping" || settingsTab === "taxes" || settingsTab === "communications"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -546,6 +587,7 @@ export function Dashboard() {
       case "discounts": return <Discounts />;
       case "giftCards": return <GiftCards openId={openGiftCard} onOpened={() => setOpenGiftCard(null)} />;
       case "reviews": return <ReviewsModeration />;
+      case "design": return <DesignPage settings={settings} onOpenStudio={openStudio} />;
       case "messages": return <Messages onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }} onOpenCustomers={() => goTo("customers")} />;
       case "orders":
         // Inbox-style desk: list + the full order page (all Stripe sync/refund/label actions) side by side.
@@ -612,23 +654,24 @@ export function Dashboard() {
           <Sidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            items={sidebarItems(NAV).map((n) => {
+            items={NAV.map((n) => {
               // Orders counts open cancel/return requests too (they sit in Needs attention).
               // Privacy requests are handled in Settings › General.
               const badge = n.id === "orders" ? ordersBadge : n.id === "reviews" ? otherBadges.pendingReviews
-                : n.id === "messages" ? otherBadges.unreadMessages : n.id === SETTINGS_ITEM_PREFIX + "general" ? otherBadges.openPrivacyRequests : undefined;
+                : n.id === "messages" ? otherBadges.unreadMessages : n.id === "settings" ? otherBadges.openPrivacyRequests : undefined;
               return badge === undefined ? n : { ...n, badge: badge || 0 };
             })}
-            activeId={showEditor ? null : navActive === "settings" ? SETTINGS_ITEM_PREFIX + navChild : navActive}
+            activeId={showEditor ? "catalog" : navActive}
             activeChildId={navChild}
-            onSelect={(id) => { if (id.startsWith(SETTINGS_ITEM_PREFIX)) void openSettingsPage(id.slice(SETTINGS_ITEM_PREFIX.length)); else void goTo(id); }}
+            onSelect={(id) => { if (id === "settings") void openSettingsPage(isSettingsPage ? navChild : "general"); else void goTo(id); }}
             onSelectChild={goToChild}
             top={<AppSwitcher onSwitch={() => setSidebarOpen(false)} />}
             brand={
               <a className="rp-brand-link" href="#overview" aria-label="Lyricalmyrical website admin: go to Overview"
                 onClick={(e) => { e.preventDefault(); setSidebarOpen(false); void goTo("overview"); }}>
+                <span className="rp-brand-mark" aria-hidden="true">L</span>
                 <span className="rp-brand-text">
-                  <span className="rp-wordmark">Lyrical<em>myrical</em></span>
+                  <span className="rp-wordmark">Lyrical <em>myrical</em></span>
                   <span className="rp-wordmark-sub">Website admin</span>
                 </span>
               </a>
@@ -663,6 +706,7 @@ export function Dashboard() {
                 onSetWall={(on) => { void toggleUnderConstruction(on); }}
                 onOpenSettings={() => { void openSettingsPage("general"); }}
               />
+              <SecondaryButton className="rp-view-storefront" onClick={openSite}>View storefront ↗</SecondaryButton>
               <div className="rp-menu-wrap rp-avatar-menu" ref={userMenuRef}
                 onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setUserMenuOpen(false); }}
                 onKeyDown={(e) => {
@@ -689,11 +733,17 @@ export function Dashboard() {
           </Topbar>
         }
       >
+        <div className={keepsOldLook ? "rp-page" : "rp-page rp-rs"} data-page={activeTab}>
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}
-        {!ownMasthead && <PageHeader
+        {!ownMasthead && (settingsHeader || <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}
-          title={selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
-        />}
+          title={selectedOrder && activeTab !== "orders" ? "Order detail" : copy.title}
+          description={keepsOldLook ? undefined
+            : activeTab === "reviews" && otherBadges.pendingReviews != null ? `${otherBadges.pendingReviews} waiting`
+            : activeTab === "messages" && otherBadges.unreadMessages != null ? `${otherBadges.unreadMessages} unread`
+            : copy.description}
+          actions={headerActions}
+        />)}
         {!ownMasthead && pageAlerts}
         {/* Feature pages still use legacy utility classes; scope the compatibility layer to them only. */}
         <div {...(migrated ? {} : legacyProps)} style={{ background: "transparent", minHeight: 480 }}>
@@ -707,6 +757,7 @@ export function Dashboard() {
               <PageAlertsSlot.Provider value={ownMasthead ? pageAlerts : null}><AdminPageBoundary resetKey={activeTab + (selectedOrder ? "-detail" : "") + settingsTab}><Suspense fallback={<PageSkeleton label="Opening page…" />}>{content}</Suspense></AdminPageBoundary></PageAlertsSlot.Provider>
             </m.div>
           </AnimatePresence>
+        </div>
         </div>
       </AppShell>
 
@@ -738,7 +789,7 @@ export function Dashboard() {
       {/* Book Editor Takeover */}
       <AnimatePresence>
         {showEditor && (
-          <div className="rp rp-dialog-root rp-editor-root" data-variant="drawer" data-rp-appearance={appearance} style={{ background: "transparent" }}>
+          <div className="rp rp-dialog-root rp-editor-root rp-rs" data-variant="drawer" data-rp-appearance={appearance} style={{ background: "transparent" }}>
             <div className="rp-dialog-scrim" aria-hidden="true" />
             <m.div
               initial={{ opacity: 0, x: 32 }}
@@ -780,7 +831,7 @@ export function Dashboard() {
               transition={{ duration: 0.4, ease: "circOut" }}
               className="fixed inset-0 z-[200] bg-black"
             >
-              <AdminPageBoundary label="Design studio" closeLabel="Back to settings" onClose={() => setSettingsTab("general")}
+              <AdminPageBoundary label="Design studio" closeLabel="Back to Design" onClose={closeStudio}
                 frame={appearance}>
               <Suspense fallback={<div className="rp" data-rp-appearance={appearance} style={{ height: "100%", display: "grid", placeItems: "center" }}><LoadingState label="Opening Design studio…" /></div>}>
               <StudioEditor
@@ -788,7 +839,7 @@ export function Dashboard() {
                 initialLocation={studioLocation || undefined}
                 appearance={appearance}
                 settings={settings}
-                onExit={() => setSettingsTab("general")}
+                onExit={closeStudio}
                 onPersisted={(design: any, published: boolean) =>
                   setSettings((prev: any) => ({ ...prev, draftDesign: design, ...(published ? { design } : {}) }))
                 }

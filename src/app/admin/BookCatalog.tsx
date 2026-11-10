@@ -16,7 +16,7 @@ import { inventoryApi } from "./inventoryApi";
 import { liveStockOf } from "./inventoryInsights";
 import toast from "react-hot-toast";
 import {
-  ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, GhostButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard, Pagination,
+  ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, GhostButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, Pagination,
   PrimaryButton, Tabs, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, type Column,
 } from "./riso/components";
 import { preorderActive, releaseDateOf } from "../features/site/preorder";
@@ -49,6 +49,13 @@ async function eachBook(books: any[], write: (b: any) => Promise<unknown>) {
 
 const STATUS_CHIPS = [...STATUS_FILTERS, "Pre-order", "Coming soon"] as const;
 
+const VIEW_KEY = "lm:books-view";
+/** Covers for books without a photo: Riso ink colours, each with readable text. */
+const COVER_SWATCHES = [
+  { bg: "#e8402a", fg: "#100f0d" }, { bg: "#1b3fe0", fg: "#faf6ec" }, { bg: "#ffc93c", fg: "#100f0d" },
+  { bg: "#100f0d", fg: "#faf6ec" }, { bg: "#0a6b47", fg: "#faf6ec" }, { bg: "#e4dac5", fg: "#100f0d" },
+];
+
 export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps) {
   const [books, setBooks] = useState<any[]>([]);
   const [authors, setAuthors] = useState<Record<string, string>>({});
@@ -60,6 +67,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [formatFilter, setFormatFilter] = useState("All");
   const [sort, setSort] = useState<SortKey>("shop");
+  const [view, setView] = useState<"grid" | "list">(() => { try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid"; } catch { return "grid"; } });
+  const chooseView = (v: "grid" | "list") => { setView(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* storage blocked */ } };
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
   const [review, setReview] = useState<"publish" | "draft" | null>(null);
@@ -160,7 +169,6 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
 
   // Arranging works on the whole catalog, so it is offered only when no search or filter hides books.
   const statusCounts = useMemo(() => Object.fromEntries(STATUS_CHIPS.map((v) => [v, books.filter((b) => matchesStatus(b, v)).length])) as Record<typeof STATUS_CHIPS[number], number>, [books]);
-  const soldOut = useMemo(() => books.filter((b) => matchesStatus(b, "Published") && stockOf(b).kind === "soldout").length, [books, stockOf]);
   const filtering = !!q || statusFilter !== "All" || stockFilter !== "All" || categoryFilter !== "All" || formatFilter !== "All";
   const canArrange = sort === "shop" && !filtering && !savingOrder;
   const moveBook = async (id: string, to: number) => {
@@ -460,6 +468,32 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     </ul>
   );
 
+  // Grid (default): cover cards, as in the owner's redesign. List keeps ordering, selection and bulk tools.
+  const gridCards = (
+    <ul className="bk-grid" aria-label="Books">
+      {pageRows.map(b => {
+        const at = books.findIndex(x => x.id === b.id);
+        const swatch = COVER_SWATCHES[(at < 0 ? 0 : at) % COVER_SWATCHES.length];
+        const photo = b.photoUrl || b.photos?.[0]?.url;
+        const s = publicationBadge(b);
+        const st = stockOf(b);
+        return (
+          <li key={b.id}>
+            <button type="button" className="bk-grid-card" onClick={() => onEdit(b)} aria-label={`Edit ${b.title || "Untitled"}`}>
+              <span className="bk-grid-cover" style={photo ? undefined : { background: swatch.bg, color: swatch.fg }}>
+                {photo ? <img src={photo} alt="" loading="lazy" decoding="async" /> : <span className="bk-grid-title">{b.title || "Untitled"}</span>}
+              </span>
+              <span className="bk-grid-foot">
+                <span className="bk-grid-row"><span className="bk-grid-price">{priceInfo(b).text}</span><StatusBadge tone={s.tone} glyph={false}>{s.text}</StatusBadge></span>
+                <span className="bk-grid-meta">{photo && <strong>{b.title || "Untitled"} · </strong>}{st.text}{b.format ? ` · ${b.format}` : ""}</span>
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
   if (loading) return <LoadingState label="Loading books…" />;
   if (failed) return <ErrorState description="Your books could not be loaded." onRetry={() => { setLoading(true); loadBooks(); }} />;
 
@@ -481,12 +515,6 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
 
   return (
     <div className="rp-stack">
-      <div className="rp-kpi-grid">
-        <MetricCard label="Titles" value={books.length} footer={`${statusCounts.Draft} draft · ${statusCounts.Archived} archived`} />
-        <MetricCard label="Published" value={statusCounts.Published} footer={`${statusCounts.Scheduled} scheduled`} />
-        <MetricCard label="Sold out" value={soldOut} tone={soldOut ? "danger" : undefined} footer="Published, cannot be bought" />
-        <MetricCard label="Pre-order · coming soon" value={statusCounts["Pre-order"] + statusCounts["Coming soon"]} footer={`${statusCounts["Pre-order"]} pre-order · ${statusCounts["Coming soon"]} coming soon`} />
-      </div>
       <Tabs label="Publication status" value={statusFilter} onChange={setStatusFilter}
         tabs={STATUS_CHIPS.map((v) => ({ id: v, label: v, count: statusCounts[v] }))} />
       <div className="bk-filters" data-open={filtersOpen}>
@@ -546,11 +574,26 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         </div>
       )}
 
+      <div className="bk-view-bar">
+        <Tabs label="View" idPrefix="bk-view-" value={view} onChange={chooseView}
+          tabs={[{ id: "grid", label: "Grid" }, { id: "list", label: "List" }]} />
+        {view === "grid" && <ActionMenu label="More catalog actions" actions={[
+          { label: "Import CSV…", onSelect: () => setImportOpen(true) },
+          { label: "Export…", onSelect: () => { setExportScope("filtered"); setExportOpen(true); } },
+          { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
+          { label: "Google indexing", onSelect: () => setIndexOpen(true) },
+        ]} />}
+      </div>
+      {view === "grid" ? (
+        pageRows.length === 0
+          ? <EmptyState title="No books match" description="Nothing fits this search and these filters. Clear them to see every book."
+              action={<SecondaryButton onClick={resetFilters}>Clear filters</SecondaryButton>} />
+          : <>{gridCards}{rows.length > pageSize && <Pagination page={cur} pageCount={pageCount} onPage={setPage} />}</>
+      ) : (
       <SectionCard flush title="Catalog" collapsible={false}
         actions={
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
             {pageRows.length > 0 && <Checkbox label={sort === "shop" ? "Select all" : "Select page"} checked={allSelected} onChange={togglePage} />}
-            <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={onAdd}>Add book</PrimaryButton>
             <ActionMenu label="More catalog actions" actions={[
               { label: "Import CSV…", onSelect: () => setImportOpen(true) },
               { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
@@ -577,6 +620,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         )}
         {rows.length > pageSize && <Pagination page={cur} pageCount={pageCount} onPage={setPage} />}
       </SectionCard>
+      )}
 
       {importOpen && <BookImportDialog books={books} onClose={() => setImportOpen(false)} onDone={importDone} />}
       <EditionStockDialog book={stockEditId ? byId.get(stockEditId) || null : null} onClose={() => setStockEditId(null)} onSaved={loadBooks} />

@@ -8,8 +8,8 @@ import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import { plainError } from "./plainError";
 import {
-  Checkbox, ConfirmDialog, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, PrimaryButton,
-  SearchField, SecondaryButton, SectionCard, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast,
+  Checkbox, ConfirmDialog, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState,
+  SearchField, SecondaryButton, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast,
 } from "./riso/components";
 
 // Messages sent from the storefront Contact Form section (collection `contactMessages`).
@@ -146,11 +146,6 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
     } catch { setOrders((o) => ({ ...o, [key]: "error" })); }
   };
 
-  const toggleOpen = (m: ContactMessage) => {
-    const opening = open !== m.id;
-    setOpen(opening ? m.id : null);
-    if (opening) { lookUpOrders(m.email); if (isUnread(m)) setStatuses([m], "read"); }
-  };
 
   const sendReply = async (m: ContactMessage) => {
     const body = (drafts[m.id] || "").trim();
@@ -186,10 +181,14 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
     archived: messages.filter((m) => m.status === "archived").length,
   }), [messages]);
   const list = useMemo(() => filterMessages(messages, filter, q), [messages, filter, q]);
-  const last7 = useMemo(() => {
-    const since = Date.now() - 7 * 86400000;
-    return messages.filter((m) => (toDate(m.createdAt)?.getTime() || 0) >= since).length;
-  }, [messages]);
+  // The message on the right: the one picked, else the newest in this view (shown, not marked read).
+  const current = useMemo(() => list.find((m) => m.id === open) || list[0] || null, [list, open]);
+  useEffect(() => { if (current) lookUpOrders(current.email); }, [current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pick = (m: ContactMessage) => {
+    setOpen(m.id);
+    if (isUnread(m)) setStatuses([m], "read");
+  };
+
   const unread = totals?.unread ?? loadedCounts.unread;
   const chosen = list.filter((m) => selected.has(m.id));
   const allChosen = list.length > 0 && chosen.length === list.length;
@@ -206,9 +205,7 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
         <div className="rp-grow"><SearchField label="Search messages" placeholder="Search name, email or text…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       </FilterBar>
 
-      <SectionCard flush collapsible={false} title="Messages"
-        description={`${list.length} in this view${hasMore ? " (older messages not loaded yet)" : ""} · ${last7} received in the last 7 days · ${totals?.all ?? messages.length} all time`}
-        actions={unread ? <StatusBadge tone="warning">{unread} unread</StatusBadge> : <StatusBadge tone="success">All read</StatusBadge>}>
+      <section className="rp-card ms-card" aria-label={`Messages: ${list.length} in this view${hasMore ? ", older ones not loaded yet" : ""}`}>
         {loading ? <LoadingState label="Loading messages…" />
           : error ? <ErrorState description="Messages could not be loaded." onRetry={load} />
           : list.length === 0 ? (
@@ -221,7 +218,7 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
             )
           ) : (
             <>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", padding: "12px 16px", borderBottom: "1px solid var(--rp-border)" }}>
+              <div className="ms-bar">
                 <Checkbox label={chosen.length ? `${chosen.length} selected` : "Select all"} checked={allChosen}
                   onChange={(e) => setSelected(e.target.checked ? new Set(list.map((m) => m.id)) : new Set())} />
                 {chosen.length > 0 && <>
@@ -232,88 +229,88 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
                   <GhostButton size="sm" onClick={() => setDeleting(chosen)}>Delete…</GhostButton>
                 </>}
               </div>
-              <ul className="rp-list" aria-label="Messages">
+              <div className="ms-panes">
+              <ul className="ms-list" aria-label="Messages">
                 {list.map((m) => {
                   const when = toDate(m.createdAt);
-                  const expanded = open === m.id;
-                  const panelId = `msg-${m.id}`;
-                  const ord = orders[m.email.trim().toLowerCase()];
+                  const on = current?.id === m.id;
                   return (
-                    <li key={m.id} data-unread={isUnread(m) ? "true" : undefined}
-                      style={isUnread(m) ? { boxShadow: "inset 3px 0 0 var(--rp-primary)" } : undefined}>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start", justifyContent: "space-between" }}>
-                        <div style={{ display: "flex", gap: 10, minWidth: 0, flex: "1 1 320px" }}>
-                          <input type="checkbox" aria-label={`Select message from ${m.name}`} style={{ marginTop: 4 }}
-                            checked={selected.has(m.id)} onChange={(e) => setSelected((s) => { const n = new Set(s); if (e.target.checked) n.add(m.id); else n.delete(m.id); return n; })} />
-                          <div style={{ minWidth: 0, flex: 1 }}>
-                            <div className="rp-row-meta" style={{ marginBottom: 6 }}>
-                              {isUnread(m) && <StatusBadge tone="warning">New</StatusBadge>}
-                              {hasReplied(m) && <StatusBadge tone="success">Replied</StatusBadge>}
-                              {m.status === "archived" && <StatusBadge tone="neutral">Archived</StatusBadge>}
-                              {when && <time dateTime={when.toISOString()}>{when.toLocaleString()}</time>}
-                            </div>
-                            <h3 style={{ margin: "0 0 4px", fontSize: "var(--rp-text-base)", fontWeight: isUnread(m) ? 700 : 600 }}>
-                              <button type="button" className="rp-disclosure" onClick={() => toggleOpen(m)} aria-expanded={expanded} aria-controls={panelId}
-                                style={{ background: "none", border: 0, padding: 0, font: "inherit", color: "inherit", textAlign: "left", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3 }}>
-                                {m.subject || m.name}
-                              </button>
-                            </h3>
-                            <p style={{ margin: "0 0 6px", lineHeight: 1.55, overflowWrap: "anywhere", whiteSpace: expanded ? "pre-wrap" : "normal" }}>
-                              {expanded || m.message.length <= 180 ? m.message : `${m.message.slice(0, 180)}…`}
-                            </p>
-                            <p className="rp-hint" style={{ margin: 0 }}>
-                              {m.name} · {m.email}{m.phone ? ` · ${m.phone}` : ""}{expanded && m.page ? ` · sent from ${m.page}` : ""}
-                            </p>
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
-                          <SecondaryButton size="sm" aria-expanded={expanded} aria-controls={panelId} onClick={() => toggleOpen(m)}>
-                            {expanded ? "Close" : hasReplied(m) ? "Open" : "Read & reply"}
-                          </SecondaryButton>
-                          {!isUnread(m) && m.status !== "archived" && (
-                            <IconButton label={`Mark message from ${m.name} unread`} onClick={() => setStatuses([m], "new")}><MailOpen size={18} aria-hidden /></IconButton>)}
-                          {m.status === "archived"
-                            ? <IconButton label={`Move message from ${m.name} back to inbox`} onClick={() => setStatuses([m], restoredStatus(m))}><ArchiveRestore size={18} aria-hidden /></IconButton>
-                            : <IconButton label={`Archive message from ${m.name}`} onClick={() => archive([m])}><Archive size={18} aria-hidden /></IconButton>}
-                          <IconButton tone="danger" label={`Delete message from ${m.name}`} onClick={() => setDeleting([m])}><Trash2 size={18} aria-hidden /></IconButton>
-                        </div>
-                      </div>
-                      {expanded && (
-                        <div id={panelId} className="rp-stack" style={{ marginTop: 12, paddingLeft: 30 }}>
-                          {ord && ord !== "loading" && ord !== "error" && ord.count > 0 && (
-                            <p className="rp-hint" style={{ margin: 0, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                              <span>{ord.count}{ord.more ? "+" : ""} order{ord.count === 1 ? "" : "s"} from this customer</span>
-                              {ord.latestId && onOpenOrder && <GhostButton size="sm" onClick={() => onOpenOrder(ord.latestId!)}>Open latest order</GhostButton>}
-                              {onOpenCustomers && <GhostButton size="sm" onClick={() => onOpenCustomers(m.email)}>Open Customers</GhostButton>}
-                            </p>
-                          )}
-                          {(m.replies || []).map((r, i) => (
-                            <div key={i} className="rp-card" style={{ padding: 12, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
-                              <div className="rp-hint">You replied · {new Date(r.at).toLocaleString()}</div>
-                              <p style={{ margin: "6px 0 0", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{r.body}</p>
-                            </div>
-                          ))}
-                          <TextArea label={`Reply to ${m.name}`} rows={4} maxLength={5000} value={drafts[m.id] || ""} disabled={sending === m.id}
-                            hint="Sent from the shop's email to the address above; it's saved here with the message. Press Ctrl/⌘ + Enter to send."
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && sending !== m.id && (drafts[m.id] || "").trim()) { e.preventDefault(); void sendReply(m); }
-                            }}
-                            onChange={(e) => setDrafts((d) => ({ ...d, [m.id]: e.target.value }))} />
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                            <PrimaryButton icon={<Send size={16} aria-hidden />} disabled={sending === m.id || !(drafts[m.id] || "").trim()} onClick={() => sendReply(m)}>
-                              {sending === m.id ? "Sending…" : "Send reply"}
-                            </PrimaryButton>
-                            <a className="rp-btn rp-btn-secondary" aria-label={`Reply to ${m.name} in your email app`}
-                              href={`mailto:${encodeURIComponent(m.email)}?subject=${encodeURIComponent(`Re: ${m.subject || "your message"}`)}`}>
-                              <Mail size={16} aria-hidden /> Use my email app
-                            </a>
-                          </div>
-                        </div>
-                      )}
+                    <li key={m.id} className="ms-row" data-selected={on || undefined} data-unread={isUnread(m) ? "true" : undefined}>
+                      <input type="checkbox" aria-label={`Select message from ${m.name}`} className="ms-check"
+                        checked={selected.has(m.id)} onChange={(e) => setSelected((s) => { const n = new Set(s); if (e.target.checked) n.add(m.id); else n.delete(m.id); return n; })} />
+                      <button type="button" className="ms-pick" aria-current={on || undefined} aria-controls="ms-reader" onClick={() => pick(m)}>
+                        <span className="ms-line">
+                          <span className="ms-from">{m.name || m.email}</span>
+                          {when && <time className="ms-when" dateTime={when.toISOString()}>{shortWhen(when)}</time>}
+                        </span>
+                        <span className="ms-subject">{m.subject || m.message}</span>
+                        <span className="ms-tags">
+                          {isUnread(m) && <StatusBadge tone="warning" glyph={false}>New</StatusBadge>}
+                          {hasReplied(m) && <StatusBadge tone="success" glyph={false}>Replied</StatusBadge>}
+                          {m.status === "archived" && <StatusBadge tone="neutral" glyph={false}>Handled</StatusBadge>}
+                        </span>
+                      </button>
                     </li>
                   );
                 })}
               </ul>
+              {current && (() => {
+                const m = current;
+                const when = toDate(m.createdAt);
+                const ord = orders[m.email.trim().toLowerCase()];
+                return (
+                  <article id="ms-reader" className="ms-reader" aria-label={`Message from ${m.name}`}>
+                    <header className="ms-reader-head">
+                      <h2 className="ms-reader-subject">{m.subject || "Message"}</h2>
+                      <p className="ms-reader-from"><strong>{m.name}</strong> · {m.email}{m.phone ? ` · ${m.phone}` : ""}{when ? ` · ${when.toLocaleString()}` : ""}</p>
+                      {m.page && <p className="rp-hint" style={{ margin: 0 }}>Sent from {m.page}</p>}
+                    </header>
+                    <p className="ms-reader-body">{m.message}</p>
+                    <div className="ms-reader-actions">
+                      <a className="rp-btn rp-btn-primary" aria-label={`Reply to ${m.name} by email`}
+                        href={`mailto:${encodeURIComponent(m.email)}?subject=${encodeURIComponent(`Re: ${m.subject || "your message"}`)}`}>
+                        <Mail size={16} aria-hidden /> Reply by email
+                      </a>
+                      {m.status === "archived"
+                        ? <SecondaryButton onClick={() => setStatuses([m], restoredStatus(m))}><ArchiveRestore size={16} aria-hidden /> Move to inbox</SecondaryButton>
+                        : <SecondaryButton onClick={() => archive([m])}><Archive size={16} aria-hidden /> Mark handled</SecondaryButton>}
+                      {!isUnread(m) && m.status !== "archived" && (
+                        <IconButton label={`Mark message from ${m.name} unread`} onClick={() => setStatuses([m], "new")}><MailOpen size={18} aria-hidden /></IconButton>)}
+                      <IconButton tone="danger" label={`Delete message from ${m.name}`} onClick={() => setDeleting([m])}><Trash2 size={18} aria-hidden /></IconButton>
+                    </div>
+                    {ord && ord !== "loading" && ord !== "error" && ord.count > 0 && (
+                      <p className="rp-hint" style={{ margin: 0, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                        <span>{ord.count}{ord.more ? "+" : ""} order{ord.count === 1 ? "" : "s"} from this customer</span>
+                        {ord.latestId && onOpenOrder && <GhostButton size="sm" onClick={() => onOpenOrder(ord.latestId!)}>Open latest order</GhostButton>}
+                        {onOpenCustomers && <GhostButton size="sm" onClick={() => onOpenCustomers(m.email)}>Open Customers</GhostButton>}
+                      </p>
+                    )}
+                    {(m.replies || []).map((r, i) => (
+                      <div key={i} className="ms-sent">
+                        <div className="rp-hint">You replied · {new Date(r.at).toLocaleString()}</div>
+                        <p style={{ margin: "6px 0 0", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{r.body}</p>
+                      </div>
+                    ))}
+                    <details className="ms-compose" open={!!drafts[m.id]}>
+                      <summary>Reply from the shop’s email instead</summary>
+                      <div className="rp-stack" style={{ marginTop: 10 }}>
+                        <TextArea label={`Reply to ${m.name}`} rows={4} maxLength={5000} value={drafts[m.id] || ""} disabled={sending === m.id}
+                          hint="Sent to the address above and saved with the message. Ctrl/⌘ + Enter sends."
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && sending !== m.id && (drafts[m.id] || "").trim()) { e.preventDefault(); void sendReply(m); }
+                          }}
+                          onChange={(e) => setDrafts((d) => ({ ...d, [m.id]: e.target.value }))} />
+                        <div>
+                          <SecondaryButton icon={<Send size={16} aria-hidden />} disabled={sending === m.id || !(drafts[m.id] || "").trim()} onClick={() => sendReply(m)}>
+                            {sending === m.id ? "Sending…" : "Send reply"}
+                          </SecondaryButton>
+                        </div>
+                      </div>
+                    </details>
+                  </article>
+                );
+              })()}
+              </div>
               {hasMore && (
                 <div style={{ padding: 16 }}>
                   <SecondaryButton onClick={loadMore} disabled={loadingMore}>{loadingMore ? "Loading…" : "Load older messages"}</SecondaryButton>
@@ -321,7 +318,7 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
               )}
             </>
           )}
-      </SectionCard>
+      </section>
 
       <ConfirmDialog open={!!deleting} title={deleting && deleting.length > 1 ? `Delete ${deleting.length} messages?` : "Delete this message?"}
         confirmLabel={deleting && deleting.length > 1 ? "Delete messages" : "Delete message"}
@@ -329,6 +326,15 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
         onConfirm={confirmDelete} onCancel={() => setDeleting(null)} />
     </div>
   );
+}
+
+/** "10:02" today, "Yesterday", else "Nov 6". */
+function shortWhen(d: Date, now = new Date()): string {
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 86400000);
+  if (diff === 0) return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  if (diff === 1) return "Yesterday";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 export default function Messages(props: { onOpenOrder?: (id: string) => void; onOpenCustomers?: (email: string) => void } = {}) {

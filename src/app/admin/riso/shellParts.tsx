@@ -90,7 +90,8 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
 
   const results = useMemo<SearchTarget[]>(() => {
     const term = q.trim().toLowerCase();
-    if (!term) return [];
+    // An empty palette lists every admin page, so it doubles as a quick switcher.
+    if (!term) return destinations.map((d) => ({ key: `nav-${d.id}`, label: d.label, kind: "Go to", run: d.run }));
     const nav = destinations
       .filter((d) => d.label.toLowerCase().includes(term))
       .map((d) => ({ key: `nav-${d.id}`, label: d.label, kind: "Go to", run: d.run }));
@@ -127,7 +128,7 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
   const input = () => boxRef.current?.querySelector<HTMLInputElement>("input[type='search']");
   const choose = (t?: SearchTarget) => { if (!t) return; t.run(); setQ(""); setOpen(false); setPhoneOpen(false); };
   const close = () => { setOpen(false); setPhoneOpen(false); };
-  const showList = open && q.trim().length > 0;
+  const showList = open && (results.length > 0 || !!q.trim());
   // Phones show a search button; it opens the box across the whole top bar.
   const openOnPhone = () => { setPhoneOpen(true); setOpen(true); ensureData(); requestAnimationFrame(() => input()?.focus()); };
 
@@ -139,10 +140,13 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
         else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
         else if (e.key === "Enter") { e.preventDefault(); if (showList) choose(results[active]); }
       }}>
-      <IconButton ref={toggleRef} label="Search books, orders, customers and admin pages" className="rp-search-toggle"
-        aria-expanded={phoneOpen} onClick={openOnPhone}>
-        <Search size={20} aria-hidden />
-      </IconButton>
+      <button ref={toggleRef} type="button" className="rp-search-toggle" aria-label="Search books, orders, customers and admin pages"
+        aria-expanded={phoneOpen} aria-keyshortcuts="Control+K Meta+K" onClick={openOnPhone}>
+        <Search size={18} aria-hidden />
+        <span className="rp-search-toggle-text">Search orders, books, customers or jump to a page…</span>
+        <kbd className="rp-search-kbd" aria-hidden="true">{IS_MAC ? "⌘K" : "Ctrl K"}</kbd>
+      </button>
+      {phoneOpen && <div className="rp-palette-scrim" aria-hidden="true" onMouseDown={() => close()} />}
       <div className="rp-search-box">
         <SearchField label="Search books, orders, customers and admin screens" placeholder="Search books, orders, customers…" value={q}
           role="combobox" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list" aria-keyshortcuts="Control+K Meta+K"
@@ -154,7 +158,7 @@ export function GlobalSearch({ destinations, onOpenBook, onOpenOrder, onOpenCust
           <X size={18} aria-hidden />
         </IconButton>
       </div>
-      {open && !q.trim() && (
+      {open && !q.trim() && !phoneOpen && (
         <div className="rp-search-results rp-search-tip" role="note">
           Type a book title, author or ISBN, an order number (with or without #), a customer's name or email, or a page such as <em>Shipping</em>.
           {appConnected && " Books in the inventory app are found too."}

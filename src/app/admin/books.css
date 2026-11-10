@@ -98,3 +98,24 @@
   .bk-cards { display: block; }
   .bk-bulk { top: 0; }
 }
+
+/* Books grid (Riso redesign, 10 November 2026): cover cards with price, status and a stock line. */
+.bk-view-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.bk-view-bar .rp-tabs { margin-bottom: 0 !important; }
+.bk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 20px; margin: 0; padding: 0 4px 4px 0; list-style: none; }
+.bk-grid-card {
+  display: flex; flex-direction: column; width: 100%; height: 100%; padding: 0; border: 2px solid var(--rs-ink, #100f0d); background: var(--rp-surface);
+  box-shadow: 4px 4px 0 var(--rs-shadow, #100f0d); color: var(--rp-text); text-align: left; cursor: pointer;
+  transition: transform var(--rp-dur) var(--rp-ease), box-shadow var(--rp-dur) var(--rp-ease);
+}
+.bk-grid-card:hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--rs-shadow, #100f0d); }
+.bk-grid-card:focus-visible { outline: 0; box-shadow: 4px 4px 0 var(--rs-shadow, #100f0d), var(--rp-focus-ring); }
+.bk-grid-cover { position: relative; display: flex; align-items: flex-end; aspect-ratio: 3 / 4; overflow: hidden; padding: 16px; border-bottom: 2px solid var(--rs-ink, #100f0d); background: var(--rp-surface-inset); }
+.bk-grid-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.bk-grid-title { font: italic 400 26px/0.95 var(--rp-font-display); text-transform: uppercase; overflow-wrap: anywhere; }
+.bk-grid-foot { display: grid; gap: 6px; padding: 12px 14px 14px; }
+.bk-grid-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bk-grid-price { font: 500 13px/1 var(--rp-font-mono); }
+.bk-grid-meta { font-size: 12px; color: var(--rp-text-muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bk-grid-meta strong { color: var(--rp-text); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .bk-grid-card, .bk-grid-card:hover { transition: none; transform: none; } }

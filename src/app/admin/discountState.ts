@@ -13,3 +13,6 @@ export function discountState(d: any, now: string = today()): { key: "active" | 
   if (d.isActive && d.startDate && d.startDate > now) return { key: "scheduled", tone: "info", label: `Starts ${shopDayLabel(d.startDate)}` };
   return d.isActive ? { key: "active", tone: "success", label: "Active" } : { key: "paused", tone: "neutral", label: "Paused" };
 }
+
+/** Fired by the Discounts page header's "+ New discount" button; the page opens a new discount. */
+export const NEW_DISCOUNT_EVENT = "lm:new-discount";

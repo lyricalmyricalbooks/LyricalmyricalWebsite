@@ -20,7 +20,8 @@ describe("app release notes", () => {
         const destination = NAV.find((item) => item.id === link.tab);
         expect(destination, link.label).toBeDefined();
         // Older notes may name a page id that now opens another page (SETTINGS_TAB_ALIASES).
-        if (link.settingsTab) expect(destination?.children?.some((child) => child.id === settingsPageOf(link.settingsTab!)), link.label).toBe(true);
+        // "designer" (Studio) left the Settings menu for the Design page on 10 November 2026; the id still opens Studio.
+        if (link.settingsTab && link.settingsTab !== "designer") expect(destination?.children?.some((child) => child.id === settingsPageOf(link.settingsTab!)), link.label).toBe(true);
         if (link.studio) expect(parseStudioLocation(link.studio), link.label).not.toBeNull();
       }
     }

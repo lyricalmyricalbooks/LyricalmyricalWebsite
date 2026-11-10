@@ -31,7 +31,7 @@ describe("bulk review moderation", () => {
   });
   it("uses allSettled and always reloads after a bulk change", () => {
     const body = src("ReviewsModeration.tsx");
-    const moderate = body.slice(body.indexOf("const moderate = async"), body.indexOf("const confirmDelete"));
+    const moderate = body.slice(body.indexOf("const moderate = async"), body.indexOf("const undo = async"));
     expect(moderate).toMatch(/Promise\.allSettled/);
     expect(moderate).not.toMatch(/return;/);
     expect(moderate).toMatch(/load\(\);\s*\};\s*$/);

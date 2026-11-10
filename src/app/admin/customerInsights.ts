@@ -32,6 +32,14 @@ export const SEGMENT_LABELS: Record<CustomerSegment, string> = {
   vip: "VIP", "vip-lapsed": "VIP · lapsed", returning: "Returning", new: "New", "at-risk": "At risk",
 };
 
+/** The four customer tiles on Customers, each a group of segments (owner's redesign, 10 November 2026). */
+export const SEGMENT_TILES: Array<{ id: string; label: string; note: string; segments: CustomerSegment[] }> = [
+  { id: "champions", label: "Champions", note: `CA$${VIP_SPEND}+ spent or 5+ orders`, segments: ["vip"] },
+  { id: "repeat", label: "Repeat", note: "2+ orders", segments: ["returning"] },
+  { id: "new", label: "New", note: "First order so far", segments: ["new"] },
+  { id: "win-back", label: "Win back", note: `No order in ${AT_RISK_DAYS} days`, segments: ["at-risk", "vip-lapsed"] },
+];
+
 /** Lapsed big spenders are flagged ("VIP · lapsed") rather than hidden under VIP. */
 export function segmentOf(orderCount: number, totalSpent: number, daysSinceLast: number): CustomerSegment {
   const vip = totalSpent >= VIP_SPEND || orderCount >= 5;
