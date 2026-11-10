@@ -35,7 +35,8 @@ every existing feature still reachable.
 
 - Built: shell, Books grid/list, Customers tiles, Discount cards, Reviews queue with Undo, Messages inbox, Design page,
   Settings header + grid, book editor as a full page. Overview and Orders untouched (no file in their folders changed).
-- Not built from the mockup: the editor's own "Unsaved changes" chip and Formats/Media/Custom fields tab names (the
-  editor keeps its existing tabs and save bar); Settings secondary actions "Test a label", "Download tax report" and
-  "Send a test email" (only View storefront / Open Stripe are wired).
+- Follow-up in the same PR: Settings header actions Test a label (Shipping › Labels tab), Download tax report (year-to-date
+  CSV from the sales report), Send a test email (Emails tab's Send test box); editor "← Books", ink Unsaved changes chip,
+  tabs renamed Media / Formats / Custom fields / SEO (other editor tabs kept, they hold live features). Night mode and
+  390px phone checked: no sideways scroll; chosen filter chips fixed for night.
 - Checks: pnpm test 4137 passed, typecheck and lint clean, screenshots against each mockup.

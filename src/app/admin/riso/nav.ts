@@ -54,10 +54,10 @@ export const PAGE_COPY: Record<string, { title: string; description: string }> =
 };
 
 /** Settings sub-pages: the one line under the title and the page's own secondary action. */
-export const SETTINGS_COPY: Record<string, { description: string; action?: { label: string; kind: "storefront" | "stripe" | "designer" } }> = {
+export const SETTINGS_COPY: Record<string, { description: string; action?: { label: string; kind: "storefront" | "stripe" | "designer" | "label" | "taxReport" | "testEmail" } }> = {
   general: { description: "Your store’s name, contact details and whether the shop is open.", action: { label: "View storefront ↗", kind: "storefront" } },
-  shipping: { description: "Where you deliver, what it costs, and how parcels are labelled." },
+  shipping: { description: "Where you deliver, what it costs, and how parcels are labelled.", action: { label: "Test a label", kind: "label" } },
   payments: { description: "How shoppers pay, and when the money reaches your bank.", action: { label: "Open Stripe ↗", kind: "stripe" } },
-  taxes: { description: "Whether prices include tax, and the rates for each region." },
-  notifications: { description: "The account order emails come from, and which emails customers get." },
+  taxes: { description: "Whether prices include tax, and the rates for each region.", action: { label: "Download tax report", kind: "taxReport" } },
+  notifications: { description: "The account order emails come from, and which emails customers get.", action: { label: "Send a test email", kind: "testEmail" } },
 };

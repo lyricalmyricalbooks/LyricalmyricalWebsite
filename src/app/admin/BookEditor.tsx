@@ -1126,15 +1126,15 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const shownDetailsSub = shownDetailsSubTab(detailsSub, detailsTabs);
   const tabs: Array<{ id: BookTab; label: string; count?: number }> = [
     { id: "details", label: "Details", count: tabIssues.details || undefined },
-    { id: "media", label: "Images", count: (formData.photos || []).length },
+    { id: "media", label: "Media", count: (formData.photos || []).length },
     { id: "pricing", label: "Pricing", count: tabIssues.pricing || undefined },
     { id: "inventory", label: "Inventory & shipping" },
-    { id: "editions", label: giftCard ? "Amounts" : "Editions", count: (formData.variants || []).length },
+    { id: "editions", label: giftCard ? "Amounts" : "Formats", count: (formData.variants || []).length },
     // Add-ons and the box-set builder share one tab; gift cards have neither.
     ...(!giftCard ? [{ id: "boxset" as BookTab, label: "Add-ons & box set", count: (boxSetOn ? (formData.bundleItems || []).length : (formData.addOns || []).length) || undefined }] : []),
     { id: "organize", label: "Categories & tags", count: tabIssues.organize || undefined },
-    { id: "more", label: "More details", count: Object.keys(formData.custom || {}).length || undefined },
-    { id: "seo", label: "Search (SEO)", count: tabIssues.seo || undefined },
+    { id: "more", label: "Custom fields", count: Object.keys(formData.custom || {}).length || undefined },
+    { id: "seo", label: "SEO", count: tabIssues.seo || undefined },
   ];
   const shownTab: BookTab = tabs.some((t) => t.id === tab) ? (tab === "addons" ? "boxset" : tab) : "details";
   // Tabs with their own state (More details, Search) stay mounted once opened, so switching tabs keeps it.
@@ -1156,7 +1156,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     <div className="book-editor-riso w-full h-full flex flex-col relative overflow-hidden">
       <header className="rp-dialog-head be-head shrink-0">
         <div className="be-head-main">
-          <button type="button" onClick={handleClose} className="rp-icon-btn" aria-label="Close book editor"><ArrowLeft size={18} aria-hidden /></button>
+          <button type="button" onClick={handleClose} className="rp-icon-btn be-back" aria-label="Close book editor, back to Books"><ArrowLeft size={18} aria-hidden /><span className="be-back-word">Books</span></button>
           <div className="be-title-block">
             <h2 className="rp-dialog-title" title={formData.title?.trim() || undefined}>{formData.title?.trim() || (book ? "Edit book" : "New book")}</h2>
             <span className="be-id">

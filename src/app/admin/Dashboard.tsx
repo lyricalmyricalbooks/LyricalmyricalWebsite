@@ -22,6 +22,7 @@ import { anyDirty, useBeforeUnloadWhenDirty } from "./settingsDirty";
 import { adminApi } from "./api";
 import { scrubSavedSecrets } from "./privateKeys";
 import toast from "react-hot-toast";
+import { shopDayKey } from "../lib/shopDay";
 import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
   IconButton, Dialog, ToastProvider, Tabs, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot,
@@ -548,6 +549,30 @@ export function Dashboard() {
     if (!anyDirty()) { toast("Nothing to save: every change is already saved."); return; }
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true, cancelable: true }));
   };
+  // Taxes › Download tax report: this year so far, day by day (the Overview's sales report, paid real orders only).
+  const downloadTaxReport = async () => {
+    try {
+      const { salesReportCsv } = await import("./overview/salesReport");
+      const { isRealPaidOrder } = await import("./overview/overviewInsights");
+      const end = shopDayKey(Date.now());
+      const start = `${end.slice(0, 4)}-01-01`;
+      const csv = salesReportCsv((await getOrdersCached()).filter(isRealPaidOrder), start, end);
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = `tax-report-${start}-to-${end}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast.error("Couldn't build the tax report. Try again."); }
+  };
+  // Email sender › Send a test email: the Emails tab's own "Send test" box.
+  const showTestEmail = () => {
+    openSubTab(undefined);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const box = document.getElementById("notif-send-test");
+      if (!box) { toast("Open an email below, then use Send test."); return; }
+      box.scrollIntoView({ behavior: "smooth", block: "center" });
+      box.querySelector("input")?.focus({ preventScroll: true });
+    }));
+  };
   const settingsHeader = isSettingsPage && !selectedOrder && settingsCopy ? (
     <>
       <PageHeader
@@ -558,6 +583,9 @@ export function Dashboard() {
           {settingsAction && <SecondaryButton onClick={() => {
             if (settingsAction.kind === "storefront") openSite();
             else if (settingsAction.kind === "stripe") window.open("https://dashboard.stripe.com/", "_blank", "noopener");
+            else if (settingsAction.kind === "label") openSubTab("carrier");
+            else if (settingsAction.kind === "taxReport") void downloadTaxReport();
+            else if (settingsAction.kind === "testEmail") showTestEmail();
           }}>{settingsAction.label}</SecondaryButton>}
           <PrimaryButton onClick={saveSettings}>Save changes</PrimaryButton>
         </>}

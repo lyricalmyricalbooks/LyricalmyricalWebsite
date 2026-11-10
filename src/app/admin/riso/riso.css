@@ -2174,10 +2174,11 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 }
 :is(.rp .rp-rs, .rp.rp-rs) .rp-tabs:not([data-variant]) .rp-tab:hover { background: var(--rp-surface-2); }
 :is(.rp .rp-rs, .rp.rp-rs) .rp-tabs:not([data-variant]) .rp-tab[aria-selected="true"] { background: var(--rs-ink); color: var(--rp-canvas); }
+.rp:not(.studio-editor)[data-rp-appearance="dark"] :is(.rp-rs, .rp-rs *) .rp-tabs:not([data-variant]) .rp-tab[aria-selected="true"], .rp-rs.rp:not(.studio-editor)[data-rp-appearance="dark"] .rp-tabs:not([data-variant]) .rp-tab[aria-selected="true"] { background: #faf6ec; border-color: #faf6ec; color: #100f0d; }
 :is(.rp .rp-rs, .rp.rp-rs) .rp-tabs:not([data-variant]) .rp-tab-count { font: 400 11px var(--rp-font-mono); color: inherit; opacity: 0.75; }
 
 /* Customers: four group tiles (Win back is tomato), each a filter */
-.cu-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 20px; }
+.cu-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 16px; }
 .cu-tile {
   display: grid; gap: 6px; padding: 16px 18px; border: 2px solid var(--rs-ink, #100f0d); background: var(--rp-surface); color: var(--rp-text);
   box-shadow: 4px 4px 0 var(--rs-shadow, #100f0d); text-align: left; cursor: pointer; transition: transform var(--rp-dur) var(--rp-ease), box-shadow var(--rp-dur) var(--rp-ease);
@@ -2271,3 +2272,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
   .rp-editor-root.rp-rs .rp-editor-panel { width: 100% !important; max-width: none; box-shadow: none; border-left: 2px solid var(--rs-ink); }
   .rp-editor-root.rp-rs [data-slot="backdrop"], .rp-editor-root.rp-rs .rp-editor-backdrop { display: none; }
 }
+/* Redesign: editor header — "← Books" and an ink "Unsaved changes" chip. */
+.rp-rs .book-editor-riso .be-back { width: auto; gap: 6px; padding: 0 10px; font-family: var(--rp-font-body); font-weight: 700; font-size: var(--rp-text-sm); }
+.rp-rs .book-editor-riso .be-dirty { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 2px solid var(--rs-ink); background: var(--rp-warning-bg, #f7d774); color: var(--rs-ink); font-family: var(--rp-font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+@media (max-width: 640px) { .rp-rs .book-editor-riso .be-back-word { display: none; } }
