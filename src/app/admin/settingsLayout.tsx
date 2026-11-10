@@ -40,7 +40,7 @@ export function SettingsTabs({ tabs, value, onChange, label }: { tabs: SettingsT
 export function SettingsGroup({ id, active, children }: { id: string; active: boolean; children: ReactNode }) {
   return (
     <TabPanel tabId={id} active={active}>
-      <div className="rp-stack">
+      <div className="rp-stack rp-settings-grid">
         {children}
       </div>
     </TabPanel>

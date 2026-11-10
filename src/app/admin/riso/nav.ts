@@ -14,44 +14,50 @@ export const NAV: NavEntry[] = [
   { id: "giftCards", label: "Gift cards", icon: Gift },
   { id: "reviews", label: "Reviews", icon: Star },
   { id: "messages", label: "Messages", icon: Inbox },
+  // Design is its own page (theme, pages, colours, type); Studio opens from it.
+  { id: "design", label: "Design", icon: Palette },
   { id: "settings", label: "Settings", icon: Settings, children: [
     { id: "general", label: "General", icon: SlidersHorizontal },
     { id: "shipping", label: "Shipping", icon: Truck },
     { id: "payments", label: "Payments", icon: CreditCard },
     { id: "taxes", label: "Taxes", icon: Receipt },
-    { id: "designer", label: "Design", icon: Palette },
     // One email page: templates, shop alerts, Gmail sending, sender details and recent deliveries.
     { id: "notifications", label: "Email sender", icon: Mail },
   ] },
 ];
 
-/** Sidebar id of a Settings page shown as its own top-level item: `settings/<page>`. */
+/** Older sidebar ids for a Settings page (`settings/<page>`), still accepted by the shell. */
 export const SETTINGS_ITEM_PREFIX = "settings/";
 
 /**
- * The sidebar list: every Settings page is its own top-level item (no fold-out), under a small
- * "Settings" heading. NAV itself keeps the nested shape that page titles and admin search read.
+ * The sidebar list: one flat list with no headings. Settings keeps its pages as children, which the
+ * sidebar shows indented under it only while a Settings page is open.
  */
 export function sidebarItems(nav: NavEntry[]): NavEntry[] {
-  return nav.flatMap((entry) => entry.children
-    ? entry.children.map((child, i) => ({
-      id: SETTINGS_ITEM_PREFIX + child.id, label: child.label, icon: child.icon || entry.icon, group: entry.id,
-      ...(i === 0 ? { section: entry.label } : {}),
-    }))
-    : [entry]);
+  return nav;
 }
 
 export const PAGE_COPY: Record<string, { title: string; description: string }> = {
   overview: { title: "Overview", description: "Sales, orders, and catalog health at a glance." },
   orders: { title: "Orders", description: "Review payments, fulfillment, and shipping for every order." },
-  customers: { title: "Customers", description: "Who buys from you: lifetime value, repeat buyers, and customers to win back." },
-  inventory: { title: "Inventory", description: "Stock on hand, low-stock and reprint alerts, and quick count corrections." },
-  catalog: { title: "Books", description: "Manage titles, pricing, formats, and inventory." },
-  discounts: { title: "Discounts", description: "Create and schedule discount codes and automatic offers." },
-  giftCards: { title: "Gift cards", description: "Gift cards shoppers bought and ones you issued: balances, history and resending codes." },
-  reviews: { title: "Reviews", description: "Moderate customer reviews before they appear on the storefront." },
-  messages: { title: "Messages", description: "Messages people send you from the contact form on your website." },
-  settings: { title: "Settings", description: "Store identity, shipping, payments, design, and notifications." },
-  shipping: { title: "Shipping", description: "Shipping profiles, zones, and rates." },
-  payments: { title: "Payments", description: "Payment methods and currency configuration." },
+  customers: { title: "Customers", description: "Who buys, how often, and who to win back." },
+  inventory: { title: "Inventory", description: "Stock on hand, reprints and quick count fixes." },
+  catalog: { title: "Books", description: "Titles, pricing, formats and stock." },
+  discounts: { title: "Discounts", description: "Codes, automatic offers and what they earned." },
+  giftCards: { title: "Gift cards", description: "Balances, history and resending codes." },
+  reviews: { title: "Reviews", description: "Approve what readers say before it goes live." },
+  messages: { title: "Messages", description: "Notes from the contact form on your website." },
+  design: { title: "Design", description: "How the storefront looks: pages, colours and type." },
+  settings: { title: "Settings", description: "Store identity, shipping, payments and email." },
+  shipping: { title: "Shipping", description: "Where you deliver, what it costs, and how parcels are labelled." },
+  payments: { title: "Payments", description: "How shoppers pay, and when the money reaches your bank." },
+};
+
+/** Settings sub-pages: the one line under the title and the page's own secondary action. */
+export const SETTINGS_COPY: Record<string, { description: string; action?: { label: string; kind: "storefront" | "stripe" | "designer" } }> = {
+  general: { description: "Your store’s name, contact details and whether the shop is open.", action: { label: "View storefront ↗", kind: "storefront" } },
+  shipping: { description: "Where you deliver, what it costs, and how parcels are labelled." },
+  payments: { description: "How shoppers pay, and when the money reaches your bank.", action: { label: "Open Stripe ↗", kind: "stripe" } },
+  taxes: { description: "Whether prices include tax, and the rates for each region." },
+  notifications: { description: "The account order emails come from, and which emails customers get." },
 };

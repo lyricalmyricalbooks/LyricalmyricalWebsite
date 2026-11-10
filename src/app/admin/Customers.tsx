@@ -5,11 +5,11 @@ import { adminApi } from "./api";
 import { copyText } from "./clipboard";
 import { getOrdersCached } from "./ordersCache";
 import {
-  buildCustomers, consentOf, copiesOf, customerCountries, customerStats, customersToCsv, parseTags, CONSENT_LABELS, SEGMENT_LABELS,
+  buildCustomers, consentOf, copiesOf, customerCountries, customersToCsv, parseTags, CONSENT_LABELS, SEGMENT_LABELS, SEGMENT_TILES,
   type Consent, type CustomerRow, type CustomerSegment,
 } from "./customerInsights";
 import {
-  DataTable, Dialog, EmptyState, ErrorState, FilterBar, GhostButton, LoadingState, MetricCard, Pagination, PrimaryButton, SearchField,
+  DataTable, Dialog, EmptyState, ErrorState, FilterBar, GhostButton, LoadingState, Pagination, PrimaryButton, SearchField,
   SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, useConfirm, type BadgeTone, type Column,
 } from "./riso/components";
 
@@ -39,7 +39,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const [seg, setSeg] = useState<"all" | CustomerSegment>("all");
+  const [seg, setSeg] = useState<string>("all");
   const [q, setQ] = useState(() => initialQuery || hashQuery());
   const [sort, setSort] = useState<"spent" | "orders" | "recent" | "name">("spent");
   const [consentFilter, setConsentFilter] = useState<"all" | Consent>("all");
@@ -90,7 +90,6 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const noteFor = (c: CustomerRow): Note | undefined => { const h = hashes.get(c.key); return h ? notes.get(h) : undefined; };
   const allTags = useMemo(() => Array.from(new Set(Array.from(notes.values()).flatMap((n) => n.tags))).sort(), [notes]);
 
-  const stats = useMemo(() => customerStats(all), [all]);
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: all.length, vip: 0, "vip-lapsed": 0, returning: 0, new: 0, "at-risk": 0 };
     all.forEach((x) => c[x.segment]++);
@@ -102,7 +101,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
   const rows = useMemo(() => {
     const s = q.trim().toLowerCase();
     return all
-      .filter((c) => (seg === "all" || c.segment === seg)
+      .filter((c) => (seg === "all" || !!SEGMENT_TILES.find((t) => t.id === seg)?.segments.includes(c.segment))
         && (!country || c.country === country)
         && (!s || `${c.email} ${c.name} ${c.city}`.toLowerCase().includes(s))
         && (consentFilter === "all" || consentFor(c) === consentFilter)
@@ -175,13 +174,11 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
         {(noteFor(c)?.tags || []).length > 0 && <div className="rp-hint rp-mono">{noteFor(c)!.tags.join(" · ")}</div>}
       </div>
     ) },
+    { key: "orders", header: "Orders", numeric: true, render: (c) => c.orderCount },
+    { key: "spent", header: "Lifetime value", numeric: true, render: (c) => money(c.totalSpent) },
+    { key: "last", header: "Last order", render: (c) => !c.lastOrderAt ? "—" : <span style={{ whiteSpace: "nowrap" }}>{`${new Date(c.lastOrderAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} (${c.daysSinceLast}d ago)`}</span> },
     { key: "segment", header: "Segment", render: (c) => <span style={{ whiteSpace: "nowrap" }}><StatusBadge tone={TONE[c.segment]}>{SEGMENT_LABELS[c.segment]}</StatusBadge></span> },
     { key: "consent", header: "Marketing", render: (c) => consent ? <span style={{ whiteSpace: "nowrap" }}><StatusBadge tone={CONSENT_TONE[consentFor(c)]}>{CONSENT_LABELS[consentFor(c)]}</StatusBadge></span> : "—" },
-    { key: "location", header: "Location", render: (c) => [c.city, c.country].filter(Boolean).join(", ") || "—" },
-    { key: "orders", header: "Orders", numeric: true, render: (c) => c.orderCount },
-    { key: "spent", header: "Net spent", numeric: true, render: (c) => money(c.totalSpent) },
-    { key: "aov", header: "Avg order", numeric: true, render: (c) => money(c.avgOrder) },
-    { key: "last", header: "Last order", render: (c) => !c.lastOrderAt ? "—" : <span style={{ whiteSpace: "nowrap" }}>{`${new Date(c.lastOrderAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} (${c.daysSinceLast}d ago)`}</span> },
   ];
 
   if (loading) return <LoadingState label="Loading customers…" />;
@@ -189,22 +186,19 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
 
   return (
     <div className="rp-stack">
-      <div className="rp-kpi-grid">
-        <MetricCard label="Customers" value={stats.total} footer="With at least one paid order" />
-        <MetricCard label="Repeat rate" value={`${Math.round(stats.repeatRate * 100)}%`} footer={`${stats.repeat} bought more than once`} />
-        <MetricCard label="Avg lifetime value" value={money(stats.avgLtv)} footer="Per customer, after refunds" />
-        <MetricCard label="At risk" value={counts["at-risk"] + counts["vip-lapsed"]} tone={counts["at-risk"] + counts["vip-lapsed"] ? "warn" : undefined}
-          footer={`No order in 180+ days · ${counts["vip-lapsed"]} lapsed VIP${counts["vip-lapsed"] === 1 ? "" : "s"}`} />
+      <div className="cu-tiles" role="group" aria-label="Customer groups">
+        {SEGMENT_TILES.map((t) => {
+          const n = t.segments.reduce((sum, id) => sum + (counts[id] || 0), 0);
+          return (
+            <button key={t.id} type="button" className="cu-tile" data-tile={t.id} aria-pressed={seg === t.id}
+              onClick={() => setSeg(seg === t.id ? "all" : t.id)}>
+              <span className="cu-tile-label">{t.label}</span>
+              <span className="cu-tile-value">{n}</span>
+              <span className="cu-tile-note">{t.note}</span>
+            </button>
+          );
+        })}
       </div>
-      <Tabs label="Customer segments" value={seg} onChange={(v) => setSeg(v as any)}
-        tabs={[
-          { id: "all", label: "All", count: counts.all },
-          { id: "vip", label: "VIP", count: counts.vip },
-          { id: "vip-lapsed", label: "VIP · lapsed", count: counts["vip-lapsed"] },
-          { id: "returning", label: "Returning", count: counts.returning },
-          { id: "new", label: "New", count: counts.new },
-          { id: "at-risk", label: "At risk", count: counts["at-risk"] },
-        ]} />
       <FilterBar>
         <div className="rp-grow"><SearchField label="Search customers" placeholder="Search name, email or city…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <SelectField label="Marketing consent" hideLabel value={consentFilter} onChange={(e) => setConsentFilter(e.target.value as any)}>
@@ -234,7 +228,7 @@ export function Customers({ initialQuery }: { initialQuery?: string } = {}) {
         {filtered && <GhostButton onClick={clearFilters}>Clear filters</GhostButton>}
         <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={() => setExportOpen(true)}>Export CSV</SecondaryButton>
       </FilterBar>
-      <SectionCard flush collapsible={false} title="Customers" description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · paid orders only, refunds taken off.`}>
+      <SectionCard flush collapsible={false} title={SEGMENT_TILES.find((t) => t.id === seg)?.label || "Customers"} description={`${rows.length} customer${rows.length === 1 ? "" : "s"} · paid orders only, refunds taken off.`}>
         <DataTable caption="Customers" columns={columns} rows={pageRows} rowKey={(c) => c.key} onRowClick={openCustomer}
           empty={all.length === 0
             ? <EmptyState title="No customers yet" description="Customers appear here after their first paid order." />

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { waitedText } from "./orderListHelpers";
 import { adminManifestHref, ADMIN_THEME_COLOR } from "./adminApp";
-import { NAV, sidebarItems } from "./riso/nav";
 
 describe("phone admin (Pocket Pressroom)", () => {
   it("says how long an order has waited in one short word", () => {
@@ -14,14 +13,6 @@ describe("phone admin (Pocket Pressroom)", () => {
     expect(waitedText("", now)).toBe("");
     expect(waitedText("not a date", now)).toBe("");
     expect(waitedText("2026-10-24T12:00:00Z", now)).toBe("now");
-  });
-
-  it("marks each Settings page in the drawer so phones can lay them out two to a row", () => {
-    const items = sidebarItems(NAV);
-    const settings = items.filter((i: any) => i.section === "Settings" || i.group);
-    expect(settings.length).toBeGreaterThan(0);
-    expect(items.filter((i: any) => i.group).every((i: any) => typeof i.group === "string")).toBe(true);
-    expect(items.filter((i: any) => !String(i.id).includes("/")).every((i: any) => !i.group)).toBe(true);
   });
 
   it("names the admin's own app file under the build's base address", () => {

@@ -79,3 +79,17 @@ export function describeDiscount(d: any, books: any[] = [], thisYear = new Date(
   if (dates) extras.push(dates);
   return [offer, ...extras].join(" · ");
 }
+
+/** The short value on a discount card's stub ("20%", "CA$5", "FREE SHIP"): the offer at a glance. */
+export function discountStub(d: any): string {
+  const n = Number(d?.value) || 0;
+  switch (d?.type) {
+    case "percentage": return `${Math.round(n * 100) / 100}%`;
+    case "fixed": return `CA$${Number.isInteger(n) ? n : n.toFixed(2)}`;
+    case "freeship": return "FREE SHIP";
+    case "bogo": return "BUY · GET";
+    case "tiered": return "TIERS";
+    case "gift": return "GIFT";
+    default: return "OFFER";
+  }
+}

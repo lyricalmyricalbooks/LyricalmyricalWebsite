@@ -8,7 +8,7 @@ import { db } from "../../lib/firebase";
 import { reviewsApi, type Review } from "../lib/reviews";
 import { loadMorePending, loadReviewQueue, PENDING_PAGE, type QueueDoc } from "./reviewQueue";
 import {
-  ActionMenu, Checkbox, ConfirmButton, ConfirmDialog, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState, MetricCard, PrimaryButton,
+  ActionMenu, Checkbox, ConfirmDialog, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState, PrimaryButton,
   SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast, type BadgeTone,
 } from "./riso/components";
 
@@ -120,7 +120,15 @@ function Queue() {
     rejected: reviews.filter((r) => r.status === "rejected").length,
     all: reviews.length,
   }), [reviews]);
-  const list = useMemo(() => filterReviews(reviews, { status: filter, rating, q, titles }), [reviews, filter, rating, q, titles]);
+  // Reviews decided from this view stay in place, marked Approved/Rejected with an Undo, until the view changes.
+  const [handled, setHandled] = useState<Map<string, { review: Review; verdict: Review["status"] }>>(new Map());
+  useEffect(() => setHandled(new Map()), [filter, rating, q]);
+  const list = useMemo(() => {
+    const shown = filterReviews(reviews, { status: filter, rating, q, titles });
+    const ids = new Set(shown.map((r) => r.id));
+    const kept = Array.from(handled.values()).filter((h) => !ids.has(h.review.id)).map((h) => h.review);
+    return kept.length ? [...shown, ...kept].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))) : shown;
+  }, [reviews, filter, rating, q, titles, handled]);
   const allSelected = list.length > 0 && list.every((r) => selected.has(r.id));
 
   const moderate = async (ids: string[], status: Review["status"]) => {
@@ -132,16 +140,31 @@ function Queue() {
     const results = await Promise.allSettled(ids.map((id) => reviewsApi.setStatus(id, status, stamps.get(id) || {})));
     const { done, failed, message } = moderationOutcome(ids, results, status);
     setSelected(new Set(failed));
+    setHandled((h) => {
+      const n = new Map(h);
+      for (const id of done) { const r = reviews.find((x) => x.id === id) || h.get(id)?.review; if (r) n.set(id, { review: r, verdict: status }); }
+      return n;
+    });
     toast(message, {
       ...(failed.length ? { tone: done.length ? "warn" as const : "err" as const } : {}),
       ...(done.length ? {
         actionLabel: "Undo",
         onAction: async () => {
           await Promise.allSettled(done.map((id) => reviewsApi.setStatus(id, previous.get(id) || "pending")));
+          setHandled((h) => { const n = new Map(h); done.forEach((id) => n.delete(id)); return n; });
           load();
         },
       } : {}),
     });
+    load();
+  };
+
+  const undo = async (id: string) => {
+    // Puts one decided review back the way it was (the card's Undo).
+    const h = handled.get(id);
+    if (!h) return;
+    try { await reviewsApi.setStatus(id, h.review.status); } catch { toast("Couldn't undo that. Try again.", { tone: "err" }); return; }
+    setHandled((m) => { const n = new Map(m); n.delete(id); return n; });
     load();
   };
 
@@ -182,11 +205,6 @@ function Queue() {
 
   return (
     <div className="rp-stack">
-      <div className="rp-kpi-grid">
-        <MetricCard label="Average rating" value={stats.average ? `${stats.average.toFixed(1)} ★` : "—"} footer={`${stats.total} review${stats.total === 1 ? "" : "s"} · ${stats.approvedAverage ? stats.approvedAverage.toFixed(1) : "—"} approved only`} />
-        <MetricCard label="Low-rated pending" value={stats.lowPending} tone={stats.lowPending ? "warn" : undefined} footer="1–2 stars awaiting a decision" />
-        <MetricCard label="Awaiting a reply" value={stats.unanswered} footer="Approved with no owner reply" />
-      </div>
       <Tabs<Filter> label="Review status" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
         tabs={(["pending", "approved", "rejected", "all"] as const).map((f) => {
           const label = f[0].toUpperCase() + f.slice(1);
@@ -202,15 +220,15 @@ function Queue() {
         </SelectField>
       </FilterBar>
 
-      <SectionCard flush collapsible={false} title="Moderation queue" description={`${list.length} review${list.length === 1 ? "" : "s"} in this view`}
-        actions={list.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+      <div className="rv-queue">
+        {list.length > 0 && (
+          <div className="rv-bulk">
             <Checkbox label="Select all" checked={allSelected}
               onChange={(e) => setSelected(e.target.checked ? new Set(list.map((r) => r.id)) : new Set())} />
             <SecondaryButton size="sm" disabled={!bulk.length} onClick={() => moderate(bulk, "approved")}>{bulk.length ? `Approve ${bulk.length} selected` : "Approve selected"}</SecondaryButton>
             <SecondaryButton size="sm" disabled={!bulk.length} onClick={() => moderate(bulk, "rejected")}>{bulk.length ? `Reject ${bulk.length} selected` : "Reject selected"}</SecondaryButton>
           </div>
-        )}>
+        )}
         {loading ? <LoadingState label="Loading reviews…" />
           : error ? <ErrorState description="Reviews could not be loaded." onRetry={load} />
           : list.length === 0 ? (
@@ -222,41 +240,52 @@ function Queue() {
                 description={filter === "pending" ? "New customer reviews wait here until you approve them. Nothing shows on the shop before that." : "Nothing has this status yet."} />
             )
           ) : (
-            <ul className="rp-list" aria-label="Reviews">
-              {list.map((r) => (
-                <li key={r.id}>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-start", justifyContent: "space-between" }}>
-                    <div style={{ display: "flex", gap: 12, minWidth: 0, flex: "1 1 320px" }}>
-                      <Checkbox label="" aria-label={`Select review by ${r.authorName}`} checked={selected.has(r.id)}
-                        onChange={(e) => setSelected((s) => { const n = new Set(s); e.target.checked ? n.add(r.id) : n.delete(r.id); return n; })} />
-                      <div style={{ minWidth: 0 }}>
-                        <div className="rp-row-meta" style={{ marginBottom: 8 }}>
-                          <Stars rating={r.rating} />
-                          <StatusBadge tone={TONE[r.status as Review["status"]]}>{STATUS_WORD[r.status as Review["status"]] || r.status}</StatusBadge>
-                          {verified(r) && <StatusBadge tone="success">✓ Verified purchase</StatusBadge>}
-                          {r.featured && <StatusBadge tone="info">Pinned to top</StatusBadge>}
-                          <time dateTime={r.createdAt}>{new Date(r.createdAt).toLocaleString()}</time>
-                        </div>
-                        {r.title && <h3 style={{ margin: "0 0 4px", fontSize: "var(--rp-text-base)", fontWeight: 600 }}>{r.title}</h3>}
-                        <p style={{ margin: "0 0 8px", lineHeight: 1.55, overflowWrap: "anywhere" }}>{r.body}</p>
-                        <p className="rp-hint" style={{ margin: 0 }}>{r.authorName}{emails[r.id] ? ` · ${emails[r.id]}` : ""} · on <a href={bookUrl(r.bookId)} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2 }}>{titles[r.bookId] || r.bookId}</a></p>
-                        {r.reply?.body && <p className="rp-hint" style={{ margin: "8px 0 0", borderLeft: "2px solid var(--rp-border-strong)", paddingLeft: 8 }}>Your reply: {r.reply.body}</p>}
-                      </div>
+            <ul className="rv-list" aria-label="Reviews">
+              {list.map((r) => {
+                const done = handled.get(r.id);
+                return (
+                <li key={r.id} className="rv-card" data-handled={done ? done.verdict : undefined}>
+                  <div className="rv-top">
+                    {!done && <Checkbox label="" aria-label={`Select review by ${r.authorName}`} checked={selected.has(r.id)}
+                      onChange={(e) => setSelected((s) => { const n = new Set(s); e.target.checked ? n.add(r.id) : n.delete(r.id); return n; })} />}
+                    <span className="rv-stars"><Stars rating={r.rating} /></span>
+                    <strong className="rv-name">{r.authorName}</strong>
+                    <span className="rv-book">on <a href={bookUrl(r.bookId)} target="_blank" rel="noreferrer">{titles[r.bookId] || r.bookId}</a></span>
+                    <time className="rv-when" dateTime={r.createdAt}>{new Date(r.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</time>
+                  </div>
+                  {r.title && <h3 className="rv-title">{r.title}</h3>}
+                  <p className="rv-text">{r.body}</p>
+                  {(verified(r) || r.featured || emails[r.id] || (filter !== "pending" && !done)) && (
+                    <div className="rv-tags">
+                      {filter !== "pending" && !done && <StatusBadge tone={TONE[r.status as Review["status"]]} glyph={false}>{STATUS_WORD[r.status as Review["status"]] || r.status}</StatusBadge>}
+                      {verified(r) && <StatusBadge tone="success" glyph={false}>Verified purchase</StatusBadge>}
+                      {r.featured && <StatusBadge tone="info" glyph={false}>Pinned to top</StatusBadge>}
+                      {emails[r.id] && <span className="rp-hint">{emails[r.id]}</span>}
                     </div>
-                    {/* The decision first (worded buttons), then Reply, then the rarely used actions under More. */}
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                      {r.status !== "approved" && <ConfirmButton size="sm" icon={<Check size={16} aria-hidden />} aria-label={`Approve review by ${r.authorName}`} onClick={() => moderate([r.id], "approved")}>Approve</ConfirmButton>}
-                      {r.status !== "rejected" && <SecondaryButton size="sm" icon={<X size={16} aria-hidden />} aria-label={`Reject review by ${r.authorName}`} onClick={() => moderate([r.id], "rejected")}>Reject</SecondaryButton>}
-                      <IconButton label={`${r.reply?.body ? "Edit reply to" : "Reply to"} review by ${r.authorName}`} onClick={() => { setReplying(r); setReplyText(r.reply?.body || ""); }}><MessageSquare size={18} aria-hidden /></IconButton>
-                      <ActionMenu label={`More actions for review by ${r.authorName}`} actions={[
-                        ...(!emails[r.id] ? [{ label: "Show email", icon: <Mail size={16} aria-hidden />, onSelect: () => { void showEmail(r); } }] : []),
-                        { label: r.featured ? "Unpin from top of book page" : "Pin to top of book page", icon: r.featured ? <PinOff size={16} aria-hidden /> : <Pin size={16} aria-hidden />, onSelect: () => { void toggleFeatured(r); } },
-                        { label: "Delete review…", tone: "danger" as const, icon: <Trash2 size={16} aria-hidden />, onSelect: () => setDeleting(r) },
-                      ]} />
-                    </div>
+                  )}
+                  {r.reply?.body && <p className="rv-reply">Your reply: {r.reply.body}</p>}
+                  <div className="rv-actions">
+                    {done ? (
+                      <>
+                        <span className="rv-verdict">{done.verdict === "approved" ? "Approved" : "Rejected"}</span>
+                        <SecondaryButton size="sm" onClick={() => { void undo(r.id); }}>Undo</SecondaryButton>
+                      </>
+                    ) : (
+                      <>
+                        {r.status !== "approved" && <PrimaryButton size="sm" icon={<Check size={16} aria-hidden />} aria-label={`Approve review by ${r.authorName}`} onClick={() => moderate([r.id], "approved")}>Approve</PrimaryButton>}
+                        {r.status !== "rejected" && <SecondaryButton size="sm" icon={<X size={16} aria-hidden />} aria-label={`Reject review by ${r.authorName}`} onClick={() => moderate([r.id], "rejected")}>Reject</SecondaryButton>}
+                        <IconButton label={`${r.reply?.body ? "Edit reply to" : "Reply to"} review by ${r.authorName}`} onClick={() => { setReplying(r); setReplyText(r.reply?.body || ""); }}><MessageSquare size={18} aria-hidden /></IconButton>
+                        <ActionMenu label={`More actions for review by ${r.authorName}`} actions={[
+                          ...(!emails[r.id] ? [{ label: "Show email", icon: <Mail size={16} aria-hidden />, onSelect: () => { void showEmail(r); } }] : []),
+                          { label: r.featured ? "Unpin from top of book page" : "Pin to top of book page", icon: r.featured ? <PinOff size={16} aria-hidden /> : <Pin size={16} aria-hidden />, onSelect: () => { void toggleFeatured(r); } },
+                          { label: "Delete review…", tone: "danger" as const, icon: <Trash2 size={16} aria-hidden />, onSelect: () => setDeleting(r) },
+                        ]} />
+                      </>
+                    )}
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         {cursor && !loading && !error && filter === "pending" && (
@@ -266,7 +295,7 @@ function Queue() {
             </SecondaryButton>
           </div>
         )}
-      </SectionCard>
+      </div>
 
       {stats.total > 0 && (
         <SectionCard title="Rating spread" description={capped ? "Newest 200 reviews plus the pending ones loaded" : "All reviews"}>
