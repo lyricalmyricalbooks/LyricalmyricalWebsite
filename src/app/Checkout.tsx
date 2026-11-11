@@ -1805,7 +1805,8 @@ export function Checkout() {
       <div data-fm-store data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout" data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
         <StorefrontThemeStyle design={checkoutDesign} />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(var(--accent-rgb,232,64,42),0.08)_0%,transparent_70%)] pointer-events-none" />
-        <div {...regionProps("checkoutEmpty")} className="relative z-10 flex flex-col items-center">
+        {/* The empty bag is the page's main content (a landmark, so screen readers can jump to it). */}
+        <main {...regionProps("checkoutEmpty")} className="relative z-10 flex flex-col items-center">
           <div className="w-20 h-20 rounded-[1.5rem] bg-white/5 border border-white/10 flex items-center justify-center mb-8">
             <Package size={36} className="text-white/20" strokeWidth={1} />
           </div>
@@ -1817,7 +1818,7 @@ export function Checkout() {
             className="fm-active px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase hover:bg-white/90 transition-all active:scale-95">
             {c("coEmptyButton")}
           </Link>
-        </div>
+        </main>
       </div>
     );
   }
@@ -2093,7 +2094,8 @@ export function Checkout() {
       </div>
 
       {payBar && (
-        <div {...regionProps("checkoutPayBar")} className="fm-co-paybar">
+        // Outside <main>, so it is its own named landmark (named by its Text & labels line) for screen readers.
+        <aside {...regionProps("checkoutPayBar")} aria-label={c("coPayBarLabel")} className="fm-co-paybar">
           <div className="fm-co-paybar-row fm-co-mono">
             <span>{c("coPayBarLabel")}</span>
             <span translate="no">{needsDeliveryChoice ? c("coShipChoose") : formatPrice(finalTotal)}</span>
@@ -2101,7 +2103,7 @@ export function Checkout() {
           <button type="submit" form="fm-checkout-form" disabled={payDisabled} className="fm-co-paybtn">
             {isCompleting ? <><Loader2 size={20} className="animate-spin" aria-hidden="true" /> {c("coProcessing")}</> : barLabel}
           </button>
-        </div>
+        </aside>
       )}
 
       <GlobalSections design={checkoutDesign} />
