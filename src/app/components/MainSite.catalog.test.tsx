@@ -103,4 +103,17 @@ describe("MainSite home page heading", () => {
     expect(html.match(/<h1/g)?.length).toBe(1);
     expect(html).toMatch(/<h1 class="sr-only[^"]*">Lyricalmyrical Books<\/h1>/);
   });
+  it("also has it when the home page shows the shop grid (no Home sections)", () => {
+    site.data = dataFor([]);
+    const html = renderToStaticMarkup(tree());
+    expect(html.match(/<h1/g)?.length).toBe(1);
+    expect(html).toMatch(/<h1 class="sr-only[^"]*">Lyricalmyrical Books<\/h1>/);
+  });
+  it("leaves it out when a visible catalog heading is set", () => {
+    site.data = { ...dataFor([]), settings: { design: { categories: [], copy: {}, catalogHeading: "Shop" } } };
+    const html = renderToStaticMarkup(tree());
+    expect(html.match(/<h1/g)?.length).toBe(1);
+    expect(html).not.toMatch(/<h1 class="sr-only/);
+    expect(html).toMatch(/<h1 class="fm-catalog-heading[^"]*">Shop<\/h1>/);
+  });
 });

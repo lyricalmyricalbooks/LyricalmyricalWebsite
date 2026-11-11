@@ -727,6 +727,13 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
   // grid for the Home template's sections; with no Home sections it shows the catalog.
   const homeSections: any[] = heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections || [];
   const onHome = !catalogOpen && homeSections.length > 0;
+  // The page's one <h1> for screen readers and search engines when nothing visible gives one: the site name
+  // (Text & labels › Site name). Used on the home page whether it shows Home sections or the shop grid (collection pages
+  // name their category instead), and hidden when a section writes its own <h1>.
+  const siteName = settings?.info?.name || getCopy(activeDesign, "siteName");
+  const siteNameHeading = !storefrontDesign?.catalogHeading && !onCollectionRoute && siteName
+    ? <h1 className="sr-only [main:has(h1:not(.sr-only))_&]:hidden">{siteName}</h1>
+    : null;
   {
     return (
       <div
@@ -764,11 +771,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
 
         {onHome ? (
           <main className="relative w-auto flex-1 overflow-hidden">
-            {/* The home page's one <h1> for screen readers and search engines: the site name (Text & labels › Site name),
-                shown only when no Home section writes its own heading. */}
-            {!storefrontDesign?.catalogHeading && (settings?.info?.name || getCopy(activeDesign, "siteName")) && (
-              <h1 className="sr-only [main:has(h1:not(.sr-only))_&]:hidden">{settings?.info?.name || getCopy(activeDesign, "siteName")}</h1>
-            )}
+            {siteNameHeading}
             <SectionList
               sections={homeSections}
               colorSchemes={heroDesign.colorSchemes?.length > 0 ? heroDesign.colorSchemes : activeDesign.colorSchemes}
@@ -785,6 +788,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
           </main>
         ) : (
         <main className="mx-auto w-full flex-1 px-6 py-12 md:py-20" style={{ maxWidth: isReferenceCatalog ? storefrontHeaderMaxWidth : storefrontMaxWidth }}>
+          {siteNameHeading}
           {/* Theme-editor sections authored for the storefront page template */}
           <SectionPageContext.Provider value={categoryContext}>
             <TemplateSections design={activeDesign} templateId={onCollectionRoute ? categoryTemplateSurface(activeDesign, categories.find((c: any) => c?.id && c.id === activeCategory?.id) || activeCategory, previewTemplate()) : "storefront"} books={books} />
