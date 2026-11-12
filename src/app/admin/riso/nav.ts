@@ -6,16 +6,16 @@ import type { NavEntry } from "./components";
 
 export const NAV: NavEntry[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "orders", label: "Orders", icon: ShoppingCart },
+  { id: "orders", label: "Orders", icon: ShoppingCart, section: "Sell" },
   { id: "customers", label: "Customers", icon: Users },
   { id: "inventory", label: "Inventory", icon: Boxes },
   { id: "catalog", label: "Books", icon: BookOpen },
-  { id: "discounts", label: "Discounts", icon: BadgePercent },
+  { id: "discounts", label: "Discounts", icon: BadgePercent, section: "Promote" },
   { id: "giftCards", label: "Gift cards", icon: Gift },
   { id: "reviews", label: "Reviews", icon: Star },
   { id: "messages", label: "Messages", icon: Inbox },
   // Design is its own page (theme, pages, colours, type); Studio opens from it.
-  { id: "design", label: "Design", icon: Palette },
+  { id: "design", label: "Design", icon: Palette, section: "Shop" },
   { id: "settings", label: "Settings", icon: Settings, children: [
     { id: "general", label: "General", icon: SlidersHorizontal },
     { id: "shipping", label: "Shipping", icon: Truck },
@@ -30,8 +30,8 @@ export const NAV: NavEntry[] = [
 export const SETTINGS_ITEM_PREFIX = "settings/";
 
 /**
- * The sidebar list: one flat list with no headings. Settings keeps its pages as children, which the
- * sidebar shows indented under it only while a Settings page is open.
+ * The sidebar list (bento shell, 12 November 2026): Overview, then the Sell, Promote and Shop groups (each item's
+ * `section` heads its group). Settings keeps its pages as children, shown indented only while one is open.
  */
 export function sidebarItems(nav: NavEntry[]): NavEntry[] {
   return nav;
@@ -61,3 +61,6 @@ export const SETTINGS_COPY: Record<string, { description: string; action?: { lab
   taxes: { description: "Whether prices include tax, and the rates for each region.", action: { label: "Download tax report", kind: "taxReport" } },
   notifications: { description: "The account order emails come from, and which emails customers get.", action: { label: "Send a test email", kind: "testEmail" } },
 };
+
+/** The Overview tells the top bar's crumb which of its tabs is open ("Daily desk"); the detail is the tab's name. */
+export const OVERVIEW_TAB_EVENT = "lm:overview-tab";

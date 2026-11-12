@@ -15,6 +15,7 @@ import {
 import { CHART_METRICS, type ChartMetric } from "./overviewSeries";
 import { readLocalBoards, readRemoteBoards, writeLocalBoards, writeRemoteBoards } from "./overviewBoardStore";
 import { OVERVIEW_HASH_EVENT } from "../adminRoute";
+import { OVERVIEW_TAB_EVENT } from "../riso/nav";
 import {
   DEFAULT_TAB, hashForTab, readSavedTab, saveTab, settleTab, tabForType, tabFromHash, topTabs,
   type OverviewTab, type TopTab,
@@ -95,6 +96,10 @@ export function useBoardStore() {
 
 type Focus = { kind: "widget"; id: string } | { kind: "type"; type: WidgetType } | { kind: "band"; band: BandId } | null;
 const bandMeta = (id: BandId) => BANDS.find(b => b.id === id)!;
+/** A topic tab's name: the first topic is the Daily desk (owner's mockup, 12 November 2026). */
+const tabTitle = (id: BandId) => (id === "today" ? "Daily desk" : bandMeta(id).title);
+/** Widgets the Daily desk bento already shows, so the board doesn't repeat them under it. */
+const DESK_COVERS = new Set<WidgetType>(["needs", "changes", "newest"]);
 const SAVE_WORDS: Record<SaveState, string> = {
   loading: "Opening your boards…", saving: "Saving…", saved: "✓ Saved to your account", local: "⚠ Saved on this browser only", error: "✕ Not saved to your account",
 };
@@ -221,6 +226,8 @@ export type BoardHeader = {
   figures?: ReactNode;
   /** The ink "Needs you" strip, right under the title (live, not tied to the period). */
   needs?: ReactNode;
+  /** The Daily desk bento shown at the top of the first tab (it carries its own Needs you and figures). */
+  desk?: ReactNode;
   /** The period's name ("the last 12 months"), for "Open this board on these dates". */
   viewName: string;
   view: BoardView;
@@ -506,7 +513,15 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
   const bands = visibleBands(board, editing);
   // The bands and widgets the open tab shows. Editing shows a whole topic, so moving a widget never skips hidden ones.
   const shownBands = tab.band === "all" ? bands : bands.filter(b => b.id === tab.band);
-  const shownWidgets = (band: BoardBand) => band.widgets;
+  // The Daily desk (first tab, not while editing) draws Needs you, What changed and Newest orders itself, so the
+  // band below it only shows the rest of that topic's widgets, and disappears when nothing else is on it.
+  const onDesk = tab.band === "today" && !editing && !!header.desk;
+  const tabName = tab.band === "all" ? "Everything" : tabTitle(tab.band);
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent(OVERVIEW_TAB_EVENT, { detail: tabName }));
+  }, [tabName]);
+  useEffect(() => () => { window.dispatchEvent(new CustomEvent(OVERVIEW_TAB_EVENT, { detail: "" })); }, []);
+  const shownWidgets = (band: BoardBand) => (onDesk && band.id === "today" ? band.widgets.filter(w => !DESK_COVERS.has(w.type)) : band.widgets);
   const hiddenBands = board.bands.filter(b => b.hidden);
   const widgetCount = board.bands.reduce((n, b) => n + b.widgets.length, 0);
 
@@ -616,11 +631,15 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     <>
       <header className="rp-wb-head">
         <div className="rp-wb-head-title">
-          <h1 className="rp-page-title rp-wb-h1">Overview</h1>
+          <div className="rp-ovb-titles">
+            <p className="rp-ovb-eyebrow"><span aria-hidden="true" className="rp-ovb-square" />At a glance · {tabName}</p>
+            <h1 className="rp-page-title rp-wb-h1">Overview</h1>
+            <p className="rp-ovb-desc">Sales, orders, and catalog health at a glance.</p>
+          </div>
           <div className="rp-wb-period" ref={periodRef} role="group" aria-label="Period and comparison" onKeyDown={periodKeys}>{header.period}</div>
         </div>
       </header>
-      {header.needs}
+      {!onDesk && header.needs}
       {pageAlerts}
       <p className="rp-sr-only" role="status" aria-live="polite">{announce}</p>
     </>
@@ -668,7 +687,7 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
   );
   const figures = (actions: ReactNode) => (
     <div className="rp-wb-figures">
-      {header.figures}
+      {!onDesk && header.figures}
       <div className="rp-wb-meta">
         <span className="rp-wb-updated"><span className="rp-wb-dot" aria-hidden="true" />
           <span className="rp-wb-lbl" aria-live="polite">{header.updated}</span>
@@ -710,7 +729,7 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     });
     const meta = bandMeta(band);
     return (
-      <div className="rp-stack rp-ov rp-wb" data-density={board.density}>
+      <div className="rp-stack rp-ov rp-wb rp-ovb" data-density={board.density}>
         {head}
         {figures(<div className="rp-wb-toolbar-actions">{boardMenu}</div>)}
         <nav className="rp-wb-crumbs" aria-label="Where you are">
@@ -758,16 +777,17 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
   }
 
   return (
-    <div className="rp-stack rp-ov rp-wb" data-density={board.density} data-editing={editing || undefined}>
+    <div className="rp-stack rp-ov rp-wb rp-ovb" data-density={board.density} data-editing={editing || undefined}>
       {head}
 
       {/* Sub tabs: one per topic (Everything = the whole board), and a second row inside Visitors. */}
       <div className="rp-wb-tabsrow">
         <div className="rp-wb-tabs">
         <Tabs<TopTab> variant="page" label="Overview topics" idPrefix="overview-" value={tab.band} onChange={band => openTab({ band, sub: "all" })}
-          tabs={topTabs(board, editing).map(id => ({ id, label: id === "all" ? "Everything" : bandMeta(id).title, ...(id === "all" ? {} : { count: board.bands.find(b => b.id === id)!.widgets.length }) }))} />
+          tabs={topTabs(board, editing).map(id => ({ id, label: id === "all" ? "Everything" : tabTitle(id) }))} />
         </div>
       </div>
+      {onDesk && header.desk}
       {figures(
         <div className="rp-wb-toolbar-actions">
           {(past.length > 0 || future.length > 0) && (
@@ -813,6 +833,7 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
         const meta = bandMeta(band.id);
         const folded = !!band.collapsed;
         const widgets = shownWidgets(band);
+        if (onDesk && band.id === "today" && widgets.length === 0) return null;
         const allWidgetsFolded = widgets.length > 0 && widgets.every(w => w.collapsed);
         const sizes = widgets.map(w => w.size);
         const fillD = editing ? [] : rowFills(sizes, SPAN_DESK);

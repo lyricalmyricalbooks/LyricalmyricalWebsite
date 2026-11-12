@@ -127,6 +127,15 @@ opens Studio; closing Studio returns there. Books default to a cover grid (`lm:b
 (`SEGMENT_TILES`), Discounts to coupon cards (`discountStub`, header button via `NEW_DISCOUNT_EVENT`), Reviews keep decided
 cards with Undo (`handled`), Messages is a two-pane inbox. Search is a ⌘K palette listing every page when empty.
 
+**Daily desk bento (12 November 2026, owner's mockup "Admin Overview v3"):** the Overview's first tab ("Today" band, now
+called **Daily desk**) opens with a fixed bento (`overview/OverviewDesk.tsx`, pure `overviewDesk.ts`, CSS `overviewDesk.css`):
+revenue tile (running total vs the period before, biggest order sticker), Needs you (`deskNeeds` over `needsStrip.ts`), four stat
+tiles, What changed (rows show `Change.delta`) and newest orders. `BoardHeader.desk` carries it; outside edit mode the band under
+it hides `needs`/`changes`/`newest` (`DESK_COVERS`) and the ink Needs you strip and figures strip show on the other tabs only.
+The page (`.rp-ovb`) has a white ground, eyebrow + 54px title + one line, pill tabs and rounded widget tiles. Shell for every
+page: `NAV` items carry `section` (Sell / Promote / Shop), icons show, the active item is paper with a tomato offset, counts are
+tomato squares, and the top bar shows a crumb (`OVERVIEW_TAB_EVENT` names the Overview's open tab).
+
 - `riso.css` — semantic `--rp-*` tokens (light + night) and every `rp-*` component
   class; reduced motion, 44px coarse-pointer targets, visible focus, print.
 - `components.tsx` — AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, SectionCard,
