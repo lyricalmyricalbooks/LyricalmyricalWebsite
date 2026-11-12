@@ -136,6 +136,14 @@ The page (`.rp-ovb`) has a white ground, eyebrow + 54px title + one line, pill t
 page: `NAV` items carry `section` (Sell / Promote / Shop), icons show, the active item is paper with a tomato offset, counts are
 tomato squares, and the top bar shows a crumb (`OVERVIEW_TAB_EVENT` names the Overview's open tab).
 
+**Bento pages (12 November 2026, owner chose "Overview now, others next PR"):** every page but the Overview now takes
+`rp-rs` (Orders and the order page included; `keepsOldLook` is only Overview/analytics) and the last `riso.css` layer
+("Bento pages", `--bp-*` tokens) restyles it in the desk's language: white ground, `PageHeader` `eyebrow` (`pageEyebrow` in
+`riso/nav.ts`: "Sell · Orders", "Settings · Shipping"; the Settings breadcrumb it replaces is gone), 54px upright titles,
+cream tiles with a 2px ink outline, 18px corners and a 4px shadow (cards, figures, `od-card`, `bk-grid-card`, `od-list`,
+coupons, reviews, customer tiles), 12px buttons/inputs, pill tabs/filters/badges. Cards in a stack or grid get no extra
+card-after-card margin. Restyle new pages through these classes rather than page-specific overrides.
+
 - `riso.css` — semantic `--rp-*` tokens (light + night) and every `rp-*` component
   class; reduced motion, 44px coarse-pointer targets, visible focus, print.
 - `components.tsx` — AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, SectionCard,

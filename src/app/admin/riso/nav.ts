@@ -37,6 +37,22 @@ export function sidebarItems(nav: NavEntry[]): NavEntry[] {
   return nav;
 }
 
+/**
+ * The small line above a page title (bento pages): the page's sidebar group, then the page or Settings page,
+ * e.g. "Sell · Orders", "Settings · Shipping". An unknown id gives "".
+ */
+export function pageEyebrow(nav: NavEntry[], id: string, child?: string): string {
+  let section = "";
+  for (const item of nav) {
+    if (item.section) section = item.section;
+    if (item.id !== id) continue;
+    const sub = child && item.children?.find(c => c.id === child);
+    if (item.children) return [item.label, sub ? sub.label : item.children[0]?.label].filter(Boolean).join(" · ");
+    return [section, item.label].filter(Boolean).join(" · ");
+  }
+  return "";
+}
+
 export const PAGE_COPY: Record<string, { title: string; description: string }> = {
   overview: { title: "Overview", description: "Sales, orders, and catalog health at a glance." },
   orders: { title: "Orders", description: "Review payments, fulfillment, and shipping for every order." },

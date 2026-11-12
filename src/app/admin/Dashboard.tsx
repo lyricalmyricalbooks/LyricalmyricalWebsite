@@ -33,7 +33,7 @@ import { AdminPageBoundary } from "./AdminPageBoundary";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { isHelpShortcut } from "./riso/helpShortcut";
-import { NAV, OVERVIEW_TAB_EVENT, PAGE_COPY, SETTINGS_COPY } from "./riso/nav";
+import { NAV, OVERVIEW_TAB_EVENT, PAGE_COPY, SETTINGS_COPY, pageEyebrow } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
@@ -548,8 +548,9 @@ export function Dashboard() {
     })),
   ];
 
-  // Overview and Orders keep their own look (owner, 10 November 2026); every other page takes the Riso redesign.
-  const keepsOldLook = activeTab === "overview" || activeTab === "analytics" || activeTab === "orders" || !!selectedOrder;
+  // The Overview draws its own bento page (`.rp-ovb`); every other page, Orders included since 12 November 2026,
+  // takes the Riso redesign layer and the bento layer over it (owner chose "Overview now, others next PR").
+  const keepsOldLook = activeTab === "overview" || activeTab === "analytics";
   const settingsCopy = SETTINGS_COPY[navChild];
   const settingsAction = settingsCopy?.action;
   // Save changes in the header saves whatever the page's save bar holds (the same path as Ctrl/⌘+S).
@@ -584,7 +585,7 @@ export function Dashboard() {
   const settingsHeader = isSettingsPage && !selectedOrder && settingsCopy ? (
     <>
       <PageHeader
-        breadcrumbs={<Breadcrumbs trail={[{ label: "Settings", onClick: () => { void goToChild("settings", "general"); } }, { label: childLabel || "General" }]} />}
+        eyebrow={pageEyebrow(NAV, "settings", navChild)}
         title={childLabel || "Settings"}
         description={settingsCopy.description}
         actions={<>
@@ -779,8 +780,9 @@ export function Dashboard() {
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}
         {!ownMasthead && (settingsHeader || <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}
+          eyebrow={pageEyebrow(NAV, selectedOrder ? "orders" : activeTab) || undefined}
           title={selectedOrder && activeTab !== "orders" ? "Order detail" : copy.title}
-          description={keepsOldLook ? undefined
+          description={keepsOldLook || selectedOrder ? undefined
             : activeTab === "reviews" && otherBadges.pendingReviews != null ? `${otherBadges.pendingReviews} waiting`
             : activeTab === "messages" && otherBadges.unreadMessages != null ? `${otherBadges.unreadMessages} unread`
             : copy.description}
