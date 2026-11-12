@@ -136,13 +136,16 @@ export function Breadcrumbs({ trail }: { trail: Array<{ label: string; onClick?:
   );
 }
 
-export function PageHeader({ title, description, breadcrumbs, actions }: {
+export function PageHeader({ title, description, breadcrumbs, actions, eyebrow }: {
   title: string; description?: string; breadcrumbs?: ReactNode; actions?: ReactNode;
+  /** A short mono line above the title (bento pages): "Sell · Orders". Shown only where the page style draws it. */
+  eyebrow?: string;
 }) {
   return (
     <div className="rp-page-header">
       <div>
         {breadcrumbs}
+        {eyebrow && <p className="rp-page-eyebrow"><span className="rp-page-eyebrow-square" aria-hidden="true" />{eyebrow}</p>}
         <h1 className="rp-page-title">{title}</h1>
         {description && <p className="rp-page-desc">{description}</p>}
       </div>

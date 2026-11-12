@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NAV, PAGE_COPY, sidebarItems } from "./nav";
+import { NAV, PAGE_COPY, pageEyebrow, sidebarItems } from "./nav";
 
 describe("admin navigation", () => {
   it("lists the primary modules in order", () => {
@@ -36,5 +36,19 @@ describe("sidebar items", () => {
   it("groups the pages under Sell, Promote and Shop after Overview (bento shell, 12 November 2026)", () => {
     const heads = NAV.filter((n) => n.section).map((n) => [n.section, n.id]);
     expect(heads).toEqual([["Sell", "orders"], ["Promote", "discounts"], ["Shop", "design"]]);
+  });
+});
+
+describe("page eyebrow", () => {
+  it("names the sidebar group, then the page", () => {
+    expect(pageEyebrow(NAV, "orders")).toBe("Sell · Orders");
+    expect(pageEyebrow(NAV, "catalog")).toBe("Sell · Books");
+    expect(pageEyebrow(NAV, "messages")).toBe("Promote · Messages");
+    expect(pageEyebrow(NAV, "design")).toBe("Shop · Design");
+  });
+  it("names the Settings page that is open", () => {
+    expect(pageEyebrow(NAV, "settings", "shipping")).toBe("Settings · Shipping");
+    expect(pageEyebrow(NAV, "settings")).toBe("Settings · General");
+    expect(pageEyebrow(NAV, "nowhere")).toBe("");
   });
 });

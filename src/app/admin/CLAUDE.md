@@ -118,8 +118,8 @@ Status · Ways to pay · On the shop; Shipping = Status · Rates · Labels · Pi
 Inventory = Stock · Inventory app. Tab ids and address slugs did not change, so old links still open the same tab.
 
 **Riso redesign (10 November 2026, owner's handoff "Admin dashboard redesign"):** the last `riso.css` layer brings back
-2px ink outlines and flat offset shadows (`--rs-ink`, `--rs-shadow`, `--rs-hair`) on every page **except Overview and
-Orders**, which keep the Pressroom look (owner: "do not redesign the overview and orders pages"). Page rules are scoped
+2px ink outlines and flat offset shadows (`--rs-ink`, `--rs-shadow`, `--rs-hair`) on every page **except Overview**
+(Orders kept the Pressroom look until the 12 November bento pass; the Overview draws its own bento page). Page rules are scoped
 `:is(.rp .rp-rs, .rp.rp-rs)`; `Dashboard` adds `rp-rs` to the `rp-page` wrapper unless `keepsOldLook`, and to the book
 editor root (a full page beside the 248px rail on desktop). Sidebar is `NAV` as is (Settings one item; its pages are a
 boxed tab row under the Settings header, `SETTINGS_COPY`). New top-level **Design** page (`DesignPage.tsx`, tab `design`)
@@ -135,6 +135,14 @@ it hides `needs`/`changes`/`newest` (`DESK_COVERS`) and the ink Needs you strip 
 The page (`.rp-ovb`) has a white ground, eyebrow + 54px title + one line, pill tabs and rounded widget tiles. Shell for every
 page: `NAV` items carry `section` (Sell / Promote / Shop), icons show, the active item is paper with a tomato offset, counts are
 tomato squares, and the top bar shows a crumb (`OVERVIEW_TAB_EVENT` names the Overview's open tab).
+
+**Bento pages (12 November 2026, owner chose "Overview now, others next PR"):** every page but the Overview now takes
+`rp-rs` (Orders and the order page included; `keepsOldLook` is only Overview/analytics) and the last `riso.css` layer
+("Bento pages", `--bp-*` tokens) restyles it in the desk's language: white ground, `PageHeader` `eyebrow` (`pageEyebrow` in
+`riso/nav.ts`: "Sell · Orders", "Settings · Shipping"; the Settings breadcrumb it replaces is gone), 54px upright titles,
+cream tiles with a 2px ink outline, 18px corners and a 4px shadow (cards, figures, `od-card`, `bk-grid-card`, `od-list`,
+coupons, reviews, customer tiles), 12px buttons/inputs, pill tabs/filters/badges. Cards in a stack or grid get no extra
+card-after-card margin. Restyle new pages through these classes rather than page-specific overrides.
 
 - `riso.css` — semantic `--rp-*` tokens (light + night) and every `rp-*` component
   class; reduced motion, 44px coarse-pointer targets, visible focus, print.

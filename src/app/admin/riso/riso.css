@@ -1956,7 +1956,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
  * Shell (every page): 248px ink sidebar with a tomato "L" mark, one flat list with no icons or headings, Settings
  * pages indented under Settings only while one is open, tomato mono counts, the account at the foot; a 64px top bar
  * with a 2px ink rule, a search bar that opens the ⌘K palette, "Shop open" in mono capitals and View storefront.
- * Pages (`.rp-rs`, every page but Overview and Orders, which keep the Pressroom look): Anton italic 44px titles with
+ * Pages (`.rp-rs`, every page but Overview since 12 November 2026; Orders joined then): Anton italic 44px titles with
  * one line under them, white cards with a 2px ink border and a hard 4px ink shadow, tomato primary buttons with a 2px
  * shadow, tabs as boxed rows (chosen = tomato), square mono chips, 2px ink inputs on cream.
  * Scale: 10–11 mono labels · 13 body/buttons · 14 rail · 22 card titles · 26–40 figures · 44 titles.
@@ -2297,7 +2297,9 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 }
 .rp:not(.studio-editor) .rp-nav-section { padding: 18px 12px 8px; font: 400 10px/1 var(--rp-font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: rgba(250, 246, 236, 0.55); }
 .rp:not(.studio-editor) .rp-nav-list { display: grid; gap: 2px; }
-.rp:not(.studio-editor) .rp-nav-subitem { border-radius: 8px; }
+.rp:not(.studio-editor) .rp-nav-sublist { margin: 2px 0 6px 21px; padding-left: 8px; border-left: 2px solid rgba(250, 246, 236, 0.2); }
+.rp:not(.studio-editor) .rp-nav-subitem { min-height: 32px; padding: 0 10px; border-radius: 8px; box-shadow: none; }
+.rp:not(.studio-editor) .rp-nav-subitem[aria-current="page"] { background: rgba(250, 246, 236, 0.12); box-shadow: none; }
 .rp-topbar-crumb { display: none; }
 @media (min-width: 1024px) {
   .rp:not(.studio-editor) .rp-topbar-crumb {
@@ -2315,3 +2317,120 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp:not(.studio-editor) .rp-status-pill:not([data-tone]) .rp-status-glyph::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--rp-success); animation: rp-shop-pulse 2s ease-out infinite; }
 @keyframes rp-shop-pulse { from { transform: scale(1); opacity: 0.6; } to { transform: scale(3); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .rp:not(.studio-editor) .rp-status-pill .rp-status-glyph::after { animation: none; } }
+
+/* ── Bento pages (12 November 2026, owner chose "Overview now, others next PR"): every `.rp-rs` page ────────────────
+ * The Daily desk's language over the Riso redesign: a white ground, a mono eyebrow (red square + group · page), 54px
+ * upright Anton titles with one 15px line, cream tiles (cards, figures, coupons, reviews, inbox) with a 2px ink outline,
+ * 18px corners and a hard 4px shadow, 12px-rounded buttons and inputs, pill tabs, chips and badges.
+ * Radii: 18 tiles · 14 alerts · 12 buttons/inputs · 999 pills. Shadows: 4 tiles · 3 primary buttons · 2 rows. */
+:is(.rp .rp-rs, .rp.rp-rs) { --bp-ink: var(--rs-ink, #100f0d); --bp-shadow: var(--rs-shadow, #100f0d); --bp-paper: #faf6ec; --bp-white: #ffffff; --rs-gap: 24px; }
+.rp:not(.studio-editor)[data-rp-appearance="dark"] .rp-rs, .rp-rs.rp:not(.studio-editor)[data-rp-appearance="dark"] { --bp-paper: var(--rp-surface); --bp-white: var(--rp-surface-2); }
+.rp:not(.studio-editor):not([data-rp-appearance="dark"]) .rp-workspace:has(> .rp-page.rp-rs, .rp-page.rp-rs) { background: #ffffff; }
+.rp:not(.studio-editor):not([data-rp-appearance="dark"]) .rp-app-body:has(.rp-page.rp-rs) .rp-topbar {
+  background: rgba(255, 255, 255, 0.88); border-bottom: 1px solid rgba(16, 15, 13, 0.12); backdrop-filter: blur(10px);
+}
+
+/* Header: eyebrow, title, one line */
+.rp-page-eyebrow { display: none; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-page-header { padding-top: 34px; margin-bottom: 24px; gap: 18px 24px; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-page-eyebrow {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font: 400 11px/1 var(--rp-font-mono); letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--rp-text-muted);
+}
+.rp-page-eyebrow-square { flex: none; width: 9px; height: 9px; background: #e8402a; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-page-title { font: 400 54px/1 var(--rp-font-display); font-style: normal; letter-spacing: 0.005em; text-transform: uppercase; overflow-wrap: anywhere; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-page-desc { margin-top: 10px; font-size: 15px; max-width: 620px; }
+@media (max-width: 767px) { :is(.rp .rp-rs, .rp.rp-rs) .rp-page-title { font-size: 44px; } }
+
+/* Tiles: cards, figures and each page's own cards */
+:is(.rp .rp-rs, .rp.rp-rs) :is(.rp-card, .cu-tile, .dc-card, .rv-card) { border: 2px solid var(--bp-ink); border-radius: 18px; box-shadow: 4px 4px 0 var(--bp-shadow); }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-card { background: var(--bp-paper); }
+/* No clipping on cards: their ⋯ menus open past the edge. A card head with its own fill rounds its top corners instead. */
+:is(.rp .rp-rs, .rp.rp-rs) .rp-card > .rp-card-head:first-child { border-radius: 16px 16px 0 0; }
+:is(.rp .rp-rs, .rp.rp-rs) :is(.rp-card-title, .ms-reader-subject) { font-style: normal; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-kpi-grid > .rp-metric, :is(.rp .rp-rs, .rp.rp-rs) .rp-kpi-grid > .rp-metric:hover,
+:is(.rp .rp-rs, .rp.rp-rs) .rp-kpi-grid > .rp-metric:first-child { border-radius: 18px; background: var(--bp-paper); }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-metric-value { font-style: normal; font-size: 40px; }
+:is(.rp .rp-rs, .rp.rp-rs) .cu-tile:not([data-tile="champions"]):not([data-tile="win-back"]) { background: var(--bp-paper); }
+:is(.rp .rp-rs, .rp.rp-rs) .cu-tile-value { font-style: normal; }
+:is(.rp .rp-rs, .rp.rp-rs) .cu-tile[aria-pressed="true"] { outline-offset: 4px; border-radius: 18px; }
+:is(.rp .rp-rs, .rp.rp-rs) .dc-card { background: var(--bp-paper); }
+:is(.rp .rp-rs, .rp.rp-rs) .dc-stub { border-radius: 16px 0 0 16px; }
+:is(.rp .rp-rs, .rp.rp-rs) .dc-stub { font-style: normal; }
+:is(.rp .rp-rs, .rp.rp-rs) .rv-card { background: var(--bp-paper); }
+:is(.rp .rp-rs, .rp.rp-rs) .rv-card[data-handled] { background: var(--rp-surface-2); }
+:is(.rp .rp-rs, .rp.rp-rs) .ms-row { background: transparent; }
+:is(.rp .rp-rs, .rp.rp-rs) .ms-row[data-selected] { background: var(--bp-white); }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-swatch { border-radius: 12px; }
+
+/* Buttons: 12px corners, primary keeps its tomato fill with a 3px shadow */
+:is(.rp .rp-rs, .rp.rp-rs) .rp-btn { min-height: 40px; padding: 0 16px; border-radius: 12px; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-btn-sm { min-height: 32px; padding: 0 12px; border-radius: 10px; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-btn-primary { box-shadow: 3px 3px 0 var(--bp-shadow); font-weight: 800; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-btn-primary:hover:not(:disabled) { box-shadow: 4px 4px 0 var(--bp-shadow); }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-btn-secondary { background: var(--bp-white); }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-icon-btn { border-radius: 10px; }
+
+/* Tabs and filter chips: pills (chosen = ink), sub tabs inside a page stay underlined words */
+:is(.rp .rp-rs, .rp.rp-rs) .rp-tabs[data-variant="page"] { gap: 10px; padding: 2px; box-shadow: none; margin-bottom: 24px; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-tabs[data-variant="page"] .rp-tab,
+:is(.rp .rp-rs, .rp.rp-rs) .rp-tabs[data-variant="page"] .rp-tab[aria-selected="true"],
+:is(.rp .rp-rs, .rp.rp-rs) .rp-tabs:not([data-variant]) .rp-tab,
+:is(.rp .rp-rs, .rp.rp-rs) .rp-tabs:not([data-variant]) .rp-tab[aria-selected="true"] {
+  min-height: 36px; margin: 0; padding: 0 15px; border: 2px solid var(--bp-ink); border-radius: 999px; background: var(--bp-white);
+  color: var(--rp-text); font: 700 14px/1 var(--rp-font-body);
+}
+:is(.rp .rp-rs, .rp.rp-rs) :is(.rp-tabs[data-variant="page"], .rp-tabs:not([data-variant])) .rp-tab:hover { background: var(--bp-paper); }
+:is(.rp .rp-rs, .rp.rp-rs) :is(.rp-tabs[data-variant="page"], .rp-tabs:not([data-variant])) .rp-tab[aria-selected="true"] { background: var(--bp-ink); border-color: var(--bp-ink); color: var(--rp-canvas); }
+.rp:not(.studio-editor)[data-rp-appearance="dark"] :is(.rp-rs, .rp-rs *) .rp-tabs[data-variant="page"] .rp-tab[aria-selected="true"],
+.rp-rs.rp:not(.studio-editor)[data-rp-appearance="dark"] .rp-tabs[data-variant="page"] .rp-tab[aria-selected="true"] { background: #faf6ec; border-color: #faf6ec; color: #100f0d; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-tabs[data-variant="switch"] .rp-tab[aria-selected="true"] { border-bottom-color: var(--bp-ink); }
+
+/* Badges: rounded pills */
+:is(.rp .rp-rs, .rp.rp-rs) .rp-badge { padding: 3px 10px; border-radius: 999px; }
+
+/* Inputs: white, 12px corners */
+:is(.rp .rp-rs, .rp.rp-rs) :is(.rp-input, .rp-select, .rp-textarea) { border-radius: 12px; background: var(--bp-white); }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-toggle-track { border-radius: 999px; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-toggle-track::after { border-radius: 50%; }
+
+/* Alerts and tables */
+:is(.rp .rp-rs, .rp.rp-rs) .rp-alert { border-radius: 14px; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-table th { background: transparent; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-table tbody tr:hover td { background: var(--bp-white); }
+
+/* Orders and Books grids: cover cards as tiles; the view switches as pills */
+:is(.rp .rp-rs, .rp.rp-rs) :is(.od-card, .bk-grid-card) {
+  overflow: clip; border: 2px solid var(--bp-ink); border-radius: 18px; background: var(--bp-paper); box-shadow: 4px 4px 0 var(--bp-shadow);
+  transition: transform var(--rp-dur) var(--rp-ease), box-shadow var(--rp-dur) var(--rp-ease);
+}
+:is(.rp .rp-rs, .rp.rp-rs) :is(.od-card, .bk-grid-card):hover { border-color: var(--bp-ink); transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--bp-shadow); }
+:is(.rp .rp-rs, .rp.rp-rs) .od-card-cover { border-bottom: 2px solid var(--bp-ink); }
+:is(.rp .rp-rs, .rp.rp-rs) .bk-grid-title { font-style: normal; }
+:is(.rp .rp-rs, .rp.rp-rs) .od-switch { display: inline-flex; gap: 6px; border: 0; }
+:is(.rp .rp-rs, .rp.rp-rs) .od-switch button,
+:is(.rp .rp-rs, .rp.rp-rs) .od-switch button:first-child {
+  min-height: 36px; padding: 0 15px; border: 2px solid var(--bp-ink); border-radius: 999px; background: var(--bp-white); font-weight: 700; font-size: 14px;
+}
+:is(.rp .rp-rs, .rp.rp-rs) .od-switch button.is-on { background: var(--bp-ink); color: var(--rp-canvas); }
+@media (prefers-reduced-motion: reduce) { :is(.rp .rp-rs, .rp.rp-rs) :is(.od-card, .bk-grid-card):hover { transform: none; } }
+
+/* Top bar over a bento page: rounded search and storefront button */
+.rp:not(.studio-editor) .rp-app-body:has(.rp-page.rp-rs, .rp-ovb) :is(.rp-search-toggle, .rp-view-storefront) { border-radius: 12px; }
+/* Figures sit on one row: no card-after-card gap inside the grid */
+:is(.rp .rp-rs, .rp.rp-rs) .rp-kpi-grid > :is(*, .rp-card) + :is(*, .rp-card) { margin-top: 0; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-type-sample { font-style: normal; }
+:is(.rp .rp-rs, .rp.rp-rs) :is(.rp-empty-icon, .rp-state-icon) { border-radius: 12px; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-choices { border-radius: 12px; overflow: clip; background: var(--bp-white); }
+/* Cards inside a stack or the order page's side column already have a gap: no extra card-after-card margin */
+:is(.rp .rp-rs, .rp.rp-rs) :is(.rp-stack, .fw-aside-info, .rp-settings-grid, .rp-design-side) > .rp-card + .rp-card { margin-top: 0; }
+/* The Orders desk's side list: a rounded tile like the cards */
+:is(.rp .rp-rs, .rp.rp-rs) .od-list { overflow: clip; border: 2px solid var(--bp-ink); border-radius: 18px; background: var(--bp-paper); box-shadow: 4px 4px 0 var(--bp-shadow); }
+/* Focus rings that are drawn as a shadow keep it beside the tile shadow */
+:is(.rp .rp-rs, .rp.rp-rs) :is(.bk-grid-card, .cu-tile):focus-visible { outline: 0; box-shadow: 4px 4px 0 var(--bp-shadow), var(--rp-focus-ring); }
+/* Night: the chosen view switch reads as paper on ink, like the tabs */
+.rp:not(.studio-editor)[data-rp-appearance="dark"] .rp-rs .od-switch button.is-on { background: #faf6ec; border-color: #faf6ec; color: #100f0d; }
+/* The order page's sticky toolbar on phones matches the white page */
+@media (max-width: 767px) {
+  .rp:not(.studio-editor):not([data-rp-appearance="dark"]) .rp-rs .fw-detail > .fw-toolbar { background: #ffffff; }
+}
