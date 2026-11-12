@@ -1956,7 +1956,7 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
  * Shell (every page): 248px ink sidebar with a tomato "L" mark, one flat list with no icons or headings, Settings
  * pages indented under Settings only while one is open, tomato mono counts, the account at the foot; a 64px top bar
  * with a 2px ink rule, a search bar that opens the ⌘K palette, "Shop open" in mono capitals and View storefront.
- * Pages (`.rp-rs`, every page but Overview and Orders, which keep the Pressroom look): Anton italic 44px titles with
+ * Pages (`.rp-rs`, every page but Overview since 12 November 2026; Orders joined then): Anton italic 44px titles with
  * one line under them, white cards with a 2px ink border and a hard 4px ink shadow, tomato primary buttons with a 2px
  * shadow, tabs as boxed rows (chosen = tomato), square mono chips, 2px ink inputs on cream.
  * Scale: 10–11 mono labels · 13 body/buttons · 14 rail · 22 card titles · 26–40 figures · 44 titles.
@@ -2344,7 +2344,9 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 
 /* Tiles: cards, figures and each page's own cards */
 :is(.rp .rp-rs, .rp.rp-rs) :is(.rp-card, .cu-tile, .dc-card, .rv-card) { border: 2px solid var(--bp-ink); border-radius: 18px; box-shadow: 4px 4px 0 var(--bp-shadow); }
-:is(.rp .rp-rs, .rp.rp-rs) .rp-card { background: var(--bp-paper); overflow: clip; }
+:is(.rp .rp-rs, .rp.rp-rs) .rp-card { background: var(--bp-paper); }
+/* No clipping on cards: their ⋯ menus open past the edge. A card head with its own fill rounds its top corners instead. */
+:is(.rp .rp-rs, .rp.rp-rs) .rp-card > .rp-card-head:first-child { border-radius: 16px 16px 0 0; }
 :is(.rp .rp-rs, .rp.rp-rs) :is(.rp-card-title, .ms-reader-subject) { font-style: normal; }
 :is(.rp .rp-rs, .rp.rp-rs) .rp-kpi-grid > .rp-metric, :is(.rp .rp-rs, .rp.rp-rs) .rp-kpi-grid > .rp-metric:hover,
 :is(.rp .rp-rs, .rp.rp-rs) .rp-kpi-grid > .rp-metric:first-child { border-radius: 18px; background: var(--bp-paper); }
@@ -2352,7 +2354,8 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 :is(.rp .rp-rs, .rp.rp-rs) .cu-tile:not([data-tile="champions"]):not([data-tile="win-back"]) { background: var(--bp-paper); }
 :is(.rp .rp-rs, .rp.rp-rs) .cu-tile-value { font-style: normal; }
 :is(.rp .rp-rs, .rp.rp-rs) .cu-tile[aria-pressed="true"] { outline-offset: 4px; border-radius: 18px; }
-:is(.rp .rp-rs, .rp.rp-rs) .dc-card { overflow: clip; background: var(--bp-paper); }
+:is(.rp .rp-rs, .rp.rp-rs) .dc-card { background: var(--bp-paper); }
+:is(.rp .rp-rs, .rp.rp-rs) .dc-stub { border-radius: 16px 0 0 16px; }
 :is(.rp .rp-rs, .rp.rp-rs) .dc-stub { font-style: normal; }
 :is(.rp .rp-rs, .rp.rp-rs) .rv-card { background: var(--bp-paper); }
 :is(.rp .rp-rs, .rp.rp-rs) .rv-card[data-handled] { background: var(--rp-surface-2); }
@@ -2423,3 +2426,11 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 :is(.rp .rp-rs, .rp.rp-rs) :is(.rp-stack, .fw-aside-info, .rp-settings-grid, .rp-design-side) > .rp-card + .rp-card { margin-top: 0; }
 /* The Orders desk's side list: a rounded tile like the cards */
 :is(.rp .rp-rs, .rp.rp-rs) .od-list { overflow: clip; border: 2px solid var(--bp-ink); border-radius: 18px; background: var(--bp-paper); box-shadow: 4px 4px 0 var(--bp-shadow); }
+/* Focus rings that are drawn as a shadow keep it beside the tile shadow */
+:is(.rp .rp-rs, .rp.rp-rs) :is(.bk-grid-card, .cu-tile):focus-visible { outline: 0; box-shadow: 4px 4px 0 var(--bp-shadow), var(--rp-focus-ring); }
+/* Night: the chosen view switch reads as paper on ink, like the tabs */
+.rp:not(.studio-editor)[data-rp-appearance="dark"] .rp-rs .od-switch button.is-on { background: #faf6ec; border-color: #faf6ec; color: #100f0d; }
+/* The order page's sticky toolbar on phones matches the white page */
+@media (max-width: 767px) {
+  .rp:not(.studio-editor):not([data-rp-appearance="dark"]) .rp-rs .fw-detail > .fw-toolbar { background: #ffffff; }
+}

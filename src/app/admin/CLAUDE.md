@@ -118,8 +118,8 @@ Status · Ways to pay · On the shop; Shipping = Status · Rates · Labels · Pi
 Inventory = Stock · Inventory app. Tab ids and address slugs did not change, so old links still open the same tab.
 
 **Riso redesign (10 November 2026, owner's handoff "Admin dashboard redesign"):** the last `riso.css` layer brings back
-2px ink outlines and flat offset shadows (`--rs-ink`, `--rs-shadow`, `--rs-hair`) on every page **except Overview and
-Orders**, which keep the Pressroom look (owner: "do not redesign the overview and orders pages"). Page rules are scoped
+2px ink outlines and flat offset shadows (`--rs-ink`, `--rs-shadow`, `--rs-hair`) on every page **except Overview**
+(Orders kept the Pressroom look until the 12 November bento pass; the Overview draws its own bento page). Page rules are scoped
 `:is(.rp .rp-rs, .rp.rp-rs)`; `Dashboard` adds `rp-rs` to the `rp-page` wrapper unless `keepsOldLook`, and to the book
 editor root (a full page beside the 248px rail on desktop). Sidebar is `NAV` as is (Settings one item; its pages are a
 boxed tab row under the Settings header, `SETTINGS_COPY`). New top-level **Design** page (`DesignPage.tsx`, tab `design`)
