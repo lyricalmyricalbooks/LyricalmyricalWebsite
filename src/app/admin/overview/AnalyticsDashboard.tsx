@@ -308,8 +308,9 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     ...orderNeeds(allOrders.orders),
     reviews: reviews ? (typeof reviews.pending === "number" ? reviews.pending : null) : counts ? counts.pendingReviews ?? null : null,
     messages: counts ? counts.unreadMessages : null,
-    lowest: insights ? lowestInStock(insights.reprint) : null,
-    soldOut: insights ? insights.shelf.soldOut : null,
+    // Stock lines stay unknown until the books are read: an empty list must never read as "nothing running low".
+    lowest: insights && stock.books ? lowestInStock(insights.reprint) : null,
+    soldOut: insights && stock.books ? insights.shelf.soldOut : null,
     failed: !!(allOrders.error || stock.error || (counts && counts.unreadMessages === null) || (audience.error && !(typeof counts?.pendingReviews === "number"))),
   };
   const cartStep = funnel && funnel.add_to_cart > 0 ? (funnel.checkout_start / funnel.add_to_cart) * 100 : null;

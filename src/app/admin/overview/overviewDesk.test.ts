@@ -24,6 +24,8 @@ describe("Daily desk: revenue tile", () => {
   it("rounds the chart's top up to four even steps", () => {
     expect(chartScale(420)).toEqual({ top: 480, ticks: [0, 120, 240, 360, 480] });
     expect(chartScale(0).top).toBe(100);
+    // Small totals keep whole-dollar steps, so the rounded labels match their gridlines.
+    expect(chartScale(5)).toEqual({ top: 8, ticks: [0, 2, 4, 6, 8] });
   });
   it("labels four days across the period", () => {
     const days = Array.from({ length: 30 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`);

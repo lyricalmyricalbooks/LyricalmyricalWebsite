@@ -42,9 +42,9 @@ function RevenueChart({ steps, current, before }: { steps: RevenueSteps; current
   const last = (a: number[]) => a[a.length - 1] || 0;
   const { top, ticks } = chartScale(Math.max(last(steps.now), last(steps.before)));
   const W = 1000, H = 180;
-  const x = (i: number) => (n <= 1 ? W : (i / (n - 1)) * W);
+  const x = (i: number) => (n <= 1 ? 0 : (i / (n - 1)) * W);
   const y = (v: number) => H - (v / top) * H;
-  const path = (vals: number[]) => `M0 ${H} ` + vals.map((v, i) => `${i === 0 ? "" : `H${x(i).toFixed(1)} `}V${y(v).toFixed(1)}`).join(" ");
+  const path = (vals: number[]) => `M0 ${H} ` + vals.map((v, i) => `${i === 0 ? "" : `H${x(i).toFixed(1)} `}V${y(v).toFixed(1)}`).join(" ") + ` H${W}`;
   const pct = (i: number) => `${(x(i) / W) * 100}%`;
   const big = biggestOrder(current, steps.days);
   const endY = (y(last(steps.now)) / H) * 100;
@@ -152,7 +152,9 @@ export function OverviewDesk({ cur, prev, steps, current, phrase, before, change
           ? stat("Running low", "butter", `${needs.lowest.stock} left`, <button type="button" className="ovd-warn-link" onClick={() => setActiveTab?.("inventory")}>{needs.lowest.title} · reprint advised</button>, undefined, true)
           : needs.soldOut
             ? stat("Running low", "butter", `${needs.soldOut} out`, <button type="button" className="ovd-warn-link" onClick={() => setActiveTab?.("inventory")}>Sold out · reprint or hide</button>, undefined, true)
-            : stat("Running low", "butter", needs.soldOut === null ? "…" : "None", <span className="ovd-delta" data-dir="same">Nothing close to selling out</span>)}
+            : needs.soldOut === null
+              ? stat("Running low", "butter", needs.failed ? "—" : "…", <span className="ovd-delta" data-dir="same">{needs.failed ? "Stock counts not loaded" : "Counting stock…"}</span>)
+              : stat("Running low", "butter", "None", <span className="ovd-delta" data-dir="same">Nothing close to selling out</span>)}
       </div>
 
       {/* 4 · What changed */}
@@ -184,7 +186,7 @@ export function OverviewDesk({ cur, prev, steps, current, phrase, before, change
       <Tile tint="sky" className="ovd-orders" label="Newest orders">
         <div className="ovd-head">
           <h2 className="ovd-title">Newest orders</h2>
-          <button type="button" className="ovd-link ovd-link-strong" onClick={() => setActiveTab?.("orders")}>All orders <ArrowRight size={14} aria-hidden /></button>
+          <button type="button" className="ovd-link ovd-link-strong" onClick={() => { openOrdersQueue("All orders"); setActiveTab?.("orders"); }}>All orders <ArrowRight size={14} aria-hidden /></button>
         </div>
         {ordersFailed ? failNote
           : !newest ? <p className="ovd-calm">Loading orders…</p>

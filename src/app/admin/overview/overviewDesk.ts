@@ -43,7 +43,9 @@ export function chartScale(max: number): { top: number; ticks: number[] } {
   if (!(max > 0)) return { top: 100, ticks: [0, 25, 50, 75, 100] };
   const raw = max / 4;
   const mag = 10 ** Math.floor(Math.log10(raw));
-  const step = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map(f => f * mag).find(s => s * 4 >= max) || raw;
+  const step = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map(f => f * mag)
+    // Whole-dollar steps once the top is a few dollars, so rounded tick labels never sit at the wrong height.
+    .find(s => s * 4 >= max && (max < 4 || Math.abs(s - Math.round(s)) < 1e-9)) || Math.ceil(raw);
   return { top: step * 4, ticks: [0, 1, 2, 3, 4].map(i => Math.round(step * i * 100) / 100) };
 }
 
