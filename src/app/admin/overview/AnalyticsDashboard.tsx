@@ -37,6 +37,8 @@ import { OverviewNewSales, type NewSalesWidget } from "./OverviewNewSales";
 import { figureSeries, figureSpark, NewestOrdersList } from "./OverviewFiguresViz";
 import { OverviewNewLive, type NewLiveWidget } from "./OverviewNewLive";
 import { NeedsStrip } from "./NeedsStrip";
+import { OverviewDesk } from "./OverviewDesk";
+import { revenueSteps } from "./overviewDesk";
 import { lowestInStock, orderNeeds } from "./needsStrip";
 import { OverviewBoard, useBoardStore, type BoardHeader, type RenderWidget } from "./OverviewBoard";
 import { DEFAULT_FIGURES, FIGURES, widgetMeta, type BoardView, type FigureId } from "./overviewBoard";
@@ -273,6 +275,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
 
   // Real sales only: abandoned/unpaid card attempts and test orders are not orders to look at here.
   const recentOrders = useMemo(() => newestSales(allOrders.orders || []), [allOrders.orders]);
+  const deskSteps = useMemo(() => (periods ? revenueSteps(periods.paid, range) : null), [periods, range]);
 
   const downloadReport = () => {
     if (!periods) return;
@@ -560,6 +563,12 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       </section>
     ),
     needs: <NeedsStrip setActiveTab={setActiveTab} input={needsInput} />,
+    // The Daily desk bento (owner's mockup, 12 November 2026): the first tab's fixed top half.
+    desk: (
+      <OverviewDesk cur={insights?.cur ?? null} prev={insights?.prev ?? null} steps={deskSteps} current={periods?.current || []}
+        phrase={range.phrase} before={range.before} changes={changes} newest={allOrders.orders ? recentOrders.slice(0, 4) : null}
+        needs={needsInput} ordersFailed={allOrders.error} onRetry={refresh} setActiveTab={setActiveTab} />
+    ),
     viewName: range.phrase,
     view, onApplyView: applyView,
     onExport: downloadReport, exportReady: !!periods,

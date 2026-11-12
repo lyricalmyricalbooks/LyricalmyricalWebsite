@@ -32,4 +32,9 @@ describe("sidebar items", () => {
     expect(items.map((i) => i.id)).toEqual(NAV.map((n) => n.id));
     expect(items.find((i) => i.id === "settings")?.children?.length).toBeGreaterThan(0);
   });
+
+  it("groups the pages under Sell, Promote and Shop after Overview (bento shell, 12 November 2026)", () => {
+    const heads = NAV.filter((n) => n.section).map((n) => [n.section, n.id]);
+    expect(heads).toEqual([["Sell", "orders"], ["Promote", "discounts"], ["Shop", "design"]]);
+  });
 });

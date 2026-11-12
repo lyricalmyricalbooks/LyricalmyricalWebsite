@@ -2276,3 +2276,42 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .rp-rs .book-editor-riso .be-back { width: auto; gap: 6px; padding: 0 10px; font-family: var(--rp-font-body); font-weight: 700; font-size: var(--rp-text-sm); }
 .rp-rs .book-editor-riso .be-dirty { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 2px solid var(--rs-ink); background: var(--rp-warning-bg, #f7d774); color: var(--rs-ink); font-family: var(--rp-font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 @media (max-width: 640px) { .rp-rs .book-editor-riso .be-back-word { display: none; } }
+
+/* ── Bento shell (12 November 2026, owner's mockup "Admin Overview v3"): every page ─────────────────────────────
+ * Rail: the one-word wordmark (Lyrical + italic myrical) beside a tomato L with a blue offset, 18px line icons,
+ * Overview then the Sell / Promote / Shop groups under mono headings, rounded items (chosen = paper with a tomato
+ * offset), counts as small tomato squares. Top bar: a mono crumb (page / tab) before search; "Shop open" in green
+ * words with a pulsing dot. */
+.rp:not(.studio-editor) .rp-brand-link .rp-brand-mark { width: 36px; height: 36px; font: 400 22px/1 var(--rp-font-display); font-style: normal; box-shadow: 3px 3px 0 #1b3fe0; }
+.rp:not(.studio-editor) .rp-brand-link .rp-wordmark { font-style: normal; letter-spacing: 0.005em; }
+.rp:not(.studio-editor) .rp-brand-link .rp-wordmark em { font-style: italic; }
+.rp:not(.studio-editor) .rp-nav-item { gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; }
+.rp:not(.studio-editor) .rp-nav-item > svg:first-child { display: inline-block; flex: none; width: 18px; height: 18px; color: var(--rp-on-inverse); opacity: 0.9; }
+.rp:not(.studio-editor) .rp-nav-item[aria-current="page"] { background: var(--rp-on-inverse); color: #100f0d; box-shadow: 3px 3px 0 #e8402a; }
+.rp:not(.studio-editor) .rp-nav-item[aria-current="page"] > svg:first-child { color: #100f0d; opacity: 1; }
+.rp:not(.studio-editor) .rp-nav-item .rp-nav-badge,
+.rp:not(.studio-editor) .rp-nav-item[data-nav]:not([aria-current="page"]) .rp-nav-badge,
+.rp:not(.studio-editor) .rp-nav-item[aria-current="page"] .rp-nav-badge {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: auto; padding: 0 4px; border-radius: 0;
+  background: #e8402a; color: #100f0d; font: 500 11px/1 var(--rp-font-mono);
+}
+.rp:not(.studio-editor) .rp-nav-section { padding: 18px 12px 8px; font: 400 10px/1 var(--rp-font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: rgba(250, 246, 236, 0.55); }
+.rp:not(.studio-editor) .rp-nav-list { display: grid; gap: 2px; }
+.rp:not(.studio-editor) .rp-nav-subitem { border-radius: 8px; }
+.rp-topbar-crumb { display: none; }
+@media (min-width: 1024px) {
+  .rp:not(.studio-editor) .rp-topbar-crumb {
+    display: flex; flex: none; align-items: center; gap: 8px; margin: 0; font: 400 11px/1 var(--rp-font-mono); letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--rp-text-muted); white-space: nowrap;
+  }
+  .rp:not(.studio-editor) .rp-topbar-crumb span + span::before { content: "/"; margin-right: 8px; color: var(--rp-text-subtle); }
+  .rp:not(.studio-editor) .rp-topbar-crumb span:last-child { color: var(--rp-text); font-weight: 500; }
+  .rp:not(.studio-editor) .rp-topbar-search { flex: 1 1 auto; min-width: 120px; max-width: 470px; margin-left: auto; }
+  .rp:not(.studio-editor) .rp-topbar-actions { margin-left: 0; }
+}
+.rp:not(.studio-editor) .rp-status-pill { font: 700 14px/1 var(--rp-font-body); letter-spacing: 0; text-transform: none; color: var(--rp-success); }
+.rp:not(.studio-editor) .rp-status-pill[data-tone="warning"] { color: var(--rp-warning); }
+.rp:not(.studio-editor) .rp-status-pill:not([data-tone]) .rp-status-glyph { position: relative; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--rp-success); font-size: 0; }
+.rp:not(.studio-editor) .rp-status-pill:not([data-tone]) .rp-status-glyph::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--rp-success); animation: rp-shop-pulse 2s ease-out infinite; }
+@keyframes rp-shop-pulse { from { transform: scale(1); opacity: 0.6; } to { transform: scale(3); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .rp:not(.studio-editor) .rp-status-pill .rp-status-glyph::after { animation: none; } }

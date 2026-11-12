@@ -33,7 +33,7 @@ import { AdminPageBoundary } from "./AdminPageBoundary";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { isHelpShortcut } from "./riso/helpShortcut";
-import { NAV, PAGE_COPY, SETTINGS_COPY } from "./riso/nav";
+import { NAV, OVERVIEW_TAB_EVENT, PAGE_COPY, SETTINGS_COPY } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
@@ -273,6 +273,14 @@ export function Dashboard() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // The top bar's crumb (bento shell): the page, then its tab. The Overview says which tab is open with OVERVIEW_TAB_EVENT.
+  const [overviewTab, setOverviewTab] = useState("");
+  useEffect(() => {
+    const on = (e: Event) => setOverviewTab(String((e as CustomEvent).detail || ""));
+    window.addEventListener(OVERVIEW_TAB_EVENT, on);
+    return () => window.removeEventListener(OVERVIEW_TAB_EVENT, on);
   }, []);
 
   const [adminTheme, setAdminTheme] = useState(() => {
@@ -699,7 +707,7 @@ export function Dashboard() {
                 onClick={(e) => { e.preventDefault(); setSidebarOpen(false); void goTo("overview"); }}>
                 <span className="rp-brand-mark" aria-hidden="true">L</span>
                 <span className="rp-brand-text">
-                  <span className="rp-wordmark">Lyrical <em>myrical</em></span>
+                  <span className="rp-wordmark">Lyrical<em>myrical</em></span>
                   <span className="rp-wordmark-sub">Website admin</span>
                 </span>
               </a>
@@ -720,6 +728,12 @@ export function Dashboard() {
             </IconButton>
             {/* Phones: the wordmark sits in the top bar (the rail is a drawer there). */}
             <a className="rp-topbar-wordmark" href="#overview" onClick={(e) => { e.preventDefault(); void goTo("overview"); }}>Lyricalmyrical</a>
+            <p className="rp-topbar-crumb" aria-hidden="true">
+              {(selectedOrder ? ["Orders", "Order detail"]
+                : activeTab === "settings" ? ["Settings", NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === settingsTab)?.label]
+                : activeTab === "overview" ? ["Overview", overviewTab]
+                : [copy.title]).filter(Boolean).map((part, i) => <span key={i}>{part}</span>)}
+            </p>
             <GlobalSearch destinations={destinations} onOpenBook={handleEditBook} shortcut={!showEditor && !(activeTab === "settings" && settingsTab === "designer")}
               appBooks={appSearch.books} appConnected={appSearch.connected} request={searchRequest}
               onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
