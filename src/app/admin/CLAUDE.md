@@ -144,6 +144,22 @@ cream tiles with a 2px ink outline, 18px corners and a 4px shadow (cards, figure
 coupons, reviews, customer tiles), 12px buttons/inputs, pill tabs/filters/badges. Cards in a stack or grid get no extra
 card-after-card margin. Restyle new pages through these classes rather than page-specific overrides.
 
+**Calm v4 (12 November 2026, owner's mockup v4; current standard, wins over the bento notes above):** `riso/calm.css`
+(imported after `riso.css`) restyles the shell (`AppShell className="rp-calm"`, also on the book editor root) and every page
+through `.rp.rp-calm .rp-page …`: `--c-*` tokens (ground #f7f6f2, white cards, tomato accent, pastel sky/mint/butter/blush),
+older `--rp-*`/`--bp-*`/`--rs-*` shadows and borders neutralised, 252px sidebar, 60px top bar, one-row page header
+(28px title + inline description, no eyebrow). Studio never gets `rp-calm`.
+- **Side menu:** `Tabs rail={RailInfo}` portals the tabs as a vertical menu (pastel icon tiles, hint, count pill, `alert` = red)
+  into Dashboard's `.rp-subrail-slot` via `RailHost`; outside that context the tabs render in place. Up/Down move
+  (`nextTabIndex(…, vertical)`). Phones get a chip row. Menus live in `RAILS` (`riso/nav.ts`) and Inventory's `INVENTORY_RAIL`.
+- **Settings stack:** `FlatSubTabs` (true on Settings pages) hides `switch` tab rows and shows every `TabPanel section`; an
+  address naming a sub tab scrolls to it. Shipping uses `shows(v)` + `.rp-flat-anchor` ids.
+- **Overview:** Dashboard renders its `PageHeader` (`ownMasthead = false`); the board head is only periods (Last month, This
+  year, Custom in a More select on desktop) + Add widgets. Desk = revenue card (total, pill, Orders/Average order/Copies sold,
+  chart) + updated line + What changed + Newest orders; Needs you is gone, the Stock menu item shows sold-out + reprint as an alert.
+- **Inventory:** one `.inv-card`: status chips (only ones with titles), search, options popover (low-stock line, drafts,
+  reason), Export, Receive stock; table with cover swatches; footer totals (out of stock filters).
+
 - `riso.css` — semantic `--rp-*` tokens (light + night) and every `rp-*` component
   class; reduced motion, 44px coarse-pointer targets, visible focus, print.
 - `components.tsx` — AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, SectionCard,

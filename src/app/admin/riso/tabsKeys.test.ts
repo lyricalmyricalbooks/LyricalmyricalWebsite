@@ -16,4 +16,9 @@ describe("nextTabIndex", () => {
     expect(nextTabIndex("Tab", 1, 3)).toBeNull();
     expect(nextTabIndex("Home", 0, 0)).toBeNull();
   });
+  it("a side menu also moves with up and down", () => {
+    expect(nextTabIndex("ArrowDown", 0, 3, true)).toBe(1);
+    expect(nextTabIndex("ArrowUp", 0, 3, true)).toBe(2);
+    expect(nextTabIndex("ArrowDown", 0, 3)).toBeNull();
+  });
 });

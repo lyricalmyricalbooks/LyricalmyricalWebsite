@@ -1,16 +1,14 @@
-// The Overview's "Daily desk" bento (owner's mockup "Admin Overview v3", 12 November 2026): a revenue tile with the
-// period's running total against the period before, the Needs you jobs, four stat tiles, What changed and the newest
-// orders. Model: overviewDesk.ts (pure, tested). Figures arrive already worked out by AnalyticsDashboard.
-import type { CSSProperties, ReactNode } from "react";
+// The Overview's "Daily desk" (owner's mockup v4, option 8a, 12 November 2026): a revenue card with the period's
+// total, three figures beside it and the running total against the period before, the updated line, then What changed
+// and the newest orders side by side. Model: overviewDesk.ts (pure, tested). Figures arrive already worked out by AnalyticsDashboard.
+import type { ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { openOrdersQueue } from "../Orders";
 import type { Change } from "./overviewChanges";
 import type { Order, PeriodTotals } from "./overviewInsights";
-import type { NeedsInput, NeedsLink } from "./needsStrip";
-import { needsCalm } from "./needsStrip";
 import { money, orderHref } from "./OverviewParts";
 import {
-  axisDays, biggestOrder, chartScale, copiesIn, deskNeeds, deskOrderPill, initials, plainPhrase, revenueLine, revenuePill,
+  axisDays, biggestOrder, chartScale, copiesIn, deskOrderPill, initials, plainPhrase, revenueLine, revenuePill,
   tileDelta, wholeMoney, type Dir, type RevenueSteps,
 } from "./overviewDesk";
 import "./overviewDesk.css";
@@ -21,7 +19,8 @@ export type DeskProps = {
   steps: RevenueSteps | null; current: Order[];
   phrase: string; before: string;
   changes: Change[] | null; newest: Order[] | null;
-  needs: NeedsInput;
+  /** "Updated 10:10 PM · refreshes every 5 min · Google Analytics", under the revenue card. */
+  status?: ReactNode;
   ordersFailed: boolean; onRetry: () => void;
   setActiveTab?: (tab: string) => void;
 };
@@ -32,8 +31,8 @@ function Delta({ dir, text }: { dir: Dir; text: string }) {
   return <span className="ovd-delta" data-dir={dir}><span aria-hidden="true">{GLYPH[dir]} </span><span className="rp-sr-only">{dir === "same" ? "" : `${dir} `}</span>{text}</span>;
 }
 
-function Tile({ tint, className = "", children, label, style }: { tint: string; className?: string; children: ReactNode; label: string; style?: CSSProperties }) {
-  return <section className={`ovd-tile ${className}`} data-tint={tint} aria-label={label} style={style}>{children}</section>;
+function Tile({ tint, className = "", children, label }: { tint: string; className?: string; children: ReactNode; label: string }) {
+  return <section className={`ovd-tile ${className}`} data-tint={tint} aria-label={label}>{children}</section>;
 }
 
 /** The running total, as steps: now in tomato, the period before dashed, the biggest order on a sticker. */
@@ -80,82 +79,46 @@ function RevenueChart({ steps, current, before }: { steps: RevenueSteps; current
   );
 }
 
-export function OverviewDesk({ cur, prev, steps, current, phrase, before, changes, newest, needs, ordersFailed, onRetry, setActiveTab }: DeskProps) {
-  const go = (to: NeedsLink) => { if (to.queue) openOrdersQueue(to.queue); setActiveTab?.(to.tab); };
-  const jobs = deskNeeds(needs);
+export function OverviewDesk({ cur, prev, steps, current, phrase, before, changes, newest, status, ordersFailed, onRetry, setActiveTab }: DeskProps) {
   const pill = cur && prev ? revenuePill(cur.net, prev.net) : null;
   const wait = ordersFailed ? "—" : "…";
   const failNote = <p className="ovd-note">Orders could not be loaded. <button type="button" className="ovd-link" onClick={onRetry}>Try again</button></p>;
 
-  const stat = (label: string, tint: string, value: string, foot: ReactNode, title?: string, warn?: boolean) => (
-    <Tile tint={tint} className="ovd-stat" label={label}>
-      <h3 className="ovd-label">{label}</h3>
-      <p className="ovd-stat-value" data-warn={warn || undefined} title={title}>{value}</p>
-      <div className="ovd-stat-foot">{foot}</div>
-    </Tile>
+  const figure = (label: string, value: string, delta: ReactNode, title?: string) => (
+    <div className="ovd-fig">
+      <dt className="ovd-label">{label}</dt>
+      <dd className="ovd-fig-value" title={title}>{value}</dd>
+      {delta && <dd className="ovd-fig-delta">{delta}</dd>}
+    </div>
   );
 
   return (
     <div className="ovd" aria-label="Daily desk">
-      {/* 1 · Revenue */}
+      {/* 1 · Revenue: the total, how it moved, three figures beside it and the running total below */}
       <Tile tint="paper" className="ovd-revenue" label="Revenue">
         <div className="ovd-revenue-head">
           <h3 className="ovd-label">Revenue · {plainPhrase(phrase)}</h3>
           <span className="ovd-legend" aria-hidden="true"><span className="ovd-key-now" />Now <span className="ovd-key-before" />Before</span>
         </div>
-        <p className="ovd-hero" title={cur ? money(cur.net) : undefined}>{cur ? wholeMoney(cur.net) : wait}</p>
-        {pill && <span className="ovd-pill" data-dir={pill.dir}><span aria-hidden="true">{GLYPH[pill.dir]} </span>{pill.text}<span className="rp-sr-only"> against {before}</span></span>}
-        {ordersFailed ? failNote : <p className="ovd-copy">{cur && prev ? revenueLine(cur, prev, phrase, before, money) : "Adding up paid orders…"}</p>}
+        <div className="ovd-revenue-row">
+          <div className="ovd-revenue-lead">
+            <p className="ovd-hero" title={cur ? money(cur.net) : undefined}>{cur ? wholeMoney(cur.net) : wait}</p>
+            <div className="ovd-revenue-why">
+              {pill && <span className="ovd-pill" data-dir={pill.dir}><span aria-hidden="true">{GLYPH[pill.dir]} </span>{pill.text}<span className="rp-sr-only"> against {before}</span></span>}
+              {ordersFailed ? failNote : <p className="ovd-copy">{cur && prev ? revenueLine(cur, prev, phrase, before, money) : "Adding up paid orders…"}</p>}
+            </div>
+          </div>
+          <dl className="ovd-figs">
+            {figure("Orders", cur ? cur.orders.toLocaleString() : wait, cur && prev ? <Delta {...tileDelta(cur.orders, prev.orders, "count", money)} /> : null)}
+            {figure("Average order", cur ? wholeMoney(cur.aov) : wait, cur && prev ? <Delta {...tileDelta(cur.aov, prev.aov, "money", money)} /> : null, cur ? money(cur.aov) : undefined)}
+            {figure("Copies sold", cur ? cur.units.toLocaleString() : wait, cur && prev ? <Delta {...tileDelta(cur.units, prev.units, "count", money)} /> : null)}
+          </dl>
+        </div>
         {steps && !ordersFailed && <RevenueChart steps={steps} current={current} before={before} />}
       </Tile>
 
-      {/* 2 · Needs you */}
-      <Tile tint="paper" className="ovd-needs" label="Needs you">
-        <div className="ovd-head">
-          <h2 className="ovd-title">Needs you</h2>
-          {jobs.open !== null && <span className="ovd-count" data-zero={jobs.open === 0 || undefined}>{jobs.open} open</span>}
-        </div>
-        {jobs.next && (
-          <div className="ovd-next">
-            <span className="ovd-label">Next up</span>
-            <p className="ovd-next-title">{jobs.next.text}</p>
-            <p className="ovd-next-detail">{jobs.next.detail}</p>
-            <button type="button" className="ovd-btn" onClick={() => go(jobs.next!.to)}>{jobs.next.action} <ArrowRight size={15} aria-hidden /></button>
-          </div>
-        )}
-        {jobs.rows.length > 0 && (
-          <ul className="ovd-jobs">
-            {jobs.rows.map(j => (
-              <li key={j.id}>
-                <button type="button" className="ovd-job" data-tint={j.tint} onClick={() => go(j.to)}>
-                  <span className="ovd-check" aria-hidden="true" />
-                  <span className="ovd-job-text">
-                    <span className="ovd-job-title">{j.warn && <span aria-hidden="true">⚠ </span>}{j.text}</span>
-                    <span className="ovd-job-detail">{j.detail}</span>
-                  </span>
-                  <span className="ovd-job-go">{j.action && <span>{j.action}</span>}<ArrowRight size={15} aria-hidden /></span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {!jobs.next && jobs.rows.length === 0 && <p className="ovd-calm" role="status">{needsCalm(needs)}</p>}
-        {(jobs.next || jobs.rows.length > 0) && needs.failed && <p className="ovd-note">Some counts could not be loaded.</p>}
-      </Tile>
-
-      {/* 3 · Four stat tiles */}
-      <div className="ovd-stats">
-        {stat("Orders", "sky", cur ? cur.orders.toLocaleString() : wait, cur && prev ? <Delta {...tileDelta(cur.orders, prev.orders, "count", money)} /> : null)}
-        {stat("Average order", "paper", cur ? wholeMoney(cur.aov) : wait, cur && prev ? <Delta {...tileDelta(cur.aov, prev.aov, "money", money)} /> : null, cur ? money(cur.aov) : undefined)}
-        {stat("Copies sold", "mint", cur ? cur.units.toLocaleString() : wait, cur && prev ? <Delta {...tileDelta(cur.units, prev.units, "count", money)} /> : null)}
-        {needs.lowest
-          ? stat("Running low", "butter", `${needs.lowest.stock} left`, <button type="button" className="ovd-warn-link" onClick={() => setActiveTab?.("inventory")}>{needs.lowest.title} · reprint advised</button>, undefined, true)
-          : needs.soldOut
-            ? stat("Running low", "butter", `${needs.soldOut} out`, <button type="button" className="ovd-warn-link" onClick={() => setActiveTab?.("inventory")}>Sold out · reprint or hide</button>, undefined, true)
-            : needs.soldOut === null
-              ? stat("Running low", "butter", needs.failed ? "—" : "…", <span className="ovd-delta" data-dir="same">{needs.failed ? "Stock counts not loaded" : "Counting stock…"}</span>)
-              : stat("Running low", "butter", "None", <span className="ovd-delta" data-dir="same">Nothing close to selling out</span>)}
-      </div>
+      {/* 2 · When the figures were read */}
+      {status && <p className="ovd-updated"><span className="ovd-updated-dot" aria-hidden="true" />{status}</p>}
 
       {/* 4 · What changed */}
       <Tile tint="paper" className="ovd-changes ovd-flush" label="What changed">

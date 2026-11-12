@@ -7,6 +7,7 @@ import { Archive, ArchiveRestore, Mail, MailOpen, Send, Trash2 } from "lucide-re
 import { auth, db } from "../../lib/firebase";
 import { functionFetch } from "../lib/functionsBase";
 import { plainError } from "./plainError";
+import { RAILS } from "./riso/nav";
 import {
   Checkbox, ConfirmDialog, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState,
   SearchField, SecondaryButton, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast,
@@ -199,7 +200,7 @@ function Inbox({ onOpenOrder, onOpenCustomers }: { onOpenOrder?: (id: string) =>
 
   return (
     <div className="rp-stack">
-      <Tabs<Filter> label="Message folder" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
+      <Tabs<Filter> label="Message folder" rail={RAILS.messages} value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
         tabs={([["inbox", "Inbox"], ["unread", "Unread"], ["replied", "Replied"], ["archived", "Archived"]] as const).map(([id, label]) => ({ id, label, count: tabCounts[id] }))} />
       <FilterBar>
         <div className="rp-grow"><SearchField label="Search messages" placeholder="Search name, email or text…" value={q} onChange={(e) => setQ(e.target.value)} /></div>

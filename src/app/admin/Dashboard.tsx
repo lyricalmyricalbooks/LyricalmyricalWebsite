@@ -25,7 +25,7 @@ import toast from "react-hot-toast";
 import { shopDayKey } from "../lib/shopDay";
 import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
-  IconButton, Dialog, ToastProvider, Tabs, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot,
+  IconButton, Dialog, ToastProvider, Tabs, SyncChip, useOnline, LoadingState, PageSkeleton, useConfirm, PageAlertsSlot, RailHost, FlatSubTabs,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog, ShopStatusMenu, DrawerAccount } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";
@@ -33,7 +33,7 @@ import { AdminPageBoundary } from "./AdminPageBoundary";
 import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { useAdminAppManifest } from "./adminApp";
 import { isHelpShortcut } from "./riso/helpShortcut";
-import { NAV, OVERVIEW_TAB_EVENT, PAGE_COPY, SETTINGS_COPY, pageEyebrow } from "./riso/nav";
+import { NAV, OVERVIEW_TAB_EVENT, PAGE_COPY, RAILS, SETTINGS_COPY, pageEyebrow } from "./riso/nav";
 import { OVERVIEW_HASH_EVENT, adminDocumentTitle, hashForRoute, keepsSubTab, routeFromHash, sameSection, searchFromHash, settingsPageOf, subTabPage } from "./adminRoute";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
@@ -82,6 +82,8 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [editingBook, setEditingBook] = useState<any | null>(null);
   const [showEditor, setShowEditor] = useState(false);
+  // The column beside the page that holds its section menu (calm v4); pages draw into it through `RailHost`.
+  const [railEl, setRailEl] = useState<HTMLDivElement | null>(null);
   const [studioLocation, setStudioLocation] = useState<(StudioLocation & { key: number }) | null>(boot.studio ? { ...boot.studio, key: 1 } : null);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(boot.orderId ? { id: boot.orderId } : null);
   const [openGiftCard, setOpenGiftCard] = useState<string | null>(boot.giftCardId || null);
@@ -599,7 +601,7 @@ export function Dashboard() {
           <PrimaryButton onClick={saveSettings}>Save changes</PrimaryButton>
         </>}
       />
-      <Tabs label="Settings pages" idPrefix="settings-page-" variant="page" value={navChild}
+      <Tabs label="Settings pages" idPrefix="settings-page-" variant="page" rail={RAILS.settings} value={navChild}
         tabs={(NAV.find((n) => n.id === "settings")?.children || []).map((c) => ({ id: c.id, label: c.label }))}
         onChange={(id) => { void goToChild("settings", id); }} />
     </>
@@ -657,7 +659,8 @@ export function Dashboard() {
   })();
 
   // The Overview draws its own masthead and shows the alerts under it (PageAlertsSlot); every other page gets them under its PageHeader.
-  const ownMasthead = (activeTab === "overview" || activeTab === "analytics") && !selectedOrder;
+  // Calm v4 (12 November 2026): every page, the Overview too, gets the one-row header; the board draws only its toolbar.
+  const ownMasthead = false;
   const pageAlerts = (
     <AdminAlerts
       alerts={[...settingsAlerts(originalSettings), ...alerts]}
@@ -685,6 +688,7 @@ export function Dashboard() {
         <p style={{ margin: 0 }}>{bookLinkProblem}</p>
       </Dialog>
       <AppShell
+        className="rp-calm"
         appearance={appearance}
         overlay={<SyncChip state={online ? null : "offline"} />}
         sidebar={
@@ -776,21 +780,26 @@ export function Dashboard() {
           </Topbar>
         }
       >
+        <RailHost.Provider value={railEl}>
+        <FlatSubTabs.Provider value={isSettingsPage}>
         <div className={keepsOldLook ? "rp-page" : "rp-page rp-rs"} data-page={activeTab}>
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}
         {!ownMasthead && (settingsHeader || <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}
           eyebrow={pageEyebrow(NAV, selectedOrder ? "orders" : activeTab) || undefined}
           title={selectedOrder && activeTab !== "orders" ? "Order detail" : copy.title}
-          description={keepsOldLook || selectedOrder ? undefined
+          description={selectedOrder ? undefined
             : activeTab === "reviews" && otherBadges.pendingReviews != null ? `${otherBadges.pendingReviews} waiting`
             : activeTab === "messages" && otherBadges.unreadMessages != null ? `${otherBadges.unreadMessages} unread`
             : copy.description}
           actions={headerActions}
         />)}
         {!ownMasthead && pageAlerts}
+        {/* The page's section menu (calm v4): a page's own `Tabs rail` draws itself into this column. */}
+        <div className="rp-page-body">
+        <div className="rp-subrail-slot" ref={setRailEl} />
         {/* Feature pages still use legacy utility classes; scope the compatibility layer to them only. */}
-        <div {...(migrated ? {} : legacyProps)} style={{ background: "transparent", minHeight: 480 }}>
+        <div className={migrated ? "rp-page-main" : `rp-page-main ${legacyProps.className}`} data-admin-theme={migrated ? undefined : legacyProps["data-admin-theme"]} style={{ background: "transparent", minHeight: 480 }}>
           <AnimatePresence mode="wait">
             <m.div
               key={activeTab + (selectedOrder ? "-detail" : "") + settingsTab}
@@ -803,6 +812,9 @@ export function Dashboard() {
           </AnimatePresence>
         </div>
         </div>
+        </div>
+        </FlatSubTabs.Provider>
+        </RailHost.Provider>
       </AppShell>
 
       <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} title="Help & shortcuts" appearance={appearance}
@@ -833,7 +845,7 @@ export function Dashboard() {
       {/* Book Editor Takeover */}
       <AnimatePresence>
         {showEditor && (
-          <div className="rp rp-dialog-root rp-editor-root rp-rs" data-variant="drawer" data-rp-appearance={appearance} style={{ background: "transparent" }}>
+          <div className="rp rp-calm rp-dialog-root rp-editor-root rp-rs" data-variant="drawer" data-rp-appearance={appearance} style={{ background: "transparent" }}>
             <div className="rp-dialog-scrim" aria-hidden="true" />
             <m.div
               initial={{ opacity: 0, x: 32 }}
