@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useContext, useState, useEffect, useMemo, useRef } from "react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { POLICY_KEYS, POLICY_TITLES, policySlug, type PolicyKey } from "../features/site/policyPages";
-import { ActionMenu, Checkbox, ConfirmDialog, LoadingState, MetricCard, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm } from "./riso/components";
+import { ActionMenu, Checkbox, FlatSubTabs, ConfirmDialog, LoadingState, MetricCard, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs, TextArea, TextField, Toggle, useConfirm } from "./riso/components";
 // `m` + the app-wide LazyMotion (domAnimation): the full `motion` component would pull layout/drag code into the shop's first load.
 import { m, AnimatePresence } from "motion/react";
 import { NotificationEditor } from "./NotificationEditor";
@@ -166,6 +166,65 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
     <div className="rp-stack">
       <SettingsTabs label="General settings" tabs={tabs} value={view} onChange={setView} />
 
+      <SettingsGroup id="gs-details" active={view === "gs-details"}>
+        <SettingsAnchor id="gs-identity">
+          <SectionCard title="Store identity" description="Name, blurb, contact.">
+            <div className="rp-stack" style={{ gap: 20 }}>
+              <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+                <TextField label="Publisher name" value={name} maxLength={100} hint={`${name.length} / 100 characters`} onChange={(e) => set("info", { name: e.target.value })} />
+                <TextField label="Contact email" type="email" value={settings.info?.email || ""} placeholder="hello@lyricalmyricalbooks.com" onChange={(e) => set("info", { email: e.target.value })} />
+              </div>
+              <TextArea label="Publisher description" rows={4} value={desc} maxLength={150} hint={`${desc.length} / 150 · search and social previews`} onChange={(e) => set("info", { description: e.target.value })} />
+            </div>
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="gs-location">
+          <SectionCard title="Location" description="Where parcels ship from.">
+            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <TextField label="Street address" value={settings.location?.street || ""} placeholder="456 Montrose Avenue" onChange={(e) => set("location", { street: e.target.value })} />
+              </div>
+              <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
+              <TextField label="State / province" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
+              <TextField label="Postal code" value={settings.location?.zip || ""} placeholder="M6G 3H1" autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />
+              <SelectField label="Country" value={settings.location?.country || "Canada"} onChange={(e) => set("location", { country: e.target.value })}>
+                {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
+              </SelectField>
+              <TextField label="Phone" type="tel" value={settings.location?.phone || ""} placeholder="647 409 6863" autoComplete="tel"
+                hint="On labels, for the carrier." onChange={(e) => set("location", { phone: e.target.value })} />
+            </div>
+            <p className="rp-hint" style={{ margin: "12px 0 0" }}>The “from” address on labels and live rates.</p>
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="gs-policies">
+          <SectionCard title="Store policies" description="Footer links. Blank ones hide.">
+            <div className="rp-stack" style={{ gap: 20 }}>
+              {POLICY_KEYS.map((k) => {
+                const text: string = settings.policies?.[k] || "";
+                return (
+                  <div key={k}>
+                    <TextArea label={POLICY_TITLES[k]} rows={5} maxLength={20000} value={text}
+                      hint={text.trim() ? `Live at /page/${policySlug(k)}` : "Hidden until it has text."}
+                      onChange={(e) => set("policies", { [k]: e.target.value })} />
+                    {!text.trim() && (
+                      <SecondaryButton size="sm" onClick={() => set("policies", { [k]: POLICY_STARTERS[k] })}>Insert starter text</SecondaryButton>
+                    )}
+                  </div>
+                );
+              })}
+              <p className="rp-hint" style={{ margin: 0 }}>Starter text is a sketch, not legal advice.</p>
+            </div>
+          </SectionCard>
+        </SettingsAnchor>
+        <SettingsAnchor id="gs-domain">
+          <SectionCard title="Domain & visibility" description="For your records.">
+            <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="lyricalmyricalbooks.com"
+              hint="Doesn't move the shop. The domain is already live."
+              onChange={(e) => set("domain", { custom: e.target.value })} />
+          </SectionCard>
+        </SettingsAnchor>
+      </SettingsGroup>
+
       <SettingsGroup id="gs-store" active={view === "gs-store"}>
         <SettingsAnchor id="gs-status">
           <SectionCard title="Store status" description="Open, paused or behind the wall.">
@@ -225,65 +284,6 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
                   onChange={(e) => set("stockHolds", { [f.key]: e.target.value === "" ? "" : Math.max(0, Math.floor(Number(e.target.value))) })} />
               ))}
             </div>
-          </SectionCard>
-        </SettingsAnchor>
-      </SettingsGroup>
-
-      <SettingsGroup id="gs-details" active={view === "gs-details"}>
-        <SettingsAnchor id="gs-identity">
-          <SectionCard title="Store identity" description="Name, blurb, contact.">
-            <div className="rp-stack" style={{ gap: 20 }}>
-              <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-                <TextField label="Publisher name" value={name} maxLength={100} hint={`${name.length} / 100 characters`} onChange={(e) => set("info", { name: e.target.value })} />
-                <TextField label="Contact email" type="email" value={settings.info?.email || ""} placeholder="hello@lyricalmyricalbooks.com" onChange={(e) => set("info", { email: e.target.value })} />
-              </div>
-              <TextArea label="Publisher description" rows={4} value={desc} maxLength={150} hint={`${desc.length} / 150 · search and social previews`} onChange={(e) => set("info", { description: e.target.value })} />
-            </div>
-          </SectionCard>
-        </SettingsAnchor>
-        <SettingsAnchor id="gs-location">
-          <SectionCard title="Location" description="Where parcels ship from.">
-            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-              <div style={{ gridColumn: "1 / -1" }}>
-                <TextField label="Street address" value={settings.location?.street || ""} placeholder="456 Montrose Avenue" onChange={(e) => set("location", { street: e.target.value })} />
-              </div>
-              <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
-              <TextField label="State / province" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
-              <TextField label="Postal code" value={settings.location?.zip || ""} placeholder="M6G 3H1" autoComplete="postal-code" onChange={(e) => set("location", { zip: e.target.value })} />
-              <SelectField label="Country" value={settings.location?.country || "Canada"} onChange={(e) => set("location", { country: e.target.value })}>
-                {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
-              </SelectField>
-              <TextField label="Phone" type="tel" value={settings.location?.phone || ""} placeholder="647 409 6863" autoComplete="tel"
-                hint="On labels, for the carrier." onChange={(e) => set("location", { phone: e.target.value })} />
-            </div>
-            <p className="rp-hint" style={{ margin: "12px 0 0" }}>The “from” address on labels and live rates.</p>
-          </SectionCard>
-        </SettingsAnchor>
-        <SettingsAnchor id="gs-policies">
-          <SectionCard title="Store policies" description="Footer links. Blank ones hide.">
-            <div className="rp-stack" style={{ gap: 20 }}>
-              {POLICY_KEYS.map((k) => {
-                const text: string = settings.policies?.[k] || "";
-                return (
-                  <div key={k}>
-                    <TextArea label={POLICY_TITLES[k]} rows={5} maxLength={20000} value={text}
-                      hint={text.trim() ? `Live at /page/${policySlug(k)}` : "Hidden until it has text."}
-                      onChange={(e) => set("policies", { [k]: e.target.value })} />
-                    {!text.trim() && (
-                      <SecondaryButton size="sm" onClick={() => set("policies", { [k]: POLICY_STARTERS[k] })}>Insert starter text</SecondaryButton>
-                    )}
-                  </div>
-                );
-              })}
-              <p className="rp-hint" style={{ margin: 0 }}>Starter text is a sketch, not legal advice.</p>
-            </div>
-          </SectionCard>
-        </SettingsAnchor>
-        <SettingsAnchor id="gs-domain">
-          <SectionCard title="Domain & visibility" description="For your records.">
-            <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="lyricalmyricalbooks.com"
-              hint="Doesn't move the shop. The domain is already live."
-              onChange={(e) => set("domain", { custom: e.target.value })} />
           </SectionCard>
         </SettingsAnchor>
       </SettingsGroup>
@@ -423,6 +423,14 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
   const [editingProfile, setEditingProfile] = useState<any | null>(null);
   const [profileView, setProfileView] = useState<"zones" | "rules" | "books" | "test">("zones");
   const [shippingView, setShippingView] = useSubTab<"overview" | "profiles" | "carrier" | "local">(onSubTabChange ? "overview" : initialView, subTab, onSubTabChange);
+  // Settings pages are one page of cards (calm v4): every part of Shipping shows at once, and the part the address
+  // (or a button) names scrolls into view.
+  const flatPage = useContext(FlatSubTabs);
+  const shows = (v: string) => flatPage || shippingView === v;
+  useEffect(() => {
+    if (!flatPage || shippingView === "overview") return;
+    document.getElementById(`ship-sec-${shippingView}`)?.scrollIntoView({ block: "start" });
+  }, [flatPage, shippingView, selectedProfileId]);
   
   // Modals visibility
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -969,14 +977,13 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
           { id: "carrier", label: "Labels", count: carrierProblems.length || undefined },
           { id: "local", label: "Pickup & local" },
         ]} />
-        {shippingView === "local" && <LocalFulfillmentSettings draft={localFulfillmentDraft} />}
-        {(shippingView === "overview" || shippingView === "profiles") && (profilesError || booksError) && (
+        {(shows("overview") || shows("profiles")) && (profilesError || booksError) && (
           <ErrorState title="Couldn't load shipping details"
             description={profilesError ? "Your shipping profiles couldn't be read, so this page may look empty when it isn't. Check your connection and try again." : "Your catalog couldn't be read, so assigned-book counts and checks may be wrong. Check your connection and try again."}
             onRetry={() => { if (profilesError) refreshProfiles(); if (booksError) loadBooks(); }} />
         )}
 
-        {shippingView === "overview" && (
+        {shows("overview") && (
           <>
             <section className="rp-kpi-grid" aria-label="Shipping in numbers">
               <MetricCard label="Profiles" value={shippingSummary.profileCount} footer={`${shippingSummary.assignedProductCount} books moved to a profile`} />
@@ -998,8 +1005,52 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
           </>
         )}
 
-        {shippingView === "carrier" && renderTabProblems(carrierProblems)}
-        {shippingView === "carrier" && (
+
+        <span id="ship-sec-profiles" className="rp-flat-anchor" />
+        {shows("profiles") && (
+        <>
+        {renderTabProblems(profileProblems)}
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <PrimaryButton size="sm" onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>
+        </div>
+
+        <NewShippingProfileDialog open={isCreatingProfile} onClose={() => setIsCreatingProfile(false)} profiles={profiles} onCreate={handleCreateProfile} />
+
+        {profiles.length === 0 && profilesError ? null : profiles.length === 0 ? (
+          <EmptyState icon="🚚" title="No shipping profiles" description="Customers can't check out until a profile has a zone and a rate."
+            action={<PrimaryButton onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>} />
+        ) : (
+          <ul className="rp-list" style={{ margin: 0, border: "var(--rp-stroke) solid var(--rp-border-strong)", background: "var(--rp-surface)" }} aria-label="Shipping profiles">
+            {profiles.map((p: any) => {
+              const assigned = getAssignedProducts(p.id);
+              const noRates = !(p.zones || []).some((z: any) => z.rates?.length);
+              return (
+                <li key={p.id} style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
+                  <div style={{ minWidth: 0, flex: "1 1 260px" }}>
+                    <button type="button" className="rp-wb-a" style={{ fontSize: "var(--rp-text-md, 16px)", overflowWrap: "anywhere", textAlign: "left" }} onClick={() => handleSelectProfile(p)}>{p.name || "Untitled profile"}</button>{" "}
+                    {p.id === "general-profile" && <StatusBadge tone="primary">Default</StatusBadge>}{" "}
+                    {noRates && <StatusBadge tone="warning">No rates yet</StatusBadge>}
+                    <div className="rp-hint" style={{ marginTop: 4, overflowWrap: "anywhere" }}>
+                      {profileSummary(p)} · {p.id === "general-profile" ? "all other books" : `${assigned.length} book${assigned.length === 1 ? "" : "s"}`}
+                    </div>
+                  </div>
+                  <span style={{ display: "inline-flex", gap: 12, alignItems: "center" }}>
+                    <button type="button" className="rp-wb-a" onClick={() => handleSelectProfile(p)} aria-label={`Edit ${p.name || "profile"}`}>Edit</button>
+                    <ActionMenu label={`More for ${p.name || "profile"}`} actions={[
+                      { label: duplicatingId === p.id ? "Duplicating…" : "Duplicate", onSelect: () => { if (!duplicatingId) handleDuplicateProfile(p); } },
+                      ...(p.id !== "general-profile" ? [{ label: "Delete", tone: "danger" as const, onSelect: () => handleDeleteProfile(p.id) }] : []),
+                    ]} />
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        </>
+        )}
+        <span id="ship-sec-carrier" className="rp-flat-anchor" />
+        {shows("carrier") && renderTabProblems(carrierProblems)}
+        {shows("carrier") && (
         <SectionCard title="Shippo connection" description="Address checks, live rates, labels."
           actions={!shippoLoading && <StatusBadge tone={!shippoConnected ? "warning" : shippoConfig?.mode === "test" ? "warning" : "success"}>{!shippoConnected ? "Not connected" : shippoConfig?.mode === "test" ? "Connected · TEST key" : shippoConfig?.mode === "live" ? "Connected · LIVE" : "Connected"}</StatusBadge>}>
           {!shippoLoading && !shippoConnected && (
@@ -1087,49 +1138,9 @@ export function ShippingSettings({ profiles, profilesError = false, refreshProfi
           )}
         </SectionCard>
         )}
-        {shippingView === "carrier" && <AddressFinderCard />}
-
-        {shippingView === "profiles" && (
-        <>
-        {renderTabProblems(profileProblems)}
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <PrimaryButton size="sm" onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>
-        </div>
-
-        <NewShippingProfileDialog open={isCreatingProfile} onClose={() => setIsCreatingProfile(false)} profiles={profiles} onCreate={handleCreateProfile} />
-
-        {profiles.length === 0 && profilesError ? null : profiles.length === 0 ? (
-          <EmptyState icon="🚚" title="No shipping profiles" description="Customers can't check out until a profile has a zone and a rate."
-            action={<PrimaryButton onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>} />
-        ) : (
-          <ul className="rp-list" style={{ margin: 0, border: "var(--rp-stroke) solid var(--rp-border-strong)", background: "var(--rp-surface)" }} aria-label="Shipping profiles">
-            {profiles.map((p: any) => {
-              const assigned = getAssignedProducts(p.id);
-              const noRates = !(p.zones || []).some((z: any) => z.rates?.length);
-              return (
-                <li key={p.id} style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
-                  <div style={{ minWidth: 0, flex: "1 1 260px" }}>
-                    <button type="button" className="rp-wb-a" style={{ fontSize: "var(--rp-text-md, 16px)", overflowWrap: "anywhere", textAlign: "left" }} onClick={() => handleSelectProfile(p)}>{p.name || "Untitled profile"}</button>{" "}
-                    {p.id === "general-profile" && <StatusBadge tone="primary">Default</StatusBadge>}{" "}
-                    {noRates && <StatusBadge tone="warning">No rates yet</StatusBadge>}
-                    <div className="rp-hint" style={{ marginTop: 4, overflowWrap: "anywhere" }}>
-                      {profileSummary(p)} · {p.id === "general-profile" ? "all other books" : `${assigned.length} book${assigned.length === 1 ? "" : "s"}`}
-                    </div>
-                  </div>
-                  <span style={{ display: "inline-flex", gap: 12, alignItems: "center" }}>
-                    <button type="button" className="rp-wb-a" onClick={() => handleSelectProfile(p)} aria-label={`Edit ${p.name || "profile"}`}>Edit</button>
-                    <ActionMenu label={`More for ${p.name || "profile"}`} actions={[
-                      { label: duplicatingId === p.id ? "Duplicating…" : "Duplicate", onSelect: () => { if (!duplicatingId) handleDuplicateProfile(p); } },
-                      ...(p.id !== "general-profile" ? [{ label: "Delete", tone: "danger" as const, onSelect: () => handleDeleteProfile(p.id) }] : []),
-                    ]} />
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        </>
-        )}
+        {shows("carrier") && <AddressFinderCard />}
+        <span id="ship-sec-local" className="rp-flat-anchor" />
+        {shows("local") && <LocalFulfillmentSettings draft={localFulfillmentDraft} />}
         {confirmNode}
       </div>
     );

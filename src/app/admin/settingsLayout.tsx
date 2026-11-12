@@ -39,7 +39,7 @@ export function SettingsTabs({ tabs, value, onChange, label }: { tabs: SettingsT
 /** One topic of a settings page: the sub tab's panel and its cards, spaced like Inventory's. */
 export function SettingsGroup({ id, active, children }: { id: string; active: boolean; children: ReactNode }) {
   return (
-    <TabPanel tabId={id} active={active}>
+    <TabPanel tabId={id} active={active} section>
       <div className="rp-stack rp-settings-grid">
         {children}
       </div>

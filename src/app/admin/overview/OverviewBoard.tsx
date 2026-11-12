@@ -15,7 +15,7 @@ import {
 import { CHART_METRICS, type ChartMetric } from "./overviewSeries";
 import { readLocalBoards, readRemoteBoards, writeLocalBoards, writeRemoteBoards } from "./overviewBoardStore";
 import { OVERVIEW_HASH_EVENT } from "../adminRoute";
-import { OVERVIEW_TAB_EVENT } from "../riso/nav";
+import { OVERVIEW_TAB_EVENT, RAILS } from "../riso/nav";
 import {
   DEFAULT_TAB, hashForTab, readSavedTab, saveTab, settleTab, tabForType, tabFromHash, topTabs,
   type OverviewTab, type TopTab,
@@ -98,8 +98,9 @@ type Focus = { kind: "widget"; id: string } | { kind: "type"; type: WidgetType }
 const bandMeta = (id: BandId) => BANDS.find(b => b.id === id)!;
 /** A topic tab's name: the first topic is the Daily desk (owner's mockup, 12 November 2026). */
 const tabTitle = (id: BandId) => (id === "today" ? "Daily desk" : bandMeta(id).title);
-/** Widgets the Daily desk bento already shows, so the board doesn't repeat them under it. */
-const DESK_COVERS = new Set<WidgetType>(["needs", "changes", "newest"]);
+/** Widgets the Daily desk already shows, so the board doesn't repeat them under it. Every open job stays: the calm v4
+ * desk dropped its Needs you card, so the board's widget is where open jobs show on the first tab. */
+const DESK_COVERS = new Set<WidgetType>(["changes", "newest"]);
 const SAVE_WORDS: Record<SaveState, string> = {
   loading: "Opening your boards…", saving: "Saving…", saved: "✓ Saved to your account", local: "⚠ Saved on this browser only", error: "✕ Not saved to your account",
 };
@@ -226,8 +227,10 @@ export type BoardHeader = {
   figures?: ReactNode;
   /** The ink "Needs you" strip, right under the title (live, not tied to the period). */
   needs?: ReactNode;
-  /** The Daily desk bento shown at the top of the first tab (it carries its own Needs you and figures). */
+  /** The Daily desk shown at the top of the first tab (revenue, what changed, newest orders). */
   desk?: ReactNode;
+  /** Titles sold out or running low (null = not counted yet): the red count on Stock in the section menu. */
+  stockAlert?: number | null;
   /** The period's name ("the last 12 months"), for "Open this board on these dates". */
   viewName: string;
   view: BoardView;
@@ -240,7 +243,7 @@ export type BoardHeader = {
 function periodKeys(e: ReactKeyboardEvent<HTMLDivElement>) {
   const btn = (e.target as HTMLElement).closest?.(".rp-wb-seg button") as HTMLButtonElement | null;
   if (!btn) return;
-  const all = Array.from(btn.parentElement?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") || []);
+  const all = Array.from(btn.parentElement?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") || []).filter(b => b.offsetParent !== null);
   const i = all.indexOf(btn);
   const to = e.key === "ArrowRight" || e.key === "ArrowDown" ? all[(i + 1) % all.length]
     : e.key === "ArrowLeft" || e.key === "ArrowUp" ? all[(i - 1 + all.length) % all.length]
@@ -629,14 +632,13 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
   const pageAlerts = useContext(PageAlertsSlot);
   const head = (
     <>
+      {/* Calm v4: the shell draws the title; the board opens with its toolbar (period, comparison, Add widgets). */}
       <header className="rp-wb-head">
         <div className="rp-wb-head-title">
-          <div className="rp-ovb-titles">
-            <p className="rp-ovb-eyebrow"><span aria-hidden="true" className="rp-ovb-square" />At a glance · {tabName}</p>
-            <h1 className="rp-page-title rp-wb-h1">Overview</h1>
-            <p className="rp-ovb-desc">Sales, orders, and catalog health at a glance.</p>
-          </div>
           <div className="rp-wb-period" ref={periodRef} role="group" aria-label="Period and comparison" onKeyDown={periodKeys}>{header.period}</div>
+          <PrimaryButton size="sm" className="rp-wb-addbtn" onClick={() => openTray("all")} data-new={unseenNew || undefined}>
+            <Plus size={14} aria-hidden /> Add widgets{unseenNew && <span className="rp-wb-newdot" aria-label="(new widgets)" />}
+          </PrimaryButton>
         </div>
       </header>
       {!onDesk && header.needs}
@@ -689,8 +691,9 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
     <div className="rp-wb-figures">
       {!onDesk && header.figures}
       <div className="rp-wb-meta">
-        <span className="rp-wb-updated"><span className="rp-wb-dot" aria-hidden="true" />
-          <span className="rp-wb-lbl" aria-live="polite">{header.updated}</span>
+        {/* The Daily desk says when it was updated under its revenue card; here only the refresh button stays. */}
+        <span className="rp-wb-updated">{!onDesk && <><span className="rp-wb-dot" aria-hidden="true" />
+          <span className="rp-wb-lbl" aria-live="polite">{header.updated}</span></>}
           <IconButton className="rp-wb-refresh" label={header.refreshing ? "Refreshing…" : "Refresh the figures"} onClick={header.onRefresh} disabled={header.refreshing}>
             <RefreshCw size={14} aria-hidden data-spin={header.refreshing || undefined} />
           </IconButton>
@@ -783,8 +786,9 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
       {/* Sub tabs: one per topic (Everything = the whole board), and a second row inside Visitors. */}
       <div className="rp-wb-tabsrow">
         <div className="rp-wb-tabs">
-        <Tabs<TopTab> variant="page" label="Overview topics" idPrefix="overview-" value={tab.band} onChange={band => openTab({ band, sub: "all" })}
-          tabs={topTabs(board, editing).map(id => ({ id, label: id === "all" ? "Everything" : tabTitle(id) }))} />
+        <Tabs<TopTab> variant="page" label="Overview topics" idPrefix="overview-" rail={RAILS.overview} value={tab.band} onChange={band => openTab({ band, sub: "all" })}
+          tabs={topTabs(board, editing).map(id => ({ id, label: id === "all" ? "Everything" : tabTitle(id),
+            ...(id === "stock" && header.stockAlert ? { count: header.stockAlert, alert: true } : {}) }))} />
         </div>
       </div>
       {onDesk && header.desk}
@@ -807,9 +811,6 @@ export function OverviewBoard({ store, setStore, saveState, saveError, onRetrySa
               : { label: "Compact spacing", onSelect: () => commit(b => ({ ...b, density: "compact" })) },
             { label: allFolded ? "Unfold everything" : "Fold everything", onSelect: () => commit(b => collapseEverything(b, !allFolded)) },
           ]} />
-          <PrimaryButton size="sm" className="rp-wb-addbtn" onClick={() => openTray("all")} data-new={unseenNew || undefined}>
-            <Plus size={14} aria-hidden /> Add widgets{unseenNew && <span className="rp-wb-newdot" aria-label="(new widgets)" />}
-          </PrimaryButton>
         </div>
       )}
 

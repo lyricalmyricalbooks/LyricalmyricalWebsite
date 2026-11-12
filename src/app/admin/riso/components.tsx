@@ -5,9 +5,11 @@ import {
 } from "react";
 import {
   AlertTriangle, BookOpen, Check, ChevronDown, ChevronRight, CircleDashed, CreditCard, Gift, Globe, Hourglass, Inbox, LayoutGrid, Lock,
-  Minus, Package, Percent, RotateCw, Search, Tag, Truck, Waves, X,
+  Minus, Package, Percent, RotateCw, Search, Tag, Truck, Waves, X, type LucideIcon,
 } from "lucide-react";
+import { createPortal } from "react-dom";
 import "./riso.css";
+import "./calm.css";
 import { useFocusTrap } from "../../lib/useFocusTrap";
 export { useFocusTrap };
 
@@ -15,13 +17,14 @@ const cx = (...p: Array<string | false | null | undefined>) => p.filter(Boolean)
 
 /* ── Shell ───────────────────────────────────────────────────────────── */
 
-export function AppShell({ appearance = "light", sidebar, topbar, children, mainId = "rp-main", overlay }: {
+export function AppShell({ appearance = "light", sidebar, topbar, children, mainId = "rp-main", overlay, className }: {
   appearance?: "light" | "dark";
+  /** A look layered over the whole shell ("rp-calm": the calm v4 admin). */ className?: string;
   sidebar: ReactNode; topbar: ReactNode; children: ReactNode; mainId?: string;
   /** Fixed-position app-level UI (e.g. SyncChip) that must inherit the shell tokens. */ overlay?: ReactNode;
 }) {
   return (
-    <div className="rp" data-rp-appearance={appearance}>
+    <div className={cx("rp", className)} data-rp-appearance={appearance}>
       <a className="rp-skip-link" href={`#${mainId}`}>Skip to content</a>
       <div className="rp-app">
         {sidebar}
@@ -405,32 +408,106 @@ export function Pagination({ page, pageCount, onPage }: { page: number; pageCoun
 }
 
 /** Which tab a key moves to: arrows step (wrapping), Home / End jump to the first / last. `null` = not a tab key. */
-export function nextTabIndex(key: string, index: number, count: number): number | null {
+export function nextTabIndex(key: string, index: number, count: number, vertical = false): number | null {
   if (count < 1) return null;
-  if (key === "ArrowRight") return (index + 1) % count;
-  if (key === "ArrowLeft") return (index + count - 1) % count;
+  // A side menu answers ↑ ↓ too (and ← → still, for when phones lay it out as a row).
+  if (key === "ArrowRight" || (vertical && key === "ArrowDown")) return (index + 1) % count;
+  if (key === "ArrowLeft" || (vertical && key === "ArrowUp")) return (index + count - 1) % count;
   if (key === "Home") return 0;
   if (key === "End") return count - 1;
   return null;
 }
 
-export function Tabs<T extends string>({ tabs, value, onChange, label, idPrefix = "", variant }: {
-  /** `unsaved` marks a sub tab holding edits that aren't saved yet (a dot, read out as "unsaved changes"). */
-  tabs: Array<{ id: T; label: string; count?: number; unsaved?: boolean }>; value: T; onChange: (id: NoInfer<T>) => void; label: string;
+/**
+ * The side menu of a page's sections (calm v4, 12 November 2026): the page's icon and name over one row per section,
+ * each with a pastel icon tile, its name, a one-line hint and an optional count. `sections` gives each tab id its hint,
+ * icon and (Settings only) group heading; a tab without an entry still shows, with the page's icon.
+ */
+export type RailInfo = {
+  title: string; icon: LucideIcon;
+  sections: Record<string, { hint?: string; icon?: LucideIcon; group?: string }>;
+};
+
+/**
+ * Where a page's section menu goes: the shell's column beside the page (Dashboard). `undefined` = no shell around
+ * (Studio fixture, tests): the tabs draw as a normal row. `null` = the column isn't mounted yet: nothing draws.
+ */
+export const RailHost = createContext<HTMLElement | null | undefined>(undefined);
+
+/**
+ * Settings pages are one page of cards (calm v4: no third-level tabs). Inside, a `switch` tab row draws nothing and
+ * every `TabPanel` with `section` shows; the address bar's sub tab still scrolls to its section.
+ */
+export const FlatSubTabs = createContext(false);
+
+type TabItem<T extends string> = { id: T; label: string; count?: number; unsaved?: boolean; alert?: boolean };
+
+export function Tabs<T extends string>({ tabs, value, onChange, label, idPrefix = "", variant, rail }: {
+  /** `unsaved` marks a sub tab holding edits that aren't saved yet (a dot, read out as "unsaved changes").
+   *  `alert` draws its count in red (something needs the owner). */
+  tabs: Array<TabItem<T>>; value: T; onChange: (id: NoInfer<T>) => void; label: string;
   /** Keeps button ids unique when two tab rows on one page share a tab id (the Overview's "all"). */
   idPrefix?: string;
   /** "page" draws a plain underlined row for a page's own sections; "switch" is the ink bar under a page title
    *  (Settings pages, Shipping, Email sender, Inventory); filter rows keep the boxed look. */
   variant?: "page" | "switch";
+  /** The page's sections: drawn as the side menu beside the page when the shell has one (`RailHost`). */
+  rail?: RailInfo;
 }) {
+  const host = useContext(RailHost);
+  const flat = useContext(FlatSubTabs);
+  const vertical = !!rail && host !== undefined;
   const onKey = (e: React.KeyboardEvent, i: number) => {
-    const to = nextTabIndex(e.key, i, tabs.length);
+    const to = nextTabIndex(e.key, i, tabs.length, vertical);
     if (to === null) return;
     e.preventDefault();
     const next = tabs[to];
     onChange(next.id);
     requestAnimationFrame(() => document.getElementById(`rp-tab-${idPrefix}${next.id}`)?.focus());
   };
+  const extras = (t: TabItem<T>) => <>
+    {t.unsaved && <><span aria-hidden="true" className="rp-tab-unsaved">●</span><span className="rp-sr-only">(unsaved changes)</span></>}
+  </>;
+  if (rail && host !== undefined) {
+    if (!host) return null;
+    let lastGroup: string | undefined;
+    return createPortal(
+      <nav className="rp-subrail" aria-label={label}>
+        <div className="rp-subrail-head">
+          <span className="rp-subrail-mark" aria-hidden="true"><rail.icon size={20} /></span>
+          <span>
+            <span className="rp-subrail-title">{rail.title}</span>
+            <span className="rp-subrail-count">{tabs.length} {tabs.length === 1 ? "section" : "sections"}</span>
+          </span>
+        </div>
+        <div role="tablist" aria-orientation="vertical" aria-label={label} className="rp-subrail-list">
+          {tabs.map((t, i) => {
+            const info = rail.sections[t.id] || {};
+            const Icon = info.icon || rail.icon;
+            const group = info.group !== lastGroup ? info.group : undefined;
+            lastGroup = info.group;
+            const on = value === t.id;
+            return (
+              <Fragment key={t.id}>
+                {group && <span className="rp-subrail-group" aria-hidden="true">{group}</span>}
+                <button id={`rp-tab-${idPrefix}${t.id}`} type="button" role="tab" className="rp-subrail-item" data-tone={i % 4}
+                  aria-selected={on} tabIndex={on ? 0 : -1} onClick={() => onChange(t.id)} onKeyDown={(e) => onKey(e, i)}>
+                  <span className="rp-subrail-tile" aria-hidden="true"><Icon size={18} /></span>
+                  <span className="rp-subrail-text">
+                    <span className="rp-subrail-label">{t.label}{extras(t)}</span>
+                    {info.hint && <span className="rp-subrail-hint">{info.hint}</span>}
+                  </span>
+                  {t.count !== undefined && <span className="rp-subrail-pill" data-alert={(t.alert && t.count > 0) || undefined}>{t.count}</span>}
+                </button>
+              </Fragment>
+            );
+          })}
+        </div>
+      </nav>,
+      host,
+    );
+  }
+  if (flat && variant === "switch") return null;
   return (
     <div className="rp-tabs" data-variant={variant} role="tablist" aria-label={label}>
       {tabs.map((t, i) => (
@@ -438,7 +515,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, label, idPrefix 
           aria-selected={value === t.id} tabIndex={value === t.id ? 0 : -1}
           onClick={() => onChange(t.id)} onKeyDown={(e) => onKey(e, i)}>
           {t.label}{t.count !== undefined && <span className="rp-tab-count">{t.count}</span>}
-          {t.unsaved && <><span aria-hidden="true" className="rp-tab-unsaved">●</span><span className="rp-sr-only">(unsaved changes)</span></>}
+          {extras(t)}
         </button>
       ))}
     </div>
@@ -447,9 +524,23 @@ export function Tabs<T extends string>({ tabs, value, onChange, label, idPrefix 
 
 /**
  * The content of one sub tab, labelled by its `Tabs` button (`tabId` = that tab's id). Hidden tabs stay mounted, so
- * edits typed on one sub tab survive switching to another.
+ * edits typed on one sub tab survive switching to another. `section` = one of a Settings page's topics: on a flat
+ * page (`FlatSubTabs`) it always shows, and the one the address names scrolls into view.
  */
-export function TabPanel({ tabId, active, children }: { tabId: string; active: boolean; children: ReactNode }) {
+export function TabPanel({ tabId, active, children, section }: { tabId: string; active: boolean; children: ReactNode; section?: boolean }) {
+  const flat = useContext(FlatSubTabs) && !!section;
+  const ref = useRef<HTMLDivElement>(null);
+  const mounted = useRef(false);
+  useEffect(() => {
+    const first = !mounted.current;
+    mounted.current = true;
+    if (!flat || !active) return;
+    // On opening the page only a sub tab the address names (the first one has no slug) moves it; later, a section that
+    // becomes the chosen one (a button or an alert asked for it) always scrolls into view.
+    if (first && typeof window !== "undefined" && window.location.hash.split("/").length < 3) return;
+    ref.current?.scrollIntoView({ block: "start" });
+  }, [flat, active]);
+  if (flat) return <div ref={ref} id={`rp-panel-${tabId}`} className="rp-flat-section">{children}</div>;
   return <div role="tabpanel" id={`rp-panel-${tabId}`} aria-labelledby={`rp-tab-${tabId}`} hidden={!active}>{children}</div>;
 }
 

@@ -625,7 +625,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
       </nav>
 
 
-      <TabPanel tabId="email-setup" active={view === "email-setup"}>
+      <TabPanel section tabId="email-setup" active={view === "email-setup"}>
       <div className="rp-stack">
       <GmailSendingCard lastProblem={lastGmailProblem(deliveries || [])} />
 
@@ -697,7 +697,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
       </div>
       </TabPanel>
 
-      <TabPanel tabId="email-templates" active={view === "email-templates"}>
+      <TabPanel section tabId="email-templates" active={view === "email-templates"}>
       <div className="rp-stack">
       <div>
         <Tabs label="Event group" value={group} onChange={pickGroup}
@@ -816,7 +816,7 @@ export function NotificationEditor({ focus, subTab, onSubTabChange }: {
       </div>
       </TabPanel>
 
-      <TabPanel tabId="email-deliveries" active={view === "email-deliveries"}>
+      <TabPanel section tabId="email-deliveries" active={view === "email-deliveries"}>
       <div className="rp-stack">
       {queueError && queue.length === 0 && (
         <SectionCard title="Waiting to send" collapsible={false}>

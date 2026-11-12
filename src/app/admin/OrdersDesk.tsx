@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OrderDetail } from "./OrderDetail";
 import { Orders, loadOrderBooks, loadOrderSearchCatalog, patchOrdersCache, refreshOrdersCache } from "./Orders";
+import { RAILS } from "./riso/nav";
 import { EmptyState, LoadingState, MetricCard, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, Tabs, Toggle } from "./riso/components";
 import { NEEDS_ME_QUEUES, nextToOpen, rowBooks, rowCover, rowStatus, refundState, stepOrder, deskQueue } from "./ordersDesk";
 import { badgeText, gridCounts, gridOrders, itemCount, outsideQueue, paymentChip, shipsTo, stationQueue, stationStats, stationStep, type GridSort, type GridTab } from "./shipStation";
@@ -286,6 +287,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
             label="Order lists"
             value={only ? "open" : tab}
             onChange={pickTab}
+            rail={RAILS.orders}
             tabs={[{ id: "open", label: "Open", count: counts.open }, { id: "completed", label: "Completed", count: counts.completed }, { id: "all", label: "All orders", count: counts.all }]}
           />
           <div className="od-grid-tools">

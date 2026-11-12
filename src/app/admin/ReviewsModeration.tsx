@@ -7,6 +7,7 @@ import { resolveProductRoutes } from "../features/site/productRoutes";
 import { db } from "../../lib/firebase";
 import { reviewsApi, type Review } from "../lib/reviews";
 import { loadMorePending, loadReviewQueue, PENDING_PAGE, type QueueDoc } from "./reviewQueue";
+import { RAILS } from "./riso/nav";
 import {
   ActionMenu, Checkbox, ConfirmDialog, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState, PrimaryButton,
   SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, Tabs, TextArea, ToastProvider, useRisoToast, type BadgeTone,
@@ -205,7 +206,7 @@ function Queue() {
 
   return (
     <div className="rp-stack">
-      <Tabs<Filter> label="Review status" value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
+      <Tabs<Filter> label="Review status" rail={RAILS.reviews} value={filter} onChange={(f) => { setFilter(f); setSelected(new Set()); }}
         tabs={(["pending", "approved", "rejected", "all"] as const).map((f) => {
           const label = f[0].toUpperCase() + f.slice(1);
           // Only pending is complete once the newest-200 cap is hit; say so instead of a wrong total.

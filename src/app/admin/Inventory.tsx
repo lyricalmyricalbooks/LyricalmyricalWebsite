@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, History, Minus, PackagePlus, Plus } from "lucide-react";
+import { Boxes, Download, ExternalLink, History, Layers, Minus, PackagePlus, Plus, SlidersHorizontal } from "lucide-react";
 import { adminApi } from "./api";
 import { getOrdersCached } from "./ordersCache";
 import { inventoryApi, type InventoryLogEntry } from "./inventoryApi";
@@ -14,9 +14,9 @@ import {
   type AdjustReason, type InventoryRow, type StockChange, type StockStatus,
 } from "./inventoryInsights";
 import {
-  Checkbox, DataTable, Dialog, Drawer, EmptyState, ErrorState, FilterBar, GhostButton, IconButton, LoadingState, MetricCard,
-  Pagination, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TabPanel, Tabs,
-  ToastProvider, useRisoToast, type BadgeTone, type Column,
+  Checkbox, DataTable, Dialog, Drawer, EmptyState, ErrorState, IconButton, InkButton, LoadingState,
+  Pagination, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, TabPanel, Tabs,
+  ToastProvider, useRisoToast, type BadgeTone, type Column, type RailInfo,
 } from "./riso/components";
 
 const TONE: Record<StockStatus, BadgeTone> = {
@@ -25,6 +25,17 @@ const TONE: Record<StockStatus, BadgeTone> = {
 /** Phone rows say a status as glyph + word, like the badges do. */
 const GLYPH: Partial<Record<BadgeTone, string>> = { danger: "✕", warning: "⚠", success: "✓", info: "◷" };
 const PAGE_SIZE = 25;
+/** The status filters; the toolbar shows only those with titles in them, plus All and the open one. */
+const STATUS_CHIPS: Array<{ id: Tab; label: string }> = [
+  { id: "all", label: "All" }, { id: "out", label: "Out of stock" }, { id: "low", label: "Low stock" }, { id: "reprint", label: "Reprint soon" },
+  { id: "ok", label: "In stock" }, { id: "digital", label: "Digital" }, { id: "untracked", label: "Not tracked" }, { id: "other", label: "Box sets & gift cards" },
+];
+const INVENTORY_RAIL: RailInfo = {
+  title: "Inventory", icon: Boxes,
+  sections: { "inv-stock": { hint: "Counts and receiving", icon: Layers }, "inv-link": { hint: "Link, matches and sync", icon: ExternalLink } },
+};
+/** A cover stand-in when a book has no photo: one of four pastel blocks, the same for a book every time. */
+const swatchTone = (id: string) => [...String(id)].reduce((n, c) => n + c.charCodeAt(0), 0) % 4;
 type Tab = "all" | "out" | "low" | "reprint" | "ok" | "digital" | "untracked" | "other";
 const inTab = (r: InventoryRow, t: Tab) => t === "all" || (t === "other" ? r.status === "bundle" || r.status === "giftCard" : r.status === t);
 const money = (n: number) => `CA$${n.toFixed(2)}`;
@@ -82,6 +93,8 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<Set<string>>(new Set());
   const [receiving, setReceiving] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const toolsRef = useRef<HTMLDivElement>(null);
   const [receive, setReceive] = useState<Record<string, string>>({});
   const [costDrafts, setCostDrafts] = useState<Record<string, string>>({});
   const [results, setResults] = useState<Record<string, { ok: boolean; text: string }>>({});
@@ -323,6 +336,8 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
 
   const columns: Column<InventoryRow>[] = [
     { key: "title", header: "Title", lead: true, render: (r) => (
+      <div className="inv-title-cell">
+      <span className="inv-swatch" data-tone={swatchTone(r.bookId)} aria-hidden="true">{rowCoverUrl(r) ? <img src={rowCoverUrl(r)} alt="" loading="lazy" decoding="async" /> : null}</span>
       <div style={{ overflowWrap: "anywhere", minWidth: 150 }}>
         {onEditBook
           ? <button type="button" className="rp-row-link"
@@ -333,6 +348,7 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
           {r.shelfLocation && <> · Shelf <span className="rp-mono">{r.shelfLocation}</span></>}
           {r.archived && " · Archived"}{r.draft && " · Draft"}{r.backorder && r.editable && " · Backorders on"}
         </div>
+      </div>
       </div>
     ) },
     { key: "stock", header: "On hand", render: stockCell },
@@ -394,62 +410,71 @@ function InventoryPage({ onEditBook, onAddBook, subTab, onSubTabChange }: Invent
           <SecondaryButton size="sm" onClick={load}>Retry</SecondaryButton>
         </div>
       )}
-      <Tabs variant="switch" label="Inventory" value={view} onChange={setView} tabs={[
+      <Tabs variant="switch" label="Inventory" value={view} onChange={setView} rail={INVENTORY_RAIL} tabs={[
         { id: "inv-stock", label: "Stock" },
         { id: "inv-link", label: "Inventory app" },
       ]} />
       <TabPanel tabId="inv-stock" active={view === "inv-stock"}>
-      <div className="rp-stack">
-      <div className="rp-kpi-grid inv-figures">
-        <MetricCard label="Units on hand" value={sum.units} footer="Counted print editions" />
-        <MetricCard label="Stock value" value={`CA$${sum.value.toFixed(0)}`}
-          footer={sum.costedRows ? `At retail · CA$${sum.costValue.toFixed(0)} at cost (${sum.costedRows} of ${sum.countedRows} costed)` : "At retail price"} />
-        <MetricCard label="Out of stock" value={sum.out} tone={sum.out ? "danger" : undefined} footer="Cannot be bought" />
-        <MetricCard label="Low / reprint soon" value={sum.low + sum.reprint} tone={sum.low + sum.reprint ? "warn" : undefined} footer={`${sum.low} low · ${sum.reprint} selling fast`} />
-      </div>
-      <div className="inv-status"><Tabs<Tab> label="Stock status" value={tab} onChange={setTab}
-        tabs={[
-          { id: "all", label: "All", count: counts.all }, { id: "out", label: "Out of stock", count: counts.out },
-          { id: "low", label: "Low stock", count: counts.low }, { id: "reprint", label: "Reprint soon", count: counts.reprint },
-          { id: "ok", label: "In stock", count: counts.ok }, { id: "digital", label: "Digital", count: counts.digital },
-          { id: "untracked", label: "Not tracked", count: counts.untracked }, { id: "other", label: "Box sets & gift cards", count: counts.other },
-        ]} /></div>
-      <div className="rp-hint inv-threshold" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", margin: 0 }}>
-        <label htmlFor="inv-low-stock-line">Show “Low stock” at or below</label>
-        <input id="inv-low-stock-line" className="rp-input rp-mono" type="number" min={0} inputMode="numeric" style={{ width: 72, textAlign: "right" }}
-          value={thresholdDraft} aria-describedby="inv-low-stock-help"
-          onChange={(e) => setThresholdDraft(e.target.value)} onBlur={saveThreshold} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
-        <span id="inv-low-stock-help">copies. Saved for the whole shop.</span>
-      </div>
-      <FilterBar>
-        <div className="rp-grow"><SearchField label="Search titles" placeholder="Search titles or shelf…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <Checkbox label={`Show drafts & archived (${hiddenCount})`} checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
-        <SecondaryButton className="inv-export" icon={<Download size={16} aria-hidden />} onClick={exportCsv}>Export CSV</SecondaryButton>
-      </FilterBar>
-      <div className="inv-list">
-      <SectionCard flush collapsible={false} title={receiving ? "Receive stock" : "Inventory"}
-        description={receiving
-          ? "+12 adds, -3 removes, =40 sets. Then Save all."
-          : "Type a count and press Enter, or use − / +. Sales count themselves."}
-        actions={
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end" }}>
-            <SelectField label="Reason for changes" value={reason} onChange={(e) => setReason(e.target.value as AdjustReason)}>
-              {ADJUST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+      {/* One card (calm v4): filters, search and actions in one toolbar, the table, a line of totals. */}
+      <section className="inv-card" aria-label="Stock">
+        <div className="inv-toolbar">
+          <div className="inv-status"><Tabs<Tab> label="Stock status" value={tab} onChange={setTab}
+            tabs={STATUS_CHIPS.filter((c) => c.id === "all" || c.id === tab || counts[c.id] > 0).map((c) => ({ ...c, count: counts[c.id] }))} /></div>
+          {receiving && (
+            <SelectField label="Reason" hideLabel className="inv-reason" value={reason} onChange={(e) => setReason(e.target.value as AdjustReason)}>
+              {ADJUST_REASONS.map((r) => <option key={r} value={r}>Reason · {r}</option>)}
             </SelectField>
-            {receiving ? (
-              <>
-                <GhostButton disabled={bulkSaving} onClick={() => { setReceiving(false); setReceive({}); setCostDrafts({}); setResults({}); }}>Leave receive mode</GhostButton>
-                <PrimaryButton disabled={bulkSaving || (!pendingReceive.length && !pendingCosts.length)} onClick={saveReceiving}>
-                  {bulkSaving ? "Saving…" : `Save all (${pendingReceive.length + pendingCosts.length})`}</PrimaryButton>
-              </>
-            ) : <PrimaryButton icon={<PackagePlus size={16} aria-hidden />} onClick={() => { setReceiving(true); setResults({}); }}>Receive stock</PrimaryButton>}
+          )}
+          <SearchField className="inv-search" label="Search titles" placeholder="Search titles or shelf…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <div className="inv-tools" ref={toolsRef}
+            onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setToolsOpen(false); }}
+            onKeyDown={(e) => { if (e.key === "Escape" && toolsOpen) { setToolsOpen(false); toolsRef.current?.querySelector("button")?.focus(); } }}>
+            <IconButton label="Stock options" aria-expanded={toolsOpen} aria-controls="inv-options" onClick={() => setToolsOpen((o) => !o)}>
+              <SlidersHorizontal size={16} aria-hidden />
+            </IconButton>
+            <div id="inv-options" className="inv-options" hidden={!toolsOpen}>
+              <div className="inv-threshold">
+                <label htmlFor="inv-low-stock-line">Show “Low stock” at or below</label>
+                <span className="inv-threshold-row">
+                  <input id="inv-low-stock-line" className="rp-input rp-mono" type="number" min={0} inputMode="numeric"
+                    value={thresholdDraft} aria-describedby="inv-low-stock-help"
+                    onChange={(e) => setThresholdDraft(e.target.value)} onBlur={saveThreshold} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+                  <span id="inv-low-stock-help" className="rp-hint">copies, for the whole shop</span>
+                </span>
+              </div>
+              <Checkbox label={`Show drafts & archived (${hiddenCount})`} checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
+              {!receiving && (
+                <SelectField label="Reason for − / + changes" value={reason} onChange={(e) => setReason(e.target.value as AdjustReason)}>
+                  {ADJUST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                </SelectField>
+              )}
+            </div>
           </div>
-        }>
+          <IconButton label="Export CSV" onClick={exportCsv}><Download size={16} aria-hidden /></IconButton>
+          {receiving ? (
+            <>
+              <button type="button" className="inv-leave" disabled={bulkSaving} onClick={() => { setReceiving(false); setReceive({}); setCostDrafts({}); setResults({}); }}>Leave</button>
+              <PrimaryButton className="inv-save-all" disabled={bulkSaving || (!pendingReceive.length && !pendingCosts.length)} onClick={saveReceiving}>
+                {bulkSaving ? "Saving…" : `Save all (${pendingReceive.length + pendingCosts.length})`}</PrimaryButton>
+            </>
+          ) : <InkButton icon={<PackagePlus size={16} aria-hidden />} onClick={() => { setReceiving(true); setResults({}); }}>Receive stock</InkButton>}
+        </div>
         {phone && !receiving ? phoneSheet : <DataTable caption="Inventory" columns={columns} rows={pageRows} rowKey={(r) => r.id} empty={emptyList} />}
         {!receiving && rows.length > PAGE_SIZE && <Pagination page={Math.min(page, pageCount)} pageCount={pageCount} onPage={setPage} />}
-      </SectionCard>
-      </div>
-      </div>
+        <div className="inv-foot">
+          {receiving ? <span>+12 adds, −3 removes, =40 sets. Then Save all.</span> : (
+            <span className="inv-foot-stats">
+              <span><b className="rp-mono">{sum.units}</b> units on hand</span>
+              <span title={sum.costedRows ? `CA$${sum.costValue.toFixed(0)} at cost (${sum.costedRows} of ${sum.countedRows} costed)` : undefined}><b className="rp-mono">CA${sum.value.toFixed(0)}</b> at retail</span>
+              {sum.out > 0
+                ? <button type="button" className="inv-foot-out" aria-pressed={tab === "out"} onClick={() => setTab(tab === "out" ? "all" : "out")}><b className="rp-mono">{sum.out}</b> out of stock</button>
+                : <span><b className="rp-mono">0</b> out of stock</span>}
+              {sum.low + sum.reprint > 0 && <span><b className="rp-mono">{sum.low + sum.reprint}</b> low / reprint soon</span>}
+            </span>
+          )}
+          <span className="inv-foot-count rp-mono">Showing {pageRows.length} of {rows.length}</span>
+        </div>
+      </section>
       </TabPanel>
       <TabPanel tabId="inv-link" active={view === "inv-link"}>
         <div className="rp-stack">

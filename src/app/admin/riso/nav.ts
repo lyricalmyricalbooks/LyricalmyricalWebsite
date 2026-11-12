@@ -1,8 +1,9 @@
 import {
   BookOpen, Settings, Inbox, LayoutDashboard, BadgePercent, Star, ShoppingCart, Users, Boxes, Gift,
-  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail,
+  SlidersHorizontal, Truck, CreditCard, Receipt, Palette, Mail, Store, Percent, Wallet, Search, UserRound, Layers, LayoutGrid,
+  PackageOpen, PackageCheck, Clock, Check, X, MailOpen, Archive,
 } from "lucide-react";
-import type { NavEntry } from "./components";
+import type { NavEntry, RailInfo } from "./components";
 
 export const NAV: NavEntry[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -80,3 +81,44 @@ export const SETTINGS_COPY: Record<string, { description: string; action?: { lab
 
 /** The Overview tells the top bar's crumb which of its tabs is open ("Daily desk"); the detail is the tab's name. */
 export const OVERVIEW_TAB_EVENT = "lm:overview-tab";
+
+/**
+ * Each page's section menu (calm v4 mockup, 12 November 2026): the hint under each section and its icon. Settings
+ * groups its pages as Store, Money and Email. A section missing here still shows, with the page's icon.
+ */
+export const RAILS: Record<"settings" | "overview" | "orders" | "reviews" | "messages", RailInfo> = {
+  settings: { title: "Settings", icon: Settings, sections: {
+    general: { hint: "Name and contact", icon: Store, group: "Store" },
+    shipping: { hint: "Zones and rates", icon: Truck, group: "Store" },
+    payments: { hint: "Stripe and payouts", icon: CreditCard, group: "Money" },
+    taxes: { hint: "Rates by region", icon: Percent, group: "Money" },
+    notifications: { hint: "Sender and emails", icon: Mail, group: "Email" },
+  } },
+  overview: { title: "Overview", icon: LayoutDashboard, sections: {
+    today: { hint: "Today at a glance", icon: LayoutDashboard },
+    sales: { hint: "Revenue and payouts", icon: Wallet },
+    titles: { hint: "Every book side by side", icon: BookOpen },
+    traffic: { hint: "Traffic and sources", icon: Users },
+    search: { hint: "Searches and page speed", icon: Search },
+    customers: { hint: "Who buys and comes back", icon: UserRound },
+    stock: { hint: "What is running low", icon: Layers },
+    all: { hint: "The whole board", icon: LayoutGrid },
+  } },
+  orders: { title: "Orders", icon: ShoppingCart, sections: {
+    open: { hint: "Waiting to pack or ship", icon: PackageOpen },
+    completed: { hint: "Delivered and closed", icon: PackageCheck },
+    all: { hint: "Every order", icon: ShoppingCart },
+  } },
+  reviews: { title: "Reviews", icon: Star, sections: {
+    pending: { hint: "Waiting for you", icon: Clock },
+    approved: { hint: "Live on the shop", icon: Check },
+    rejected: { hint: "Hidden", icon: X },
+    all: { hint: "Every review", icon: Star },
+  } },
+  messages: { title: "Messages", icon: Inbox, sections: {
+    inbox: { hint: "Everything open", icon: Inbox },
+    unread: { hint: "Needs a reply", icon: Mail },
+    replied: { hint: "You answered", icon: MailOpen },
+    archived: { hint: "Put away", icon: Archive },
+  } },
+};
