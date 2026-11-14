@@ -14,21 +14,14 @@ beforeEach(() => {
 });
 
 describe("OrdersDesk", () => {
-  it("a link to one order opens the Ship station: header, numbered queue and the full order page", () => {
+  it("a link to one order opens it full width: no counters, no queue column beside it", () => {
     const html = renderToStaticMarkup(<OrdersDesk selectedId="ABC" onSelect={() => {}} />);
-    // Inventory's figures strip, and no second heading repeating the page title.
-    expect(html).toContain('class="rp-kpi-grid od-figures" aria-label="Ship station today"');
-    expect(html).not.toContain('class="od-title">Ship station</h2>');
-    expect(html).toContain("Labels today");
-    expect(html).toContain("Print pick list");
-    expect(html).toContain(">All orders<");
-    expect(html).toContain("Not in this queue");
-    // The right side is the real order page (Stripe sync, refunds, labels).
+    // The real order page (Stripe sync, refunds, labels) is the whole view.
     expect(html).toContain('data-order-detail="ABC"');
-    expect(html).toContain("Shortcuts:");
-    // Empty side lists read as plain text, not links that open an empty page.
-    expect(html).toContain('<span class="rp-hint">0 on the way</span>');
-    expect(html).not.toContain('class="od-link">0 on the way');
+    expect(html).not.toContain('aria-label="Ship station today"');
+    expect(html).not.toContain("Labels today");
+    expect(html).not.toContain('aria-label="Ship queue"');
+    expect(html).not.toContain("Not in this queue");
   });
 
   it("never opens on the table view", () => {
@@ -43,7 +36,7 @@ describe("OrdersDesk", () => {
     // The page title (Orders) comes from the admin shell; the desk adds no second heading.
     expect(html).not.toContain("All orders</h2>");
     expect(html).toContain('data-variant="page"');
-    for (const label of ["Open", "Completed", "All orders", "Export orders", "Covers", "Ship station"]) expect(html).toContain(label);
+    for (const label of ["Open", "Completed", "All orders", "Export orders", "Covers", "Ship station", "Print pick list"]) expect(html).toContain(label);
     expect(html).not.toContain("data-order-detail");
     expect(html).toContain('aria-selected="true" tabindex="0">Open<');
     expect(html).toContain('<option value="newest" selected="">Newest first');

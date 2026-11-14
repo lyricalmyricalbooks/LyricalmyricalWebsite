@@ -784,7 +784,8 @@ export function Dashboard() {
         <FlatSubTabs.Provider value={isSettingsPage}>
         <div className={keepsOldLook ? "rp-page" : "rp-page rp-rs"} data-page={activeTab}>
         {/* The Overview board draws its own header (title, period, layout and Edit board). */}
-        {!ownMasthead && (settingsHeader || <PageHeader
+        {/* An open order draws its own header (customer name, one status, its actions): no "Orders" title above it. */}
+        {!ownMasthead && !(selectedOrder && activeTab === "orders") && (settingsHeader || <PageHeader
           breadcrumbs={trail.length > 2 ? <Breadcrumbs trail={trail} /> : undefined}
           eyebrow={pageEyebrow(NAV, selectedOrder ? "orders" : activeTab) || undefined}
           title={selectedOrder && activeTab !== "orders" ? "Order detail" : copy.title}

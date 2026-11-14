@@ -4,7 +4,7 @@ import { Orders, loadOrderBooks, loadOrderSearchCatalog, patchOrdersCache, refre
 import { RAILS } from "./riso/nav";
 import { EmptyState, LoadingState, MetricCard, PrimaryButton, SearchField, SecondaryButton, SelectField, StatusBadge, Tabs, Toggle } from "./riso/components";
 import { NEEDS_ME_QUEUES, nextToOpen, rowBooks, rowCover, rowStatus, refundState, stepOrder, deskQueue } from "./ordersDesk";
-import { badgeText, gridCounts, gridOrders, itemCount, outsideQueue, paymentChip, shipsTo, stationQueue, stationStats, stationStep, type GridSort, type GridTab } from "./shipStation";
+import { badgeText, gridCounts, gridOrders, itemCount, outsideQueue, paymentChip, stationQueue, stationStats, stationStep, type GridSort, type GridTab } from "./shipStation";
 import { listDate, orderMoney, waitedText } from "./orderListHelpers";
 import { printOrders } from "./orderPrint";
 import { queueOf } from "./fulfillment";
@@ -43,7 +43,6 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   const [sort, setSort] = useState<GridSort>("newest");
   const [shown, setShown] = useState(PAGE);
   const [showTest, setShowTest] = useState(false);
-  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia?.("(max-width: 900px)").matches);
   const [phone, setPhone] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(PHONE_MQ).matches);
   const [phoneTab, setPhoneTab] = useState<PhoneTab>("ship");
   const refreshing = useRef<Promise<void> | null>(null);
@@ -75,15 +74,12 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
     const timer = window.setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
     const onVisible = () => { if (!document.hidden && Date.now() - lastRefresh.current > REFRESH_MS / 2) refresh(); };
     document.addEventListener("visibilitychange", onVisible);
-    const mq = window.matchMedia?.("(max-width: 900px)");
-    const onMq = () => setNarrow(!!mq?.matches);
-    mq?.addEventListener?.("change", onMq);
     const pq = window.matchMedia?.(PHONE_MQ);
     const onPq = () => setPhone(!!pq?.matches);
     pq?.addEventListener?.("change", onPq);
     return () => {
       window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible);
-      mq?.removeEventListener?.("change", onMq); pq?.removeEventListener?.("change", onPq);
+      pq?.removeEventListener?.("change", onPq);
     };
   }, []);
 
@@ -106,31 +102,27 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
   const counts = useMemo(() => gridCounts(orders || [], showTest), [orders, showTest]);
   useEffect(() => setShown(PAGE), [tab, phoneTab, only, gridQuery, sort, showTest]);
 
-  // Desktop: have an order open — the oldest one that needs you — unless the owner closed it.
+  // The Ship station always has an order open — the oldest one that needs you — unless the owner closed it.
   useEffect(() => {
-    if (narrow || !orders || layout !== "desk" || closedByOwner) return;
+    if (!orders || layout !== "desk" || closedByOwner) return;
     if (!selectedId) {
       const next = nextToOpen(list, null);
       if (next) onSelect(next);
     }
-  }, [orders, list, selectedId, narrow, layout, closedByOwner]);
+  }, [orders, list, selectedId, layout, closedByOwner]);
 
   const open = (id: string | null) => { if (id) setClosedByOwner(false); onSelect(id); };
   // Phones: an order opened from elsewhere (top-bar search, an alert) opens full screen in the station.
   useEffect(() => { if (phone && selectedId && layout !== "desk") setLayout("desk"); }, [phone, selectedId, layout]);
 
-  // Keyboard: j / k next / previous order, "/" search, Escape clears the search.
-  const keys = useRef({ ids, selectedId, query });
-  keys.current = { ids, selectedId, query };
+  // Keyboard: j / k next / previous order in the ship queue.
+  const keys = useRef({ ids, selectedId });
+  keys.current = { ids, selectedId };
   useEffect(() => {
     if (layout !== "desk") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
-      const search = document.querySelector<HTMLInputElement>(".od-list-head input[type=search]");
-      if (e.key === "Escape" && e.target === search && keys.current.query) { setQuery(""); search?.blur(); return; }
       if (typingIn(e.target) || document.querySelector("[role='dialog']")) return;
-      if (e.key === "/") { e.preventDefault(); search?.focus(); return; }
-      if (e.key === "Escape" && keys.current.query) { setQuery(""); return; }
       const key = String(e.key || "").toLowerCase();
       if (key === "j" || key === "k") {
         const next = stepOrder(keys.current.ids, keys.current.selectedId, key === "j" ? 1 : -1);
@@ -141,7 +133,7 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
     return () => window.removeEventListener("keydown", onKey);
   }, [layout]);
 
-  const pickLayout = (l: Layout) => setLayout(l);
+  const pickLayout = (l: Layout) => { if (l === "desk") setClosedByOwner(false); setLayout(l); };
   const pickTab = (t: GridTab) => { setTab(t); setOnly(""); };
   const showOnly = (o: Exclude<Only, "">) => { setOnly(o); setGridQuery(""); pickLayout("grid"); };
   // From the covers page: open the order in the station (it stays open even when it isn't in the queue).
@@ -302,6 +294,9 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
             </div>
             <div className="od-head-actions od-grid-actions">
               <PrimaryButton onClick={() => pickLayout("desk")}>Ship station · {stats.toShip} to ship →</PrimaryButton>
+              <SecondaryButton disabled={!toPack.length} onClick={printPickList} title={toPack.length ? `Every book for the ${toPack.length} order${toPack.length === 1 ? "" : "s"} still to pack` : "Nothing to pack right now"}>
+                Print pick list
+              </SecondaryButton>
               <SecondaryButton onClick={() => pickLayout("table")}>Export orders</SecondaryButton>
             </div>
           </div>
@@ -354,93 +349,40 @@ export function OrdersDesk({ selectedId, onSelect }: { selectedId: string | null
     );
   }
 
-  const listPane = (
-    <aside aria-label="Ship queue" className="od-list">
-      <div className="od-list-head">
-        <SearchField label="Find an order" placeholder="Order, name, email, phone, postcode, book or ISBN" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <div className="od-head-actions" style={{ gap: 8 }}>
-          <SecondaryButton size="sm" disabled={!toPack.length} onClick={printPickList} title={toPack.length ? `Every book for the ${toPack.length} order${toPack.length === 1 ? "" : "s"} still to pack` : "Nothing to pack right now"}>
-            Print pick list
-          </SecondaryButton>
-          <SecondaryButton size="sm" onClick={() => pickLayout("grid")}>All orders</SecondaryButton>
-        </div>
-        <p className="rp-label" style={{ margin: 0 }}>Up next · problems, packing, then labels</p>
-      </div>
-      {loadProblem}
-      {notLoaded || (list.length === 0 ? (
-        <div style={{ padding: 20 }}>
+  // Concept A "Next step" (14 November 2026): an open order fills the page. No queue column and no counters beside it;
+  // the order's own pager ("2 of 5 to ship", J / K) moves through the queue, and All orders goes back to the covers.
+  const backToOrders = () => { setClosedByOwner(true); onSelect(null); if (!phone) setLayout("grid"); };
+  if (!selectedId) {
+    return (
+      <div className="rp-stack" style={{ gap: 18 }}>
+        <style>{DESK_CSS}</style>
+        {loadProblem}
+        {notLoaded || (
           <EmptyState
-            title={query ? "No orders match" : "All caught up"}
-            description={query ? "Try a different name, email or order number, or search All orders." : "Nothing to pack or ship right now. New paid orders appear here first."}
+            title="All caught up"
+            description="Nothing to pack or ship right now. New paid orders open here first."
+            action={<SecondaryButton onClick={() => pickLayout("grid")}>All orders</SecondaryButton>}
           />
-        </div>
-      ) : (
-        <ol className="od-rows">
-          {list.map((o, i) => {
-            const step = stationStep(o);
-            const books = (o.items || []).reduce((n: number, it: any) => n + (Number(it.quantity) || 0), 0);
-            const where = shipsTo(o);
-            const titles = rowBooks(o);
-            const cover = rowCover(o, booksById);
-            return (
-              <li key={o.id}>
-                <button type="button" className={`od-row${o.id === selectedId ? " is-on" : ""}`} aria-current={o.id === selectedId ? "true" : undefined} onClick={() => open(o.id)}>
-                  <span className="od-num rp-mono" aria-hidden="true">{i + 1}</span>
-                  <span className="od-cover" aria-hidden="true">{cover ? <img src={cover} alt="" loading="lazy" decoding="async" /> : null}</span>
-                  <span className="od-row-body">
-                    <span className="od-row-top"><strong>{o.customer?.name || "—"}</strong><StatusBadge tone={step.tone}>{step.text}</StatusBadge></span>
-                    <span className="od-row-mid">{titles || `${books} book${books === 1 ? "" : "s"}`}{where ? ` · ${where}` : ""}</span>
-                    <span className="od-row-bot"><span className="rp-mono rp-hint">{o.orderId || o.id}</span><span className="rp-hint">{listDate(o.paidAt || o.createdAt)}{o.isTest ? " · test" : ""}</span></span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-      ))}
-      <div className="od-list-foot">
-        <p className="rp-label" style={{ margin: 0 }}>Not in this queue</p>
-        {/* A list with nothing in it isn't a link: it reads as plain text so the ones with orders stand out. */}
-        {([
-          ["Awaiting release", outside.preorders, `pre-order${outside.preorders === 1 ? "" : "s"} waiting for release`],
-          ["Unpaid", outside.waitingPayment, "waiting on an e-Transfer or cash payment"],
-          ["In transit", outside.inTransit, "on the way"],
-        ] as const).map(([key, n, words]) => n > 0
-          ? <button key={key} type="button" className="od-link" onClick={() => showOnly(key)}>{n} {words}</button>
-          : <span key={key} className="rp-hint">{n} {words}</span>)}
-        {testToggle}
-        {narrow ? null : <p className="rp-hint" style={{ margin: 0 }} aria-label="Keyboard shortcuts">
-          Shortcuts: <kbd>J</kbd> / <kbd>K</kbd> next · previous order, <kbd>/</kbd> search, <kbd>Esc</kbd> clear search
-        </p>}
+        )}
       </div>
-    </aside>
-  );
+    );
+  }
 
   // onChanged: the order page just read this order, so drop it into the list instead of reloading every order.
-  const detailPane = selectedId ? (
+  return (
     <section aria-label="Selected order" className="od-detail">
+      <style>{DESK_CSS}</style>
+      {loadProblem}
       <OrderDetail
         key={selectedId}
         orderId={selectedId}
-        onClose={() => { setClosedByOwner(true); onSelect(null); }}
+        onClose={backToOrders}
         queueIds={ids.includes(selectedId) ? ids : [selectedId, ...ids]}
+        queueCount={ids.length}
         onNavigate={(id) => open(id)}
         onChanged={(order) => { if (order?.id) setOrders(patchOrdersCache(order)); }}
       />
     </section>
-  ) : (
-    <section className="od-detail od-empty"><EmptyState title="All caught up" description="Pick an order in the queue, or open All orders." /></section>
-  );
-
-
-  return (
-    <div className="rp-stack" style={{ gap: 18 }}>
-      <style>{DESK_CSS}</style>
-      {narrow && selectedId ? null : header}
-      <div className="od-desk">
-        {narrow ? (selectedId ? detailPane : listPane) : (<>{listPane}{detailPane}</>)}
-      </div>
-    </div>
   );
 }
 

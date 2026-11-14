@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Phone use of the order workbench: a tap on a book line ticks it, and a tap on a step jumps to it.
+// Phone use of the order workbench: a tap on a book line ticks it, and the step's main button is the one pinned to the bottom.
 import { afterEach, expect, it, vi } from "vitest";
 import { createElement as h, act } from "react";
 import { createRoot } from "react-dom/client";
@@ -41,9 +41,9 @@ async function mount(onCheck: (i: number) => void, busy = false) {
 it("ticks a book line when the line itself is tapped, once when the checkbox is tapped", async () => {
   const onCheck = vi.fn();
   const el = await mount(onCheck);
-  const lines = el.querySelectorAll<HTMLLIElement>(".fw-items li[data-tick]");
+  const lines = el.querySelectorAll<HTMLLIElement>(".op-items li[data-tick]");
   expect(lines).toHaveLength(2);
-  await act(async () => { (lines[1].querySelector(".fw-item-name") as HTMLElement).click(); });
+  await act(async () => { (lines[1].querySelector(".op-item-name") as HTMLElement).click(); });
   expect(onCheck).toHaveBeenCalledWith(1);
   onCheck.mockClear();
   await act(async () => { (lines[0].querySelector("input") as HTMLInputElement).click(); });
@@ -55,7 +55,7 @@ it("doesn't tick a line when its text is being selected", async () => {
   const onCheck = vi.fn();
   const el = await mount(onCheck);
   const spy = vi.spyOn(window, "getSelection").mockReturnValue({ isCollapsed: false } as Selection);
-  await act(async () => { (el.querySelector(".fw-items li[data-tick] .fw-item-name") as HTMLElement).click(); });
+  await act(async () => { (el.querySelector(".op-items li[data-tick] .op-item-name") as HTMLElement).click(); });
   spy.mockRestore();
   expect(onCheck).not.toHaveBeenCalled();
 });
@@ -63,17 +63,14 @@ it("doesn't tick a line when its text is being selected", async () => {
 it("doesn't tick lines while the order is busy", async () => {
   const onCheck = vi.fn();
   const el = await mount(onCheck, true);
-  expect(el.querySelectorAll(".fw-items li[data-tick]")).toHaveLength(0);
-  await act(async () => { (el.querySelector(".fw-items .fw-item-name") as HTMLElement).click(); });
+  expect(el.querySelectorAll(".op-items li[data-tick]")).toHaveLength(0);
+  await act(async () => { (el.querySelector(".op-items .op-item-name") as HTMLElement).click(); });
   expect(onCheck).not.toHaveBeenCalled();
 });
 
-it("scrolls to a step when it is tapped in the step row", async () => {
+it("pins only the main action of the step for the phone's bottom bar", async () => {
   const el = await mount(() => {});
-  const scrolled: string[] = [];
-  el.querySelectorAll<HTMLElement>(".fw-step[data-step]").forEach((s) => { s.scrollIntoView = () => { scrolled.push(s.dataset.step || ""); }; });
-  const steps = el.querySelectorAll<HTMLButtonElement>(".fw-strip-go");
-  expect(steps).toHaveLength(3);
-  await act(async () => { steps[2].click(); });
-  expect(scrolled).toEqual(["ship"]);
+  const main = el.querySelectorAll(".op-next .op-next-main button");
+  expect(main).toHaveLength(1);
+  expect(main[0].textContent).toBe("Confirm packed");
 });
