@@ -85,14 +85,15 @@ describe("focused publisher workflow", () => {
     o.operations = { addressReviewed: addressKey(o), packed: packingKey(o) };
     o.labelUrl = "https://example.com/label";
     const html = render(o);
-    expect(html).toContain("Parcel handed over");
+    expect(html).toContain(">Mark shipped</button>");
+    expect(html).toContain("Print label");
     expect(html).not.toContain("Buy Shippo label");
   });
   it("does not show address blockers or shipping prompts on cancelled orders", () => {
     const o = { ...base(), status: "cancelled", customer: {} };
     const html = render(o);
     expect(html).not.toContain("Confirm address");
-    expect(html).not.toContain("Parcel handed over");
+    expect(html).not.toContain("Mark shipped");
   });
 });
 
@@ -160,17 +161,32 @@ describe("special order lines on the packing checklist", () => {
   });
 });
 
-describe("ship station steps", () => {
-  it("shows where the order is in three steps", () => {
+describe("next step layout", () => {
+  it("shows where the order is in one thin progress bar and leads with the step to do now", () => {
     const o = base();
     o.operations = { addressReviewed: addressKey(o) };
     const html = render(o);
+    expect(html).toContain('<li data-state="now" aria-current="step">Pack</li>');
     expect(html).toContain("Address checked");
-    expect(html).toContain('aria-current="step"');
-    expect(html).toContain("Step 2 · now");
-    expect(html).toContain("2 books");
+    expect(html).toContain('class="op-next-title">Pack 2 books</h2>');
+    // No second status signal: no step boxes, no "Fulfillment" heading with its own queue badge.
+    expect(html).not.toContain("Step 2");
+    expect(html).not.toContain(">Fulfillment<");
   });
-  it("draws the label step inside step 3 instead of the Buy Shippo label button", () => {
+  it("puts the address and the books side by side, with the slots the order page fills", () => {
+    const o = base();
+    o.operations = { addressReviewed: addressKey(o) };
+    const html = renderToStaticMarkup(
+      <FulfillmentWorkbench order={o} checked={new Set()} busy={false} onCheck={() => {}} onReview={() => {}} onCorrect={() => {}} onPack={() => {}}
+        onDispatch={() => {}} onLocalAdvance={() => {}} onRelease={() => {}} contact={<p>reader@example.com</p>} payment={<p>Total CA$40.00</p>} />,
+    );
+    expect(html).toContain('aria-label="Ship to"');
+    expect(html).toContain("<span>Toronto ON M6G3H1</span>");
+    expect(html).toContain("reader@example.com");
+    expect(html).toContain('aria-label="In the parcel"');
+    expect(html).toContain("Total CA$40.00");
+  });
+  it("draws the label step inside the next-step card instead of the Buy Shippo label button", () => {
     const o = base();
     o.operations = { addressReviewed: addressKey(o), packed: packingKey(o) };
     const html = renderToStaticMarkup(
@@ -179,7 +195,8 @@ describe("ship station steps", () => {
     );
     expect(html).toContain("inline label step");
     expect(html).not.toContain("Buy Shippo label");
-    expect(html).toContain("Step 3 · now");
+    expect(html).toContain('class="op-next-title">Buy a label</h2>');
+    expect(html).toContain('<li data-state="now" aria-current="step">Ship</li>');
   });
 });
 

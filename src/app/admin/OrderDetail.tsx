@@ -24,12 +24,13 @@ import {
 import { printOrders, type SlipShop } from "./orderPrint";
 import { getCopy } from "../features/site/storeCopy";
 import { discountLabel, giftCardConflictOpen, giftCardPaid, issuedGiftCards, chargedOf, refundedMinor, refundableMinor, formatMinor, parseMoneyToMinor, customerMailto, telHref } from "./orderLines";
-import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, ExternalLink } from "lucide-react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
+import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { adminApi } from "./api";
 import { usePhone } from "./usePhone";
 import { inventoryOrderUrl, orderInInventoryApp, useInventoryLink } from "./appSwitch";
 import { InventoryOrderLink } from "./AppSwitcher";
+import { orderPill } from "./orderPage";
 import toast from "react-hot-toast";
 import {
   ActionMenu,
@@ -43,14 +44,11 @@ import {
   PrimaryButton,
   SecondaryButton,
   DestructiveButton,
-  SectionCard,
-  SectionHead,
   SelectField,
   StatusBadge,
   Tabs,
   TextField,
   TextArea,
-  type BadgeTone,
 } from "./riso/components";
 
 // "Placed Oct 16, 2026, 9:24 a.m." instead of the browser's numeric date (10/16/2026 could be read either way).
@@ -65,6 +63,7 @@ export function OrderDetail({
   queueIds = [],
   onNavigate,
   onChanged,
+  queueCount,
 }: {
   orderId: string;
   onClose: () => void;
@@ -72,6 +71,8 @@ export function OrderDetail({
   onNavigate?: (id: string) => void;
   /** Called after an action (or a Stripe sync) changed the order — not on the first load — so a list beside it can refresh. */
   onChanged?: (order: any) => void;
+  /** How many orders are waiting to ship (the pager reads "2 of 5 to ship"); left out, the pager shows only "2 of 5". */
+  queueCount?: number;
 }) {
   const inventoryLink = useInventoryLink();
   const queueIndex = queueIds.indexOf(orderId);
@@ -688,12 +689,6 @@ export function OrderDetail({
     );
 
   const paid = order.paymentStatus === "paid";
-  const payTone: BadgeTone = paid
-    ? "success"
-    : order.paymentStatus === "refunded" ||
-        order.paymentStatus === "refund_pending"
-      ? "info"
-      : "danger";
   const addr = order.customer?.address || {};
   const isManualPayment =
     order.paymentMethod &&
@@ -715,43 +710,259 @@ export function OrderDetail({
   // Only orders the link sent to the inventory app (the server's rule), with printed books in them.
   const showInInventory = !!inventoryLink && orderInInventoryApp(order, inventoryLink.startDay) && (order.items || []).some((item: any) => item && !isDigitalItem(item));
 
+  const pill = orderPill(order);
+  const placed = placedAt(order.createdAt).replace(/^Placed /, "");
+  const inQueue = queueIndex >= 0 && queueIds.length > 1 && (queueCount == null || queueCount > 0);
+  const lastEvent = activity.length ? activity[activity.length - 1] : null;
+  const sums: Array<[string, string]> = [
+    ["Subtotal", money(order.subtotal)],
+    ["Shipping", money(order.shipping)],
+    ...(order.tax > 0 ? [["Tax", money(order.tax)] as [string, string]] : []),
+    ...(order.discount > 0
+      ? [[order.appliedDiscount?.type === "gift" ? `Free gift${discountLabel(order) ? ` · ${discountLabel(order)}` : ""}` : `Discount${discountLabel(order) ? ` · ${discountLabel(order)}` : ""}`, `− ${money(order.discount)}`] as [string, string]]
+      : []),
+    ...(giftCardPaid(order) > 0
+      ? [[`Gift card${(order.giftCardRedemptions || []).length ? ` (${(order.giftCardRedemptions || []).map((r: any) => `••••${r.last4}`).join(", ")})` : ""}`, `− ${money(giftCardPaid(order))}`] as [string, string]]
+      : []),
+  ];
+
+  // Who to reach: under the address in the Ship to card.
+  const contact = (
+    <>
+      {(order.customer?.email || order.customer?.phone) && (
+        <p className="op-contact-lines">
+          {order.customer?.email && (customerMailto(order) ? <a href={customerMailto(order)}>{order.customer.email}</a> : <span>{order.customer.email}</span>)}
+          {order.customer?.phone && (telHref(order.customer.phone) ? <a href={telHref(order.customer.phone)}>{order.customer.phone}</a> : <span>{order.customer.phone}</span>)}
+        </p>
+      )}
+      {order.orderNote && (
+        <div className="op-note">
+          <span className="rp-label">Customer note</span>
+          <p>{order.orderNote}</p>
+        </div>
+      )}
+      {order.ipCountryMatchesShipping === false && (
+        <p className="op-warn">Placed from {order.ipCountry || "an unknown country"}; shipping to {addr.country}.</p>
+      )}
+      {order.customer?.email && (
+        <div className="op-inline-actions">
+          {customerMailto(order) && <a className="op-link" href={customerMailto(order)}>Email customer</a>}
+          <button
+            type="button"
+            className="op-link"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(order.customer?.email || "");
+                toast.success("Email copied");
+              } catch {
+                toast.error("Could not copy email");
+              }
+            }}
+          >
+            Copy email
+          </button>
+        </div>
+      )}
+    </>
+  );
+
+  // What was paid: under the books in the In the parcel card.
+  const payment = (
+    <>
+      <dl className="op-sums">
+        {sums.map(([k, v]) => (
+          <div key={k}><dt>{k}</dt><dd>{v}</dd></div>
+        ))}
+        <div className="op-sums-total">
+          <dt>{giftCardPaid(order) > 0 ? "Paid by card / PayPal" : "Total"}</dt>
+          <dd>{money(order.total)}</dd>
+        </div>
+        {order.expectedAmountMinor != null && String(order.expectedCurrency || "CAD").toUpperCase() !== "CAD" && (
+          <div><dt>Charged in {String(order.expectedCurrency).toUpperCase()}</dt><dd>{formatMinor(Number(order.expectedAmountMinor), order.expectedCurrency)}</dd></div>
+        )}
+        {refundedMinor(order) > 0 && (
+          <div><dt>Refunded</dt><dd>− {formatMinor(refundedMinor(order), chargedOf(order).currency)}</dd></div>
+        )}
+      </dl>
+      {(hasStripePayment(order) || order.stripePaymentIntentId) && (
+        <div className="op-inline-actions">
+          {hasStripePayment(order) && (
+            <button type="button" className="op-link" disabled={checkingPayment} onClick={() => checkStripePayment(true)}>
+              {checkingPayment ? "Checking with Stripe…" : "Sync with Stripe"}
+            </button>
+          )}
+          {order.stripePaymentIntentId && (
+            <a
+              className="op-link"
+              href={`https://dashboard.stripe.com/${order.stripeMode === "test" ? "test/" : ""}payments/${order.stripePaymentIntentId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View payment in Stripe <ExternalLink size={12} aria-hidden />
+            </a>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  const showMenu = phone || (!isVoiding &&
+    (paid ||
+      (order.paymentStatus !== "refunded" &&
+        order.paymentStatus !== "refund_pending" &&
+        order.status !== "cancelled")));
+
+  // Problems that need the owner before the next step: drawn under the progress bar.
+  const alerts = (
+    <>
+          {order.paymentMismatch && !order.paymentMismatch.resolvedAt && order.paymentStatus !== "paid" && (
+            <OpAlert title={order.paymentMismatch.paidAfterCancel ? "Paid after cancelling" : "Payment doesn't match"}>
+              <p className="fw-summary">
+                {order.paymentMismatch.paidAfterCancel
+                  ? "The customer paid after this order was cancelled. Refund the payment in Stripe or PayPal, then mark it here."
+                  : "The amount taken doesn't match this order. Refund or correct it in Stripe or PayPal, then mark it here."}
+              </p>
+              <SecondaryButton disabled={working} onClick={() => setConfirmAction("mismatch")}>Mark refunded</SecondaryButton>
+            </OpAlert>
+          )}
+          {booksLeftOutAfterRefund(order) && (
+            <OpAlert title="Books not back in stock">
+              <p className="fw-summary">
+                This order was refunded without putting its books back in stock, so they still count as gone
+                (the inventory app shows them as a gratuity). If the books are still with you, put them back.
+              </p>
+              <SecondaryButton disabled={working} onClick={() => setConfirmAction("restockRefunded")}>Put the books back in stock</SecondaryButton>
+            </OpAlert>
+          )}
+          {disputeOpen(order) && (
+            <OpAlert title="Payment disputed">
+              <p className="fw-summary">
+                The customer's bank opened a chargeback ({String(order.disputeStatus).replace(/_/g, " ")}). The money is held until the bank decides.
+                Packing, labels and dispatch are blocked until it is settled. Answer it in Stripe with your evidence (order details, tracking, messages) before its deadline.
+              </p>
+              {order.stripePaymentIntentId && (
+                <div className="fw-actions">
+                  <a className="rp-btn rp-btn-secondary rp-btn-sm" href={`https://dashboard.stripe.com/${order.stripeMode === "test" ? "test/" : ""}${order.disputeId ? `disputes/${order.disputeId}` : `payments/${order.stripePaymentIntentId}`}`} target="_blank" rel="noopener noreferrer">
+                    Open in Stripe <ExternalLink size={12} aria-hidden />
+                  </a>
+                </div>
+              )}
+            </OpAlert>
+          )}
+          {Array.isArray(order.duplicatePayments) && order.duplicatePayments.length > 0 && (
+            <OpAlert title="Paid twice">
+              <p className="fw-summary">More than one payment was taken for this order. Keep the first and refund the extra:</p>
+              <ul className="fw-summary">
+                {order.duplicatePayments.map((d: any, i: number) => {
+                  if (d?.provider === "paypal") {
+                    return (
+                      <li key={i}>
+                        PayPal capture <span className="rp-mono">{String(d.captureId || "")}</span>
+                        {d?.amountMinor != null ? ` · ${formatMinor(Number(d.amountMinor), d.currency || "CAD")}` : ""}
+                      </li>
+                    );
+                  }
+                  const id = String(d?.paymentIntentId || d?.id || d || "");
+                  return (
+                    <li key={i}>
+                      <a href={`https://dashboard.stripe.com/${order.stripeMode === "test" ? "test/" : ""}payments/${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer" className="rp-mono">{id}</a>
+                      {d?.amountMinor != null ? ` · ${formatMinor(Number(d.amountMinor), d.currency || "CAD")}` : ""}
+                    </li>
+                  );
+                })}
+              </ul>
+            </OpAlert>
+          )}
+          {refundedMinor(order) > 0 && order.paymentStatus === "paid" && (
+            <OpAlert title="Partly refunded">
+              <p className="fw-summary">
+                {formatMinor(refundedMinor(order), chargedOf(order).currency)} refunded so far of {formatMinor(chargedOf(order).minor, chargedOf(order).currency)}.
+                {" "}{formatMinor(refundableMinor(order), chargedOf(order).currency)} remains. The order stays paid — check what still needs to ship.
+              </p>
+            </OpAlert>
+          )}
+          {giftCardConflictOpen(order) && (
+            <OpAlert title="Gift card couldn't cover its part">
+              <p className="fw-summary">
+                The customer's payment arrived, but a gift card on this order no longer had enough balance (it may have been spent in another checkout, disabled or expired), so the order was not marked paid.
+                Check the card in Gift cards, then refund the payment in Stripe or PayPal, or contact the customer to settle the difference. Don't ship until this is sorted.
+              </p>
+              {(order.giftCardRedemptions || []).length > 0 && (
+                <div className="fw-actions">
+                  {(order.giftCardRedemptions || []).map((r: any) => (
+                    <a key={r.id} className="rp-btn rp-btn-secondary rp-btn-sm" href={`#gift-cards/${encodeURIComponent(r.id)}`}>Open gift card ••••{r.last4}</a>
+                  ))}
+                </div>
+              )}
+              <p className="fw-summary">A full refund in Stripe clears this by itself. If you settled it another way, mark it here.</p>
+              <SecondaryButton disabled={working} onClick={() => setConfirmAction("giftConflict")}>Mark resolved</SecondaryButton>
+            </OpAlert>
+          )}
+          {order.customerRequest?.type === "return" && (order.customerRequest.status === "open" || order.returnProgress) && <ReturnWorkbench key={`${order.id}-${order.returnProgress?.state || "requested"}`} order={order} onUpdated={loadOrder} />}
+          {order.customerRequest?.status === "open" && order.customerRequest.type !== "return" && (
+            <OpAlert title={order.customerRequest.type === "cancel" ? "Customer asks to cancel" : "Customer asks to return"}>
+              <p className="fw-summary">
+                Asked {new Date(order.customerRequest.createdAt).toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" })}.
+                {order.customerRequest.type === "cancel"
+                  ? " Cancel or refund it from More order actions, or reply to explain why it has already gone out."
+                  : " Agree the return with the customer, then refund from More order actions when the books are back."}
+              </p>
+              {order.customerRequest.message && <blockquote className="fw-summary">“{order.customerRequest.message}”</blockquote>}
+              <SecondaryButton
+                disabled={working}
+                onClick={() => setConfirmAction("requestHandled")}
+              >
+                Mark request handled
+              </SecondaryButton>
+            </OpAlert>
+          )}
+    </>
+  );
+
   return (
-    <div className="rp-stack fw-detail">
-      <div className="fw-toolbar" data-print="hide">
-        <SecondaryButton
-          size="sm"
-          className="fw-back"
-          icon={<ArrowLeft size={14} aria-hidden />}
-          onClick={onClose}
-        >
-          {phone ? "Orders" : "Back to orders"}
-        </SecondaryButton>
-        {onNavigate && queueIndex >= 0 && queueIds.length > 1 && (
-          <div className="fw-toolbar-nav" role="group" aria-label="Order navigation">
+    <div className="op-page fw-detail">
+      <nav className="op-nav" data-print="hide" aria-label="Order navigation">
+        <button type="button" className="op-back" onClick={onClose}>
+          <ArrowLeft size={15} aria-hidden /> All orders
+        </button>
+        {onNavigate && inQueue && (
+          <div className="op-pager" role="group" aria-label="Previous and next order">
+            <span className="op-pager-count">
+              {queueCount != null && queueIndex === 0 && queueIds.length === queueCount + 1
+                ? `${queueCount} to ship`
+                : `${queueIndex + 1} of ${queueIds.length}${queueCount != null ? " to ship" : ""}`}
+            </span>
             <IconButton label="Previous order" disabled={!prevId} onClick={() => prevId && onNavigate(prevId)}>
               <ChevronLeft size={16} aria-hidden />
             </IconButton>
-            <span className="rp-mono rp-hint">
-              {queueIndex + 1} / {queueIds.length}
-            </span>
             <IconButton label="Next order" disabled={!nextId} onClick={() => nextId && onNavigate(nextId)}>
               <ChevronRight size={16} aria-hidden />
             </IconButton>
           </div>
         )}
-        <div className="fw-toolbar-actions">
+      </nav>
+      <header className="op-head">
+        <div className="op-head-text">
+          <h2 className="op-title">
+            <span>{order.customer?.name || order.orderId}</span>
+            <StatusBadge tone={pill.tone}>{pill.text}</StatusBadge>
+            {order.isTest && pill.text !== "Test order" && <StatusBadge tone="danger">Test order</StatusBadge>}
+          </h2>
+          <p className="op-meta">
+            <span className="rp-mono">{order.orderId}</span>
+            {placed && <span>{placed}</span>}
+            <span>{money(order.total)} {paid ? "paid" : String(order.paymentStatus || "unpaid").replace(/_/g, " ")}</span>
+          </p>
+        </div>
+        <div className="op-head-actions" data-print="hide">
           {showInInventory && !phone && <InventoryOrderLink orderId={order.id} />}
           {!phone && (
             <SecondaryButton size="sm" onClick={handlePrintPackingSlip}>
-              Print packing slip
+              Packing slip
             </SecondaryButton>
           )}
-          {(phone || (!isVoiding &&
-            (paid ||
-              (order.paymentStatus !== "refunded" &&
-                order.paymentStatus !== "refund_pending" &&
-                order.status !== "cancelled")))) && (
-              <ActionMenu
+          {showMenu && (
+            <ActionMenu
                 label="More order actions"
                 actions={[
                   // Phones keep the toolbar to one row: the packing slip moves into this menu.
@@ -821,391 +1032,122 @@ export function OrderDetail({
                   ]),
                 ]}
               />
-            )}
+          )}
         </div>
-      </div>
-      <SectionHead
-        title={order.orderId}
-        subcopy={phone && order.customer?.name ? `${order.customer.name} · ${placedAt(order.createdAt)}` : placedAt(order.createdAt)}
-        actions={
-          <>
-            <StatusBadge tone={payTone}>
-              {paid
-                ? "Paid"
-                : String(order.paymentStatus || "unpaid").replace(/_/g, " ")}
-            </StatusBadge>
-            {order.isTest && (
-              <StatusBadge tone="danger">Test order</StatusBadge>
-            )}
-          </>
-        }
-      />
+      </header>
       {loadFailed && (
         <ErrorState
           description="The latest order could not be loaded. Retry before continuing."
           onRetry={loadOrder}
         />
       )}
-      <div className="fw-layout">
-        <FulfillmentWorkbench
-          order={order}
-          books={books}
-          checked={checked}
-          busy={
-            working || isShipping || isBuyingLabel || isVoiding || loadFailed
-          }
-          onCheck={(i) =>
-            setChecked((prev) => {
-              const next = new Set(prev);
-              next.has(i) ? next.delete(i) : next.add(i);
-              return next;
-            })
-          }
-          onReview={() => perform("review", { addressKey: addressKey(order) })}
-          onCorrect={() => setEditAddress({ ...addr })}
-          onPack={() => perform("pack", { packingKey: packingKey(order) })}
-          labelStep={
-            <LabelBuyer
-              order={order}
-              parcel={parcel as Parcel}
-              onParcel={changeParcel}
-              presets={presets}
-              onPreset={pickPreset}
-              suggestedWeight={suggestedParcelWeightGrams(order)}
-              rates={labelRates}
-              searched={ratesSearched}
-              selectedRate={selectedLabelRate}
-              onSelectRate={setSelectedLabelRate}
-              finding={isGeneratingLabel}
-              buying={isBuyingLabel}
-              busy={working || isShipping || isVoiding || loadFailed}
-              problem={problem}
-              onFindRates={handlePushToShippo}
-              onBuy={handleBuyLabel}
-              onDispatch={() => {
-                fillTracking(order);
-                setLabelReplaced(false);
-                setShowShipForm("dispatch");
-              }}
-              onSavePreset={savePreset}
-            />
-          }
-          onDispatch={() => {
-            fillTracking(order);
-            setLabelReplaced(false);
-            setShowShipForm("dispatch");
-          }}
-          onEditTracking={() => {
-            fillTracking(order);
-            setLabelReplaced(false);
-            setShowShipForm("edit");
-          }}
-          onReplaceLabel={() => { setVoidedElsewhere(false); setShowReplaceLabel(true); }}
-          onDeliveryStatus={setDeliveryStatus}
-          onResendEmail={() => setConfirmResend(true)}
-          onCheckAll={(indices) => setChecked(new Set(indices))}
-          onPackingSlip={handlePrintPackingSlip}
-          onLocalAdvance={() => {
-            const next = order.fulfillmentSelection?.method === "pickup"
-              ? order.fulfillmentStatus === "ready_for_pickup" ? "record customer collection" : "mark the order ready for pickup"
-              : order.fulfillmentStatus === "ready_for_delivery" ? "start local delivery" : order.fulfillmentStatus === "out_for_delivery" ? "mark the order delivered" : "mark the order ready for delivery";
-            setLocalStep(next);
-          }}
-          onRelease={() => perform("release")}
-          onReleasePreorder={() => setConfirmReleasePreorder(true)}
-          onClearAppLabel={() => setConfirmClearAppLabel(true)}
-          onClearLabelLock={() => setConfirmClearLabelLock(true)}
-        />
-        <aside className="rp-stack fw-aside" aria-label="Order summary">
-          {order.paymentMismatch && !order.paymentMismatch.resolvedAt && order.paymentStatus !== "paid" && (
-            <SectionCard title={order.paymentMismatch.paidAfterCancel ? "Paid after cancelling" : "Payment doesn't match"}>
-              <p className="fw-summary">
-                {order.paymentMismatch.paidAfterCancel
-                  ? "The customer paid after this order was cancelled. Refund the payment in Stripe or PayPal, then mark it here."
-                  : "The amount taken doesn't match this order. Refund or correct it in Stripe or PayPal, then mark it here."}
-              </p>
-              <SecondaryButton disabled={working} onClick={() => setConfirmAction("mismatch")}>Mark refunded</SecondaryButton>
-            </SectionCard>
-          )}
-          {booksLeftOutAfterRefund(order) && (
-            <SectionCard title="Books not back in stock">
-              <p className="fw-summary">
-                This order was refunded without putting its books back in stock, so they still count as gone
-                (the inventory app shows them as a gratuity). If the books are still with you, put them back.
-              </p>
-              <SecondaryButton disabled={working} onClick={() => setConfirmAction("restockRefunded")}>Put the books back in stock</SecondaryButton>
-            </SectionCard>
-          )}
-          {disputeOpen(order) && (
-            <SectionCard title="Payment disputed">
-              <p className="fw-summary">
-                The customer's bank opened a chargeback ({String(order.disputeStatus).replace(/_/g, " ")}). The money is held until the bank decides.
-                Packing, labels and dispatch are blocked until it is settled. Answer it in Stripe with your evidence (order details, tracking, messages) before its deadline.
-              </p>
-              {order.stripePaymentIntentId && (
-                <div className="fw-actions">
-                  <a className="rp-btn rp-btn-secondary rp-btn-sm" href={`https://dashboard.stripe.com/${order.stripeMode === "test" ? "test/" : ""}${order.disputeId ? `disputes/${order.disputeId}` : `payments/${order.stripePaymentIntentId}`}`} target="_blank" rel="noopener noreferrer">
-                    Open in Stripe <ExternalLink size={12} aria-hidden />
-                  </a>
-                </div>
-              )}
-            </SectionCard>
-          )}
-          {Array.isArray(order.duplicatePayments) && order.duplicatePayments.length > 0 && (
-            <SectionCard title="Paid twice">
-              <p className="fw-summary">More than one payment was taken for this order. Keep the first and refund the extra:</p>
-              <ul className="fw-summary">
-                {order.duplicatePayments.map((d: any, i: number) => {
-                  if (d?.provider === "paypal") {
-                    return (
-                      <li key={i}>
-                        PayPal capture <span className="rp-mono">{String(d.captureId || "")}</span>
-                        {d?.amountMinor != null ? ` · ${formatMinor(Number(d.amountMinor), d.currency || "CAD")}` : ""}
-                      </li>
-                    );
-                  }
-                  const id = String(d?.paymentIntentId || d?.id || d || "");
-                  return (
-                    <li key={i}>
-                      <a href={`https://dashboard.stripe.com/${order.stripeMode === "test" ? "test/" : ""}payments/${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer" className="rp-mono">{id}</a>
-                      {d?.amountMinor != null ? ` · ${formatMinor(Number(d.amountMinor), d.currency || "CAD")}` : ""}
-                    </li>
-                  );
-                })}
-              </ul>
-            </SectionCard>
-          )}
-          {refundedMinor(order) > 0 && order.paymentStatus === "paid" && (
-            <SectionCard title="Partly refunded">
-              <p className="fw-summary">
-                {formatMinor(refundedMinor(order), chargedOf(order).currency)} refunded so far of {formatMinor(chargedOf(order).minor, chargedOf(order).currency)}.
-                {" "}{formatMinor(refundableMinor(order), chargedOf(order).currency)} remains. The order stays paid — check what still needs to ship.
-              </p>
-            </SectionCard>
-          )}
-          {giftCardConflictOpen(order) && (
-            <SectionCard title="Gift card couldn't cover its part">
-              <p className="fw-summary">
-                The customer's payment arrived, but a gift card on this order no longer had enough balance (it may have been spent in another checkout, disabled or expired), so the order was not marked paid.
-                Check the card in Gift cards, then refund the payment in Stripe or PayPal, or contact the customer to settle the difference. Don't ship until this is sorted.
-              </p>
-              {(order.giftCardRedemptions || []).length > 0 && (
-                <div className="fw-actions">
-                  {(order.giftCardRedemptions || []).map((r: any) => (
-                    <a key={r.id} className="rp-btn rp-btn-secondary rp-btn-sm" href={`#gift-cards/${encodeURIComponent(r.id)}`}>Open gift card ••••{r.last4}</a>
-                  ))}
-                </div>
-              )}
-              <p className="fw-summary">A full refund in Stripe clears this by itself. If you settled it another way, mark it here.</p>
-              <SecondaryButton disabled={working} onClick={() => setConfirmAction("giftConflict")}>Mark resolved</SecondaryButton>
-            </SectionCard>
-          )}
-          {order.customerRequest?.type === "return" && (order.customerRequest.status === "open" || order.returnProgress) && <ReturnWorkbench key={`${order.id}-${order.returnProgress?.state || "requested"}`} order={order} onUpdated={loadOrder} />}
-          {order.customerRequest?.status === "open" && order.customerRequest.type !== "return" && (
-            <SectionCard title={order.customerRequest.type === "cancel" ? "Customer asks to cancel" : "Customer asks to return"}>
-              <p className="fw-summary">
-                Asked {new Date(order.customerRequest.createdAt).toLocaleString()}.
-                {order.customerRequest.type === "cancel"
-                  ? " Cancel or refund it from More order actions, or reply to explain why it has already gone out."
-                  : " Agree the return with the customer, then refund from More order actions when the books are back."}
-              </p>
-              {order.customerRequest.message && <blockquote className="fw-summary">“{order.customerRequest.message}”</blockquote>}
-              <SecondaryButton
-                disabled={working}
-                onClick={() => setConfirmAction("requestHandled")}
-              >
-                Mark request handled
-              </SecondaryButton>
-            </SectionCard>
-          )}
-          {/* Who and what was paid: side by side under the workbench when the order page is narrow. */}
-          <div className="rp-stack fw-aside-info">
-          <SectionCard title="Customer">
-            <strong>{order.customer?.name || "Guest customer"}</strong>
-            <p className="fw-summary">
-              {customerMailto(order) ? <a href={customerMailto(order)}>{order.customer?.email}</a> : order.customer?.email}
-              <br />
-              {telHref(order.customer?.phone) ? <a href={telHref(order.customer?.phone)}>{order.customer?.phone}</a> : order.customer?.phone || ""}
-            </p>
-            {order.orderNote && (
-              <div className="fw-notice" style={{ marginTop: 16 }}>
-                <div>
-                  <span className="rp-label">Customer note</span>
-                  <p
-                    style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
-                  >
-                    {order.orderNote}
-                  </p>
-                </div>
-              </div>
-            )}
-            <div className="fw-actions">
-              {customerMailto(order) && (
-                <a className="rp-btn rp-btn-secondary rp-btn-sm" href={customerMailto(order)}>Email customer</a>
-              )}
-              <SecondaryButton
-                size="sm"
-                icon={<Copy size={14} aria-hidden />}
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(
-                      order.customer?.email || "",
-                    );
-                    toast.success("Email copied");
-                  } catch {
-                    toast.error("Could not copy email");
-                  }
+          <FulfillmentWorkbench
+            order={order}
+            books={books}
+            checked={checked}
+            busy={
+              working || isShipping || isBuyingLabel || isVoiding || loadFailed
+            }
+            onCheck={(i) =>
+              setChecked((prev) => {
+                const next = new Set(prev);
+                next.has(i) ? next.delete(i) : next.add(i);
+                return next;
+              })
+            }
+            onReview={() => perform("review", { addressKey: addressKey(order) })}
+            onCorrect={() => setEditAddress({ ...addr })}
+            onPack={() => perform("pack", { packingKey: packingKey(order) })}
+            labelStep={
+              <LabelBuyer
+                order={order}
+                parcel={parcel as Parcel}
+                onParcel={changeParcel}
+                presets={presets}
+                onPreset={pickPreset}
+                suggestedWeight={suggestedParcelWeightGrams(order)}
+                rates={labelRates}
+                searched={ratesSearched}
+                selectedRate={selectedLabelRate}
+                onSelectRate={setSelectedLabelRate}
+                finding={isGeneratingLabel}
+                buying={isBuyingLabel}
+                busy={working || isShipping || isVoiding || loadFailed}
+                problem={problem}
+                onFindRates={handlePushToShippo}
+                onBuy={handleBuyLabel}
+                onDispatch={() => {
+                  fillTracking(order);
+                  setLabelReplaced(false);
+                  setShowShipForm("dispatch");
                 }}
-              >
-                Copy email
-              </SecondaryButton>
-              <SecondaryButton
-                size="sm"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(
-                      `${order.customer?.name || ""}\n${[addr.street, addr.unit].filter(Boolean).join(", ")}\n${addr.city || ""}, ${addr.state || ""} ${addr.zip || ""}\n${addr.country || ""}`,
-                    );
-                    toast.success("Address copied");
-                  } catch {
-                    toast.error("Could not copy address");
-                  }
-                }}
-              >
-                Copy address
-              </SecondaryButton>
-            </div>
-            {order.ipCountryMatchesShipping === false && (
-              <p className="fw-problems">
-                Location mismatch: placed from {order.ipCountry || "unknown"};
-                shipping to {addr.country}.
-              </p>
-            )}
-          </SectionCard>
+                onSavePreset={savePreset}
+              />
+            }
+            onDispatch={() => {
+              fillTracking(order);
+              setLabelReplaced(false);
+              setShowShipForm("dispatch");
+            }}
+            onEditTracking={() => {
+              fillTracking(order);
+              setLabelReplaced(false);
+              setShowShipForm("edit");
+            }}
+            onReplaceLabel={() => { setVoidedElsewhere(false); setShowReplaceLabel(true); }}
+            onDeliveryStatus={setDeliveryStatus}
+            onResendEmail={() => setConfirmResend(true)}
+            onCheckAll={(indices) => setChecked(new Set(indices))}
+            onPackingSlip={handlePrintPackingSlip}
+            onLocalAdvance={() => {
+              const next = order.fulfillmentSelection?.method === "pickup"
+                ? order.fulfillmentStatus === "ready_for_pickup" ? "record customer collection" : "mark the order ready for pickup"
+                : order.fulfillmentStatus === "ready_for_delivery" ? "start local delivery" : order.fulfillmentStatus === "out_for_delivery" ? "mark the order delivered" : "mark the order ready for delivery";
+              setLocalStep(next);
+            }}
+            onRelease={() => perform("release")}
+            onReleasePreorder={() => setConfirmReleasePreorder(true)}
+            onClearAppLabel={() => setConfirmClearAppLabel(true)}
+            onClearLabelLock={() => setConfirmClearLabelLock(true)}
+            contact={contact}
+            payment={payment}
+            alerts={alerts}
+          />
+      {(acquisitionRows(order).length > 0 || issuedGiftCards(order).length > 0) && (
+        <div className="op-more">
           {acquisitionRows(order).length > 0 && (
-            <SectionCard title="How they found you">
-              <dl style={{ margin: 0, display: "grid", gap: 10 }}>
+            <section className="op-card op-card-sm" aria-label="How they found you">
+              <div className="op-card-head"><h3>How they found you</h3></div>
+              <dl className="op-pairs">
                 {acquisitionRows(order).map(row => (
-                  <div key={row.label} style={{ display: "grid", gridTemplateColumns: "minmax(110px, 35%) 1fr", gap: 12 }}>
-                    <dt className="rp-label">{row.label}</dt>
-                    <dd style={{ margin: 0, overflowWrap: "anywhere" }}>{row.value}</dd>
+                  <div key={row.label}>
+                    <dt>{row.label}</dt>
+                    <dd>{row.value}</dd>
                   </div>
                 ))}
               </dl>
-            </SectionCard>
+            </section>
           )}
-          <SectionCard title="Payment summary">
-            <dl style={{ margin: 0, display: "grid", gap: 12 }}>
-              {[
-                ["Subtotal", money(order.subtotal)],
-                ["Shipping", money(order.shipping)],
-                ...(order.tax > 0 ? [["Tax", money(order.tax)]] : []),
-                ...(order.discount > 0
-                  ? [[order.appliedDiscount?.type === "gift" ? `Free gift${discountLabel(order) ? ` · ${discountLabel(order)}` : ""}` : `Discount${discountLabel(order) ? ` · ${discountLabel(order)}` : ""}`, `− ${money(order.discount)}`]]
-                  : []),
-                ...(giftCardPaid(order) > 0
-                  ? [[`Gift card${(order.giftCardRedemptions || []).length ? ` (${(order.giftCardRedemptions || []).map((r: any) => `••••${r.last4}`).join(", ")})` : ""}`, `− ${money(giftCardPaid(order))}`]]
-                  : []),
-              ].map(([k, v]) => (
-                <div
-                  key={k}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 12,
-                  }}
-                >
-                  <dt>{k}</dt>
-                  <dd className="rp-mono" style={{ margin: 0 }}>
-                    {v}
-                  </dd>
-                </div>
-              ))}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  borderTop: "1px solid var(--rp-divider)",
-                  paddingTop: 16,
-                }}
-              >
-                <dt>
-                  <strong>{giftCardPaid(order) > 0 ? "Paid by card / PayPal" : "Total"}</strong>
-                </dt>
-                <dd className="rp-mono" style={{ margin: 0, fontWeight: 700 }}>
-                  {money(order.total)}
-                </dd>
-              </div>
-              {order.expectedAmountMinor != null && String(order.expectedCurrency || "CAD").toUpperCase() !== "CAD" && (
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                  <dt>Charged in {String(order.expectedCurrency).toUpperCase()}</dt>
-                  <dd className="rp-mono" style={{ margin: 0 }}>{formatMinor(Number(order.expectedAmountMinor), order.expectedCurrency)}</dd>
-                </div>
-              )}
-              {refundedMinor(order) > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                  <dt>Refunded</dt>
-                  <dd className="rp-mono" style={{ margin: 0 }}>− {formatMinor(refundedMinor(order), chargedOf(order).currency)}</dd>
-                </div>
-              )}
-            </dl>
-            {hasStripePayment(order) && (
-              <div className="fw-actions">
-                <SecondaryButton size="sm" disabled={checkingPayment} onClick={() => checkStripePayment(true)}>
-                  {checkingPayment ? "Checking with Stripe…" : "Sync with Stripe"}
-                </SecondaryButton>
-              </div>
-            )}
-            {order.stripePaymentIntentId && (
-              <div className="fw-actions">
-                <a
-                  className="rp-btn rp-btn-secondary rp-btn-sm"
-                  href={`https://dashboard.stripe.com/${order.stripeMode === "test" ? "test/" : ""}payments/${order.stripePaymentIntentId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  View payment in Stripe <ExternalLink size={12} aria-hidden />
-                </a>
-              </div>
-            )}
-            {order.status === "completed" && order.trackingNumber && (
-              <div className="fw-actions">
-                <a
-                  className="rp-btn rp-btn-secondary rp-btn-sm"
-                  href={getTrackingUrl(
-                    order.trackingCarrier,
-                    order.trackingNumber,
-                    order.trackingUrl,
-                  )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Track parcel <ExternalLink size={12} aria-hidden />
-                </a>
-              </div>
-            )}
-          </SectionCard>
           {issuedGiftCards(order).length > 0 && (
-            <SectionCard title="Gift cards issued" description="Created when this order was paid and emailed to each recipient.">
-              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
+            <section className="op-card op-card-sm" aria-label="Gift cards issued">
+              <div className="op-card-head"><h3>Gift cards issued</h3></div>
+              <ul className="op-gift-list">
                 {issuedGiftCards(order).map((card) => (
-                  <li key={card.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                    <a href={`#gift-cards/${encodeURIComponent(card.id)}`} className="rp-mono" style={{ color: "inherit", textDecoration: "underline" }}>••••{card.last4}</a>
+                  <li key={card.id}>
+                    <a href={`#gift-cards/${encodeURIComponent(card.id)}`} className="rp-mono">••••{card.last4}</a>
                     <span className="rp-mono">{money((Number(card.minor) || 0) / 100)}</span>
-                    {card.recipientEmail && <span className="rp-hint" style={{ flexBasis: "100%", overflowWrap: "anywhere" }}>To {card.recipientEmail}</span>}
+                    {card.recipientEmail && <span className="rp-hint">To {card.recipientEmail}</span>}
                   </li>
                 ))}
               </ul>
-            </SectionCard>
+            </section>
           )}
-          </div>
-        </aside>
-      </div>
-      <details className="fw-notes" data-print="hide">
+        </div>
+      )}
+      <details className="op-history" data-print="hide">
         <summary>
-          Activity & internal notes{" "}
-          <span className="rp-hint">({activity.length})</span>
+          <span><strong>History</strong> · {activity.length} {activity.length === 1 ? "entry" : "entries"}{lastEvent?.message ? ` · ${String(lastEvent.message).slice(0, 80)}` : ""}</span>
+          <span className="op-history-show" aria-hidden="true">Show</span>
         </summary>
         <div className="fw-note-form">
           <div>
@@ -1765,5 +1707,15 @@ export function OrderDetail({
         onCancel={() => setConfirming(null)}
       />
     </div>
+  );
+}
+
+// Something that needs the owner before the next step (payment problem, dispute, request): a short tinted note above it.
+function OpAlert({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="op-alert" role="status" aria-label={title}>
+      <strong>{title}</strong>
+      {children}
+    </section>
   );
 }

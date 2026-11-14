@@ -1,0 +1,207 @@
+/* The order page, concept A "Next step" (owner's pick, 14 November 2026; artifact Gu9Gcz6GSMPe1sTBCQrJBa).
+ * One column: back + pager, the customer as the headline with one status pill, a thin progress bar, a white card with
+ * the step to do now, then Ship to and In the parcel side by side, then History folded into one row.
+ * Calm v4 tokens (--c-*) with the older Riso tokens as fallbacks. Every rule sits under `.rp .op-page` so it outranks
+ * the older Riso layers without !important. Type: 28/700 name · 20/700 next step · 16/700 card titles · 15 body. */
+
+.rp .op-page {
+  --op-card: var(--c-card, var(--rp-surface));
+  --op-subtle: var(--c-subtle, var(--rp-surface-2));
+  --op-panel: var(--c-panel, var(--rp-surface-sunken));
+  --op-track: var(--c-track, var(--rp-surface-sunken));
+  --op-border: var(--c-border, var(--rp-border));
+  --op-hair: var(--c-hair, var(--rp-divider));
+  --op-text: var(--c-text, var(--rp-text));
+  --op-second: var(--c-second, var(--rp-text-muted));
+  --op-muted: var(--c-muted, var(--rp-text-subtle));
+  --op-accent: var(--c-accent, var(--rp-danger));
+  --op-on: var(--c-on, var(--rp-success));
+  --op-butter: var(--c-butter, var(--rp-warning-tint));
+  --op-blush: var(--c-blush, var(--rp-danger-tint));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  max-width: 1120px;
+  color: var(--op-text);
+  font-family: var(--rp-font-body);
+}
+
+/* Back + pager */
+.rp .op-page .op-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; }
+.rp .op-page .op-back {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 2px; border: 0; background: none;
+  color: var(--op-second); font: 500 14px/1 var(--rp-font-body); cursor: pointer; border-radius: 6px;
+}
+.rp .op-page .op-back:hover { color: var(--op-text); }
+.rp .op-page .op-pager { display: flex; align-items: center; gap: 6px; }
+.rp .op-page .op-pager .rp-icon-btn { width: 34px; height: 34px; min-height: 34px; min-width: 34px; border-radius: 9px; }
+.rp .op-page .op-pager-count { margin-right: 4px; color: var(--op-muted); font-size: 13.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Header: the customer is the headline */
+.rp .op-page .op-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; }
+.rp .op-page .op-head-text { min-width: 0; flex: 1 1 320px; }
+.rp .op-page .op-title {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0;
+  font: 700 28px/1.15 var(--rp-font-body); letter-spacing: -0.02em; text-transform: none; text-wrap: balance;
+}
+.rp .op-page .op-title > span:first-child { overflow-wrap: anywhere; }
+.rp .op-page .op-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0 0; color: var(--op-muted); font-size: 14px; }
+.rp .op-page .op-meta .rp-mono { font-size: 12.5px; letter-spacing: 0; padding-top: 1px; }
+.rp .op-page .op-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.rp .op-page .op-short { display: none; }
+
+/* Progress: three thin bars, the current one half filled in the accent */
+.rp .op-page .op-progress { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+.rp .op-page .op-progress li { display: flex; align-items: center; gap: 5px; padding-top: 11px; position: relative; color: var(--op-muted); font-size: 13px; }
+.rp .op-page .op-progress li::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; border-radius: 4px; background: var(--op-track); }
+.rp .op-page .op-progress li[data-state="done"]::before { background: var(--op-on); }
+.rp .op-page .op-progress li[data-state="done"] svg { color: var(--op-on); flex: none; }
+.rp .op-page .op-progress li[data-state="now"] { color: var(--op-text); font-weight: 600; }
+.rp .op-page .op-progress li[data-state="now"]::before { background: linear-gradient(90deg, var(--op-accent) 0 50%, var(--op-track) 50%); }
+
+/* Alerts: short tinted notes, only when something needs the owner first */
+.rp .op-page .op-work { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.rp .op-page .op-alert {
+  display: flex; flex-direction: column; gap: 4px; padding: 14px 18px; border-radius: 12px;
+  background: var(--op-butter); color: var(--op-text); font-size: 14.5px; line-height: 1.5;
+}
+.rp .op-page .op-alert[role="alert"] { background: var(--op-blush); }
+.rp .op-page .op-alert > strong { font-size: 15px; font-weight: 700; }
+.rp .op-page .op-alert p, .rp .op-page .op-alert ul, .rp .op-page .op-alert blockquote { margin: 0; color: var(--op-second); font-size: 14px; }
+.rp .op-page .op-alert .fw-summary { margin: 0; }
+.rp .op-page .op-alert .fw-actions, .rp .op-page .op-alert-actions { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
+.rp .op-page .op-alert > .rp-btn { align-self: flex-start; margin-top: 8px; }
+.rp .op-page .op-work > .rp-card { margin: 0; }
+
+/* The next step: one white card, the step on the left, its buttons on the right */
+.rp .op-page .op-next { background: var(--op-card); border: 1px solid var(--op-border); border-radius: 14px; padding: 22px 24px; }
+.rp .op-page .op-next[data-tone="warn"] { border-color: var(--op-accent); }
+.rp .op-page .op-next-head { display: flex; align-items: center; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; }
+.rp .op-page .op-next-text { flex: 1 1 280px; min-width: 0; }
+.rp .op-page .op-next-say { margin: 0; color: var(--op-accent); font-size: 13px; font-weight: 600; }
+.rp .op-page .op-next[data-tone="quiet"] .op-next-say { color: var(--op-muted); }
+.rp .op-page .op-next-title { margin: 2px 0 0; font: 700 20px/1.25 var(--rp-font-body); letter-spacing: -0.015em; text-transform: none; text-wrap: balance; }
+.rp .op-page .op-next-detail { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; color: var(--op-second); font-size: 14.5px; line-height: 1.5; overflow-wrap: anywhere; }
+.rp .op-page .op-next-detail .rp-mono { font-size: 12.5px; letter-spacing: 0; }
+.rp .op-page .op-next-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.rp .op-page .op-next-main { display: flex; }
+.rp .op-page .op-next-actions .rp-btn.rp-btn { min-height: 42px; padding: 0 16px; font-size: 14px; border-radius: 10px; }
+.rp .op-page .op-next-main .rp-btn.rp-btn { min-height: 44px; padding: 0 22px; font-size: 15px; }
+.rp .op-page .op-next-actions .op-quiet.rp-btn { border-color: transparent; background: transparent; color: var(--op-second); padding: 0 10px; }
+.rp .op-page .op-next-actions .op-quiet.rp-btn:hover:not(:disabled) { color: var(--op-text); box-shadow: none; text-decoration: underline; }
+.rp .op-page .op-next-body { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--op-hair); }
+.rp .op-page .op-next-body > :first-child { margin-top: 0; }
+.rp .op-page .op-issues { margin: 0; padding-left: 18px; color: var(--op-text); }
+.rp .op-page .op-warn { display: block; padding: 8px 12px; border-radius: 10px; background: var(--op-butter); color: var(--op-text); font-size: 13.5px; line-height: 1.5; }
+.rp .op-page .op-link {
+  padding: 0; border: 0; background: none; color: var(--op-second); font: 600 13.5px/1.4 var(--rp-font-body);
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--op-border); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.rp .op-page .op-link:hover:not(:disabled) { color: var(--op-text); text-decoration-color: currentColor; }
+.rp .op-page .op-link:disabled { opacity: 0.5; cursor: default; }
+
+/* Ship to | In the parcel */
+.rp .op-page .op-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 16px; align-items: start; }
+.rp .op-page .op-more { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; align-items: start; }
+.rp .op-page .op-card { min-width: 0; background: var(--op-card); border: 1px solid var(--op-border); border-radius: 14px; padding: 20px 22px; }
+.rp .op-page .op-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 30px; }
+.rp .op-page .op-card-head h3 { margin: 0; font: 700 16px/1.3 var(--rp-font-body); letter-spacing: -0.01em; text-transform: none; }
+.rp .op-page .op-card-tools { display: flex; gap: 6px; }
+.rp .op-page .op-address { display: flex; flex-direction: column; gap: 1px; margin: 12px 0 0; font-style: normal; font-size: 16px; line-height: 1.55; overflow-wrap: anywhere; }
+.rp .op-page .op-address strong { font-weight: 600; }
+.rp .op-page .op-address .rp-hint { font-size: 13.5px; margin-top: 4px; }
+.rp .op-page .op-contact { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--op-hair); display: flex; flex-direction: column; gap: 10px; }
+.rp .op-page .op-contact-lines { display: flex; flex-direction: column; gap: 2px; margin: 0; font-size: 14px; color: var(--op-second); overflow-wrap: anywhere; }
+.rp .op-page .op-contact-lines a { color: inherit; text-decoration: none; }
+.rp .op-page .op-contact-lines a:hover { text-decoration: underline; }
+.rp .op-page .op-note { padding: 10px 12px; border-radius: 10px; background: var(--op-subtle); }
+.rp .op-page .op-note p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; }
+.rp .op-page .op-inline-actions { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+
+.rp .op-page .op-items { list-style: none; margin: 6px 0 0; padding: 0; }
+.rp .op-page .op-items > li { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--op-hair); }
+.rp .op-page .op-items > li:last-child { border-bottom: 0; }
+.rp .op-page .op-items > li[data-tick="true"] { cursor: pointer; border-radius: 10px; }
+.rp .op-page .op-items > li[data-tick="true"]:hover { background: var(--op-subtle); }
+.rp .op-page .op-items > li .rp-check, .rp .op-page .op-items > li .rp-checkbox { flex: none; }
+.rp .op-page .op-cover { flex: none; width: 44px; height: 62px; border-radius: 3px; object-fit: cover; border: 1px solid var(--op-hair); background: var(--op-panel); }
+.rp .op-page .op-cover-empty { display: block; }
+.rp .op-page .op-item-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.rp .op-page .op-item-name > strong { font-size: 15px; font-weight: 600; }
+.rp .op-page .op-item-name .rp-hint { font-size: 13.5px; }
+.rp .op-page .op-item-extra { font-size: 13.5px; color: var(--op-second); }
+.rp .op-page .op-item-addons { margin: 2px 0 0; padding-left: 16px; font-size: 13.5px; }
+.rp .op-page .op-shelf { align-self: flex-start; margin-top: 4px; padding: 1px 8px; border: 1px solid var(--op-border); border-radius: 6px; font: 600 12px/1.6 var(--rp-font-mono); }
+.rp .op-page .op-price { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 14.5px; font-variant-numeric: tabular-nums; }
+.rp .op-page .op-price .rp-hint { font-size: 12px; text-align: right; }
+
+.rp .op-page .op-payment { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--op-hair); display: flex; flex-direction: column; gap: 12px; }
+.rp .op-page .op-sums { margin: 0; display: grid; gap: 4px; font-size: 14px; color: var(--op-second); font-variant-numeric: tabular-nums; }
+.rp .op-page .op-sums > div { display: flex; justify-content: space-between; gap: 12px; }
+.rp .op-page .op-sums dd { margin: 0; }
+.rp .op-page .op-sums .op-sums-total { padding-top: 4px; color: var(--op-text); font-size: 16px; font-weight: 700; }
+.rp .op-page .op-pairs { margin: 10px 0 0; display: grid; gap: 8px; font-size: 14px; }
+.rp .op-page .op-pairs > div { display: grid; grid-template-columns: minmax(100px, 35%) 1fr; gap: 12px; }
+.rp .op-page .op-pairs dt { color: var(--op-muted); }
+.rp .op-page .op-pairs dd { margin: 0; overflow-wrap: anywhere; }
+.rp .op-page .op-gift-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; font-size: 14px; }
+.rp .op-page .op-gift-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; }
+.rp .op-page .op-gift-list a { color: inherit; }
+.rp .op-page .op-gift-list .rp-hint { flex-basis: 100%; overflow-wrap: anywhere; }
+
+/* History: one row until opened */
+.rp .op-page .op-history { background: var(--op-card); border: 1px solid var(--op-border); border-radius: 14px; }
+.rp .op-page .op-history > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px;
+  list-style: none; cursor: pointer; color: var(--op-second); font-size: 14px;
+}
+.rp .op-page .op-history > summary::-webkit-details-marker { display: none; }
+.rp .op-page .op-history > summary > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp .op-page .op-history > summary strong { color: var(--op-text); }
+.rp .op-page .op-history-show { flex: none; }
+.rp .op-page .op-history-show::after { content: " ›"; }
+.rp .op-page .op-history[open] .op-history-show { font-size: 0; }
+.rp .op-page .op-history[open] .op-history-show::after { content: "Hide"; font-size: 14px; }
+.rp .op-page .op-history[open] > :not(summary) { margin-left: 22px; margin-right: 22px; }
+.rp .op-page .op-history[open] > :last-child { margin-bottom: 20px; }
+.rp .op-page .op-history .fw-note-form { padding-top: 4px; border-top: 1px solid var(--op-hair); }
+
+.rp .op-page .op-back:focus-visible, .rp .op-page .op-link:focus-visible, .rp .op-page .op-history > summary:focus-visible {
+  outline: 2px solid var(--rp-focus, var(--op-accent)); outline-offset: 2px;
+}
+
+/* Narrow order page (tablets, split screens) */
+@media (max-width: 900px) {
+  .rp .op-page .op-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Phones: the main button is pinned to the bottom of the screen */
+@media (max-width: 767px) {
+  .rp .op-page { gap: 14px; padding-bottom: 88px; }
+  .rp .op-page .op-title { font-size: 24px; }
+  .rp .op-page .op-head { flex-wrap: nowrap; gap: 12px; }
+  .rp .op-page .op-head-text { flex: 1 1 auto; }
+  .rp .op-page .op-pager .rp-icon-btn { width: 40px; height: 40px; min-width: 40px; }
+  .rp .op-page .op-long { display: none; }
+  .rp .op-page .op-short { display: inline; }
+  .rp .op-page .op-next { padding: 18px; }
+  .rp .op-page .op-next-actions { justify-content: stretch; }
+  .rp .op-page .op-next-actions > .rp-btn { flex: 1 1 auto; }
+  .rp .op-page .op-next-main {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+    background: var(--c-ground, var(--rp-canvas)); border-top: 1px solid var(--op-hair);
+  }
+  .rp .op-page .op-next-main .rp-btn.rp-btn { flex: 1; min-height: 48px; }
+  .rp .op-page .op-card { padding: 16px; }
+  .rp .op-page .op-progress li { font-size: 12.5px; }
+  .rp .op-page .op-history > summary { padding: 14px 16px; }
+  .rp .op-page .op-history[open] > :not(summary) { margin-left: 16px; margin-right: 16px; }
+}
+
+@media print {
+  .rp .op-page .op-next-main { position: static; }
+}

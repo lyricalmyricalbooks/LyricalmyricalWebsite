@@ -256,6 +256,17 @@ secondary; activity and internal notes are collapsed. Phones render order cards 
 with Filter & sort in a dialog. Batch packing asks for confirmation and retains per-order outcomes.
 The private operations, label purchase safeguards, payment authority and server data contracts are unchanged.
 
+## Order page: Next step (14 November 2026)
+
+Owner's pick, concept A (https://claude.ai/artifact/Gu9Gcz6GSMPe1sTBCQrJBa). The order page is full width (the desk's list
+pane is gone on desktop; Back returns to the grid). `OrderDetail` draws back link + pager, the customer name as the title
+with one pill (`orderPill`, `orderPage.ts`, pure + tested) and a meta line; `Dashboard` skips `PageHeader` while an order is
+open. `FulfillmentWorkbench` draws the three-part bar (`orderProgress`), then the `alerts` slot (former side cards as
+`OpAlert`), then one **Next step** card (`next`: title, detail, secondary actions, one `.op-next-main` button) — or nothing
+when an alert is the next step — then Ship to (with the `contact` slot) and In the parcel (with the `payment` slot). History is
+one `<details>`. Styles in `orderPage.css`, scoped `.rp .op-page`, `--c-*` tokens. Phones pin `.op-next-main` to the bottom.
+Keep one main button per state; put new order states into `next`, not a new card.
+
 ## Admin improvement pass (10 October 2026)
 
 - **Inventory:** every stock edit goes through `inventoryApi.adjustStock` — a transaction over pure `planStockChange`
