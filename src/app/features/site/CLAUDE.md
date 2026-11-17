@@ -200,6 +200,12 @@ and inventory authority remain live and unchanged. Install Chromium locally with
 
 Public SEO/catalog pagination uses document IDs so records without `createdAt` are included consistently with the sitemap. Admin sorting is unchanged. HTML builds decline analytics/marketing consent and require completed custom-page content.
 
+**Section book links (17 November 2026):** every Studio section that shows books (`SectionComponents.tsx`: product grid,
+showcase grid, featured collection, featured product, book spotlight, staff notes) links each book with a real `<a href>`
+(`bookHref`; the whole card where it holds no other control, else the title via `BookTitleLink`), because crawlers follow only
+anchors and the home page is built from these sections. A plain click still calls the section's `onProductClick` (`openInApp`);
+modified clicks open a new tab. Never go back to a click-only `div`/`button`/`tr` for a book; `sectionBookLinks.render.test.tsx` checks.
+
 ## Collection indexing (7 October 2026)
 
 Collection pages with no published, released books receive `noindex, follow` and are
