@@ -1,4 +1,5 @@
 // Custom page body helpers (Studio › Pages). Pure: they read and rewrite the page's HTML string.
+import { leadSentences, snippet } from "../../lib/bookSeo";
 
 export interface PageBodyStats {
   words: number;
@@ -24,6 +25,15 @@ const decodeEntities = (s: string) =>
 export function pageBodyText(html: string): string {
   return decodeEntities(String(html || "").replace(/<(br|\/p|\/h[1-6]|\/li|\/blockquote)\b[^>]*>/gi, " ").replace(/<[^>]+>/g, " "))
     .replace(/\s+/g, " ").trim();
+}
+
+/** Search description for a page that has none of its own: the body's opening sentences, ending on a whole
+ *  sentence within 160 characters, or on a whole word with "…" when whole sentences would leave it too short
+ *  for Google (under 70). Never cut mid-word, like "…contact us at lyrica". */
+export function pageDescription(body: string): string {
+  const text = pageBodyText(body).replace(/[#*]/g, "").replace(/\s+/g, " ").trim();
+  const lead = leadSentences(text);
+  return lead.length >= 70 || lead === text ? lead : snippet(text);
 }
 
 export function pageBodyStats(html: string): PageBodyStats {

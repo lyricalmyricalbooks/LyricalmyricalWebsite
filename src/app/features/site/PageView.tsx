@@ -16,7 +16,7 @@ import { StoreHeader } from "./StoreHeader";
 import { googleFontHref } from "./fonts";
 import { useSEO } from "../../lib/seo";
 import { breadcrumbData } from "../../lib/bookSeo";
-import { firstBodyImage } from "./pageBody";
+import { firstBodyImage, pageDescription } from "./pageBody";
 import { contentMaxWidth, isFullWidth } from "./headerNav";
 
 
@@ -25,6 +25,7 @@ import { contentMaxWidth, isFullWidth } from "./headerNav";
  * follows it unless switched to its own style, so all custom pages match. Values after `||`
  * are only first-run fallbacks.
  */
+
 export function sitePageStyle(design: any, eyebrow: string): Record<string, any> {
   const d = design || {};
   return {
@@ -77,7 +78,7 @@ export function PageView() {
   useSEO({
     title: seoPage ? seoPage.seoTitle || seoPage.title : notFound ? getCopy(settings?.design, "notFoundTitle") : undefined,
     noindex: notFound,
-    description: seoPage ? seoPage.metaDescription || String(seoPage.body || "").replace(/<[^>]+>/g, " ").replace(/[#*]/g, "").replace(/\s+/g, " ").trim().substring(0, 160) : undefined,
+    description: seoPage ? seoPage.metaDescription || pageDescription(String(seoPage.body || "")) : undefined,
     type: "article",
     // The page's own sharing image, else its first uploaded picture; seo.ts falls back to the shop's share image.
     image: seoPage ? seoPage.seoImage || firstBodyImage(String(seoPage.body || "")) || undefined : undefined,
