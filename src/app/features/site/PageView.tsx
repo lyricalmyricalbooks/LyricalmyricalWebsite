@@ -169,6 +169,9 @@ export function PageView() {
       <StoreHeader design={settings?.design} pages={pages} books={books} />
       {pageStyle.titleFont && <link rel="stylesheet" href={googleFontHref(String(pageStyle.titleFont))} />}
 
+      {/* A page built only from sections (Contact, for one) may show no <h1>: give search engines, AI crawlers and
+          screen readers the page title as its one heading, hidden once a section writes a visible <h1>. */}
+      {hidePageBody && shown.title && <h1 className="sr-only [[data-seo-page]:has(h1:not(.sr-only))_&]:hidden">{shown.title}</h1>}
       <CurrentPageContext.Provider value={{ title: shown.title, body: shown.body, pageStyle }}>
         <SectionPageContext.Provider value={{ page: shown }}>
           <TemplateSections design={settings?.design} templateId={surfaceId} books={books} />
