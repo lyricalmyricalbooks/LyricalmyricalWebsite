@@ -1,6 +1,7 @@
 import { getCopy } from "./storeCopy";
 import { DEFAULT_SOCIAL } from "./constants";
 import { type MenuItem } from "./storeMenu";
+import { childCategories, normalizeCategories, parentOf } from "./categoryMembership.mjs";
 
 export type FooterGroup = "explore" | "connect";
 export function footerGroup(item: MenuItem): FooterGroup {
@@ -34,4 +35,17 @@ export function groupedFooterItems(items: MenuItem[]) {
     groups[footerGroup(item)].push(item);
   }
   return groups;
+}
+
+/** The footer's Collections group (Style › Footer & social links › Show Collections link group, on unless switched off):
+ *  every shop category shown in the menu, each sub-category right after its parent, as one flat list (same rhythm as
+ *  the other groups), so every page links to every collection. */
+export function footerCollectionItems(design: any): MenuItem[] {
+  if (design?.showFooterCollections === false) return [];
+  const cats = design?.categories;
+  const shown = (c: any) => c?.name && c.showInNav !== false;
+  const item = (c: any): MenuItem => ({ id: `footer-collection-${c.id}`, label: c.name, type: "collection", value: c.name });
+  return normalizeCategories(Array.isArray(cats) ? cats : [])
+    .filter((c: any) => shown(c) && !parentOf(c, cats))
+    .flatMap((c: any) => [item(c), ...childCategories(c, cats).filter(shown).map(item)]);
 }

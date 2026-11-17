@@ -1561,7 +1561,9 @@ await check("full width and the shop filter bar: off until switched on, then the
   await styleControl(page, "catalogHeadingCase", "select").selectOption("none");
   const bar = frame.locator(".fm-filter-bar");
   await bar.waitFor({ timeout: 10000 });
-  const words = (await bar.locator("button").allInnerTexts()).join(" ");
+  const words = (await bar.locator("a, button").allInnerTexts()).join(" ");
+  // Category chips are real links to their collection pages (crawlable); In stock stays a button.
+  if (!(await bar.locator("a[href*=\"/collections/\"]").count())) throw new Error("the filter bar category chips are not links");
   if (/\d/.test(words)) throw new Error(`the filter bar shows numbers: ${words}`);
   if (!/in stock/i.test(words)) throw new Error(`no In stock button: ${words}`);
   await preview().waitForFunction(() => { const h = document.querySelector(".fm-catalog-heading"); return !!h && getComputedStyle(h).textTransform === "none"; }, null, { timeout: 10000 });

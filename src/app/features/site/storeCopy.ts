@@ -178,6 +178,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
           "An independent publishing house based in Toronto, specializing in contemporary photography and art books.",
         multiline: true,
       },
+      { key: "footerCollectionsHeading", label: "Collections group heading", default: "Collections" },
       { key: "footerExploreHeading", label: "Explore group heading", default: "Explore" },
       { key: "footerConnectHeading", label: "Participate & connect group heading", default: "Participate & connect" },
       { key: "footerNavHeading", label: "Navigation heading", default: "Navigate" },

@@ -1,5 +1,5 @@
 import { m, AnimatePresence } from "motion/react";
-import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type MouseEvent as ReactMouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Send, Heart, Zap } from "lucide-react";
 import { queryFromSearch } from "../features/site/searchResultsLink";
 import { catalogStateInUrlOn, catalogUrlSearch, readCatalogUrl } from "../features/site/catalogUrlState";
@@ -36,6 +36,8 @@ import { useWishlist } from "../lib/wishlist";
 import { displayPrice as cardDisplayPrice, showsSale, salePercentOff } from "../features/site/displayPrice";
 import { useSEO } from "../lib/seo";
 import { ga4FilterUse } from "../lib/ga4";
+import { ALL_BOOKS_PATH, collectionPath, plainClick } from "../features/site/collectionPath";
+import { HomeShopAll } from "../features/site/extras/home-shop-all/HomeShopAll";
 import { breadcrumbData, collectionStructuredData, leadSentences, profileLinks, seoTopicList, siteStructuredData } from "../lib/bookSeo";
 import { CatalogControls, applyCatalogControls, soldOutLastOn, appliedFilters, filterView, EMPTY_FILTERS, type CatalogFilterState, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
@@ -449,6 +451,15 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
     setActiveCategory(cat);
     setShowCatalog(true);
   };
+  /** A category chip's own page: "All" is every book. */
+  const chipPath = (chip: { name: string; value: any }) => (chip.value === "ALL" ? ALL_BOOKS_PATH : collectionPath(chip.name));
+  /** On the shop page a plain click filters in place, as before; on a collection page the link opens that
+   *  collection (the route picks it), and a new-tab click always follows the link. */
+  const chipPick = (e: ReactMouseEvent, cat: any) => {
+    if (!plainClick(e) || onCollectionRoute) return;
+    e.preventDefault();
+    pickCategory(cat);
+  };
 
   useEffect(() => {
     if (!collectionSlug) return;
@@ -591,6 +602,8 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
 
   const routeCategory = collectionSlug === "all" ? { name: getCopy(activeDesign, "catalogAllCategories") } : categories.find((category: any) => categoryNames(category).some(name => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") === collectionSlug));
   const routeCategoryName = routeCategory?.name || "";
+  const routeParentId = collectionSlug !== "all" && routeCategory ? parentOf(routeCategory, categories) : null;
+  const routeParent = routeParentId ? categories.find((c: any) => c?.id === routeParentId) : null;
   useSEO({
     // Use category membership before shopper search/stock filters.
     noindex: !!urlQuery || onCollectionRoute && (!routeCategory || (collectionSlug === "all"
@@ -615,7 +628,12 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
           .map((book: any) => ({ name: book.title, url: new URL(`books/${encodeURIComponent(getBookSlug(book))}`, siteBase).href, image: book.photos?.[0]?.url }));
         return [
           collectionStructuredData({ name: routeCategoryName, description: collectionIntro(activeDesign, collectionSlug, routeCategory) || undefined, url: collectionUrl, books: collectionBooks }),
-          breadcrumbData([{ name: getCopy(activeDesign, "breadcrumbHome"), url: siteBase }, { name: routeCategoryName, url: collectionUrl }]),
+          // Home › Parent › Category, the same trail the page shows above the category name.
+          breadcrumbData([
+            { name: getCopy(activeDesign, "breadcrumbHome"), url: siteBase },
+            ...(routeParent?.name ? [{ name: routeParent.name, url: new URL(collectionPath(routeParent.name).slice(1), siteBase).href }] : []),
+            { name: routeCategoryName, url: collectionUrl },
+          ]),
         ];
       }
       return siteStructuredData({
@@ -785,6 +803,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
               sharedBlocks={activeDesign.sharedBlocks || []}
               design={activeDesign}
             />
+            <HomeShopAll design={activeDesign} />
           </main>
         ) : (
         <main className="mx-auto w-full flex-1 px-6 py-12 md:py-20" style={{ maxWidth: isReferenceCatalog ? storefrontHeaderMaxWidth : storefrontMaxWidth }}>
@@ -818,11 +837,13 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
                     const isActive = chip.value === "ALL"
                       ? activeCategory === "ALL"
                       : (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === chip.name;
+                    // A real link to the category's own page (crawlers follow only <a href>); on the shop page a
+                    // plain click still filters in place (chipPick).
                     return (
-                      <button key={chip.name} type="button" onClick={() => { if (!isActive) ga4FilterUse("category", chip.value === "ALL" ? "all" : chip.name); pickCategory(chip.value); }} aria-pressed={isActive}>
+                      <Link key={chip.name} to={chipPath(chip)} onClick={(e) => { if (!isActive) ga4FilterUse("category", chip.value === "ALL" ? "all" : chip.name); chipPick(e, chip.value); }} aria-current={isActive ? "true" : undefined}>
                         {chip.value === "ALL" ? getCopy(activeDesign, "catalogAllCategories") : chip.name}
                         {filterBarCounts && ` · ${categoryChipCounts[chip.name] ?? 0}`}
-                      </button>
+                      </Link>
                     );
                   })}
                   {filterBarInStock && (
@@ -844,17 +865,18 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
                   : (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === chip.name;
                 const count = categoryChipCounts[chip.name] ?? 0;
                 return (
-                  <button
+                  <Link
                     key={chip.name}
-                    onClick={() => pickCategory(chip.value)}
-                    aria-pressed={isActive}
+                    to={chipPath(chip)}
+                    onClick={(e) => chipPick(e, chip.value)}
+                    aria-current={isActive ? "true" : undefined}
                     className={`rounded-full border px-4 py-2 text-[11px] font-bold tracking-[0.06em] uppercase transition-colors ${
                       isActive ? "fm-active border-transparent" : "border-white/10 fm-muted hover:border-white/40"
                     }`}
                   >
                     {chip.value === "ALL" ? getCopy(activeDesign, "catalogAllCategories") : chip.name}
                     {storefrontDesign?.categoryChipShowCounts !== false && ` (${count})`}
-                  </button>
+                  </Link>
                 );
               })}
               {navItems.filter((i) => i.kind === "page").map((i: any) => (
@@ -887,7 +909,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
                   </div>
                 )}
                 <div className="max-w-3xl">
-                  {storefrontDesign?.showCollectionBreadcrumbs === true && (() => {
+                  {storefrontDesign?.showCollectionBreadcrumbs !== false && (() => {
                     // Style › Show or hide whole features › Breadcrumbs above a shop category: Home / Parent / Category.
                     const parentId = parentOf(activeCategory, categories);
                     const parent = parentId ? categories.find((c: any) => c?.id === parentId) : null;

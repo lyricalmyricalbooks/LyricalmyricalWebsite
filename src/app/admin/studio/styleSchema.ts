@@ -390,6 +390,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "hideNewsletter", label: "Hide the “Join the Catalogue” sign-up box", kind: "toggle" },
       { key: "hideRecentlyViewed", label: "Hide the “Recently viewed” row on the shop page", kind: "toggle" },
       { key: "footerNavigationLayout", label: "Footer navigation layout", kind: "select", defaultValue: "grouped", options: [{ value: "grouped", label: "Grouped links + legal row" }, { value: "columns", label: "Classic columns" }] },
+      { key: "showFooterCollections", label: "Show Collections link group (every shop category in the menu)", kind: "toggle", defaultValue: true },
       { key: "showFooterExplore", label: "Show Explore link group", kind: "toggle", defaultValue: true },
       { key: "showFooterConnect", label: "Show Participate & connect link group", kind: "toggle", defaultValue: true },
       { key: "showFooterLegalHeading", label: "Show legal row heading", kind: "toggle", defaultValue: true },
@@ -909,7 +910,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
     hint: "Show or hide whole parts of the public site.",
     fields: [
       { key: "showRecentlyViewed", label: "“Recently viewed” row (product page)", kind: "toggle" },
-      { key: "showCollectionBreadcrumbs", label: "Breadcrumbs above a shop category (Home / Category)", kind: "toggle", defaultValue: false },
+      { key: "showCollectionBreadcrumbs", label: "Breadcrumbs above a shop category (Home / Parent / Category)", kind: "toggle", defaultValue: true },
       { key: "showCookieBanner", label: "Cookie banner (keep on where law requires it)", kind: "toggle" },
       { key: "showUnderConstruction", label: "Under construction wall (hides the whole shop from visitors)", kind: "toggle" },
       { key: "showUnderConstructionAdmin", label: "“Admin” button on the under construction wall", kind: "toggle" },

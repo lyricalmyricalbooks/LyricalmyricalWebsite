@@ -45,9 +45,10 @@ export function shopFilterBarCss(design: any): string {
   const active = d.shopFilterBarActiveColor ? clean(d.shopFilterBarActiveColor) : "rgb(var(--fg-rgb, 237, 237, 237))";
   const barFont = d.shopFilterBarFont ? font(d.shopFilterBarFont) : "'DM Mono', ui-monospace, monospace";
   css += `${S} .fm-filter-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}`
-    + `${S} .fm-filter-bar button{font-family:${barFont};font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding:9px 14px;border:1px solid ${border};color:var(--muted, inherit);background:transparent;transition:color .15s,border-color .15s;}`
-    + `${S} .fm-filter-bar button:hover{color:${active};}`
-    + `${S} .fm-filter-bar button[aria-pressed="true"]{border-color:${active};color:${active};}`;
+    // Category chips are links (to their collection page); the In stock toggle stays a button.
+    + `${S} .fm-filter-bar :is(a,button){display:inline-block;text-decoration:none;font-family:${barFont};font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding:9px 14px;border:1px solid ${border};color:var(--muted, inherit);background:transparent;transition:color .15s,border-color .15s;}`
+    + `${S} .fm-filter-bar :is(a,button):hover{color:${active};}`
+    + `${S} .fm-filter-bar :is(a[aria-current="true"],button[aria-pressed="true"]){border-color:${active};color:${active};}`;
   return css;
 }
 

@@ -1,4 +1,5 @@
 import { catName, categoryNames } from "./navItems";
+import { collectionPath, plainClick } from "./collectionPath";
 import { describedAlt } from "./photoAlt";
 import { inEditorPreview } from "../../lib/trackingGuard";
 import { relatedRow } from "./relatedArtist";
@@ -372,8 +373,11 @@ export default function BookDetail() {
   const configuredCategories = settings?.design?.categories;
   const shopCats      = (Array.isArray(configuredCategories) ? configuredCategories : []).filter((c: any) => !categoryNames(c).includes("PUBLICATIONS"));
   const safeBookCategories = Array.isArray(bk.categories) ? bk.categories : [];
-  const shopCat       = shopCats.find((c: any) => safeBookCategories.some((t: string) => categoryNames(c).includes(t)));
+  // Every shop category the book is filed under (the tag links to each); the first one is the breadcrumb's.
+  const bookShopCats  = shopCats.filter((c: any) => safeBookCategories.some((t: string) => categoryNames(c).includes(t)));
+  const shopCat       = bookShopCats[0];
   const categoryLabel: string | undefined = shopCat ? catName(shopCat) : undefined;
+  const categoryLabels: string[] = [...new Set(bookShopCats.map((c: any) => catName(c)).filter(Boolean))];
 
   // Approved reviews feed the search-result star rating; the snapshot waits for this read.
   const [seoReviews, setSeoReviews] = useState<{ bookId: string; list: any[]; summary: { count: number; average: number } | null } | null>(null);
@@ -969,7 +973,11 @@ export default function BookDetail() {
                     <div className={stockInTagRow ? "fm-pdp-tagrow" : undefined}>
                       <span className="fm-pdp-tag" data-style={pdpTagStyle}>
                         <Tag size={10} aria-hidden="true" />
-                        {categoryLabel || getCopy(settings?.design, "categoryFallback")}
+                        {/* Each category is a link to its collection page (shoppers and crawlers can go from a book
+                            to the rest of its collection); no category = the fallback word, not a link. */}
+                        {categoryLabels.length
+                          ? categoryLabels.map((label, i) => <Fragment key={label}>{i > 0 && <span aria-hidden="true"> · </span>}<Link to={collectionPath(label)} className="fm-pdp-tag-link">{label}</Link></Fragment>)
+                          : getCopy(settings?.design, "categoryFallback")}
                       </span>
                       {stockInTagRow && stockLine}
                     </div>
@@ -1354,17 +1362,19 @@ export default function BookDetail() {
         <div className="mx-auto px-6 pt-2 pb-12 lg:pb-20" style={{ maxWidth: pageMaxWidth }}>
           {/* ── back link (Studio › Style › Product page · "Show Back link") ── */}
           {pdpShowBackLink && (
-            <button
-              type="button"
-              // Arriving straight from a link (search, email, social) has no shop page to go back to.
-              onClick={() => (location.key === "default" ? navigate("/") : navigate(-1))}
+            <Link
+              // A real link to the book's collection (else the shop) so crawlers can follow it; a plain click still
+              // goes back to the shop page the shopper came from. Arriving straight from a link (search, email,
+              // social) there is nothing to go back to, so the link is followed.
+              to={categoryLabel ? collectionPath(categoryLabel) : "/"}
+              onClick={(e) => { if (location.key === "default" || !plainClick(e)) return; e.preventDefault(); navigate(-1); }}
               aria-label={getCopy(settings?.design, "backToCatalog")}
               data-studio-target="style:productCard|copy:Product page" data-studio-label="Back link"
               className="fm-pdp-meta mt-4 mb-2 inline-flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity"
             >
               {pdpShowBackArrow && <ArrowLeft size={13} aria-hidden="true" />}
               {getCopy(settings?.design, "backToCatalog")}
-            </button>
+            </Link>
           )}
           {/* ── breadcrumb ── */}
           {pdpShowBreadcrumb && (
