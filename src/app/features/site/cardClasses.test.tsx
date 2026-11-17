@@ -45,8 +45,10 @@ function titleElements(html: string) {
   for (const { title } of BOOKS) {
     let at = html.indexOf(`>${title}<`);
     while (at !== -1) {
-      const open = html.lastIndexOf("<", at);
-      const tag = html.slice(open, at + 1);
+      let open = html.lastIndexOf("<", at);
+      // A title wrapped in its book link (<h3 class="fm-card-title"><a href>Title</a>): the heading holds the class.
+      if (html.startsWith("<a ", open)) open = html.lastIndexOf("<", open - 1);
+      const tag = html.slice(open, html.indexOf(">", open) + 1);
       found.push({ tag, ok: /class="[^"]*\bfm-card-title\b/.test(tag) });
       at = html.indexOf(`>${title}<`, at + 1);
     }

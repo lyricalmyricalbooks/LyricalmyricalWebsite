@@ -1201,7 +1201,7 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
             </div>
             <div className="space-y-5">
               <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow ?? fb("FeaturedProductSection.eyebrow")}</p>
-              <h2 className="text-3xl md:text-4xl font-bold text-white" style={hStyle(settings)}>{target.title}</h2>
+              <h2 className="text-3xl md:text-4xl font-bold text-white" style={hStyle(settings)}><BookTitleLink book={target} onOpen={() => onProductClick?.(target)} /></h2>
               {target.subtitle && <p className="text-white/60" style={bStyle(settings)}>{target.subtitle}</p>}
               <p className="text-2xl font-bold text-white" style={bStyle(settings)}>{formatBookPrice(target)}</p>
               <p className="text-white/60 text-sm leading-relaxed line-clamp-4" style={bStyle(settings)}>{target.description || ""}</p>
@@ -1226,6 +1226,18 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
 // ──────────────────────────────
 
 const productSlug = (book: any) => book?.slug || book?.title?.toLowerCase?.().replace(/[^a-z0-9]+/g, "-");
+// Book cards are real links (search engines follow only <a href>, so the home page passes its weight to the books);
+// a plain click still opens the book inside the app through the section's own handler.
+const bookHref = (book: any) => `${import.meta.env.BASE_URL}books/${encodeURIComponent(productSlug(book) || book?.id || "")}`;
+const openInApp = (open: () => void) => (e: any) => {
+  e.stopPropagation(); // the card around a title link must not open the book a second time
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; // new tab/window: let the browser follow the link
+  e.preventDefault();
+  open();
+};
+function BookTitleLink({ book, onOpen }: { book: any; onOpen: () => void }) {
+  return <a href={bookHref(book)} onClick={openInApp(onOpen)}>{book.title}</a>;
+}
 
 // Every catalog-driven section picks its books through one rule
 // (features/site/merchandising.ts `selectBooks`: all / featured / picked / category /
@@ -1309,9 +1321,9 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
             const price = displayPrice(book);
             return (
               <AnimationContainer className="min-w-0" key={book.id || idx} enabled={enableAnimations} delay={idx * 0.04}>
-                <button
-                  type="button"
-                  onClick={() => onProductClick?.(book)}
+                <a
+                  href={bookHref(book)}
+                  onClick={openInApp(() => onProductClick?.(book))}
                   {...blockEditAttrs({ id: book.id || productSlug(book) }, idx)}
                   className="fm-card group block w-full min-w-0 text-left"
                 >
@@ -1346,7 +1358,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
                       <span className="fm-card-price">{formatBookPrice(book)}</span>
                     </p>
                   )}
-                </button>
+                </a>
               </AnimationContainer>
             );
           })}
@@ -1606,7 +1618,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                     )}
                   </div>
                   <div className="mt-2.5 flex items-baseline justify-between gap-3">
-                    <h3 className="fm-card-title min-w-0 text-[17px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
+                    <h3 className="fm-card-title min-w-0 text-[17px] leading-snug" style={hStyle(settings)}><BookTitleLink book={book} onOpen={() => openBook(book)} /></h3>
                     {settings.showPrices !== false && (
                       <p className="fm-card-price-wrap text-sm whitespace-nowrap fm-muted">
                         {onSale ? (
@@ -1683,7 +1695,7 @@ export function StaffNotesTableSection({ settings, books, onProductClick, enable
                       }
                     }}
                   >
-                    <td className="py-3.5 px-2 text-base" style={hStyle(settings)}>{book.title}</td>
+                    <td className="py-3.5 px-2 text-base" style={hStyle(settings)}><BookTitleLink book={book} onOpen={() => open(book)} /></td>
                     {showCategory && <td className="py-3.5 px-2 text-[13px] fm-muted">{book.categories?.[0] || ""}</td>}
                     {showFormat && <td className="py-3.5 px-2 text-[13px] fm-muted">{book.format || ""}</td>}
                     <td className="py-3.5 px-2 text-[13px] fm-muted">{note}</td>
@@ -2680,13 +2692,11 @@ export function FeaturedCollectionSection({ settings, books, onProductClick, ena
         <div className={`${gridId} grid gap-6`}>
           {items.map((book: any, idx: number) => (
             <AnimationContainer className="min-w-0" key={book.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
-              <div
-                className="fm-card group min-w-0 cursor-pointer"
-                role="link"
-                tabIndex={0}
+              <a
+                href={bookHref(book)}
+                className="fm-card group block min-w-0"
                 aria-label={sc("sectionViewBook", { title: book.title })}
-                onClick={() => onProductClick?.(book)}
-                onKeyDown={(e: any) => { if (e.target !== e.currentTarget) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onProductClick?.(book); } }}
+                onClick={openInApp(() => onProductClick?.(book))}
               >
                 <div className="fm-photo-frame relative overflow-hidden bg-white/5" style={{ aspectRatio: "3 / 4" }}>
                   {book.photos?.[0]?.url && <><PhotoToneDefs photo={book.photos[0]} /><img loading="lazy" src={book.photos[0].url} {...photoSrcSet(book.photos[0], gridPhotoSizes([{ from: 0, cols: mobileCols }, { from: 768, cols }], { photo: book.photos[0], frame: "3 / 4" }))} alt={book.title} decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"  style={framingStyle(book.photos[0])} /></>}
@@ -2698,7 +2708,7 @@ export function FeaturedCollectionSection({ settings, books, onProductClick, ena
                     <span className="fm-card-price">{formatBookPrice(book)}</span>
                   </p>
                 )}
-              </div>
+              </a>
             </AnimationContainer>
           ))}
         </div>
@@ -2727,7 +2737,7 @@ export function BookSpotlightSection({ settings, books, onProductClick, enableAn
             </div>
             <div className="space-y-5">
               {eyebrow && <p className="text-[10px] font-bold tracking-[0.3em] uppercase" style={{ color: settings.accentColor || "var(--accent, #e8402a)" }} data-theme-field="eyebrow">{eyebrow}</p>}
-              <h2 className="fm-card-title text-3xl md:text-5xl font-bold uppercase leading-none" style={hStyle(settings)}>{target.title}</h2>
+              <h2 className="fm-card-title text-3xl md:text-5xl font-bold uppercase leading-none" style={hStyle(settings)}><BookTitleLink book={target} onOpen={() => onProductClick?.(target)} /></h2>
               {target.authorName && <p className="text-sm fm-muted" style={bStyle(settings)}>{target.authorName}</p>}
               {settings.quote && (
                 <blockquote className="border-l-2 pl-4 space-y-2" style={{ borderColor: settings.accentColor || "var(--accent, #e8402a)" }}>
