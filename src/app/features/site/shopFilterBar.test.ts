@@ -32,7 +32,7 @@ describe("shop filter bar", () => {
 
   it("draws the bar only while shown, and loads its font", () => {
     const css = shopFilterBarCss({ showShopFilterBar: true, shopFilterBarActiveColor: "#ff0000" });
-    expect(css).toContain(".fm-filter-bar button[aria-pressed=\"true\"]{border-color:#ff0000");
+    expect(css).toContain(".fm-filter-bar :is(a[aria-current=\"true\"],button[aria-pressed=\"true\"]){border-color:#ff0000");
     expect(shopFilterBarFontNames({ showShopFilterBar: true })).toEqual(["DM Mono"]);
   });
 

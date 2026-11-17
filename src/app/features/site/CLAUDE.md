@@ -711,3 +711,18 @@ Google Analytics (`lib/ga4.ts`) and Clarity (`lib/clarity.ts`) add their third-p
 (`lib/afterPageLoad.ts`: window `load`, then idle, 4 s at most), so they no longer compete with the first photos and shop code.
 Both queue their calls until the script arrives, so no event is lost; consent and path checks are unchanged. Keep any new
 third-party tag behind the same helper.
+
+## Internal links (17 November 2026)
+
+Anything that opens another shop page is an `<a href>` (crawlers follow nothing else), looking and clicking as before:
+- Shop filter-bar and category chips (`MainSite`) link to `collectionPath(name)` / `ALL_BOOKS_PATH` (`features/site/collectionPath.ts`);
+  on the shop page a plain click still filters in place (`chipPick`), on a collection page the link is followed. Active chip = `aria-current="true"`.
+- `MagneticButton` takes `href` (renders `a`/`m.a`); Featured book and Spotlight buttons use `bookHref` + `openInApp`. Hero and Image
+  banner buttons with a link are links (`heroCtaHref`, `BannerButton`, `bannerClick`: modified clicks open a new tab, plain clicks go as before).
+  Showcase grid covers are wrapped in an `aria-hidden`, `tabIndex=-1` link (the card holds the quick-add button).
+- Book page: the category tag links every shop category the book is in (`.fm-pdp-tag-link`); Back is a link to the book's collection
+  (else `/`) whose plain click still goes back in history when there is history.
+- Footer **Collections** group (`footerCollectionItems` in `footerNavigation.ts`, flat list, sub-categories after their parent;
+  Style › Footer & social links › `showFooterCollections`, on by default; words Footer › `footerCollectionsHeading`).
+- Collection breadcrumb is on by default (`showCollectionBreadcrumbs !== false`, the owner's ask) and its BreadcrumbList has the parent.
+- Home sections end with **Shop all books** (`extras/home-shop-all`, `showHomeShopAll`, words Catalog & empty states › `homeShopAll`).

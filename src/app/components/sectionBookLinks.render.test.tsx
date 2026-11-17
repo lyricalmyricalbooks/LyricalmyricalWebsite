@@ -37,4 +37,26 @@ describe("book sections link to book pages", () => {
       expect(html).not.toMatch(/<a [^>]*>(?:(?!<\/a>).)*<a /s);
     }
   });
+  it.each(["FeaturedProductSection", "BookSpotlightSection"])("%s button is a link to the book (same look)", (type) => {
+    const html = render(type, { ctaText: "View the book" });
+    expect(html).toMatch(/<a href="\/books\/(salt-water|night-ink)" class="inline-block [^"]*rounded-full[^"]*"[^>]*>(?:<span[^>]*>)?View the book/);
+    expect(html).not.toMatch(/<button[^>]*>(?:<span[^>]*>)?View the book/);
+  });
+  it("the showcase grid cover links to the book, outside the tab order", () => {
+    expect(render("ProductShowcaseGridSection")).toMatch(/<a href="\/books\/salt-water" tabindex="-1" aria-hidden="true"[^>]*><img/);
+  });
+});
+
+describe("banner buttons with a link are links", () => {
+  it("hero and image banner buttons get the link as href; outside links open in a new tab", () => {
+    const hero = wrap(h(Sections.HeroSection, { settings: { ctaText: "Explore the books", ctaUrl: "/collections/zines", secondaryCtaText: "About", secondaryCtaUrl: "https://example.com/about" } }));
+    expect(hero).toMatch(/<a href="\/collections\/zines"[^>]*><span[^>]*>Explore the books/);
+    expect(hero).toMatch(/<a href="https:\/\/example.com\/about" target="_blank" rel="noopener"[^>]*><span[^>]*>About/);
+    const banner = wrap(h(Sections.ImageBannerSection, { settings: { ctaText: "Shop zines", ctaUrl: "/collections/zines" } }));
+    expect(banner).toMatch(/<a href="\/collections\/zines"[^>]*><span[^>]*>Shop zines/);
+  });
+  it("a hero button with no link stays a button", () => {
+    const hero = wrap(h(Sections.HeroSection, { settings: { ctaText: "Browse" } }));
+    expect(hero).toMatch(/<button[^>]*><span[^>]*>Browse/);
+  });
 });

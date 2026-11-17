@@ -233,15 +233,30 @@ function btnS(s: any): Record<string, any> {
 const MAGNETIC_SPRING = { damping: 15, stiffness: 150, mass: 0.6 };
 const MAGNETIC_PULL = 0.35; // fraction of cursor offset the button translates by
 
-function MagneticButton({ magnetic, children, className, style, onClick, ...rest }: any) {
-  const ref = useRef<HTMLButtonElement>(null);
+/** The hero button's link as the browser follows it: outside links as typed, shop paths under the site's sub-path. */
+function heroCtaHref(url: unknown): string | undefined {
+  const u = String(url || "").trim();
+  if (!u) return undefined;
+  if (/^https?:\/\//i.test(u)) return u;
+  const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+  return u.startsWith("/") ? base + u : u;
+}
+
+/** A section button. With `href` it is a real link (crawlers follow only <a href>) that looks the same;
+ *  `onClick` decides whether a plain click stays inside the app (see `openInApp`). */
+function MagneticButton({ magnetic, children, className, style, onClick, href, ...rest }: any) {
+  const ref = useRef<any>(null);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const springX = useSpring(x, MAGNETIC_SPRING);
   const springY = useSpring(y, MAGNETIC_SPRING);
 
   if (!magnetic) {
-    return (
+    return href ? (
+      <a href={href} className={`inline-block ${className || ""}`} style={style} onClick={onClick} {...rest}>
+        {children}
+      </a>
+    ) : (
       <button className={className} style={style} onClick={onClick} {...rest}>
         {children}
       </button>
@@ -263,10 +278,12 @@ function MagneticButton({ magnetic, children, className, style, onClick, ...rest
     y.set(0);
   };
 
+  const Tag: any = href ? m.a : m.button;
   return (
-    <m.button
+    <Tag
       ref={ref}
-      className={className}
+      href={href}
+      className={href ? `inline-block ${className || ""}` : className}
       style={{ ...style, x: springX, y: springY }}
       onClick={onClick}
       onMouseMove={handleMouseMove}
@@ -274,7 +291,7 @@ function MagneticButton({ magnetic, children, className, style, onClick, ...rest
       {...rest}
     >
       {children}
-    </m.button>
+    </Tag>
   );
 }
 
@@ -381,14 +398,11 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
           }`}>
             <MagneticButton
               magnetic={!!settings.btnMagnetic}
-              onClick={() => {
-                const url = settings.ctaUrl;
-                if (!url) { onCtaClick?.(); return; }
-                if (/^https?:\/\//i.test(url)) { window.open(url, "_blank", "noopener"); return; }
-                // Site-relative URLs need the GitHub Pages sub-path prefix.
-                const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-                window.location.assign(keepPreviewParam(url.startsWith("/") ? base + url : url));
-              }}
+              // With a link set, the button is a real link (crawlable, opens in a new tab on Ctrl/⌘-click);
+              // a plain click still goes the same way as before.
+              href={heroCtaHref(settings.ctaUrl)}
+              {...newTabAttrs(settings.ctaUrl)}
+              onClick={bannerClick(settings.ctaUrl, onCtaClick)}
               className={`px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase ${
                 settings.hoverEffect ? hoverEffectClassName(settings.hoverEffect) : "hover:scale-105 transition-transform"
               }`}
@@ -399,9 +413,9 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
             {/* A second button with nowhere to go is a dead click: shoppers see it once it has a link
                 (the Studio preview keeps showing it so the owner can see where to add one). */}
             {settings.secondaryCtaText && (settings.secondaryCtaUrl || inStudioPreview()) && (
-              <button type="button" onClick={() => followBannerLink(settings.secondaryCtaUrl)} className="px-8 py-3.5 rounded-full border border-white/30 text-[10px] tracking-[0.3em] font-semibold uppercase hover:bg-white/10 transition-colors text-white">
+              <BannerButton url={settings.secondaryCtaUrl} className="px-8 py-3.5 rounded-full border border-white/30 text-[10px] tracking-[0.3em] font-semibold uppercase hover:bg-white/10 transition-colors text-white">
                 <span data-theme-field="secondaryCtaText">{settings.secondaryCtaText}</span>
-              </button>
+              </BannerButton>
             )}
             {settings.metaText && (
               <span className="text-xs text-white/60" data-theme-field="metaText">{settings.metaText}</span>
@@ -478,6 +492,21 @@ function followBannerLink(url: string | undefined, fallback?: () => void) {
   const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
   window.location.assign(keepPreviewParam(url.startsWith("/") ? base + url : url));
 }
+/** Click handler for a banner/hero button: a Ctrl/⌘/middle click on a linked button lets the browser open the link
+ *  in a new tab; a plain click goes the way it always did (`followBannerLink`). */
+const bannerClick = (url: string | undefined, fallback?: () => void) => (e: any) => {
+  if (url && (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) return;
+  e.preventDefault?.();
+  followBannerLink(url, fallback);
+};
+const newTabAttrs = (url: unknown) => (/^https?:\/\//i.test(String(url || "")) ? { target: "_blank", rel: "noopener" } : {});
+/** A banner button: a real link when it has somewhere to go (crawlers follow only <a href>), else a button. */
+function BannerButton({ url, fallback, className, style, children }: { url?: string; fallback?: () => void; className?: string; style?: any; children: any }) {
+  const href = heroCtaHref(url);
+  return href
+    ? <a href={href} {...newTabAttrs(url)} onClick={bannerClick(url, fallback)} className={`inline-block ${className || ""}`} style={style}>{children}</a>
+    : <button type="button" onClick={bannerClick(url, fallback)} className={className} style={style}>{children}</button>;
+}
 
 export function ImageBannerSection({ settings, onCtaClick, enableAnimations }: any) {
   const position = BANNER_POSITIONS[settings.contentPosition] || BANNER_POSITIONS["center-center"];
@@ -522,14 +551,14 @@ export function ImageBannerSection({ settings, onCtaClick, enableAnimations }: a
             {(settings.ctaText || settings.secondaryCtaText) && (
               <div className={`mt-8 flex flex-wrap gap-3 ${textAlign === "left" ? "justify-start" : textAlign === "right" ? "justify-end" : "justify-center"}`}>
                 {settings.ctaText && (
-                  <button type="button" onClick={() => followBannerLink(settings.ctaUrl, onCtaClick)} className="min-h-11 px-7 py-3 text-[10px] font-bold uppercase tracking-[0.2em]" style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #fff)", color: "var(--btn-text, #000)", ...btnS(settings) }}>
+                  <BannerButton url={settings.ctaUrl} fallback={onCtaClick} className="min-h-11 px-7 py-3 text-[10px] font-bold uppercase tracking-[0.2em]" style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #fff)", color: "var(--btn-text, #000)", ...btnS(settings) }}>
                     <span data-theme-field="ctaText">{settings.ctaText}</span>
-                  </button>
+                  </BannerButton>
                 )}
                 {settings.secondaryCtaText && (
-                  <button type="button" onClick={() => followBannerLink(settings.secondaryCtaUrl)} className="min-h-11 border border-white/70 px-7 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white hover:bg-white/10">
+                  <BannerButton url={settings.secondaryCtaUrl} className="min-h-11 border border-white/70 px-7 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white hover:bg-white/10">
                     <span data-theme-field="secondaryCtaText">{settings.secondaryCtaText}</span>
-                  </button>
+                  </BannerButton>
                 )}
               </div>
             )}
@@ -1207,7 +1236,8 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
               <p className="text-white/60 text-sm leading-relaxed line-clamp-4" style={bStyle(settings)}>{target.description || ""}</p>
               <MagneticButton
                 magnetic={!!settings.btnMagnetic}
-                onClick={() => onProductClick?.(target)}
+                href={bookHref(target)}
+                onClick={openInApp(() => onProductClick?.(target))}
                 className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
                 style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
               >
@@ -1563,16 +1593,20 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                   }}
                 >
                   <div className="relative overflow-hidden rounded-[2px] bg-white/5" style={{ aspectRatio: aspect }}>
+                    {/* The cover is a real link too (the card holds the quick-add button, so it can't be one link);
+                        out of the tab order and hidden from screen readers, which already have the card and its title. */}
                     {book.photos?.[0]?.url && (
-                      <img
-                        src={book.photos[0].url}
-                        {...photoSrcSet(book.photos[0], gridPhotoSizes([{ from: 0, cols: mobileCols }, { from: 1024, cols }], { photo: book.photos[0], frame: aspect }))}
-                        alt={book.title}
-                        loading="lazy"
-                        decoding="async"
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                        style={framingStyle(book.photos[0])}
-                      />
+                      <a href={bookHref(book)} onClick={openInApp(() => openBook(book))} tabIndex={-1} aria-hidden="true" className="block w-full h-full">
+                        <img
+                          src={book.photos[0].url}
+                          {...photoSrcSet(book.photos[0], gridPhotoSizes([{ from: 0, cols: mobileCols }, { from: 1024, cols }], { photo: book.photos[0], frame: aspect }))}
+                          alt={book.title}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                          style={framingStyle(book.photos[0])}
+                        />
+                      </a>
                     )}
                     <PhotoToneDefs photo={book.photos?.[0]} />
                     {overlayColor && overlayOpacity > 0 && (
@@ -2752,7 +2786,8 @@ export function BookSpotlightSection({ settings, books, onProductClick, enableAn
               {cta && (
                 <MagneticButton
                   magnetic={!!settings.btnMagnetic}
-                  onClick={() => onProductClick?.(target)}
+                  href={bookHref(target)}
+                  onClick={openInApp(() => onProductClick?.(target))}
                   className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
                   style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
                 >

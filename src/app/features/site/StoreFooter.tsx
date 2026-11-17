@@ -12,7 +12,7 @@ import { GroupedFooterNavigation } from "../../components/GroupedFooterNavigatio
 import { FooterMenu } from "../../components/StoreMenu";
 import { wordmarkSecondaryStyle } from "../../components/LogoMark";
 import { footerLinksAlign, footerStyleCss } from "./footerStyle";
-import { pageInFooter } from "./footerNavigation";
+import { footerCollectionItems, pageInFooter } from "./footerNavigation";
 import { elementScheme } from "./colorSchemes";
 import { BackToTop } from "./extras/footer-back-to-top/BackToTop";
 import { FooterCurrency, footerCurrencyOn } from "./extras/footer-currency/FooterCurrency";
@@ -49,7 +49,8 @@ export function StoreFooter({ settings, pages }: { settings: any; pages: any[] }
   const linksAlign = footerLinksAlign(d);
   const groupedGrid = linksAlign === "spread" ? "md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]"
     : linksAlign === "start" ? "md:grid-cols-[auto_minmax(0,1fr)]" : "md:grid-cols-[minmax(0,1fr)_auto]";
-  const groupsLayout = linksAlign === "spread" ? "grid grid-cols-2"
+  // Spread across the width: one column per link group (Collections makes three).
+  const groupsLayout = linksAlign === "spread" ? `grid grid-cols-2 ${footerCollectionItems(d).length ? "md:grid-cols-3" : ""}`
     : `grid grid-cols-2 sm:flex sm:flex-wrap ${linksAlign === "start" ? "md:justify-self-start" : "md:justify-self-end"}`;
   const email = settings?.info?.email || "lyricalmyricalbooks@gmail.com";
   const footerAbout: string = String((settings?.design?.copy?.footerAbout != null ? getCopy(settings?.design, "footerAbout") : shopCopyFallback(settings, "footerAbout") || getCopy(settings?.design, "footerAbout")) ?? "");

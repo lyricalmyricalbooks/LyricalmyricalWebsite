@@ -286,6 +286,8 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-tag{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;font-size:10px;font-weight:900;letter-spacing:.3em;text-transform:uppercase;line-height:1;}`;
   css += `${S} .fm-pdp-tag[data-style="filled"]{background:var(--badge-bg-primary, var(--accent));color:var(--badge-text-primary, var(--on-accent));}`;
   css += `${S} .fm-pdp-tag[data-style="outline"]{border:2px solid currentColor;color:rgb(var(--fg-rgb));}`;
+  // The tag's category names are links to their collections: same colour and weight, underline on hover/focus only.
+  css += `${S} .fm-pdp-tag-link{color:inherit;text-decoration:none;text-underline-offset:3px;}${S} .fm-pdp-tag-link:is(:hover,:focus-visible){text-decoration:underline;}`;
   css += `${S} .fm-pdp-title{margin:0;font-family:${titleFont};font-weight:${has(d.headingWeight) ? Number(d.headingWeight) || 400 : 400};line-height:.98;overflow-wrap:anywhere;text-wrap:balance;color:${cardTint("pdpTitleColor", "rgb(var(--fg-rgb))")};${titleCase}}`;
   css += sizeRules(`${S} .fm-pdp-title`, num(d, "pdpTitleSize", 0, 0, 120), num(d, "pdpTitleSizeMobile", 0, 0, 96), "var(--pdp-title-auto, clamp(34px, 4.6vw, 62px))", PHONE_TITLE_SCALE, "var(--pdp-title-fit, 100vw)");
   // The title's word-fit cap measures the card section it sits in.
