@@ -752,6 +752,13 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
   const siteNameHeading = !storefrontDesign?.catalogHeading && !onCollectionRoute && siteName
     ? <h1 className="sr-only [main:has(h1:not(.sr-only))_&]:hidden">{siteName}</h1>
     : null;
+  // Book card titles are <h3>s. When no <h2> names the grid above them (no catalog heading on a collection page, no
+  // category banner elsewhere), they would skip a level under the page's <h1>, so they are announced as level 2 instead.
+  // aria-level keeps the tag, and so the card's look, unchanged.
+  const gridHasHeading = onCollectionRoute
+    ? Boolean(storefrontDesign?.catalogHeading)
+    : Boolean(activeCategory && activeCategory !== "ALL" && (activeCategory.description || activeCategory.imageUrl));
+  const cardTitleLevel = gridHasHeading ? undefined : 2;
   {
     return (
       <div
@@ -1115,6 +1122,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
                     >
                       <div className="fm-card-meta flex items-start justify-between gap-3">
                         <h3
+                          aria-level={cardTitleLevel}
                           className={`fm-card-title ${isReferenceCatalog ? "text-lg md:text-xl font-black tracking-tight" : "text-sm tracking-wider font-medium"} leading-tight min-w-0 break-words`}
                           style={{ color: storefrontDesign?.productTitleColor || storefrontText, textTransform: storefrontTitleTransform }}
                         >
