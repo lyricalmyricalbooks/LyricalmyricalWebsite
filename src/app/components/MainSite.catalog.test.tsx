@@ -117,3 +117,22 @@ describe("MainSite home page heading", () => {
     expect(html).toMatch(/<h1 class="fm-catalog-heading[^"]*">Shop<\/h1>/);
   });
 });
+
+// Live audit of 18 Nov 2026 (axe "heading-order"): card titles (<h3>) sat right under the page's <h1> with no <h2>.
+describe("MainSite book card heading level", () => {
+  const cardTitles = (html: string) => html.match(/<h3[^>]*class="fm-card-title[^"]*"/g) || [];
+  it("announces card titles as level 2 when no heading names the grid", () => {
+    site.data = dataFor([]);
+    const titles = cardTitles(renderToStaticMarkup(tree()));
+    expect(titles.length).toBe(2);
+    for (const t of titles) expect(t).toContain('aria-level="2"');
+  });
+  it("leaves them at level 3 under a category banner's <h2>", () => {
+    site.data = dataFor([{ id: "b", name: "Books", description: "All our books" }]);
+    const html = renderToStaticMarkup(tree());
+    expect(html).toMatch(/<h2[^>]*>Books<\/h2>/);
+    const titles = cardTitles(html);
+    expect(titles.length).toBe(1);
+    expect(titles[0]).not.toContain("aria-level");
+  });
+});

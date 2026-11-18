@@ -12,4 +12,7 @@ describe("checkout landmarks", () => {
   it("makes the phone Pay bar a landmark named by its Text & labels line", () => {
     expect(src).toMatch(/<aside \{\.\.\.regionProps\("checkoutPayBar"\)\} aria-label=\{c\("coPayBarLabel"\)\}/);
   });
+  it("gives the empty-bag page a level-one heading (axe page-has-heading-one, audit of 18 Nov 2026)", () => {
+    expect(src).toMatch(/<h2 aria-level=\{1\} [^>]*>\{c\("coEmptyTitle"\)\}<\/h2>/);
+  });
 });
