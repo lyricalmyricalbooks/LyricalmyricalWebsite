@@ -1811,7 +1811,8 @@ export function Checkout() {
             <Package size={36} className="text-white/20" strokeWidth={1} />
           </div>
           <p className="text-[9px] font-black tracking-[0.5em] text-white/20 uppercase mb-4">{c("coEmptyEyebrow")}</p>
-          <h2 className="text-4xl font-black tracking-tighter uppercase italic text-white mb-12">{c("coEmptyTitle")}</h2>
+          {/* The page's only heading, so it is its level-one heading (aria-level keeps the tag and its look). */}
+          <h2 aria-level={1} className="text-4xl font-black tracking-tighter uppercase italic text-white mb-12">{c("coEmptyTitle")}</h2>
           {/* The bag emptied itself here (everything sold out or came off sale): say why. */}
           {notice && <p role="status" className="max-w-sm -mt-6 mb-10 text-sm leading-relaxed opacity-70">{notice.text}</p>}
           <Link to="/"
