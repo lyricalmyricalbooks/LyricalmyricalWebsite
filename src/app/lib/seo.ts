@@ -11,6 +11,8 @@ type SEO = {
   title?: string;
   description?: string;
   image?: string;
+  /** What the share picture shows (its alt text); the page title when absent. */
+  imageAlt?: string;
   url?: string;
   type?: "website" | "article" | "product" | "book";
   /** Price/stock tags read by Pinterest rich pins and Facebook product shares. */
@@ -117,7 +119,7 @@ export function useSEO(seo: SEO) {
     // An empty og:image is an invalid tag; leave it out so platforms pick their own preview.
     if (image) {
       setMeta('meta[property="og:image"]', "content", image);
-      setMeta('meta[property="og:image:alt"]', "content", title);
+      setMeta('meta[property="og:image:alt"]', "content", seo.imageAlt || title);
       setMeta('meta[name="twitter:image"]', "content", image);
     } else {
       removeMeta('meta[property="og:image"]');
@@ -147,5 +149,5 @@ export function useSEO(seo: SEO) {
     return () => {
       clearJsonLd("seo-jsonld-page");
     };
-  }, [location.pathname, location.search, design, seo.keep, seo.title, seo.exactTitle, seo.noindex, seo.description, seo.image, seo.url, seo.type, JSON.stringify(seo.product || null), JSON.stringify(seo.jsonLd || {})]);
+  }, [location.pathname, location.search, design, seo.keep, seo.title, seo.exactTitle, seo.noindex, seo.description, seo.image, seo.imageAlt, seo.url, seo.type, JSON.stringify(seo.product || null), JSON.stringify(seo.jsonLd || {})]);
 }

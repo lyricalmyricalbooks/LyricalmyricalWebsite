@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoBookSeo, bookCreators, creatorLinks, creatorPeople, namesCreator, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, infoPageStructuredData, infoPageType, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, seoTopicList, siteStructuredData, snippet, profileLinks } from './bookSeo';
+import { autoBookSeo, splitPress, bookCreators, creatorLinks, creatorPeople, namesCreator, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, infoPageStructuredData, infoPageType, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, seoTopicList, siteStructuredData, snippet, profileLinks } from './bookSeo';
 const book = { id: 'one', title: 'Photo book', description: '<p>Art &amp; photography.</p>', retailPrice: 24, stockLevel: 0, status: 'published', slug: 'photo-book', metaTitle: 'An artist’s photo book', metaDescription: 'A unique collection of photographs.', seoImage: 'https://example.com/share.jpg' };
 describe('book search metadata', () => {
   it('uses saved search fields and sharing image', () => {
@@ -203,6 +203,36 @@ describe('artist links', () => {
     expect(done.find(c => c.id === 'creator')?.ok).toBe(true);
     expect(done.find(c => c.id === 'creatorLink')?.ok).toBe(true);
     expect(seoChecks({ ...hound, subtitle: 'Various artists' }).some(c => c.id === 'creator')).toBe(false);
+  });
+});
+
+describe('press links at the top of a description', () => {
+  const pressed = { ...book, metaTitle: '', metaDescription: '', seoImage: '', title: 'The Hound', isbn: '', description: 'Press: [Macleans Magazine article](https://macleans.ca/culture/hound/)\n               [Musee Magazine](https://museemagazine.com/hound)\n\n"What began a century ago as a commuting service for iron miners, has become a ubiquitous presence on the highway." -Ian Willms', photos: [{ url: 'https://example.com/cover.jpg', altText: 'Front cover of The Hound with a route map.' }] };
+  const opts = { currency: 'CAD', price: 70, url: 'https://shop.test/books/the-hound' };
+  it('splits the opening Press paragraph into article links', () => {
+    expect(splitPress(pressed.description)).toEqual({
+      body: '"What began a century ago as a commuting service for iron miners, has become a ubiquitous presence on the highway." -Ian Willms',
+      press: [{ name: 'Macleans Magazine article', url: 'https://macleans.ca/culture/hound/' }, { name: 'Musee Magazine', url: 'https://museemagazine.com/hound' }],
+    });
+  });
+  it('leaves descriptions without a Press opening as they are', () => {
+    const text = 'A book about press freedom.\n\nPress: later mention';
+    expect(splitPress(text)).toEqual({ body: text, press: [] });
+  });
+  it('starts the search summary and structured data with the book, and lists the coverage as subjectOf', () => {
+    expect(bookMetadata(pressed).description.startsWith('"What began')).toBe(true);
+    expect(autoBookSeo(pressed).metaDescription.startsWith('"What began')).toBe(true);
+    const data = bookStructuredData(pressed as any, opts) as any;
+    expect(data.description.startsWith('"What began')).toBe(true);
+    expect(data.subjectOf).toEqual([
+      { '@type': 'CreativeWork', name: 'Macleans Magazine article', url: 'https://macleans.ca/culture/hound/' },
+      { '@type': 'CreativeWork', name: 'Musee Magazine', url: 'https://museemagazine.com/hound' },
+    ]);
+    expect((bookStructuredData(book as any, opts) as any).subjectOf).toBeUndefined();
+  });
+  it('describes the share picture with the cover photo’s alt text, not a custom share image', () => {
+    expect(bookMetadata(pressed).imageAlt).toBe('Front cover of The Hound with a route map.');
+    expect(bookMetadata({ ...pressed, seoImage: 'https://example.com/share.jpg' }).imageAlt).toBe('');
   });
 });
 
