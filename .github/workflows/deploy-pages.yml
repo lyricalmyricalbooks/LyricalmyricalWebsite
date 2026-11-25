@@ -203,6 +203,11 @@ jobs:
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
         run: node scripts/carry-previous-assets.mjs
 
+      # Settings › General › URL redirects become real 301s (scripts/hostingRedirects.mjs; warns and changes nothing on a problem).
+      - name: Add the URL redirects to the Hosting config
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        run: node scripts/hostingRedirects.mjs dist/hosting-redirects.json firebase.json
+
       - name: Check routing and headers in the Hosting emulator
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
         run: npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" emulators:exec --only hosting --project demo-lyricalmyrical "node scripts/hosting-smoke.mjs"
@@ -264,6 +269,11 @@ jobs:
           else
             echo "deploy=true" >> "$GITHUB_OUTPUT"
           fi
+
+      # The same merge as build-hosting, on this job's fresh checkout, so the emulator-checked config is what deploys.
+      - name: Add the URL redirects to the Hosting config
+        if: steps.newest.outputs.deploy == 'true'
+        run: node scripts/hostingRedirects.mjs dist/hosting-redirects.json firebase.json
 
       - name: Deploy to Firebase Hosting
         if: steps.newest.outputs.deploy == 'true'

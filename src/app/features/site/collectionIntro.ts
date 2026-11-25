@@ -17,3 +17,13 @@ export function collectionIntro(design: any, slug: string | undefined, category:
   const key = slug ? COLLECTION_INTRO_KEYS[slug] : undefined;
   return key ? getCopy(design, key).trim() : "";
 }
+
+/**
+ * A category's own Google listing (Studio › Navigation › Shop categories › Edit › Search engine listing), like
+ * Shopify's per-collection SEO title and description. Blank strings when unset: the page then uses its usual title
+ * (Text & labels › Collection page title) and description.
+ */
+export function collectionSearchListing(category: any): { title: string; description: string } {
+  const own = category && typeof category === "object" ? category : {};
+  return { title: String(own.seoTitle || "").trim(), description: String(own.metaDescription || "").trim() };
+}

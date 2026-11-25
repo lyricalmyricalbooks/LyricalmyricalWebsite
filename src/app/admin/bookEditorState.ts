@@ -3,6 +3,8 @@ import { sameValue } from "./bookStockMerge";
 import { catalogPublishIssues } from "./catalogPublishReview";
 import { validIsbn } from "./catalogImport";
 import { metricWeightValue } from "../features/site/metricWeight";
+import { isLiveBook } from "../features/site/liveBook";
+import { resolveProductRoutes } from "../features/site/productRoutes";
 
 const DERIVED_CURRENCY = ["usdPrice", "eurPrice", "usdCostPrice", "eurCostPrice", "usdSalePrice", "eurSalePrice"];
 
@@ -65,8 +67,8 @@ export function slugClash(slug: string, id: string | undefined, catalog: any[]):
 export const slugifyTitle = (s: string) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 /**
- * A published book's web address is frozen: shoppers, search engines and emailed links already use it, and
- * the site cannot redirect an old address. Only an explicit "Change web address" action unlocks it.
+ * A published book's web address is frozen: shoppers, search engines and emailed links already use it. Only an
+ * explicit "Change web address" action unlocks it; saving the new address then adds a URL redirect from the old one.
  */
 export function slugLocked(stored: { status?: unknown; slug?: unknown } | null | undefined, unlocked = false): boolean {
   return !!stored && stored.status === "published" && !!String(stored.slug ?? "").trim() && !unlocked;
@@ -181,4 +183,22 @@ export async function lookupIsbn(isbn: string, fetcher: typeof fetch = fetch): P
     if (r.ok) return parseGoogleBooks(await r.json());
   } catch { /* none */ }
   return null;
+}
+
+/**
+ * Where a book lives on the shop: `/books/<slug>` exactly as the storefront resolves it (stored slug, else one made from
+ * the title, else the book id on a clash: `resolveProductRoutes`) among the live books, with this copy swapped in.
+ * "" when this copy isn't live.
+ */
+export function liveBookPath(catalog: any[], book: any, nowISO = new Date().toISOString()): string {
+  if (!book || !isLiveBook(book, nowISO)) return "";
+  const others = (Array.isArray(catalog) ? catalog : []).filter((b: any) => b && b.id !== book.id && isLiveBook(b, nowISO));
+  const route = resolveProductRoutes([...others, book]).at(-1);
+  return route?.slug ? `/books/${route.slug}` : "";
+}
+
+/** The redirect a save needs when a live book's shop address changed (Shopify's "Create a URL redirect"), else null. */
+export function bookAddressMove(catalog: any[], before: any, after: any, nowISO = new Date().toISOString()): { from: string; to: string } | null {
+  const from = liveBookPath(catalog, before, nowISO), to = liveBookPath(catalog, after, nowISO);
+  return from && to && from !== to ? { from, to } : null;
 }

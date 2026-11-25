@@ -224,6 +224,36 @@ export function breadcrumbData(items: { name: string; url: string }[]) {
   };
 }
 
+/** schema.org type of a shop info page, from its address: About describes the shop, Contact is how to reach it,
+ *  everything else is a plain web page. History stays a WebPage on purpose: it tells the story of Lyricalmyrical Press,
+ *  and how the Press and the Books relate isn't written down yet, so it must not claim to be about the shop. */
+export function infoPageType(slug: string): 'AboutPage' | 'ContactPage' | 'WebPage' {
+  const s = String(slug || '').toLowerCase();
+  if (/^about(?:-|$)|^our-story$/.test(s)) return 'AboutPage';
+  if (/^contact(?:-|$)/.test(s)) return 'ContactPage';
+  return 'WebPage';
+}
+
+/** A shop info page, joined by @id to the home page's shop and website, so About reads as a page about Lyricalmyrical
+ *  Books itself and every page as part of the same site. */
+export function infoPageStructuredData(options: { slug: string; name: string; url: string; siteUrl: string; description?: string }) {
+  const url = canonicalUrl(options.url);
+  const site = canonicalUrl(options.siteUrl);
+  const type = infoPageType(options.slug);
+  const shop = { '@id': site + '#organization' };
+  return {
+    '@context': 'https://schema.org',
+    '@type': type,
+    '@id': url + '#webpage',
+    url,
+    name: searchText(options.name),
+    ...(options.description ? { description: searchText(options.description) } : {}),
+    isPartOf: { '@id': site + '#website' },
+    publisher: shop,
+    ...(type === 'WebPage' ? {} : { about: shop }),
+  };
+}
+
 /** A shop category as a list of the books in it. */
 export function collectionStructuredData(options: { name: string; description?: string; url: string; books: { name: string; url: string; image?: string }[] }) {
   const url = canonicalUrl(options.url);
