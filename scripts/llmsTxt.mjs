@@ -4,6 +4,7 @@
 import { creatorNames, cut, isLive, plain } from '../src/app/features/site/merchantFeed.mjs';
 import { resolveProductRoutes } from '../src/app/features/site/productRouteData.mjs';
 import { safeSlug } from './routeSafety.mjs';
+import { listedCollections } from './sitemapData.mjs';
 
 const POLICY_TITLES = { shipping: 'Shipping policy', returns: 'Returns policy', privacy: 'Privacy policy', terms: 'Terms of service' };
 const line = value => plain(value).replace(/\s+/g, ' ').trim();
@@ -47,6 +48,18 @@ export function llmsTxt(siteUrl, books, pages, settings = {}, { now = new Date()
     }
     out.push('');
   }
+
+  // Collection pages answer "who publishes zines / photobooks in Toronto" questions: name each with its books.
+  const listedIds = new Set(listed.map(book => book.id));
+  const collections = listedCollections(live, settings, { nowISO: now.toISOString() })
+    .map(collection => {
+      const titles = collection.books.filter(book => listedIds.has(book.id)).map(book => linkText(book.title)).filter(Boolean);
+      if (!titles.length) return '';
+      const about = cut(line(collection.description), 200);
+      return `- [${linkText(collection.name)}](${base}/collections/${encodeURIComponent(collection.slug)}):${about ? ` ${(/[.!?…]$/.test(about) ? about : about + '.')}` : ''} ${titles.length === 1 ? 'Book' : 'Books'}: ${titles.join(', ')}.`;
+    })
+    .filter(Boolean);
+  if (collections.length) out.push('## Collections', '', ...collections, '');
 
   const pageLinks = (pages || [])
     .filter(page => page?.status === 'published' && page.slug && safeSlug(page.slug))

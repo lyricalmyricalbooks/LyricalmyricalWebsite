@@ -10,6 +10,25 @@ const absoluteUrl = (value, base) => {
 /** The latest YYYY-MM-DD among ISO date strings, or undefined. */
 const newestDate = values => values.map(value => typeof value === 'string' ? value.slice(0, 10) : '').filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date)).sort().pop();
 const slugify = (value = '') => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+/** The collection pages the shop shows (Studio categories in the menu), each with its slug, name, description and
+ *  published books. Shared by the sitemap and /llms.txt so both always list the same pages. */
+export function listedCollections(live, settings = {}, { includeEmptyCollections = false, nowISO = new Date().toISOString() } = {}) {
+  // Collection pages resolve Studio category names, not a separate Firestore collection.
+  const design = effectivePublishedSettings(settings, nowISO).design || {};
+  const categorySource = design.categories ?? design.storefront?.categories ?? design.heroPage?.categories ?? [];
+  const categories = normalizeCategories(Array.isArray(categorySource) ? categorySource : []);
+  const out = [];
+  for (const category of categories) {
+    if (category?.showInNav === false) continue;
+    const members = live.filter(book => book.status === 'published' && bookInCategory(book, category, categories));
+    if (!includeEmptyCollections && !members.length) continue;
+    if (category?.parentId && categories.some(parent => parent?.id === category.parentId && parent.showInNav === false)) continue;
+    const name = typeof category === 'string' ? category : category?.name;
+    const slug = slugify(name);
+    if (slug && !out.some(entry => entry.slug === slug)) out.push({ slug, name: String(name), description: typeof category?.description === 'string' ? category.description : '', books: members });
+  }
+  return out;
+}
 export function sitemapArtifacts(siteUrl, books, pages, collections, settings = {}, { includeEmptyCollections = false } = {}) {
   const base = siteUrl.replace(/\/$/, '');
   const urls = [{ loc: base + '/' }];
@@ -35,19 +54,9 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
     const text = settings?.policies?.[key];
     if (typeof text === 'string' && text.trim()) urls.push({ loc: `${base}/page/policy-${key}` });
   }
-  // Collection pages resolve Studio category names, not a separate Firestore collection.
-  const design = effectivePublishedSettings(settings, nowISO).design || {};
-  const categorySource = design.categories ?? design.storefront?.categories ?? design.heroPage?.categories ?? [];
-  const categories = normalizeCategories(Array.isArray(categorySource) ? categorySource : []);
-  for (const category of categories) {
-    if (category?.showInNav === false) continue;
-    const members = live.filter(book => book.status === 'published' && bookInCategory(book, category, categories));
-    if (!includeEmptyCollections && !members.length) continue;
-    if (category?.parentId && categories.some(parent => parent?.id === category.parentId && parent.showInNav === false)) continue;
-    const name = typeof category === 'string' ? category : category?.name;
-    const slug = slugify(name);
+  for (const collection of listedCollections(live, settings, { includeEmptyCollections, nowISO })) {
     // A collection page lists its books, so it changes when the newest of them does.
-    if (slug) urls.push({ loc: `${base}/collections/${encodeURIComponent(slug)}`, lastmod: newestDate(members.map(book => book.updatedAt || book._updateTime)) });
+    urls.push({ loc: `${base}/collections/${encodeURIComponent(collection.slug)}`, lastmod: newestDate(collection.books.map(book => book.updatedAt || book._updateTime)) });
   }
   const unique = [...new Map(urls.map(url => [url.loc, url])).values()];
   // The home page lists every book and page, so it changes whenever they do.
