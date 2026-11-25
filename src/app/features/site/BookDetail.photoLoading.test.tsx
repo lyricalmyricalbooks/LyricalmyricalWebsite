@@ -67,9 +67,9 @@ it("adaptive frames read each photo's saved shape and load the gallery only when
   await reach();
   expect(loadedAhead.map((x) => x.src)).toEqual([1, 2, 3, 4].map((n) => `https://cdn.test/${n}-2400w.webp`));
   // Same sizes as the strip's photos, so the browser picks the same copy.
-  expect(new Set(loadedAhead.map((x) => x.sizes))).toEqual(new Set(["(max-width: 560px) 100vw, 616px"]));
+  expect(new Set(loadedAhead.map((x) => x.sizes))).toEqual(new Set(["(max-width: 560px) calc(100vw - 48px), 616px"]));
   const main = el.querySelector<HTMLImageElement>(".fm-pdp-frame img[srcset]")!;
-  expect(main.getAttribute("sizes")).toBe("(max-width: 560px) 100vw, 616px");
+  expect(main.getAttribute("sizes")).toBe("(max-width: 560px) calc(100vw - 48px), 616px");
   await done();
 });
 
