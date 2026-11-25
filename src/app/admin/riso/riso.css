@@ -793,6 +793,10 @@ html:has(.rp[data-rp-appearance="dark"] .rp-app), body:has(.rp[data-rp-appearanc
 .book-editor-riso .be-photo-play:hover { background: var(--rp-primary); color: var(--rp-on-primary, #100f0d); }
 .book-editor-riso .be-photo-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .book-editor-riso .be-photo-framed { position: absolute; left: 6px; bottom: 6px; background: var(--rp-surface); color: var(--rp-text); border: var(--rp-stroke) solid var(--rp-border-strong); font: 700 10px/1 var(--rp-font-mono); letter-spacing: .08em; text-transform: uppercase; padding: 4px 6px; }
+/* A hidden image stays in the editor but not on the shop: faded photo, neutral "Hidden" badge. */
+.book-editor-riso .be-photo.is-hidden { border-style: dashed; }
+.book-editor-riso .be-photo.is-hidden .be-photo-img img { opacity: .35; filter: grayscale(1); }
+.book-editor-riso .be-photo.is-hidden .be-photo-badge { background: var(--rp-surface); color: var(--rp-text); }
 /* Crop & position dialog (admin/PhotoCropDialog.tsx) */
 .be-crop { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: start; }
 @media (max-width: 720px) { .be-crop { grid-template-columns: 1fr; } }

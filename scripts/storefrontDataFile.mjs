@@ -15,6 +15,8 @@
 // The file holds the raw document data the browser's Firestore read returns. A value type JSON can't carry the same
 // way (timestamps, references, bytes, geo points, NaN) stops the file from being written, so the browser falls back.
 
+import { withShownPhotos } from '../src/app/features/site/shownPhotos.mjs';
+
 /** Path of the file inside the built site (and on Hosting). Mirrors STOREFRONT_DATA_FILE in the browser. */
 export const STOREFRONT_DATA_FILE = 'storefront-data.json';
 export const STOREFRONT_DATA_VERSION = 1;
@@ -84,7 +86,8 @@ export async function readStorefrontData(base, project, fetchImpl = fetch, pageS
     });
     const docs = (Array.isArray(rows) ? rows : []).filter(r => r && r.document).map(r => r.document);
     // Same shape as publicApi.getStorefrontBooks after loadCatalog: the document's fields, then its id.
-    books.push(...docs.map(d => ({ ...fieldsOf(d), id: docId(d) })));
+    // Images hidden in the admin are left out of the public file (the shop also filters them on every read).
+    books.push(...docs.map(d => withShownPhotos({ ...fieldsOf(d), id: docId(d) })));
     if (docs.length < pageSize) break;
     after = docs.at(-1).name;
   }

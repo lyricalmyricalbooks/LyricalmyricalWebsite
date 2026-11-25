@@ -4,6 +4,7 @@ import { orderAccessHeaders, savedOrderAccess } from "./orderAccessClient";
 import { defaultSettings } from "../admin/defaultSettings";
 import { withRisoNoirDefault } from "../features/site/risoNoir";
 import type { Page } from "../features/site/types";
+import { withShownPhotos } from "../features/site/shownPhotos.mjs";
 import { cleanRedirects, REDIRECTS_DOC, type Redirect } from "../features/site/redirects";
 
 /**
@@ -30,7 +31,7 @@ export const publicApi = {
     try { snap = await getDoc(doc(liteDb, "books", id)); }
     catch (err: any) { if (err?.code === "permission-denied") return null; throw err; }
     if (!snap.exists()) return null;
-    return { id: snap.id, ...snap.data() };
+    return withShownPhotos({ id: snap.id, ...snap.data() });
   },
 
   getShippingProfiles: async () => {

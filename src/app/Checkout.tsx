@@ -51,6 +51,7 @@ import { activeTaxRates, matchTaxRate } from "./features/site/taxRate";
 import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
 import { readSiteCache } from "./features/site/siteCache";
 import { loadCatalog } from "./features/site/loadCatalog";
+import { withShownPhotos } from "./features/site/shownPhotos.mjs";
 import { currentStorefrontData, fetchStorefrontDataFile, shippingProfilesFrom } from "./features/site/storefrontDataFile";
 import { quoteLocalFulfillment } from "./features/site/localFulfillment";
 import { catalogFulfillmentItems, discountedPhysicalSubtotal } from "./features/site/checkoutFulfillment";
@@ -289,7 +290,7 @@ export function Checkout() {
         ]);
         setShippingProfiles(profiles);
         setTaxRates(activeTaxRates(siteSettings));
-        setBooks(bookList);
+        setBooks((bookList as any[]).map(withShownPhotos));
         setCatalogState("ready");
         const preview = new URLSearchParams(window.location.search).get("preview") === "true";
         const design = preview ? (window as any).__studioPreviewDesign || siteSettings?.design : siteSettings?.design;
