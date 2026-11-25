@@ -7,9 +7,9 @@ and writes one HTML file per public route: `index.html` for the home page and
 `collections/<slug>.html`). Firebase Hosting (`cleanUrls`) answers the slash-less
 URL `/books/<slug>` from `books/<slug>.html` with HTTP 200, and
 `trailingSlash: false` 301-redirects `/books/<slug>/` and `/books/<slug>.html` to it,
-matching the slash-less canonical, `og:url`, JSON-LD and sitemap URLs. App routes
-that were not prerendered get the clean app shell (`spa.html`) and unknown URLs a
-real 404 that still renders the editable missing page (docs/FIREBASE_HOSTING.md).
+matching the slash-less canonical, `og:url`, JSON-LD and sitemap URLs. Private app
+routes get the clean app shell (`spa.html`); unknown URLs, including a book, page
+or collection with no snapshot, get a real 404 that still renders the editable missing page (docs/FIREBASE_HOSTING.md).
 These files contain actual published
 Studio layouts, text, links, metadata and current page structured data. React
 starts normally and continues loading live catalog and checkout data.
@@ -28,8 +28,8 @@ starts normally and continues loading live catalog and checkout data.
   Firebase Hosting at `https://lyricalmyrical-web-v2.web.app` (site at the root).
   `cleanUrls` serves `books/<slug>.html` at `/books/<slug>` with HTTP 200 and
   `trailingSlash: false` 301-redirects `/books/<slug>/` and `/books/<slug>.html` to
-  the slash-less canonical; app routes without a snapshot get `spa.html` (the clean
-  app shell) and unknown URLs get a real 404 (`404.html` is the same shell). The old
+  the slash-less canonical; private app routes get `spa.html` (the clean
+  app shell) and unknown URLs (books/pages/collections without a snapshot too) get a real 404 (`404.html` is the same shell). The old
   GitHub Pages address serves forwarding pages whose canonical links name the new
   pages (docs/FIREBASE_HOSTING.md).
 
