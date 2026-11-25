@@ -76,3 +76,20 @@ describe("bookAddressMove (redirect after a live book changes address)", () => {
     expect(bookAddressMove([], { ...live, scheduleDate: "2027-01-01" }, { ...live, scheduleDate: "2027-01-01", slug: "new" }, now)).toBeNull();
   });
 });
+
+describe("publication date as typed", () => {
+  it("keeps a year, a month or a full day, tidied", async () => {
+    const { publishDateInput } = await import("./bookEditorState");
+    expect(publishDateInput("2024")).toEqual({ ok: true, value: "2024" });
+    expect(publishDateInput(" 2024-5 ")).toEqual({ ok: true, value: "2024-05" });
+    expect(publishDateInput("2024/5/4")).toEqual({ ok: true, value: "2024-05-04" });
+    expect(publishDateInput("2024-05-14")).toEqual({ ok: true, value: "2024-05-14" });
+    expect(publishDateInput("")).toEqual({ ok: true, value: "" });
+    expect(publishDateInput(undefined)).toEqual({ ok: true, value: "" });
+  });
+  it("refuses what isn't a date, so nothing is silently dropped", async () => {
+    const { publishDateInput } = await import("./bookEditorState");
+    for (const bad of ["May 2024", "24", "2024-13", "2023-02-29", "2024-04-31", "0999"]) expect(publishDateInput(bad).ok).toBe(false);
+    expect(publishDateInput("2024-02-29").ok).toBe(true);
+  });
+});
