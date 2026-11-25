@@ -76,7 +76,7 @@ import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEd
 import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
 import { DescriptionText } from "../features/site/DescriptionText";
 import { redirectsAfterMove } from "../features/site/redirects";
-import { bookAddressMove, editorDirty, fillEmpty, isbnWarning, lookupIsbn, needsPublishReview, slugClash, slugFollowsTitle, slugLocked, slugifyTitle, withMetricWeights } from "./bookEditorState";
+import { bookAddressMove, editorDirty, fillEmpty, isbnWarning, lookupIsbn, needsPublishReview, publishDateInput, slugClash, slugFollowsTitle, slugLocked, slugifyTitle, withMetricWeights } from "./bookEditorState";
 import { LOW_STOCK } from "./catalogList";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { isStockLinked, type InventoryLinks } from "./inventoryLink";
@@ -584,6 +584,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
       } catch { add("seo", "Sharing image must be a valid HTTPS URL."); }
     }
     if (!formData.title.trim()) found.push({ text: "Book title is required.", tab: "details", field: "title" });
+    const published = publishDateInput(formData.publishDate);
+    if (!published.ok) found.push({ text: "Publication date: use a year (2024) or a full date (2024-05-14).", tab: "details", field: "publishDate" });
+    else if (formData.preorder && published.value && published.value.length !== 10) found.push({ text: "Pre-orders need the full release day as the Publication date (2024-05-14).", tab: "details", field: "publishDate" });
     if (formData.retailPrice < 0) add("pricing", "Retail price cannot be negative.");
     // An edition saved with a blank price would sell for $0.
     (formData.variants || []).forEach((v: any, i: number) => {
@@ -611,7 +614,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
     // Review when the book goes live, or when a live book gains a problem it didn't have when opened.
     if (!reviewed && needsPublishReview(formData, book ? initialData : null)) { setPublishReview(true); return; }
     // Gift cards are digital and untracked; box sets take stock from the books inside (productExtras).
-    const toSave = withMetricWeights(productForSave(formData));
+    const toSave = withMetricWeights(productForSave({ ...formData, publishDate: published.value }));
     // Edits typed while the save is in flight are kept (and stay unsaved), never replaced by the saved copy.
     const snapshot = formData;
     setLoading(true);
@@ -1360,7 +1363,9 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   </SelectField>
                   <TextField label="Publisher" name="publisher" value={formData.publisher || ""} onChange={handleChange} placeholder="Lyricalmyrical Books" />
                   <TextField label="Edition" name="edition" value={formData.edition || ""} onChange={handleChange} placeholder="First Edition" />
-                  <TextField label="Publication date" type="date" name="publishDate" value={formData.publishDate || ""} onChange={handleChange} />
+                  <TextField label="Publication date" name="publishDate" value={formData.publishDate || ""} onChange={handleChange} placeholder="2024 or 2024-05-14" inputMode="numeric"
+                    onBlur={() => { const d = publishDateInput(formData.publishDate); if (d.ok && d.value !== (formData.publishDate || "")) set("publishDate", d.value); }}
+                    hint={formData.preorder ? "Year, or the full release day for pre-orders." : "Year, or year-month-day."} error={publishDateInput(formData.publishDate).ok ? undefined : "Use a year (2024) or a full date (2024-05-14)."} />
                   <TextField label="Page count" type="number" min={0} name="pageCount" value={formData.pageCount ?? 0} onChange={handleChange} />
                   <TextField label="Language" name="language" value={formData.language || ""} onChange={handleChange} placeholder="English" />
                   {!giftCard && <TextField label="Dimensions" name="dimensions" value={formData.dimensions || ""} onChange={handleChange} placeholder="6 x 9 in" />}

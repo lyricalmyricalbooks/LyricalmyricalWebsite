@@ -766,3 +766,14 @@ Catalog › book › Search engine listing › Heading above the description (`a
 first inside the description (all three details layouts) with the description-heading style plus `fm-pdp-desc-lead`
 (no top margin as first child). Blank draws nothing; an empty description shows no heading. The words for each book are
 in the keyword plan. Test: `BookDetail.aboutHeading.render.test.tsx`.
+
+## IndexNow, other names, shop-wide returns (25 November 2026)
+
+`scripts/indexnow.mjs` runs in Deploy storefront: `save` keeps the live sitemap before the Hosting deploy (only once the
+live site serves `/<key>.txt`), `submit` posts new, re-dated and removed sitemap pages to api.indexnow.org afterwards.
+Both steps are `continue-on-error`; the key is public by design and lives in `public/<key>.txt` (the test checks the
+file matches `INDEXNOW_KEY`). Skipped on the default Firebase address. The home page's BookStore and WebSite carry
+`alternateName` from Text & labels › Site & sharing › Other names for the shop (`seoAlternateNames`), and the
+BookStore repeats the books' `hasMerchantReturnPolicy` (`seoReturnDays`) at organization level.
+Book `author`/`contributor` Persons with an artist page get `@id: <artist page>#person` (BookDetail passes
+`artistUrl`), the same `@id` as ArtistPage's ProfilePage mainEntity. `inLanguage` goes through `languageCodes`.

@@ -275,6 +275,14 @@ jobs:
         if: steps.newest.outputs.deploy == 'true'
         run: node scripts/hostingRedirects.mjs dist/hosting-redirects.json firebase.json
 
+      # IndexNow (scripts/indexnow.mjs): keep the live sitemap so only pages that changed are sent after the deploy.
+      - name: Keep the live sitemap for IndexNow
+        if: steps.newest.outputs.deploy == 'true'
+        continue-on-error: true
+        env:
+          SITE_URL: ${{ needs.build-hosting.outputs.site-url }}
+        run: node scripts/indexnow.mjs save --base "$SITE_URL" --out "$RUNNER_TEMP/previous-sitemap.xml"
+
       - name: Deploy to Firebase Hosting
         if: steps.newest.outputs.deploy == 'true'
         env:
@@ -310,6 +318,14 @@ jobs:
         env:
           SITE_URL: ${{ needs.build-hosting.outputs.site-url }}
         run: node scripts/seo-url-check.mjs --base "$SITE_URL"
+
+      # Bing, Copilot and ChatGPT search hear about new, changed and removed pages within minutes. Never fails the deploy.
+      - name: Tell Bing which pages changed (IndexNow)
+        if: steps.newest.outputs.deploy == 'true'
+        continue-on-error: true
+        env:
+          SITE_URL: ${{ needs.build-hosting.outputs.site-url }}
+        run: node scripts/indexnow.mjs submit --base "$SITE_URL" --sitemap dist/sitemap.xml --previous "$RUNNER_TEMP/previous-sitemap.xml"
 
   # The old address forwards to the shop. Replaced only after the shop itself deployed and passed its live check,
   # so GitHub Pages never forwards to an address that isn't serving. Schedules don't touch it.

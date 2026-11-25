@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoBookSeo, splitPress, bookCreators, creatorLinks, creatorPeople, namesCreator, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, infoPageStructuredData, infoPageType, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, seoTopicList, siteStructuredData, snippet, profileLinks } from './bookSeo';
+import { autoBookSeo, splitPress, bookCreators, creatorLinks, creatorPeople, namesCreator, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, infoPageStructuredData, infoPageType, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, seoTopicList, siteStructuredData, snippet, profileLinks, alternateNameList, returnPolicyData, languageCodes } from './bookSeo';
 const book = { id: 'one', title: 'Photo book', description: '<p>Art &amp; photography.</p>', retailPrice: 24, stockLevel: 0, status: 'published', slug: 'photo-book', metaTitle: 'An artist’s photo book', metaDescription: 'A unique collection of photographs.', seoImage: 'https://example.com/share.jpg' };
 describe('book search metadata', () => {
   it('uses saved search fields and sharing image', () => {
@@ -86,6 +86,36 @@ describe('book search metadata', () => {
     const [bare]: any[] = siteStructuredData({ name: 'Shop', url: 'https://example.com/', email: 'not an email', area: {} });
     expect(bare.email).toBeUndefined();
     expect(bare.address).toBeUndefined();
+  });
+  it('gives the book language as codes', () => {
+    expect(languageCodes('Italian, English')).toEqual(['it', 'en']);
+    expect(languageCodes('English')).toBe('en');
+    expect(languageCodes('it / en')).toEqual(['it', 'en']);
+    expect(languageCodes('Friulian')).toBe('Friulian');
+    expect(languageCodes('')).toBeUndefined();
+    const data: any = bookStructuredData({ ...book, language: 'Italian, English' } as any, { currency: 'CAD', price: 24, url: 'https://example.com/books/one' });
+    expect(data.inLanguage).toEqual(['it', 'en']);
+  });
+  it('ties a credited artist to their page on the shop by @id', () => {
+    const credited: any = { ...book, subtitle: 'Ian Willms, Guest Writer', creatorLinks: [{ name: 'Ian Willms', url: 'https://ianwillms.com' }] };
+    const artistUrl = (name: string) => name === 'Ian Willms' ? 'https://example.com/artists/ian-willms' : undefined;
+    const data: any = bookStructuredData(credited, { currency: 'CAD', price: 24, url: 'https://example.com/books/one', artistUrl });
+    expect(data.author[0]).toEqual({ '@id': 'https://example.com/artists/ian-willms#person', '@type': 'Person', name: 'Ian Willms', url: 'https://ianwillms.com/', sameAs: ['https://ianwillms.com/'] });
+    expect(data.author[1]).toEqual({ '@type': 'Person', name: 'Guest Writer' });
+    expect(bookStructuredData(credited, { currency: 'CAD', price: 24, url: 'https://example.com/books/one' }).author[0]['@id']).toBeUndefined();
+  });
+  it('gives the shop and website its other names, and the shop-wide returns rule', () => {
+    expect(alternateNameList('Lyricalmyrical, lyricalmyrical books\nLyrical Myrical Books, Lyricalmyrical', 'Lyricalmyrical Books')).toEqual(['Lyricalmyrical', 'Lyrical Myrical Books']);
+    expect(alternateNameList('', 'Shop')).toEqual([]);
+    const policy = returnPolicyData('0', 'CA');
+    const [org, site]: any[] = siteStructuredData({ name: 'Shop', url: 'https://example.com/', alternateNames: ['Shoppe'], returnPolicy: policy });
+    expect(org.alternateName).toEqual(['Shoppe']);
+    expect(site.alternateName).toEqual(['Shoppe']);
+    expect(org.hasMerchantReturnPolicy).toEqual({ '@type': 'MerchantReturnPolicy', applicableCountry: 'CA', returnPolicyCategory: 'https://schema.org/MerchantReturnNotPermitted' });
+    const [bare, bareSite]: any[] = siteStructuredData({ name: 'Shop', url: 'https://example.com/', alternateNames: [], returnPolicy: null });
+    expect(bare.alternateName).toBeUndefined();
+    expect(bareSite.alternateName).toBeUndefined();
+    expect(bare.hasMerchantReturnPolicy).toBeUndefined();
   });
   it('ties a book to the shop by @id when the shop published it, and keeps co-publishers by name', () => {
     const opts = { currency: 'CAD', price: 24, url: 'https://example.com/books/one', seller: 'Lyricalmyrical Books', shopUrl: 'https://example.com/' };

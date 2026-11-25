@@ -202,3 +202,24 @@ export function bookAddressMove(catalog: any[], before: any, after: any, nowISO 
   const from = liveBookPath(catalog, before, nowISO), to = liveBookPath(catalog, after, nowISO);
   return from && to && from !== to ? { from, to } : null;
 }
+
+/** Books › edit › Details › Publication date, as typed: "2024", "2024-5", "2024/05/14", "2024.05.14" → "2024",
+ *  "2024-05", "2024-05-14". Blank stays blank. `ok: false` for anything else, or a day that doesn't exist, so the
+ *  editor can say so instead of silently saving nothing (a browser date box drops a half-typed date). */
+export function publishDateInput(raw: unknown): { ok: boolean; value: string } {
+  const text = String(raw ?? "").trim();
+  if (!text) return { ok: true, value: "" };
+  const m = text.match(/^(\d{4})(?:[-/.](\d{1,2})(?:[-/.](\d{1,2}))?)?$/);
+  if (!m) return { ok: false, value: text };
+  const [, y, mo, d] = m;
+  const year = Number(y);
+  if (year < 1400 || year > 2200) return { ok: false, value: text };
+  if (!mo) return { ok: true, value: y };
+  const month = Number(mo);
+  if (month < 1 || month > 12) return { ok: false, value: text };
+  const mm = String(month).padStart(2, "0");
+  if (!d) return { ok: true, value: `${y}-${mm}` };
+  const day = Number(d);
+  if (day < 1 || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return { ok: false, value: text };
+  return { ok: true, value: `${y}-${mm}-${String(day).padStart(2, "0")}` };
+}

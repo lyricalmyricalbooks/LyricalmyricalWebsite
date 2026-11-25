@@ -45,6 +45,10 @@ short; edit an old rule instead of adding a near-duplicate.
 
 ## Repo gotchas that cost time before
 
+- **Don't use a browser date box (`type="date"`) for a date people may know only in part.** A half-typed date
+  reads as empty and saves nothing, with no message. Use a text field with `publishDateInput`-style checking.
+  **Why:** 25 Nov 2026, the book Publication date "does not save".
+
 - **Use `pnpm install --frozen-lockfile`**, not plain `npm install`: drifting packages cause a false typecheck error
   in `StripeCardForm.tsx`. **Why:** 18 Oct 2026.
 - **The guest order create rule in `firestore.rules` is at the rules engine's budget.** A new browser-written order
