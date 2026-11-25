@@ -3,22 +3,25 @@
 // `action: "aiWrite"`.
 // Every answer is a suggestion the owner reviews in the editor; nothing here writes to Firestore.
 const API_ROOT = "https://generativelanguage.googleapis.com/v1beta/models/";
-// Tried in order; a model Google has retired (404), has no allowance left (429) or is down (5xx) moves on to the next.
-// "gemini-flash-latest" follows Google's newest Flash, so the list doesn't go stale when a version is retired
-// (2.0 Flash shut down in June 2026 and 2.5 Flash is being wound down for 1 December 2026, which broke every AI button).
-const MODELS = ["gemini-flash-latest", "gemini-3.6-flash", "gemini-2.5-flash"];
-const TIMEOUT_MS = 25000;
+// Tried in order; a model Google has retired (404), has no allowance left (429), is down (5xx) or too slow moves on.
+// The "-latest" aliases follow Google's newest models, so the list doesn't go stale when a version is retired.
+// Flash-Lite comes first: on the shop's free key (checked live 25 Nov 2026) it answers in 1 to 3 seconds and reads
+// photos well, while the full Flash models (3.5 to 3.8) mostly answered "high demand" (503) or hung for 30+ seconds,
+// and 2.5 Flash is "no longer available to new users" (404).
+const MODELS = ["gemini-flash-lite-latest", "gemini-3.5-flash-lite", "gemini-flash-latest", "gemini-3.8-flash"];
+// One model's answer; a slower one is abandoned for the next model (a busy free-tier model can take 30+ s to say 503).
+const TIMEOUT_MS = 15000;
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 // Used when the owner names no model, in order; one OpenRouter no longer offers (404), or that is rate limited (429)
 // or down (5xx), moves on to the next. "~google/gemini-flash-latest" is OpenRouter's alias for Google's newest Flash.
 const OPENROUTER_MODELS = ["~google/gemini-flash-latest", "google/gemini-3.6-flash", "openai/gpt-4o-mini"];
 /** Pure: a failure that may not happen on another model (retired, out of allowance, down), as opposed to one about the request or the key. */
-const tryNextModel = status => status === 404 || status === 429 || (status >= 500 && status !== 504);
+const tryNextModel = status => status === 404 || status === 429 || status >= 500;
 /** Pure: what to report after trying several models. A busy or used-up model (429/5xx) outranks a later 404, so
  * "busy" isn't reported as "check the key" and the backup AI still takes over. */
 const reportedError = (lastErr, outage) => (outage && Number(lastErr?.status) === 404 ? outage : lastErr);
 // A request stops trying further models (and the backup AI) once this long has passed, so with one more call
-// (25 seconds at most) it still answers within the function's 60 seconds.
+// (15 seconds at most) it still answers well within the function's 60 seconds.
 const NEW_TRY_UNTIL_MS = 30 * 1000;
 const VOICE_MAX = 1000;
 
@@ -334,7 +337,7 @@ function buildRequest(task, input, ctx = {}, model = MODELS[0], { thinking = tru
   // These short answers need little thinking: 2.5 Flash turns it off with a budget, Gemini 3 and later (and the
   // "latest" alias) take a level instead. `thinking: false` leaves it out for a model that refuses the setting.
   if (thinking && /^gemini-2\.5-flash/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
-  else if (thinking && /^gemini-(flash-latest|[3-9])/.test(model)) generationConfig.thinkingConfig = { thinkingLevel: "low" };
+  else if (thinking && /^gemini-(flash(-lite)?-latest|[3-9])/.test(model)) generationConfig.thinkingConfig = { thinkingLevel: "low" };
   return {
     systemInstruction: { parts: [{ text: systemText(ctx.voice, task) }] },
     contents: [{ role: "user", parts: [
@@ -407,7 +410,7 @@ async function callGemini({ apiKey, model, body, fetchImpl }) {
     }
     return data;
   } catch (err) {
-    if (err?.name === "AbortError") throw Object.assign(new Error("Google's AI took too long to answer. Try again."), { status: 504, friendly: true });
+    if (err?.name === "AbortError") throw Object.assign(new Error("Google's AI took too long to answer. Try again."), { status: 504, friendly: true, timedOut: true });
     throw err;
   } finally {
     if (timer) clearTimeout(timer);
@@ -433,11 +436,13 @@ async function generate({ apiKey, task, input, ctx = {}, models = MODELS, fetchI
       return { ...parseResponse(task, data, ctx), model };
     } catch (err) {
       lastErr = err;
-      if (!err?.friendly) console.warn(`aiWrite: Gemini ${model} answered ${err?.status || "?"} ${err?.googleStatus || ""}: ${String(err?.message || "").slice(0, 300)}`);
+      // An upstream failure (or a timeout) may not happen on another model; a problem with the answer itself is reported.
+      const upstream = !err?.friendly || err?.timedOut;
+      if (upstream) console.warn(`aiWrite: Gemini ${model} answered ${err?.status || "?"} ${err?.googleStatus || ""}: ${String(err?.message || "").slice(0, 300)}`);
       // Free-tier allowances are counted per model, so a used-up one may leave the next model with room.
       if (err?.status === 429 || err?.googleStatus === "RESOURCE_EXHAUSTED") { sawQuota = true; continue; }
-      if (!err?.friendly && Number(err?.status) >= 500) outage = outage || err;
-      if (err?.googleStatus === "NOT_FOUND" || (!err?.friendly && tryNextModel(Number(err?.status)))) continue;
+      if (upstream && Number(err?.status) >= 500) outage = outage || err;
+      if (err?.googleStatus === "NOT_FOUND" || (upstream && tryNextModel(Number(err?.status)))) continue;
       break;
     }
   }
@@ -523,7 +528,7 @@ async function callOpenRouter({ apiKey, body, fetchImpl }) {
     }
     return data;
   } catch (err) {
-    if (err?.name === "AbortError") throw Object.assign(new Error("The AI took too long to answer. Try again."), { status: 504, friendly: true });
+    if (err?.name === "AbortError") throw Object.assign(new Error("The AI took too long to answer. Try again."), { status: 504, friendly: true, timedOut: true });
     throw err;
   } finally {
     if (timer) clearTimeout(timer);
@@ -554,9 +559,10 @@ async function generateOpenRouter({ apiKey, model, task, input, ctx = {}, fetchI
       return { ...parseResponse(task, fromOpenRouter(data), pctx), model: m };
     } catch (err) {
       lastErr = err;
-      if (!err?.friendly) console.warn(`aiWrite: OpenRouter ${m} answered ${err?.status || "?"}: ${String(err?.message || "").slice(0, 300)}`);
-      if (!err?.friendly && !outage && (Number(err?.status) === 429 || Number(err?.status) >= 500)) { outage = err; outageModel = m; }
-      if (!chosen && !err?.friendly && tryNextModel(Number(err?.status)) && !(err.status === 404 && /image/i.test(err.message))) continue;
+      const upstream = !err?.friendly || err?.timedOut;
+      if (upstream) console.warn(`aiWrite: OpenRouter ${m} answered ${err?.status || "?"}: ${String(err?.message || "").slice(0, 300)}`);
+      if (upstream && !outage && (Number(err?.status) === 429 || Number(err?.status) >= 500)) { outage = err; outageModel = m; }
+      if (!chosen && upstream && tryNextModel(Number(err?.status)) && !(err.status === 404 && /image/i.test(err.message))) continue;
       break;
     }
   }

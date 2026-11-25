@@ -59,9 +59,13 @@ describe("AI writing assistant (Gemini)", () => {
     expect(() => parseResponse("pageSeo", { candidates: [{ content: { parts: [{ text: "not json" }] } }] })).toThrow(/couldn't be read/);
   });
 
-  it("asks Google's newest Flash first, so a retired version can't break the buttons", () => {
-    expect(MODELS[0]).toBe("gemini-flash-latest");
-    expect(MODELS).not.toContain("gemini-2.0-flash");
+  // Checked live on the shop's free key, 25 Nov 2026: Flash-Lite answered in 1 to 3 s, the full Flash models said
+  // "high demand" (503) or hung for 30+ s, and 2.5 Flash is "no longer available to new users" (404).
+  it("asks Google's newest Flash-Lite first, then newest Flash, and never a retired version", () => {
+    expect(MODELS[0]).toBe("gemini-flash-lite-latest");
+    expect(MODELS).toContain("gemini-flash-latest");
+    expect(MODELS.some(m => /^gemini-2\./.test(m))).toBe(false);
+    expect(buildRequest("photoAlt", { title: "Salt" }, {}, "gemini-flash-lite-latest").generationConfig.thinkingConfig).toEqual({ thinkingLevel: "low" });
   });
 
   it("moves to the next model when Google has retired one", async () => {
@@ -89,17 +93,17 @@ describe("AI writing assistant (Gemini)", () => {
   it("reports a busy model, not \"check the key\", when a later one is retired, and lets the backup AI take over", async () => {
     resetProviderRest();
     const busy = () => reply(503, { error: { status: "UNAVAILABLE", message: "The model is overloaded." } });
-    const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(busy()).mockResolvedValueOnce(busy())
-      .mockResolvedValueOnce(reply(404, { error: { status: "NOT_FOUND", message: "models/gemini-2.5-flash is not found" } }));
+    const fetchImpl = vi.fn();
+    MODELS.slice(1).forEach(() => fetchImpl.mockResolvedValueOnce(busy()));
+    fetchImpl.mockResolvedValueOnce(reply(404, { error: { status: "NOT_FOUND", message: "models/x is not found" } }));
     const alone = await generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl }).catch(e => e);
     expect(alone.message).toMatch(/busy/);
     expect(worthBackup(alone)).toBe(true);
 
     const OR_KEY = "sk-or-v1-" + "a".repeat(40);
-    const both = vi.fn()
-      .mockResolvedValueOnce(busy()).mockResolvedValueOnce(busy())
-      .mockResolvedValueOnce(reply(404, { error: { status: "NOT_FOUND", message: "gone" } }))
+    const both = vi.fn();
+    MODELS.slice(1).forEach(() => both.mockResolvedValueOnce(busy()));
+    both.mockResolvedValueOnce(reply(404, { error: { status: "NOT_FOUND", message: "gone" } }))
       .mockResolvedValueOnce(reply(200, { choices: [{ message: { content: JSON.stringify({ seoTitle: "About", metaDescription: "Who we are." }) }, finish_reason: "stop" }] }));
     const out = await handleAiWrite({ task: "pageSeo", input: { title: "About" } }, deps({ fetchImpl: both, readSettings: async () => ({ apiKey: KEY, openrouterKey: OR_KEY, provider: "gemini" }) }));
     expect(out.status).toBe(200);
@@ -125,13 +129,17 @@ describe("AI writing assistant (Gemini)", () => {
     expect(JSON.parse(fetchImpl.mock.calls[1][1].body).generationConfig.thinkingConfig).toBeUndefined();
   });
 
-  it("doesn't try other models for a refused key or a slow answer", async () => {
+  it("doesn't try other models for a refused key, but does after a slow answer", async () => {
     const bad = vi.fn().mockResolvedValue(reply(400, { error: { status: "INVALID_ARGUMENT", message: "API key not valid." } }));
     await expect(generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl: bad })).rejects.toThrow(/isn't valid/);
     expect(bad).toHaveBeenCalledTimes(1);
     const slow = vi.fn().mockRejectedValue(Object.assign(new Error("aborted"), { name: "AbortError" }));
     await expect(generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl: slow })).rejects.toThrow(/too long/);
-    expect(slow).toHaveBeenCalledTimes(1);
+    expect(slow).toHaveBeenCalledTimes(MODELS.length);
+    const slowThenFine = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error("aborted"), { name: "AbortError" }))
+      .mockResolvedValueOnce(answer({ seoTitle: "About", metaDescription: "Who we are." }));
+    expect((await generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl: slowThenFine })).model).toBe(MODELS[1]);
   });
 
   it("describes a photo when the first model is down (the reported bug)", async () => {
@@ -150,8 +158,8 @@ describe("AI writing assistant (Gemini)", () => {
   it("explains the free allowance running out", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(reply(429, { error: { status: "RESOURCE_EXHAUSTED", message: "Quota exceeded" } }));
     await expect(generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl })).rejects.toThrow(/free Google AI allowance/);
-    // Each model has its own free allowance, so all three are tried.
-    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    // Each model has its own free allowance, so all of them are tried.
+    expect(fetchImpl).toHaveBeenCalledTimes(MODELS.length);
   });
 
   it("uses the next model's allowance when the first one's is used up", async () => {
@@ -230,12 +238,12 @@ describe("AI writing assistant: OpenRouter takes over when Google runs out", () 
 
   it("writes with OpenRouter when every Gemini model is used up", async () => {
     resetProviderRest();
-    const fetchImpl = vi.fn().mockResolvedValueOnce(quota()).mockResolvedValueOnce(quota()).mockResolvedValueOnce(quota())
+    const fetchImpl = MODELS.reduce(f => f.mockResolvedValueOnce(quota()), vi.fn())
       .mockResolvedValueOnce(routerAnswer({ seoTitle: "About", metaDescription: "Who we are." }));
     const out = await handleAiWrite({ task: "pageSeo", input: { title: "About" } }, deps({ fetchImpl, readSettings: async () => both }));
     expect(out.status).toBe(200);
     expect(out.body.result).toMatchObject({ seoTitle: "About", provider: "openrouter", fellBack: true });
-    expect(fetchImpl.mock.calls[3][0]).toBe("https://openrouter.ai/api/v1/chat/completions");
+    expect(fetchImpl.mock.calls[MODELS.length][0]).toBe("https://openrouter.ai/api/v1/chat/completions");
   });
 
   it("goes straight to OpenRouter for a minute after Google ran out, then tries Google again", async () => {
@@ -243,7 +251,7 @@ describe("AI writing assistant: OpenRouter takes over when Google runs out", () 
     let t = 1000;
     const now = () => t;
     const settings = async () => both;
-    const first = vi.fn().mockResolvedValueOnce(quota()).mockResolvedValueOnce(quota()).mockResolvedValueOnce(quota())
+    const first = MODELS.reduce(f => f.mockResolvedValueOnce(quota()), vi.fn())
       .mockResolvedValueOnce(routerAnswer({ seoTitle: "A", metaDescription: "B." }));
     await handleAiWrite({ task: "pageSeo", input: { title: "About" } }, deps({ fetchImpl: first, readSettings: settings, now }));
 
@@ -266,7 +274,7 @@ describe("AI writing assistant: OpenRouter takes over when Google runs out", () 
     expect(alone.body.error).toMatch(/free Google AI allowance/);
 
     resetProviderRest();
-    const fetchImpl = vi.fn().mockResolvedValueOnce(quota()).mockResolvedValueOnce(quota()).mockResolvedValueOnce(quota())
+    const fetchImpl = MODELS.reduce(f => f.mockResolvedValueOnce(quota()), vi.fn())
       .mockResolvedValueOnce(reply(402, { error: { message: "Insufficient credits" } }));
     const failed = await handleAiWrite({ task: "pageSeo", input: { title: "About" } }, deps({ fetchImpl, readSettings: async () => both }));
     expect(failed.status).toBe(429);

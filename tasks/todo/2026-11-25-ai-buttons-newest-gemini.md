@@ -16,3 +16,12 @@ tried the next model, and OpenRouter's default list only moved on for a 404.
 
 ## Review
 Root cause was a stale, hard-coded model list plus a fallback that only handled retired (404) models.
+
+## Round 2 (PR #918 live, still failing)
+Live calls with the shop's own key: `gemini-2.5-flash` 404 "no longer available to new users"; `gemini-flash-latest`,
+3.5/3.6/3.7/3.8 Flash 503 "high demand" or hung 30–40 s (the 25 s timeout then ended the request, never trying another
+model); `gemini-flash-lite-latest` (→ 3.5 Flash-Lite) 200 in 1–3 s, photo alt text included. OpenRouter key is free tier
+($0 limit) with `google/gemma-4-31b-it:free` chosen, which is rate limited (429), so it can't cover for Google.
+- [x] Flash-Lite first: `gemini-flash-lite-latest`, `gemini-3.5-flash-lite`, then `gemini-flash-latest`, `gemini-3.8-flash`.
+- [x] 15 s per model; a timeout moves on to the next model (still within the 30 s new-try cap).
+- [ ] Verify Describe with AI and Write with AI on the live admin after Deploy Firebase.
