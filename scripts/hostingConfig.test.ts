@@ -29,13 +29,22 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
     }
   });
 
+  // Every published book, page and artist has its own prerendered file. An unknown one gets 404.html, the same app shell, so
+  // shoppers and Studio previews still see it, but Google gets a real 404 instead of an indexable blank page.
+  // Collections stay on the shell: /collections/all (search results, "Shop all") and hidden categories have no file.
+  const prerendered = /^\/(?:artists|books|page)\//;
   it('sends every app route without its own file to the app shell', () => {
     expect(appRoutes.length).toBeGreaterThan(5);
-    for (const route of appRoutes.filter(r => r !== '/' && r !== '*')) {
+    for (const route of appRoutes.filter(r => r !== '/' && r !== '*' && !prerendered.test(r))) {
       for (const path of concrete(route)) expect(rewriteFor(path)?.destination, path).toBe('/spa.html');
     }
-    // A book page published after the last build, with or without a trailing slash, still opens.
-    expect(rewriteFor('/books/new-title/')?.destination).toBe('/spa.html');
+  });
+
+  it('answers an unknown book or page with a real 404 (no blank page for Google)', () => {
+    for (const path of ['/books/does-not-exist-xyz', '/books/new-title/', '/page/nope', '/artists/nobody']) {
+      expect(rewriteFor(path), path).toBeUndefined();
+    }
+    expect(rewriteFor('/collections/all')?.destination).toBe('/spa.html');
   });
 
   it('has no catch-all: unknown URLs fall to 404.html (the app shell) with a real 404 status', () => {

@@ -17,7 +17,7 @@ import { useCart, catalogUnitPrice, lineQuantityCap, backorderable } from "../..
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
 import { StoreHeader } from "./StoreHeader";
-import { contentMaxWidth } from "./headerNav";
+import { contentMaxWidth, contentSideMargin, contentWidthMode, isFullWidth } from "./headerNav";
 import { StoreFooter } from "./StoreFooter";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 import { SectionPageContext } from "../../components/sectionCopy";
@@ -83,6 +83,7 @@ import { artistDirectory, creditParts } from "./artistPages.mjs";
 import { bookAddOns, bundleWeightGrams, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
 import { displayPrice, salePercentOff } from "./displayPrice";
 import { ga4Once, ga4PageNotFound, ga4PdpInteract, pdpTabName } from "../../lib/ga4";
+import { prerenderedHtml } from "../../lib/prerenderedPage";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
 import { gridPhotoSizes, THUMB_PHOTO_SIZES, pdpPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
@@ -156,6 +157,9 @@ export default function BookDetail() {
   // A book published after this browser cached the catalog isn't in that cache yet: keep showing
   // Loading (and stay indexable) until this mount's fresh read, rather than a false "not found" + noindex.
   const loading = siteLoading || (!book && !fresh);
+  // Google and other crawlers can snapshot the page mid-load: while this landing page's server-rendered copy exists,
+  // keep it (and its head tags) on screen instead of the Loading screen, which reads as an empty page ("soft 404").
+  const held = !book && loading ? prerenderedHtml() : null;
   useMissingRedirect(!book && !loading && !loadError);
   const sectionPage = useMemo(() => ({ book }), [book]);
   // Each credited name with its own artist page (/artists/<slug>) is a real link there; the line looks the same.
@@ -226,11 +230,15 @@ export default function BookDetail() {
   // A measured shape wins over the saved one (it is what the shopper sees); they agree for every normal photo.
   const frameFor = (url: string | undefined) =>
     frameAspect(productFrameMode, url ? (photoRatios[url] ?? savedRatios[url]) : undefined, productImageAspect, storefrontDesign.productImageAspectLandscape);
+  // On phones the photo fills the page column: the screen less Style › Layout's side margins (a fixed content width is
+  // always wider than a phone), less the page padding pdpPhotoSizes subtracts.
+  const widthDesign = { ...(settings?.design || {}), ...(storefrontDesign || {}) };
+  const photoPageVw = !isFullWidth(widthDesign) && contentWidthMode(widthDesign) === "margins" ? 100 - 2 * contentSideMargin(widthDesign) : 100;
   // The main photo's `sizes` uses the saved shape only, so it never changes (and re-downloads) as photos load.
   const photoSizes = (photo: any) => {
     const ratio = photo?.url ? savedRatios[photo.url] : undefined;
     const frame = aspectNumber(frameAspect(productFrameMode, ratio, productImageAspect, storefrontDesign.productImageAspectLandscape));
-    return pdpPhotoSizes({ maxWidth: productImageMaxWidth, photoRatio: ratio, frameRatio: frame, cover: productImageFit === "cover" });
+    return pdpPhotoSizes({ maxWidth: productImageMaxWidth, photoRatio: ratio, frameRatio: frame, cover: productImageFit === "cover", pageVw: photoPageVw });
   };
   const productDetailsLayout   = storefrontDesign.productDetailsLayout   || "tabs";
   const productCtaAnimation    = storefrontDesign.productCtaAnimation    || "none";
@@ -466,7 +474,7 @@ export default function BookDetail() {
         { name: book.title, url: bookUrl },
       ]),
     ],
-  } : { title: getCopy(settings?.design, "seoBookLoadingTitle"), noindex: !loading });
+  } : { title: getCopy(settings?.design, "seoBookLoadingTitle"), noindex: !loading, keep: !!held });
 
   useEffect(() => {
     if (book?.id) {
@@ -873,6 +881,7 @@ export default function BookDetail() {
 
   // ── loading ────────────────────────────────────────────────────────────────
   if (loading) {
+    if (held) return <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: held }} />;
     return (
       <div
         className="h-screen flex items-center justify-center"

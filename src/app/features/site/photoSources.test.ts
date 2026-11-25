@@ -32,19 +32,24 @@ describe("smallPhotoUrl", () => {
 
 describe("pdpPhotoSizes", () => {
   it("offers wide screens the copy for the frame's Max width (+10%), full width below it", () => {
-    expect(pdpPhotoSizes({ maxWidth: 560, photoRatio: 0.75, frameRatio: 0.75, cover: true })).toBe("(max-width: 560px) 100vw, 616px");
-    expect(pdpPhotoSizes({ maxWidth: undefined as any, cover: true })).toBe("(max-width: 560px) 100vw, 616px");
+    expect(pdpPhotoSizes({ maxWidth: 560, photoRatio: 0.75, frameRatio: 0.75, cover: true })).toBe("(max-width: 560px) calc(100vw - 48px), 616px");
+    expect(pdpPhotoSizes({ maxWidth: undefined as any, cover: true })).toBe("(max-width: 560px) calc(100vw - 48px), 616px");
   });
   it("grows for a wide photo cropped to fill a narrower frame, never past the old 900px", () => {
     // A 3:2 photo filling a 3:4 frame is drawn twice as wide as the frame.
-    expect(pdpPhotoSizes({ maxWidth: 400, photoRatio: 1.5, frameRatio: 0.75, cover: true })).toBe("(max-width: 400px) 100vw, 880px");
-    expect(pdpPhotoSizes({ maxWidth: 560, photoRatio: 1.5, frameRatio: 0.75, cover: true })).toBe("(max-width: 560px) 100vw, 900px");
-    expect(pdpPhotoSizes({ maxWidth: 900, cover: true })).toBe("(max-width: 900px) 100vw, 900px");
+    expect(pdpPhotoSizes({ maxWidth: 400, photoRatio: 1.5, frameRatio: 0.75, cover: true })).toBe("(max-width: 400px) calc((100vw - 48px) * 2), 880px");
+    expect(pdpPhotoSizes({ maxWidth: 560, photoRatio: 1.5, frameRatio: 0.75, cover: true })).toBe("(max-width: 560px) calc((100vw - 48px) * 2), 900px");
+    expect(pdpPhotoSizes({ maxWidth: 900, cover: true })).toBe("(max-width: 900px) calc(100vw - 48px), 900px");
+  });
+  it("offers phones the page column, not the whole screen", () => {
+    // Style › Layout side margins of 3% each: the column is 94% of the screen less the 24px padding each side.
+    expect(pdpPhotoSizes({ maxWidth: 900, cover: true, pageVw: 94 })).toBe("(max-width: 900px) calc(94vw - 48px), 900px");
+    expect(pdpPhotoSizes({ maxWidth: 560, cover: true, pageVw: 94, gutter: 0 })).toBe("(max-width: 560px) 94vw, 616px");
   });
   it("doesn't grow for whole photos (contain), taller photos or unknown shapes", () => {
-    expect(pdpPhotoSizes({ maxWidth: 560, photoRatio: 1.5, frameRatio: 0.75, cover: false })).toBe("(max-width: 560px) 100vw, 616px");
-    expect(pdpPhotoSizes({ maxWidth: 560, photoRatio: 0.5, frameRatio: 0.75, cover: true })).toBe("(max-width: 560px) 100vw, 616px");
-    expect(pdpPhotoSizes({ maxWidth: 560, frameRatio: 0.75, cover: true })).toBe("(max-width: 560px) 100vw, 616px");
+    expect(pdpPhotoSizes({ maxWidth: 560, photoRatio: 1.5, frameRatio: 0.75, cover: false })).toBe("(max-width: 560px) calc(100vw - 48px), 616px");
+    expect(pdpPhotoSizes({ maxWidth: 560, photoRatio: 0.5, frameRatio: 0.75, cover: true })).toBe("(max-width: 560px) calc(100vw - 48px), 616px");
+    expect(pdpPhotoSizes({ maxWidth: 560, frameRatio: 0.75, cover: true })).toBe("(max-width: 560px) calc(100vw - 48px), 616px");
   });
 });
 

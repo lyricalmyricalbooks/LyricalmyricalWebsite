@@ -2,6 +2,7 @@ import { StoreFooter } from "./StoreFooter";
 import { NotFoundContent } from "./NotFoundPage";
 import { useMissingRedirect } from "./useMissingRedirect";
 import { ga4PageNotFound } from "../../lib/ga4";
+import { prerenderedHtml } from "../../lib/prerenderedPage";
 import { StoreChrome } from "./StoreChrome";
 import { useEffect } from "react";
 import { useParams } from "react-router";
@@ -75,9 +76,13 @@ export function PageView() {
   // A missing page is a 404 to search engines too: noindex and the not-found title, never an
   // indexable copy of the home page's title.
   const notFound = !seoPage && !loadError && !siteLoading && !!fresh;
+  // Still loading on the page the visitor landed on: keep its server-rendered copy and head tags on screen, so a
+  // crawler that snapshots mid-load never sees an empty "Loading" page (Google's "soft 404").
+  const held = !seoPage && !loadError && (siteLoading || !fresh) ? prerenderedHtml() : null;
   useSEO({
     title: seoPage ? seoPage.seoTitle || seoPage.title : notFound ? getCopy(settings?.design, "notFoundTitle") : undefined,
     noindex: notFound,
+    keep: !!held,
     description: seoPage ? seoPage.metaDescription || pageDescription(String(seoPage.body || "")) : undefined,
     type: "article",
     // The page's own sharing image, else its first uploaded picture; seo.ts falls back to the shop's share image.
@@ -141,6 +146,7 @@ export function PageView() {
     );
   }
   if (!shown && (siteLoading || !fresh)) {
+    if (held) return <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: held }} />;
     return (
       <div data-fm-store data-studio-target="pages|copy:Custom pages & 404" data-studio-label="Page" className="min-h-screen fm-page flex flex-col">
         <StorefrontThemeStyle design={settings?.design} />

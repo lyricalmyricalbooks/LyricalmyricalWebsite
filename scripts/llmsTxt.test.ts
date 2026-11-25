@@ -6,11 +6,17 @@ const settings = {
   info: { name: 'Lyricalmyrical Books', description: 'An independent press in Toronto.', email: 'shop@example.com' },
   location: { street: '1 Private Lane', city: 'Toronto', state: 'Ontario', country: 'Canada' },
   policies: { shipping: 'We ship.', returns: '' },
+  design: { categories: [
+    { id: 'photo', name: 'Photo Books', description: 'Photobooks by artists from Canada and Italy', showInNav: true },
+    { id: 'zines', name: 'Zines', description: '', showInNav: true },
+    { id: 'hidden', name: 'Hidden shelf', showInNav: false },
+  ] },
 };
 const books = [
-  { id: 'a', title: 'The Hound', slug: 'the-hound', status: 'published', subtitle: 'Ian Willms', format: 'Hardcover', pageCount: 120, publishDate: '2024-05-01', language: 'English', isbn: '9780000000001', description: '<p>Photographs of a [dog].</p>', retailPrice: 60, stockLevel: 3 },
+  { id: 'a', title: 'The Hound', slug: 'the-hound', status: 'published', subtitle: 'Ian Willms', format: 'Hardcover', pageCount: 120, publishDate: '2024-05-01', language: 'English', isbn: '9780000000001', description: '<p>Photographs of a [dog].</p>', retailPrice: 60, stockLevel: 3, categories: ['Photo Books', 'Hidden shelf'] },
+  { id: 'f', title: 'Cut & Paste', slug: 'cut-paste', status: 'published', categories: ['Zines'] },
   { id: 'b', title: 'Draft', slug: 'draft', status: 'draft' },
-  { id: 'c', title: 'Hidden', slug: 'hidden', status: 'published', seoNoindex: true },
+  { id: 'c', title: 'Hidden', slug: 'hidden', status: 'published', seoNoindex: true, categories: ['Zines'] },
   { id: 'd', title: 'Later', slug: 'later', status: 'published', scheduleDate: '2030-01-01' },
   { id: 'e', title: 'Gift card', slug: 'gift', status: 'published', productType: 'giftCard' },
 ];
@@ -38,5 +44,9 @@ describe('llms.txt', () => {
     expect(text).toContain('- [Every page (sitemap)](https://lyricalmyricalbooks.com/sitemap.xml)');
     expect(text).toContain('- [Shipping policy](https://lyricalmyricalbooks.com/page/policy-shipping)');
     expect(text).not.toContain('Returns policy');
+  });
+  it('lists each collection page with its description and only its indexable books', () => {
+    expect(text).toContain('## Collections\n\n- [Photo Books](https://lyricalmyricalbooks.com/collections/photo-books): Photobooks by artists from Canada and Italy. Book: The Hound.\n- [Zines](https://lyricalmyricalbooks.com/collections/zines): Book: Cut & Paste.\n');
+    expect(text).not.toContain('Hidden shelf');
   });
 });
