@@ -758,6 +758,11 @@ export default function BookDetail() {
   );
 
   // Shipping & returns tab (off by default): the shop's own policies from Settings › General › Store policies.
+  // Books › edit › Search (SEO) › Heading above the description: the page's one <h2> before the description's own
+  // h3/h4 headings, carrying the book's theme phrase for search. Styled as a description heading (Studio › Style ›
+  // Product page · Description text). Blank (the default) adds nothing.
+  const aboutHeadingText = typeof bk.aboutHeading === "string" ? bk.aboutHeading.trim() : "";
+  const aboutHeading = aboutHeadingText ? <h2 className="fm-pdp-desc-heading fm-pdp-desc-lead">{aboutHeadingText}</h2> : null;
   const policyEntries = showPdpPolicyTab && regionVisible(regionDesign, "productPolicies") ? pdpPolicyEntries(settings?.policies, book, selectedVariant) : [];
   const artistBio = showPdpArtistBio && regionVisible(regionDesign, "productArtistBio") && typeof bk.artistBio === "string" ? bk.artistBio.trim() : "";
   const detailTabs: { id: "description" | "artist" | "specs" | "policies" | "reviews"; label: string }[] = orderTabs([
@@ -779,7 +784,7 @@ export default function BookDetail() {
   };
   const detailContent = (id: string) =>
     id === "description" ? (
-      <div {...regionProps("productDescription")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line`}>{bk.description ? <DescriptionFold design={settings?.design} look={storefrontDesign} text={bk.description}><DescriptionText text={bk.description} /></DescriptionFold> : getCopy(settings?.design, "noDescription")}</div>
+      <div {...regionProps("productDescription")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line`}>{bk.description && aboutHeading}{bk.description ? <DescriptionFold design={settings?.design} look={storefrontDesign} text={bk.description}><DescriptionText text={bk.description} /></DescriptionFold> : getCopy(settings?.design, "noDescription")}</div>
     ) : id === "artist" ? (
       <div {...regionProps("productArtistBio")} className={`fm-pdp-desc fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.75] whitespace-pre-line`}><DescriptionText text={artistBio} /></div>
     ) : id === "specs" ? <div {...regionProps("productSpecs")}>{renderSpecs()}</div> : id === "policies" ? (
@@ -1330,10 +1335,10 @@ export default function BookDetail() {
                           <p className="fm-pdp-meta mb-3" style={{ color: "var(--accent, #e8402a)" }}>
                             {getCopy(settings?.design, "productDescriptionLabel")}
                           </p>
-                          <div className={`fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.8] whitespace-pre-line`}><DescriptionFold design={settings?.design} look={storefrontDesign} text={bk.description}><DescriptionText text={bk.description} /></DescriptionFold></div>
+                          <div className={`fm-pdp-desc-text${ruledCls} text-[15px] leading-[1.8] whitespace-pre-line`}>{aboutHeading}<DescriptionFold design={settings?.design} look={storefrontDesign} text={bk.description}><DescriptionText text={bk.description} /></DescriptionFold></div>
                         </div>
                       ) : (
-                        <div {...regionProps("productDescription")} className={`fm-pdp-desc-text${ruledCls} text-white/50 text-[14px] leading-[1.8] whitespace-pre-line`}><DescriptionFold design={settings?.design} look={storefrontDesign} text={bk.description}><DescriptionText text={bk.description} /></DescriptionFold></div>
+                        <div {...regionProps("productDescription")} className={`fm-pdp-desc-text${ruledCls} text-white/50 text-[14px] leading-[1.8] whitespace-pre-line`}>{aboutHeading}<DescriptionFold design={settings?.design} look={storefrontDesign} text={bk.description}><DescriptionText text={bk.description} /></DescriptionFold></div>
                       )
                     )}
                     {hasSpecs && <div {...regionProps("productSpecs")}>{renderSpecs()}</div>}

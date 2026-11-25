@@ -99,5 +99,9 @@ Details of each feature live in [`docs/agent-notes/site.md`](../../../../docs/ag
 - Payment icons on book pages (23 October 2026)
 - Analytics tags load after the page (27 October 2026)
 - Internal links (17 November 2026)
+<<<<<<< HEAD
 - Artist pages (25 November 2026)
+=======
+- Heading above the description (25 November 2026)
+>>>>>>> origin/main
 - Checkout fields, custom pages and footer (moved from the root guide)

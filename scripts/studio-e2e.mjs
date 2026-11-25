@@ -1597,6 +1597,22 @@ await check("the default shop header follows the Header menu, link colour, stick
   await bar.locator(".fm-sticker-pill").first().waitFor({ timeout: 10000 });
 });
 
+await check("A category's Google listing previews and stays with the category", desktop, async page => {
+  // Navigation › Shop categories › Edit › Search engine listing (Shopify's per-collection SEO title and description).
+  await page.getByRole("button", { name: "Navigation", exact: true }).first().click();
+  const panel = page.locator("[data-studio-panel='menus:categories']");
+  await panel.getByRole("button", { name: /^Edit / }).first().click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Title on Google").fill("Photobooks from Toronto");
+  await dialog.getByLabel("Description on Google").fill("Small-run photobooks.");
+  const preview = dialog.getByLabel("Search result preview");
+  await preview.getByText("Photobooks from Toronto", { exact: false }).waitFor({ timeout: 5000 });
+  await preview.getByText("Small-run photobooks.").waitFor({ timeout: 5000 });
+  await dialog.getByRole("button", { name: "Apply category details" }).click();
+  await panel.getByRole("button", { name: /^Edit / }).first().click();
+  if (await page.getByRole("dialog").getByLabel("Title on Google").inputValue() !== "Photobooks from Toronto") throw new Error("The Google title was not kept on the category");
+});
+
 await check("Theme settings switches start in the state the shop shows", desktop, async page => {
   await expectText(page, "Preview connected", 30000);
   await openStyleCategory(page, "Badges & shop labels");

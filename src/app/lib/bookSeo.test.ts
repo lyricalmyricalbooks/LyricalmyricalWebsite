@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoBookSeo, bookCreators, creatorLinks, creatorPeople, namesCreator, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, seoTopicList, siteStructuredData, snippet, profileLinks } from './bookSeo';
+import { autoBookSeo, bookCreators, creatorLinks, creatorPeople, namesCreator, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, infoPageStructuredData, infoPageType, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, seoTopicList, siteStructuredData, snippet, profileLinks } from './bookSeo';
 const book = { id: 'one', title: 'Photo book', description: '<p>Art &amp; photography.</p>', retailPrice: 24, stockLevel: 0, status: 'published', slug: 'photo-book', metaTitle: 'An artist’s photo book', metaDescription: 'A unique collection of photographs.', seoImage: 'https://example.com/share.jpg' };
 describe('book search metadata', () => {
   it('uses saved search fields and sharing image', () => {
@@ -207,5 +207,27 @@ describe('artist links', () => {
     expect(done.find(c => c.id === 'creator')?.ok).toBe(true);
     expect(done.find(c => c.id === 'creatorLink')?.ok).toBe(true);
     expect(seoChecks({ ...hound, subtitle: 'Various artists' }).some(c => c.id === 'creator')).toBe(false);
+  });
+});
+
+describe('info page structured data', () => {
+  it('types About as the page about the shop, Contact as its contact page, the rest (History too) as web pages', () => {
+    expect(infoPageType('about')).toBe('AboutPage');
+    expect(infoPageType('history-of-lyricalmyrical')).toBe('WebPage');
+    expect(infoPageType('contact')).toBe('ContactPage');
+    for (const slug of ['policy-returns', 'open-call', 'stockists', 'aboutness', 'contacts-list', '']) expect(infoPageType(slug), slug).toBe('WebPage');
+  });
+
+  it('joins the page to the home page shop and website by @id', () => {
+    const data = infoPageStructuredData({ slug: 'about', name: 'About', url: 'https://example.com/page/about?x=1', siteUrl: 'https://example.com/', description: '  Toronto publisher. ' });
+    expect(data).toEqual({
+      '@context': 'https://schema.org', '@type': 'AboutPage', '@id': 'https://example.com/page/about#webpage', url: 'https://example.com/page/about',
+      name: 'About', description: 'Toronto publisher.', isPartOf: { '@id': 'https://example.com/#website' },
+      publisher: { '@id': 'https://example.com/#organization' }, about: { '@id': 'https://example.com/#organization' },
+    });
+    const plain = infoPageStructuredData({ slug: 'policy-terms', name: 'Terms', url: 'https://example.com/page/policy-terms', siteUrl: 'https://example.com/' });
+    expect(plain['@type']).toBe('WebPage');
+    expect(plain).not.toHaveProperty('about');
+    expect(plain).not.toHaveProperty('description');
   });
 });

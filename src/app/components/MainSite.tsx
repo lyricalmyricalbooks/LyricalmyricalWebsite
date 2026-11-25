@@ -48,7 +48,7 @@ import { catalogAutoLoadOn, catalogPageSize, nextShown, shouldAutoLoad, visibleC
 import { resolveMainDesign } from "../features/site/surfaceDesign";
 import { categoryTemplateSurface, previewTemplate } from "../features/site/templateAlternates";
 import { regionProps } from "../features/site/storefrontRegions";
-import { collectionIntro } from "../features/site/collectionIntro";
+import { collectionIntro, collectionSearchListing } from "../features/site/collectionIntro";
 import { SoldOutBadge, soldOutPhotoStyle } from "../features/site/SoldOutBadge";
 import { gridPhotoSizes, photoSrcSet } from "../features/site/photoSources";
 import CardHoverPhoto from "../features/site/CardHoverPhoto";
@@ -610,10 +610,11 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
       ? publishedBooks.length === 0
       : getFilteredItems(books, routeCategory, new Date().toISOString(), categories).length === 0)),
     url: onCollectionRoute && routeCategory ? new URL(`${import.meta.env.BASE_URL}collections/${collectionSlug === "all" ? "all" : routeCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`, window.location.origin).href : undefined,
-    title: onCollectionRoute ? getCopy(activeDesign, "seoCollectionTitle", { category: routeCategoryName }) : catalogOpen ? (getCopy(settings?.design, "seoArchiveTitle") || undefined) : undefined,
+    // Studio › Navigation › category › Search engine listing, else the Text & labels collection title.
+    title: onCollectionRoute ? collectionSearchListing(routeCategory).title || getCopy(activeDesign, "seoCollectionTitle", { category: routeCategoryName }) : catalogOpen ? (getCopy(settings?.design, "seoArchiveTitle") || undefined) : undefined,
     // The category's own description, else the intro the page shows (Text & labels › Collection & wishlist
     // pages), else the generic Site & sharing sentence — so each collection has its own search snippet.
-    description: onCollectionRoute ? routeCategory?.description || leadSentences(collectionIntro(activeDesign, collectionSlug, routeCategory)) || getCopy(activeDesign, "seoCollectionDescription", { category: routeCategoryName.toLowerCase() }) : settings?.info?.description,
+    description: onCollectionRoute ? collectionSearchListing(routeCategory).description || routeCategory?.description || leadSentences(collectionIntro(activeDesign, collectionSlug, routeCategory)) || getCopy(activeDesign, "seoCollectionDescription", { category: routeCategoryName.toLowerCase() }) : settings?.info?.description,
     // Style › Logo & wordmark › Share image, else the first book's cover. Never `assets.profileUrl`: the shop's
     // default settings ship a 100px stock photo there, which became every shared/search preview of the home page.
     image: settings?.design?.shareImageUrl || publishedBooks.find((book: any) => book?.photos?.[0]?.url)?.photos?.[0]?.url || undefined,

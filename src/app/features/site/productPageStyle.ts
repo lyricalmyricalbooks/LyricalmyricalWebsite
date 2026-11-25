@@ -94,6 +94,7 @@ export function descriptionTextCss(d: any): string {
   const linkColor = color(d, "pdpDescLinkColor", "inherit");
   const quoteColor = color(d, "pdpDescQuoteColor", "var(--accent)");
   css += `${T} .fm-pdp-desc-heading{font-family:${headingFont};font-size:${headingSize ? `${headingSize}px` : "1.25em"};line-height:1.25;color:${headingColor};margin:${gap * 1.5}px 0 ${gap / 2}px;white-space:normal;}`;
+  css += `${T} > .fm-pdp-desc-lead:first-child{margin-top:0;}`;
   css += `${T} .fm-pdp-desc-subheading{font-size:${headingSize ? `${Math.round(headingSize * 0.8)}px` : "1.05em"};}`;
   css += `${T} > :first-child{margin-top:0;}`;
   const ruleLine = color(d, "pdpCardDividerColor", "rgba(var(--border-rgb), 0.45)");

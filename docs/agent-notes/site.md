@@ -201,6 +201,12 @@ canonicalize to current names. `categoryMembership.mjs` shares alias, parent and
 PUBLICATIONS membership between navigation and sitemap generation. Published and
 activated scheduled Studio designs remain authoritative; draft categories stay private.
 
+
+**Per-collection Google listing (25 November 2026).** A category may carry `seoTitle` / `metaDescription` (Studio › Navigation ›
+Shop categories › Edit › Search engine listing, saved through `withSearchListing`, blank = left out). `collectionSearchListing`
+(`collectionIntro.ts`) feeds MainSite's `useSEO`: the title replaces Text & labels › `seoCollectionTitle` (still wrapped in
+`siteTitleFormat`), the description comes before the category description.
+
 ## Automatic SEO refresh and catalog search controls
 
 The storefront workflow checks published Firestore catalog/pages/settings every 15 minutes,
@@ -746,3 +752,10 @@ Custom-page navigation resolves published bodies from useSiteData's shared snaps
 Grouped footer navigation defaults to Explore and Participate & connect, with policies in a wrapping row above copyright. Studio > Style > Footer & social links selects grouped/classic layout and group/location/heading visibility; Text & labels > Footer owns headings. Menus > Footer menu can customize automatic links, assign groups, edit destinations/labels, reorder and hide links, preserving sub-links. Contact pages suppress the duplicate automatic email link. Preview click-to-edit and inline copy hooks remain available.
 
 **Footer layout (12 October 2026):** `StoreFooter` puts every band in one padded column (dividers line up with the text), link groups on the right by default (Style › Footer & social links › **Where the link groups sit**), and a bottom-bar **Admin** link (`showFooterAdminLink`, words Text & labels › Footer › `footerAdmin`). Spacing/text/colour/divider controls (`footerPaddingY*`, `footerColumnGap`, `footerLinkGap`, `footerTextSize`, `footer*Color`, `showFooterDividers`) become CSS in `features/site/footerStyle.ts`; the bands are regions `footerBrand`/`footerLinks`/`footerLegal`/`footerBottom`/`footerAdmin` for per-device element styling.
+
+## Heading above the description (25 November 2026)
+
+Catalog › book › Search engine listing › Heading above the description (`aboutHeading`) is the book page's `<h2>`, drawn
+first inside the description (all three details layouts) with the description-heading style plus `fm-pdp-desc-lead`
+(no top margin as first child). Blank draws nothing; an empty description shows no heading. The words for each book are
+in the keyword plan. Test: `BookDetail.aboutHeading.render.test.tsx`.

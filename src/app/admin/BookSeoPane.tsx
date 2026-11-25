@@ -86,6 +86,7 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
       <div className="be-grid">
         <div className="be-span-2"><TextField label="Search title" value={book.metaTitle || ''} onChange={e => onChange('metaTitle', e.target.value)} placeholder={getCopy(design, 'siteTitleFormat', { title: book.title || '' })} hint={`${title.length} characters in the effective title. A custom title is used exactly as written.`} /></div>
         <div className="be-span-2"><TextArea label="Search description" value={book.metaDescription || ''} onChange={e => onChange('metaDescription', e.target.value)} rows={3} placeholder={meta.description} hint={`${description.length} characters. Leave blank to use a plain-text summary of the book description.`} /></div>
+        <div className="be-span-2"><TextField label="Heading above the description" value={book.aboutHeading || ''} onChange={e => onChange('aboutHeading', e.target.value)} placeholder="e.g. A photobook about Greyhound bus journeys" hint="Shown above the description. Blank shows none." /></div>
         <div className="be-span-2"><TextField label="Sharing image URL" type="url" value={book.seoImage || ''} onChange={e => onChange('seoImage', e.target.value)} placeholder={book.photos?.[0]?.url || design?.shareImageUrl || ''} hint="Optional HTTPS image. Leave blank to use the cover, then the Studio sharing image." /></div>
       </div>
       <div className="be-serp" aria-label="Search listing preview" aria-live="polite">
@@ -95,7 +96,7 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
         <p className="be-serp-desc">{description || 'Add a useful description of this book.'}</p>
       </div>
       {image && <div className="be-serp"><span className="be-label-xs">Sharing image preview</span><img src={image} alt="Sharing preview" style={{ display: 'block', maxWidth: '100%', maxHeight: 180, marginTop: 12 }} /></div>}
-      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { onChange('metaTitle', ''); onChange('metaDescription', ''); onChange('seoImage', ''); }}>Use catalog defaults</button>
+      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { onChange('metaTitle', ''); onChange('metaDescription', ''); onChange('seoImage', ''); onChange('aboutHeading', ''); }}>Use catalog defaults</button>
     </SectionCard>
     <ArtistLinks book={book} onChange={onChange} />
     <SectionCard title={`SEO checks · ${checks.filter(c => c.ok).length}/${checks.length}`} description="Content checks are guidance, not a Google ranking score. Changes save with the book.">

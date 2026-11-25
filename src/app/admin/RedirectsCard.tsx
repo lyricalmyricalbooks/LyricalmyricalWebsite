@@ -7,8 +7,8 @@ import { MAX_REDIRECTS, normalizePath, normalizeTarget, parseRedirectLines, redi
 
 /**
  * Settings › General › URL redirects. Sends an old shop address to a new one after a book or page is renamed, so
- * bookmarks, search results and printed links don't land on "page not found". Followed in the shopper's browser, and
- * only when the old address has no page of its own (a real page is never hijacked).
+ * bookmarks, search results and printed links don't land on "page not found". Never applied where a live page exists:
+ * Hosting answers the rest as 301s at the next deploy (scripts/hostingRedirects.mjs), the browser follows any others.
  */
 export function RedirectsCard() {
   const [items, setItems] = useState<Redirect[] | null>(null);

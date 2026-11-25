@@ -111,6 +111,15 @@ function titleWithCreators(title, names) {
   return `${title} by ${names.join(', ')}`;
 }
 
+/** Shopping matches searches on the description too, so a listing that never names its press says so at the end:
+ *  someone typing the press's name ("Lyricalmyrical") then finds every book. Adds words, never replaces them. */
+function withPublisher(text, brand) {
+  const sign = brand ? `Published by ${brand}.` : '';
+  const core = brand.toLowerCase().replace(/\s+(books|press|publishing|editions)$/, '');
+  if (!sign || text.toLowerCase().includes(core)) return cut(text, 5000);
+  return `${cut(text, 5000 - sign.length - 2)}\n\n${sign}`;
+}
+
 function googleCategory(format) {
   const f = String(format || '').toLowerCase();
   if (/audio/.test(f)) return 'Media > Books > Audiobooks';
@@ -138,11 +147,12 @@ export function merchantFeedItems(siteUrl, books, { shopName = 'Lyricalmyrical B
     const link = `${base}/books/${encodeURIComponent(book.slug)}`;
     const photos = [...new Set((Array.isArray(book.photos) ? book.photos : []).map(p => httpsUrl(p?.url, base + '/')).filter(Boolean))];
     if (!photos.length && book.photoUrl) { const u = httpsUrl(book.photoUrl, base + '/'); if (u) photos.push(u); }
-    const description = cut(plain(book.metaDescription) || plain(book.description) || `${title}${book.subtitle ? ` by ${plain(book.subtitle)}` : ''}`, 5000);
+    const brand = plain(book.publisher) || shopName;
+    const description = withPublisher(plain(book.metaDescription) || plain(book.description) || `${title}${book.subtitle ? ` by ${plain(book.subtitle)}` : ''}`, brand);
     const pre = preorderDate(book, now);
     const bundle = bundleParts(book).length > 0;
     const common = {
-      description, link, brand: plain(book.publisher) || shopName, condition: 'new',
+      description, link, brand, condition: 'new',
       googleCategory: googleCategory(book.format), productType: (book.categories || book.genres || [])[0] || '',
       bundle, creators,
     };
@@ -203,6 +213,7 @@ export function merchantFeedXml(siteUrl, items, { shopName = 'Lyricalmyrical Boo
     + tag('g:brand', item.brand) + (item.gtin ? tag('g:gtin', item.gtin) : tag('g:identifier_exists', 'no'))
     + tag('g:condition', item.condition) + tag('g:google_product_category', item.googleCategory) + tag('g:product_type', item.productType)
     + (item.bundle ? tag('g:is_bundle', 'yes') : '')
+    + (item.brand ? `\n      <g:product_detail><g:section_name>Book</g:section_name><g:attribute_name>Publisher</g:attribute_name><g:attribute_value>${xml(item.brand)}</g:attribute_value></g:product_detail>` : '')
     + (item.creators || []).map(person => `\n      <g:product_detail><g:section_name>Book</g:section_name><g:attribute_name>Author</g:attribute_name><g:attribute_value>${xml(person)}</g:attribute_value></g:product_detail>`).join('')
     + '\n    </item>').join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">\n  <channel>\n    <title>${xml(shopName)}</title>\n    <link>${xml(siteUrl.replace(/\/$/, '') + '/')}</link>\n    <description>${xml(`${shopName} books`)}</description>\n${body}${body ? '\n' : ''}  </channel>\n</rss>\n`;
