@@ -483,8 +483,9 @@ stored in the public, admin-written `settings/redirects` doc (`{ items: [{from, 
 page is never hijacked. These are browser redirects, not HTTP 301s. No shopper-visible words, so no Text & labels entry.
 **Server 301s and automatic redirects (25 November 2026, Shopify parity).** `scripts/generate-sitemap.mjs` reads the doc
 (`readRedirects`; it is part of the published fingerprint when non-empty, so a change redeploys) and writes
-`dist/hosting-redirects.json` (`scripts/hostingRedirects.mjs`: anchored any-case RE2 `regex` rules, never a live sitemap path,
-a reserved route or a committed `firebase.json` source). Both Hosting jobs in `deploy-pages.yml` merge it into `firebase.json`
+`dist/hosting-redirects.json` (`scripts/hostingRedirects.mjs`: anchored any-case RE2 `regex` rules for plain-URL-character
+paths only, never a live book/page/sitemap path, `/collections/` (alias names), a shop route or a committed `firebase.json` source). Both Hosting jobs in `deploy-pages.yml` merge it into `firebase.json`
 before the emulator check and the deploy; a bad file only warns, and the browser fallback stays. `hosting-smoke.mjs` checks the
 first merged rule answers 301 (also upper case). `redirectsAfterMove` (shared) adds a redirect when a page or a live book changes
-address: Studio › Pages rename and the book editor's save after "Change web address".
+address: Studio › Pages rename, and the book editor's save when the book's *served* address changes (`bookAddressMove`, via
+`resolveProductRoutes`, so title-made slugs and id fallbacks count).
