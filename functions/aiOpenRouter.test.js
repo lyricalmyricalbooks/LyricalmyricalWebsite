@@ -70,6 +70,18 @@ describe("AI writing assistant (OpenRouter)", () => {
     expect(out.model).toBe(OPENROUTER_MODELS[1]);
   });
 
+  it("uses OpenRouter's newest-Gemini alias by default, and moves on when a default model is rate limited or down", async () => {
+    expect(OPENROUTER_MODELS[0]).toBe("~google/gemini-flash-latest");
+    expect(openRouterModelProblem("~google/gemini-flash-latest")).toBe("");
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(reply(429, { error: { code: 429, message: "Rate limited upstream" } }))
+      .mockResolvedValueOnce(reply(503, { error: { code: 503, message: "Provider down" } }))
+      .mockResolvedValueOnce(chat(seo));
+    const out = await generateOpenRouter({ apiKey: OR_KEY, task: "bookSeo", input: { title: "Salt" }, fetchImpl });
+    expect(out.model).toBe(OPENROUTER_MODELS[2]);
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toMatchObject({ model: OPENROUTER_MODELS[0], reasoning: { effort: "low", exclude: true } });
+  });
+
   it("retries without structured output when a model refuses it", async () => {
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(reply(400, { error: { code: 400, message: "response_format json_schema is not supported" } }))

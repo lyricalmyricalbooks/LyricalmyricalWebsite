@@ -3,12 +3,17 @@
 // `action: "aiWrite"`.
 // Every answer is a suggestion the owner reviews in the editor; nothing here writes to Firestore.
 const API_ROOT = "https://generativelanguage.googleapis.com/v1beta/models/";
-// Tried in order; a model Google has retired (404) moves on to the next one.
-const MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash"];
+// Tried in order; a model Google has retired (404), has no allowance left (429) or is down (5xx) moves on to the next.
+// "gemini-flash-latest" follows Google's newest Flash, so the list doesn't go stale when a version is retired
+// (2.0 Flash shut down in June 2026 and 2.5 Flash is being wound down for 1 December 2026, which broke every AI button).
+const MODELS = ["gemini-flash-latest", "gemini-3.6-flash", "gemini-2.5-flash"];
 const TIMEOUT_MS = 25000;
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-// Used when the owner names no model, in order; one OpenRouter no longer offers (404) moves on to the next.
-const OPENROUTER_MODELS = ["google/gemini-2.5-flash", "openai/gpt-4o-mini"];
+// Used when the owner names no model, in order; one OpenRouter no longer offers (404), or that is rate limited (429)
+// or down (5xx), moves on to the next. "~google/gemini-flash-latest" is OpenRouter's alias for Google's newest Flash.
+const OPENROUTER_MODELS = ["~google/gemini-flash-latest", "google/gemini-3.6-flash", "openai/gpt-4o-mini"];
+/** Pure: a failure that may not happen on another model (retired, out of allowance, down), as opposed to one about the request or the key. */
+const tryNextModel = status => status === 404 || status === 429 || (status >= 500 && status !== 504);
 const VOICE_MAX = 1000;
 
 const clip = (v, max) => (typeof v === "string" ? v.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ").trim().slice(0, max) : "");
@@ -51,11 +56,11 @@ function openRouterKeyProblem(value) {
   return "";
 }
 
-/** An OpenRouter model name such as google/gemini-2.5-flash or meta-llama/llama-3.3-70b-instruct:free ("" = the default). */
+/** An OpenRouter model name such as google/gemini-3.6-flash, ~google/gemini-flash-latest or meta-llama/llama-3.3-70b-instruct:free ("" = the default). */
 function openRouterModelProblem(value) {
   const v = String(value || "").trim();
   if (!v) return "";
-  return v.length <= 120 && /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(v) ? "" : "Model names look like google/gemini-2.5-flash. Copy one from openrouter.ai/models.";
+  return v.length <= 120 && /^~?[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(v) ? "" : "Model names look like google/gemini-3.6-flash. Copy one from openrouter.ai/models.";
 }
 
 /** The book facts the model may use — nothing else, so it has nothing private to repeat. */
@@ -311,16 +316,19 @@ function systemText(voice, task) {
 }
 
 /** Pure: the generateContent request body for one task. */
-function buildRequest(task, input, ctx = {}, model = MODELS[0]) {
+function buildRequest(task, input, ctx = {}, model = MODELS[0], { thinking = true } = {}) {
   const spec = TASKS[task];
   const generationConfig = {
     temperature: 0.7,
-    maxOutputTokens: task === "rewrite" || task === "sectionDraft" ? 8192 : 2048,
+    // Thinking comes out of the same budget, so leave room for it on top of the answer.
+    maxOutputTokens: task === "rewrite" || task === "sectionDraft" ? 8192 : 4096,
     responseMimeType: "application/json",
     responseSchema: spec.schemaFor ? spec.schemaFor(input || {}) : spec.schema,
   };
-  // 2.5 models "think" out of the same token budget; these short answers don't need it.
-  if (/^gemini-2\.5-flash/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  // These short answers need little thinking: 2.5 Flash turns it off with a budget, Gemini 3 and later (and the
+  // "latest" alias) take a level instead. `thinking: false` leaves it out for a model that refuses the setting.
+  if (thinking && /^gemini-2\.5-flash/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  else if (thinking && /^gemini-(flash-latest|[3-9])/.test(model)) generationConfig.thinkingConfig = { thinkingLevel: "low" };
   return {
     systemInstruction: { parts: [{ text: systemText(ctx.voice, task) }] },
     contents: [{ role: "user", parts: [
@@ -406,13 +414,21 @@ async function generate({ apiKey, task, input, ctx = {}, models = MODELS, fetchI
   let sawQuota = false;
   for (const model of models) {
     try {
-      const data = await callGemini({ apiKey, model, body: buildRequest(task, input, ctx, model), fetchImpl });
+      let data;
+      try {
+        data = await callGemini({ apiKey, model, body: buildRequest(task, input, ctx, model), fetchImpl });
+      } catch (err) {
+        // A model that doesn't take the thinking setting is asked again without it.
+        if (err?.status !== 400 || !/thinking/i.test(err.message)) throw err;
+        data = await callGemini({ apiKey, model, body: buildRequest(task, input, ctx, model, { thinking: false }), fetchImpl });
+      }
       return { ...parseResponse(task, data, ctx), model };
     } catch (err) {
       lastErr = err;
-      if (err?.status === 404 || err?.googleStatus === "NOT_FOUND") continue;
+      if (!err?.friendly) console.warn(`aiWrite: Gemini ${model} answered ${err?.status || "?"} ${err?.googleStatus || ""}: ${String(err?.message || "").slice(0, 300)}`);
       // Free-tier allowances are counted per model, so a used-up one may leave the next model with room.
       if (err?.status === 429 || err?.googleStatus === "RESOURCE_EXHAUSTED") { sawQuota = true; continue; }
+      if (err?.googleStatus === "NOT_FOUND" || (!err?.friendly && tryNextModel(Number(err?.status)))) continue;
       break;
     }
   }
@@ -448,7 +464,9 @@ function buildOpenRouterRequest(task, input, ctx = {}, model = OPENROUTER_MODELS
       { role: "user", content: ctx.image ? [{ type: "text", text }, { type: "image_url", image_url: { url: `data:${ctx.image.mimeType};base64,${ctx.image.data}` } }] : text },
     ],
     temperature: 0.7,
-    max_tokens: task === "rewrite" || task === "sectionDraft" ? 8192 : 2048,
+    max_tokens: task === "rewrite" || task === "sectionDraft" ? 8192 : 4096,
+    // Short answers: keep any thinking brief and out of the reply (models that don't think ignore this).
+    reasoning: { effort: "low", exclude: true },
     ...(structured ? { response_format: { type: "json_schema", json_schema: { name: task, strict: false, schema } } } : {}),
   };
 }
@@ -468,7 +486,7 @@ function openRouterErrorMessage(status, message, model = "") {
   if (status === 401) return "OpenRouter says this key isn't valid. Copy it again from openrouter.ai/keys, then save it in Settings › General › AI writing assistant.";
   if (status === 402) return "Your OpenRouter account is out of credits. Add credits at openrouter.ai/credits, or choose a free model (its name ends in :free) in Settings › General › AI writing assistant.";
   if (status === 403) return "OpenRouter's moderation declined this request. Change the wording and try again.";
-  if (status === 404 && /image/i.test(m)) return `The model ${model || "chosen"} can't look at photos. For Describe with AI, choose a model that reads images (for example google/gemini-2.5-flash).`;
+  if (status === 404 && /image/i.test(m)) return `The model ${model || "chosen"} can't look at photos. For Describe with AI, choose a model that reads images (for example google/gemini-3.6-flash).`;
   if (status === 404) return `OpenRouter doesn't offer the model ${model || "chosen"} (any more). Pick another at openrouter.ai/models and save it in Settings › General › AI writing assistant.`;
   if (status === 408 || status === 504) return "The AI took too long to answer. Try again.";
   if (status === 429) return "OpenRouter is limiting requests right now (free models allow only a few a minute, and fewer a day without credits). Wait a minute and try again.";
@@ -523,7 +541,8 @@ async function generateOpenRouter({ apiKey, model, task, input, ctx = {}, fetchI
       return { ...parseResponse(task, fromOpenRouter(data), pctx), model: m };
     } catch (err) {
       lastErr = err;
-      if (err?.status === 404 && !chosen && !/image/i.test(err.message)) continue;
+      if (!err?.friendly) console.warn(`aiWrite: OpenRouter ${m} answered ${err?.status || "?"}: ${String(err?.message || "").slice(0, 300)}`);
+      if (!chosen && !err?.friendly && tryNextModel(Number(err?.status)) && !(err.status === 404 && /image/i.test(err.message))) continue;
       break;
     }
   }
@@ -673,4 +692,4 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
   }
 }
 
-module.exports = { backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
+module.exports = { tryNextModel, backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };

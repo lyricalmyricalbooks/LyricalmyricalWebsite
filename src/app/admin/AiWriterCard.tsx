@@ -75,7 +75,7 @@ export function AiWriterCard() {
 
   const saveModel = async () => {
     const next = model.trim();
-    if (await save({ openrouterModel: next || deleteField() }, next ? "OpenRouter model saved" : `OpenRouter uses ${DEFAULT_OPENROUTER_MODEL} again`)) {
+    if (await save({ openrouterModel: next || deleteField() }, next ? "OpenRouter model saved" : "OpenRouter uses Google's newest Gemini Flash again")) {
       setModel(next);
       setSavedModel(next);
     }
@@ -123,7 +123,7 @@ export function AiWriterCard() {
         <div style={{ marginTop: 12 }}>
           <TextField label="OpenRouter model (optional)" value={model} autoComplete="off" spellCheck={false}
             placeholder={DEFAULT_OPENROUTER_MODEL}
-            hint={`Leave blank for ${DEFAULT_OPENROUTER_MODEL}. Copy any model's name from openrouter.ai/models. Describe with AI needs a model that can read images.`}
+            hint={`Leave blank for Google's newest Gemini Flash (${DEFAULT_OPENROUTER_MODEL}). Copy any model's name from openrouter.ai/models. Describe with AI needs a model that can read images.`}
             error={modelProblem || undefined}
             onChange={(e) => setModel(e.target.value)} />
           <div style={{ marginTop: 8 }}>
