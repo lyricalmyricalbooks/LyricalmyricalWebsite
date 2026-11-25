@@ -399,7 +399,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
 
 /** Roughly how Google lists the page (it may rewrite titles and snippets). Mirrors what PageView sends:
  *  the search title in the shop's tab-title format and the description, else the start of the page text. */
-function SearchPreview({ url, title, description }: { url: string; title: string; description: string }) {
+export function SearchPreview({ url, title, description }: { url: string; title: string; description: string }) {
   const cut = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
   return (
     <div className="border border-neutral-200 rounded-lg p-3 bg-white" aria-label="Search result preview">

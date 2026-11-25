@@ -50,3 +50,10 @@ export function appendCategory(stored: any[] | undefined, category: any, default
   if (!name || list.some(c => String(c?.name || "").trim().toLocaleLowerCase() === name)) return list;
   return [...list, category];
 }
+
+/** The category with the editor's search listing: trimmed, and left out when blank (never saved as ""). */
+export function withSearchListing(category: any, editor: { seoTitle?: unknown; metaDescription?: unknown }) {
+  const { seoTitle: _t, metaDescription: _d, ...rest } = category || {};
+  const seoTitle = String(editor?.seoTitle ?? "").trim(), metaDescription = String(editor?.metaDescription ?? "").trim();
+  return { ...rest, ...(seoTitle ? { seoTitle } : {}), ...(metaDescription ? { metaDescription } : {}) };
+}

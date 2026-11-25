@@ -5,7 +5,10 @@ import { Checkbox, Dialog, PrimaryButton, SecondaryButton, SelectField, TextArea
 import { CATEGORIES } from "../../features/site/constants";
 import { childCategories, normalizeCategories, parentOf, referenceCategoryLimit, referenceNavCategories, renameCategory, usesReferenceHeader } from "../../features/site/navItems";
 import { ImageUploadButton } from "./ImageUploadButton";
-import { deleteCategory, directlyAssigned, validateCategoryName, type CategoryAction } from "./categoryManager";
+import { SearchPreview } from "./StudioPages";
+import { getCopy } from "../../features/site/storeCopy";
+import { collectionSlug } from "../../features/site/collectionPath";
+import { deleteCategory, directlyAssigned, validateCategoryName, withSearchListing, type CategoryAction } from "./categoryManager";
 
 type Props = {
   design: any; published: any; onChange: (cats: any[]) => void; onReorder?: (cats: any[]) => void; onBooksChanged: (books: any[]) => void;
@@ -51,19 +54,19 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
     const validation = validateCategoryName(cats, editor.id, editor.name);
     if (validation) { setError(validation); return; }
     const index = cats.findIndex(c => c.id === editor.id);
-    const next = index < 0 ? [...cats, { ...editor, name: editor.name.trim() }] : renameCategory(cats, index, editor.name)
+    const next = index < 0 ? [...cats, withSearchListing({ ...editor, name: editor.name.trim() }, editor)] : renameCategory(cats, index, editor.name)
       .map(c => {
         if (c.id !== editor.id) return c;
         const { templateId: _old, ...rest } = c;
         // No template = the key is left out (never saved as undefined).
-        return { ...rest, description: editor.description, imageUrl: editor.imageUrl, showInNav: editor.showInNav, parentId: editor.parentId, ...(editor.templateId ? { templateId: editor.templateId } : {}) };
+        return withSearchListing({ ...rest, description: editor.description, imageUrl: editor.imageUrl, showInNav: editor.showInNav, parentId: editor.parentId, ...(editor.templateId ? { templateId: editor.templateId } : {}) }, editor);
       });
     onChange(next); setEditor(null); setError(""); setNotice("Category details updated in your working design. Publish to update the shop.");
   };
   // Only existing saved-to-the-working-design categories can receive assignments.
   const current = editor && cats.find(c => c.id === editor.id);
   const liveCurrent = current && live.find(c => c.id === current.id);
-  const dirtyDetails = editor && (!current || ["name", "description", "imageUrl", "showInNav", "parentId", "templateId"].some(k => (editor[k] ?? "") !== (current[k] ?? "")));
+  const dirtyDetails = editor && (!current || ["name", "description", "imageUrl", "showInNav", "parentId", "templateId", "seoTitle", "metaDescription"].some(k => (editor[k] ?? "") !== (current[k] ?? "")));
   const filteredBooks = books.filter(b => (!bookSearch || `${b.title || ""} ${b.sku || ""} ${b.isbn || ""}`.toLowerCase().includes(bookSearch.toLowerCase()))
     && (membership === "all" || directlyAssigned(b, current) === (membership === "assigned")))
     .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
@@ -168,6 +171,16 @@ export function StudioCategories({ design, published, onChange, onReorder, onBoo
           <option value="">Default collection page</option>
           {alternatesFor(design, "collectionPage").map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </SelectField>
+        <div className="studio-category-seo" data-studio-category-seo>
+          <h3>Search engine listing</h3>
+          <TextField label="Title on Google" value={editor.seoTitle || ""} disabled={busy} maxLength={70}
+            placeholder={getCopy(design, "seoCollectionTitle", { category: editor.name || "Category" })} onChange={e => setEditor({ ...editor, seoTitle: e.target.value })} />
+          <TextArea label="Description on Google" value={editor.metaDescription || ""} disabled={busy} maxLength={320} rows={3}
+            placeholder={editor.description || "A short summary shown under the title on Google"} onChange={e => setEditor({ ...editor, metaDescription: e.target.value })} />
+          <SearchPreview url={`${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/collections/${collectionSlug(editor.name || "") || "…"}`}
+            title={getCopy(design, "siteTitleFormat", { title: String(editor.seoTitle || "").trim() || getCopy(design, "seoCollectionTitle", { category: editor.name || "Category" }) })}
+            description={String(editor.metaDescription || "").trim() || String(editor.description || "").trim()} />
+        </div>
         {current && <>
           <h3>Book assignments</h3>
           <p>Counts show direct assignments, including earlier category names. Parent menus also include their children. PUBLICATIONS automatically shows every book on the storefront.</p>

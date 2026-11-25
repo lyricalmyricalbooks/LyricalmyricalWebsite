@@ -1,7 +1,7 @@
 // When a custom page's address changes (Studio › Pages › URL slug), links to the old address would quietly break:
 // menu links of type "page" store the slug, and shoppers' bookmarks / search results use /page/<old>.
 // Pure helpers: Studio rewrites the draft's menus and adds a URL redirect from the old address.
-import { normalizePath, redirectProblem, type Redirect } from "../../features/site/redirects";
+import { redirectsAfterMove, type Redirect } from "../../features/site/redirects";
 
 type MenuItem = { type?: string; value?: string; children?: MenuItem[]; [k: string]: any };
 
@@ -39,21 +39,8 @@ export function menuLinksTo(menus: Record<string, any> | undefined, slug: string
   return Object.values(menus || {}).reduce((n: number, items) => n + count(items as MenuItem[]), 0);
 }
 
-/**
- * The redirect list after a page moved from /page/<from> to /page/<to>: old links forward to the new address,
- * redirects that ended at the old address now end at the new one (no chains), and a redirect away from the new
- * address is dropped (the page lives there now). Null when nothing needs saving.
- */
+/** The redirect list after a page moved from /page/<from> to /page/<to> (see `redirectsAfterMove`). */
 export function redirectsAfterRename(list: Redirect[], from: string, to: string): Redirect[] | null {
   if (!from || !to || from === to) return null;
-  const oldPath = normalizePath(`/page/${from}`), newPath = `/page/${to}`;
-  let next = list
-    .filter(r => normalizePath(r.from) !== normalizePath(newPath))
-    .map(r => normalizePath(r.to) === oldPath ? { ...r, to: newPath } : r)
-    .filter(r => normalizePath(r.from) !== normalizePath(r.to));
-  const others = next.filter(r => normalizePath(r.from) !== oldPath);
-  const add = { from: oldPath, to: newPath };
-  if (!redirectProblem(add, others)) next = [...others, add];
-  const same = next.length === list.length && next.every((r, i) => r.from === list[i].from && r.to === list[i].to);
-  return same ? null : next;
+  return redirectsAfterMove(list, `/page/${from}`, `/page/${to}`);
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanRedirects, findRedirect, normalizePath, normalizeTarget, parseRedirectLines, redirectProblem } from "./redirects";
+import { cleanRedirects, findRedirect, normalizePath, normalizeTarget, parseRedirectLines, redirectProblem, redirectsAfterMove } from "./redirects";
 
 describe("redirects", () => {
   it("normalises old addresses", () => {
@@ -39,5 +39,20 @@ describe("redirects", () => {
     const r = parseRedirectLines("from,to\n/a, /b\n/c\t/d\nnonsense\n/b, /a", []);
     expect(r.added).toEqual([{ from: "/a", to: "/b" }, { from: "/c", to: "/d" }]);
     expect(r.skipped.map(s => s.line)).toEqual(["nonsense", "/b, /a"]);
+  });
+  it("forwards a book's old address after it moves (Shopify's Create a URL redirect)", () => {
+    expect(redirectsAfterMove([], "/books/old", "/books/new")).toEqual([{ from: "/books/old", to: "/books/new" }]);
+    // An older redirect that ended at the old address now ends at the new one: one hop, no chain.
+    expect(redirectsAfterMove([{ from: "/product/x", to: "/books/old" }], "/books/old", "/books/new"))
+      .toEqual([{ from: "/product/x", to: "/books/new" }, { from: "/books/old", to: "/books/new" }]);
+    // Moving back drops the redirect away from the address the book lives at again.
+    expect(redirectsAfterMove([{ from: "/books/old", to: "/books/new" }], "/books/new", "/books/old"))
+      .toEqual([{ from: "/books/new", to: "/books/old" }]);
+    // External destinations are left alone.
+    expect(redirectsAfterMove([{ from: "/press", to: "https://example.com/books/old" }], "/books/old", "/books/new"))
+      .toEqual([{ from: "/press", to: "https://example.com/books/old" }, { from: "/books/old", to: "/books/new" }]);
+    expect(redirectsAfterMove([{ from: "/books/old", to: "/books/new" }], "/books/old", "/books/new")).toBeNull();
+    expect(redirectsAfterMove([], "/books/a", "/Books/A/")).toBeNull();
+    expect(redirectsAfterMove([], "/", "/books/a")).toBeNull();
   });
 });
