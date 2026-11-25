@@ -82,6 +82,7 @@ export function PageView() {
   useSEO({
     title: seoPage ? seoPage.seoTitle || seoPage.title : notFound ? getCopy(settings?.design, "notFoundTitle") : undefined,
     noindex: notFound || seoPage?.seoNoindex === true,
+    notFound,
     keep: !!held,
     description: seoPage ? seoPage.metaDescription || pageDescription(String(seoPage.body || "")) : undefined,
     type: "article",

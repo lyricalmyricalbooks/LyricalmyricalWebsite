@@ -160,7 +160,9 @@ export default function BookDetail() {
   // Google and other crawlers can snapshot the page mid-load: while this landing page's server-rendered copy exists,
   // keep it (and its head tags) on screen instead of the Loading screen, which reads as an empty page ("soft 404").
   const held = !book && loading ? prerenderedHtml() : null;
-  useMissingRedirect(!book && !loading && !loadError);
+  // Confirmed missing by a fresh read (not a failed one): the "not found" view, its page tags and its redirect.
+  const missingBook = !book && !loading && !loadError;
+  useMissingRedirect(missingBook);
   const sectionPage = useMemo(() => ({ book }), [book]);
   // Each credited name with its own artist page (/artists/<slug>) is a real link there; the line looks the same.
   const artists = useMemo(() => artistDirectory(books), [books]);
@@ -474,7 +476,9 @@ export default function BookDetail() {
         { name: book.title, url: bookUrl },
       ]),
     ],
-  } : { title: getCopy(settings?.design, "seoBookLoadingTitle"), noindex: !loading, keep: !!held });
+  } : missingBook
+    ? { title: getCopy(settings?.design, "notFoundTitle"), noindex: true, notFound: true, keep: false }
+    : { title: getCopy(settings?.design, "seoBookLoadingTitle"), noindex: !loading, keep: !!held });
 
   useEffect(() => {
     if (book?.id) {
@@ -497,8 +501,7 @@ export default function BookDetail() {
   // Google Analytics: a swipe through the photos counts once per book per visit; a missing book only once the
   // fresh read confirms it (the same condition as the "not found" view and its redirect).
   const gaPhotoSwipe = () => { if (book?.id) ga4Once(`photo_swipe_${book.id}`, "pdp_interact", { action: "photo_swipe" }); };
-  const gaMissing = !book && !loading && !loadError;
-  useEffect(() => { if (gaMissing) ga4PageNotFound(); }, [gaMissing, slug]);
+  useEffect(() => { if (missingBook) ga4PageNotFound(); }, [missingBook, slug]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -918,7 +921,8 @@ export default function BookDetail() {
         }}
       >
         <Package size={48} strokeWidth={1} style={{ color: `${storefrontText}33` }} />
-        <p className="text-sm tracking-[0.3em] uppercase" style={{ color: `${storefrontText}80` }}>{getCopy(settings?.design, "bookNotFound")}</p>
+        {/* The page's main heading for screen readers; the tag stays <p> so the type scale's heading sizes don't apply. */}
+        <p role="heading" aria-level={1} className="text-sm tracking-[0.3em] uppercase" style={{ color: `${storefrontText}80` }}>{getCopy(settings?.design, "bookNotFound")}</p>
         <Link
           to="/"
           className="text-[10px] font-black tracking-[0.4em] px-8 py-3 transition-all uppercase custom-btn"

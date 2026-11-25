@@ -28,6 +28,7 @@ const { keepPrerenderedPage, endPrerenderedHandoff } = await import("../../lib/p
 
 const BOOKS = [
   { id: "a", slug: "the-hound", title: "The Hound", subtitle: "Ian Willms", status: "published", publishDate: "2024-05-01", retailPrice: 60, stockLevel: 3,
+    photos: [{ url: "https://img.example/hound.jpg", altText: "Front cover of The Hound, a route map on red cloth." }],
     artistBio: "[Ian Willms](https://www.ianwillms.com/) is a photographer from Toronto.", creatorLinks: [{ name: "Ian Willms", url: "https://www.ianwillms.com" }] },
   { id: "b", slug: "second-dog", title: "Second Dog", subtitle: "Ian Willms", status: "published", publishDate: "2026-01-01", retailPrice: 40, stockLevel: 0 },
   { id: "c", slug: "anthology", title: "Anthology", subtitle: "Various artists", status: "published", retailPrice: 20, stockLevel: 1 },
@@ -80,6 +81,8 @@ describe("an artist page", () => {
     expect(seo.title).toBe("Ian Willms: photobooks");
     expect(seo.noindex).toBeFalsy();
     expect(seo.url).toMatch(/\/artists\/ian-willms$/);
+    // The share picture (the first book cover) is described by its own alt text, not the page title.
+    expect(seo).toMatchObject({ image: "https://img.example/hound.jpg", imageAlt: "Front cover of The Hound, a route map on red cloth." });
     expect(seo.description).toBe("Photobooks by Ian Willms published by Lyricalmyrical Books: Second Dog and The Hound. Ian Willms is a photographer from Toronto.");
     const [profile, crumbs] = seo.jsonLd;
     expect(profile["@type"]).toBe("ProfilePage");
@@ -92,7 +95,7 @@ describe("an artist page", () => {
   it("is not found (noindex) for an unknown artist once the fresh read confirms it", async () => {
     const el = await open("/artists/various-artists", { books: BOOKS });
     expect(el.querySelector("h1")?.textContent).not.toContain("photobooks");
-    expect(site.seo.at(-1)).toMatchObject({ title: "Missing-title", noindex: true });
+    expect(site.seo.at(-1)).toMatchObject({ title: "Missing-title", noindex: true, notFound: true });
   });
 
   it("waits (indexable, never 'not found') while only the cached catalog is in", async () => {

@@ -100,3 +100,19 @@ it('leaves the server-rendered head untouched while a page asks to keep it, then
   expect(document.title).toBe('The Hound | Press');
   act(() => root.unmount());
 });
+
+it('gives a missing page no canonical or og:url, and the next real page gets them back', () => {
+  const root = createRoot(document.createElement('div'));
+  function Page(props: any) { useSEO(props); return null; }
+  act(() => root.render(<MemoryRouter><Page title="Real" url="https://example.com/books/one" /></MemoryRouter>));
+  expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://example.com/books/one');
+  act(() => root.render(<MemoryRouter><Page title="Page not found" notFound /></MemoryRouter>));
+  expect(document.querySelector('link[rel="canonical"]')).toBeNull();
+  expect(document.querySelector('meta[property="og:url"]')).toBeNull();
+  expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, follow');
+  act(() => root.render(<MemoryRouter><Page title="Two" url="https://example.com/books/two" /></MemoryRouter>));
+  expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://example.com/books/two');
+  expect(document.querySelector('meta[property="og:url"]')?.getAttribute('content')).toBe('https://example.com/books/two');
+  expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('index, follow, max-image-preview:large');
+  act(() => root.unmount());
+});

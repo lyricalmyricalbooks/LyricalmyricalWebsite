@@ -23,7 +23,7 @@ export function NotFoundContent({ design, books = [] }: { design: any; books?: a
 }
 export default function NotFoundPage() {
   const { settings, books } = useSiteData();
-  useSEO({ title: getCopy(settings?.design, "notFoundTitle"), noindex: true });
+  useSEO({ title: getCopy(settings?.design, "notFoundTitle"), noindex: true, notFound: true });
   useMissingRedirect(true);
   // An address no route knows: missing whatever the shop data says, so it counts at once.
   useEffect(() => { ga4PageNotFound(); }, []);
