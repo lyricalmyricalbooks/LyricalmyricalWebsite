@@ -150,4 +150,7 @@ export type Page = {
   metaDescription?: string;
   /** Sharing image (social cards, search); blank = the page's first picture, else the site's share image. */
   seoImage?: string;
+  /** Studio › Pages › Google listing › Hide from search engines: noindex, and left out of the sitemap and llms.txt.
+   *  The page stays public and linked (Squarespace's per-page "Hide from search results"). */
+  seoNoindex?: boolean;
 };

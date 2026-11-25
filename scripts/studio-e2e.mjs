@@ -1517,6 +1517,19 @@ await check("a custom page's search listing fills in from the page", desktop, as
   await page.getByRole("button", { name: /Fill in missing search listings/ }).waitFor({ state: "detached", timeout: 5000 });
 });
 
+await check("a page can be hidden from search engines and says so in the page list", desktop, async page => {
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await page.getByRole("button", { name: "Edit About" }).click();
+  await page.getByLabel(/Hide from search engines/).check();
+  await page.getByRole("button", { name: "Save page" }).click();
+  await page.waitForFunction(() => window.__studioFixture.calls.some(c => c.method === "updatePage"), null, { timeout: 10000 });
+  const about = (await calls(page)).find(c => c.method === "updatePage" && c.args[0] === "p1")?.args[1];
+  if (about?.seoNoindex !== true) throw new Error(`saved ${JSON.stringify(about)}`);
+  if (process.env.STUDIO_SHOTS) await page.screenshot({ path: `${process.env.STUDIO_SHOTS}/page-hidden-from-search.png` });
+  await page.getByRole("button", { name: "All pages" }).click();
+  await expectText(page, "Hidden from search");
+});
+
 // Theme settings helpers: open a category card on the Theme settings home, then set one control.
 const openStyleCategory = async (page, title) => {
   await page.getByRole("button", { name: "Theme settings", exact: true }).first().click();

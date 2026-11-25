@@ -81,7 +81,7 @@ export function PageView() {
   const held = !seoPage && !loadError && (siteLoading || !fresh) ? prerenderedHtml() : null;
   useSEO({
     title: seoPage ? seoPage.seoTitle || seoPage.title : notFound ? getCopy(settings?.design, "notFoundTitle") : undefined,
-    noindex: notFound,
+    noindex: notFound || seoPage?.seoNoindex === true,
     keep: !!held,
     description: seoPage ? seoPage.metaDescription || pageDescription(String(seoPage.body || "")) : undefined,
     type: "article",

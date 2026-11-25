@@ -31,6 +31,22 @@ describe("launchReadiness", () => {
     expect(readinessSummary(items)).toBe("block");
   });
 
+  it("reports how many book photos are described for search, and names hidden books", () => {
+    const books = [
+      { ...goodBook, title: "Described", photos: [{ url: "u", altText: "Cover of Described, a red cloth hardcover" }] },
+      { ...goodBook, title: "Bare", photos: [{ url: "u", altText: "IMG_1234" }, { url: "v", altText: "Spread of birch trees" }] },
+      { ...goodBook, title: "Test copy", seoNoindex: true, photos: [] },
+    ];
+    const items = launchReadiness({ settings: goodSettings, books, shippingProfiles: [{}], emailLog: [], orders: [] });
+    const row = items.find(i => i.id === "search-photos")!;
+    expect(row.status).toBe("warn");
+    expect(row.label).toBe("1 of 3 book photos need a description");
+    expect(row.detail).toContain("Bare.");
+    expect(row.detail).toContain("Hidden from search engines: Test copy.");
+    const fixed = launchReadiness({ settings: goodSettings, books: books.slice(0, 1), shippingProfiles: [{}], emailLog: [], orders: [] });
+    expect(fixed.find(i => i.id === "search-photos")).toMatchObject({ status: "ok", label: "All 1 book photo described for search" });
+  });
+
   it("treats switched-off tax collection as a decision, not a gap", () => {
     const settings = { ...goodSettings, taxes: { rates: [{ country: "Canada", region: "Ontario", rate: 13 }], collect: false } };
     const items = launchReadiness({ settings, books: [goodBook], shippingProfiles: [{}], emailLog: [], orders: [] });

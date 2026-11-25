@@ -21,6 +21,7 @@ describe('index.html shell', () => {
     // useSEO (src/app/lib/seo.ts) removes this tag whenever Studio's token is empty, so one written here never reaches
     // the prerendered pages Google reads. The token belongs in Studio, which useSEO and the prerender then emit.
     expect(shell).not.toMatch(/name="google-site-verification"/);
+    expect(shell).not.toMatch(/name="msvalidate\.01"/);
   });
   it('leaves the sharing image to the Studio-controlled runtime metadata', () => {
     expect(shell).not.toMatch(/property="og:image"/);

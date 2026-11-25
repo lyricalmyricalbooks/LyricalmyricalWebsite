@@ -723,3 +723,10 @@ Custom-page navigation resolves published bodies from useSiteData's shared snaps
 Grouped footer navigation defaults to Explore and Participate & connect, with policies in a wrapping row above copyright. Studio > Style > Footer & social links selects grouped/classic layout and group/location/heading visibility; Text & labels > Footer owns headings. Menus > Footer menu can customize automatic links, assign groups, edit destinations/labels, reorder and hide links, preserving sub-links. Contact pages suppress the duplicate automatic email link. Preview click-to-edit and inline copy hooks remain available.
 
 **Footer layout (12 October 2026):** `StoreFooter` puts every band in one padded column (dividers line up with the text), link groups on the right by default (Style › Footer & social links › **Where the link groups sit**), and a bottom-bar **Admin** link (`showFooterAdminLink`, words Text & labels › Footer › `footerAdmin`). Spacing/text/colour/divider controls (`footerPaddingY*`, `footerColumnGap`, `footerLinkGap`, `footerTextSize`, `footer*Color`, `showFooterDividers`) become CSS in `features/site/footerStyle.ts`; the bands are regions `footerBrand`/`footerLinks`/`footerLegal`/`footerBottom`/`footerAdmin` for per-device element styling.
+
+- **Squarespace SEO parity (25 November 2026).** Studio pages carry `seoNoindex` (Pages › Google listing › Hide from
+  search engines): PageView sends noindex, `sitemapData.mjs` and `llmsTxt.mjs` skip the page, and
+  `generate-sitemap.mjs` still lists it in `prerender-routes.xml` (like noindex books) so the prerendered file exists and
+  Google can read the tag instead of a 404. Text & labels › Site & sharing › `bingSiteVerification` emits
+  `<meta name="msvalidate.01">` from `useSEO`, like the Google token; never hard-code either in `index.html`.
+  The Overview's ready-to-sell checks count book photos without a described alt text (`search-photos`).
