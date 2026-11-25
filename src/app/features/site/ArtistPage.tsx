@@ -29,6 +29,7 @@ import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { aspectRatioValue } from "./imageAspect";
 import { layerDesign } from "./designModel";
 import { findArtist, type Artist } from "./artistPages.mjs";
+import { describedAlt } from "./photoAlt";
 
 // Same scale as Style › Custom pages (PageContentSection), so an artist page reads like the shop's other pages.
 const TITLE_SIZES: Record<string, string> = { sm: "text-3xl", md: "text-4xl md:text-5xl", lg: "text-5xl md:text-7xl", xl: "text-6xl md:text-8xl" };
@@ -84,11 +85,14 @@ export default function ArtistPage() {
   const introText = artist ? artistIntro(design, artist).join("") : "";
   // The bio may hold [name](https://…) links (DescriptionText draws them); search snippets get the words only.
   const bioText = artist ? searchText(descriptionPlainText(artist.bio)) : "";
+  const coverPhoto = artist?.books.find(b => b.photos?.[0]?.url)?.photos?.[0];
   useSEO(artist ? {
     title: getCopy(design, "seoArtistTitle", { name: artist.name }),
     description: leadSentences([introText, bioText].filter(Boolean).join(" ")),
     url: pageUrl,
-    image: artist.books.find(b => b.photos?.[0]?.url)?.photos?.[0]?.url,
+    image: coverPhoto?.url,
+    // The share picture's own description (Books › edit › Images › alt text), like book pages; else the page title.
+    imageAlt: describedAlt(coverPhoto?.altText),
     jsonLd: [
       artistStructuredData({
         name: artist.name, url: pageUrl, description: leadSentences(bioText || introText, 300), links: artist.links,
@@ -102,6 +106,7 @@ export default function ArtistPage() {
   } : {
     title: notFound ? getCopy(design, "notFoundTitle") : undefined,
     noindex: notFound,
+    notFound,
     keep: !!held,
   });
 

@@ -8,6 +8,8 @@ import { canonicalUrl } from "./canonicalUrl";
 type SEO = {
   exactTitle?: boolean;
   noindex?: boolean;
+  /** A missing page (shown with HTTP 404): noindex, and no canonical or og:url naming an address that doesn't exist. */
+  notFound?: boolean;
   title?: string;
   description?: string;
   image?: string;
@@ -88,17 +90,20 @@ export function useSEO(seo: SEO) {
     const description = seo.description || getCopy(design, "siteDefaultDescription");
     const rawImage = seo.image || design?.shareImageUrl || "";
     const image = rawImage ? new URL(rawImage, window.location.href).href : "";
-    const url = canonicalUrl(seo.url || window.location.href);
+    const url = seo.notFound ? "" : canonicalUrl(seo.url || window.location.href);
     let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-    if (!canonical) {
-      canonical = document.createElement("link");
-      canonical.rel = "canonical";
-      document.head.appendChild(canonical);
+    if (!url) canonical?.remove();
+    else {
+      if (!canonical) {
+        canonical = document.createElement("link");
+        canonical.rel = "canonical";
+        document.head.appendChild(canonical);
+      }
+      canonical.href = url;
     }
-    canonical.href = url;
     const preview = new URLSearchParams(location.search).get("preview") === "true" || inThemePreview();
     // Large image previews let Google show book covers and spreads full-size in results and Discover.
-    setMeta('meta[name="robots"]', "content", seo.noindex || preview || /^\/(admin|checkout|account|wishlist|cart|track)(\/|$)/.test(location.pathname) ? "noindex, follow" : "index, follow, max-image-preview:large");
+    setMeta('meta[name="robots"]', "content", seo.noindex || seo.notFound || preview || /^\/(admin|checkout|account|wishlist|cart|track)(\/|$)/.test(location.pathname) ? "noindex, follow" : "index, follow, max-image-preview:large");
     // index.html's static shop markup is only for crawlers that never run scripts; the
     // rendered page supplies its own, so two differing shop descriptions never coexist.
     document.getElementById("seo-jsonld-static")?.remove();
@@ -116,6 +121,7 @@ export function useSEO(seo: SEO) {
     setMeta('meta[property="og:description"]', "content", description);
     setMeta('meta[property="og:type"]', "content", type);
     if (url) setMeta('meta[property="og:url"]', "content", url);
+    else removeMeta('meta[property="og:url"]');
     // An empty og:image is an invalid tag; leave it out so platforms pick their own preview.
     if (image) {
       setMeta('meta[property="og:image"]', "content", image);
@@ -149,5 +155,5 @@ export function useSEO(seo: SEO) {
     return () => {
       clearJsonLd("seo-jsonld-page");
     };
-  }, [location.pathname, location.search, design, seo.keep, seo.title, seo.exactTitle, seo.noindex, seo.description, seo.image, seo.imageAlt, seo.url, seo.type, JSON.stringify(seo.product || null), JSON.stringify(seo.jsonLd || {})]);
+  }, [location.pathname, location.search, design, seo.keep, seo.title, seo.exactTitle, seo.noindex, seo.notFound, seo.description, seo.image, seo.imageAlt, seo.url, seo.type, JSON.stringify(seo.product || null), JSON.stringify(seo.jsonLd || {})]);
 }

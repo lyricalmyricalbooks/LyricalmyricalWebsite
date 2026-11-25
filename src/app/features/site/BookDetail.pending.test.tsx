@@ -25,7 +25,7 @@ const { default: BookDetail } = await import("./BookDetail");
 const { CurrencyProvider } = await import("../../CurrencyContext");
 const { keepPrerenderedPage, endPrerenderedHandoff } = await import("../../lib/prerenderedPage");
 
-const design = { copy: { bookLoading: "Loading-copy", bookNotFound: "Missing-copy" } };
+const design = { copy: { bookLoading: "Loading-copy", bookNotFound: "Missing-copy", notFoundTitle: "Missing-title" } };
 let root: Root | null = null;
 afterEach(async () => { if (root) await act(async () => root!.unmount()); root = null; endPrerenderedHandoff(); });
 
@@ -51,7 +51,12 @@ describe("product page before the fresh catalog read", () => {
   it("shows 'not found' with noindex once the fresh read confirms the book is missing", async () => {
     const el = await open({ books: [], loading: false, fresh: true });
     expect(el.textContent).toContain("Missing-copy");
-    expect(site.seo.at(-1)?.noindex).toBe(true);
+    // Titled like every other missing page, with no canonical address (seo.ts `notFound`).
+    expect(site.seo.at(-1)).toMatchObject({ noindex: true, notFound: true, title: "Missing-title" });
+    // Screen readers hear the message as the page's main heading.
+    const heading = el.querySelector('[role="heading"]');
+    expect(heading?.getAttribute("aria-level")).toBe("1");
+    expect(heading?.textContent).toBe("Missing-copy");
   });
 
   it("renders a cached book straight away without waiting for the fresh read", async () => {
