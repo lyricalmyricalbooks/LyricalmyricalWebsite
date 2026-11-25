@@ -7,6 +7,8 @@ const absoluteUrl = (value, base) => {
   if (typeof value !== 'string' || !value.trim() || value.startsWith('data:')) return '';
   try { const url = new URL(value.trim(), base); return /^https?:$/.test(url.protocol) ? url.href : ''; } catch { return ''; }
 };
+/** The latest YYYY-MM-DD among ISO date strings, or undefined. */
+const newestDate = values => values.map(value => typeof value === 'string' ? value.slice(0, 10) : '').filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date)).sort().pop();
 const slugify = (value = '') => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 export function sitemapArtifacts(siteUrl, books, pages, collections, settings = {}, { includeEmptyCollections = false } = {}) {
   const base = siteUrl.replace(/\/$/, '');
@@ -39,15 +41,17 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
   const categories = normalizeCategories(Array.isArray(categorySource) ? categorySource : []);
   for (const category of categories) {
     if (category?.showInNav === false) continue;
-    if (!includeEmptyCollections && !live.some(book => book.status === 'published' && bookInCategory(book, category, categories))) continue;
+    const members = live.filter(book => book.status === 'published' && bookInCategory(book, category, categories));
+    if (!includeEmptyCollections && !members.length) continue;
     if (category?.parentId && categories.some(parent => parent?.id === category.parentId && parent.showInNav === false)) continue;
     const name = typeof category === 'string' ? category : category?.name;
     const slug = slugify(name);
-    if (slug) urls.push({ loc: `${base}/collections/${encodeURIComponent(slug)}` });
+    // A collection page lists its books, so it changes when the newest of them does.
+    if (slug) urls.push({ loc: `${base}/collections/${encodeURIComponent(slug)}`, lastmod: newestDate(members.map(book => book.updatedAt || book._updateTime)) });
   }
   const unique = [...new Map(urls.map(url => [url.loc, url])).values()];
   // The home page lists every book and page, so it changes whenever they do.
-  const newest = unique.map(url => typeof url.lastmod === 'string' ? url.lastmod.slice(0, 10) : '').filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date)).sort().pop();
+  const newest = newestDate(unique.map(url => url.lastmod));
   if (newest) unique[0] = { ...unique[0], lastmod: newest };
   const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n' + unique.map(url => {
     const date = typeof url.lastmod === 'string' ? url.lastmod.slice(0, 10) : '';
