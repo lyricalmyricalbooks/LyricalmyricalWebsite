@@ -82,6 +82,7 @@ import { findProduct } from "./productRoutes";
 import { bookAddOns, bundleWeightGrams, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
 import { displayPrice, salePercentOff } from "./displayPrice";
 import { ga4Once, ga4PageNotFound, ga4PdpInteract, pdpTabName } from "../../lib/ga4";
+import { prerenderedHtml } from "../../lib/prerenderedPage";
 import { SoldOutBadge, SoldOutVeil } from "./SoldOutBadge";
 import { AddOnPicker, BoxSetContents, GiftCardForm, addOnRequest, giftFormValid, missingWording, type AddOnPicks } from "./ProductOptions";
 import { gridPhotoSizes, THUMB_PHOTO_SIZES, pdpPhotoSizes, photoSrcSet, smallPhotoUrl } from "./photoSources";
@@ -155,6 +156,9 @@ export default function BookDetail() {
   // A book published after this browser cached the catalog isn't in that cache yet: keep showing
   // Loading (and stay indexable) until this mount's fresh read, rather than a false "not found" + noindex.
   const loading = siteLoading || (!book && !fresh);
+  // Google and other crawlers can snapshot the page mid-load: while this landing page's server-rendered copy exists,
+  // keep it (and its head tags) on screen instead of the Loading screen, which reads as an empty page ("soft 404").
+  const held = !book && loading ? prerenderedHtml() : null;
   useMissingRedirect(!book && !loading && !loadError);
   const sectionPage = useMemo(() => ({ book }), [book]);
 
@@ -460,7 +464,7 @@ export default function BookDetail() {
         { name: book.title, url: bookUrl },
       ]),
     ],
-  } : { title: getCopy(settings?.design, "seoBookLoadingTitle"), noindex: !loading });
+  } : { title: getCopy(settings?.design, "seoBookLoadingTitle"), noindex: !loading, keep: !!held });
 
   useEffect(() => {
     if (book?.id) {
@@ -867,6 +871,7 @@ export default function BookDetail() {
 
   // ── loading ────────────────────────────────────────────────────────────────
   if (loading) {
+    if (held) return <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: held }} />;
     return (
       <div
         className="h-screen flex items-center justify-center"

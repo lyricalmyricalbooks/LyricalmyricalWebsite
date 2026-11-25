@@ -23,10 +23,11 @@ vi.mock("./StoreFooter", () => ({ StoreFooter: () => null }));
 
 const { default: BookDetail } = await import("./BookDetail");
 const { CurrencyProvider } = await import("../../CurrencyContext");
+const { keepPrerenderedPage, endPrerenderedHandoff } = await import("../../lib/prerenderedPage");
 
 const design = { copy: { bookLoading: "Loading-copy", bookNotFound: "Missing-copy" } };
 let root: Root | null = null;
-afterEach(async () => { if (root) await act(async () => root!.unmount()); root = null; });
+afterEach(async () => { if (root) await act(async () => root!.unmount()); root = null; endPrerenderedHandoff(); });
 
 async function open(state: { books: any[]; loading: boolean; fresh: boolean }) {
   site.seo = [];
@@ -57,5 +58,29 @@ describe("product page before the fresh catalog read", () => {
     const el = await open({ books: [{ id: "b1", slug: "brand-new", title: "Brand New Book", status: "published", stockLevel: 2, retailPrice: 20 }], loading: false, fresh: false });
     expect(el.textContent).toContain("Brand New Book");
     expect(el.textContent).not.toContain("Loading-copy");
+  });
+});
+
+describe("landing on a server-rendered book page", () => {
+  function landWithPrerender() {
+    window.history.replaceState(null, "", "/books/brand-new");
+    const served = document.createElement("div");
+    served.innerHTML = '<main><h1>The Served Book</h1></main>';
+    keepPrerenderedPage(served);
+  }
+
+  it("keeps the served page and its head tags while the shop data is still loading (no empty page for Google)", async () => {
+    landWithPrerender();
+    const el = await open({ books: [], loading: true, fresh: false });
+    expect(el.textContent).toContain("The Served Book");
+    expect(el.textContent).not.toContain("Loading-copy");
+    expect(site.seo.at(-1)?.keep).toBe(true);
+  });
+
+  it("still shows 'not found' once the fresh read confirms the book is missing", async () => {
+    landWithPrerender();
+    const el = await open({ books: [], loading: false, fresh: true });
+    expect(el.textContent).toContain("Missing-copy");
+    expect(site.seo.at(-1)?.keep).toBe(false);
   });
 });
