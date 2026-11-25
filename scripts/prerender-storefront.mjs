@@ -96,6 +96,8 @@ try {
         await page.waitForFunction(() => !!document.querySelector('[data-studio-label="Product page"][data-seo-reviews="ready"]') && !!document.getElementById('seo-jsonld-page'), undefined, { timeout: 30000 });
       } else if (route.startsWith('/page/')) {
         await page.waitForFunction(slug => document.querySelector('[data-seo-page]')?.getAttribute('data-seo-page') === slug, decodeURIComponent(route.slice('/page/'.length)), { timeout: 30000 });
+      } else if (route.startsWith('/artists/')) {
+        await page.waitForFunction(slug => document.querySelector('[data-seo-artist]')?.getAttribute('data-seo-artist') === slug && !!document.getElementById('seo-jsonld-page'), decodeURIComponent(route.slice('/artists/'.length)), { timeout: 30000 });
       } else if (route.startsWith('/collections/')) {
         await page.waitForFunction(slug => document.querySelector('[data-seo-collection]')?.getAttribute('data-seo-collection') === slug, decodeURIComponent(route.slice('/collections/'.length)), { timeout: 30000 });
       } else {

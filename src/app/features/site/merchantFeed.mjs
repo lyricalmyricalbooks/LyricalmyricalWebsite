@@ -98,7 +98,7 @@ const httpsUrl = (value, base) => {
 
 // Same rule as lib/bookSeo.ts bookCreators (merchantFeed.test.ts checks they agree): the people in the editor's
 // "Author / contributors" box (else the legacy authorName); group credits like "Various artists" name nobody.
-const GROUP_CREDIT = /^(various|vari[eo]?\b|aa\.?\s*vv\.?|autori vari|artisti vari|multiple|anthology)|\s[x×]\s/i;
+const GROUP_CREDIT = /^(various|vari[eo]?\b|aa\.?\s*vv\.?|autori vari|artisti vari|multiple|anthology|collection of\b|collective\b)|\s[x×]\s|\bartists$/i;
 export function creatorNames(book) {
   const credit = plain(book?.subtitle).replace(/\s+/g, ' ') || plain(book?.authorName).replace(/\s+/g, ' ');
   if (!credit || GROUP_CREDIT.test(credit)) return [];

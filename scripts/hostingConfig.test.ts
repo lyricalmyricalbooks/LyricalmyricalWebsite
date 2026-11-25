@@ -29,10 +29,10 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
     }
   });
 
-  // Every published book and page has its own prerendered file. An unknown one gets 404.html, the same app shell, so
+  // Every published book, page and artist has its own prerendered file. An unknown one gets 404.html, the same app shell, so
   // shoppers and Studio previews still see it, but Google gets a real 404 instead of an indexable blank page.
   // Collections stay on the shell: /collections/all (search results, "Shop all") and hidden categories have no file.
-  const prerendered = /^\/(?:books|page)\//;
+  const prerendered = /^\/(?:artists|books|page)\//;
   it('sends every app route without its own file to the app shell', () => {
     expect(appRoutes.length).toBeGreaterThan(5);
     for (const route of appRoutes.filter(r => r !== '/' && r !== '*' && !prerendered.test(r))) {
@@ -41,7 +41,7 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
   });
 
   it('answers an unknown book or page with a real 404 (no blank page for Google)', () => {
-    for (const path of ['/books/does-not-exist-xyz', '/books/new-title/', '/page/nope']) {
+    for (const path of ['/books/does-not-exist-xyz', '/books/new-title/', '/page/nope', '/artists/nobody']) {
       expect(rewriteFor(path), path).toBeUndefined();
     }
     expect(rewriteFor('/collections/all')?.destination).toBe('/spa.html');
@@ -86,7 +86,7 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
     expect(hosting.ignore ?? []).not.toContain('**/.*');
   });
 
-  const samples = ['/', '/index.html', '/books/x', '/books/a.b', '/books/x.html', '/collections/x', '/page/about', '/account', '/account/orders',
+  const samples = ['/', '/index.html', '/books/x', '/books/a.b', '/books/x.html', '/collections/x', '/artists/x', '/page/about', '/account', '/account/orders',
     '/admin', '/checkout', '/track', '/wishlist', '/spa', '/404', '/assets/index-Ab12.js', '/assets/index-Ab12.css', '/sitemap.xml', '/robots.txt',
     '/google-merchant-feed.xml', '/seo-published-fingerprint.txt', '/asset-manifest.txt'];
 

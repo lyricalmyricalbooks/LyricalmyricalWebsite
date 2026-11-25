@@ -79,6 +79,7 @@ import { photoShadow, productPageCss, productPageFontNames, titleFitSize } from 
 import { schemeButtonColors } from "./colorSchemes";
 
 import { findProduct } from "./productRoutes";
+import { artistDirectory, creditParts } from "./artistPages.mjs";
 import { bookAddOns, bundleWeightGrams, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
 import { displayPrice, salePercentOff } from "./displayPrice";
 import { ga4Once, ga4PageNotFound, ga4PdpInteract, pdpTabName } from "../../lib/ga4";
@@ -161,6 +162,11 @@ export default function BookDetail() {
   const held = !book && loading ? prerenderedHtml() : null;
   useMissingRedirect(!book && !loading && !loadError);
   const sectionPage = useMemo(() => ({ book }), [book]);
+  // Each credited name with its own artist page (/artists/<slug>) is a real link there; the line looks the same.
+  const artists = useMemo(() => artistDirectory(books), [books]);
+  const artistNameLinks = (credit: string) => creditParts(credit, id => artists.has(id)).map((part, i) => part.slug
+    ? <Link key={i} to={`/artists/${part.slug}`} className="text-inherit no-underline decoration-1 underline-offset-4 hover:underline">{part.text}</Link>
+    : <Fragment key={i}>{part.text}</Fragment>);
 
   // Keep the chosen edition's data fresh after a refresh, and start each edition at quantity 1.
   useEffect(() => {
@@ -1012,10 +1018,10 @@ export default function BookDetail() {
                       <p className={`text-white/40 text-xl leading-snug ${
                         productSubtitleWeight === "bold" ? "font-bold" :
                         productSubtitleWeight === "medium" ? "font-normal" : "font-light"
-                      }`}>{bk.subtitle}</p>
+                      }`}>{artistNameLinks(bk.subtitle)}</p>
                     )}
                     {bk.authorName && (
-                      <p className="fm-pdp-meta">{bk.authorName}</p>
+                      <p className="fm-pdp-meta">{artistNameLinks(bk.authorName)}</p>
                     )}
                   </div>
         </Fragment>;

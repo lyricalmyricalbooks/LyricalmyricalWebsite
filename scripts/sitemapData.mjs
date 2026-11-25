@@ -2,6 +2,7 @@ import { bookInCategory, normalizeCategories } from '../src/app/features/site/ca
 import { safeSlug } from './routeSafety.mjs';
 import { effectivePublishedSettings, releaseArrived } from './publicStorefrontData.mjs';
 import { resolveProductRoutes } from '../src/app/features/site/productRouteData.mjs';
+import { artistDirectory } from '../src/app/features/site/artistPages.mjs';
 const escapeXml = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[char]);
 const absoluteUrl = (value, base) => {
   if (typeof value !== 'string' || !value.trim() || value.startsWith('data:')) return '';
@@ -42,6 +43,13 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
     // Google Images is a main way people find photo and art books: list each listing's photos.
     const images = [...new Set((Array.isArray(book.photos) ? book.photos : []).map(photo => absoluteUrl(photo?.url, base + '/')).filter(Boolean))].slice(0, 10);
     urls.push({ loc: `${base}/books/${encodeURIComponent(book.slug)}`, lastmod: book.updatedAt || book._updateTime, images });
+  }
+  // Artist pages (/artists/<slug>): one per photographer credited on a live book, so a search for their name has a
+  // page to find. Same directory as the shop's ArtistPage; group credits ("Various artists") give none.
+  for (const artist of artistDirectory(resolveProductRoutes(live)).values()) {
+    if (!safeSlug(artist.slug)) continue;
+    const lastmod = artist.books.map(book => book.updatedAt || book._updateTime).filter(value => typeof value === 'string').sort().pop();
+    urls.push({ loc: `${base}/artists/${encodeURIComponent(artist.slug)}`, lastmod });
   }
   for (const page of pages) {
     if (page.status !== 'published' || !page.slug || page.seoNoindex === true) continue;

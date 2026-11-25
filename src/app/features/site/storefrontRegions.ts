@@ -61,6 +61,13 @@ export const REGION_GROUPS: RegionGroup[] = withFeatureRegions<RegionGroup>([
     { id: "wishlistActions", label: "Saved-book actions" },
     { id: "wishlistShareBar", label: "Share wishlist / shared list bar" },
   ] },
+  { id: "artistLayout", title: "Artist pages · layout & elements", copy: "Artist pages", files: ["features/site/ArtistPage.tsx"], regions: [
+    { id: "artistBreadcrumb", label: "Artist breadcrumb" }, { id: "artistHeading", label: "Artist name heading", required: true },
+    { id: "artistIntro", label: "Line naming the artist's books" }, { id: "artistBio", label: "Artist bio" },
+    { id: "artistLinks", label: "Artist website links" }, { id: "artistBooksHeading", label: "Artist's books heading & count" },
+    { id: "artistBooks", label: "Artist's books grid", grid: true }, { id: "artistPhoto", label: "Artist's book cover", image: true },
+    { id: "artistPrice", label: "Artist's book price" },
+  ] },
   { id: "accountLayout", title: "Customer account · layout & elements", copy: "Customer account", files: ["features/site/Account.tsx"], regions: [
     { id: "accountLogin", label: "Sign-in panel", required: true }, { id: "accountIntro", label: "Sign-in heading & description" },
     { id: "accountHeader", label: "Account navigation", required: true }, { id: "accountProfile", label: "Customer profile" },

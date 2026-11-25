@@ -501,6 +501,19 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
     ],
   },
   {
+    group: "Artist pages",
+    fields: [
+      { key: "artistPageTitle", label: "Artist page: main heading", default: "{name}: photobooks", hint: "The big heading on each artist's page (/artists/…). {name} is the artist's name." },
+      { key: "seoArtistTitle", label: "Artist page: browser-tab and Google title", default: "{name}: photobooks", hint: "Shown in the browser tab and as the blue link on Google, inside Site & sharing › Title format. {name} is the artist's name." },
+      { key: "artistPageIntro", label: "Artist page: line naming their books", default: "Photobooks by {name} published by {shop}: {titles}.", hint: "The first line under the heading, also used for Google's description when the artist has no bio. {name} is the artist, {shop} the site name, {titles} their book titles." },
+      { key: "artistPageListAnd", label: "Artist page: word before the last book title", default: "and", hint: "Joins three or more titles: “A, B and C”." },
+      { key: "artistPageCrumbArtists", label: "Artist page: breadcrumb Artists", default: "Artists" },
+      { key: "artistPageLinksHeading", label: "Artist page: heading above their website links", default: "Website" },
+      { key: "artistPageBooksHeading", label: "Artist page: heading above their books", default: "Photobooks" },
+      { key: "artistPageBooksCount", label: "Artist page: number of books", default: "{count}", hint: "Beside the books heading. {count} is the number of books." },
+    ],
+  },
+  {
     group: "Search & filters",
     fields: [
       { key: "filterSearchPlaceholder", label: "Filter box placeholder", default: "Search by title, author, category…" },

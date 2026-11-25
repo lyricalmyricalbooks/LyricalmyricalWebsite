@@ -5,8 +5,8 @@ import { publicRoutes, routeOutputPath, captureDocument } from './prerenderHtml.
 const base = 'https://example.com/shop';
 describe('public HTML snapshots', () => {
   it('limits generation to public sitemap routes in this deployment', () => {
-    const xml = '<urlset>' + ['https://example.com/shop/', 'https://example.com/shop/books/a', 'https://example.com/shop/page/about', 'https://example.com/shop/collections/art', 'https://example.com/shop/account', 'https://example.com/shop/wishlist', 'https://elsewhere.com/shop/books/a'].map(u => `<url><loc>${u}</loc></url>`).join('') + '</urlset>';
-    expect(publicRoutes(xml, base)).toEqual(['/', '/books/a', '/page/about', '/collections/art']);
+    const xml = '<urlset>' + ['https://example.com/shop/', 'https://example.com/shop/books/a', 'https://example.com/shop/page/about', 'https://example.com/shop/collections/art', 'https://example.com/shop/artists/ian-willms', 'https://example.com/shop/account', 'https://example.com/shop/wishlist', 'https://elsewhere.com/shop/books/a'].map(u => `<url><loc>${u}</loc></url>`).join('') + '</urlset>';
+    expect(publicRoutes(xml, base)).toEqual(['/', '/books/a', '/page/about', '/collections/art', '/artists/ian-willms']);
   });
   it('rejects path traversal and encoded separators before writing files', () => {
     expect(routeOutputPath('/books/photo-book')).toBe('books/photo-book.html');

@@ -3,6 +3,7 @@
 // hidden preview is StudioSiteHealth.tsx; the checks themselves are healthAudit.ts (read-only).
 import { alternatesFor, bookTemplateSurface } from "../../features/site/templateAlternates";
 import { POLICY_KEYS, policySlug, policyTitle } from "../../features/site/policyPages";
+import { artistDirectory } from "../../features/site/artistPages.mjs";
 import type { HealthFinding, HealthCategory, HealthSeverity, HealthOwner } from "./healthAudit";
 
 export type HealthRouteGroup = "Home" | "Books" | "Pages" | "Categories" | "Other";
@@ -46,6 +47,10 @@ export function healthRoutes(i: RouteInput): { routes: HealthRoute[]; skipped: n
       routes.push({ id: `book:${alt.id}`, label: `Book page (${alt.name}) · ${title(book)}`, group: "Books", path: `/books/${enc(clean(book.slug))}?template=${alt.id}` });
     }
   }
+
+  // One artist page (/artists/<slug>): every artist shares the one layout, so one is enough to check it.
+  const artist = artistDirectory(books).values().next().value;
+  if (artist) routes.push({ id: "artist", label: `Artist page · ${artist.name}`, group: "Books", path: `/artists/${enc(artist.slug)}` });
 
   const maxPages = i.maxPages ?? 30;
   const published = (i.pages || []).filter(p => p && clean(p.slug) && p.status === "published");

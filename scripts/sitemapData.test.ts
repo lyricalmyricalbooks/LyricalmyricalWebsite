@@ -1,5 +1,18 @@
 import { expect, it } from 'vitest';
 import { sitemapArtifacts } from './sitemapData.mjs';
+it('lists one artist page per photographer with a live book, never group credits, drafts or unscheduled books', () => {
+  const books = [
+    { id: 'a', title: 'The Hound', slug: 'the-hound', status: 'published', subtitle: 'Ian Willms', updatedAt: '2026-03-01T00:00:00Z' },
+    { id: 'b', title: 'Duo', status: 'published', subtitle: 'Ian Willms & Ana Ruiz', updatedAt: '2026-05-02T00:00:00Z' },
+    { id: 'c', title: 'Anthology', status: 'published', subtitle: 'Various artists' },
+    { id: 'd', title: 'Draft', status: 'draft', subtitle: 'Draft Person' },
+    { id: 'e', title: 'Later', status: 'published', scheduleDate: '2999-01-01', subtitle: 'Future Person' },
+  ];
+  const { xml } = sitemapArtifacts('https://example.com', books, [], [], {});
+  expect(xml).toContain('<loc>https://example.com/artists/ian-willms</loc>\n    <lastmod>2026-05-02</lastmod>');
+  expect(xml).toContain('https://example.com/artists/ana-ruiz');
+  expect(xml).not.toMatch(/artists\/(various|draft|future)/);
+});
 it('retains legacy string parents whose published books belong to a child category', () => {
   const result = sitemapArtifacts('https://example.com/shop', [{ id: 'zine', title: 'Zine', status: 'published', categories: ['Zines'] }], [], [], { design: { categories: ['Books', { name: 'Zines', parentId: 'cat-0' }] } });
   expect(result.xml).toContain('/collections/books');

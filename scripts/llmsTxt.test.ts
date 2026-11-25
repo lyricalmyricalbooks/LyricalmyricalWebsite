@@ -24,6 +24,11 @@ const pages = [{ id: 'p', title: 'About', slug: 'about', status: 'published', me
 
 describe('llms.txt', () => {
   const text = llmsTxt('https://lyricalmyricalbooks.com/', books, pages, settings, { now });
+  it('lists each artist page with the books they made, never group credits or hidden books', () => {
+    const withGroup = llmsTxt('https://lyricalmyricalbooks.com/', [...books, { id: 'f', title: 'Anthology', slug: 'anthology', status: 'published', subtitle: 'Various artists' }], pages, settings, { now });
+    expect(withGroup).toContain('## Artists\n\n- [Ian Willms](https://lyricalmyricalbooks.com/artists/ian-willms): photobooks The Hound.\n');
+    expect(withGroup).not.toContain('/artists/various');
+  });
   it('opens with the shop, its summary and where it is, never the street', () => {
     expect(text.startsWith('# Lyricalmyrical Books\n\n> An independent press in Toronto.\n\nBased in Toronto, Ontario, Canada. Contact: shop@example.com.')).toBe(true);
     expect(text).not.toContain('Private Lane');

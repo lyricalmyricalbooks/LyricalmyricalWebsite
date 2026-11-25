@@ -27,7 +27,7 @@ export type StudioFixture = {
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v ?? null));
 
 export const FIXTURE_BOOKS = [
-  { id: "b1", slug: "night-pages", title: "Night Pages", author: "A. Writer", retailPrice: 32, stockLevel: 6, status: "published", categories: ["PUBLICATIONS"], photos: [], custom: { series: "The Night Series", series_number: "2" } },
+  { id: "b1", slug: "night-pages", title: "Night Pages", author: "A. Writer", subtitle: "A. Writer", artistBio: "A. Writer photographs cities after dark.", creatorLinks: [{ name: "A. Writer", url: "https://example.com/a-writer" }], retailPrice: 32, stockLevel: 6, status: "published", categories: ["PUBLICATIONS"], photos: [], custom: { series: "The Night Series", series_number: "2" } },
   { id: "b2", slug: "paper-weather", title: "Paper Weather", author: "B. Poet", retailPrice: 24, salePrice: 18, isOnSale: true, stockLevel: 2, status: "published", categories: ["EPHEMERA"], photos: [] },
   { id: "b3", slug: "unreleased", title: "Unreleased Draft", retailPrice: 20, stockLevel: 0, status: "draft", photos: [] },
 ];

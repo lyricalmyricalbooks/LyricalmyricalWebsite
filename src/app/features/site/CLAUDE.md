@@ -100,4 +100,5 @@ Details of each feature live in [`docs/agent-notes/site.md`](../../../../docs/ag
 - Analytics tags load after the page (27 October 2026)
 - Internal links (17 November 2026)
 - Heading above the description (25 November 2026)
+- Artist pages (25 November 2026)
 - Checkout fields, custom pages and footer (moved from the root guide)

@@ -33,7 +33,7 @@ export function snippet(text: string, max = 160): string {
 export function leadSentences(text: string, max = 160): string {
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
   let out = '';
-  for (const sentence of clean.split(/(?<=[.!?])\s+/)) {
+  for (const sentence of clean.split(/(?<=[.!?])\s+(?=[\p{Lu}"“‘«])/u)) {
     const next = out ? `${out} ${sentence}` : sentence;
     if (next.length > max) break;
     out = next;
@@ -50,8 +50,9 @@ export function fittingTitle(candidates: string[], format: (title: string) => st
   return snippet(options[options.length - 1] || '', max);
 }
 
-/** A credit that names no single creator: "Various artists", "AA.VV.", "Autori vari", "Magazine x Press". */
-const GROUP_CREDIT = /^(various|vari[eo]?\b|aa\.?\s*vv\.?|autori vari|artisti vari|multiple|anthology)|\s[x×]\s/i;
+/** A credit that names no single creator: "Various artists", "AA.VV.", "Autori vari", "Magazine x Press",
+ *  "Collection of international artists". */
+const GROUP_CREDIT = /^(various|vari[eo]?\b|aa\.?\s*vv\.?|autori vari|artisti vari|multiple|anthology|collection of\b|collective\b)|\s[x×]\s|\bartists$/i;
 
 /** The people credited on a book, from the editor's "Author / contributors" box (`subtitle`), else the
  *  legacy `authorName`. Group credits ("Various artists", "A x B") name no person, so they give none. */
@@ -221,6 +222,28 @@ export function breadcrumbData(items: { name: string; url: string }[]) {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: items.filter(i => i.name && i.url).map((item, index) => ({ '@type': 'ListItem', position: index + 1, name: item.name, item: canonicalUrl(item.url) })),
+  };
+}
+
+/** An artist page: a ProfilePage about the Person, tied to their own websites (`sameAs`) and listing their books. */
+export function artistStructuredData(options: { name: string; url: string; description?: string; links?: { url: string }[]; books?: { name: string; url: string; image?: string }[] }) {
+  const url = canonicalUrl(options.url);
+  const sameAs = [...new Set((options.links || []).map(l => l.url).filter(Boolean))];
+  const books = (options.books || []).filter(b => b.name && b.url);
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ProfilePage',
+    url,
+    name: options.name,
+    mainEntity: {
+      '@type': 'Person',
+      '@id': `${url}#person`,
+      name: options.name,
+      url: sameAs[0] || url,
+      ...(sameAs.length ? { sameAs } : {}),
+      ...(options.description ? { description: options.description } : {}),
+      ...(books.length ? { workExample: books.map(b => ({ '@type': 'Book', name: b.name, url: canonicalUrl(b.url), ...(b.image ? { image: b.image } : {}) })) } : {}),
+    },
   };
 }
 
