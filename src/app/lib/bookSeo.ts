@@ -2,7 +2,7 @@ import { preorderActive, releaseDateOf } from '../features/site/preorder';
 import { comingSoonActive } from '../features/site/comingSoon';
 import type { Book } from '../features/site/types';
 import { formatKey } from '../features/site/CatalogControls';
-import { descriptionPlainText } from '../features/site/descriptionLinks';
+import { descriptionParts, descriptionPlainText } from '../features/site/descriptionLinks';
 import { describedAlt } from '../features/site/photoAlt';
 import { canonicalUrl } from './canonicalUrl';
 
@@ -63,6 +63,25 @@ export function bookCreators(book: Partial<Book> & Record<string, any>): string[
 
 export type CreatorLink = { name: string; url: string };
 
+/** An opening paragraph such as "Press: [Maclean's](https://…) [Musée](https://…)" lists coverage of the book. */
+const PRESS_LEAD = /^\s*(press|stampa|presse|prensa|featured in|as seen in)\s*:/i;
+
+/** The book description without its opening "Press:" paragraph, plus that paragraph's article links. Search
+ *  summaries and structured data start with what the book is about; the coverage becomes `subjectOf`. */
+export function splitPress(description = ''): { body: string; press: CreatorLink[] } {
+  const text = String(description || '');
+  const lead = text.match(/^\s*([\s\S]*?)(?:\n[ \t]*\n|$)/);
+  if (!lead || !PRESS_LEAD.test(lead[1])) return { body: text, press: [] };
+  const press = descriptionParts(lead[1].replace(PRESS_LEAD, ''))
+    .filter(part => part.href && /^https?:/i.test(part.href))
+    .map(part => ({ name: searchText(part.text), url: part.href! }))
+    .filter(link => link.name);
+  return { body: text.slice(lead[0].length), press };
+}
+
+/** Plain text of a book description, minus an opening "Press:" paragraph. */
+const aboutText = (description?: string) => searchText(descriptionPlainText(splitPress(description).body));
+
 /** Books › edit › Search (SEO) › Artist links: the official website (or other profile) of each person credited.
  *  Only http(s) addresses with a name are kept, at most 10. */
 export function creatorLinks(book: Partial<Book> & Record<string, any>): CreatorLink[] {
@@ -121,7 +140,7 @@ export function autoBookSeo(book: Partial<Book> & Record<string, any>, siteName 
   const metaTitle = !title ? '' : fittingTitle([
     site ? `${byline} — ${site}` : '', byline, site ? `${title} — ${site}` : '', title,
   ]);
-  let metaDescription = leadSentences(searchText(descriptionPlainText(book.description)));
+  let metaDescription = leadSentences(aboutText(book.description));
   if (!metaDescription && title) {
     const format = searchText(book.edition) || searchText(book.format);
     const pages = Math.floor(Number(book.pageCount));
@@ -164,8 +183,10 @@ export function bookMetadata(book: Partial<Book>) {
   return {
     title: searchText(book.metaTitle) || searchText(book.title),
     exactTitle: !!searchText(book.metaTitle),
-    description: searchText(book.metaDescription) || snippet(searchText(descriptionPlainText(book.description))),
+    description: searchText(book.metaDescription) || snippet(aboutText(book.description)),
     image: book.seoImage?.trim() || book.photos?.[0]?.url || '',
+    // The share picture's own description (Images › alt text) when it is the cover photo.
+    imageAlt: book.seoImage?.trim() ? '' : describedAlt(book.photos?.[0]?.altText),
   };
 }
 
@@ -351,7 +372,7 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
     '@id': options.url + '#book',
     url: options.url,
     name: book.title,
-    description: searchText(descriptionPlainText(book.description)),
+    description: aboutText(book.description),
     image: [...new Set([...(book.photos || []).map(p => p.url), book.seoImage].filter((url): url is string => !!url?.trim()).map(url => absolute(url.trim(), options.url)).filter(Boolean))],
     ...(book.isbn ? { isbn: String(book.isbn).trim() } : {}),
     ...bookFacts(book),
@@ -372,8 +393,15 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
       ...(options.returnPolicy ? { hasMerchantReturnPolicy: options.returnPolicy } : {}),
       ...(options.shipping ? { shippingDetails: options.shipping } : {}),
     },
+    ...pressData(book.description),
     ...ratingData(options.reviews, options.ratingSummary),
   };
+}
+
+/** Articles about the book, from the description's opening "Press:" links. */
+function pressData(description?: string) {
+  const press = splitPress(description).press;
+  return press.length ? { subjectOf: press.map(link => ({ '@type': 'CreativeWork', name: link.name, url: link.url })) } : {};
 }
 
 export function seoChecks(book: Partial<Book>, listingTitle = bookMetadata(book).title) {
@@ -381,7 +409,7 @@ export function seoChecks(book: Partial<Book>, listingTitle = bookMetadata(book)
   return [
     { id: 'title', ok: listingTitle.length > 0 && listingTitle.length <= 60, label: 'Use a clear, unique search title; about 60 characters is a useful guide.' },
     { id: 'description', ok: meta.description.length >= 80 && meta.description.length <= 160, label: 'Write a useful search summary of about 80–160 characters. Google may choose its own snippet.' },
-    { id: 'content', ok: searchText(descriptionPlainText(book.description)).length >= 100, label: 'Describe this book’s subject, creator and edition in the book description.' },
+    { id: 'content', ok: aboutText(book.description).length >= 100, label: 'Describe this book’s subject, creator and edition in the book description.' },
     { id: 'cover', ok: !!book.photos?.[0]?.url, label: 'Add a cover photo so product results can include an image.' },
     { id: 'alt', ok: !!book.photos?.length && book.photos.every(p => !!describedAlt(p.altText)), label: 'Describe each book photo in Images (a file name like "IMG_1234" doesn\'t count). Describe with AI can write them.' },
     ...creatorChecks(book, listingTitle, meta.description),
