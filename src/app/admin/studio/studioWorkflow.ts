@@ -268,6 +268,8 @@ export function previewRoute(href: string, base: string, options: {
   }
   if (path.startsWith("collections/")) return { templateId: withAlt("collectionPage"), collection: decodeURIComponent(path.slice(12)) };
   if (path.startsWith("page/")) return { templateId: `page:${decodeURIComponent(path.slice(5))}` };
+  // Artist pages follow the Custom pages look (Style › Custom pages).
+  if (path.startsWith("artists/")) return { templateId: "page" };
   if (path === "checkout") return { templateId: "cartPage" };
   if (path === "wishlist") return { templateId: "wishlistPage" };
   if (path === "account" || path.startsWith("account/")) return { templateId: "accountPage" };

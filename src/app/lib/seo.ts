@@ -17,6 +17,8 @@ type SEO = {
   product?: { price: number; currency: string; availability: "in stock" | "out of stock" | "backorder" };
   /** One schema object, or several emitted together as one @graph. */
   jsonLd?: Record<string, any> | Record<string, any>[];
+  /** Leave the head as it is: the server-rendered page is still on screen with its own finished tags. */
+  keep?: boolean;
 };
 
 // Site identity (name, default title/description, share image) is edited in Studio
@@ -77,6 +79,7 @@ export function useSEO(seo: SEO) {
   const location = useLocation();
   const design = useSyncExternalStore(subscribe, getSiteDesign, getSiteDesign);
   useEffect(() => {
+    if (seo.keep) return;
     const title = seo.title
       ? (seo.exactTitle ? seo.title : getCopy(design, "siteTitleFormat", { title: seo.title }))
       : getCopy(design, "siteDefaultTitle");
@@ -141,5 +144,5 @@ export function useSEO(seo: SEO) {
     return () => {
       clearJsonLd("seo-jsonld-page");
     };
-  }, [location.pathname, location.search, design, seo.title, seo.exactTitle, seo.noindex, seo.description, seo.image, seo.url, seo.type, JSON.stringify(seo.product || null), JSON.stringify(seo.jsonLd || {})]);
+  }, [location.pathname, location.search, design, seo.keep, seo.title, seo.exactTitle, seo.noindex, seo.description, seo.image, seo.url, seo.type, JSON.stringify(seo.product || null), JSON.stringify(seo.jsonLd || {})]);
 }

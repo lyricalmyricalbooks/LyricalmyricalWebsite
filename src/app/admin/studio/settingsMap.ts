@@ -285,7 +285,7 @@ export function changedCounts(groups: StyleGroup[], design: any, defaults: any):
 
 export const TEXT_HEADINGS: { id: string; title: string; groups: string[] }[] = [
   { id: "everywhere", title: "Across the whole shop", groups: ["Site & sharing", "Header", "Footer", "Newsletter", "Cookie banner", "Sections"] },
-  { id: "shop", title: "Shop & book pages", groups: ["Catalog & empty states", "Collection & wishlist pages", "Search & filters", "Product page", "Reviews"] },
+  { id: "shop", title: "Shop & book pages", groups: ["Catalog & empty states", "Collection & wishlist pages", "Artist pages", "Search & filters", "Product page", "Reviews"] },
   { id: "buy", title: "Bag, checkout & accounts", groups: ["Cart", "Checkout", "Order tracking", "Customer account"] },
   { id: "special", title: "Special pages & messages", groups: ["Custom pages & 404", "Loading screen", "Under construction", "Maintenance page"] },
 ];
@@ -299,6 +299,7 @@ export const TEXT_BLURBS: Record<string, string> = {
   Sections: "Fallback words used inside page sections.",
   "Catalog & empty states": "Shop heading and the message when nothing matches.",
   "Collection & wishlist pages": "Category pages and the saved-books page.",
+  "Artist pages": "Each artist's own page: its heading, first line and book list.",
   "Search & filters": "The search box, filter and sort words.",
   "Product page": "Add to bag, stock lines, tabs and other book-page words.",
   Reviews: "Review form, ratings and moderation messages.",

@@ -27,6 +27,12 @@ describe("which pages Check every page visits", () => {
     const ids = routes.map(r => previewRoute(r.path, "/", { showHero: true })?.templateId);
     expect(ids).toEqual(["heroPage", "storefront", "productPage", "productPage~special", "page:about", "collectionPage", "collectionPage", "wishlistPage", "accountPage", "trackingPage", "page404"]);
   });
+  it("checks one artist page when a book credits someone, in the Custom pages look", () => {
+    const { routes } = healthRoutes({ design, books: [...books, { slug: "hound", title: "The Hound", subtitle: "Ian Willms" }], pages });
+    const artist = routes.find(r => r.id === "artist")!;
+    expect(artist).toMatchObject({ path: "/artists/ian-willms", label: "Artist page · Ian Willms", group: "Books" });
+    expect(previewRoute(artist.path, "/")?.templateId).toBe("page");
+  });
   it("opens on the shop when Home is off, and counts what it leaves out", () => {
     const many = Array.from({ length: 5 }, (_, i) => ({ slug: `p${i}`, status: "published" }));
     const { routes, skipped } = healthRoutes({ design: { showHero: false }, books: [], pages: many, maxPages: 2, collections: [{ slug: "a", label: "A" }, { slug: "b", label: "B" }], maxCategories: 2 });

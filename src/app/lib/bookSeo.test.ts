@@ -132,6 +132,10 @@ describe('search listing auto-fill', () => {
     expect(leadSentences('word '.repeat(60), 30).endsWith('…')).toBe(true);
     expect(leadSentences('')).toBe('');
   });
+  it('never ends a sentence at an abbreviation followed by a lower-case word or number ("b. 1985", "e.g. a")', () => {
+    expect(leadSentences('By Ian Willms. Ian Willms (b. 1985) is a photographer. ' + 'More '.repeat(40), 80)).toBe('By Ian Willms. Ian Willms (b. 1985) is a photographer.');
+    expect(leadSentences('Photobooks by Ian Willms: The Hound. Ian Willms (b. 1985) is a Canadian photographer and a member of Panos Pictures, one of the leading agencies.', 100)).toBe('Photobooks by Ian Willms: The Hound.');
+  });
   it('picks the first title that fits with the format', () => {
     expect(fittingTitle(['A very long title that will never fit inside sixty characters at all', 'Short'])).toBe('Short');
     expect(fittingTitle(['x'.repeat(70)]).length).toBeLessThanOrEqual(60);

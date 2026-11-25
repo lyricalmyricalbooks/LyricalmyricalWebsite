@@ -77,7 +77,7 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
     expect(hosting.ignore ?? []).not.toContain('**/.*');
   });
 
-  const samples = ['/', '/index.html', '/books/x', '/books/a.b', '/books/x.html', '/collections/x', '/page/about', '/account', '/account/orders',
+  const samples = ['/', '/index.html', '/books/x', '/books/a.b', '/books/x.html', '/collections/x', '/artists/x', '/page/about', '/account', '/account/orders',
     '/admin', '/checkout', '/track', '/wishlist', '/spa', '/404', '/assets/index-Ab12.js', '/assets/index-Ab12.css', '/sitemap.xml', '/robots.txt',
     '/google-merchant-feed.xml', '/seo-published-fingerprint.txt', '/asset-manifest.txt'];
 

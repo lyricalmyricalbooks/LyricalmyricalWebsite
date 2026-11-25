@@ -712,6 +712,29 @@ Anything that opens another shop page is an `<a href>` (crawlers follow nothing 
 - Collection breadcrumb is on by default (`showCollectionBreadcrumbs !== false`, the owner's ask) and its BreadcrumbList has the parent.
 - Home sections end with **Shop all books** (`extras/home-shop-all`, `showHomeShopAll`, words Catalog & empty states › `homeShopAll`).
 
+## Artist pages (25 November 2026)
+
+`/artists/<slug>` (`features/site/ArtistPage.tsx`, lazy + `whenPrerenderedReady` in `App.tsx`): one page per person credited on a
+live book, so a search for the artist's name has a page to match. No collection of its own: `features/site/artistPages.mjs`
+(`artistDirectory`, `findArtist`, `creditParts`) derives everything from the catalog and is shared by the page, the book page,
+Studio Health (`healthRoutes`, one artist), `scripts/sitemapData.mjs`, the prerender route list and `scripts/llmsTxt.mjs`.
+- Names = `creatorNames` (= `bookCreators`); group credits give none (`GROUP_CREDIT`, both copies, now also "Collection of …",
+  "Collective …" and credits ending "artists"). Slug = name with accents folded, lower-case, hyphens; names that fold to one slug are
+  one person, shown with the spelling most of their books use. Books newest first (`publishDate`, then `scheduleDate`/`createdAt`).
+  Bio = first `artistBio` on a book they made alone, else on any of theirs. Links = `creatorLinks` whose name matches theirs.
+- Page: H1 `artistPageTitle` ("{name}: photobooks"), first line `artistPageIntro` with each title linked, bio (`DescriptionText`),
+  website links (`rel="noopener"`), a grid of `fm-card` cards. Title size, rule and text width follow Style › Custom pages (read from
+  `design.page`); colours stay the shop's (`resolveSurfaceDesign` gives `/artists/` no surface; Studio previews it as the `page`
+  template). Every part is a region in **Artist pages · layout & elements** (`artistLayout`); words in Text & labels › Artist pages.
+- SEO: `seoArtistTitle` through Title format, description = first line + bio lead sentences, canonical, `artistStructuredData`
+  (ProfilePage → Person with `sameAs` and `workExample` books) + BreadcrumbList Shop › Name ("Artists" has no index page, so it is
+  shown but not in the JSON-LD). Unknown slug → not found + noindex only after the fresh read; while loading on the landing page the
+  prerendered HTML stays (`prerenderedHtml()` + useSEO `keep`, same pattern as PR #903).
+- Book page: each credited name in the subtitle / author line is a `Link` to its page (`creditParts`, only names that have one),
+  styled `text-inherit no-underline` so the line looks the same; hover underlines.
+- Hosting: `artists` is in the `firebase.json` app-shell rewrite and no-cache header; `prerenderHtml.mjs` snapshots `/artists/*`.
+- `leadSentences` no longer ends a sentence before a lower-case word or number ("(b. 1985)"), which cut bios mid-way.
+
 ## Checkout fields, custom pages and footer (moved from the root guide)
 
 Checkout country dropdowns pair option backgrounds and text with Studio's Checkout field colours, including Stripe's Windows dropdown; highlighted Stripe options use contrasting text on the checkout accent.

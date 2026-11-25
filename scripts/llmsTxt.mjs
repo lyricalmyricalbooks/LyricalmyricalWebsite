@@ -4,6 +4,7 @@
 import { creatorNames, cut, isLive, plain } from '../src/app/features/site/merchantFeed.mjs';
 import { resolveProductRoutes } from '../src/app/features/site/productRouteData.mjs';
 import { safeSlug } from './routeSafety.mjs';
+import { artistDirectory } from '../src/app/features/site/artistPages.mjs';
 
 const POLICY_TITLES = { shipping: 'Shipping policy', returns: 'Returns policy', privacy: 'Privacy policy', terms: 'Terms of service' };
 const line = value => plain(value).replace(/\s+/g, ' ').trim();
@@ -44,6 +45,19 @@ export function llmsTxt(siteUrl, books, pages, settings = {}, { now = new Date()
       const facts = bookFacts(book);
       const about = cut(line(book.metaDescription) || line(book.description), 300);
       out.push(`- [${linkText(book.title) || 'Untitled'}](${base}/books/${encodeURIComponent(book.slug)})${facts ? `: ${facts}.` : ''}${about ? ` ${about}` : ''}`);
+    }
+    out.push('');
+  }
+
+  // One line per photographer with an artist page: who they are and which of the press's books they made.
+  const artists = [...artistDirectory(resolveProductRoutes(live)).values()].filter(artist => safeSlug(artist.slug))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  if (artists.length) {
+    out.push('## Artists', '');
+    for (const artist of artists) {
+      const titles = artist.books.map(book => line(book.title)).filter(Boolean).join(', ');
+      const about = cut(line(artist.bio), 200);
+      out.push(`- [${linkText(artist.name)}](${base}/artists/${encodeURIComponent(artist.slug)})${titles ? `: photobooks ${titles}.` : ''}${about ? ` ${about}` : ''}`);
     }
     out.push('');
   }

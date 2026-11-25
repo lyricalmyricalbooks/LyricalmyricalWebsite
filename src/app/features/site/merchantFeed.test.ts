@@ -95,6 +95,7 @@ describe("artist names in the feed", () => {
     for (const book of [
       { subtitle: "Ian Willms" }, { subtitle: "A <b>One</b> &amp; B Two; C" }, { subtitle: "Various artists" },
       { subtitle: "Subverso Magazines x Lyricalmyrical Books" }, { authorName: "Legacy Name" }, { subtitle: "Ann and Bo + Cy" }, {},
+      { subtitle: "Collection of International Artists" }, { subtitle: "Collective photobook" },
     ]) expect(creatorNames(book)).toEqual(bookCreators(book as any));
   });
   it("puts the artist in the title once and lists them as Author", () => {
