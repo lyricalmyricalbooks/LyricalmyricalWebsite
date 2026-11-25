@@ -38,7 +38,8 @@ import { useSEO } from "../lib/seo";
 import { ga4FilterUse } from "../lib/ga4";
 import { ALL_BOOKS_PATH, collectionPath, plainClick } from "../features/site/collectionPath";
 import { HomeShopAll } from "../features/site/extras/home-shop-all/HomeShopAll";
-import { breadcrumbData, collectionStructuredData, leadSentences, profileLinks, seoTopicList, siteStructuredData } from "../lib/bookSeo";
+import { alternateNameList, breadcrumbData, collectionStructuredData, leadSentences, profileLinks, returnPolicyData, seoTopicList, siteStructuredData } from "../lib/bookSeo";
+import { findCountry } from "../features/site/shippingZones";
 import { CatalogControls, applyCatalogControls, soldOutLastOn, appliedFilters, filterView, EMPTY_FILTERS, type CatalogFilterState, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { StoreHeader } from "../features/site/StoreHeader";
@@ -646,6 +647,8 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
         topics: seoTopicList(getCopy(settings?.design, "seoTopics")),
         email: settings?.info?.email,
         area: { city: settings?.location?.city, region: settings?.location?.state, country: settings?.location?.country },
+        alternateNames: alternateNameList(getCopy(settings?.design, "seoAlternateNames"), siteName),
+        returnPolicy: returnPolicyData(getCopy(settings?.design, "seoReturnDays"), findCountry(String(settings?.location?.country || "Canada"))?.code),
       });
     })(),
   });
