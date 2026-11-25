@@ -19,6 +19,7 @@ import { publicRoutes, routeOutputPath } from './prerenderHtml.mjs';
 import { parseAssetManifest, isFingerprint } from './assetManifest.mjs';
 import { FIREBASE_PROJECT } from './canonicalHost.mjs';
 import { retryFailing, LIVE_RETRY_WAITS_MS } from './retryChecks.mjs';
+import { rulePath } from './hostingRedirects.mjs';
 
 const args = process.argv.slice(2);
 const flag = name => args.includes(name);
@@ -134,6 +135,14 @@ if (existsSync(resolve(dist, 'seo-published-fingerprint.txt'))) {
 }
 for (const file of ['sitemap.xml', 'robots.txt', 'google-merchant-feed.xml', 'llms.txt']) {
   if (existsSync(resolve(dist, file))) check(`/${file}`, { status: 200, cache: 'no-cache' });
+}
+
+// URL redirects the deploy added to firebase.json (scripts/hostingRedirects.mjs) answer with a 301 of their own.
+const ownRedirect = (JSON.parse(await readFile(resolve(root, 'firebase.json'), 'utf8')).hosting.redirects || []).find(rule => rule.regex);
+if (ownRedirect) {
+  const path = rulePath(ownRedirect.regex);
+  check(path, { status: 301, location: ownRedirect.destination });
+  check(path.toUpperCase(), { status: 301, location: ownRedirect.destination });
 }
 
 // The project's other default addresses must hand visitors to the canonical one (both of them once the shop has

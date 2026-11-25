@@ -63,5 +63,6 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
   // /cart is left crawlable on purpose: it answers with noindex (header + meta), which Google can only see
   // on a URL robots.txt lets it fetch.
   const robots = 'User-agent: *\nAllow: /\n' + ['admin', 'checkout', 'account', 'wishlist', 'track'].map(route => `Disallow: ${path}/${route}\n`).join('') + `\nSitemap: ${base}/sitemap.xml\n`;
-  return { xml, robots, count: unique.length };
+  // `paths`: the site's real pages, which a URL redirect must never take over (hostingRedirects.mjs).
+  return { xml, robots, count: unique.length, paths: unique.map(url => new URL(url.loc).pathname) };
 }

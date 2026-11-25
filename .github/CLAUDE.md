@@ -53,7 +53,7 @@ How the storefront and Firebase deploy, their order, and the CI rules. Workflow 
 - **Old Big Cartel addresses (15 October 2026):** `firebase.json` `redirects` lists each old `/product/<name>`, `/category/<name>`
   and page address as an exact 301 to an absolute `https://lyricalmyricalbooks.com/...` page (one hop). No `/product/**` or
   `/category/**` catch-all: an unknown old address answers 404 (Google reads a redirect to a listing as a soft 404; Hosting can't
-  send 410 without a function). Add a book's old address when one turns up. `/cart` is an app route (shop with the bag open,
+  send 410 without a function). Add a book's old address when one turns up. The owner's Settings › General › URL redirects are merged in at deploy (`scripts/hostingRedirects.mjs`, both Hosting jobs); keep that step in both jobs. `/cart` is an app route (shop with the bag open,
   `CartRoute` in `App.tsx`) with `X-Robots-Tag: noindex`, and robots.txt must not disallow it. `scripts/seo-url-check.mjs` checks
   sitemap URLs (200 + self canonical), old addresses and /cart on the live site after each deploy (report only).
   Collection pages' single `<h1>` is the category name, with an intro from the category description or Text & labels ›

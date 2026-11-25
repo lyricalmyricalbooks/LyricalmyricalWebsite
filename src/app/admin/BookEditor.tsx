@@ -74,6 +74,7 @@ import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from ".
 import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEditorFields";
 import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
 import { DescriptionText } from "../features/site/DescriptionText";
+import { redirectsAfterMove } from "../features/site/redirects";
 import { editorDirty, fillEmpty, isbnWarning, lookupIsbn, needsPublishReview, slugClash, slugFollowsTitle, slugLocked, slugifyTitle, withMetricWeights } from "./bookEditorState";
 import { LOW_STOCK } from "./catalogList";
 import { inventoryLinkApi } from "./inventoryLinkApi";
@@ -612,6 +613,19 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         const sync = saved?.preorderSync;
         if (sync?.failed) toast.error("Book saved, but its paid pre-orders couldn't be updated. Save again to retry.");
         else if (sync?.updated) toast.success(`Release date updated on ${sync.updated} paid pre-order${sync.updated === 1 ? "" : "s"}.`);
+        // A live book's new web address: forward the old one (Shopify's "Create a URL redirect"), so links people
+        // already have keep working. Best effort: the book is saved either way.
+        const movedFrom = String(initialData?.status === "published" ? initialData?.slug ?? "" : "").trim();
+        const movedTo = String(toSave.slug ?? "").trim();
+        if (movedFrom && movedTo && movedFrom !== movedTo && toSave.status === "published") {
+          try {
+            const next = redirectsAfterMove(await adminApi.getRedirects(), `/books/${movedFrom}`, `/books/${movedTo}`);
+            if (next) await adminApi.saveRedirects(next);
+            toast.success(`Old address /books/${movedFrom} now forwards here.`);
+          } catch {
+            toast.error(`Book saved, but the old address couldn't be forwarded. Add /books/${movedFrom} in Settings › General › URL redirects.`);
+          }
+        }
         setSlugUnlocked(false);
         setBook({ ...(book as any), ...toSave, id: book.id });
       } else {
@@ -1214,7 +1228,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         </div>
       )}
       <ConfirmDialog open={confirmSlug} appearance="light" title="Change this book's web address?" confirmLabel="Change web address"
-        message="Links people already have to this book (search results, emails, social posts, bookmarks) will stop working, and the site cannot redirect them. Only continue if the old address was wrong."
+        message="Links people already have to this book (search results, emails, social posts, bookmarks) will forward to the new address once you save. Search engines take a few weeks to show it."
         onConfirm={() => { setConfirmSlug(false); setSlugUnlocked(true); }} onCancel={() => setConfirmSlug(false)} />
       <ConfirmDialog open={confirmDiscard} appearance="light" title="Discard unsaved changes?" confirmLabel="Discard changes"
         message="You have edits that haven't been saved. Closing now will lose them."

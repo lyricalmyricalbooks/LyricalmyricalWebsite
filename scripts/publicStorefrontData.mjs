@@ -19,8 +19,17 @@ export async function readPublicStorefront() {
   const project = config.match(/projectId:\s*"([^"]+)"/)?.[1];
   if (!project) throw new Error('Firebase project ID missing');
   const endpoint = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/`;
-  const [books, pages, settings, reviews] = await Promise.all([readPublishedBooks(endpoint), readPublishedPages(endpoint), publicRead(endpoint + 'settings/website').then(decodeDocument), readApprovedReviews(endpoint)]);
-  return { books, pages, settings, reviews };
+  const [books, pages, settings, reviews, redirects] = await Promise.all([readPublishedBooks(endpoint), readPublishedPages(endpoint), publicRead(endpoint + 'settings/website').then(decodeDocument), readApprovedReviews(endpoint), readRedirects(endpoint)]);
+  return { books, pages, settings, reviews, redirects };
+}
+// Settings › General › URL redirects (the public settings/redirects doc). A missing doc means none; any other failure
+// throws like the rest, so a build never drops redirects that exist.
+export async function readRedirects(endpoint, fetchImpl = fetch) {
+  const response = await fetchImpl(endpoint + 'settings/redirects', { signal: AbortSignal.timeout(30000) });
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error(`Public data read failed: ${response.status}`);
+  const items = decodeDocument(await response.json()).items;
+  return Array.isArray(items) ? items.filter(item => item && typeof item.from === 'string' && typeof item.to === 'string').map(({ from, to }) => ({ from, to })) : [];
 }
 // firestore.rules let the public read only books whose status is "published" (private fields live in books/{id}/private/admin),
 // so an unfiltered listing is refused: ask for exactly those, a page of `size` at a time by document name.
@@ -123,13 +132,16 @@ export function dateDrivenState(book, nowISO) {
   const now = new Date(nowISO);
   return { sale: saleActive(book, now), preorder: preorderDate(book, now) };
 }
-export function publishedFingerprint({ books, pages, settings, reviews = [] }, now = new Date().toISOString()) {
+export function publishedFingerprint({ books, pages, settings, reviews = [], redirects = [] }, now = new Date().toISOString()) {
   const publishedSettings = effectivePublishedSettings(settings, now);
   const live = books.filter(book => (!book.status || book.status === 'published') && releaseArrived(book.scheduleDate, now));
   const liveIds = new Set(live.map(book => book.id));
   const ratings = reviews.filter(review => review.status === 'approved' && liveIds.has(review.bookId))
     .map(({ id, bookId, rating, title, body, authorName, createdAt }) => ({ id, bookId, rating, title, body, authorName, createdAt }))
     .sort((a, b) => String(a.id).localeCompare(String(b.id)));
-  const snapshot = { dated: Object.fromEntries(live.map(book => [book.id, dateDrivenState(book, now)])), reviews: ratings, books: [...live].sort((a, b) => a.id.localeCompare(b.id)), pages: pages.filter(page => page.status === 'published').sort((a, b) => a.id.localeCompare(b.id)), settings: publishedSettings };
+  const snapshot = { dated: Object.fromEntries(live.map(book => [book.id, dateDrivenState(book, now)])), reviews: ratings, books: [...live].sort((a, b) => a.id.localeCompare(b.id)), pages: pages.filter(page => page.status === 'published').sort((a, b) => a.id.localeCompare(b.id)), settings: publishedSettings,
+    // Hosting answers URL redirects itself (hostingRedirects.mjs), so a changed list redeploys. Left out when empty so
+    // a shop without redirects keeps the same fingerprint.
+    ...(redirects.length ? { redirects } : {}) };
   return createHash('sha256').update(JSON.stringify(stable(snapshot))).digest('hex');
 }

@@ -65,8 +65,8 @@ export function slugClash(slug: string, id: string | undefined, catalog: any[]):
 export const slugifyTitle = (s: string) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 /**
- * A published book's web address is frozen: shoppers, search engines and emailed links already use it, and
- * the site cannot redirect an old address. Only an explicit "Change web address" action unlocks it.
+ * A published book's web address is frozen: shoppers, search engines and emailed links already use it. Only an
+ * explicit "Change web address" action unlocks it; saving the new address then adds a URL redirect from the old one.
  */
 export function slugLocked(stored: { status?: unknown; slug?: unknown } | null | undefined, unlocked = false): boolean {
   return !!stored && stored.status === "published" && !!String(stored.slug ?? "").trim() && !unlocked;

@@ -5,10 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { sitemapArtifacts } from './sitemapData.mjs';
 import { readPublicStorefront, publishedFingerprint, effectivePublishedSettings } from './publicStorefrontData.mjs';
 import { llmsTxt } from './llmsTxt.mjs';
+import { HOSTING_REDIRECTS_FILE, hostingRedirects } from './hostingRedirects.mjs';
 import { FEED_FILE, merchantFeedItems, merchantFeedXml } from '../src/app/features/site/merchantFeed.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const siteUrl = process.env.SITE_URL || 'https://lyricalmyrical-web-v2.web.app';
-const { books, pages, settings, reviews } = await readPublicStorefront();
+const { books, pages, settings, reviews, redirects } = await readPublicStorefront();
 const indexed = sitemapArtifacts(siteUrl, books, pages, [], settings);
 // Keep noindex public listings crawlable so Google can read their robots tags.
 const rendered = sitemapArtifacts(siteUrl, books.map(book => ({ ...book, seoNoindex: false })), pages, [], settings, { includeEmptyCollections: true });
@@ -18,7 +19,7 @@ for (const directory of ['dist', 'public']) {
   writeFileSync(resolve(root, directory, 'robots.txt'), indexed.robots);
 }
 writeFileSync(resolve(root, 'dist/prerender-routes.xml'), rendered.xml);
-writeFileSync(resolve(root, 'dist/seo-published-fingerprint.txt'), publishedFingerprint({ books, pages, settings, reviews }) + '\n');
+writeFileSync(resolve(root, 'dist/seo-published-fingerprint.txt'), publishedFingerprint({ books, pages, settings, reviews, redirects }) + '\n');
 // Google Merchant Center fetches this file (Books › Google Shopping feed shows its address).
 const design = effectivePublishedSettings(settings).design || {};
 const shopName = (typeof design.copy?.siteName === 'string' && design.copy.siteName.trim()) || (typeof design.siteName === 'string' && design.siteName.trim()) || 'Lyricalmyrical Books';
@@ -27,5 +28,9 @@ mkdirSync(resolve(root, 'dist'), { recursive: true });
 writeFileSync(resolve(root, 'dist', FEED_FILE), merchantFeedXml(siteUrl, feed.items, { shopName }));
 // AI assistants and AI search read /llms.txt for a plain summary of the shop and its books.
 writeFileSync(resolve(root, 'dist', 'llms.txt'), llmsTxt(siteUrl, books, pages, settings, { shopName }));
+// URL redirects as Hosting rules; the deploy adds them to firebase.json (scripts/hostingRedirects.mjs).
+const hostingRules = hostingRedirects(redirects, rendered.paths);
+writeFileSync(resolve(root, 'dist', HOSTING_REDIRECTS_FILE), JSON.stringify(hostingRules, null, 2) + '\n');
+console.log(`URL redirects for Hosting: ${hostingRules.length} of ${redirects.length}.`);
 console.log(`Google Shopping feed: ${feed.items.length} items, ${feed.skipped.length} published books left out.`);
 console.log(`Generated ${indexed.count} indexable URLs and ${rendered.count} public HTML routes.`);

@@ -201,6 +201,12 @@ canonicalize to current names. `categoryMembership.mjs` shares alias, parent and
 PUBLICATIONS membership between navigation and sitemap generation. Published and
 activated scheduled Studio designs remain authoritative; draft categories stay private.
 
+
+**Per-collection Google listing (25 November 2026).** A category may carry `seoTitle` / `metaDescription` (Studio › Navigation ›
+Shop categories › Edit › Search engine listing, saved through `withSearchListing`, blank = left out). `collectionSearchListing`
+(`collectionIntro.ts`) feeds MainSite's `useSEO`: the title replaces Text & labels › `seoCollectionTitle` (still wrapped in
+`siteTitleFormat`), the description comes before the category description.
+
 ## Automatic SEO refresh and catalog search controls
 
 The storefront workflow checks published Firestore catalog/pages/settings every 15 minutes,

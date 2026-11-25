@@ -94,3 +94,23 @@ export function parseRedirectLines(text: string, existing: Redirect[]): { added:
   }
   return { added, skipped };
 }
+
+/**
+ * The redirect list after an item moved from `oldPath` to `newPath` (a renamed page, a book's new web address), like
+ * Shopify's "Create a URL redirect" box: old links forward to the new address, redirects that ended at the old address
+ * now end at the new one (no chains), and a redirect away from the new address is dropped (the item lives there now).
+ * Null when nothing needs saving.
+ */
+export function redirectsAfterMove(list: Redirect[], oldPath: string, newPath: string): Redirect[] | null {
+  const from = normalizePath(oldPath), to = normalizePath(newPath);
+  if (!from || !to || from === to || from === "/") return null;
+  let next = list
+    .filter(r => normalizePath(r.from) !== to)
+    .map(r => !isExternalTarget(r.to) && normalizePath(r.to) === from ? { ...r, to: newPath } : r)
+    .filter(r => isExternalTarget(r.to) || normalizePath(r.from) !== normalizePath(r.to));
+  const others = next.filter(r => normalizePath(r.from) !== from);
+  const add = { from, to: newPath };
+  if (!redirectProblem(add, others)) next = [...others, add];
+  const same = next.length === list.length && next.every((r, i) => r.from === list[i].from && r.to === list[i].to);
+  return same ? null : next;
+}

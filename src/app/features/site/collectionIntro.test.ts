@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectionIntro, COLLECTION_INTRO_KEYS } from "./collectionIntro";
+import { collectionIntro, collectionSearchListing, COLLECTION_INTRO_KEYS } from "./collectionIntro";
 import { DEFAULT_COPY } from "./storeCopy";
 
 describe("collectionIntro", () => {
@@ -18,5 +18,17 @@ describe("collectionIntro", () => {
     expect(collectionIntro({ copy: { collectionIntroBooks: "" } }, "books", { name: "Books" })).toBe("");
     expect(collectionIntro({}, "other", { name: "Other" })).toBe("");
     expect(collectionIntro({}, "books", "ALL")).toContain("Photobooks");
+  });
+});
+
+describe("collection search listing", () => {
+  it("reads a category's own Google title and description, trimmed", () => {
+    expect(collectionSearchListing({ seoTitle: "  Photobooks from Toronto ", metaDescription: " Small-run books. " }))
+      .toEqual({ title: "Photobooks from Toronto", description: "Small-run books." });
+  });
+  it("is blank when unset, for the 'All' entry or a missing category", () => {
+    expect(collectionSearchListing({ name: "Zines" })).toEqual({ title: "", description: "" });
+    expect(collectionSearchListing(undefined)).toEqual({ title: "", description: "" });
+    expect(collectionSearchListing("BOOKS")).toEqual({ title: "", description: "" });
   });
 });
