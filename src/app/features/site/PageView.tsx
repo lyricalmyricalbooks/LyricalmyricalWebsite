@@ -16,7 +16,7 @@ import { getCopy } from "./storeCopy";
 import { StoreHeader } from "./StoreHeader";
 import { googleFontHref } from "./fonts";
 import { useSEO } from "../../lib/seo";
-import { breadcrumbData } from "../../lib/bookSeo";
+import { breadcrumbData, infoPageStructuredData } from "../../lib/bookSeo";
 import { firstBodyImage, pageDescription } from "./pageBody";
 import { contentMaxWidth, isFullWidth } from "./headerNav";
 
@@ -89,10 +89,17 @@ export function PageView() {
     image: seoPage ? seoPage.seoImage || firstBodyImage(String(seoPage.body || "")) || undefined : undefined,
     jsonLd: seoPage ? (() => {
       const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
-      return breadcrumbData([
-        { name: getCopy(settings?.design, "breadcrumbHome"), url: siteBase },
-        { name: seoPage.title || seoPage.seoTitle || "", url: new URL(`page/${encodeURIComponent(slug || seoPage.slug || "")}`, siteBase).href },
-      ]);
+      const pageSlug = slug || seoPage.slug || "";
+      const pageUrl = new URL(`page/${encodeURIComponent(pageSlug)}`, siteBase).href;
+      const name = seoPage.title || seoPage.seoTitle || "";
+      return [
+        // About → AboutPage, Contact → ContactPage, each tied to the shop's BookStore by @id.
+        infoPageStructuredData({ slug: pageSlug, name, url: pageUrl, siteUrl: siteBase, description: seoPage.metaDescription || pageDescription(String(seoPage.body || "")) || undefined }),
+        breadcrumbData([
+          { name: getCopy(settings?.design, "breadcrumbHome"), url: siteBase },
+          { name, url: pageUrl },
+        ]),
+      ];
     })() : undefined,
   });
 

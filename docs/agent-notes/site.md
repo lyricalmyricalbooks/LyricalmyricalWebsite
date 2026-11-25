@@ -201,6 +201,12 @@ canonicalize to current names. `categoryMembership.mjs` shares alias, parent and
 PUBLICATIONS membership between navigation and sitemap generation. Published and
 activated scheduled Studio designs remain authoritative; draft categories stay private.
 
+
+**Per-collection Google listing (25 November 2026).** A category may carry `seoTitle` / `metaDescription` (Studio › Navigation ›
+Shop categories › Edit › Search engine listing, saved through `withSearchListing`, blank = left out). `collectionSearchListing`
+(`collectionIntro.ts`) feeds MainSite's `useSEO`: the title replaces Text & labels › `seoCollectionTitle` (still wrapped in
+`siteTitleFormat`), the description comes before the category description.
+
 ## Automatic SEO refresh and catalog search controls
 
 The storefront workflow checks published Firestore catalog/pages/settings every 15 minutes,
@@ -730,3 +736,10 @@ Grouped footer navigation defaults to Explore and Participate & connect, with po
   Google can read the tag instead of a 404. Text & labels › Site & sharing › `bingSiteVerification` emits
   `<meta name="msvalidate.01">` from `useSEO`, like the Google token; never hard-code either in `index.html`.
   The Overview's ready-to-sell checks count book photos without a described alt text (`search-photos`).
+
+## Heading above the description (25 November 2026)
+
+Catalog › book › Search engine listing › Heading above the description (`aboutHeading`) is the book page's `<h2>`, drawn
+first inside the description (all three details layouts) with the description-heading style plus `fm-pdp-desc-lead`
+(no top margin as first child). Blank draws nothing; an empty description shows no heading. The words for each book are
+in the keyword plan. Test: `BookDetail.aboutHeading.render.test.tsx`.

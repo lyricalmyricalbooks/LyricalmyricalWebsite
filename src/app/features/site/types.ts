@@ -19,6 +19,8 @@ export type Book = {
   metaDescription?: string;
   seoImage?: string;
   seoNoindex?: boolean;
+  /** Books › edit › Search (SEO) › Heading above the description: the book page's <h2>, carrying its theme phrase. */
+  aboutHeading?: string;
   /** Books › edit › Search (SEO) › Artist links: each credited person's official website. */
   creatorLinks?: { name: string; url: string }[];
   /** Books › edit › Details › Artist bio: shown in the book page's Artist bio tab. */

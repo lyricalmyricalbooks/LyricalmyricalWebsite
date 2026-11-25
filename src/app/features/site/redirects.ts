@@ -2,8 +2,9 @@
 // results and printed links keep working after a book or page is renamed. Rules live in the public, admin-written
 // `settings/redirects` doc ({ items: Redirect[] }), so no new Firestore rules are needed. Pure and storefront-safe.
 //
-// Hosting answers unknown and missing-item URLs with the app shell, so redirects are followed in the browser
-// (`useMissingRedirect`) only when the page the shopper asked for does not exist. A real page is never hijacked.
+// The browser follows them (`useMissingRedirect`) only when the page the shopper asked for does not exist. Since
+// 25 November 2026 Hosting also answers them as 301s (scripts/hostingRedirects.mjs), skipping every live book, page and
+// sitemap address, all of /collections/ and any address with characters beyond plain URL ones (those stay browser-only).
 
 export type Redirect = { from: string; to: string };
 
@@ -93,4 +94,24 @@ export function parseRedirectLines(text: string, existing: Redirect[]): { added:
     else added.push({ from: normalizePath(parts[0]), to: normalizeTarget(parts[1]) });
   }
   return { added, skipped };
+}
+
+/**
+ * The redirect list after an item moved from `oldPath` to `newPath` (a renamed page, a book's new web address), like
+ * Shopify's "Create a URL redirect" box: old links forward to the new address, redirects that ended at the old address
+ * now end at the new one (no chains), and a redirect away from the new address is dropped (the item lives there now).
+ * Null when nothing needs saving.
+ */
+export function redirectsAfterMove(list: Redirect[], oldPath: string, newPath: string): Redirect[] | null {
+  const from = normalizePath(oldPath), to = normalizePath(newPath);
+  if (!from || !to || from === to || from === "/") return null;
+  let next = list
+    .filter(r => normalizePath(r.from) !== to)
+    .map(r => !isExternalTarget(r.to) && normalizePath(r.to) === from ? { ...r, to: newPath } : r)
+    .filter(r => isExternalTarget(r.to) || normalizePath(r.from) !== normalizePath(r.to));
+  const others = next.filter(r => normalizePath(r.from) !== from);
+  const add = { from, to: newPath };
+  if (!redirectProblem(add, others)) next = [...others, add];
+  const same = next.length === list.length && next.every((r, i) => r.from === list[i].from && r.to === list[i].to);
+  return same ? null : next;
 }

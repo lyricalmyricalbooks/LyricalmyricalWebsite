@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editorDirty, fillEmpty, isbnWarning, joinWeight, needsPublishReview, parseGoogleBooks, parseOpenLibrary, slugClash, splitWeight, withMetricWeights } from "./bookEditorState";
+import { bookAddressMove, editorDirty, fillEmpty, isbnWarning, joinWeight, needsPublishReview, parseGoogleBooks, parseOpenLibrary, slugClash, splitWeight, withMetricWeights } from "./bookEditorState";
 import { parseWeightGrams } from "../features/site/shippingEngine";
 
 describe("book editor dirty check", () => {
@@ -53,5 +53,26 @@ describe("small editor helpers", () => {
     expect(patch).toEqual({ subtitle: "Ann", pageCount: 200, publisher: "P", publishDate: "2001-05-03" });
     expect(filled).not.toContain("title");
     expect(parseGoogleBooks({ items: [{ volumeInfo: { title: "G", authors: ["B"], publishedDate: "2001" } }] })).toMatchObject({ title: "G", contributors: "B", publishDate: undefined });
+  });
+});
+
+describe("bookAddressMove (redirect after a live book changes address)", () => {
+  const now = "2026-11-25T00:00:00.000Z";
+  const live = { id: "b1", status: "published", title: "Old Title", slug: "old" };
+  it("moves from the stored address to the new one", () => {
+    expect(bookAddressMove([live], live, { ...live, slug: "new" }, now)).toEqual({ from: "/books/old", to: "/books/new" });
+  });
+  it("uses the address the shop really serves: a title-made slug when none is stored, the id on a clash", () => {
+    const imported = { id: "b2", status: "published", title: "Old Title", slug: "" };
+    expect(bookAddressMove([imported], imported, { ...imported, title: "New Title", slug: "new-title" }, now)).toEqual({ from: "/books/old-title", to: "/books/new-title" });
+    const other = { id: "b3", status: "published", title: "X", slug: "shared" };
+    const clashing = { id: "b4", status: "published", title: "Y", slug: "shared" };
+    expect(bookAddressMove([other, clashing], clashing, { ...clashing, slug: "own" }, now)).toEqual({ from: "/books/b4", to: "/books/own" });
+  });
+  it("adds nothing for drafts, unpublishing, unchanged or scheduled books", () => {
+    expect(bookAddressMove([], { ...live, status: "draft" }, { ...live, status: "draft", slug: "new" }, now)).toBeNull();
+    expect(bookAddressMove([], live, { ...live, status: "archived", slug: "new" }, now)).toBeNull();
+    expect(bookAddressMove([], live, { ...live, title: "Renamed" }, now)).toBeNull();
+    expect(bookAddressMove([], { ...live, scheduleDate: "2027-01-01" }, { ...live, scheduleDate: "2027-01-01", slug: "new" }, now)).toBeNull();
   });
 });

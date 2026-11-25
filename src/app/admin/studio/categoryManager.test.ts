@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { categoryBookPatch, directlyAssigned, deleteCategory, validateCategoryName, categoryNavOrder, appendCategory } from "./categoryManager";
+import { categoryBookPatch, directlyAssigned, deleteCategory, validateCategoryName, categoryNavOrder, appendCategory, withSearchListing } from "./categoryManager";
 
 const source = { id: "a", name: "Zines", aliases: ["ZINES", "Old zines"] };
 const target = { id: "b", name: "Books" };
@@ -47,5 +47,13 @@ describe("appendCategory (book editor › create category)", () => {
   it("starts from the shop defaults and never duplicates a name", () => {
     expect(appendCategory(undefined, added, ["PUBLICATIONS"]).map(c => c.name)).toEqual(["PUBLICATIONS", "Zines"]);
     expect(appendCategory([{ id: "z", name: "zines" }], added, [])).toHaveLength(1);
+  });
+});
+
+describe("category search listing", () => {
+  it("saves the trimmed listing and leaves blank fields out", () => {
+    expect(withSearchListing({ id: "c", name: "Zines", seoTitle: "old" }, { seoTitle: " Zines from Toronto ", metaDescription: "  " }))
+      .toEqual({ id: "c", name: "Zines", seoTitle: "Zines from Toronto" });
+    expect(withSearchListing({ id: "c", seoTitle: "old", metaDescription: "old" }, {})).toEqual({ id: "c" });
   });
 });
