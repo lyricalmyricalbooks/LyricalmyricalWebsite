@@ -730,6 +730,13 @@ Grouped footer navigation defaults to Explore and Participate & connect, with po
 
 **Footer layout (12 October 2026):** `StoreFooter` puts every band in one padded column (dividers line up with the text), link groups on the right by default (Style › Footer & social links › **Where the link groups sit**), and a bottom-bar **Admin** link (`showFooterAdminLink`, words Text & labels › Footer › `footerAdmin`). Spacing/text/colour/divider controls (`footerPaddingY*`, `footerColumnGap`, `footerLinkGap`, `footerTextSize`, `footer*Color`, `showFooterDividers`) become CSS in `features/site/footerStyle.ts`; the bands are regions `footerBrand`/`footerLinks`/`footerLegal`/`footerBottom`/`footerAdmin` for per-device element styling.
 
+- **Squarespace SEO parity (25 November 2026).** Studio pages carry `seoNoindex` (Pages › Google listing › Hide from
+  search engines): PageView sends noindex, `sitemapData.mjs` and `llmsTxt.mjs` skip the page, and
+  `generate-sitemap.mjs` still lists it in `prerender-routes.xml` (like noindex books) so the prerendered file exists and
+  Google can read the tag instead of a 404. Text & labels › Site & sharing › `bingSiteVerification` emits
+  `<meta name="msvalidate.01">` from `useSEO`, like the Google token; never hard-code either in `index.html`.
+  The Overview's ready-to-sell checks count book photos without a described alt text (`search-photos`).
+
 ## Heading above the description (25 November 2026)
 
 Catalog › book › Search engine listing › Heading above the description (`aboutHeading`) is the book page's `<h2>`, drawn

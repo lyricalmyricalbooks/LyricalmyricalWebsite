@@ -13,7 +13,7 @@ const siteUrl = process.env.SITE_URL || 'https://lyricalmyrical-web-v2.web.app';
 const { books, pages, settings, reviews, redirects } = await readPublicStorefront();
 const indexed = sitemapArtifacts(siteUrl, books, pages, [], settings);
 // Keep noindex public listings crawlable so Google can read their robots tags.
-const rendered = sitemapArtifacts(siteUrl, books.map(book => ({ ...book, seoNoindex: false })), pages, [], settings, { includeEmptyCollections: true });
+const rendered = sitemapArtifacts(siteUrl, books.map(book => ({ ...book, seoNoindex: false })), pages.map(page => ({ ...page, seoNoindex: false })), [], settings, { includeEmptyCollections: true });
 for (const directory of ['dist', 'public']) {
   mkdirSync(resolve(root, directory), { recursive: true });
   writeFileSync(resolve(root, directory, 'sitemap.xml'), indexed.xml);

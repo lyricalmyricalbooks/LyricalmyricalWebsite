@@ -62,7 +62,7 @@ export function llmsTxt(siteUrl, books, pages, settings = {}, { now = new Date()
   if (collections.length) out.push('## Collections', '', ...collections, '');
 
   const pageLinks = (pages || [])
-    .filter(page => page?.status === 'published' && page.slug && safeSlug(page.slug))
+    .filter(page => page?.status === 'published' && page.seoNoindex !== true && page.slug && safeSlug(page.slug))
     .map(page => {
       const about = cut(line(page.metaDescription), 200);
       return `- [${linkText(page.title) || page.slug}](${base}/page/${encodeURIComponent(page.slug)})${about ? `: ${about}` : ''}`;

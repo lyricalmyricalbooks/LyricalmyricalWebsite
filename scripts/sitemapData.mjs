@@ -44,7 +44,7 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
     urls.push({ loc: `${base}/books/${encodeURIComponent(book.slug)}`, lastmod: book.updatedAt || book._updateTime, images });
   }
   for (const page of pages) {
-    if (page.status !== 'published' || !page.slug) continue;
+    if (page.status !== 'published' || !page.slug || page.seoNoindex === true) continue;
     if (!safeSlug(page.slug)) { console.warn(`::warning::Page "${page.id}" has an unsafe URL slug and is left out of the sitemap: ${page.slug}`); continue; }
     urls.push({ loc: `${base}/page/${encodeURIComponent(page.slug)}`, lastmod: page.updatedAt || page._updateTime });
   }

@@ -20,7 +20,7 @@ const books = [
   { id: 'd', title: 'Later', slug: 'later', status: 'published', scheduleDate: '2030-01-01' },
   { id: 'e', title: 'Gift card', slug: 'gift', status: 'published', productType: 'giftCard' },
 ];
-const pages = [{ id: 'p', title: 'About', slug: 'about', status: 'published', metaDescription: 'Who we are.' }, { id: 'q', title: 'Secret', slug: 'secret', status: 'draft' }];
+const pages = [{ id: 'p', title: 'About', slug: 'about', status: 'published', metaDescription: 'Who we are.' }, { id: 'q', title: 'Secret', slug: 'secret', status: 'draft' }, { id: 'r', title: 'Thanks', slug: 'thanks', status: 'published', seoNoindex: true }];
 
 describe('llms.txt', () => {
   const text = llmsTxt('https://lyricalmyricalbooks.com/', books, pages, settings, { now });
@@ -36,6 +36,7 @@ describe('llms.txt', () => {
   it('lists published pages, the sitemap and only the policies the shop has', () => {
     expect(text).toContain('- [About](https://lyricalmyricalbooks.com/page/about): Who we are.');
     expect(text).not.toContain('Secret');
+    expect(text).not.toContain('Thanks');
     expect(text).toContain('- [Every page (sitemap)](https://lyricalmyricalbooks.com/sitemap.xml)');
     expect(text).toContain('- [Shipping policy](https://lyricalmyricalbooks.com/page/policy-shipping)');
     expect(text).not.toContain('Returns policy');

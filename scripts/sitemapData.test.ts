@@ -53,6 +53,12 @@ it('indexes only visible published Studio categories and excludes noindex books'
  expect(result.count).toBe(5);
 });
 
+it('leaves pages hidden from search engines out of the sitemap (Studio › Pages › Hide from search engines)', () => {
+ const pages = [{ id: 'a', slug: 'about', status: 'published' }, { id: 't', slug: 'thanks', status: 'published', seoNoindex: true }];
+ const result = sitemapArtifacts('https://example.com', [], pages, [], {});
+ expect(result.xml).toContain('/page/about'); expect(result.xml).not.toContain('/page/thanks');
+});
+
 it('reads only the published design: scheduled designs are published into it by the server (Studio 3.5)', () => {
  const settings = { design: { categories: ['Old'] }, scheduledPublish: { at: '2000-01-01T00:00:00Z', design: { categories: ['Scheduled'] } } };
  const result = sitemapArtifacts('https://example.com/shop', [{ id: 'old-book', title: 'Book', status: 'published', categories: ['Old', 'Scheduled'] }], [], [], settings);

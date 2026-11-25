@@ -2,6 +2,7 @@ import { summarizeShipping } from "./shippingHealth";
 import { paymentHealth } from "./paymentHealth";
 import { isRealPaidOrder } from "./overview/overviewInsights";
 import { taxCollectionOn, uncoveredTaxRegions } from "../features/site/taxRate";
+import { describedAlt } from "../features/site/photoAlt";
 
 /** Admin-only "Ready to sell?" checks. Read-only guidance; nothing here changes data. */
 export type ReadinessStatus = "ok" | "warn" | "block";
@@ -64,6 +65,17 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   items.push({ id: "catalog-metadata", label: metadata.length ? `${plural(metadata.length, "book")} need contributor or edition review` : "Contributor and edition metadata present", detail: metadata.length ? metadata.slice(0, 3).map(b => b.title || "Untitled").join(", ") + ". Review display contributors and edition details; these checks never change books." : "Published books identify their contributors and edition.", status: metadata.length ? "warn" : "ok", tab: "catalog", action: "Review Books" });
   const testTitles = live.filter(b => /^(test|sample|demo|placeholder|untitled)(?:\b|[_-])/i.test(String(b.title || "").trim()));
   items.push({ id: "catalog-test-content", label: testTitles.length ? `${plural(testTitles.length, "published title")} may be test content` : "No obvious test titles found", detail: testTitles.length ? testTitles.slice(0, 3).map(b => b.title).join(", ") + ". Review before launch; legitimate titles can match this check." : "This title check does not replace an owner review of the public catalog.", status: testTitles.length ? "warn" : "ok", tab: "catalog", action: "Review Books" });
+
+  // Search report (Squarespace's "42 of 42 images have alt text"): Google Images reads photo descriptions, and each
+  // book's own Search (SEO) checks list the same thing per book. Hidden books are named, since that is a choice.
+  const photos = live.flatMap(b => (Array.isArray(b.photos) ? b.photos : []).map((p: any) => ({ book: b, described: !!describedAlt(p?.altText) })));
+  const bare = photos.filter(p => !p.described);
+  const undescribed = [...new Set(bare.map(p => p.book))];
+  const hidden = live.filter(b => b.seoNoindex === true);
+  const hiddenNote = hidden.length ? ` Hidden from search engines: ${hidden.slice(0, 3).map(b => b.title || "Untitled").join(", ")}${hidden.length > 3 ? "…" : ""}.` : "";
+  if (photos.length) items.push(undescribed.length
+    ? { id: "search-photos", label: `${bare.length} of ${plural(photos.length, "book photo")} need a description`, detail: `${undescribed.slice(0, 3).map(b => b.title || "Untitled").join(", ")}${undescribed.length > 3 ? "…" : ""}. Describe with AI in each book’s Images writes them.${hiddenNote}`, status: "warn", tab: "catalog", action: "Open Books" }
+    : { id: "search-photos", label: `All ${plural(photos.length, "book photo")} described for search`, detail: `Google Images can read every photo.${hiddenNote}`, status: "ok", tab: "catalog", action: "Open Books" });
 
   // Sales tax (charged server-side from Settings › Taxes rates)
   const collecting = taxCollectionOn(settings);

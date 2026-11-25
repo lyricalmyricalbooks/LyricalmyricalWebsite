@@ -57,6 +57,17 @@ it('publishes and removes the owner supplied Search Console verification token',
  act(() => root.unmount());
 });
 
+it('publishes and removes the owner supplied Bing Webmaster Tools verification token', () => {
+ const root = createRoot(document.createElement('div'));
+ function Page() { useSEO({ title: 'Home' }); return null; }
+ setSiteIdentity({ copy: { bingSiteVerification: ' bing-token ' } });
+ act(() => root.render(<MemoryRouter><Page /></MemoryRouter>));
+ expect(document.querySelector('meta[name="msvalidate.01"]')?.getAttribute('content')).toBe('bing-token');
+ act(() => setSiteIdentity({ copy: { bingSiteVerification: '' } }));
+ expect(document.querySelector('meta[name="msvalidate.01"]')).toBeNull();
+ act(() => root.unmount());
+});
+
 it('describes the share image, publishes product price tags and drops the static shop markup', () => {
   const root = createRoot(document.createElement('div'));
   const stale = document.createElement('script');

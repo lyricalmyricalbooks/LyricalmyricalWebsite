@@ -162,7 +162,8 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
   }
 
   // Pages whose search title or description is blank and could be written from the page itself.
-  const needsSeo = ordered.filter((p) => Object.keys(missingSeo(p, formatTitle)).length);
+  // A page hidden from search engines has no Google listing to fill in.
+  const needsSeo = ordered.filter((p) => p.seoNoindex !== true && Object.keys(missingSeo(p, formatTitle)).length);
   async function fillAllSeo() {
     if (locked.current || !needsSeo.length) return;
     const count = needsSeo.length;
@@ -296,6 +297,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
               </button>
             </div>
           </div>
+          <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editing.seoNoindex === true} onChange={(e) => set({ seoNoindex: e.target.checked })} /> Hide from search engines <span className="font-normal text-neutral-500">(stays in the shop)</span></label>
           <input className={input} value={editing.seoTitle || ""} placeholder={editing.title || "Title on Google"} aria-label="Title on Google" onChange={(e) => set({ seoTitle: e.target.value })} />
           <textarea className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-xs" rows={3} maxLength={320} aria-label="Description on Google"
             value={editing.metaDescription || ""} placeholder="A short summary shown under your title on Google…" onChange={(e) => set({ metaDescription: e.target.value })} />
@@ -389,7 +391,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onS
             <button className={iconBtn} onClick={() => remove(p)} aria-label={`Delete ${p.title}`}><Trash2 size={14} /></button>
           </div>
           <p className="text-[11px] text-neutral-600">
-            {p.status === "published" ? "✓ Published" : "○ Draft"} · {LINK_PLACEMENTS.find(x => x.id === linkPlacement({ ...p, showInNav: !!p.showInNav }))?.short}
+            {p.status === "published" ? "✓ Published" : "○ Draft"} · {LINK_PLACEMENTS.find(x => x.id === linkPlacement({ ...p, showInNav: !!p.showInNav }))?.short}{p.seoNoindex === true ? " · Hidden from search" : ""}
           </p>
         </div>
       ))}
