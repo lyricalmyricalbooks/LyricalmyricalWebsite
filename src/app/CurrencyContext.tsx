@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { saleActive } from "./features/site/promotions";
 import { FALLBACK_RATES, RATES_CACHE_MS, loadRates, type RatesSource } from "./features/site/exchangeRates";
 import { currencyForCountry, loadVisitorCountry } from "./features/site/visitorCurrency";
+import { looksAutomated } from "./lib/ownerDevice";
 
 export type Currency = "CAD" | "USD" | "EUR";
 
@@ -74,6 +75,11 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
       setCurrencyState(saved);
       return;
     }
+
+    // Search engines, the build's page snapshots and speed testers always see Canadian dollars, the currency the shop
+    // charges and lists in Google Merchant Center. Googlebot renders from the US, so the guesses below would show it
+    // US-dollar prices that disagree with the feed and the shipping rates.
+    if (looksAutomated()) return;
 
     try {
       setCurrencyState(currencyForTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone || ""));

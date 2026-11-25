@@ -67,7 +67,7 @@ export function takeOwnerDeviceLink(): void {
   }
 }
 
-const BOT_AGENT = /bot\b|bot\/|crawl|spider|slurp|headless|lighthouse|pagespeed|prerender|phantomjs|puppeteer|playwright|chrome-lighthouse|gtmetrix|pingdom|uptime|monitor|facebookexternalhit|embedly|preview/i;
+const BOT_AGENT = /bot\b|bot\/|crawl|spider|slurp|headless|lighthouse|pagespeed|prerender|phantomjs|puppeteer|playwright|chrome-lighthouse|gtmetrix|pingdom|uptime|monitor|inspectiontool|facebookexternalhit|embedly|preview/i;
 
 /** Search-engine renderers, speed testers and automated browsers: they run the page's code but are not shoppers. */
 export function looksAutomated(nav: { userAgent?: string; webdriver?: boolean } | null =

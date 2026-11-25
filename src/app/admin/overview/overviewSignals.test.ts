@@ -41,6 +41,10 @@ describe("your own visits", () => {
     expect(isOwnOrder({ customer: { email: "reader@example.com" } })).toBe(false);
     expect(looksAutomated({ userAgent: "Mozilla/5.0 (compatible; Googlebot/2.1)" })).toBe(true);
     expect(looksAutomated({ userAgent: "Mozilla/5.0 HeadlessChrome/120" })).toBe(true);
+    // Search Console's live test and Google Shopping's crawler (the shop always shows them Canadian prices).
+    expect(looksAutomated({ userAgent: "Mozilla/5.0 (compatible; Google-InspectionTool/1.0;)" })).toBe(true);
+    expect(looksAutomated({ userAgent: "Mozilla/5.0 (X11; Linux x86_64; Storebot-Google/1.0) Chrome/120" })).toBe(true);
+    expect(looksAutomated({ userAgent: "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X) Chrome/120 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" })).toBe(true);
     expect(looksAutomated({ userAgent: "Mozilla/5.0 (iPhone)", webdriver: true })).toBe(true);
     expect(looksAutomated({ userAgent: "Mozilla/5.0 (Macintosh) Safari/605" })).toBe(false);
   });
