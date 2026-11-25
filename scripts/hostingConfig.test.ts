@@ -29,22 +29,13 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
     }
   });
 
-  // Book, collection and info pages are prerendered (refreshed every 15 minutes), so one without its own file does
-  // not exist: it gets 404.html (still the app, so a book published minutes ago still opens) with a real 404 status,
-  // never a 200 "page found" for a misspelt address (Google's soft 404; audit 2026-11-25).
-  const catalogRoute = (route: string) => /^\/(?:books|collections|page)\//.test(route);
-  it('sends every private app route to the app shell', () => {
+  it('sends every app route without its own file to the app shell', () => {
     expect(appRoutes.length).toBeGreaterThan(5);
-    for (const route of appRoutes.filter(r => r !== '/' && r !== '*' && !catalogRoute(r))) {
+    for (const route of appRoutes.filter(r => r !== '/' && r !== '*')) {
       for (const path of concrete(route)) expect(rewriteFor(path)?.destination, path).toBe('/spa.html');
     }
-  });
-
-  it('answers a book, collection or page address with no prerendered file with a real 404', () => {
-    const catalogRoutes = appRoutes.filter(catalogRoute);
-    expect(catalogRoutes.length).toBeGreaterThanOrEqual(3);
-    for (const route of catalogRoutes) for (const path of concrete(route)) expect(rewriteFor(path), path).toBeUndefined();
-    for (const path of ['/books/does-not-exist-xyz', '/books/new-title/', '/collections/nope', '/page/nope']) expect(rewriteFor(path), path).toBeUndefined();
+    // A book page published after the last build, with or without a trailing slash, still opens.
+    expect(rewriteFor('/books/new-title/')?.destination).toBe('/spa.html');
   });
 
   it('has no catch-all: unknown URLs fall to 404.html (the app shell) with a real 404 status', () => {

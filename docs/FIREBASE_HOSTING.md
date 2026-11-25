@@ -103,10 +103,8 @@ The step-by-step guide for lyricalmyricalbooks.com is `docs/CUSTOM_DOMAIN.md`. I
 
 - `books/<slug>.html` (prerendered) answers at `/books/<slug>` with 200. `/books/<slug>/` and `/books/<slug>.html`
   301-redirect there.
-- Account, checkout, admin, tracking and wishlist get the app shell (`spa.html`).
-- A book, page or collection address with no snapshot gets `404.html` with a real **404** (since 25 November 2026):
-  every published one is prerendered and refreshed every 15 minutes, so a misspelt book no longer answers "page
-  found" (Google's soft 404). A book published minutes ago still opens, because `404.html` is the app shell too.
+- Account, checkout, admin, tracking, wishlist, and book/page/category addresses that have no snapshot get the
+  app shell (`spa.html`).
 - Any other address gets a real **404** that still shows the shop's editable missing page (`404.html` is the same
   app shell). There is deliberately no catch-all rewrite.
 - `/assets/*` (hashed file names) are cached for a year; pages, the sitemap, robots and the feed are revalidated

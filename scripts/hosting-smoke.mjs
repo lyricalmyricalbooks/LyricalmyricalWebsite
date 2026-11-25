@@ -108,13 +108,13 @@ if (existsSync(resolve(dist, 'prerender-routes.xml'))) {
   }
 }
 
-// Private app routes get the app shell with 200 and X-Robots-Tag: noindex.
+// App routes without a prerendered page get the app shell with 200; private pages also carry X-Robots-Tag: noindex.
+check('/books/zz-hosting-smoke-not-a-book', appShell);
 for (const path of ['/account', '/account/orders', '/admin', '/checkout?cartId=smoke', '/track?orderId=smoke&key=smoke', '/wishlist']) {
   check(path, { ...appShell, noindex: true });
 }
 // Unknown URLs: a real 404 that still boots the app (editable missing page; Studio previews it too).
-// A book, collection or page with no prerendered file does not exist either (no soft 404 for a misspelt book).
-for (const path of ['/no-such-page-hosting-smoke', '/studio-missing-page?preview=true', '/books/zz-hosting-smoke-not-a-book', '/collections/zz-hosting-smoke', '/page/zz-hosting-smoke']) {
+for (const path of ['/no-such-page-hosting-smoke', '/studio-missing-page?preview=true']) {
   check(path, { status: 404, body: shell, bodyName: 'the app shell (404.html)', security: true });
 }
 check('/spa', { status: 200, noindex: true });

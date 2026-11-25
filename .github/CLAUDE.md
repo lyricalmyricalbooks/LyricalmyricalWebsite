@@ -37,12 +37,12 @@ How the storefront and Firebase deploy, their order, and the CI rules. Workflow 
   64-hex `seo-published-fingerprint.txt` (so emails never point at a dead address; manual runs can pass `skip_site_check`
   during a hosting outage).
 - **Firebase Hosting config** (`firebase.json` `hosting`): `cleanUrls` (prerendered `books/<slug>.html` answers at `/books/<slug>`),
-  `trailingSlash: false` (301s to the slash-less canonical), one anchored **regex** rewrite of private app routes (account, admin, cart, checkout, track, wishlist) to `spa.html`; `/books|collections|page/<slug>` are never rewritten, so one without a prerendered file is a real 404 (no soft 404, 25 Nov 2026), **no
+  `trailingSlash: false` (301s to the slash-less canonical), one anchored **regex** rewrite of app routes to `spa.html`, **no
   catch-all** (unknown URLs get `404.html` = the app shell, a real 404 that still renders the editable missing page),
   `/assets/**` immutable, pages and root xml/txt `no-cache`, nosniff, `Referrer-Policy`, `X-Frame-Options: SAMEORIGIN` (Studio
   frames the shop; no CSP/COOP), `X-Robots-Tag: noindex` only on `/spa` and `/404`. Use `regex` sources and never give one path
-  two values for a header (`scripts/hostingConfig.test.ts`, which also checks every private `App.tsx` route is rewritten). A new
-  private top-level route needs the rewrite regex too. `vite.config.ts` `spaFallbackBase` writes `spa.html` (clean shell, before the
+  two values for a header (`scripts/hostingConfig.test.ts`, which also checks every `App.tsx` route is rewritten). A new
+  top-level route needs the rewrite regex too. `vite.config.ts` `spaFallbackBase` writes `spa.html` (clean shell, before the
   prerender replaces `index.html`) and `404.html` as the shell (`scripts/spaFallback.mjs` `fallbackFiles`; `SPA_FALLBACK=redirect`
   rebuilds the old Pages redirect until the cleanup step); its `canonicalHost` plugin inlines `scripts/canonicalHost.mjs` after
   `<meta charset>` so `*.firebaseapp.com`/`*.web.app` visitors move to `SITE_URL`'s host. `scripts/hosting-smoke.mjs` checks

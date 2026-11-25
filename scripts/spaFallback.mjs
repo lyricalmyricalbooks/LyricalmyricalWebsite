@@ -13,7 +13,7 @@ export function withBaseSegments(html, base) {
 
 // How a host answers URLs that have no file of their own (vite.config.ts `spaFallbackBase`, SPA_FALLBACK env):
 //  - "shell" (default, Firebase Hosting): 404.html is the app shell itself, so unknown URLs keep a real 404 status
-//    and still render the editable missing-page content. firebase.json rewrites private app routes to spa.html.
+//    and still render the editable missing-page content. firebase.json rewrites app routes to spa.html.
 //  - "redirect" (the old GitHub Pages build, kept until the cleanup step): 404.html bounces to /?/<path> and
 //    index.html restores the path.
 export function fallbackMode(value) {
@@ -25,8 +25,7 @@ export function fallbackMode(value) {
 /**
  * Files written next to the built index.html while it is still the clean app shell (before the prerender
  * replaces it with the home page snapshot). `spa.html` is always that shell: Firebase Hosting serves it for
- * private app routes (account, checkout, admin, bag, tracking, wishlist). A book, collection or page without a
- * prerendered file gets 404.html: the same shell with a real 404 status, so it still opens for shoppers.
+ * app routes that have no prerendered page (account, checkout, admin, books published since the last build).
  */
 export function fallbackFiles({ indexHtml, page404, base, mode }) {
   const files = { 'spa.html': indexHtml };
