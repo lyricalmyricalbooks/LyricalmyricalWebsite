@@ -15,8 +15,12 @@ lastmod guidance (2025).
       Text & labels returns window as the book offers.
 - [x] `alternateName` on BookStore + WebSite for Google site names, from a new Text & labels field
       (`seoAlternateNames`, default "Lyricalmyrical, Lyrical Myrical Books").
+- [x] Round 2 (owner: "find other gaps, especially for google"): book `author` Person carries the artist page's
+      `@id` (`artistUrl` option), so book and ProfilePage are one entity; `inLanguage` as BCP 47 codes
+      (`languageCodes`: "Italian, English" → ["it","en"]).
 - [ ] Not done (needs data or low value): org-level `hasShippingService` (home page has no shipping quote loaded),
-      lastmod with time of day (date is valid for Google), `merchantReturnLink`.
+      lastmod with time of day (date is valid for Google), `merchantReturnLink`, ProductGroup for The Hound's signed/unsigned editions ("signed" fits none of Google's
+      `variesBy` values; the single Offer is the selected edition's price, which is accurate).
 
 ## Verification
 - [x] Unit tests: `scripts/indexnow.test.ts`, `bookSeo.test.ts` additions.

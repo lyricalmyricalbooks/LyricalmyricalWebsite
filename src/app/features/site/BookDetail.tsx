@@ -79,7 +79,7 @@ import { photoShadow, productPageCss, productPageFontNames, titleFitSize } from 
 import { schemeButtonColors } from "./colorSchemes";
 
 import { findProduct } from "./productRoutes";
-import { artistDirectory, creditParts } from "./artistPages.mjs";
+import { artistDirectory, artistSlug, creditParts } from "./artistPages.mjs";
 import { bookAddOns, bundleWeightGrams, isBundle, isGiftCardProduct, saleActive, saleEndDate, type GiftCardDetails } from "./promotions";
 import { displayPrice, salePercentOff } from "./displayPrice";
 import { ga4Once, ga4PageNotFound, ga4PdpInteract, pdpTabName } from "../../lib/ga4";
@@ -468,6 +468,7 @@ export default function BookDetail() {
         seller: getCopy(settings?.design, "siteName"),
         shopUrl: siteBase,
         returnPolicy: returnPolicyData(getCopy(settings?.design, "seoReturnDays"), shopCountry),
+        artistUrl: (name: string) => { const id = artistSlug(name); return artists.has(id) ? new URL(`artists/${id}`, siteBase).href : undefined; },
         shipping: seoShipping,
       }),
       breadcrumbData([

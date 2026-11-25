@@ -775,3 +775,5 @@ Both steps are `continue-on-error`; the key is public by design and lives in `pu
 file matches `INDEXNOW_KEY`). Skipped on the default Firebase address. The home page's BookStore and WebSite carry
 `alternateName` from Text & labels › Site & sharing › Other names for the shop (`seoAlternateNames`), and the
 BookStore repeats the books' `hasMerchantReturnPolicy` (`seoReturnDays`) at organization level.
+Book `author`/`contributor` Persons with an artist page get `@id: <artist page>#person` (BookDetail passes
+`artistUrl`), the same `@id` as ArtistPage's ProfilePage mainEntity. `inLanguage` goes through `languageCodes`.

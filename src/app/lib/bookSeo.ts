@@ -355,8 +355,29 @@ export function siteStructuredData(options: { name: string; url: string; descrip
   ];
 }
 
-function creatorProps(book: Book & Record<string, any>) {
-  const { authors, contributors } = creatorPeople(book);
+const LANGUAGE_CODES: Record<string, string> = {
+  english: 'en', italian: 'it', italiano: 'it', french: 'fr', français: 'fr', francais: 'fr', spanish: 'es', español: 'es',
+  german: 'de', deutsch: 'de', portuguese: 'pt', dutch: 'nl', japanese: 'ja', chinese: 'zh', korean: 'ko', arabic: 'ar',
+  greek: 'el', polish: 'pl', swedish: 'sv', danish: 'da', norwegian: 'no', finnish: 'fi', russian: 'ru', hebrew: 'he',
+};
+
+/** Books › edit › Language ("Italian, English", "en", "Italian / English") → language codes, as schema.org asks
+ *  (`inLanguage` takes IETF BCP 47 codes). A name with no known code stays as typed; one language is a plain string. */
+export function languageCodes(raw: unknown): string | string[] | undefined {
+  const parts = [...new Set(searchText(String(raw ?? '')).split(/\s*(?:,|;|\/|&|\+|\band\b)\s*/i).map(part => part.trim()).filter(Boolean)
+    .map(part => /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(part) ? part : LANGUAGE_CODES[part.toLowerCase()] || part))];
+  return parts.length > 1 ? parts : parts[0];
+}
+
+/** `artistUrl(name)`: the shop's own page for a credited person, when there is one, so the book's author and that
+ *  page's Person are one entity for Google (the same `@id`). */
+function creatorProps(book: Book & Record<string, any>, artistUrl?: (name: string) => string | undefined) {
+  const people = creatorPeople(book);
+  const withId = (person: { name: string } & Record<string, unknown>) => {
+    const page = artistUrl?.(person.name);
+    return page ? { '@id': `${canonicalUrl(page)}#person`, ...person } : person;
+  };
+  const authors = people.authors.map(withId), contributors = people.contributors.map(withId);
   // A single legacy `authorName` stays one object, as before; the Author / contributors box gives a list.
   return {
     ...(authors.length ? { author: searchText(book.authorName) ? authors[0] : authors } : {}),
@@ -422,7 +443,7 @@ export function shippingDetailsData(quote: { price: number; deliveryDays?: strin
   };
 }
 
-export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; ratingSummary?: { count: number; average: number } | null; seller?: string; shopUrl?: string; returnPolicy?: ReturnType<typeof returnPolicyData>; shipping?: ReturnType<typeof shippingDetailsData> }) {
+export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; ratingSummary?: { count: number; average: number } | null; seller?: string; shopUrl?: string; returnPolicy?: ReturnType<typeof returnPolicyData>; shipping?: ReturnType<typeof shippingDetailsData>; artistUrl?: (name: string) => string | undefined }) {
   const variants = book.variants || [];
   const backorder = book.onBackorder || (variants.length > 0 && variants.every((v: any) => v.onBackorder));
   // Coming soon (Books › Inventory): shown but not for sale yet, so it is honestly out of stock.
@@ -442,8 +463,8 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
     ...(book.isbn ? { isbn: String(book.isbn).trim() } : {}),
     ...bookFacts(book),
     ...(book.sku ? { sku: book.sku } : {}),
-    ...(book.language ? { inLanguage: book.language } : {}),
-    ...creatorProps(book),
+    ...(languageCodes(book.language) ? { inLanguage: languageCodes(book.language) } : {}),
+    ...creatorProps(book, options.artistUrl),
     // Google's merchant listings ask for a brand: for a book that is its publisher, else the shop.
     ...(searchText(book.publisher) || options.seller ? { brand: { '@type': 'Brand', name: searchText(book.publisher) || options.seller } } : {}),
     ...(book.publisher ? { publisher: options.seller && namesShop(searchText(book.publisher), options.seller) ? shopRef(searchText(book.publisher), options.shopUrl) : { '@type': 'Organization', name: book.publisher } } : {}),
