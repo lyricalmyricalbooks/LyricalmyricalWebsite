@@ -12,10 +12,12 @@ export const HOSTING_REDIRECTS_FILE = 'hosting-redirects.json';
 /** Firebase Hosting accepts at most 1,000 redirects per site; keep room for the committed ones. */
 export const MAX_HOSTING_REDIRECTS = 900;
 
-const RESERVED = /^\/(admin|checkout|track|account|wishlist|cart|assets|spa|404)(\/|$|\.)/;
-// On-site paths the list may claim: no query, hash, whitespace or control characters (and so nothing that could break
-// out of the JSON or the RE2 pattern).
-const SAFE_PATH = /^\/[^\s?#\\\u0000-\u001f]*$/;
+// Shop routes, plus /collections/: a collection also answers to its category's hidden or earlier names, which the
+// sitemap doesn't list, and the browser never follows a redirect there either.
+const RESERVED = /^\/(admin|checkout|track|account|wishlist|cart|assets|spa|404|collections)(\/|$|\.)/;
+// On-site paths Hosting may answer: plain URL characters only. Accented letters, spaces and anything a browser
+// percent-encodes stay with the browser fallback, so the server rule, its any-case match and the smoke check agree.
+const SAFE_PATH = /^\/[A-Za-z0-9\-._~!$&'()*+,;=@/]*$/;
 
 const escapeRe = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // Shoppers and old links mix capitals ("/product/Archaeology_of_Presence"); the list stores lower case. Match each

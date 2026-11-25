@@ -2,8 +2,9 @@
 // results and printed links keep working after a book or page is renamed. Rules live in the public, admin-written
 // `settings/redirects` doc ({ items: Redirect[] }), so no new Firestore rules are needed. Pure and storefront-safe.
 //
-// Hosting answers unknown and missing-item URLs with the app shell, so redirects are followed in the browser
-// (`useMissingRedirect`) only when the page the shopper asked for does not exist. A real page is never hijacked.
+// The browser follows them (`useMissingRedirect`) only when the page the shopper asked for does not exist. Since
+// 25 November 2026 Hosting also answers them as 301s (scripts/hostingRedirects.mjs), skipping every live book, page and
+// sitemap address, all of /collections/ and any address with characters beyond plain URL ones (those stay browser-only).
 
 export type Redirect = { from: string; to: string };
 

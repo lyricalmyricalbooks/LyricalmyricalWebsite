@@ -26,6 +26,20 @@ describe('URL redirects answered by Hosting', () => {
     expect(rulePath(rule.regex)).toBe('/old.page(1)');
   });
 
+  it('every rule matches its address in any letter case (what the smoke check asks)', () => {
+    const rules = hostingRedirects(['/books/old', '/product/Archaeology_of_Presence', "/a-b.c_d~e!f$g&h'i(j)k*l+m,n;o=p@q", '/straße', '/x%20y'].map(from => ({ from, to: '/books/new' })));
+    expect(rules).toHaveLength(3);
+    for (const rule of rules) {
+      const path = rulePath(rule.regex);
+      expect(matches(rule, path)).toBe(true);
+      expect(matches(rule, path.toUpperCase())).toBe(true);
+    }
+  });
+
+  it('leaves collections alone: a category also answers to hidden and earlier names the sitemap omits', () => {
+    expect(hostingRedirects([{ from: '/collections/archive', to: '/page/x' }, { from: '/collections/all', to: '/' }])).toEqual([]);
+  });
+
   it('never takes over a real page, the shop’s own routes, or itself', () => {
     const rules = hostingRedirects([
       { from: '/books/live', to: '/books/other' },
@@ -47,9 +61,12 @@ describe('URL redirects answered by Hosting', () => {
       .toEqual(['https://example.com/review', '/collections/all?sort=price']);
   });
 
-  it('normalises old addresses like the storefront does', () => {
+  it('normalises old addresses like the storefront does, keeping only plain URL characters for Hosting', () => {
     expect(hostingPath('/Books/Old/?utm=1#x')).toBe('/books/old');
-    expect(hostingPath('/books/caf%C3%A9')).toBe('/books/café');
+    // Accented or percent-encoded letters stay with the browser fallback (case folding and encoding differ there).
+    expect(hostingPath('/books/caf%C3%A9')).toBe('');
+    expect(hostingPath('/books/città')).toBe('');
+    expect(hostingPath('/books/a{b}')).toBe('');
     expect(hostingPath('books/old')).toBe('');
     expect(hostingPath('/a b')).toBe('');
   });

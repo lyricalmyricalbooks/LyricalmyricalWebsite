@@ -75,7 +75,7 @@ import { MediaLibraryDialog, WeightField, DescriptionLinkDialog } from "./BookEd
 import { applyFormat, linkMarkup, type FormatAction } from "../features/site/descriptionLinks";
 import { DescriptionText } from "../features/site/DescriptionText";
 import { redirectsAfterMove } from "../features/site/redirects";
-import { editorDirty, fillEmpty, isbnWarning, lookupIsbn, needsPublishReview, slugClash, slugFollowsTitle, slugLocked, slugifyTitle, withMetricWeights } from "./bookEditorState";
+import { bookAddressMove, editorDirty, fillEmpty, isbnWarning, lookupIsbn, needsPublishReview, slugClash, slugFollowsTitle, slugLocked, slugifyTitle, withMetricWeights } from "./bookEditorState";
 import { LOW_STOCK } from "./catalogList";
 import { inventoryLinkApi } from "./inventoryLinkApi";
 import { isStockLinked, type InventoryLinks } from "./inventoryLink";
@@ -615,15 +615,14 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
         else if (sync?.updated) toast.success(`Release date updated on ${sync.updated} paid pre-order${sync.updated === 1 ? "" : "s"}.`);
         // A live book's new web address: forward the old one (Shopify's "Create a URL redirect"), so links people
         // already have keep working. Best effort: the book is saved either way.
-        const movedFrom = String(initialData?.status === "published" ? initialData?.slug ?? "" : "").trim();
-        const movedTo = String(toSave.slug ?? "").trim();
-        if (movedFrom && movedTo && movedFrom !== movedTo && toSave.status === "published") {
+        const moved = bookAddressMove(recommendationCatalog, { ...initialData, id: book.id }, { ...toSave, id: book.id });
+        if (moved) {
           try {
-            const next = redirectsAfterMove(await adminApi.getRedirects(), `/books/${movedFrom}`, `/books/${movedTo}`);
+            const next = redirectsAfterMove(await adminApi.getRedirects(), moved.from, moved.to);
             if (next) await adminApi.saveRedirects(next);
-            toast.success(`Old address /books/${movedFrom} now forwards here.`);
+            toast.success(`Old address ${moved.from} now forwards here.`);
           } catch {
-            toast.error(`Book saved, but the old address couldn't be forwarded. Add /books/${movedFrom} in Settings › General › URL redirects.`);
+            toast.error(`Book saved, but the old address couldn't be forwarded. Add ${moved.from} in Settings › General › URL redirects.`);
           }
         }
         setSlugUnlocked(false);

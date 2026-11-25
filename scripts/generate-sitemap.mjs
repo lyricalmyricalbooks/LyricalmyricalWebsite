@@ -3,7 +3,8 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sitemapArtifacts } from './sitemapData.mjs';
-import { readPublicStorefront, publishedFingerprint, effectivePublishedSettings } from './publicStorefrontData.mjs';
+import { readPublicStorefront, publishedFingerprint, effectivePublishedSettings, releaseArrived } from './publicStorefrontData.mjs';
+import { resolveProductRoutes } from '../src/app/features/site/productRouteData.mjs';
 import { llmsTxt } from './llmsTxt.mjs';
 import { HOSTING_REDIRECTS_FILE, hostingRedirects } from './hostingRedirects.mjs';
 import { FEED_FILE, merchantFeedItems, merchantFeedXml } from '../src/app/features/site/merchantFeed.mjs';
@@ -29,7 +30,10 @@ writeFileSync(resolve(root, 'dist', FEED_FILE), merchantFeedXml(siteUrl, feed.it
 // AI assistants and AI search read /llms.txt for a plain summary of the shop and its books.
 writeFileSync(resolve(root, 'dist', 'llms.txt'), llmsTxt(siteUrl, books, pages, settings, { shopName }));
 // URL redirects as Hosting rules; the deploy adds them to firebase.json (scripts/hostingRedirects.mjs).
-const hostingRules = hostingRedirects(redirects, rendered.paths);
+// A redirect never covers a live book or page, including ones the sitemap leaves out (unsafe slugs).
+const liveBooks = resolveProductRoutes(books.filter(book => (!book.status || book.status === 'published') && releaseArrived(book.scheduleDate, new Date().toISOString())));
+const livePaths = [...rendered.paths, ...liveBooks.map(book => `/books/${book.slug}`), ...pages.filter(page => page.status === 'published' && page.slug).map(page => `/page/${page.slug}`)];
+const hostingRules = hostingRedirects(redirects, livePaths);
 writeFileSync(resolve(root, 'dist', HOSTING_REDIRECTS_FILE), JSON.stringify(hostingRules, null, 2) + '\n');
 console.log(`URL redirects for Hosting: ${hostingRules.length} of ${redirects.length}.`);
 console.log(`Google Shopping feed: ${feed.items.length} items, ${feed.skipped.length} published books left out.`);
