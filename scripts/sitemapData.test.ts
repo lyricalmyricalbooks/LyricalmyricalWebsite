@@ -94,3 +94,16 @@ it("uses reviewed publication status to exclude drafts from product routes", () 
   expect(result.xml).not.toContain("antigravity-test");
   expect(result.xml).toContain("altrove-copy");
 });
+it('dates each collection by the newest book it lists, and leaves an undated collection undated', () => {
+  const books = [
+    { id: 'a', title: 'A', status: 'published', categories: ['Books'], _updateTime: '2026-11-02T10:00:00Z' },
+    { id: 'b', title: 'B', status: 'published', categories: ['Books', 'Zines'], updatedAt: '2026-11-20T08:00:00Z' },
+    { id: 'c', title: 'C', status: 'published', categories: ['Prints'] },
+  ];
+  const { xml } = sitemapArtifacts('https://example.com', books, [], [], { design: { categories: ['Books', 'Zines', 'Prints'] } });
+  const entry = (path: string) => xml.split('<url>').find(block => block.includes(`<loc>https://example.com${path}</loc>`)) || '';
+  expect(entry('/collections/books')).toContain('<lastmod>2026-11-20</lastmod>');
+  expect(entry('/collections/zines')).toContain('<lastmod>2026-11-20</lastmod>');
+  expect(entry('/collections/prints')).not.toContain('<lastmod>');
+  expect(entry('/')).toContain('<lastmod>2026-11-20</lastmod>');
+});
