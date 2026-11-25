@@ -1,7 +1,7 @@
 import { createRequire } from "module";
 import { describe, expect, it, vi } from "vitest";
 
-const { aiKeyProblem, photoImageUrl, buildRequest, parseResponse, generate, handleAiWrite, fitWords, plainText, bookFacts, resetProviderRest, worthBackup } = createRequire(import.meta.url)("./aiWriter");
+const { MODELS, aiKeyProblem, photoImageUrl, buildRequest, parseResponse, generate, handleAiWrite, fitWords, plainText, bookFacts, resetProviderRest, worthBackup } = createRequire(import.meta.url)("./aiWriter");
 
 const KEY = "AIza" + "x".repeat(35);
 const reply = (status, data) => ({ ok: status >= 200 && status < 300, status, json: async () => data });
@@ -15,11 +15,13 @@ describe("AI writing assistant (Gemini)", () => {
     expect(aiKeyProblem("not a key")).toMatch(/doesn't look/);
   });
 
-  it("asks for JSON and turns off thinking on 2.5 flash only", () => {
+  it("asks for JSON and keeps thinking short in the way each model understands", () => {
     const body = buildRequest("bookSeo", { title: "Salt" }, { siteName: "Lyricalmyrical Books" }, "gemini-2.5-flash");
     expect(body.generationConfig.responseMimeType).toBe("application/json");
     expect(body.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
-    expect(buildRequest("bookSeo", { title: "Salt" }, {}, "gemini-flash-latest").generationConfig.thinkingConfig).toBeUndefined();
+    expect(buildRequest("bookSeo", { title: "Salt" }, {}, "gemini-flash-latest").generationConfig.thinkingConfig).toEqual({ thinkingLevel: "low" });
+    expect(buildRequest("bookSeo", { title: "Salt" }, {}, "gemini-3.6-flash").generationConfig.thinkingConfig).toEqual({ thinkingLevel: "low" });
+    expect(buildRequest("bookSeo", { title: "Salt" }, {}, "gemini-3.6-flash", { thinking: false }).generationConfig.thinkingConfig).toBeUndefined();
     expect(body.contents[0].parts[0].text).toContain("Title: Salt");
     expect(body.systemInstruction.parts[0].text).toMatch(/Never invent/);
   });
@@ -57,14 +59,92 @@ describe("AI writing assistant (Gemini)", () => {
     expect(() => parseResponse("pageSeo", { candidates: [{ content: { parts: [{ text: "not json" }] } }] })).toThrow(/couldn't be read/);
   });
 
+  it("asks Google's newest Flash first, so a retired version can't break the buttons", () => {
+    expect(MODELS[0]).toBe("gemini-flash-latest");
+    expect(MODELS).not.toContain("gemini-2.0-flash");
+  });
+
   it("moves to the next model when Google has retired one", async () => {
     const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(reply(404, { error: { status: "NOT_FOUND", message: "models/gemini-2.5-flash is not found" } }))
+      .mockResolvedValueOnce(reply(404, { error: { status: "NOT_FOUND", message: "models/gemini-flash-latest is not found" } }))
       .mockResolvedValueOnce(answer({ seoTitle: "About", metaDescription: "Who we are." }));
     const out = await generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl });
-    expect(out.model).toBe("gemini-flash-latest");
-    expect(fetchImpl.mock.calls[1][0]).toContain("gemini-flash-latest:generateContent");
+    expect(out.model).toBe(MODELS[1]);
+    expect(fetchImpl.mock.calls[1][0]).toContain(`${MODELS[1]}:generateContent`);
     expect(fetchImpl.mock.calls[0][1].headers["x-goog-api-key"]).toBe(KEY);
+  });
+
+  // 25 Nov 2026: every AI button answered "Google's AI service is busy" because the first model kept failing with
+  // a 5xx and the others were never tried.
+  it("moves to the next model when one is down, instead of giving up", async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(reply(503, { error: { status: "UNAVAILABLE", message: "The model is overloaded." } }))
+      .mockResolvedValueOnce(reply(500, { error: { status: "INTERNAL", message: "Internal error" } }))
+      .mockResolvedValueOnce(answer({ seoTitle: "About", metaDescription: "Who we are." }));
+    const out = await generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl });
+    expect(out.model).toBe(MODELS[2]);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it("reports a busy model, not \"check the key\", when a later one is retired, and lets the backup AI take over", async () => {
+    resetProviderRest();
+    const busy = () => reply(503, { error: { status: "UNAVAILABLE", message: "The model is overloaded." } });
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(busy()).mockResolvedValueOnce(busy())
+      .mockResolvedValueOnce(reply(404, { error: { status: "NOT_FOUND", message: "models/gemini-2.5-flash is not found" } }));
+    const alone = await generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl }).catch(e => e);
+    expect(alone.message).toMatch(/busy/);
+    expect(worthBackup(alone)).toBe(true);
+
+    const OR_KEY = "sk-or-v1-" + "a".repeat(40);
+    const both = vi.fn()
+      .mockResolvedValueOnce(busy()).mockResolvedValueOnce(busy())
+      .mockResolvedValueOnce(reply(404, { error: { status: "NOT_FOUND", message: "gone" } }))
+      .mockResolvedValueOnce(reply(200, { choices: [{ message: { content: JSON.stringify({ seoTitle: "About", metaDescription: "Who we are." }) }, finish_reason: "stop" }] }));
+    const out = await handleAiWrite({ task: "pageSeo", input: { title: "About" } }, deps({ fetchImpl: both, readSettings: async () => ({ apiKey: KEY, openrouterKey: OR_KEY, provider: "gemini" }) }));
+    expect(out.status).toBe(200);
+    expect(out.body.result).toMatchObject({ provider: "openrouter", fellBack: true });
+    resetProviderRest();
+  });
+
+  it("stops trying more models once the request has run long, so it answers before the server's time limit", async () => {
+    let t = 0;
+    const fetchImpl = vi.fn(async () => { t += 20000; return reply(500, { error: { status: "INTERNAL", message: "slow failure" } }); });
+    const err = await generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl, deadline: 30000, now: () => t }).catch(e => e);
+    expect(err.message).toMatch(/busy/);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks again without the thinking setting when a model refuses it", async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(reply(400, { error: { status: "INVALID_ARGUMENT", message: "Thinking level is not supported for this model." } }))
+      .mockResolvedValueOnce(answer({ seoTitle: "About", metaDescription: "Who we are." }));
+    const out = await generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl });
+    expect(out.model).toBe(MODELS[0]);
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body).generationConfig.thinkingConfig).toEqual({ thinkingLevel: "low" });
+    expect(JSON.parse(fetchImpl.mock.calls[1][1].body).generationConfig.thinkingConfig).toBeUndefined();
+  });
+
+  it("doesn't try other models for a refused key or a slow answer", async () => {
+    const bad = vi.fn().mockResolvedValue(reply(400, { error: { status: "INVALID_ARGUMENT", message: "API key not valid." } }));
+    await expect(generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl: bad })).rejects.toThrow(/isn't valid/);
+    expect(bad).toHaveBeenCalledTimes(1);
+    const slow = vi.fn().mockRejectedValue(Object.assign(new Error("aborted"), { name: "AbortError" }));
+    await expect(generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl: slow })).rejects.toThrow(/too long/);
+    expect(slow).toHaveBeenCalledTimes(1);
+  });
+
+  it("describes a photo when the first model is down (the reported bug)", async () => {
+    const BUCKET = "shop.firebasestorage.app";
+    const own = "https://firebasestorage.googleapis.com/v0/b/shop.firebasestorage.app/o/products%2F1-01-960w.webp?alt=media&token=t";
+    const image = { ok: true, status: 200, headers: { get: h => (h === "content-type" ? "image/webp" : "4") }, arrayBuffer: async () => new Uint8Array([1, 2, 3, 4]).buffer };
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(image)
+      .mockResolvedValueOnce(reply(503, { error: { status: "UNAVAILABLE", message: "This model is currently unavailable." } }))
+      .mockResolvedValueOnce(answer({ alt: "The Hound by Ian Willms, a tan cover with a blue title block" }));
+    const out = await handleAiWrite({ task: "photoAlt", input: { title: "The Hound", imageUrl: own } }, deps({ fetchImpl, bucket: BUCKET }));
+    expect(out.status).toBe(200);
+    expect(out.body.result).toMatchObject({ alt: "The Hound by Ian Willms, a tan cover with a blue title block", model: MODELS[1] });
   });
 
   it("explains the free allowance running out", async () => {
@@ -78,7 +158,7 @@ describe("AI writing assistant (Gemini)", () => {
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(reply(429, { error: { status: "RESOURCE_EXHAUSTED", message: "Quota exceeded" } }))
       .mockResolvedValueOnce(answer({ seoTitle: "About", metaDescription: "Who we are." }));
-    expect((await generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl })).model).toBe("gemini-flash-latest");
+    expect((await generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl })).model).toBe(MODELS[1]);
   });
 
   it("needs a saved key before calling Google", async () => {
@@ -98,7 +178,7 @@ describe("AI writing assistant (Gemini)", () => {
   it("returns a suggestion for a book", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(answer({ metaTitle: "Salt by Ana — Lyricalmyrical", metaDescription: "A risograph-printed book of sea poems." }));
     const out = await handleAiWrite({ task: "bookSeo", input: { title: "Salt", author: "Ana" }, siteName: "Lyricalmyrical" }, deps({ fetchImpl }));
-    expect(out).toEqual({ status: 200, body: { ok: true, result: { metaTitle: "Salt by Ana — Lyricalmyrical", metaDescription: "A risograph-printed book of sea poems.", model: "gemini-2.5-flash", provider: "gemini" } } });
+    expect(out).toEqual({ status: 200, body: { ok: true, result: { metaTitle: "Salt by Ana — Lyricalmyrical", metaDescription: "A risograph-printed book of sea poems.", model: MODELS[0], provider: "gemini" } } });
   });
 
   it("describes a book photo from the shop's own Storage bucket only", async () => {

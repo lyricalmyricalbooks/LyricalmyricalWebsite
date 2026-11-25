@@ -22,7 +22,7 @@ export function aiKeyProblem(value: string): string {
 
 export type AiProvider = "gemini" | "openrouter";
 /** What OpenRouter uses when the owner names no model (functions/aiWriter.js OPENROUTER_MODELS[0]). */
-export const DEFAULT_OPENROUTER_MODEL = "google/gemini-2.5-flash";
+export const DEFAULT_OPENROUTER_MODEL = "~google/gemini-flash-latest";
 
 /** Same rule as functions/aiWriter.js openRouterKeyProblem ("" = fine or empty). */
 export function openRouterKeyProblem(value: string): string {
@@ -35,7 +35,7 @@ export function openRouterKeyProblem(value: string): string {
 export function openRouterModelProblem(value: string): string {
   const v = value.trim();
   if (!v) return "";
-  return v.length <= 120 && /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(v) ? "" : "Model names look like google/gemini-2.5-flash. Copy one from openrouter.ai/models.";
+  return v.length <= 120 && /^~?[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(v) ? "" : "Model names look like google/gemini-3.6-flash. Copy one from openrouter.ai/models.";
 }
 
 /** An error the editor can show; `needsKey` = point the owner at Settings › General › AI writing assistant. */

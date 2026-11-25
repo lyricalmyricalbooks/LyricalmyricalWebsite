@@ -3,12 +3,23 @@
 // `action: "aiWrite"`.
 // Every answer is a suggestion the owner reviews in the editor; nothing here writes to Firestore.
 const API_ROOT = "https://generativelanguage.googleapis.com/v1beta/models/";
-// Tried in order; a model Google has retired (404) moves on to the next one.
-const MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash"];
+// Tried in order; a model Google has retired (404), has no allowance left (429) or is down (5xx) moves on to the next.
+// "gemini-flash-latest" follows Google's newest Flash, so the list doesn't go stale when a version is retired
+// (2.0 Flash shut down in June 2026 and 2.5 Flash is being wound down for 1 December 2026, which broke every AI button).
+const MODELS = ["gemini-flash-latest", "gemini-3.6-flash", "gemini-2.5-flash"];
 const TIMEOUT_MS = 25000;
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-// Used when the owner names no model, in order; one OpenRouter no longer offers (404) moves on to the next.
-const OPENROUTER_MODELS = ["google/gemini-2.5-flash", "openai/gpt-4o-mini"];
+// Used when the owner names no model, in order; one OpenRouter no longer offers (404), or that is rate limited (429)
+// or down (5xx), moves on to the next. "~google/gemini-flash-latest" is OpenRouter's alias for Google's newest Flash.
+const OPENROUTER_MODELS = ["~google/gemini-flash-latest", "google/gemini-3.6-flash", "openai/gpt-4o-mini"];
+/** Pure: a failure that may not happen on another model (retired, out of allowance, down), as opposed to one about the request or the key. */
+const tryNextModel = status => status === 404 || status === 429 || (status >= 500 && status !== 504);
+/** Pure: what to report after trying several models. A busy or used-up model (429/5xx) outranks a later 404, so
+ * "busy" isn't reported as "check the key" and the backup AI still takes over. */
+const reportedError = (lastErr, outage) => (outage && Number(lastErr?.status) === 404 ? outage : lastErr);
+// A request stops trying further models (and the backup AI) once this long has passed, so with one more call
+// (25 seconds at most) it still answers within the function's 60 seconds.
+const NEW_TRY_UNTIL_MS = 30 * 1000;
 const VOICE_MAX = 1000;
 
 const clip = (v, max) => (typeof v === "string" ? v.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ").trim().slice(0, max) : "");
@@ -51,11 +62,11 @@ function openRouterKeyProblem(value) {
   return "";
 }
 
-/** An OpenRouter model name such as google/gemini-2.5-flash or meta-llama/llama-3.3-70b-instruct:free ("" = the default). */
+/** An OpenRouter model name such as google/gemini-3.6-flash, ~google/gemini-flash-latest or meta-llama/llama-3.3-70b-instruct:free ("" = the default). */
 function openRouterModelProblem(value) {
   const v = String(value || "").trim();
   if (!v) return "";
-  return v.length <= 120 && /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(v) ? "" : "Model names look like google/gemini-2.5-flash. Copy one from openrouter.ai/models.";
+  return v.length <= 120 && /^~?[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(v) ? "" : "Model names look like google/gemini-3.6-flash. Copy one from openrouter.ai/models.";
 }
 
 /** The book facts the model may use — nothing else, so it has nothing private to repeat. */
@@ -311,16 +322,19 @@ function systemText(voice, task) {
 }
 
 /** Pure: the generateContent request body for one task. */
-function buildRequest(task, input, ctx = {}, model = MODELS[0]) {
+function buildRequest(task, input, ctx = {}, model = MODELS[0], { thinking = true } = {}) {
   const spec = TASKS[task];
   const generationConfig = {
     temperature: 0.7,
-    maxOutputTokens: task === "rewrite" || task === "sectionDraft" ? 8192 : 2048,
+    // Thinking comes out of the same budget, so leave room for it on top of the answer.
+    maxOutputTokens: task === "rewrite" || task === "sectionDraft" ? 8192 : 4096,
     responseMimeType: "application/json",
     responseSchema: spec.schemaFor ? spec.schemaFor(input || {}) : spec.schema,
   };
-  // 2.5 models "think" out of the same token budget; these short answers don't need it.
-  if (/^gemini-2\.5-flash/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  // These short answers need little thinking: 2.5 Flash turns it off with a budget, Gemini 3 and later (and the
+  // "latest" alias) take a level instead. `thinking: false` leaves it out for a model that refuses the setting.
+  if (thinking && /^gemini-2\.5-flash/.test(model)) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  else if (thinking && /^gemini-(flash-latest|[3-9])/.test(model)) generationConfig.thinkingConfig = { thinkingLevel: "low" };
   return {
     systemInstruction: { parts: [{ text: systemText(ctx.voice, task) }] },
     contents: [{ role: "user", parts: [
@@ -401,21 +415,33 @@ async function callGemini({ apiKey, model, body, fetchImpl }) {
 }
 
 /** One task through the first model Google still serves. */
-async function generate({ apiKey, task, input, ctx = {}, models = MODELS, fetchImpl = fetch }) {
+async function generate({ apiKey, task, input, ctx = {}, models = MODELS, fetchImpl = fetch, deadline = Infinity, now = Date.now }) {
   let lastErr = null;
+  let outage = null;
   let sawQuota = false;
   for (const model of models) {
+    if (lastErr && now() > deadline) break;
     try {
-      const data = await callGemini({ apiKey, model, body: buildRequest(task, input, ctx, model), fetchImpl });
+      let data;
+      try {
+        data = await callGemini({ apiKey, model, body: buildRequest(task, input, ctx, model), fetchImpl });
+      } catch (err) {
+        // A model that doesn't take the thinking setting is asked again without it.
+        if (err?.status !== 400 || !/thinking/i.test(err.message)) throw err;
+        data = await callGemini({ apiKey, model, body: buildRequest(task, input, ctx, model, { thinking: false }), fetchImpl });
+      }
       return { ...parseResponse(task, data, ctx), model };
     } catch (err) {
       lastErr = err;
-      if (err?.status === 404 || err?.googleStatus === "NOT_FOUND") continue;
+      if (!err?.friendly) console.warn(`aiWrite: Gemini ${model} answered ${err?.status || "?"} ${err?.googleStatus || ""}: ${String(err?.message || "").slice(0, 300)}`);
       // Free-tier allowances are counted per model, so a used-up one may leave the next model with room.
       if (err?.status === 429 || err?.googleStatus === "RESOURCE_EXHAUSTED") { sawQuota = true; continue; }
+      if (!err?.friendly && Number(err?.status) >= 500) outage = outage || err;
+      if (err?.googleStatus === "NOT_FOUND" || (!err?.friendly && tryNextModel(Number(err?.status)))) continue;
       break;
     }
   }
+  lastErr = reportedError(lastErr, outage);
   if (sawQuota && lastErr?.status !== 429) lastErr = Object.assign(new Error("quota"), { status: 429, googleStatus: "RESOURCE_EXHAUSTED" });
   if (lastErr?.friendly) throw lastErr;
   const err = new Error(lastErr?.status === 404 ? "None of the Gemini models the shop knows are available to this key. Check the key in Google AI Studio." : aiErrorMessage(lastErr?.status || 0, lastErr?.googleStatus, lastErr?.message));
@@ -436,8 +462,8 @@ function toJsonSchema(schema) {
   return out;
 }
 
-/** Pure: the chat-completions request body for one task. `structured: false` leaves out response_format (for models that refuse it). */
-function buildOpenRouterRequest(task, input, ctx = {}, model = OPENROUTER_MODELS[0], { structured = true } = {}) {
+/** Pure: the chat-completions request body for one task. `structured: false` / `reasoning: false` leave out response_format / reasoning (for models that refuse them). */
+function buildOpenRouterRequest(task, input, ctx = {}, model = OPENROUTER_MODELS[0], { structured = true, reasoning = true } = {}) {
   const spec = TASKS[task];
   const schema = toJsonSchema(spec.schemaFor ? spec.schemaFor(input || {}) : spec.schema);
   const text = spec.prompt(input || {}, ctx);
@@ -448,7 +474,9 @@ function buildOpenRouterRequest(task, input, ctx = {}, model = OPENROUTER_MODELS
       { role: "user", content: ctx.image ? [{ type: "text", text }, { type: "image_url", image_url: { url: `data:${ctx.image.mimeType};base64,${ctx.image.data}` } }] : text },
     ],
     temperature: 0.7,
-    max_tokens: task === "rewrite" || task === "sectionDraft" ? 8192 : 2048,
+    max_tokens: task === "rewrite" || task === "sectionDraft" ? 8192 : 4096,
+    // Short answers: keep any thinking brief and out of the reply (models that don't think ignore this).
+    ...(reasoning ? { reasoning: { effort: "low", exclude: true } } : {}),
     ...(structured ? { response_format: { type: "json_schema", json_schema: { name: task, strict: false, schema } } } : {}),
   };
 }
@@ -468,7 +496,7 @@ function openRouterErrorMessage(status, message, model = "") {
   if (status === 401) return "OpenRouter says this key isn't valid. Copy it again from openrouter.ai/keys, then save it in Settings › General › AI writing assistant.";
   if (status === 402) return "Your OpenRouter account is out of credits. Add credits at openrouter.ai/credits, or choose a free model (its name ends in :free) in Settings › General › AI writing assistant.";
   if (status === 403) return "OpenRouter's moderation declined this request. Change the wording and try again.";
-  if (status === 404 && /image/i.test(m)) return `The model ${model || "chosen"} can't look at photos. For Describe with AI, choose a model that reads images (for example google/gemini-2.5-flash).`;
+  if (status === 404 && /image/i.test(m)) return `The model ${model || "chosen"} can't look at photos. For Describe with AI, choose a model that reads images (for example google/gemini-3.6-flash).`;
   if (status === 404) return `OpenRouter doesn't offer the model ${model || "chosen"} (any more). Pick another at openrouter.ai/models and save it in Settings › General › AI writing assistant.`;
   if (status === 408 || status === 504) return "The AI took too long to answer. Try again.";
   if (status === 429) return "OpenRouter is limiting requests right now (free models allow only a few a minute, and fewer a day without credits). Wait a minute and try again.";
@@ -503,30 +531,36 @@ async function callOpenRouter({ apiKey, body, fetchImpl }) {
 }
 
 /** One task through OpenRouter: the owner's model, else the first default model OpenRouter still offers. */
-async function generateOpenRouter({ apiKey, model, task, input, ctx = {}, fetchImpl = fetch }) {
+async function generateOpenRouter({ apiKey, model, task, input, ctx = {}, fetchImpl = fetch, deadline = Infinity, now = Date.now }) {
   const chosen = String(model || "").trim();
   const models = chosen ? [chosen] : OPENROUTER_MODELS;
   const pctx = { ...ctx, aiName: "The AI" };
   let lastErr = null;
+  let outage = null;
   let lastModel = "";
+  let outageModel = "";
   for (const m of models) {
+    if (lastErr && now() > deadline) break;
     lastModel = m;
     try {
       let data;
       try {
         data = await callOpenRouter({ apiKey, body: buildOpenRouterRequest(task, input, pctx, m), fetchImpl });
       } catch (err) {
-        // Some models refuse structured output; the instructions already carry the schema.
-        if (err?.status !== 400 || !/response_format|json_schema|structured/i.test(err.message)) throw err;
-        data = await callOpenRouter({ apiKey, body: buildOpenRouterRequest(task, input, pctx, m, { structured: false }), fetchImpl });
+        // Some models refuse structured output or the reasoning setting; the instructions already carry the schema.
+        if (err?.status !== 400 || !/response_format|json_schema|structured|reasoning/i.test(err.message)) throw err;
+        data = await callOpenRouter({ apiKey, body: buildOpenRouterRequest(task, input, pctx, m, { structured: false, reasoning: false }), fetchImpl });
       }
       return { ...parseResponse(task, fromOpenRouter(data), pctx), model: m };
     } catch (err) {
       lastErr = err;
-      if (err?.status === 404 && !chosen && !/image/i.test(err.message)) continue;
+      if (!err?.friendly) console.warn(`aiWrite: OpenRouter ${m} answered ${err?.status || "?"}: ${String(err?.message || "").slice(0, 300)}`);
+      if (!err?.friendly && !outage && (Number(err?.status) === 429 || Number(err?.status) >= 500)) { outage = err; outageModel = m; }
+      if (!chosen && !err?.friendly && tryNextModel(Number(err?.status)) && !(err.status === 404 && /image/i.test(err.message))) continue;
       break;
     }
   }
+  if (reportedError(lastErr, outage) !== lastErr) { lastErr = outage; lastModel = outageModel; }
   if (lastErr?.friendly) throw lastErr;
   const err = new Error(openRouterErrorMessage(lastErr?.status || 0, lastErr?.message, lastModel));
   err.status = lastErr?.status === 429 ? 429 : 502;
@@ -570,8 +604,9 @@ async function runWithBackup(primary, backup, args, now = Date.now) {
   const order = backup && (restingUntil.get(primary.name) || 0) > now() ? [backup, primary] : [primary, backup].filter(Boolean);
   let firstErr = null;
   for (const provider of order) {
+    if (firstErr && now() > (args.deadline ?? Infinity)) break;
     try {
-      const result = await run(provider, args);
+      const result = await run(provider, { now, ...args });
       return { ...result, provider: provider.name, ...(provider !== primary ? { fellBack: true } : {}) };
     } catch (err) {
       if (firstErr) {
@@ -622,6 +657,7 @@ async function fetchPhoto(url, fetchImpl) {
  * readSettings → { apiKey (Gemini), openrouterKey, openrouterModel, provider, voice }, allow → rate limit.
  */
 async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, siteName = "", bucket = "", now = Date.now }) {
+  const deadline = now() + NEW_TRY_UNTIL_MS;
   const settings = await readSettings();
   const wanted = body?.op === "check" && (body?.provider === "gemini" || body?.provider === "openrouter") ? body.provider : settings?.provider;
   const provider = pickProvider({ ...settings, provider: wanted });
@@ -632,7 +668,7 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
   const ctx = { voice: settings.voice, siteName: clip(body?.siteName, 80) || siteName, titleSuffix: Math.max(0, Math.min(40, Math.floor(Number(body?.titleSuffix)) || 0)) };
   if (body?.op === "check") {
     try {
-      const out = await run(provider, { task: "pageSeo", input: { title: "About the press", text: "We are a small press publishing poetry and artists' books." }, ctx, fetchImpl });
+      const out = await run(provider, { task: "pageSeo", input: { title: "About the press", text: "We are a small press publishing poetry and artists' books." }, ctx, fetchImpl, deadline, now });
       return { status: 200, body: { ok: true, provider: provider.name, model: out.model } };
     } catch (err) {
       return { status: 200, body: { ok: false, provider: provider.name, error: err.message } };
@@ -666,11 +702,11 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
     return { status: 400, body: { error: why[task] || "Give the book a title first." } };
   }
   try {
-    const result = await runWithBackup(provider, backupProvider(settings, provider), { task, input, ctx: { ...ctx, input, ...(image ? { image } : {}) }, fetchImpl }, now);
+    const result = await runWithBackup(provider, backupProvider(settings, provider), { task, input, ctx: { ...ctx, input, ...(image ? { image } : {}) }, fetchImpl, deadline }, now);
     return { status: 200, body: { ok: true, result } };
   } catch (err) {
     return { status: err.status === 429 ? 429 : 502, body: { error: err.message } };
   }
 }
 
-module.exports = { backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
+module.exports = { tryNextModel, reportedError, backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
