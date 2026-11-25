@@ -77,3 +77,15 @@ it('describes the share image, publishes product price tags and drops the static
   expect(document.querySelector('meta[property="product:availability"]')).toBeNull();
   act(() => root.unmount());
 });
+
+it('leaves the server-rendered head untouched while a page asks to keep it, then takes over', () => {
+  const root = createRoot(document.createElement('div'));
+  function Page(props: any) { useSEO(props); return null; }
+  setSiteIdentity({ copy: { siteTitleFormat: '{title} | Press' } });
+  document.title = 'The Hound by Ian Willms | Press';
+  act(() => root.render(<MemoryRouter><Page title="Publication" keep /></MemoryRouter>));
+  expect(document.title).toBe('The Hound by Ian Willms | Press');
+  act(() => root.render(<MemoryRouter><Page title="The Hound" /></MemoryRouter>));
+  expect(document.title).toBe('The Hound | Press');
+  act(() => root.unmount());
+});
