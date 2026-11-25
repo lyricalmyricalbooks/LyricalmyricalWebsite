@@ -66,7 +66,7 @@ describe("merchantFeedItems", () => {
 
   it("describes a book the way Google expects", () => {
     expect(byId.a).toMatchObject({
-      title: "Salt Hours by Zoe Moss", creators: ["Zoe Moss"], description: "Poems & tides", link: `${SITE}/books/salt-hours`, image: "https://img.test/a.jpg",
+      title: "Salt Hours by Zoe Moss", creators: ["Zoe Moss"], description: "Poems & tides\n\nPublished by Lyrical Press.", link: `${SITE}/books/salt-hours`, image: "https://img.test/a.jpg",
       additionalImages: ["https://img.test/a-back.jpg"], price: "24.00 CAD", availability: "in_stock", gtin: "9780306406157",
       brand: "Lyrical Press", productType: "Poetry", googleCategory: "Media > Books > Print Books", condition: "new",
     });
@@ -107,6 +107,20 @@ describe("artist names in the feed", () => {
     expect(items.map((i: any) => i.title)).toEqual(["The Hound by Ian Willms", "Ian Willms: Notes", "Collections #1"]);
     const xml = merchantFeedXml("https://shop.test", items);
     expect(xml).toContain("<g:product_detail><g:section_name>Book</g:section_name><g:attribute_name>Author</g:attribute_name><g:attribute_value>Ian Willms</g:attribute_value></g:product_detail>");
-    expect(xml.match(/<g:product_detail>/g)).toHaveLength(2);
+    // Each item names its publisher (3); only the two Ian Willms books name an Author.
+    expect(xml.match(/<g:attribute_name>Publisher<\/g:attribute_name><g:attribute_value>Lyricalmyrical Books</g)).toHaveLength(3);
+    expect(xml.match(/<g:attribute_name>Author</g)).toHaveLength(2);
+  });
+  it("names the press in every description so a search for it finds the books", () => {
+    const books = [
+      { id: "p", title: "Plain", description: "Quiet landscapes.", retailPrice: 10, photos: [{ url: "https://img.test/p.jpg" }] },
+      { id: "q", title: "Named", description: "The first photobook from Lyricalmyrical Books.", retailPrice: 10, photos: [{ url: "https://img.test/q.jpg" }] },
+      { id: "r", title: "Long", description: "word ".repeat(1500), retailPrice: 10, photos: [{ url: "https://img.test/r.jpg" }] },
+    ];
+    const byId = Object.fromEntries(merchantFeedItems("https://shop.test", books, { now: new Date("2026-10-18T12:00:00Z") }).items.map((i: any) => [i.id, i]));
+    expect(byId.p.description).toBe("Quiet landscapes.\n\nPublished by Lyricalmyrical Books.");
+    expect(byId.q.description).toBe("The first photobook from Lyricalmyrical Books.");
+    expect(byId.r.description.length).toBeLessThanOrEqual(5000);
+    expect(byId.r.description.endsWith("Published by Lyricalmyrical Books.")).toBe(true);
   });
 });
