@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { saleActive, preorderDate } from '../src/app/features/site/merchantFeed.mjs';
+import { withShownPhotos } from '../src/app/features/site/shownPhotos.mjs';
 
 export function decodeValue(value = {}) {
   if ('mapValue' in value) return Object.fromEntries(Object.entries(value.mapValue.fields || {}).map(([key, child]) => [key, decodeValue(child)]));
@@ -55,7 +56,8 @@ export async function readPublishedBooks(endpoint, fetchImpl = fetch, size = 300
     if (!response.ok) throw new Error(`Public data read failed: ${response.status}`);
     const rows = await response.json();
     const documents = (Array.isArray(rows) ? rows : []).filter(row => row && row.document).map(row => row.document);
-    books.push(...documents.map(decodeDocument));
+    // Images hidden in the admin never reach the sitemap, the Merchant feed or llms.txt.
+    books.push(...documents.map(decodeDocument).map(withShownPhotos));
     if (documents.length < size) return books;
     after = documents.at(-1).name;
   }

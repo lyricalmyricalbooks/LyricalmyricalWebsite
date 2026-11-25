@@ -1287,7 +1287,7 @@ async function priceOrder(order, { orderId = "", settings: knownSettings = null 
     if (!Number.isFinite(price) || price < 0) return null;
     return {
       id: offer.giftBookId, variantId: offer.giftVariantId || null, title: giftBook.title || "", variantName: giftVariant?.name || null,
-      quantity: 1, price, promoGift: true, photoUrl: giftVariant?.photoUrl || giftBook.photos?.[0]?.url || "",
+      quantity: 1, price, promoGift: true, photoUrl: giftVariant?.photoUrl || giftBook.photos?.find((p) => p && p.hidden !== true)?.url || "",
       format: catalogFormat(giftBook, giftVariant), digital: catalogDigital(giftBook, giftVariant), isDigital: catalogDigital(giftBook, giftVariant),
       shippingProfileId: giftBook.shippingProfileId || null, weightGrams: itemWeightGrams(giftBook, giftVariant), ...preorderLine(giftBook),
     };

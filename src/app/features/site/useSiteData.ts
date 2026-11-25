@@ -1,4 +1,5 @@
 import { useLocation } from "react-router";
+import { withShownPhotos } from "./shownPhotos.mjs";
 import { consentAllows, CONSENT_EVENT } from "../../lib/consent";
 import { isLiveBook } from "./liveBook";
 import { resolveSurfaceDesign } from "./surfaceDesign";
@@ -259,7 +260,7 @@ export function useSiteData() {
     const now = new Date().toISOString();
     const visible = studioPreview ? books : books.filter(book => isLiveBook(book as any, now));
     // Box sets show the stock their books allow (parts are read from the whole catalog, drafts included, like the server).
-    return resolveProductRoutes(withBundleStock(visible, books)).map(applyBackorderPolicy);
+    return resolveProductRoutes(withBundleStock(visible, books)).map(applyBackorderPolicy).map(withShownPhotos);
   }, [books, studioPreview]);
 
   return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading, fresh, loadError, retry };

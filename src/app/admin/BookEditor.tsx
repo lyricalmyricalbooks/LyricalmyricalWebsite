@@ -27,7 +27,7 @@ import {
   Sparkles,
   Undo2,
   Play,
-  Film, Crop } from "lucide-react";
+  Film, Crop, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 import { 
   DndContext, 
@@ -68,6 +68,7 @@ import { studioHash } from "../lib/studioLocation";
 import { BookSeoPane } from "./BookSeoPane";
 import { askAi, bookAiInput, photoAiUrl, runPool, DESCRIBE_AT_ONCE } from "./aiWriter";
 import { describedAlt } from "../features/site/photoAlt";
+import { isHiddenPhoto, shownPhotos } from "../features/site/shownPhotos.mjs";
 import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/site/preorder";
 import { DEFAULT_CUSTOMS_DESCRIPTION, DEFAULT_HS_CODE, validHsCode } from "./customsFields";
 import { AddOnsEditor, BoxSetEditor, ProductTypeCard, SaleWindowFields } from "./BookEditorExtras";
@@ -84,23 +85,28 @@ import { DETAILS_FIELD_TAB, detailsSubTabs, shownDetailsSubTab, type DetailsSubT
 import { addOnProblems, bundleProblems, giftCardProblems, isBoxSet, isGiftCardProduct, productForSave, saleStatus, saleWindowProblem } from "./productExtras";
 
 const MAX_BOOK_PHOTOS = 50;
+/** The photo shown on the website again (no `hidden` key left behind). */
+const showPhoto = ({ hidden: _hidden, ...photo }: any) => photo;
 
 type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "addons" | "boxset" | "organize" | "more" | "seo";
 
-function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover, onCrop, onDescribe, describing, aiLocked }: {
-  photo: any; index: number; onRemove: (id: string) => void; onAlt: (id: string, alt: string) => void; onMakeCover: (id: string) => void;
-  onCrop: (id: string) => void; onDescribe: (id: string) => void; describing: boolean; aiLocked: boolean;
+function SortablePhoto({ photo, index, coverIndex, onlyShown, onRemove, onAlt, onMakeCover, onToggleHidden, onCrop, onDescribe, describing, aiLocked }: {
+  photo: any; index: number; coverIndex: number; onlyShown: boolean; onRemove: (id: string) => void; onAlt: (id: string, alt: string) => void; onMakeCover: (id: string) => void;
+  onToggleHidden: (id: string) => void; onCrop: (id: string) => void; onDescribe: (id: string) => void; describing: boolean; aiLocked: boolean;
 }) {
+  // Hidden images stay on the book here but never reach the shop; the first shown image is the shop's cover.
+  const hidden = isHiddenPhoto(photo);
+  const label = isVideoItem(photo) ? `video ${index + 1}` : `image ${index + 1}`;
   const fileNameAlt = !isVideoItem(photo) && !!String(photo.altText || "").trim() && !describedAlt(photo.altText);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: photo.id });
   const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 2 : 1, opacity: isDragging ? 0.6 : 1 };
   return (
-    <div ref={setNodeRef} style={style} className="be-photo">
+    <div ref={setNodeRef} style={style} className={`be-photo${hidden ? " is-hidden" : ""}`}>
       <div className="be-photo-img">
         <img src={smallPhotoUrl(photo, 480 * (photoFraming(photo)?.zoom || 1))} alt={photo.altText || ""} style={framingStyle(photo)} />
         <PhotoToneDefs photo={photo} />
         {(photoFraming(photo) || photoAdjust(photo)) && <span className="be-photo-framed">{photoFraming(photo) && photoAdjust(photo) ? "Cropped · edited" : photoFraming(photo) ? "Cropped" : "Edited"}</span>}
-        <span className="be-photo-badge">{index === 0 ? "Cover" : isVideoItem(photo) ? `Video · ${index + 1}` : `Image ${index + 1}`}</span>
+        <span className="be-photo-badge">{hidden ? "Hidden" : index === coverIndex ? "Cover" : isVideoItem(photo) ? `Video · ${index + 1}` : `Image ${index + 1}`}</span>
         {isVideoItem(photo) && (
           <a className="be-photo-play" href={photo.videoUrl} target="_blank" rel="noopener noreferrer" aria-label={`Play video ${index + 1} in a new tab`}>
             <Play size={18} aria-hidden />
@@ -120,7 +126,12 @@ function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover, onCrop, onD
           </button>
         )}
         {!isVideoItem(photo) && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onCrop(photo.id)} aria-label={`Crop and edit ${index === 0 ? "the cover" : `image ${index + 1}`}`}><Crop size={13} aria-hidden /> Crop & edit</button>}
-        {index !== 0 && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onMakeCover(photo.id)}>Make cover</button>}
+        {index !== coverIndex && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onMakeCover(photo.id)}>Make cover</button>}
+        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onToggleHidden(photo.id)} aria-pressed={hidden}
+          disabled={!hidden && onlyShown} title={!hidden && onlyShown ? "The shop needs one image" : undefined}
+          aria-label={hidden ? `Show ${label} on the website` : `Hide ${label} from the website`}>
+          {hidden ? <Eye size={13} aria-hidden /> : <EyeOff size={13} aria-hidden />} {hidden ? "Show" : "Hide"}
+        </button>
         <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onRemove(photo.id)}><Trash2 size={13} aria-hidden /> Remove</button>
       </div>
     </div>
@@ -1112,7 +1123,11 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const activePrice = saleNow ? num(formData.salePrice) : num(formData.retailPrice);
   const marginPct = activePrice > 0 ? ((activePrice - num(formData.costPrice)) / activePrice) * 100 : 0;
   const salePct = formData.isOnSale && num(formData.retailPrice) > 0 ? Math.round((1 - num(formData.salePrice) / num(formData.retailPrice)) * 100) : 0;
-  const cover = formData.photos?.[0]?.url as string | undefined;
+  // The shop's cover is the first image not hidden (features/site/shownPhotos.mjs).
+  const shownList: any[] = shownPhotos(formData.photos || []);
+  const shownCount = shownList.length;
+  const coverIndex = (formData.photos || []).findIndex((p: any) => !isHiddenPhoto(p));
+  const cover = shownList[0]?.url as string | undefined;
   const isbnWarn = isbnWarning(formData.isbn) || undefined;
   const addressLocked = slugLocked(initialData, slugUnlocked);
   const slugWarn =slugClash(formData.slug, book?.id, recommendationCatalog);
@@ -1121,7 +1136,7 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
   const checklist = [
     { label: "Title", ok: !!formData.title?.trim(), tab: "details" as BookTab, field: "title" },
     { label: "Description", ok: (formData.description || "").trim().length >= 40, tab: "details" as BookTab, field: "description" },
-    { label: "Cover image", ok: (formData.photos || []).length > 0, tab: "media" as BookTab },
+    { label: "Cover image", ok: shownCount > 0, tab: "media" as BookTab },
     { label: "Price above $0", ok: num(formData.retailPrice) > 0 || (formData.variants || []).some((v: any) => num(v.price) > 0), tab: "pricing" as BookTab },
     { label: "ISBN or SKU", ok: !!(formData.isbn || formData.sku), tab: "details" as BookTab, field: "isbn" },
     { label: "Category", ok: (formData.categories || []).length > 0, tab: "organize" as BookTab },
@@ -1443,11 +1458,12 @@ export function BookEditor({ book: bookProp, onClose, onSave, prefill = null, on
                   <div className="be-photos">
                     <SortableContext items={formData.photos.map((p: any) => p.id)} strategy={rectSortingStrategy}>
                       {formData.photos.map((photo: any, i: number) => (
-                        <SortablePhoto key={photo.id} photo={photo} index={i} onRemove={removePhoto}
+                        <SortablePhoto key={photo.id} photo={photo} index={i} coverIndex={coverIndex} onlyShown={shownCount === 1} onRemove={removePhoto}
                           onAlt={(id, alt) => setFormData((prev: any) => ({ ...prev, photos: prev.photos.map((p: any) => (p.id === id ? { ...p, altText: alt } : p)) }))}
                           onCrop={setCropId}
                           onDescribe={describeOne} describing={describingIds.has(photo.id)} aiLocked={describingIds.size > 0}
-                          onMakeCover={(id) => setFormData((prev: any) => { const p = prev.photos.find((x: any) => x.id === id); return { ...prev, photos: [p, ...prev.photos.filter((x: any) => x.id !== id)] }; })} />
+                          onMakeCover={(id) => setFormData((prev: any) => { const p = prev.photos.find((x: any) => x.id === id); return { ...prev, photos: [showPhoto(p), ...prev.photos.filter((x: any) => x.id !== id)] }; })}
+                          onToggleHidden={(id) => setFormData((prev: any) => ({ ...prev, photos: prev.photos.map((p: any) => (p.id !== id ? p : isHiddenPhoto(p) ? showPhoto(p) : { ...p, hidden: true })) }))} />
                       ))}
                     </SortableContext>
                     {formData.photos.length < MAX_BOOK_PHOTOS && (
