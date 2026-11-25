@@ -86,6 +86,35 @@ describe("AI writing assistant (Gemini)", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(3);
   });
 
+  it("reports a busy model, not \"check the key\", when a later one is retired, and lets the backup AI take over", async () => {
+    resetProviderRest();
+    const busy = () => reply(503, { error: { status: "UNAVAILABLE", message: "The model is overloaded." } });
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(busy()).mockResolvedValueOnce(busy())
+      .mockResolvedValueOnce(reply(404, { error: { status: "NOT_FOUND", message: "models/gemini-2.5-flash is not found" } }));
+    const alone = await generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl }).catch(e => e);
+    expect(alone.message).toMatch(/busy/);
+    expect(worthBackup(alone)).toBe(true);
+
+    const OR_KEY = "sk-or-v1-" + "a".repeat(40);
+    const both = vi.fn()
+      .mockResolvedValueOnce(busy()).mockResolvedValueOnce(busy())
+      .mockResolvedValueOnce(reply(404, { error: { status: "NOT_FOUND", message: "gone" } }))
+      .mockResolvedValueOnce(reply(200, { choices: [{ message: { content: JSON.stringify({ seoTitle: "About", metaDescription: "Who we are." }) }, finish_reason: "stop" }] }));
+    const out = await handleAiWrite({ task: "pageSeo", input: { title: "About" } }, deps({ fetchImpl: both, readSettings: async () => ({ apiKey: KEY, openrouterKey: OR_KEY, provider: "gemini" }) }));
+    expect(out.status).toBe(200);
+    expect(out.body.result).toMatchObject({ provider: "openrouter", fellBack: true });
+    resetProviderRest();
+  });
+
+  it("stops trying more models once the request has run long, so it answers before the server's time limit", async () => {
+    let t = 0;
+    const fetchImpl = vi.fn(async () => { t += 20000; return reply(500, { error: { status: "INTERNAL", message: "slow failure" } }); });
+    const err = await generate({ apiKey: KEY, task: "pageSeo", input: { title: "About" }, fetchImpl, deadline: 30000, now: () => t }).catch(e => e);
+    expect(err.message).toMatch(/busy/);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
   it("asks again without the thinking setting when a model refuses it", async () => {
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(reply(400, { error: { status: "INVALID_ARGUMENT", message: "Thinking level is not supported for this model." } }))

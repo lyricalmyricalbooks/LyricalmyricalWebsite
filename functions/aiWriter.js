@@ -14,6 +14,12 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_MODELS = ["~google/gemini-flash-latest", "google/gemini-3.6-flash", "openai/gpt-4o-mini"];
 /** Pure: a failure that may not happen on another model (retired, out of allowance, down), as opposed to one about the request or the key. */
 const tryNextModel = status => status === 404 || status === 429 || (status >= 500 && status !== 504);
+/** Pure: what to report after trying several models. A busy or used-up model (429/5xx) outranks a later 404, so
+ * "busy" isn't reported as "check the key" and the backup AI still takes over. */
+const reportedError = (lastErr, outage) => (outage && Number(lastErr?.status) === 404 ? outage : lastErr);
+// A request stops trying further models (and the backup AI) once this long has passed, so with one more call
+// (25 seconds at most) it still answers within the function's 60 seconds.
+const NEW_TRY_UNTIL_MS = 30 * 1000;
 const VOICE_MAX = 1000;
 
 const clip = (v, max) => (typeof v === "string" ? v.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ").trim().slice(0, max) : "");
@@ -409,10 +415,12 @@ async function callGemini({ apiKey, model, body, fetchImpl }) {
 }
 
 /** One task through the first model Google still serves. */
-async function generate({ apiKey, task, input, ctx = {}, models = MODELS, fetchImpl = fetch }) {
+async function generate({ apiKey, task, input, ctx = {}, models = MODELS, fetchImpl = fetch, deadline = Infinity, now = Date.now }) {
   let lastErr = null;
+  let outage = null;
   let sawQuota = false;
   for (const model of models) {
+    if (lastErr && now() > deadline) break;
     try {
       let data;
       try {
@@ -428,10 +436,12 @@ async function generate({ apiKey, task, input, ctx = {}, models = MODELS, fetchI
       if (!err?.friendly) console.warn(`aiWrite: Gemini ${model} answered ${err?.status || "?"} ${err?.googleStatus || ""}: ${String(err?.message || "").slice(0, 300)}`);
       // Free-tier allowances are counted per model, so a used-up one may leave the next model with room.
       if (err?.status === 429 || err?.googleStatus === "RESOURCE_EXHAUSTED") { sawQuota = true; continue; }
+      if (!err?.friendly && Number(err?.status) >= 500) outage = outage || err;
       if (err?.googleStatus === "NOT_FOUND" || (!err?.friendly && tryNextModel(Number(err?.status)))) continue;
       break;
     }
   }
+  lastErr = reportedError(lastErr, outage);
   if (sawQuota && lastErr?.status !== 429) lastErr = Object.assign(new Error("quota"), { status: 429, googleStatus: "RESOURCE_EXHAUSTED" });
   if (lastErr?.friendly) throw lastErr;
   const err = new Error(lastErr?.status === 404 ? "None of the Gemini models the shop knows are available to this key. Check the key in Google AI Studio." : aiErrorMessage(lastErr?.status || 0, lastErr?.googleStatus, lastErr?.message));
@@ -452,8 +462,8 @@ function toJsonSchema(schema) {
   return out;
 }
 
-/** Pure: the chat-completions request body for one task. `structured: false` leaves out response_format (for models that refuse it). */
-function buildOpenRouterRequest(task, input, ctx = {}, model = OPENROUTER_MODELS[0], { structured = true } = {}) {
+/** Pure: the chat-completions request body for one task. `structured: false` / `reasoning: false` leave out response_format / reasoning (for models that refuse them). */
+function buildOpenRouterRequest(task, input, ctx = {}, model = OPENROUTER_MODELS[0], { structured = true, reasoning = true } = {}) {
   const spec = TASKS[task];
   const schema = toJsonSchema(spec.schemaFor ? spec.schemaFor(input || {}) : spec.schema);
   const text = spec.prompt(input || {}, ctx);
@@ -466,7 +476,7 @@ function buildOpenRouterRequest(task, input, ctx = {}, model = OPENROUTER_MODELS
     temperature: 0.7,
     max_tokens: task === "rewrite" || task === "sectionDraft" ? 8192 : 4096,
     // Short answers: keep any thinking brief and out of the reply (models that don't think ignore this).
-    reasoning: { effort: "low", exclude: true },
+    ...(reasoning ? { reasoning: { effort: "low", exclude: true } } : {}),
     ...(structured ? { response_format: { type: "json_schema", json_schema: { name: task, strict: false, schema } } } : {}),
   };
 }
@@ -521,31 +531,36 @@ async function callOpenRouter({ apiKey, body, fetchImpl }) {
 }
 
 /** One task through OpenRouter: the owner's model, else the first default model OpenRouter still offers. */
-async function generateOpenRouter({ apiKey, model, task, input, ctx = {}, fetchImpl = fetch }) {
+async function generateOpenRouter({ apiKey, model, task, input, ctx = {}, fetchImpl = fetch, deadline = Infinity, now = Date.now }) {
   const chosen = String(model || "").trim();
   const models = chosen ? [chosen] : OPENROUTER_MODELS;
   const pctx = { ...ctx, aiName: "The AI" };
   let lastErr = null;
+  let outage = null;
   let lastModel = "";
+  let outageModel = "";
   for (const m of models) {
+    if (lastErr && now() > deadline) break;
     lastModel = m;
     try {
       let data;
       try {
         data = await callOpenRouter({ apiKey, body: buildOpenRouterRequest(task, input, pctx, m), fetchImpl });
       } catch (err) {
-        // Some models refuse structured output; the instructions already carry the schema.
-        if (err?.status !== 400 || !/response_format|json_schema|structured/i.test(err.message)) throw err;
-        data = await callOpenRouter({ apiKey, body: buildOpenRouterRequest(task, input, pctx, m, { structured: false }), fetchImpl });
+        // Some models refuse structured output or the reasoning setting; the instructions already carry the schema.
+        if (err?.status !== 400 || !/response_format|json_schema|structured|reasoning/i.test(err.message)) throw err;
+        data = await callOpenRouter({ apiKey, body: buildOpenRouterRequest(task, input, pctx, m, { structured: false, reasoning: false }), fetchImpl });
       }
       return { ...parseResponse(task, fromOpenRouter(data), pctx), model: m };
     } catch (err) {
       lastErr = err;
       if (!err?.friendly) console.warn(`aiWrite: OpenRouter ${m} answered ${err?.status || "?"}: ${String(err?.message || "").slice(0, 300)}`);
+      if (!err?.friendly && !outage && (Number(err?.status) === 429 || Number(err?.status) >= 500)) { outage = err; outageModel = m; }
       if (!chosen && !err?.friendly && tryNextModel(Number(err?.status)) && !(err.status === 404 && /image/i.test(err.message))) continue;
       break;
     }
   }
+  if (reportedError(lastErr, outage) !== lastErr) { lastErr = outage; lastModel = outageModel; }
   if (lastErr?.friendly) throw lastErr;
   const err = new Error(openRouterErrorMessage(lastErr?.status || 0, lastErr?.message, lastModel));
   err.status = lastErr?.status === 429 ? 429 : 502;
@@ -589,8 +604,9 @@ async function runWithBackup(primary, backup, args, now = Date.now) {
   const order = backup && (restingUntil.get(primary.name) || 0) > now() ? [backup, primary] : [primary, backup].filter(Boolean);
   let firstErr = null;
   for (const provider of order) {
+    if (firstErr && now() > (args.deadline ?? Infinity)) break;
     try {
-      const result = await run(provider, args);
+      const result = await run(provider, { now, ...args });
       return { ...result, provider: provider.name, ...(provider !== primary ? { fellBack: true } : {}) };
     } catch (err) {
       if (firstErr) {
@@ -641,6 +657,7 @@ async function fetchPhoto(url, fetchImpl) {
  * readSettings → { apiKey (Gemini), openrouterKey, openrouterModel, provider, voice }, allow → rate limit.
  */
 async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, siteName = "", bucket = "", now = Date.now }) {
+  const deadline = now() + NEW_TRY_UNTIL_MS;
   const settings = await readSettings();
   const wanted = body?.op === "check" && (body?.provider === "gemini" || body?.provider === "openrouter") ? body.provider : settings?.provider;
   const provider = pickProvider({ ...settings, provider: wanted });
@@ -651,7 +668,7 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
   const ctx = { voice: settings.voice, siteName: clip(body?.siteName, 80) || siteName, titleSuffix: Math.max(0, Math.min(40, Math.floor(Number(body?.titleSuffix)) || 0)) };
   if (body?.op === "check") {
     try {
-      const out = await run(provider, { task: "pageSeo", input: { title: "About the press", text: "We are a small press publishing poetry and artists' books." }, ctx, fetchImpl });
+      const out = await run(provider, { task: "pageSeo", input: { title: "About the press", text: "We are a small press publishing poetry and artists' books." }, ctx, fetchImpl, deadline, now });
       return { status: 200, body: { ok: true, provider: provider.name, model: out.model } };
     } catch (err) {
       return { status: 200, body: { ok: false, provider: provider.name, error: err.message } };
@@ -685,11 +702,11 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
     return { status: 400, body: { error: why[task] || "Give the book a title first." } };
   }
   try {
-    const result = await runWithBackup(provider, backupProvider(settings, provider), { task, input, ctx: { ...ctx, input, ...(image ? { image } : {}) }, fetchImpl }, now);
+    const result = await runWithBackup(provider, backupProvider(settings, provider), { task, input, ctx: { ...ctx, input, ...(image ? { image } : {}) }, fetchImpl, deadline }, now);
     return { status: 200, body: { ok: true, result } };
   } catch (err) {
     return { status: err.status === 429 ? 429 : 502, body: { error: err.message } };
   }
 }
 
-module.exports = { tryNextModel, backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
+module.exports = { tryNextModel, reportedError, backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };

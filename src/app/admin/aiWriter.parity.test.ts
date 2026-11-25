@@ -7,7 +7,7 @@ const server = createRequire(import.meta.url)("../../../functions/aiWriter.js");
 // The Settings card checks keys before saving; the server checks them again before use. Same answers.
 describe("AI key rules match the server", () => {
   const keys = ["AIza" + "x".repeat(35), "sk-or-v1-" + "a".repeat(64), "sk-or-short", "not a key", "sk-proj-" + "b".repeat(40)];
-  const models = ["google/gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct:free", "openrouter/auto", "gpt 4", "x", "https://evil/x", "a/" + "b".repeat(130)];
+  const models = ["google/gemini-2.5-flash", "~google/gemini-flash-latest", "~bad",  "meta-llama/llama-3.3-70b-instruct:free", "openrouter/auto", "gpt 4", "x", "https://evil/x", "a/" + "b".repeat(130)];
 
   it("agrees on Google and OpenRouter keys", () => {
     for (const k of keys) {
