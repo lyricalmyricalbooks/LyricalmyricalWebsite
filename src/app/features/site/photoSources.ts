@@ -46,12 +46,19 @@ export const PDP_PHOTO_SIZES = "(max-width: 1023px) 100vw, 900px";
  * (`maxWidth`, 320–900 px), so any screen wider than that is offered the copy for that width, plus 10% for the hover
  * zoom, never more than PDP_PHOTO_SIZES' 900px. A photo cropped to fill its frame ("cover") is drawn wider than the
  * frame when it is wider in shape (`photoRatio` > `frameRatio`), so the width grows by that much. Narrower screens
- * keep full width, as before. Unknown shapes leave the width at the frame's.
+ * are offered the page column: `pageVw` (the content width as a share of the screen, 100 unless Style › Layout uses
+ * side margins) minus the page's side padding `gutter` (BookDetail's `px-6`, 48px). Saying "100vw" there made phones
+ * download the next copy up (960 px instead of 640 px on a typical phone, 25 November 2026). Unknown shapes leave the
+ * width at the frame's.
  */
-export function pdpPhotoSizes({ maxWidth, photoRatio, frameRatio, cover }: { maxWidth: number; photoRatio?: number; frameRatio?: number; cover: boolean }): string {
+export function pdpPhotoSizes({ maxWidth, photoRatio, frameRatio, cover, pageVw = 100, gutter = 48 }: { maxWidth: number; photoRatio?: number; frameRatio?: number; cover: boolean; pageVw?: number; gutter?: number }): string {
   const frame = Math.max(320, Math.min(900, Number(maxWidth) || 560));
   const stretch = cover && photoRatio && frameRatio && photoRatio > frameRatio ? photoRatio / frameRatio : 1;
-  return `(max-width: ${frame}px) 100vw, ${Math.min(900, Math.ceil(Math.round(frame * stretch * 110) / 100))}px`;
+  const vw = Math.max(1, Math.min(100, Number(pageVw) || 100));
+  const pad = Math.max(0, Number(gutter) || 0);
+  const column = pad ? `${vw}vw - ${pad}px` : `${vw}vw`;
+  const narrow = stretch === 1 ? (pad ? `calc(${column})` : column) : `calc((${column}) * ${Math.ceil(stretch * 1000) / 1000})`;
+  return `(max-width: ${frame}px) ${narrow}, ${Math.min(900, Math.ceil(Math.round(frame * stretch * 110) / 100))}px`;
 }
 /** Featured product / book spotlight sections: half the page beside the text, full width on phones. */
 export const FEATURE_PHOTO_SIZES = "(max-width: 767px) 100vw, 600px";

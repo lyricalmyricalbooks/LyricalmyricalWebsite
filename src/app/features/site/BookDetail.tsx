@@ -17,7 +17,7 @@ import { useCart, catalogUnitPrice, lineQuantityCap, backorderable } from "../..
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
 import { StoreHeader } from "./StoreHeader";
-import { contentMaxWidth } from "./headerNav";
+import { contentMaxWidth, contentSideMargin, contentWidthMode, isFullWidth } from "./headerNav";
 import { StoreFooter } from "./StoreFooter";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 import { SectionPageContext } from "../../components/sectionCopy";
@@ -224,11 +224,15 @@ export default function BookDetail() {
   // A measured shape wins over the saved one (it is what the shopper sees); they agree for every normal photo.
   const frameFor = (url: string | undefined) =>
     frameAspect(productFrameMode, url ? (photoRatios[url] ?? savedRatios[url]) : undefined, productImageAspect, storefrontDesign.productImageAspectLandscape);
+  // On phones the photo fills the page column: the screen less Style › Layout's side margins (a fixed content width is
+  // always wider than a phone), less the page padding pdpPhotoSizes subtracts.
+  const widthDesign = { ...(settings?.design || {}), ...(storefrontDesign || {}) };
+  const photoPageVw = !isFullWidth(widthDesign) && contentWidthMode(widthDesign) === "margins" ? 100 - 2 * contentSideMargin(widthDesign) : 100;
   // The main photo's `sizes` uses the saved shape only, so it never changes (and re-downloads) as photos load.
   const photoSizes = (photo: any) => {
     const ratio = photo?.url ? savedRatios[photo.url] : undefined;
     const frame = aspectNumber(frameAspect(productFrameMode, ratio, productImageAspect, storefrontDesign.productImageAspectLandscape));
-    return pdpPhotoSizes({ maxWidth: productImageMaxWidth, photoRatio: ratio, frameRatio: frame, cover: productImageFit === "cover" });
+    return pdpPhotoSizes({ maxWidth: productImageMaxWidth, photoRatio: ratio, frameRatio: frame, cover: productImageFit === "cover", pageVw: photoPageVw });
   };
   const productDetailsLayout   = storefrontDesign.productDetailsLayout   || "tabs";
   const productCtaAnimation    = storefrontDesign.productCtaAnimation    || "none";
