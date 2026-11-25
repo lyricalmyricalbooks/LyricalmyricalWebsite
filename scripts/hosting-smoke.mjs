@@ -108,8 +108,9 @@ if (existsSync(resolve(dist, 'prerender-routes.xml'))) {
   }
 }
 
-// App routes without a prerendered page get the app shell with 200; private pages also carry X-Robots-Tag: noindex.
-check('/books/zz-hosting-smoke-not-a-book', appShell);
+// A book that isn't published (no prerendered file) is a real 404 that still boots the app.
+check('/books/zz-hosting-smoke-not-a-book', { status: 404, body: shell, bodyName: 'the app shell (404.html)', security: true });
+// Private app routes get the app shell with 200 and X-Robots-Tag: noindex.
 for (const path of ['/account', '/account/orders', '/admin', '/checkout?cartId=smoke', '/track?orderId=smoke&key=smoke', '/wishlist']) {
   check(path, { ...appShell, noindex: true });
 }
