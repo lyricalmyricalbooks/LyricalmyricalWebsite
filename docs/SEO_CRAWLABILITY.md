@@ -29,8 +29,8 @@ starts normally and continues loading live catalog and checkout data.
   Firebase Hosting at `https://lyricalmyrical-web-v2.web.app` (site at the root).
   `cleanUrls` serves `books/<slug>.html` at `/books/<slug>` with HTTP 200 and
   `trailingSlash: false` 301-redirects `/books/<slug>/` and `/books/<slug>.html` to
-  the slash-less canonical; collections and private app routes get `spa.html` (the clean
-  app shell); a book or page without a snapshot and any unknown URL get a real 404 (`404.html` is the same shell). The old
+  the slash-less canonical; `/collections/all` and private app routes get `spa.html` (the clean
+  app shell); a book, page or collection without a snapshot and any unknown URL get a real 404 (`404.html` is the same shell). The old
   GitHub Pages address serves forwarding pages whose canonical links name the new
   pages (docs/FIREBASE_HOSTING.md).
 

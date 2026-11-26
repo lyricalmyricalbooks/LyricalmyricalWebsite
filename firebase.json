@@ -46,7 +46,7 @@
     ],
     "rewrites": [
       {
-        "regex": "^/(?:collections/[^/]+/?|(?:account|admin)(?:/.*)?|cart|checkout|track|wishlist)$",
+        "regex": "^/(?:collections/all/?|(?:account|admin)(?:/.*)?|cart|checkout|track|wishlist)$",
         "destination": "/spa.html"
       }
     ],
