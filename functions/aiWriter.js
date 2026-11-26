@@ -1,7 +1,9 @@
-// AI writing assistant: Google Gemini (free AI Studio key) or OpenRouter (one key for many models). Admin-only:
+// AI writing assistant: Google Gemini (free AI Studio key), OpenRouter (one key for many models) or Claude
+// (prepaid Anthropic credits, functions/aiClaude.js). Admin-only:
 // the keys live in the admin-only adminSecrets/ai doc and are used only here, through createStripeCheckoutSession
 // `action: "aiWrite"`.
 // Every answer is a suggestion the owner reviews in the editor; nothing here writes to Firestore.
+const { claudeKeyProblem, claudeModelFor, claudeCap, claudeRestReason, restError, fromClaude, callClaude } = require("./aiClaude");
 const API_ROOT = "https://generativelanguage.googleapis.com/v1beta/models/";
 // Tried in order; a model Google has retired (404), has no allowance left (429), is down (5xx) or too slow moves on.
 // The "-latest" aliases follow Google's newest models, so the list doesn't go stale when a version is retired.
@@ -574,26 +576,77 @@ async function generateOpenRouter({ apiKey, model, task, input, ctx = {}, fetchI
   throw err;
 }
 
-/** Which AI writes: the owner's choice when its key is saved, else OpenRouter when its key is saved, else Gemini. */
+/** Pure: the Messages API request body for one task (structured output, so the answer is always the task's JSON). */
+function buildClaudeRequest(task, input, ctx = {}, model = claudeModelFor("quick")) {
+  const spec = TASKS[task];
+  const schema = toJsonSchema(spec.schemaFor ? spec.schemaFor(input || {}) : spec.schema);
+  const text = spec.prompt(input || {}, ctx);
+  return {
+    model,
+    max_tokens: task === "rewrite" || task === "sectionDraft" ? 8192 : 4096,
+    system: systemText(ctx.voice, task),
+    messages: [{ role: "user", content: ctx.image
+      ? [{ type: "image", source: { type: "base64", media_type: ctx.image.mimeType, data: ctx.image.data } }, { type: "text", text }]
+      : text }],
+    // Short shop copy: little thinking needed, which also keeps each draft cheap.
+    output_config: { effort: "low", format: { type: "json_schema", schema } },
+  };
+}
+
+/** One task through Claude (the owner's Quick or Best writing model). */
+async function generateClaude({ apiKey, model, task, input, ctx = {}, fetchImpl = fetch, onCost }) {
+  const cctx = { ...ctx, aiName: "Claude" };
+  try {
+    const message = await callClaude({ apiKey, body: buildClaudeRequest(task, input, cctx, model), fetchImpl, onCost });
+    if (message.stop_reason === "refusal") throw Object.assign(new Error("Claude declined to write this one. Try again, or change the wording."), { status: 422, friendly: true });
+    return { ...parseResponse(task, fromClaude(message), cctx), model };
+  } catch (err) {
+    if (!err?.friendly) console.warn(`aiWrite: Claude ${model} answered ${err?.upstreamStatus || err?.status || "?"}: ${String(err?.message || "").slice(0, 300)}`);
+    throw err;
+  }
+}
+
+/** Which AI writes: the owner's choice when its key is saved, else OpenRouter, else Gemini, else Claude. */
 function pickProvider(settings) {
+  const options = savedProviders(settings);
+  return options[settings?.provider] || options.openrouter || options.gemini || options.claude || null;
+}
+
+/** Every AI whose key is saved and looks right. */
+function savedProviders(settings) {
   const gemini = String(settings?.apiKey || "").trim();
   const router = String(settings?.openrouterKey || "").trim();
-  const options = {
+  const claude = String(settings?.claudeKey || "").trim();
+  return {
     gemini: gemini && !aiKeyProblem(gemini) ? { name: "gemini", apiKey: gemini } : null,
     openrouter: router && !openRouterKeyProblem(router) ? { name: "openrouter", apiKey: router, model: openRouterModelProblem(settings?.openrouterModel) ? "" : String(settings?.openrouterModel || "").trim() } : null,
+    claude: claude && !claudeKeyProblem(claude) ? { name: "claude", apiKey: claude, model: claudeModelFor(settings?.claudeModel) } : null,
   };
-  return options[settings?.provider] || options.openrouter || options.gemini || null;
 }
 
 const run = (provider, args) => (provider.name === "openrouter"
   ? generateOpenRouter({ ...args, apiKey: provider.apiKey, model: provider.model })
-  : generate({ ...args, apiKey: provider.apiKey }));
+  : provider.name === "claude"
+    ? generateClaude({ ...args, apiKey: provider.apiKey, model: provider.model, onCost: args.claude?.record })
+    : generate({ ...args, apiKey: provider.apiKey }));
 
-/** The other saved AI, used when the chosen one has run out of allowance or is down; null when only one key is saved. */
-function backupProvider(settings, primary) {
+const PROVIDER_NAMES = { gemini: "Google's AI", openrouter: "OpenRouter", claude: "Claude" };
+
+/**
+ * The next saved AI, used when the chosen one has run out of allowance or is down; null when only one key is saved.
+ * Claude is a backup only while it isn't paused (`claudeResting`), and while Claude is the chosen one the others take
+ * over only if the owner allows it (`claudeBackup`, on unless switched off).
+ */
+function backupProvider(settings, primary, { claudeResting = false } = {}) {
   if (!primary) return null;
-  const other = pickProvider({ ...settings, provider: primary.name === "gemini" ? "openrouter" : "gemini" });
-  return other && other.name !== primary.name ? other : null;
+  if (primary.name === "claude" && settings?.claudeBackup === false) return null;
+  const options = savedProviders(settings);
+  for (const name of ["openrouter", "gemini", "claude"]) {
+    if (name === primary.name || !options[name]) continue;
+    if (name === "claude" && claudeResting) continue;
+    return options[name];
+  }
+  return null;
 }
 
 /** Pure: a failure worth trying the other AI for (allowance used up, out of credits, busy or too slow), not a refusal of the request itself. */
@@ -615,8 +668,9 @@ async function runWithBackup(primary, backup, args, now = Date.now) {
       const result = await run(provider, { now, ...args });
       return { ...result, provider: provider.name, ...(provider !== primary ? { fellBack: true } : {}) };
     } catch (err) {
+      if (provider.name === "claude" && err?.pause) await args.claude?.pause?.(err.pause);
       if (firstErr) {
-        const name = provider.name === "openrouter" ? "OpenRouter" : "Google's AI";
+        const name = PROVIDER_NAMES[provider.name] || "The other AI";
         throw Object.assign(new Error(`${firstErr.message} ${name} couldn't take over either: ${err.message}`), { status: firstErr.status });
       }
       firstErr = err;
@@ -660,25 +714,42 @@ async function fetchPhoto(url, fetchImpl) {
 /**
  * The admin `aiWrite` action. `op: "check"` tries a saved key with a tiny request (`provider` names which one);
  * otherwise `task` is one of TASKS and `input` its facts. Deps keep it testable:
- * readSettings → { apiKey (Gemini), openrouterKey, openrouterModel, provider, voice }, allow → rate limit.
+ * readSettings → { apiKey (Gemini), openrouterKey, openrouterModel, claudeKey, claudeModel, claudeCap, claudeBackup,
+ * provider, voice }, allow → rate limit, claude → { read, record(micros), pause(reason), resume } for the Claude meter
+ * (adminSecrets/claudeUsage). A check of the Claude key clears a pause first (the card's Try again).
  */
-async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, siteName = "", bucket = "", now = Date.now }) {
+const PROVIDERS = ["gemini", "openrouter", "claude"];
+async function handleAiWrite(body, { readSettings, allow, claude = null, fetchImpl = fetch, siteName = "", bucket = "", now = Date.now }) {
   const deadline = now() + NEW_TRY_UNTIL_MS;
   const settings = await readSettings();
-  const wanted = body?.op === "check" && (body?.provider === "gemini" || body?.provider === "openrouter") ? body.provider : settings?.provider;
-  const provider = pickProvider({ ...settings, provider: wanted });
+  const wanted = body?.op === "check" && PROVIDERS.includes(body?.provider) ? body.provider : settings?.provider;
+  let provider = pickProvider({ ...settings, provider: wanted });
   if (!provider || (body?.op === "check" && wanted && provider.name !== wanted)) {
-    return { status: 412, body: { error: "Add an AI key first: Settings › General › AI writing assistant (a free Google AI key, or an OpenRouter key).", needsKey: true } };
+    return { status: 412, body: { error: "Add an AI key first: Settings › General › AI writing assistant (a free Google AI key, an OpenRouter key or a Claude key).", needsKey: true } };
   }
   if (!(await allow())) return { status: 429, body: { error: "That's a lot of AI requests in a short time. Wait a few minutes and try again." } };
   const ctx = { voice: settings.voice, siteName: clip(body?.siteName, 80) || siteName, titleSuffix: Math.max(0, Math.min(40, Math.floor(Number(body?.titleSuffix)) || 0)) };
+  // Claude is asked only while it has credits and is under the owner's monthly limit.
+  if (body?.op === "check" && provider.name === "claude") await claude?.resume?.();
+  const claudeRest = savedProviders(settings).claude && claude ? claudeRestReason(await claude.read(), claudeCap(settings.claudeCap), now()) : "";
+  const claudeDeps = claude ? { record: micros => claude.record(micros), pause: reason => claude.pause(reason) } : null;
   if (body?.op === "check") {
+    if (provider.name === "claude" && claudeRest) return { status: 200, body: { ok: false, provider: "claude", error: restError(claudeRest).message, rest: claudeRest } };
     try {
-      const out = await run(provider, { task: "pageSeo", input: { title: "About the press", text: "We are a small press publishing poetry and artists' books." }, ctx, fetchImpl, deadline, now });
+      const out = await run(provider, { task: "pageSeo", input: { title: "About the press", text: "We are a small press publishing poetry and artists' books." }, ctx, fetchImpl, deadline, now, claude: claudeDeps });
       return { status: 200, body: { ok: true, provider: provider.name, model: out.model } };
     } catch (err) {
-      return { status: 200, body: { ok: false, provider: provider.name, error: err.message } };
+      if (provider.name === "claude" && err?.pause) await claude?.pause?.(err.pause);
+      return { status: 200, body: { ok: false, provider: provider.name, error: err.message, ...(err?.pause ? { rest: err.pause } : {}) } };
     }
+  }
+  let backup = backupProvider(settings, provider, { claudeResting: Boolean(claudeRest) });
+  let restedFrom = "";
+  if (provider.name === "claude" && claudeRest) {
+    if (!backup) return { status: 402, body: { error: restError(claudeRest).message, claudeRest } };
+    restedFrom = claudeRest;
+    provider = backup;
+    backup = backupProvider(settings, provider, { claudeResting: true });
   }
   const task = body?.task;
   if (!Object.prototype.hasOwnProperty.call(TASKS, task)) return { status: 400, body: { error: "Unknown AI task." } };
@@ -708,11 +779,11 @@ async function handleAiWrite(body, { readSettings, allow, fetchImpl = fetch, sit
     return { status: 400, body: { error: why[task] || "Give the book a title first." } };
   }
   try {
-    const result = await runWithBackup(provider, backupProvider(settings, provider), { task, input, ctx: { ...ctx, input, ...(image ? { image } : {}) }, fetchImpl, deadline }, now);
-    return { status: 200, body: { ok: true, result } };
+    const result = await runWithBackup(provider, backup, { task, input, ctx: { ...ctx, input, ...(image ? { image } : {}) }, fetchImpl, deadline, claude: claudeDeps }, now);
+    return { status: 200, body: { ok: true, result: restedFrom ? { ...result, fellBack: true, claudeRest: restedFrom } : result } };
   } catch (err) {
-    return { status: err.status === 429 ? 429 : 502, body: { error: err.message } };
+    return { status: err.status === 429 ? 429 : 502, body: { error: err.message, ...(err?.pause || err?.claudeRest ? { claudeRest: err.pause || err.claudeRest } : {}) } };
   }
 }
 
-module.exports = { tryNextModel, reportedError, backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };
+module.exports = { buildClaudeRequest, generateClaude, savedProviders, tryNextModel, reportedError, backupProvider, worthBackup, runWithBackup, resetProviderRest, MODELS, OPENROUTER_MODELS, TASKS, openRouterKeyProblem, openRouterModelProblem, toJsonSchema, buildOpenRouterRequest, fromOpenRouter, openRouterErrorMessage, generateOpenRouter, pickProvider, photoImageUrl, DRAFT_TYPES, REWRITE_HOW, REWRITE_MAX, HTML_TAGS, tokensOf, sanitizeHtml, richTextProblem, aiKeyProblem, bookFacts, buildRequest, parseResponse, aiErrorMessage, generate, handleAiWrite, fitWords, plainText };

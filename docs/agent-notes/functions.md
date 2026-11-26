@@ -786,3 +786,15 @@ Live carrier choices show up to five distinct Canada Post methods, cheapest firs
   `autoApproveShippingAddress`): `GET v2/addresses/validate` (6 s), only `valid` counts (`partially_valid` stays for
   the publisher's review), reasons become `messages[{ code, text }]`. Any 4xx or an unknown answer shape falls back to
   v1 `addresses/`; a 5xx/timeout throws as before (checkout marks the address unverified).
+
+## Claude in the AI writing assistant (26 November 2026)
+
+`functions/aiClaude.js` calls Claude through `@anthropic-ai/sdk` (base address fixed to api.anthropic.com, no retries, 25 s)
+with the task's JSON schema as structured output (`buildClaudeRequest` in `aiWriter.js`) and turns the answer into Gemini's
+shape (`fromClaude`) for `parseResponse`. Every answer's cost (list prices in `PRICES`, millionths of a dollar, rounded up) is
+added to admin-only `adminSecrets/claudeUsage` `months.<YYYY-MM>` (`claudeUsageStore` in `adminReports.js`). Claude rests
+(`claudeRestReason`) when Anthropic says the credits ran out or its spend limit was hit (`paused`, cleared only by Check key /
+Try again) or when this month reaches the owner's `claudeCap`. While resting, nothing is sent to Anthropic: the backup AI writes
+(unless `claudeBackup === false`) or the call answers 402 with `claudeRest`. Refusal fallbacks are not turned on, so cost stays
+predictable. Tests: `functions/aiClaude.test.js`.
+

@@ -471,6 +471,11 @@ a `needs` branch in `handleAiWrite`. The fixture fakes the server with `setAiTra
 Rich text with pictures/videos/dividers/alignment is rewritten words-only: `protectRichText` / `restoreRichText` hold them out as
 `[[keep-N]]` / `[[line-N]]` markers (server `TOKEN_RE` requires them back; each once, in order); links keep target/rel by address; coloured words are still refused. Studio › Pages
 bodies have the button too, with a local Undo (`localUndo`). Pictures (incl. pasted `data:` ones) never go to Google.
+**Claude (26 November 2026):** a third provider. The card's Claude slot saves `claudeKey`, `claudeModel` (`quick` = Haiku,
+`best` = Sonnet; `CLAUDE_CHOICES`), `claudeCap` (monthly dollars, `CLAUDE_CAPS`, default 5, 0 = none) and `claudeBackup`
+(false = no other AI while Claude is paused) in `adminSecrets/ai`. The meter reads admin-only `adminSecrets/claudeUsage`
+(`claudeMeter`, same rules as the server's `claudeRestReason`, parity-tested). Try again clears `paused` and runs Check key.
+Prepaid credits only: Anthropic refuses (and charges nothing) once credits run out; the server then pauses Claude.
 
 ## URL redirects (11 October 2026)
 

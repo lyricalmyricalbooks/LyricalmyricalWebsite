@@ -20,7 +20,39 @@ export function aiKeyProblem(value: string): string {
   return /^[A-Za-z0-9_.-]{30,200}$/.test(v) ? "" : "That doesn't look like a Google AI key (it usually starts with AIza and is 39 characters).";
 }
 
-export type AiProvider = "gemini" | "openrouter";
+export type AiProvider = "gemini" | "openrouter" | "claude";
+
+/** Same rule as functions/aiClaude.js claudeKeyProblem ("" = fine or empty). */
+export function claudeKeyProblem(value: string): string {
+  const v = value.trim();
+  if (!v) return "";
+  if (/^sk-or-/.test(v)) return "That's an OpenRouter key. Paste it in the OpenRouter box instead.";
+  return /^sk-ant-[A-Za-z0-9_-]{20,300}$/.test(v) ? "" : "That doesn't look like a Claude key (it starts with sk-ant- and comes from console.anthropic.com).";
+}
+
+/** Claude's two choices (functions/aiClaude.js CLAUDE_MODELS) and the monthly limits the owner can pick, in US dollars. */
+export const CLAUDE_CHOICES = { quick: "claude-haiku-5-5", best: "claude-sonnet-5-5" } as const;
+export type ClaudeChoice = keyof typeof CLAUDE_CHOICES;
+export const CLAUDE_CAPS = [1, 2, 5, 10, 20, 50, 0];
+export const DEFAULT_CLAUDE_CAP = 5;
+export type ClaudeRest = "credits" | "limit" | "cap" | "";
+
+/** Pure: this month's figures from Claude's meter (admin-only adminSecrets/claudeUsage). Same month and rest rules as
+ * functions/aiClaude.js monthKey / claudeRestReason. */
+export function claudeMeter(usage: any, capDollars: number, ms = Date.now()): { spentMicros: number; drafts: number; rest: ClaudeRest } {
+  const month = usage?.months?.[new Date(ms).toISOString().slice(0, 7)] || {};
+  const spentMicros = Number(month.costMicros) || 0;
+  const paused = usage?.paused?.reason;
+  const rest: ClaudeRest = paused ? (paused === "limit" ? "limit" : "credits") : capDollars > 0 && spentMicros >= capDollars * 1e6 ? "cap" : "";
+  return { spentMicros, drafts: Number(month.requests) || 0, rest };
+}
+
+/** Pure: dollars for the meter ("under 1¢" for a few cheap drafts, so it never reads $0.00 after use). */
+export function usd(micros: number): string {
+  const d = Math.max(0, micros) / 1e6;
+  if (d > 0 && d < 0.01) return "under 1¢";
+  return "$" + d.toFixed(2);
+}
 /** What OpenRouter uses when the owner names no model (functions/aiWriter.js OPENROUTER_MODELS[0]). */
 export const DEFAULT_OPENROUTER_MODEL = "~google/gemini-flash-latest";
 
@@ -151,10 +183,10 @@ export async function checkAiKey(provider: AiProvider = "gemini"): Promise<{ ok:
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, message: data.error || `The shop's server answered ${res.status}. Check that Cloud Functions are deployed.` };
-    const who = provider === "openrouter" ? `OpenRouter${data.model ? ` (${data.model})` : ""}` : "Gemini";
+    const who = provider === "openrouter" ? `OpenRouter${data.model ? ` (${data.model})` : ""}` : provider === "claude" ? "Claude" : "Gemini";
     return data.ok
       ? { ok: true, message: `${who} answered with this key. The Write with AI buttons are ready in Books and Studio.` }
-      : { ok: false, message: data.error || (provider === "openrouter" ? "OpenRouter refused the key." : "Google refused the key.") };
+      : { ok: false, message: data.error || (provider === "openrouter" ? "OpenRouter refused the key." : provider === "claude" ? "Anthropic refused the key." : "Google refused the key.") };
   } catch (err: any) {
     return { ok: false, message: err?.message || "Could not check the key." };
   }
