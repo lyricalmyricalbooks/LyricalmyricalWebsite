@@ -103,7 +103,7 @@ The step-by-step guide for lyricalmyricalbooks.com is `docs/CUSTOM_DOMAIN.md`. I
 
 - `books/<slug>.html` (prerendered) answers at `/books/<slug>` with 200. `/books/<slug>/` and `/books/<slug>.html`
   301-redirect there.
-- Account, checkout, admin, tracking, wishlist and category addresses with no snapshot get the app shell (`spa.html`).
+- Account, checkout, admin, tracking, wishlist and `/collections/all` get the app shell (`spa.html`). A category with no snapshot (empty, hidden or mistyped) gets `404.html`, the same shell with a real 404 status (26 November 2026).
   A book or page address with no snapshot (not published, or published since the last build, at most 15 minutes)
   gets the 404 below.
 - Any other address gets a real **404** that still shows the shop's editable missing page (`404.html` is the same
