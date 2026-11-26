@@ -32,6 +32,7 @@ const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
 const { liveRateExtra, withLiveRateExtra, cleanLiveRateExtra } = require("./liveRateExtra");
 const { FALLBACK_COPY_GRAMS, parcelGrams } = require("./parcelWeight");
+const { shippoHeaders } = require("./shippoRequest");
 const { addressMissing } = require("./shared/addressRules");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
@@ -789,13 +790,9 @@ async function fetchWithTimeout(url, options = {}, ms = 3000) {
 // Timeout: a hung Shippo call must never hold a function open until it is killed. Label purchases
 // are the one place an aborted request may still have been processed, so they stay "uncertain".
 async function callShippo(endpoint, method, body, token, timeoutMs = 15000) {
-  const headers = {
-    "Authorization": `ShippoToken ${token}`,
-    "Content-Type": "application/json"
-  };
   const res = await fetchWithTimeout(`https://api.goshippo.com/${endpoint}`, {
     method,
-    headers,
+    headers: shippoHeaders(token),
     body: body ? JSON.stringify(body) : undefined
   }, timeoutMs);
   if (!res.ok) {

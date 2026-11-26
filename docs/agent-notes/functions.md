@@ -763,3 +763,12 @@ order-confirmation email both use them. Emailed download links stay outside brow
 ## Live carrier choices (moved from the root guide)
 
 Live carrier choices show up to five distinct Canada Post methods, cheapest first, using the lowest quote for each service. Server quote selection sorts prices before resolving duplicate service names.
+
+## Shippo API version pinned (26 November 2026)
+
+- Every Shippo call goes through `callShippo`, whose headers come from `functions/shippoRequest.js` and carry
+  `Shippo-API-Version: 2018-02-08` (the shapes the code reads: `servicelevel.name`, `transaction.status`,
+  `tracking_status.substatus`). `shippoRequest.test.js` fails if another module calls `api.goshippo.com` directly.
+- Best-practice review on the same day found the rest already in line: addresses checked before labels, parcel sizes as
+  strings in grams, rates re-read before purchase, `async: false`, the purchase lock for uncertain failures, labels
+  linked to a Shippo Order, customs with certify/incoterm, and the unsigned tracking webhook re-reading from Shippo.
