@@ -4110,6 +4110,42 @@ exports.onOrderInventoryPush = onDocumentWritten({ document: "orders/{orderId}",
 
 // The link's regular check: labels bought in the inventory app, missed or failed pushes, past orders,
 // and (every 15 minutes, once the owner switched it on) linked books' stock.
+// Claude for the stockroom (functions/stockroomClaude.js). The stockroom is another Firebase project, so it has no
+// App Check token for this one: the owner's stockroom sign-in (verified against that project, owner email only) is the
+// gate, plus its own origin list and rate limit. The Claude key never leaves adminSecrets/ai.
+exports.stockroomClaude = onRequest({ timeoutSeconds: 60, memory: "512MiB" }, async (req, res) => {
+  const { STOCKROOM_ORIGINS, handleStockroomClaude } = require("./stockroomClaude");
+  const origin = req.headers.origin || "";
+  if (STOCKROOM_ORIGINS.includes(origin)) { res.set("Access-Control-Allow-Origin", origin); res.set("Vary", "Origin"); }
+  if (req.method === "OPTIONS") {
+    res.set("Access-Control-Allow-Methods", "POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Access-Control-Max-Age", "3600");
+    return res.status(204).send("");
+  }
+  if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
+  const match = (req.headers.authorization || "").match(/^Bearer (.+)$/);
+  if (!match) return res.status(401).json({ error: "Sign in to the stockroom again." });
+  let decoded;
+  try {
+    decoded = await require("./inventoryLinkStore").verifyStockroomToken(match[1]);
+  } catch {
+    return res.status(401).json({ error: "Sign in to the stockroom again." });
+  }
+  if (!ADMIN_EMAILS.includes(decoded.email) || decoded.email_verified !== true) return res.status(403).json({ error: "Only the shop owner can use Claude here." });
+  if (!(await hitLimit(db, "stockroomAi", req, LIMITS.stockroomAi))) return res.status(429).json({ error: "That's a lot of questions at once. Wait a few minutes and try again." });
+  try {
+    const { status, body } = await handleStockroomClaude(req.body || {}, {
+      readSettings: () => readAdminSecret("ai"),
+      usage: require("./aiClaude").claudeUsageStore(db.collection("adminSecrets").doc("claudeUsage"), admin.firestore.FieldValue),
+    });
+    res.status(status).json(body);
+  } catch (err) {
+    console.error("stockroomClaude failed:", err?.message || err);
+    res.status(500).json({ error: "Claude couldn't answer just now. Try again in a minute." });
+  }
+});
+
 exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", timeoutSeconds: 300 }, async () => {
   const out = await require("./inventoryLinkJobs").runSweep(inventoryLinkDeps(), { stock: "auto" });
   if (out.error) console.error("inventoryLinkSweep:", out.error);

@@ -3,19 +3,27 @@ import { deleteField, doc, getDoc, serverTimestamp, setDoc } from "firebase/fire
 import toast from "react-hot-toast";
 import { db } from "../../lib/firebase";
 import { HowTo, friendlyError } from "./settingsLayout";
-import { DEFAULT_OPENROUTER_MODEL, aiKeyProblem, checkAiKey, openRouterKeyProblem, openRouterModelProblem, type AiProvider } from "./aiWriter";
-import { GhostButton, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField, useConfirm } from "./riso/components";
+import { CLAUDE_CAPS, DEFAULT_CLAUDE_CAP, DEFAULT_OPENROUTER_MODEL, aiKeyProblem, checkAiKey, claudeKeyProblem, claudeMeter, openRouterKeyProblem, openRouterModelProblem, usd, type AiProvider, type ClaudeChoice } from "./aiWriter";
+import { Checkbox, GhostButton, PrimaryButton, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField, useConfirm } from "./riso/components";
 
 type Check = { ok: boolean; message: string } | null;
 const VOICE_MAX = 1000;
-const NAMES: Record<AiProvider, string> = { openrouter: "OpenRouter", gemini: "Google Gemini" };
-const FIELDS: Record<AiProvider, string> = { openrouter: "openrouterKey", gemini: "geminiKey" };
+const NAMES: Record<AiProvider, string> = { openrouter: "OpenRouter", gemini: "Google Gemini", claude: "Claude" };
+const FIELDS: Record<AiProvider, string> = { openrouter: "openrouterKey", gemini: "geminiKey", claude: "claudeKey" };
+const NONE: Record<AiProvider, boolean> = { gemini: false, openrouter: false, claude: false };
+const REST_TEXT = {
+  credits: "Paused: your Claude credits ran out. Add credits, then try again.",
+  limit: "Paused: your Anthropic monthly spending limit was reached.",
+  cap: "Paused until next month: this month's limit is used up.",
+};
 const tone = (ok: boolean) => (ok ? "--rp-success" : "--rp-danger");
 const aiDoc = () => doc(db, "adminSecrets", "ai");
+const usageDoc = () => doc(db, "adminSecrets", "claudeUsage");
 
-// Keys for the admin's Write with AI buttons: Google Gemini (free) and/or OpenRouter. Stored in the admin-only
-// adminSecrets/ai doc (firestore.rules) and used only by the createStripeCheckoutSession `aiWrite` action; never
-// sent to shoppers. With both saved, `provider` says which one writes (functions/aiWriter.js pickProvider).
+// Keys for the admin's Write with AI buttons: Google Gemini (free), OpenRouter and/or Claude (prepaid credits). Stored
+// in the admin-only adminSecrets/ai doc (firestore.rules) and used only by the createStripeCheckoutSession `aiWrite`
+// action; never sent to shoppers. With several saved, `provider` says which one writes (functions/aiWriter.js
+// pickProvider). Claude's spend this month and any pause are in adminSecrets/claudeUsage (functions/aiClaude.js).
 export function AiWriterCard() {
   const [stored, setStored] = useState<Record<AiProvider, boolean> | null>(null);
   const [readFailed, setReadFailed] = useState(false);
@@ -25,6 +33,12 @@ export function AiWriterCard() {
   const [voice, setVoice] = useState("");
   const [savedVoice, setSavedVoice] = useState("");
   const [saving, setSaving] = useState(false);
+  const [claudeModel, setClaudeModel] = useState<ClaudeChoice>("quick");
+  const [claudeCap, setClaudeCap] = useState(DEFAULT_CLAUDE_CAP);
+  const [claudeBackup, setClaudeBackup] = useState(true);
+  const [usage, setUsage] = useState<any>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [retryNote, setRetryNote] = useState<Check>(null);
 
   const load = () => {
     setReadFailed(false);
@@ -32,20 +46,27 @@ export function AiWriterCard() {
     getDoc(aiDoc())
       .then((snap) => {
         const data = snap.exists() ? snap.data() || {} : {};
-        setStored({ gemini: Boolean(data.geminiKey), openrouter: Boolean(data.openrouterKey) });
-        setProvider(data.provider === "gemini" || data.provider === "openrouter" ? data.provider : "");
+        setStored({ gemini: Boolean(data.geminiKey), openrouter: Boolean(data.openrouterKey), claude: Boolean(data.claudeKey) });
+        setProvider(data.provider === "gemini" || data.provider === "openrouter" || data.provider === "claude" ? data.provider : "");
+        setClaudeModel(data.claudeModel === "best" ? "best" : "quick");
+        setClaudeCap(CLAUDE_CAPS.includes(Number(data.claudeCap)) && data.claudeCap !== "" && data.claudeCap != null ? Number(data.claudeCap) : DEFAULT_CLAUDE_CAP);
+        setClaudeBackup(data.claudeBackup !== false);
         setModel(String(data.openrouterModel || ""));
         setSavedModel(String(data.openrouterModel || ""));
         setVoice(String(data.voice || ""));
         setSavedVoice(String(data.voice || ""));
       })
       .catch(() => setReadFailed(true));
+    loadUsage();
   };
+  const loadUsage = () => getDoc(usageDoc()).then((snap) => setUsage(snap.exists() ? snap.data() || {} : {})).catch(() => setUsage({}));
   useEffect(() => { load(); }, []);
 
-  // Same order as the server: the owner's choice when that key is saved, else OpenRouter, else Gemini.
+  // Same order as the server: the owner's choice when that key is saved, else OpenRouter, else Gemini, else Claude.
   const active: AiProvider | null = !stored ? null
-    : provider && stored[provider] ? provider : stored.openrouter ? "openrouter" : stored.gemini ? "gemini" : null;
+    : provider && stored[provider] ? provider : stored.openrouter ? "openrouter" : stored.gemini ? "gemini" : stored.claude ? "claude" : null;
+  const savedCount = stored ? (Object.keys(stored) as AiProvider[]).filter((k) => stored[k]).length : 0;
+  const meter = claudeMeter(usage, claudeCap);
 
   const save = async (fields: Record<string, unknown>, done: string) => {
     setSaving(true);
@@ -62,9 +83,32 @@ export function AiWriterCard() {
   };
 
   const saveKey = async (which: AiProvider, value: string) => {
-    const ok = await save({ [FIELDS[which]]: value || deleteField() }, value ? `${NAMES[which]} key saved` : `${NAMES[which]} key removed`);
-    if (ok) setStored((s) => ({ ...(s || { gemini: false, openrouter: false }), [which]: Boolean(value) }));
+    // A first Claude key also makes Claude the one that writes (the owner can switch back below).
+    const pickClaude = which === "claude" && value && !stored?.claude;
+    const ok = await save({ [FIELDS[which]]: value || deleteField(), ...(pickClaude ? { provider: "claude" } : {}) },
+      value ? (pickClaude ? "Claude key saved. Claude writes the drafts now" : `${NAMES[which]} key saved`) : `${NAMES[which]} key removed`);
+    if (ok) {
+      setStored((s) => ({ ...(s || NONE), [which]: Boolean(value) }));
+      if (pickClaude) setProvider("claude");
+    }
     return ok;
+  };
+
+  const saveClaude = async (fields: Record<string, unknown>, done: string, undo: () => void) => {
+    if (!(await save(fields, done))) undo();
+  };
+
+  // Try again after adding credits: clears the pause, then asks Claude once (the server pauses it again if still empty).
+  const retryClaude = async () => {
+    setRetrying(true);
+    setRetryNote(null);
+    try {
+      await setDoc(usageDoc(), { paused: deleteField() }, { merge: true });
+    } catch { /* the server clears it too */ }
+    const result = await checkAiKey("claude");
+    setRetryNote(result.ok ? { ok: true, message: "Claude is back. The Write with AI buttons use it again." } : result);
+    await loadUsage();
+    setRetrying(false);
   };
 
   const saveProvider = async (next: AiProvider) => {
@@ -101,14 +145,62 @@ export function AiWriterCard() {
           ✕ Couldn't read which keys are saved. <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={load}>Try again</button>
         </p>
       )}
-      {stored?.gemini && stored?.openrouter && (
+      {savedCount > 1 && (
         <div style={{ marginBottom: 16 }}>
           <SelectField label="Which AI writes the drafts" value={active || "openrouter"} disabled={saving}
-            hint="If this one runs dry, the other takes over."
+            hint="If this one runs dry, another saved one takes over."
             onChange={(e) => saveProvider(e.target.value as AiProvider)}>
-            <option value="openrouter">OpenRouter</option>
-            <option value="gemini">Google Gemini</option>
+            {stored?.claude && <option value="claude">Claude</option>}
+            {stored?.openrouter && <option value="openrouter">OpenRouter</option>}
+            {stored?.gemini && <option value="gemini">Google Gemini</option>}
           </SelectField>
+        </div>
+      )}
+
+      <KeySlot which="claude" stored={stored?.claude ?? null} saving={saving} problem={claudeKeyProblem} placeholder="sk-ant-…"
+        steps={<>
+          <li>Open <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer">console.anthropic.com</a> and sign in.</li>
+          <li>In <strong>Billing</strong>, buy credits ($5 is plenty to start) and make sure <strong>Auto reload is off</strong>. Then you are never charged more than you bought.</li>
+          <li>In <strong>Limits</strong>, set a monthly spend limit as a second safety catch.</li>
+          <li>In <strong>API keys</strong>, choose <strong>Create key</strong>, name it "Shop", copy it (it starts with sk-ant-) and paste it here.</li>
+        </>}
+        onSave={(v) => saveKey("claude", v)} />
+      {stored?.claude && (
+        <div className="ai-claude" style={{ marginTop: 12, display: "grid", gap: 12 }}>
+          <div role="status" className="rp-hint" style={{ margin: 0, padding: 12, border: "1px solid var(--rp-line, currentColor)", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", justifyContent: "space-between" }}>
+            <span>
+              <strong>This month:</strong> {usage === null ? "…" : `${usd(meter.spentMicros)}${claudeCap > 0 ? ` of $${claudeCap}` : ""} · ${meter.drafts} ${meter.drafts === 1 ? "draft" : "drafts"}`}
+            </span>
+            {meter.rest && <StatusBadge tone="danger">Paused</StatusBadge>}
+          </div>
+          {meter.rest && (
+            <div role="alert" className="rp-hint" style={{ margin: 0, padding: 12, border: "1px solid var(--rp-danger)", color: "var(--rp-danger)", background: "var(--rp-danger-tint)", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ flex: "1 1 240px" }}>{REST_TEXT[meter.rest]}</span>
+              {meter.rest !== "cap" && <SecondaryButton disabled={retrying} onClick={retryClaude}>{retrying ? "Trying…" : "Try again"}</SecondaryButton>}
+            </div>
+          )}
+          {retryNote && (
+            <p role="status" className="rp-hint" style={{ margin: 0, padding: 12, border: `1px solid var(${tone(retryNote.ok)})`, color: `var(${tone(retryNote.ok)})`, background: `var(${tone(retryNote.ok)}-tint)` }}>
+              {retryNote.ok ? "✓ " : "✕ "}{retryNote.message}
+            </p>
+          )}
+          <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+            <SelectField label="Claude model" value={claudeModel} disabled={saving}
+              hint={claudeModel === "best" ? "Up to about 1¢ a draft." : "About 3¢ per 100 drafts."}
+              onChange={(e) => { const before = claudeModel; const next = e.target.value as ClaudeChoice; setClaudeModel(next); saveClaude({ claudeModel: next }, next === "best" ? "Claude uses Best writing" : "Claude uses Quick", () => setClaudeModel(before)); }}>
+              <option value="quick">Quick (cheapest)</option>
+              <option value="best">Best writing</option>
+            </SelectField>
+            <SelectField label="Monthly limit" value={String(claudeCap)} disabled={saving}
+              hint="Claude pauses when it's reached."
+              onChange={(e) => { const before = claudeCap; const next = Number(e.target.value); setClaudeCap(next); saveClaude({ claudeCap: next }, next ? `Claude stops at $${next} a month` : "No monthly limit. Your credits still cap it", () => setClaudeCap(before)); }}>
+              {CLAUDE_CAPS.map((c) => <option key={c} value={String(c)}>{c ? `$${c} a month` : "No limit (credits still cap it)"}</option>)}
+            </SelectField>
+          </div>
+          {savedCount > 1 && (
+            <Checkbox label="While Claude is paused, let another saved AI write" checked={claudeBackup} disabled={saving}
+              onChange={(e) => { const next = e.target.checked; setClaudeBackup(next); saveClaude({ claudeBackup: next }, next ? "Another AI writes while Claude is paused" : "Nothing writes while Claude is paused", () => setClaudeBackup(!next)); }} />
+          )}
         </div>
       )}
 

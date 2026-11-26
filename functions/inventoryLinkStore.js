@@ -15,12 +15,18 @@ const APP_NAME = "inventory";
 const LINK_VERSION = "website-link-1";
 
 let cachedDb = null;
+function inventoryApp() {
+  try { return admin.app(APP_NAME); } catch { return admin.initializeApp({ projectId: INVENTORY_PROJECT }, APP_NAME); }
+}
 function inventoryDb() {
   if (cachedDb) return cachedDb;
-  let app;
-  try { app = admin.app(APP_NAME); } catch { app = admin.initializeApp({ projectId: INVENTORY_PROJECT }, APP_NAME); }
-  cachedDb = getFirestore(app);
+  cachedDb = getFirestore(inventoryApp());
   return cachedDb;
+}
+
+/** Checks a stockroom sign-in (an ID token from the inventory project); throws when it isn't valid. */
+function verifyStockroomToken(idToken) {
+  return admin.auth(inventoryApp()).verifyIdToken(idToken);
 }
 
 /** The address the owner grants access to (the Functions' runtime service account), or "" when unknown. */
@@ -184,7 +190,7 @@ async function readAppHeartbeat() {
 }
 
 module.exports = {
-  INVENTORY_PROJECT, inventoryDb, serviceAccountEmail, connectionProblem, checkConnection, heartbeat, markPastOrders,
+  INVENTORY_PROJECT, inventoryDb, verifyStockroomToken, serviceAccountEmail, connectionProblem, checkConnection, heartbeat, markPastOrders,
   writeWebsiteOrder, waitingShipments, replyShipment, readFeeds, readCatalog, pendingSummary, readAppHeartbeat,
   writeWebsiteSide, writeShopCatalog,
 };
