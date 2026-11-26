@@ -3,6 +3,9 @@
 // (functions/CLAUDE.md › Cloud Functions › Action table): index.js passes in its own Firebase wrappers, db, guards and
 // Shippo helpers, so the vm-based handler tests' fakes still apply, and keeps each `exports.<name> =` line.
 
+const { checkAddress } = require("./shippoAddress");
+const { shippoCarrierToken } = require("./shippoTracking");
+
 function shippoEndpoints({
   onBrowserRequest, onRequest, db, applyCors, requireAdmin, hitLimit, LIMITS, IS_EMULATOR, RESEND_API_KEY,
   SHIPPO_API_TOKEN, SHIPPO_CONFIG_DOC, ADDRESS_ACTIONS, FALLBACK_COPY_GRAMS, addressKeyProblem, addressMissing,
@@ -358,24 +361,11 @@ function shippoEndpoints({
         const countryCode = getCountryCode(address.country);
         const stateCode = getStateCode(address.state);
 
-        const shippoRes = await callShippo("addresses/", "POST", {
-          name: address.name || "Customer",
-          street1: address.street,
-          street2: address.unit || "",
-          city: address.city,
-          state: stateCode,
-          zip: address.zip,
-          country: countryCode,
-          validate: true
-        }, shippoToken);
-
-        const validationResults = shippoRes.validation_results || {};
-        const isValid = validationResults.is_valid === true;
-
-        res.status(200).json({
-          isValid,
-          messages: validationResults.messages || []
+        const { isValid, messages } = await checkAddress(callShippo, shippoToken, {
+          name: address.name || "Customer", street: address.street, unit: address.unit, city: address.city,
+          state: stateCode, zip: address.zip, country: countryCode,
         });
+        res.status(200).json({ isValid, messages });
       } catch (err) {
         console.error("validateAddress failed:", err);
         res.status(500).json({ error: publicErrorMessage(err, "Something went wrong. Please try again.") });
@@ -406,13 +396,22 @@ function shippoEndpoints({
 
       try {
         const snap = await db.collection("orders").where("trackingNumber", "==", trackingNum).limit(1).get();
-        if (snap.empty) {
+        // A hand-typed number may carry spaces Shippo drops ("7023 2100 …"): registerHandTypedTracking saved the
+        // number exactly as Shippo has it in order-operations.shippoTracking, so look there next.
+        let orderDoc = snap.empty ? null : snap.docs[0];
+        if (!orderDoc) {
+          const registered = await db.collection("order-operations")
+            .where("shippoTracking.trackingNumber", "==", String(trackingNum).replace(/\s+/g, "")).limit(1).get();
+          if (!registered.empty) {
+            const found = await db.collection("orders").doc(registered.docs[0].id).get();
+            if (found.exists) orderDoc = found;
+          }
+        }
+        if (!orderDoc) {
           console.log(`Shippo webhook: No order matches tracking number ${trackingNum}`);
           res.status(200).json({ success: true, message: "No matching order found" });
           return;
         }
-
-        const orderDoc = snap.docs[0];
         const order = orderDoc.data();
         const orderId = orderDoc.id;
         // Only paid orders move to delivered; a refunded or cancelled order stays as it is.
@@ -427,7 +426,7 @@ function shippoEndpoints({
         let trackingSubstatus = null;
         try {
           const token = await getShippoToken();
-          const carrierCode = String(carrier || order.trackingCarrier || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+          const carrierCode = shippoCarrierToken(carrier || order.trackingCarrier);
           if (token && carrierCode) {
             const track = await callShippo(`tracks/${encodeURIComponent(carrierCode)}/${encodeURIComponent(trackingNum)}`, "GET", null, token);
             trackingStatus = track?.tracking_status?.status || null;

@@ -772,3 +772,17 @@ Live carrier choices show up to five distinct Canada Post methods, cheapest firs
 - Best-practice review on the same day found the rest already in line: addresses checked before labels, parcel sizes as
   strings in grams, rates re-read before purchase, `async: false`, the purchase lock for uncertain failures, labels
   linked to a Shippo Order, customs with certify/incoterm, and the unsigned tracking webhook re-reading from Shippo.
+
+## Hand-typed tracking and address check v2 (26 November 2026)
+
+- **Hand-typed tracking** (`functions/shippoTracking.js`, `registerHandTypedTracking` in `onOrderUpdated`'s `finally`):
+  a new or changed tracking number on an order with no Shippo label (`labelUrl`), for a carrier Shippo tracks
+  (`TRACKABLE`; Chit Chats, Stallion Express and "Other" are skipped), is sent to `POST tracks/` (spaces removed,
+  metadata `Order <id>`). Never with a `shippo_test_` key. The result (or the error) goes to
+  `order-operations.shippoTracking`. `shippoWebhook` finds an order by `trackingNumber`, then by
+  `order-operations.shippoTracking.trackingNumber` (numbers typed with spaces). The webhook carrier code uses
+  `shippoCarrierToken` ("DHL" → `dhl_express`). Needs the account's track_updated webhook in Shippo, as before.
+- **Address check v2** (`functions/shippoAddress.js` `checkAddress`, used by `validateAddress` and
+  `autoApproveShippingAddress`): `GET v2/addresses/validate` (6 s), only `valid` counts (`partially_valid` stays for
+  the publisher's review), reasons become `messages[{ code, text }]`. Any 4xx or an unknown answer shape falls back to
+  v1 `addresses/`; a 5xx/timeout throws as before (checkout marks the address unverified).
