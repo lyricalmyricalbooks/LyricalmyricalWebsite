@@ -2,7 +2,7 @@
 // Search Console, BigQuery journeys and the traffic-count reset. Every one is admin-only and never touches orders,
 // payments or stock. index.js passes in its own db, admin SDK and guards, so the handler tests' fakes still apply.
 const { handleAiWrite } = require("./aiWriter");
-const { monthKey } = require("./aiClaude");
+const { claudeUsageStore } = require("./aiClaude");
 const { handleGa4Report, metadataCredentials } = require("./googleAnalytics");
 const { handleSearchConsole, SCOPE: SEARCH_CONSOLE_SCOPE } = require("./searchConsole");
 const { handleBigQueryJourneys, SCOPE: BIGQUERY_SCOPE } = require("./bigQueryJourneys");
@@ -29,17 +29,6 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
   }
 
   // Claude's spend meter and pause (admin-only adminSecrets/claudeUsage; the Settings card reads it and clears a pause).
-  function claudeUsageStore() {
-    const ref = db.collection("adminSecrets").doc("claudeUsage");
-    const { FieldValue } = admin.firestore;
-    return {
-      read: async () => { const snap = await ref.get(); return snap.exists ? snap.data() || {} : {}; },
-      record: micros => ref.set({ months: { [monthKey()]: { costMicros: FieldValue.increment(micros), requests: FieldValue.increment(1) } }, updatedAt: FieldValue.serverTimestamp() }, { merge: true }),
-      pause: reason => ref.set({ paused: { reason, at: FieldValue.serverTimestamp() } }, { merge: true }),
-      resume: () => ref.set({ paused: FieldValue.delete() }, { merge: true }),
-    };
-  }
-
   // Admin AI writing assistant (Books › edit, Studio › Pages): Google Gemini, OpenRouter or Claude, keys in adminSecrets/ai.
   async function handleAiWriteRequest(req, res) {
     const adminUser = await requireAdmin(req, res);
@@ -55,7 +44,7 @@ function adminReportActions({ db, admin, requireAdmin, readAdminSecret, hitLimit
           };
         },
         allow: () => hitLimit(db, "ai-write", req, LIMITS.aiWrite),
-        claude: claudeUsageStore(),
+        claude: claudeUsageStore(db.collection("adminSecrets").doc("claudeUsage"), admin.firestore.FieldValue),
         bucket: admin.app().options.storageBucket || `${process.env.GCLOUD_PROJECT || admin.app().options.projectId}.firebasestorage.app`,
       });
       res.status(status).json(body);

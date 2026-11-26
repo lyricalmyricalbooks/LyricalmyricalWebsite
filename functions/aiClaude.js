@@ -107,4 +107,14 @@ async function callClaude({ apiKey, body, fetchImpl, onCost = async () => {} }) 
   return message;
 }
 
-module.exports = { CLAUDE_MODELS, CLAUDE_CAPS, DEFAULT_CAP, PRICES, claudeKeyProblem, claudeModelFor, claudeCap, costMicros, monthKey, claudeRestReason, restError, claudeError, fromClaude, callClaude };
+/** Claude's meter and pause in admin-only adminSecrets/claudeUsage (`ref`), shared by the admin writer and the stockroom. */
+function claudeUsageStore(ref, FieldValue) {
+  return {
+    read: async () => { const snap = await ref.get(); return snap.exists ? snap.data() || {} : {}; },
+    record: micros => ref.set({ months: { [monthKey()]: { costMicros: FieldValue.increment(micros), requests: FieldValue.increment(1) } }, updatedAt: FieldValue.serverTimestamp() }, { merge: true }),
+    pause: reason => ref.set({ paused: { reason, at: FieldValue.serverTimestamp() } }, { merge: true }),
+    resume: () => ref.set({ paused: FieldValue.delete() }, { merge: true }),
+  };
+}
+
+module.exports = { claudeUsageStore, CLAUDE_MODELS, CLAUDE_CAPS, DEFAULT_CAP, PRICES, claudeKeyProblem, claudeModelFor, claudeCap, costMicros, monthKey, claudeRestReason, restError, claudeError, fromClaude, callClaude };

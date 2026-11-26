@@ -798,3 +798,9 @@ Try again) or when this month reaches the owner's `claudeCap`. While resting, no
 (unless `claudeBackup === false`) or the call answers 402 with `claudeRest`. Refusal fallbacks are not turned on, so cost stays
 predictable. Tests: `functions/aiClaude.test.js`.
 
+**Stockroom (same day):** `stockroomClaude` (`functions/stockroomClaude.js`, contract in `docs/INVENTORY_LINK.md`) lets the
+inventory app use the same key, limit, meter and pause. It is a plain `onRequest` (the stockroom has no App Check token for
+this project): the gate is the stockroom ID token verified against the inventory project (`verifyStockroomToken` in
+`inventoryLinkStore.js`), `ADMIN_EMAILS` + `email_verified`, `STOCKROOM_ORIGINS` and `LIMITS.stockroomAi`. Requests are
+rebuilt field by field (`cleanStockroomRequest`): model from the owner's choice, at most 8192 output tokens, no server tools.
+Keep `https://lyricalmyricalbooks.github.io` in `STOCKROOM_ORIGINS` when the shop's old Pages address leaves `ALLOWED_ORIGINS`.
