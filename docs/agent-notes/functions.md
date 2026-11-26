@@ -780,7 +780,7 @@ Live carrier choices show up to five distinct Canada Post methods, cheapest firs
   (`TRACKABLE`; Chit Chats, Stallion Express and "Other" are skipped), is sent to `POST tracks/` (spaces removed,
   metadata `Order <id>`). Never with a `shippo_test_` key. The result (or the error) goes to
   `order-operations.shippoTracking`. `shippoWebhook` finds an order by `trackingNumber`, then by
-  `order-operations.shippoTracking.trackingNumber` (numbers typed with spaces). The webhook carrier code uses
+  `order-operations.shippoTracking.trackingNumber` (numbers typed with spaces), accepted only while the order still carries that number (a corrected or removed number leaves the old registration behind). The webhook carrier code uses
   `shippoCarrierToken` ("DHL" → `dhl_express`). Needs the account's track_updated webhook in Shippo, as before.
 - **Address check v2** (`functions/shippoAddress.js` `checkAddress`, used by `validateAddress` and
   `autoApproveShippingAddress`): `GET v2/addresses/validate` (6 s), only `valid` counts (`partially_valid` stays for

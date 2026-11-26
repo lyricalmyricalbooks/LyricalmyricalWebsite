@@ -385,6 +385,16 @@ test("a hand-typed tracking number is registered with Shippo, and its updates fi
   expect(app.order().fulfillmentStatus).toBe("delivered");
 });
 
+test("an old registration never moves an order whose tracking number was corrected or removed", async () => {
+  for (const changed of [{ trackingNumber: "B-77", trackingCarrier: "Chit Chats" }, { trackingNumber: undefined, trackingCarrier: undefined }]) {
+    const order = { ...baseOrder({ fulfillmentStatus: "shipped", status: "completed" }), ...changed };
+    const app = harness({ order, ops: { shippoTracking: { carrier: "canada_post", trackingNumber: "70232100" } }, fetchImpl: trackFetch("DELIVERED"), patch: webhookPatch });
+    const res = await app.call("shippoWebhook", { data: { tracking_number: "70232100", carrier: "canada_post" } });
+    expect(res.body.message).toBe("No matching order found");
+    expect(app.order().fulfillmentStatus).toBe("shipped");
+  }
+});
+
 test("a Shippo-bought label or a test key is never registered again", async () => {
   const before = baseOrder({ fulfillmentStatus: "processing" });
   const bought = harness({ fetchImpl: () => ok({}) });

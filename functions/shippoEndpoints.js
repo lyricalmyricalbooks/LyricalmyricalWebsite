@@ -404,7 +404,10 @@ function shippoEndpoints({
             .where("shippoTracking.trackingNumber", "==", String(trackingNum).replace(/\s+/g, "")).limit(1).get();
           if (!registered.empty) {
             const found = await db.collection("orders").doc(registered.docs[0].id).get();
-            if (found.exists) orderDoc = found;
+            // Only while the order still carries that number: a corrected or removed number leaves the old
+            // registration behind, and its parcel must never move this order.
+            const current = String((found.exists && found.data()?.trackingNumber) || "").replace(/\s+/g, "");
+            if (current && current === String(trackingNum).replace(/\s+/g, "")) orderDoc = found;
           }
         }
         if (!orderDoc) {
