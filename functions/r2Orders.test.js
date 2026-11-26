@@ -44,7 +44,7 @@ function harness({ order = baseOrder(), ops = {}, books, secret = "shippo_live_t
     collection: name => ({
       doc: id => ref(name, id), add: async () => {},
       where: (field, op, value) => ({ limit: () => ({ get: async () => {
-        const hit = Object.entries(docs[name] || {}).filter(([, d]) => d[field] === value).map(([id, d]) => ({ id, ref: ref(name, id), data: () => d }));
+        const hit = Object.entries(docs[name] || {}).filter(([, d]) => field.split(".").reduce((v, k) => v?.[k], d) === value).map(([id, d]) => ({ id, ref: ref(name, id), data: () => d }));
         return { empty: !hit.length, docs: hit };
       } }) }),
     }),
@@ -367,6 +367,44 @@ test("trackingStep reads Shippo's statuses and substatus", () => {
   expect(trackingStep("TRANSIT", "package_accepted", "shipped")).toBe("shipped");
   expect(trackingStep("DELIVERED", null, "processing")).toBe("delivered");
   expect(trackingStep("RETURNED", null, "shipped")).toBe(null);
+});
+
+// Hand-typed tracking ---------------------------------------------------------------------------------------
+test("a hand-typed tracking number is registered with Shippo, and its updates find the order despite spaces", async () => {
+  const app = harness({ patch: webhookPatch, fetchImpl: c => c.url.endsWith("tracks/") ? ok({ tracking_status: { status: "PRE_TRANSIT" } }) : trackFetch("DELIVERED")(c) });
+  const before = baseOrder({ fulfillmentStatus: "processing" });
+  const after = { ...before, fulfillmentStatus: "shipped", status: "completed", trackingNumber: "7023 2100", trackingCarrier: "Canada Post" };
+  app.docs.orders.A = after;
+  await app.exports.onOrderUpdated({ data: { before: { data: () => before }, after: { data: () => after } }, params: { orderId: "A" } });
+  const register = app.calls.find(c => c.url.endsWith("tracks/"));
+  expect(register).toMatchObject({ method: "POST", body: { carrier: "canada_post", tracking_number: "70232100" } });
+  expect(app.ops().shippoTracking).toMatchObject({ carrier: "canada_post", trackingNumber: "70232100", status: "PRE_TRANSIT" });
+  // Shippo reports the number without its spaces.
+  const res = await app.call("shippoWebhook", { data: { tracking_number: "70232100", carrier: "canada_post" } });
+  expect(res.code).toBe(200);
+  expect(app.order().fulfillmentStatus).toBe("delivered");
+});
+
+test("an old registration never moves an order whose tracking number was corrected or removed", async () => {
+  for (const changed of [{ trackingNumber: "B-77", trackingCarrier: "Chit Chats" }, { trackingNumber: undefined, trackingCarrier: undefined }]) {
+    const order = { ...baseOrder({ fulfillmentStatus: "shipped", status: "completed" }), ...changed };
+    const app = harness({ order, ops: { shippoTracking: { carrier: "canada_post", trackingNumber: "70232100" } }, fetchImpl: trackFetch("DELIVERED"), patch: webhookPatch });
+    const res = await app.call("shippoWebhook", { data: { tracking_number: "70232100", carrier: "canada_post" } });
+    expect(res.body.message).toBe("No matching order found");
+    expect(app.order().fulfillmentStatus).toBe("shipped");
+  }
+});
+
+test("a Shippo-bought label or a test key is never registered again", async () => {
+  const before = baseOrder({ fulfillmentStatus: "processing" });
+  const bought = harness({ fetchImpl: () => ok({}) });
+  const labelled = { ...before, trackingNumber: "T9", trackingCarrier: "Canada Post", labelUrl: "https://shippo.example/label.pdf" };
+  await bought.exports.onOrderUpdated({ data: { before: { data: () => before }, after: { data: () => labelled } }, params: { orderId: "A" } });
+  expect(bought.calls.some(c => c.url.includes("tracks/"))).toBe(false);
+  const sandbox = harness({ secret: "shippo_test_token", fetchImpl: () => ok({}) });
+  const typed = { ...before, trackingNumber: "T9", trackingCarrier: "Canada Post" };
+  await sandbox.exports.onOrderUpdated({ data: { before: { data: () => before }, after: { data: () => typed } }, params: { orderId: "A" } });
+  expect(sandbox.calls.some(c => c.url.includes("tracks/"))).toBe(false);
 });
 
 // One email per shipped parcel: "out for delivery" never emails the customer (owner's request).

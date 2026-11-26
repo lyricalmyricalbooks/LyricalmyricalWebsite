@@ -33,6 +33,8 @@ const { checkoutRate } = require("./checkoutRate");
 const { liveRateExtra, withLiveRateExtra, cleanLiveRateExtra } = require("./liveRateExtra");
 const { FALLBACK_COPY_GRAMS, parcelGrams } = require("./parcelWeight");
 const { shippoHeaders } = require("./shippoRequest");
+const { checkAddress } = require("./shippoAddress");
+const { trackingToRegister, trackRegistration } = require("./shippoTracking");
 const { addressMissing } = require("./shared/addressRules");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./shared/localFulfillment");
 const { catalogUnitPrice } = require("./catalogPrice");
@@ -3154,11 +3156,36 @@ async function checkAddressAfterPayment(event) {
     console.warn("Automatic address check failed; publisher review stays required", err);
   }
 }
+// A tracking number typed in by hand (no Shippo label) is registered with Shippo, so its tracking updates reach
+// shippoWebhook like a bought label's. Best effort: a refusal is noted on order-operations, never thrown.
+async function registerHandTypedTracking(event) {
+  const before = event.data?.before?.data() || {};
+  const after = event.data?.after?.data() || {};
+  const tracking = trackingToRegister(before, after);
+  if (!tracking) return;
+  const orderId = event.params.orderId;
+  const opsRef = db.collection("order-operations").doc(orderId);
+  const now = new Date().toISOString();
+  try {
+    const token = await getShippoToken();
+    // A test key can only track Shippo's pretend carrier, so real numbers are never sent with one.
+    if (!token || /^shippo_test_/.test(token)) return;
+    const track = await callShippo("tracks/", "POST", trackRegistration(tracking, after.orderId || orderId), token);
+    await opsRef.set({ shippoTracking: { ...tracking, registeredAt: now, status: track?.tracking_status?.status || null } }, { merge: true });
+  } catch (err) {
+    console.warn(`Could not register tracking ${tracking.trackingNumber} with Shippo for ${orderId}:`, err?.message || err);
+    try { await opsRef.set({ shippoTracking: { ...tracking, failedAt: now, error: String(err?.message || err).slice(0, 300) } }, { merge: true }); }
+    catch { /* the warning above is enough */ }
+  }
+}
 exports.onOrderUpdated = onDocumentUpdated(
   { document: "orders/{orderId}", secrets: [RESEND_API_KEY, SHIPPO_API_TOKEN], timeoutSeconds: 120 },
   async event => {
     try { await handleOrderUpdated(event); }
-    finally { await checkAddressAfterPayment(event); }
+    finally {
+      await checkAddressAfterPayment(event);
+      await registerHandTypedTracking(event);
+    }
   }
 );
 async function handleOrderUpdated(event) {
@@ -3662,17 +3689,11 @@ async function autoApproveShippingAddress(orderId, order) {
   if (method !== "shipping" || order.isTest || addressMissing(address).length) return;
   const shippoToken = await getShippoToken();
   if (!shippoToken) return;
-  const result = await callShippo("addresses/", "POST", {
-    name: order.customer?.name || "Customer",
-    street1: address.street,
-    street2: address.unit || "",
-    city: address.city,
-    state: getStateCode(address.state),
-    zip: address.zip,
-    country: getCountryCode(address.country),
-    validate: true,
-  }, shippoToken);
-  if (result?.validation_results?.is_valid !== true) return;
+  const result = await checkAddress(callShippo, shippoToken, {
+    name: order.customer?.name || "Customer", street: address.street, unit: address.unit, city: address.city,
+    state: getStateCode(address.state), zip: address.zip, country: getCountryCode(address.country),
+  });
+  if (result.isValid !== true) return;
   const opsRef = db.collection("order-operations").doc(orderId);
   const now = new Date().toISOString();
   await db.runTransaction(async tx => {
