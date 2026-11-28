@@ -38,14 +38,14 @@ export default function ArtistsDirectoryPage() {
     [books],
   );
   const waiting = !loadError && (siteLoading || !fresh) && artists.length === 0;
-  const held = waiting ? prerenderedHtml() : null;
+  const held = (waiting || (loadError && artists.length === 0)) ? prerenderedHtml() : null;
   useEffect(() => { if (isStudioPreview()) window.parent.postMessage({ type: "PREVIEW_READY" }, "*"); }, []);
 
   const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
   const pageUrl = new URL("artists", siteBase).href;
   const shopName = getCopy(design, "siteName");
   const firstCover = artists.map(a => a.books.find(b => b.photos?.[0]?.url)?.photos?.[0]).find(Boolean);
-  useSEO(waiting ? {
+  useSEO((waiting || (loadError && artists.length === 0)) ? {
     keep: !!held,
   } : {
     title: getCopy(design, "seoArtistsTitle"),
@@ -75,6 +75,7 @@ export default function ArtistsDirectoryPage() {
 
   const root = "style:artistLayout|copy:Artist pages|style:customPages|style:colors";
   if (loadError && artists.length === 0) {
+    if (held) return <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: held }} />;
     return (
       <div data-fm-store data-studio-target={root} data-studio-label="Artists directory" className="min-h-screen fm-page text-white flex flex-col">
         <StorefrontThemeStyle design={design} />
