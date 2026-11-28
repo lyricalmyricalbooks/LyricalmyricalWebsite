@@ -26,7 +26,7 @@ describe('llms.txt', () => {
   const text = llmsTxt('https://lyricalmyricalbooks.com/', books, pages, settings, { now });
   it('lists each artist page with the books they made, never group credits or hidden books', () => {
     const withGroup = llmsTxt('https://lyricalmyricalbooks.com/', [...books, { id: 'f', title: 'Anthology', slug: 'anthology', status: 'published', subtitle: 'Various artists' }], pages, settings, { now });
-    expect(withGroup).toContain('## Artists\n\n- [Ian Willms](https://lyricalmyricalbooks.com/artists/ian-willms): photobooks The Hound.\n');
+    expect(withGroup).toContain('## Artists\n\n- [All artists](https://lyricalmyricalbooks.com/artists)\n\n- [Ian Willms](https://lyricalmyricalbooks.com/artists/ian-willms): photobooks The Hound.\n');
     expect(withGroup).not.toContain('/artists/various');
   });
   it('opens with the shop, its summary and where it is, never the street', () => {

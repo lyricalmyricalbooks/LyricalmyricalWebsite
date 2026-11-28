@@ -512,6 +512,11 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "artistPageLinksHeading", label: "Artist page: heading above their website links", default: "Website" },
       { key: "artistPageBooksHeading", label: "Artist page: heading above their books", default: "Photobooks" },
       { key: "artistPageBooksCount", label: "Artist page: number of books", default: "{count}", hint: "Beside the books heading. {count} is the number of books." },
+      { key: "artistsDirectoryTitle", label: "Artists directory: main heading", default: "Artists & photographers" },
+      { key: "artistsDirectoryIntro", label: "Artists directory: intro line", default: "Photographers and artists published by {shop}.", hint: "Use {shop} for the site name." },
+      { key: "seoArtistsTitle", label: "Artists directory: browser-tab and Google title", default: "Artists & photographers" },
+      { key: "seoArtistsDescription", label: "Artists directory: search description", default: "Explore photographers and artists published by {shop}, with biographies and photobooks.", hint: "Use {shop} for the site name." },
+      { key: "artistsDirectoryEmpty", label: "Artists directory: empty message", default: "No artists listed yet." },
     ],
   },
   {

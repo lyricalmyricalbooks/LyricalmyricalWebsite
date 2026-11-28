@@ -59,6 +59,7 @@ import { cardCreator } from "../features/site/cardCreator";
 import CardRatingStars from "../features/site/CardRatingStars";
 import { framingStyle } from "../features/site/photoFraming";
 import { PhotoToneDefs } from "../features/site/PhotoToneDefs";
+import { describedAlt } from "../features/site/photoAlt";
 import { arrivedPrerendered } from "../lib/prerenderedPage";
 
 const catNameForSEO = (category: any) => typeof category === "string" ? category : category?.name;
@@ -629,7 +630,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
           .filter((book: any) => book.seoNoindex !== true)
           .map((book: any) => ({ name: book.title, url: new URL(`books/${encodeURIComponent(getBookSlug(book))}`, siteBase).href, image: book.photos?.[0]?.url }));
         return [
-          collectionStructuredData({ name: routeCategoryName, description: collectionIntro(activeDesign, collectionSlug, routeCategory) || undefined, url: collectionUrl, books: collectionBooks }),
+          collectionStructuredData({ name: routeCategoryName, description: collectionIntro(activeDesign, collectionSlug, routeCategory) || undefined, url: collectionUrl, siteUrl: siteBase, books: collectionBooks }),
           // Home › Parent › Category, the same trail the page shows above the category name.
           breadcrumbData([
             { name: getCopy(activeDesign, "breadcrumbHome"), url: siteBase },
@@ -1033,7 +1034,7 @@ export default function MainSite({ setShowCatalog, showCatalog }: any) {
                       <SkeletonImage
                         src={item.photos?.[0]?.url || placeholderImage(activeDesign)}
                         {...photoSrcSet(item.photos?.[0], gridPhotoSizes(gridSteps, { photo: item.photos?.[0], frame: imageAspect, cover: storefrontImageFit === "object-cover" }))}
-                        alt={item.title}
+                        alt={describedAlt(item.photos?.[0]?.altText) || item.title}
                         priority={index < 2 ? "high" : index < 4 ? "eager" : undefined}
                         className={`w-full h-full ${storefrontImageFit} transition-transform duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}
                         style={framingStyle(item.photos?.[0], { x: catalogImageFocalX, y: catalogImageFocalY })}

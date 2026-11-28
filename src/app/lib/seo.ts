@@ -16,7 +16,7 @@ type SEO = {
   /** What the share picture shows (its alt text); the page title when absent. */
   imageAlt?: string;
   url?: string;
-  type?: "website" | "article" | "product" | "book";
+  type?: "website" | "article" | "product" | "book" | "profile";
   /** Price/stock tags read by Pinterest rich pins and Facebook product shares. */
   product?: { price: number; currency: string; availability: "in stock" | "out of stock" | "backorder" };
   /** One schema object, or several emitted together as one @graph. */

@@ -66,7 +66,7 @@ export function llmsTxt(siteUrl, books, pages, settings = {}, { now = new Date()
   const artists = [...artistDirectory(resolveProductRoutes(live)).values()].filter(artist => safeSlug(artist.slug))
     .sort((a, b) => a.name.localeCompare(b.name));
   if (artists.length) {
-    out.push('## Artists', '');
+    out.push('## Artists', '', `- [All artists](${base}/artists)`, '');
     for (const artist of artists) {
       const titles = artist.books.map(book => line(book.title)).filter(Boolean).join(', ');
       const about = cut(line(artist.bio), 200);

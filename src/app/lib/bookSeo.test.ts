@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoBookSeo, splitPress, bookCreators, creatorLinks, creatorPeople, namesCreator, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, infoPageStructuredData, infoPageType, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, seoTopicList, siteStructuredData, snippet, profileLinks, alternateNameList, returnPolicyData, languageCodes } from './bookSeo';
+import { autoBookSeo, splitPress, bookCreators, creatorLinks, creatorPeople, namesCreator, bookMetadata, bookStructuredData, defaultBookTitle, breadcrumbData, infoPageStructuredData, infoPageType, canonicalUrl, collectionStructuredData, artistStructuredData, artistsDirectoryStructuredData, isbn13, ratingData, seoChecks, fittingTitle, leadSentences, seoTopicList, siteStructuredData, snippet, profileLinks, alternateNameList, returnPolicyData, languageCodes } from './bookSeo';
 const book = { id: 'one', title: 'Photo book', description: '<p>Art &amp; photography.</p>', retailPrice: 24, stockLevel: 0, status: 'published', slug: 'photo-book', metaTitle: 'An artist’s photo book', metaDescription: 'A unique collection of photographs.', seoImage: 'https://example.com/share.jpg' };
 describe('book search metadata', () => {
   it('uses saved search fields and sharing image', () => {
@@ -16,6 +16,8 @@ describe('book search metadata', () => {
     expect(canonicalUrl('https://example.com/shop/books/one/')).toBe('https://example.com/shop/books/one');
     expect(canonicalUrl('https://example.com/shop/page/about/?x=1')).toBe('https://example.com/shop/page/about');
     expect(canonicalUrl('https://example.com/shop/collections/art/')).toBe('https://example.com/shop/collections/art');
+    expect(canonicalUrl('https://example.com/shop/artists/')).toBe('https://example.com/shop/artists');
+    expect(canonicalUrl('https://example.com/shop/artists/ian-willms/')).toBe('https://example.com/shop/artists/ian-willms');
     expect(canonicalUrl('https://example.com/shop/')).toBe('https://example.com/shop/');
   });
   it('emits Product and Book markup using the displayed currency and price', () => {
@@ -289,5 +291,66 @@ describe('info page structured data', () => {
     expect(plain['@type']).toBe('WebPage');
     expect(plain).not.toHaveProperty('about');
     expect(plain).not.toHaveProperty('description');
+  });
+});
+
+describe('multi-variant offers and graph links', () => {
+  it('emits AggregateOffer when a book has 2+ priced editions', () => {
+    const data: any = bookStructuredData(book, {
+      currency: 'CAD',
+      price: 45,
+      url: 'https://example.com/books/one',
+      seller: 'Lyricalmyrical Books',
+      shopUrl: 'https://example.com/',
+      variantOffers: [
+        { name: 'Softcover', price: 45, availability: 'https://schema.org/OutOfStock', sku: 'B-SC' },
+        { name: 'Signed Hardcover', price: 95, availability: 'https://schema.org/InStock', sku: 'B-HC' },
+      ],
+    });
+    expect(data.offers).toMatchObject({
+      '@type': 'AggregateOffer',
+      priceCurrency: 'CAD',
+      lowPrice: '45.00',
+      highPrice: '95.00',
+      offerCount: 2,
+      availability: 'https://schema.org/InStock',
+    });
+    expect(data.offers.offers).toHaveLength(2);
+    expect(data.offers.offers[1]).toMatchObject({ name: 'Signed Hardcover', price: '95.00', sku: 'B-HC', seller: { '@id': 'https://example.com/#organization' } });
+  });
+
+  it('links artist directory, artist profile, and collection schemas to #website and #organization', () => {
+    const dir: any = artistsDirectoryStructuredData({
+      name: 'Artists',
+      description: 'Our artists.',
+      url: 'https://example.com/artists/',
+      siteUrl: 'https://example.com/',
+      artists: [{ name: 'Ian Willms', url: 'https://example.com/artists/ian-willms/', image: '/a.jpg' }],
+    });
+    expect(dir).toMatchObject({
+      '@type': 'CollectionPage',
+      url: 'https://example.com/artists',
+      isPartOf: { '@id': 'https://example.com/#website' },
+      publisher: { '@id': 'https://example.com/#organization' },
+    });
+    expect(dir.mainEntity.itemListElement[0].item).toMatchObject({ '@type': 'Person', '@id': 'https://example.com/artists/ian-willms#person', image: 'https://example.com/a.jpg' });
+
+    const profile: any = artistStructuredData({
+      name: 'Ian Willms',
+      url: 'https://example.com/artists/ian-willms',
+      siteUrl: 'https://example.com/',
+      books: [{ name: 'The Hound', url: 'https://example.com/books/the-hound' }],
+    });
+    expect(profile.isPartOf).toEqual({ '@id': 'https://example.com/#website' });
+    expect(profile.publisher).toEqual({ '@id': 'https://example.com/#organization' });
+    expect(profile.mainEntity.workExample[0]['@id']).toBe('https://example.com/books/the-hound#book');
+
+    const col: any = collectionStructuredData({
+      name: 'Books',
+      url: 'https://example.com/collections/books',
+      siteUrl: 'https://example.com/',
+      books: [],
+    });
+    expect(col.isPartOf).toEqual({ '@id': 'https://example.com/#website' });
   });
 });

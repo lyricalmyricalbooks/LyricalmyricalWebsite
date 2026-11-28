@@ -226,15 +226,18 @@ export function breadcrumbData(items: { name: string; url: string }[]) {
 }
 
 /** An artist page: a ProfilePage about the Person, tied to their own websites (`sameAs`) and listing their books. */
-export function artistStructuredData(options: { name: string; url: string; description?: string; links?: { url: string }[]; books?: { name: string; url: string; image?: string }[] }) {
+export function artistStructuredData(options: { name: string; url: string; siteUrl?: string; description?: string; links?: { url: string }[]; books?: { name: string; url: string; image?: string }[] }) {
   const url = canonicalUrl(options.url);
+  const site = options.siteUrl ? canonicalUrl(options.siteUrl) : '';
   const sameAs = [...new Set((options.links || []).map(l => l.url).filter(Boolean))];
   const books = (options.books || []).filter(b => b.name && b.url);
   return {
     '@context': 'https://schema.org',
     '@type': 'ProfilePage',
+    '@id': `${url}#profile`,
     url,
     name: options.name,
+    ...(site ? { isPartOf: { '@id': site + '#website' }, publisher: { '@id': site + '#organization' } } : {}),
     mainEntity: {
       '@type': 'Person',
       '@id': `${url}#person`,
@@ -242,7 +245,42 @@ export function artistStructuredData(options: { name: string; url: string; descr
       url: sameAs[0] || url,
       ...(sameAs.length ? { sameAs } : {}),
       ...(options.description ? { description: options.description } : {}),
-      ...(books.length ? { workExample: books.map(b => ({ '@type': 'Book', name: b.name, url: canonicalUrl(b.url), ...(b.image ? { image: b.image } : {}) })) } : {}),
+      ...(books.length ? { workExample: books.map(b => { const bookUrl = canonicalUrl(b.url); return { '@type': 'Book', '@id': `${bookUrl}#book`, name: b.name, url: bookUrl, ...(b.image ? { image: b.image } : {}) }; }) } : {}),
+    },
+  };
+}
+
+/** The /artists directory page: a CollectionPage listing all credited photographers & artists as Person items. */
+export function artistsDirectoryStructuredData(options: { name: string; description?: string; url: string; siteUrl: string; artists: { name: string; url: string; image?: string }[] }) {
+  const url = canonicalUrl(options.url);
+  const site = canonicalUrl(options.siteUrl);
+  const artists = options.artists.filter(a => a.name && a.url);
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    '@id': url + '#collection',
+    url,
+    name: searchText(options.name),
+    ...(options.description ? { description: searchText(options.description) } : {}),
+    isPartOf: { '@id': site + '#website' },
+    publisher: { '@id': site + '#organization' },
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: artists.length,
+      itemListElement: artists.map((artist, index) => {
+        const artistUrl = canonicalUrl(artist.url);
+        return {
+          '@type': 'ListItem',
+          position: index + 1,
+          item: {
+            '@type': 'Person',
+            '@id': `${artistUrl}#person`,
+            name: artist.name,
+            url: artistUrl,
+            ...(artist.image ? { image: absolute(artist.image, url) } : {}),
+          },
+        };
+      }),
     },
   };
 }
@@ -278,8 +316,9 @@ export function infoPageStructuredData(options: { slug: string; name: string; ur
 }
 
 /** A shop category as a list of the books in it. */
-export function collectionStructuredData(options: { name: string; description?: string; url: string; books: { name: string; url: string; image?: string }[] }) {
+export function collectionStructuredData(options: { name: string; description?: string; url: string; siteUrl?: string; books: { name: string; url: string; image?: string }[] }) {
   const url = canonicalUrl(options.url);
+  const site = options.siteUrl ? canonicalUrl(options.siteUrl) : '';
   return {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
@@ -287,6 +326,7 @@ export function collectionStructuredData(options: { name: string; description?: 
     url,
     name: options.name,
     ...(options.description ? { description: searchText(options.description) } : {}),
+    ...(site ? { isPartOf: { '@id': site + '#website' }, publisher: { '@id': site + '#organization' } } : {}),
     mainEntity: {
       '@type': 'ItemList',
       numberOfItems: Math.min(options.books.length, 30),
@@ -443,7 +483,9 @@ export function shippingDetailsData(quote: { price: number; deliveryDays?: strin
   };
 }
 
-export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; ratingSummary?: { count: number; average: number } | null; seller?: string; shopUrl?: string; returnPolicy?: ReturnType<typeof returnPolicyData>; shipping?: ReturnType<typeof shippingDetailsData>; artistUrl?: (name: string) => string | undefined }) {
+export type VariantOfferInput = { name?: string; price: number; availability: string; sku?: string };
+
+export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; ratingSummary?: { count: number; average: number } | null; seller?: string; shopUrl?: string; returnPolicy?: ReturnType<typeof returnPolicyData>; shipping?: ReturnType<typeof shippingDetailsData>; artistUrl?: (name: string) => string | undefined; variantOffers?: VariantOfferInput[] }) {
   const variants = book.variants || [];
   const backorder = book.onBackorder || (variants.length > 0 && variants.every((v: any) => v.onBackorder));
   // Coming soon (Books › Inventory): shown but not for sale yet, so it is honestly out of stock.
@@ -452,6 +494,50 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
   // Pre-order (Books › Inventory): PreOrder availability, starting on the release day when known.
   const preorder = available && preorderActive(book);
   const release = preorder ? releaseDateOf(book) : '';
+  const sharedOfferFields = {
+    url: options.url,
+    priceCurrency: options.currency,
+    itemCondition: 'https://schema.org/NewCondition',
+    ...(options.seller ? { seller: shopRef(options.seller, options.shopUrl) } : {}),
+    ...(options.returnPolicy ? { hasMerchantReturnPolicy: options.returnPolicy } : {}),
+    ...(options.shipping ? { shippingDetails: options.shipping } : {}),
+  };
+  const validVariantOffers = (options.variantOffers || []).filter(v => Number.isFinite(v.price) && v.price > 0);
+  const singleAvailability = `https://schema.org/${preorder ? 'PreOrder' : soon ? 'OutOfStock' : backorder ? 'BackOrder' : available ? 'InStock' : 'OutOfStock'}`;
+  const offers = validVariantOffers.length >= 2
+    ? (() => {
+        const prices = validVariantOffers.map(v => v.price);
+        const avails = validVariantOffers.map(v => v.availability);
+        const bestAvailability = avails.find(a => a.endsWith('InStock'))
+          || avails.find(a => a.endsWith('PreOrder'))
+          || avails.find(a => a.endsWith('BackOrder'))
+          || avails[0];
+        return {
+          '@type': 'AggregateOffer',
+          url: options.url,
+          priceCurrency: options.currency,
+          lowPrice: Math.min(...prices).toFixed(2),
+          highPrice: Math.max(...prices).toFixed(2),
+          offerCount: validVariantOffers.length,
+          availability: bestAvailability,
+          offers: validVariantOffers.map(v => ({
+            '@type': 'Offer',
+            ...sharedOfferFields,
+            ...(searchText(v.name) ? { name: searchText(v.name) } : {}),
+            ...(v.sku ? { sku: v.sku } : {}),
+            price: Number(v.price).toFixed(2),
+            availability: v.availability,
+            ...(release && v.availability.endsWith('PreOrder') ? { availabilityStarts: release } : {}),
+          })),
+        };
+      })()
+    : {
+        '@type': 'Offer',
+        ...sharedOfferFields,
+        price: Number(options.price).toFixed(2),
+        availability: singleAvailability,
+        ...(release ? { availabilityStarts: release } : {}),
+      };
   return {
     '@context': 'https://schema.org',
     '@type': ['Product', 'Book'],
@@ -468,17 +554,7 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
     // Google's merchant listings ask for a brand: for a book that is its publisher, else the shop.
     ...(searchText(book.publisher) || options.seller ? { brand: { '@type': 'Brand', name: searchText(book.publisher) || options.seller } } : {}),
     ...(book.publisher ? { publisher: options.seller && namesShop(searchText(book.publisher), options.seller) ? shopRef(searchText(book.publisher), options.shopUrl) : { '@type': 'Organization', name: book.publisher } } : {}),
-    offers: {
-      '@type': 'Offer', url: options.url,
-      priceCurrency: options.currency,
-      price: Number(options.price).toFixed(2),
-      availability: `https://schema.org/${preorder ? 'PreOrder' : soon ? 'OutOfStock' : backorder ? 'BackOrder' : available ? 'InStock' : 'OutOfStock'}`,
-      ...(release ? { availabilityStarts: release } : {}),
-      itemCondition: 'https://schema.org/NewCondition',
-      ...(options.seller ? { seller: shopRef(options.seller, options.shopUrl) } : {}),
-      ...(options.returnPolicy ? { hasMerchantReturnPolicy: options.returnPolicy } : {}),
-      ...(options.shipping ? { shippingDetails: options.shipping } : {}),
-    },
+    offers,
     ...pressData(book.description),
     ...ratingData(options.reviews, options.ratingSummary),
   };

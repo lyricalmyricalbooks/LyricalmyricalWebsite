@@ -4,6 +4,7 @@ const decodeXml = value => value.replace(/&amp;/g, '&').replace(/&lt;/g, '<').re
 /** Only public content routes; never snapshot customer, admin or checkout state. */
 export function routeOutputPath(route) {
   if (route === '/') return 'index.html';
+  if (route === '/artists') return 'artists.html';
   const parts = route.split('/');
   if (parts.length !== 3 || !['artists', 'books', 'page', 'collections'].includes(parts[1])) throw new Error(`Unsupported snapshot route: ${route}`);
   const slug = decodeSlug(parts[2]);
@@ -24,7 +25,7 @@ export function publicRoutes(xml, siteUrl, onSkip = route => console.warn(`::war
     const url = new URL(decodeXml(match[1]));
     if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname) || url.search || url.hash) return [];
     const route = '/' + url.pathname.slice(base.pathname.length).replace(/\/$/, '');
-    if (route !== '/' && !/^\/(artists|books|page|collections)\/[^/]+$/.test(route)) return [];
+    if (route !== '/' && route !== '/artists' && !/^\/(artists|books|page|collections)\/[^/]+$/.test(route)) return [];
     try { routeOutputPath(route); } catch { onSkip(route); return []; }
     return [route];
   }))];
@@ -38,6 +39,9 @@ export function captureDocument({ template, publicUrl, localOrigin }) {
   if (pageSlug && document.querySelector('[data-seo-page]')?.getAttribute('data-seo-page') !== decodeURIComponent(pageSlug)) throw new Error('Cannot snapshot an unfinished custom page');
   const collectionSlug = new URL(publicUrl).pathname.split('/collections/')[1];
   if (collectionSlug && document.querySelector('[data-seo-collection]')?.getAttribute('data-seo-collection') !== decodeURIComponent(collectionSlug)) throw new Error('Cannot snapshot an unfinished collection');
+  if (new URL(publicUrl).pathname.replace(/\/$/, '').endsWith('/artists') && document.querySelector('[data-seo-artists]')?.getAttribute('data-seo-artists') !== 'ready') {
+    throw new Error('Cannot snapshot an unfinished artists directory');
+  }
   const clone = document.documentElement.cloneNode(true);
   const original = new DOMParser().parseFromString(template, 'text/html');
   // Runtime scripts are not data. Reuse only scripts shipped in the app shell, and
@@ -105,5 +109,24 @@ export function captureDocument({ template, publicUrl, localOrigin }) {
   clone.querySelectorAll('script[type="application/ld+json"]').forEach(script => {
     script.textContent = script.textContent.replaceAll(localOrigin, new URL(publicUrl).origin).replace(/</g, '\\u003c');
   });
+  // Hint the browser to fetch the page's primary hero/cover image immediately during HTML parsing (Core Web Vitals LCP).
+  const lcpImg = clone.querySelector('img[fetchpriority="high"]');
+  const lcpSrc = lcpImg?.getAttribute('src')?.trim() || '';
+  if (lcpSrc && !lcpSrc.startsWith('data:')) {
+    const head = clone.querySelector('head');
+    const alreadyPreloaded = [...(head?.querySelectorAll('link[rel="preload"][as="image"]') || [])].some(l => l.getAttribute('href') === lcpSrc);
+    if (head && !alreadyPreloaded) {
+      const preload = document.createElement('link');
+      preload.setAttribute('rel', 'preload');
+      preload.setAttribute('as', 'image');
+      preload.setAttribute('href', lcpSrc);
+      preload.setAttribute('fetchpriority', 'high');
+      const srcset = lcpImg.getAttribute('srcset');
+      const sizes = lcpImg.getAttribute('sizes');
+      if (srcset) preload.setAttribute('imagesrcset', srcset);
+      if (sizes) preload.setAttribute('imagesizes', sizes);
+      head.appendChild(preload);
+    }
+  }
   return '<!DOCTYPE html>\n' + clone.outerHTML;
 }

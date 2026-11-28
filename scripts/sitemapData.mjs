@@ -44,10 +44,14 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
     const images = [...new Set((Array.isArray(book.photos) ? book.photos : []).map(photo => absoluteUrl(photo?.url, base + '/')).filter(Boolean))].slice(0, 10);
     urls.push({ loc: `${base}/books/${encodeURIComponent(book.slug)}`, lastmod: book.updatedAt || book._updateTime, images });
   }
-  // Artist pages (/artists/<slug>): one per photographer credited on a live book, so a search for their name has a
-  // page to find. Same directory as the shop's ArtistPage; group credits ("Various artists") give none.
-  for (const artist of artistDirectory(resolveProductRoutes(live)).values()) {
-    if (!safeSlug(artist.slug)) continue;
+  // Artist directory (/artists) + artist pages (/artists/<slug>): one per photographer credited on a live book,
+  // so a search for their name has a page to find. Group credits ("Various artists") give none.
+  const artists = [...artistDirectory(resolveProductRoutes(live)).values()].filter(artist => safeSlug(artist.slug));
+  if (artists.length > 0) {
+    const artistLastmod = newestDate(artists.flatMap(a => a.books.map(book => book.updatedAt || book._updateTime)));
+    urls.push({ loc: `${base}/artists`, lastmod: artistLastmod });
+  }
+  for (const artist of artists) {
     const lastmod = artist.books.map(book => book.updatedAt || book._updateTime).filter(value => typeof value === 'string').sort().pop();
     urls.push({ loc: `${base}/artists/${encodeURIComponent(artist.slug)}`, lastmod });
   }
