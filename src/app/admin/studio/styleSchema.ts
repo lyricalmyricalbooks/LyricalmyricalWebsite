@@ -391,6 +391,7 @@ export const STYLE_GROUPS: StyleGroup[] = withFeatureStyle<StyleGroup>([
       { key: "hideRecentlyViewed", label: "Hide the “Recently viewed” row on the shop page", kind: "toggle" },
       { key: "footerNavigationLayout", label: "Footer navigation layout", kind: "select", defaultValue: "grouped", options: [{ value: "grouped", label: "Grouped links + legal row" }, { value: "columns", label: "Classic columns" }] },
       { key: "showFooterCollections", label: "Show Collections link group (every shop category in the menu)", kind: "toggle", defaultValue: true },
+      { key: "showFooterArtists", label: "Show Artists directory link in footer", kind: "toggle", defaultValue: true },
       { key: "showFooterExplore", label: "Show Explore link group", kind: "toggle", defaultValue: true },
       { key: "showFooterConnect", label: "Show Participate & connect link group", kind: "toggle", defaultValue: true },
       { key: "showFooterLegalHeading", label: "Show legal row heading", kind: "toggle", defaultValue: true },

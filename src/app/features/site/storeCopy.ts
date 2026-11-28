@@ -186,6 +186,7 @@ export const COPY_SCHEMA: CopyGroup[] = withFeatureCopy<CopyGroup>([
       { key: "footerNavHeading", label: "Navigation heading", default: "Navigate" },
       { key: "footerWordmark", label: "Footer wordmark (single-line style)", default: "LYRICALMYRICAL BOOKS" },
       { key: "footerLinkShop", label: "Link: Shop", default: "Shop" },
+      { key: "footerLinkArtists", label: "Link: Artists", default: "Artists" },
       { key: "footerLinkTrack", label: "Link: Track order", default: "Track Order" },
       { key: "footerLinkInstagram", label: "Link: Instagram", default: "Instagram" },
       { key: "footerLinkFacebook", label: "Link: Facebook", default: "Facebook" },
