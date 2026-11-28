@@ -460,7 +460,7 @@ export default function BookDetail() {
         if (!Number.isFinite(price) || price <= 0) return null;
         const avail = !soon && Number(v.stockLevel ?? v.stock ?? 0) > 0;
         const pre = avail && preorderActive(book);
-        const back = !!(book.onBackorder || v.onBackorder);
+        const back = !!((book as any).onBackorder || v.onBackorder);
         return {
           name: v.name ? String(v.name) : undefined,
           sku: v.sku || book.sku,
