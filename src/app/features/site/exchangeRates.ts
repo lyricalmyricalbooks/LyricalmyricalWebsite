@@ -46,9 +46,15 @@ function remember(store: Store | null, now: number, pair: Pair) {
   try { store?.setItem(RATES_CACHE_KEY, JSON.stringify({ at: now, rates: pair })); } catch { /* not cached */ }
 }
 
-/** The shop's saved copy (`settings/exchangeRates`), read with the shopper Firestore Lite API. */
+/** The shop's saved copy (`settings/exchangeRates`), preferring the Hosting catalog file when current. */
 async function readShopRates(): Promise<any> {
-  const { publicApi } = await import("../../lib/publicApi");
+  const [{ currentStorefrontData, exchangeRatesFrom, fetchStorefrontDataFile }, { publicApi }] = await Promise.all([
+    import("./storefrontDataFile"),
+    import("../../lib/publicApi"),
+  ]);
+  const file = await currentStorefrontData(fetchStorefrontDataFile, publicApi.getCatalogVersion).catch(() => null);
+  const bundled = exchangeRatesFrom(file);
+  if (bundled) return bundled;
   return publicApi.getExchangeRates();
 }
 

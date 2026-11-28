@@ -3,7 +3,6 @@ import React, { createContext, useContext, useState, useEffect, useRef } from "r
 import { ChevronDown } from "lucide-react";
 import { saleActive } from "./features/site/promotions";
 import { FALLBACK_RATES, RATES_CACHE_MS, loadRates, type RatesSource } from "./features/site/exchangeRates";
-import { currencyForCountry, loadVisitorCountry } from "./features/site/visitorCurrency";
 import { looksAutomated } from "./lib/ownerDevice";
 
 export type Currency = "CAD" | "USD" | "EUR";
@@ -86,21 +85,12 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     } catch {
       setCurrencyState("CAD");
     }
-
-    // The Studio preview shows the shop as the owner sees it and asks no server for a shopper's location.
-    if (typeof window !== "undefined" && window.location.search.includes("preview=true")) return;
-    let cancelled = false;
-    loadVisitorCountry().then(country => {
-      const fromCountry = currencyForCountry(country);
-      if (!cancelled && fromCountry && !chosenRef.current) setCurrencyState(fromCountry);
-    });
-    return () => { cancelled = true; };
   }, []);
 
-  // Today's exchange rates: the shop's saved daily copy (the same numbers checkout charges), with a timeout and a
-  // one-hour per-tab cache (features/site/exchangeRates.ts). A tab left open re-reads them every hour, so prices
-  // follow the next day's rates without a reload. `ratesSource` says whether they are live, cached or the fallback.
+  // Today's exchange rates: only needed when displaying USD/EUR prices (CAD visitors make 0 reads).
+  // Reads the cached Hosting catalog file first, falling back to Firestore / the feed, with an hourly per-tab cache.
   useEffect(() => {
+    if (currency === "CAD") return;
     let cancelled = false;
     const refresh = () => loadRates().then(({ rates: next, source }) => {
       if (cancelled) return;
@@ -112,7 +102,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     refresh();
     const timer = setInterval(refresh, RATES_CACHE_MS / 4);
     return () => { cancelled = true; clearInterval(timer); };
-  }, []);
+  }, [currency]);
 
   const convertPrice = (priceInCAD: number) => {
     return priceInCAD * (rates[currency] || FALLBACK_RATES[currency]);

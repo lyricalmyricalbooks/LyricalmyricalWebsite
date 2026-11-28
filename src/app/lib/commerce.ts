@@ -280,7 +280,7 @@ export function planCounterWrites(bumps: CounterBump[]): CounterWrite[] {
 }
 
 /** How long counters wait to share a write: a page's signals (visit + source/device, book view + its categories) arrive together. */
-export const COUNTER_FLUSH_MS = 300;
+export const COUNTER_FLUSH_MS = 3000;
 
 type Queued = CounterBump & { done: () => void };
 let queue: Queued[] = [];

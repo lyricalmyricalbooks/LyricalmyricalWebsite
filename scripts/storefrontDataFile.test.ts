@@ -20,12 +20,20 @@ describe("storefront data file (build side)", () => {
       const body = JSON.parse(init.body);
       calls.push({ url, body });
       let out: unknown;
-      if (url.endsWith(":batchGet")) out = [{ found: doc("settings/website", { info: { mapValue: { fields: { name: { stringValue: "Shop" } } } } }), readTime: "2026-10-15T03:49:48.748909Z" }];
+      if (url.endsWith(":batchGet")) out = [
+        { found: doc("settings/website", { info: { mapValue: { fields: { name: { stringValue: "Shop" } } } } }), readTime: "2026-10-15T03:49:48.748909Z" },
+        { found: doc("settings/exchangeRates", { usd: { doubleValue: 0.72 }, eur: { doubleValue: 0.66 }, fetchedAt: { stringValue: "2026-10-15T03:00:00Z" } }), readTime: "2026-10-15T03:49:48.748909Z" },
+      ];
       else if (body.structuredQuery.from[0].collectionId === "books") {
         const page = body.structuredQuery.startAt ? [doc("books/c", { title: { stringValue: "C" } })] : [doc("books/a", { id: { stringValue: "stale" }, title: { stringValue: "A" } }), doc("books/b", { title: { stringValue: "B" } })];
         out = page.map(d => ({ document: d, readTime: body.readTime }));
       } else if (body.structuredQuery.from[0].collectionId === "shipping-profiles") {
         out = [{ document: doc("shipping-profiles/general-profile", { name: { stringValue: "General" }, zones: { arrayValue: {} } }), readTime: body.readTime }];
+      } else if (body.structuredQuery.from[0].collectionId === "reviews") {
+        out = body.structuredQuery.startAt ? [] : [
+          { document: doc("reviews/r1", { bookId: { stringValue: "a" }, rating: { integerValue: "5" } }), readTime: body.readTime },
+          { document: doc("reviews/r2", { bookId: { stringValue: "a" }, rating: { integerValue: "4" } }), readTime: body.readTime },
+        ];
       } else out = [{ document: doc("pages/about", { id: { stringValue: "own-id" }, order: { integerValue: "2" } }), readTime: body.readTime }];
       return { ok: true, json: async () => out } as any;
     };
@@ -36,6 +44,8 @@ describe("storefront data file (build side)", () => {
     // Pages keep a stored `id` field over the document id, exactly like getPublishedPages' { id, ...data }.
     expect(data.pages).toEqual([{ id: "own-id", order: 2 }]);
     expect(data.shippingProfiles).toEqual([{ id: "general-profile", name: "General", zones: [] }]);
+    expect(data.exchangeRates).toEqual({ usd: 0.72, eur: 0.66, fetchedAt: "2026-10-15T03:00:00Z" });
+    expect(data.reviewSummaries).toEqual({ a: { count: 2, average: 4.5 } });
     expect(calls.find(c => c.body.structuredQuery?.from[0].collectionId === "shipping-profiles").body.structuredQuery.orderBy[0].field.fieldPath).toBe("__name__");
     expect(calls.slice(1).every(c => c.body.readTime === "2026-10-15T03:49:48.748909Z")).toBe(true);
   });

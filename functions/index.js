@@ -712,7 +712,7 @@ async function queuedEmailStale(entry) {
 // Every 15 minutes (from unpaidPaymentSweep): send due queued emails, then drop old delivery
 // rows and given-up queue entries so personal data isn't kept forever.
 // `budgetMs` caps the sending so a backlog can never run the sweep out of time; the rest wait.
-async function runEmailOutbox(now = Date.now(), { budgetMs = 30000 } = {}) {
+async function runEmailOutbox(now = Date.now(), { budgetMs = 30000, prune = true } = {}) {
   const started = Date.now();
   const due = await db.collection("emailOutbox").where("nextAttemptAt", "<=", new Date(now).toISOString())
     .orderBy("nextAttemptAt").limit(25).get();
@@ -722,21 +722,26 @@ async function runEmailOutbox(now = Date.now(), { budgetMs = 30000 } = {}) {
     const result = await sendQueuedEmail(doc.id).catch(err => ({ status: "error", error: err.message }));
     if (result.status === "sent") sent += 1;
   }
-  const prune = async (collection, field, before, max) => {
-    const old = await db.collection(collection).where(field, "<", before).limit(max).get();
-    await Promise.all(old.docs.map(d => d.ref.delete()));
-    return old.docs.length;
-  };
-  const prunedLog = await prune("emailLog", "at", daysAgoIso(LOG_RETENTION_DAYS, now), 300).catch(err => { console.warn("emailLog prune failed:", err.message); return 0; });
-  const prunedOutbox = await prune("emailOutbox", "gaveUpAt", daysAgoIso(GAVE_UP_RETENTION_DAYS, now), 100).catch(err => { console.warn("emailOutbox prune failed:", err.message); return 0; });
-  // Newsletter signups nobody confirmed within 30 days are strangers' addresses: drop them.
-  // Only rows already past the cutoff are read (index: newsletter status + requestedAt), not every pending row each run.
-  const prunedPending = await db.collection("newsletter").where("status", "==", "pending")
-    .where("requestedAt", "<", daysAgoIso(30, now)).limit(300).get()
-    .then(async snap => {
-      await Promise.all(snap.docs.map(d => d.ref.delete()));
-      return snap.docs.length;
-    }).catch(err => { console.warn("pending newsletter prune failed:", err.message); return 0; });
+  let prunedLog = 0;
+  let prunedOutbox = 0;
+  let prunedPending = 0;
+  if (prune) {
+    const pruneOlder = async (collection, field, before, max) => {
+      const old = await db.collection(collection).where(field, "<", before).limit(max).get();
+      await Promise.all(old.docs.map(d => d.ref.delete()));
+      return old.docs.length;
+    };
+    prunedLog = await pruneOlder("emailLog", "at", daysAgoIso(LOG_RETENTION_DAYS, now), 300).catch(err => { console.warn("emailLog prune failed:", err.message); return 0; });
+    prunedOutbox = await pruneOlder("emailOutbox", "gaveUpAt", daysAgoIso(GAVE_UP_RETENTION_DAYS, now), 100).catch(err => { console.warn("emailOutbox prune failed:", err.message); return 0; });
+    // Newsletter signups nobody confirmed within 30 days are strangers' addresses: drop them.
+    // Only rows already past the cutoff are read (index: newsletter status + requestedAt), not every pending row each run.
+    prunedPending = await db.collection("newsletter").where("status", "==", "pending")
+      .where("requestedAt", "<", daysAgoIso(30, now)).limit(300).get()
+      .then(async snap => {
+        await Promise.all(snap.docs.map(d => d.ref.delete()));
+        return snap.docs.length;
+      }).catch(err => { console.warn("pending newsletter prune failed:", err.message); return 0; });
+  }
   return { tried: due.docs.length, sent, prunedLog, prunedOutbox, prunedPending };
 }
 
@@ -911,7 +916,7 @@ function validateDiscountCustomer(discount, email) {
 const { FALLBACK_RATES, createRateReader, refreshStoredRates } = require("./exchangeRates");
 const getExchangeRates = createRateReader({ db });
 
-exports.refreshExchangeRates = onSchedule({ schedule: "every 3 hours", timeoutSeconds: 60 }, async () => {
+exports.refreshExchangeRates = onSchedule({ schedule: "every 12 hours", timeoutSeconds: 60 }, async () => {
   const saved = await refreshStoredRates({ db });
   if (saved) console.log(`Exchange rates saved: 1 CAD = ${saved.usd} USD, ${saved.eur} EUR (feed updated ${saved.providerUpdatedAt || "unknown"}).`);
   else console.warn("Exchange-rate refresh failed: the shop keeps its last saved rates.");
@@ -4146,7 +4151,7 @@ exports.stockroomClaude = onRequest({ timeoutSeconds: 60, memory: "512MiB" }, as
   }
 });
 
-exports.inventoryLinkSweep = onSchedule({ schedule: "every 5 minutes", timeoutSeconds: 300 }, async () => {
+exports.inventoryLinkSweep = onSchedule({ schedule: "every 15 minutes", timeoutSeconds: 300 }, async () => {
   const out = await require("./inventoryLinkJobs").runSweep(inventoryLinkDeps(), { stock: "auto" });
   if (out.error) console.error("inventoryLinkSweep:", out.error);
 });
@@ -4456,32 +4461,40 @@ exports.unpaidPaymentSweep = onSchedule(
       console.warn("unpaidPaymentSweep: reversal checks failed:", err.message);
     }
 
-    // Shippo label refunds asked for from Orders (own try/catch: never blocks payments).
-    try {
-      const labels = await checkLabelRefunds();
-      if (labels.settled) console.log("unpaidPaymentSweep: label refunds", labels);
-    } catch (err) { console.warn("unpaidPaymentSweep: label refund checks failed:", err.message); }
+    const runDate = new Date(runStartedAt);
+    const runHour = runDate.getUTCHours();
+    const runMinute = runDate.getUTCMinutes();
+
+    // Shippo label refunds asked for from Orders (own try/catch: never blocks payments). Check hourly.
+    if (runMinute < 15) {
+      try {
+        const labels = await checkLabelRefunds();
+        if (labels.settled) console.log("unpaidPaymentSweep: label refunds", labels);
+      } catch (err) { console.warn("unpaidPaymentSweep: label refund checks failed:", err.message); }
+    }
 
     // Emails that every sender refused are retried here on a widening schedule, after the payment
-    // checks and within a time budget so a backlog can't starve them (own try/catch).
+    // checks and within a time budget so a backlog can't starve them (own try/catch). Prune old logs daily.
     try {
-      const outbox = await runEmailOutbox();
+      const outbox = await runEmailOutbox(Date.now(), { prune: runHour === 3 && runMinute < 15 });
       if (outbox.tried || outbox.prunedLog || outbox.prunedOutbox) console.log("unpaidPaymentSweep: email queue", outbox);
     } catch (err) { console.error("unpaidPaymentSweep: email retry queue failed:", err.message); }
 
-    // "How was your book?" emails N days after shipping, when switched on (own try/catch).
-    try {
-      const notificationSettings = await loadNotificationSettings();
-      if (notificationSettings.review_request?.enabled === true) {
-        const unsubscribeKey = await marketingUnsubscribeKey();
-        const result = await runReviewRequests({
-          db, notificationSettings, compileEmailTemplate, siteLink, escapeHtml, optOutId,
-          unsubscribeUrl: email => siteLink(`/track?unsubscribe=1&e=${encodeURIComponent(normMarketingEmail(email))}&t=${unsubscribeToken(email, unsubscribeKey)}`),
-          sendEmail: message => sendEmail({ ...message, secret: RESEND_API_KEY.value() }),
-        });
-        if (result.sent) console.log("unpaidPaymentSweep: review requests", result);
-      }
-    } catch (err) { console.error("unpaidPaymentSweep: review requests failed:", err.message); }
+    // "How was your book?" emails N days after shipping, when switched on (once daily, own try/catch).
+    if (runHour === 14 && runMinute < 15) {
+      try {
+        const notificationSettings = await loadNotificationSettings();
+        if (notificationSettings.review_request?.enabled === true) {
+          const unsubscribeKey = await marketingUnsubscribeKey();
+          const result = await runReviewRequests({
+            db, notificationSettings, compileEmailTemplate, siteLink, escapeHtml, optOutId,
+            unsubscribeUrl: email => siteLink(`/track?unsubscribe=1&e=${encodeURIComponent(normMarketingEmail(email))}&t=${unsubscribeToken(email, unsubscribeKey)}`),
+            sendEmail: message => sendEmail({ ...message, secret: RESEND_API_KEY.value() }),
+          });
+          if (result.sent) console.log("unpaidPaymentSweep: review requests", result);
+        }
+      } catch (err) { console.error("unpaidPaymentSweep: review requests failed:", err.message); }
+    }
   }
 );
 
@@ -4495,7 +4508,7 @@ exports.unpaidPaymentSweep = onSchedule(
  * of each run, so an export that was accepted but failed later is reported too. Settings › General ›
  * Backups & export reads the result (systemStatus/backup) and has Back up now (action "backupNow").
  */
-const BACKUP_KEEP_DAYS = 30;
+const BACKUP_KEEP_DAYS = 14;
 const BACKUP_LOCK_MS = 10 * 60 * 1000;
 const BACKUP_MANUAL_GAP_MS = 5 * 60 * 1000;
 
@@ -4539,18 +4552,23 @@ async function runFirestoreBackup({ trigger, budgetMs }) {
     }
 
     let exportResult;
-    try {
-      const [operation] = await client.exportDocuments({
-        name: client.databasePath(projectId, "(default)"),
-        outputUriPrefix: `gs://${bucketName}/backups/${day}/export`,
-        collectionIds: [],
-      });
-      console.log(`Firestore export started: ${operation.name}`);
-      exportResult = { ok: true, operation: String(operation.name || "").slice(0, 300), error: "", permission: false };
-    } catch (err) {
-      const permission = exportRefusedForPermission(err);
-      console.warn(`Firestore export refused (${permission ? "missing IAM role" : "error"}):`, err.message);
-      exportResult = { ok: false, operation: "", error: String(err.message || err).slice(0, 300), permission };
+    const runManagedExport = trigger === "manual" || new Date(startedAt).getUTCDay() === 0;
+    if (runManagedExport) {
+      try {
+        const [operation] = await client.exportDocuments({
+          name: client.databasePath(projectId, "(default)"),
+          outputUriPrefix: `gs://${bucketName}/backups/${day}/export`,
+          collectionIds: [],
+        });
+        console.log(`Firestore export started: ${operation.name}`);
+        exportResult = { ok: true, operation: String(operation.name || "").slice(0, 300), error: "", permission: false };
+      } catch (err) {
+        const permission = exportRefusedForPermission(err);
+        console.warn(`Firestore export refused (${permission ? "missing IAM role" : "error"}):`, err.message);
+        exportResult = { ok: false, operation: "", error: String(err.message || err).slice(0, 300), permission };
+      }
+    } else {
+      exportResult = { ok: false, skipped: true, operation: "", error: "", permission: false };
     }
     extra.export = exportResult;
 

@@ -92,6 +92,16 @@ describe("runThemeSchedule", () => {
     expect(await runThemeSchedule(db, new Date("2026-10-10T00:00:00.000Z"))).toEqual([]);
     expect(db.store.settings.website.design).toEqual({ live: 1 });
   });
+
+  it("throttles idle scheduler heartbeat writes within 25 minutes", async () => {
+    const db = fakeDb({ settings: { website: { design: { live: 1 } } }, themeSchedule: {} });
+    await runThemeSchedule(db, new Date("2026-10-10T10:00:00.000Z"), { forceHeartbeat: true });
+    expect(db.store.themes.scheduler.lastRunAt).toBe("2026-10-10T10:00:00.000Z");
+    await runThemeSchedule(db, new Date("2026-10-10T10:15:00.000Z"));
+    expect(db.store.themes.scheduler.lastRunAt).toBe("2026-10-10T10:00:00.000Z");
+    await runThemeSchedule(db, new Date("2026-10-10T10:30:00.000Z"));
+    expect(db.store.themes.scheduler.lastRunAt).toBe("2026-10-10T10:30:00.000Z");
+  });
 });
 
 describe("live-only fields survive scheduled publishes and campaign reverts", () => {

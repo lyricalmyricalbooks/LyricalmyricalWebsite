@@ -7,8 +7,16 @@
 // in one JSON file, stored gzip-compressed; this is what Settings › Backups & export downloads) and manifest.json last.
 const zlib = require("zlib");
 
-/** Collections that are only short-lived counters; restoring them would be wrong, so they are left out. */
-const SKIP_COLLECTIONS = ["rate-limits"];
+/** Collections that are only short-lived counters or logs; restoring them would be wrong or unnecessary, so they are left out. */
+const SKIP_COLLECTIONS = [
+  "rate-limits",
+  "contact-email-throttle",
+  "abandoned-cart-throttle",
+  "email-claims",
+  "payment-webhook-events",
+  "clientErrors",
+  "emailLog",
+];
 /** Sub-collection names, copied with collection-group reads (firestore.rules lists books/{id}/private only). */
 const SUBCOLLECTION_GROUPS = ["private"];
 const BACKUP_FORMAT = "lyricalmyrical-firestore-json/1";

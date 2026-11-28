@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { CHECK_DEADLINE_MS, currentStorefrontData, fileIsCurrent, isStorefrontDataFile, nanoTime, shippingProfilesFrom } from "./storefrontDataFile";
+import { CHECK_DEADLINE_MS, currentStorefrontData, exchangeRatesFrom, fileIsCurrent, isStorefrontDataFile, nanoTime, reviewSummariesFrom, shippingProfilesFrom } from "./storefrontDataFile";
 
 const file = { v: 1, readTime: "2026-10-15T03:49:48.748909Z", settings: { info: {} }, books: [{ id: "b" }], pages: [] };
 const ts = (iso: string, nanos: number) => ({ seconds: Date.parse(iso) / 1000, nanoseconds: nanos });
@@ -78,5 +78,16 @@ describe("storefront data file", () => {
     expect(shippingProfilesFrom({ ...file, shippingProfiles: [{ id: "general-profile", zones: [] }] } as any)).toEqual([{ id: "general-profile", zones: [] }]);
     expect(shippingProfilesFrom({ ...file, shippingProfiles: [{ zones: [] }] } as any)).toBeNull();
     expect(isStorefrontDataFile({ ...file, shippingProfiles: [{ id: "x" }] })).toBe(true);
+  });
+
+  it("reads bundled exchange rates and review summaries safely", () => {
+    expect(exchangeRatesFrom(file as any)).toBeNull();
+    expect(exchangeRatesFrom({ ...file, exchangeRates: { usd: 0.72, eur: 0.65, fetchedAt: "2026-10-15T00:00:00Z" } } as any))
+      .toEqual({ usd: 0.72, eur: 0.65, fetchedAt: "2026-10-15T00:00:00Z" });
+    expect(exchangeRatesFrom({ ...file, exchangeRates: { usd: "bad" } } as any)).toBeNull();
+    expect(reviewSummariesFrom(file as any)).toBeNull();
+    expect(reviewSummariesFrom({ ...file, reviewSummaries: { b1: { count: 2, average: 4.5 } } } as any))
+      .toEqual({ b1: { count: 2, average: 4.5 } });
+    expect(reviewSummariesFrom({ ...file, reviewSummaries: { b1: { count: "x" } } } as any)).toBeNull();
   });
 });

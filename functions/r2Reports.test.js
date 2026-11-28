@@ -55,7 +55,7 @@ describe("#19 back-in-stock emails", () => {
   it("alerts the run cannot reach stay pending and a scheduled sweep finishes them", () => {
     expect(trigger).toContain("restockPending: true");
     const sweep = jobBlock("const backInStockSweep = onSchedule(");
-    expect(sweep).toContain('schedule: "every 15 minutes"');
+    expect(sweep).toContain('schedule: "every 60 minutes"');
     expect(sweep).toMatch(/timeoutSeconds:\s*300/);
     expect(sweep).toContain('where("restockPending", "==", true)');
     // Only sends while the book is still published and in stock.
@@ -102,7 +102,7 @@ describe("#68 unpaidPaymentSweep", () => {
     const alertAt = sweep.indexOf("Stripe webhook missed");
     expect(alertAt).toBeGreaterThan(-1);
     expect(alertAt).toBeLessThan(sweep.indexOf("checkStripeReversal("));
-    expect(alertAt).toBeLessThan(sweep.indexOf("runEmailOutbox()"));
+    expect(alertAt).toBeLessThan(sweep.indexOf("runEmailOutbox("));
     expect(alertAt).toBeLessThan(sweep.indexOf("runReviewRequests("));
   });
 });
