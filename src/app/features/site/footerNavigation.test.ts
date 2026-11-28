@@ -11,10 +11,11 @@ describe("grouped footer navigation", () => {
       { id: "4", slug: "draft", title: "Draft", status: "draft", showInNav: true },
     ]);
     const groups = groupedFooterItems(items);
-    expect(groups.explore.map(i => i.label)).toEqual(["Shop", "About"]);
+    expect(groups.explore.map(i => i.label)).toEqual(["Shop", "Artists", "About"]);
     expect(groups.connect.map(i => i.label)).toContain("Submissions");
     expect(items.filter(i => /contact/i.test(i.label))).toHaveLength(1);
     expect(items.some(i => i.label === "Draft")).toBe(false);
+    expect(automaticFooterItems({ design: { showFooterArtists: false } }, []).some(i => i.value === "/artists")).toBe(false);
   });
   it("honours explicit groups, visibility, children and custom destinations", () => {
     const groups = groupedFooterItems([

@@ -18,6 +18,7 @@ export function automaticFooterItems(settings: any, pages: any[]): MenuItem[] {
   const visible = (pages || []).filter(pageInFooter);
   const items: MenuItem[] = [
     { id: "footer-shop", label: getCopy(d, "footerLinkShop"), type: "home", footerGroup: "explore" },
+    ...(d.showFooterArtists !== false ? [{ id: "footer-artists", label: getCopy(d, "footerLinkArtists"), type: "url" as const, value: "/artists", footerGroup: "explore" as const }] : []),
     { id: "footer-track", label: getCopy(d, "footerLinkTrack"), type: "url", value: "/track", footerGroup: "connect" },
     ...visible.map(p => ({ id: `footer-page-${p.id}`, label: p.title, type: "page" as const, value: p.slug })),
   ];

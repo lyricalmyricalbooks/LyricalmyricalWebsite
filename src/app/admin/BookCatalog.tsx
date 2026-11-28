@@ -10,6 +10,7 @@ import { compareShopOrder, moveId, shopOrderWrites } from "../features/site/shop
 import { BookImportDialog } from "./BookImportDialog";
 import { MerchantFeedDialog } from "./MerchantFeedDialog";
 import { GoogleIndexDialog } from "./GoogleIndexDialog";
+import { SeoAuditDialog } from "./SeoAuditDialog";
 import { catalogToCsv, inventoryCsv, planPriceChange, type PriceMode } from "./bulkPricing";
 import { adminApi } from "./api";
 import { inventoryApi } from "./inventoryApi";
@@ -79,6 +80,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [importOpen, setImportOpen] = useState(false);
   const [feedOpen, setFeedOpen] = useState(false);
   const [indexOpen, setIndexOpen] = useState(false);
+  const [seoAuditOpen, setSeoAuditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportScope, setExportScope] = useState<"all" | "filtered" | "selected">("filtered");
   const [exportKind, setExportKind] = useState<"full" | "inventory">("full");
@@ -577,12 +579,15 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
       <div className="bk-view-bar">
         <Tabs label="View" idPrefix="bk-view-" value={view} onChange={chooseView}
           tabs={[{ id: "grid", label: "Grid" }, { id: "list", label: "List" }]} />
-        {view === "grid" && <ActionMenu label="More catalog actions" actions={[
-          { label: "Import CSV…", onSelect: () => setImportOpen(true) },
-          { label: "Export…", onSelect: () => { setExportScope("filtered"); setExportOpen(true); } },
-          { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
-          { label: "Google indexing", onSelect: () => setIndexOpen(true) },
-        ]} />}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <SecondaryButton size="sm" onClick={() => setSeoAuditOpen(true)}>SEO Audit</SecondaryButton>
+          {view === "grid" && <ActionMenu label="More catalog actions" actions={[
+            { label: "Import CSV…", onSelect: () => setImportOpen(true) },
+            { label: "Export…", onSelect: () => { setExportScope("filtered"); setExportOpen(true); } },
+            { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
+            { label: "Google indexing", onSelect: () => setIndexOpen(true) },
+          ]} />}
+        </div>
       </div>
       {view === "grid" ? (
         pageRows.length === 0
@@ -599,6 +604,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
               { label: "Export…", onSelect: () => { setExportScope(selected.length ? "selected" : "filtered"); setExportOpen(true); } },
               { label: "Google Shopping feed", onSelect: () => setFeedOpen(true) },
               { label: "Google indexing", onSelect: () => setIndexOpen(true) },
+              { label: "SEO Audit", onSelect: () => setSeoAuditOpen(true) },
             ]} />
           </div>
         }>
@@ -626,6 +632,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
       <EditionStockDialog book={stockEditId ? byId.get(stockEditId) || null : null} onClose={() => setStockEditId(null)} onSaved={loadBooks} />
       <MerchantFeedDialog open={feedOpen} onClose={() => setFeedOpen(false)} books={books} />
       <GoogleIndexDialog open={indexOpen} onClose={() => setIndexOpen(false)} books={books} />
+      <SeoAuditDialog open={seoAuditOpen} onClose={() => setSeoAuditOpen(false)} books={books} onEditBook={onEdit} />
       <Dialog open={exportOpen} onClose={() => setExportOpen(false)} title="Export books"
         footer={<><SecondaryButton onClick={() => setExportOpen(false)}>Cancel</SecondaryButton><PrimaryButton onClick={exportCsv}>Download CSV</PrimaryButton></>}>
         <div className="rp-stack">
