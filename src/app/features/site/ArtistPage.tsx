@@ -90,16 +90,18 @@ export default function ArtistPage() {
     title: getCopy(design, "seoArtistTitle", { name: artist.name }),
     description: leadSentences([introText, bioText].filter(Boolean).join(" ")),
     url: pageUrl,
+    type: "profile",
     image: coverPhoto?.url,
     // The share picture's own description (Books › edit › Images › alt text), like book pages; else the page title.
     imageAlt: describedAlt(coverPhoto?.altText),
     jsonLd: [
       artistStructuredData({
-        name: artist.name, url: pageUrl, description: leadSentences(bioText || introText, 300), links: artist.links,
+        name: artist.name, url: pageUrl, siteUrl: siteBase, description: leadSentences(bioText || introText, 300), links: artist.links,
         books: artist.books.map(b => ({ name: String(b.title || ""), url: bookUrl(b), image: b.photos?.[0]?.url })),
       }),
       breadcrumbData([
         { name: getCopy(design, "pdpCrumbShop"), url: siteBase },
+        { name: getCopy(design, "artistPageCrumbArtists"), url: new URL("artists", siteBase).href },
         { name: artist.name, url: pageUrl },
       ]),
     ],
@@ -176,7 +178,7 @@ export function ArtistContent({ design, artist, bookPath }: { design: any; artis
         className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] tracking-[0.3em] uppercase text-white/50">
         <Link to="/" className="text-inherit hover:text-white transition-colors">{getCopy(design, "pdpCrumbShop")}</Link>
         {separator && <span aria-hidden="true">{separator}</span>}
-        <span>{getCopy(design, "artistPageCrumbArtists")}</span>
+        <Link to="/artists" className="text-inherit hover:text-white transition-colors">{getCopy(design, "artistPageCrumbArtists")}</Link>
         {separator && <span aria-hidden="true">{separator}</span>}
         <span aria-current="page" className="min-w-0 truncate text-white/80">{artist.name}</span>
       </nav>
@@ -240,7 +242,7 @@ export function ArtistContent({ design, artist, bookPath }: { design: any; artis
                     <img loading="lazy" decoding="async"
                       src={photo?.url || placeholderImage(design)}
                       {...photoSrcSet(photo, gridPhotoSizes(GRID_STEPS, { photo, frame: d.imageAspectRatio || "3:4", cover: fit === "object-cover" }))}
-                      alt={book.title}
+                      alt={describedAlt(photo?.altText) || book.title}
                       className={`w-full h-full ${fit} transition-transform duration-700 ease-out group-hover:scale-[1.03]`}
                       style={framingStyle(photo)}
                     />

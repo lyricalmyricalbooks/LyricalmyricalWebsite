@@ -33,7 +33,7 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
   // shoppers and Studio previews still see it, but Google gets a real 404 instead of an indexable blank page.
   // Listed collections are prerendered too (26 Nov 2026); only /collections/all ("Shop all", search results) has no file
   // and keeps the shell. An empty, hidden or mistyped collection answers 404 (Search Console flagged them as soft 404s).
-  const prerendered = /^\/(?:artists|books|page|collections)\//;
+  const prerendered = /^\/(?:artists(?:\/|$)|(?:books|page|collections)\/)/;
   it('sends every app route without its own file to the app shell', () => {
     expect(appRoutes.length).toBeGreaterThan(5);
     for (const route of appRoutes.filter(r => r !== '/' && r !== '*' && !prerendered.test(r))) {
@@ -89,7 +89,7 @@ describe('Firebase Hosting serves every storefront route (firebase.json)', () =>
     expect(hosting.ignore ?? []).not.toContain('**/.*');
   });
 
-  const samples = ['/', '/index.html', '/books/x', '/books/a.b', '/books/x.html', '/collections/x', '/artists/x', '/page/about', '/account', '/account/orders',
+  const samples = ['/', '/index.html', '/books/x', '/books/a.b', '/books/x.html', '/collections/x', '/artists', '/artists/x', '/page/about', '/account', '/account/orders',
     '/admin', '/checkout', '/track', '/wishlist', '/spa', '/404', '/assets/index-Ab12.js', '/assets/index-Ab12.css', '/sitemap.xml', '/robots.txt',
     '/google-merchant-feed.xml', '/seo-published-fingerprint.txt', '/asset-manifest.txt'];
 

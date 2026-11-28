@@ -449,6 +449,27 @@ export default function BookDetail() {
   } : book;
   const seoPrice = book ? (selectedVariant ? convertPrice(selectedVariant.price) : getBookPrice(book)) : 0;
   const seoOffer = seoBook ? bookStructuredData(seoBook, { currency, price: seoPrice, url: bookUrl }).offers.availability : "";
+  const variantOffers = useMemo(() => {
+    if (!book || !Array.isArray(book.variants) || book.variants.length < 2) return undefined;
+    const soon = comingSoonActive(book);
+    return book.variants
+      .map((v: any) => {
+        const rawPrice = Number(v?.price);
+        if (!Number.isFinite(rawPrice) || rawPrice <= 0) return null;
+        const price = convertPrice(rawPrice);
+        if (!Number.isFinite(price) || price <= 0) return null;
+        const avail = !soon && Number(v.stockLevel ?? v.stock ?? 0) > 0;
+        const pre = avail && preorderActive(book);
+        const back = !!(book.onBackorder || v.onBackorder);
+        return {
+          name: v.name ? String(v.name) : undefined,
+          sku: v.sku || book.sku,
+          price,
+          availability: `https://schema.org/${pre ? "PreOrder" : soon ? "OutOfStock" : back ? "BackOrder" : avail ? "InStock" : "OutOfStock"}`,
+        };
+      })
+      .filter((v): v is NonNullable<typeof v> => v !== null);
+  }, [book, convertPrice]);
   useSEO(book ? {
     ...bookMetadata(book),
     // No custom search title: "Title by Author" (Text & labels › Site & sharing) while it stays short.
@@ -470,6 +491,7 @@ export default function BookDetail() {
         returnPolicy: returnPolicyData(getCopy(settings?.design, "seoReturnDays"), shopCountry),
         artistUrl: (name: string) => { const id = artistSlug(name); return artists.has(id) ? new URL(`artists/${id}`, siteBase).href : undefined; },
         shipping: seoShipping,
+        variantOffers,
       }),
       breadcrumbData([
         { name: getCopy(settings?.design, "pdpCrumbShop"), url: siteBase },
@@ -1804,7 +1826,7 @@ export default function BookDetail() {
                             loading="lazy"
                             src={(rel as any).photos?.[0]?.url || placeholderImage(settings?.design)}
                             {...photoSrcSet((rel as any).photos?.[0], gridPhotoSizes([{ from: 0, cols: 2 }, { from: 640, cols: 3 }, { from: 768, cols: 4 }], { photo: (rel as any).photos?.[0], frame: productImageAspect, cover: productImageFit === "cover" }))}
-                            alt={rel.title}
+                            alt={describedAlt((rel as any).photos?.[0]?.altText) || rel.title}
                             className="w-full h-full transition-transform duration-700 group-hover:scale-105"
                             style={{ objectFit: productImageFit, ...framingStyle((rel as any).photos?.[0]) }}
                           />

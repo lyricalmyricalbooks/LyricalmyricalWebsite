@@ -5,8 +5,9 @@ import { publicRoutes, routeOutputPath, captureDocument } from './prerenderHtml.
 const base = 'https://example.com/shop';
 describe('public HTML snapshots', () => {
   it('limits generation to public sitemap routes in this deployment', () => {
-    const xml = '<urlset>' + ['https://example.com/shop/', 'https://example.com/shop/books/a', 'https://example.com/shop/page/about', 'https://example.com/shop/collections/art', 'https://example.com/shop/artists/ian-willms', 'https://example.com/shop/account', 'https://example.com/shop/wishlist', 'https://elsewhere.com/shop/books/a'].map(u => `<url><loc>${u}</loc></url>`).join('') + '</urlset>';
-    expect(publicRoutes(xml, base)).toEqual(['/', '/books/a', '/page/about', '/collections/art', '/artists/ian-willms']);
+    const xml = '<urlset>' + ['https://example.com/shop/', 'https://example.com/shop/books/a', 'https://example.com/shop/page/about', 'https://example.com/shop/collections/art', 'https://example.com/shop/artists', 'https://example.com/shop/artists/ian-willms', 'https://example.com/shop/account', 'https://example.com/shop/wishlist', 'https://elsewhere.com/shop/books/a'].map(u => `<url><loc>${u}</loc></url>`).join('') + '</urlset>';
+    expect(publicRoutes(xml, base)).toEqual(['/', '/books/a', '/page/about', '/collections/art', '/artists', '/artists/ian-willms']);
+    expect(routeOutputPath('/artists')).toBe('artists.html');
   });
   it('rejects path traversal and encoded separators before writing files', () => {
     expect(routeOutputPath('/books/photo-book')).toBe('books/photo-book.html');
@@ -97,4 +98,17 @@ it('rejects category snapshots until the requested collection is selected', () =
  expect(() => captureDocument(args)).toThrow('unfinished collection');
  document.querySelector('[data-seo-collection]')!.setAttribute('data-seo-collection', 'zines');
  expect(captureDocument(args)).toContain('data-seo-collection="zines"');
+});
+
+it('rejects /artists directory snapshots until ready and injects an LCP image preload', () => {
+  document.documentElement.innerHTML = '<head></head><body><div id="root"><div data-fm-store>Loading</div></div></body>';
+  const args = { template: '<html><body></body></html>', publicUrl: base + '/artists', localOrigin: 'http://localhost' };
+  expect(() => captureDocument(args)).toThrow('unfinished artists directory');
+  document.documentElement.innerHTML = '<head></head><body><div id="root"><div data-seo-artists="ready"><h1>Artists</h1><img src="https://cdn.example.com/hero.webp" srcset="https://cdn.example.com/hero-960.webp 960w" sizes="100vw" fetchpriority="high" alt="Hero"></div></div></body>';
+  const doc = new DOMParser().parseFromString(captureDocument(args), 'text/html');
+  const preload = doc.querySelector('link[rel="preload"][as="image"]');
+  expect(preload?.getAttribute('href')).toBe('https://cdn.example.com/hero.webp');
+  expect(preload?.getAttribute('imagesrcset')).toBe('https://cdn.example.com/hero-960.webp 960w');
+  expect(preload?.getAttribute('imagesizes')).toBe('100vw');
+  expect(preload?.getAttribute('fetchpriority')).toBe('high');
 });

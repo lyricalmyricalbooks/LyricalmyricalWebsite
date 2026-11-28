@@ -22,6 +22,7 @@ vi.mock("./StoreFooter", () => ({ StoreFooter: () => null }));
 (globalThis as any).fetch = () => Promise.reject(new Error("offline"));
 
 const { default: ArtistPage } = await import("./ArtistPage");
+const { default: ArtistsDirectoryPage } = await import("./ArtistsDirectoryPage");
 const { default: BookDetail } = await import("./BookDetail");
 const { CurrencyProvider } = await import("../../CurrencyContext");
 const { keepPrerenderedPage, endPrerenderedHandoff } = await import("../../lib/prerenderedPage");
@@ -45,6 +46,7 @@ async function open(path: string, state: { books: any[]; loading?: boolean; fres
   root = createRoot(el);
   await act(async () => {
     root!.render(h(MemoryRouter, { initialEntries: [path] }, h(CurrencyProvider, null, h(Routes, null,
+      h(Route, { path: "/artists", element: h(ArtistsDirectoryPage) }),
       h(Route, { path: "/artists/:slug", element: h(ArtistPage) }),
       h(Route, { path: "/books/:slug", element: h(BookDetail) })))));
   });
@@ -72,13 +74,16 @@ describe("an artist page", () => {
     expect(site.getAttribute("href")).toBe("https://www.ianwillms.com/");
     expect(site.getAttribute("rel")).toBe("noopener");
     expect(site.textContent).toBe("ianwillms.com");
-    expect(el.querySelector('[data-store-region="artistBreadcrumb"]')?.textContent).toContain("Artists");
+    const crumb = el.querySelector('[data-store-region="artistBreadcrumb"]')!;
+    expect(crumb.textContent).toContain("Artists");
+    expect(crumb.querySelector('a[href="/artists"]')?.textContent).toBe("Artists");
   });
 
   it("gives Google the title, a description, a canonical address and Person + breadcrumb data", async () => {
     await open("/artists/ian-willms", { books: BOOKS });
     const seo = site.seo.at(-1);
     expect(seo.title).toBe("Ian Willms: photobooks");
+    expect(seo.type).toBe("profile");
     expect(seo.noindex).toBeFalsy();
     expect(seo.url).toMatch(/\/artists\/ian-willms$/);
     // The share picture (the first book cover) is described by its own alt text, not the page title.
@@ -89,7 +94,8 @@ describe("an artist page", () => {
     expect(profile.mainEntity).toMatchObject({ "@type": "Person", name: "Ian Willms", sameAs: ["https://www.ianwillms.com/"], url: "https://www.ianwillms.com/" });
     expect(profile.mainEntity.workExample.map((b: any) => b.name)).toEqual(["Second Dog", "The Hound"]);
     expect(crumbs["@type"]).toBe("BreadcrumbList");
-    expect(crumbs.itemListElement.at(-1).name).toBe("Ian Willms");
+    expect(crumbs.itemListElement.map((i: any) => i.name)).toEqual(["Shop", "Artists", "Ian Willms"]);
+    expect(crumbs.itemListElement[1].item).toMatch(/\/artists$/);
   });
 
   it("is not found (noindex) for an unknown artist once the fresh read confirms it", async () => {
@@ -127,5 +133,20 @@ describe("the artist line on a book page", () => {
     const el = await open("/books/anthology", { books: BOOKS });
     expect(el.querySelector('a[href^="/artists/"]')).toBeNull();
     expect(el.textContent).toContain("Various artists");
+  });
+});
+
+describe("the artists directory page", () => {
+  it("lists every credited artist with links and CollectionPage structured data", async () => {
+    const el = await open("/artists", { books: BOOKS });
+    expect(el.querySelectorAll("h1")).toHaveLength(1);
+    expect(el.querySelector("[data-seo-artists]")?.getAttribute("data-seo-artists")).toBe("ready");
+    const link = el.querySelector('a[href="/artists/ian-willms"]');
+    expect(link?.textContent).toContain("Ian Willms");
+    const seo = site.seo.at(-1);
+    expect(seo.noindex).toBe(false);
+    expect(seo.url).toMatch(/\/artists$/);
+    expect(seo.jsonLd[0]["@type"]).toBe("CollectionPage");
+    expect(seo.jsonLd[0].mainEntity.itemListElement).toHaveLength(1);
   });
 });

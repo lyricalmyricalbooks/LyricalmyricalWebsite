@@ -9,6 +9,7 @@ it('lists one artist page per photographer with a live book, never group credits
     { id: 'e', title: 'Later', status: 'published', scheduleDate: '2999-01-01', subtitle: 'Future Person' },
   ];
   const { xml } = sitemapArtifacts('https://example.com', books, [], [], {});
+  expect(xml).toContain('<loc>https://example.com/artists</loc>\n    <lastmod>2026-05-02</lastmod>');
   expect(xml).toContain('<loc>https://example.com/artists/ian-willms</loc>\n    <lastmod>2026-05-02</lastmod>');
   expect(xml).toContain('https://example.com/artists/ana-ruiz');
   expect(xml).not.toMatch(/artists\/(various|draft|future)/);
