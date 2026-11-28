@@ -159,7 +159,7 @@ export default function BookDetail() {
   const loading = siteLoading || (!book && !fresh);
   // Google and other crawlers can snapshot the page mid-load: while this landing page's server-rendered copy exists,
   // keep it (and its head tags) on screen instead of the Loading screen, which reads as an empty page ("soft 404").
-  const held = !book && loading ? prerenderedHtml() : null;
+  const held = !book && (loading || loadError) ? prerenderedHtml() : null;
   // Confirmed missing by a fresh read (not a failed one): the "not found" view, its page tags and its redirect.
   const missingBook = !book && !loading && !loadError;
   useMissingRedirect(missingBook);
@@ -886,6 +886,7 @@ export default function BookDetail() {
   // ── could not load ─────────────────────────────────────────────────────────
   // The read failed and there is no book to show: say so and offer Retry, instead of "not found".
   if (!book && loadError) {
+    if (held) return <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: held }} />;
     return (
       <div
         data-fm-store data-studio-target="style:productPage|copy:Product page" data-studio-label="Product page"

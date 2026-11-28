@@ -74,7 +74,7 @@ export default function ArtistPage() {
   const notFound = !artist && !loadError && !siteLoading && !!fresh;
   // Still loading on the page the visitor landed on: keep its server-rendered copy and head tags, so a crawler that
   // snapshots mid-load never sees an empty "Loading" page (Google's "soft 404").
-  const held = !artist && !loadError && (siteLoading || !fresh) ? prerenderedHtml() : null;
+  const held = !artist && (siteLoading || !fresh || loadError) ? prerenderedHtml() : null;
   useMissingRedirect(notFound);
   useEffect(() => { if (notFound) ga4PageNotFound(); }, [notFound, slug]);
   useEffect(() => { if (isStudioPreview()) window.parent.postMessage({ type: "PREVIEW_READY" }, "*"); }, []);
@@ -114,6 +114,7 @@ export default function ArtistPage() {
 
   const root = "style:artistLayout|copy:Artist pages|style:customPages|style:colors";
   if (!artist && loadError) {
+    if (held) return <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: held }} />;
     // The read failed: an error with Retry, not a false 404.
     return (
       <div data-fm-store data-studio-target={root} data-studio-label="Artist page" className="min-h-screen fm-page text-white flex flex-col">

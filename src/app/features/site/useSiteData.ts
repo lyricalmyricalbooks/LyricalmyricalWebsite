@@ -20,7 +20,7 @@ import { applyBackorderPolicy } from "./backorder";
 import { withBundleStock } from "./bundleStock";
 import { resolveProductRoutes } from "./productRoutes";
 import { loadCatalog, newestFirst } from "./loadCatalog";
-import { currentStorefrontData, fetchStorefrontDataFile } from "./storefrontDataFile";
+import { currentStorefrontData, fetchStorefrontDataFile, isStorefrontDataFile } from "./storefrontDataFile";
 import { inThemePreview, loadThemePreview } from "./themePreview";
 
 const isPreviewUrl = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
@@ -64,11 +64,19 @@ function loadSiteData() {
 async function readSiteData(): Promise<[any[], any, any]> {
   const file = await currentStorefrontData(fetchStorefrontDataFile, publicApi.getCatalogVersion);
   if (file) return [newestFirst(file.books as any[]), publicApi.publicSettingsFrom(file.settings), publicApi.sortPages(file.pages)];
-  return Promise.all([
-    loadCatalog((size, cursor) => publicApi.getStorefrontBooks(size, cursor)).then(newestFirst),
-    publicApi.getPublicSettings(),
-    publicApi.getPublishedPages(),
-  ]);
+  try {
+    return await Promise.all([
+      loadCatalog((size, cursor) => publicApi.getStorefrontBooks(size, cursor)).then(newestFirst),
+      publicApi.getPublicSettings(),
+      publicApi.getPublishedPages(),
+    ]);
+  } catch (firestoreErr) {
+    const fallback = await fetchStorefrontDataFile().catch(() => null);
+    if (isStorefrontDataFile(fallback)) {
+      return [newestFirst(fallback.books as any[]), publicApi.publicSettingsFrom(fallback.settings), publicApi.sortPages(fallback.pages)];
+    }
+    throw firestoreErr;
+  }
 }
 
 /**

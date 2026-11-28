@@ -78,7 +78,7 @@ export function PageView() {
   const notFound = !seoPage && !loadError && !siteLoading && !!fresh;
   // Still loading on the page the visitor landed on: keep its server-rendered copy and head tags on screen, so a
   // crawler that snapshots mid-load never sees an empty "Loading" page (Google's "soft 404").
-  const held = !seoPage && !loadError && (siteLoading || !fresh) ? prerenderedHtml() : null;
+  const held = !seoPage && (siteLoading || !fresh || loadError) ? prerenderedHtml() : null;
   useSEO({
     title: seoPage ? seoPage.seoTitle || seoPage.title : notFound ? getCopy(settings?.design, "notFoundTitle") : undefined,
     noindex: notFound || seoPage?.seoNoindex === true,
@@ -141,6 +141,7 @@ export function PageView() {
   // A page published after this browser cached the site isn't in that cache yet:
   // keep showing "Loading" until the fresh read, rather than a false 404.
   if (!shown && loadError) {
+    if (held) return <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: held }} />;
     // The read failed: an error with Retry, not a false 404.
     return (
       <div data-fm-store data-studio-target="pages|copy:Custom pages & 404" data-studio-label="Page" className="min-h-screen fm-page flex flex-col">

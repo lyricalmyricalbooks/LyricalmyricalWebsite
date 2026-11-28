@@ -119,6 +119,16 @@ describe("an artist page", () => {
     expect(el.textContent).toContain("Served artist");
     expect(site.seo.at(-1)?.keep).toBe(true);
   });
+
+  it("keeps the server-rendered page if the catalog read fails (prevents Soft 404)", async () => {
+    window.history.replaceState(null, "", "/artists/ian-willms");
+    const served = document.createElement("div");
+    served.innerHTML = "<main><h1>Served artist</h1></main>";
+    keepPrerenderedPage(served);
+    const el = await open("/artists/ian-willms", { books: [], loading: false, fresh: false, loadError: true });
+    expect(el.textContent).toContain("Served artist");
+    expect(site.seo.at(-1)?.keep).toBe(true);
+  });
 });
 
 describe("the artist line on a book page", () => {

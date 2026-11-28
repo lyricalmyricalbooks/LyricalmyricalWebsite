@@ -29,7 +29,7 @@ const design = { copy: { bookLoading: "Loading-copy", bookNotFound: "Missing-cop
 let root: Root | null = null;
 afterEach(async () => { if (root) await act(async () => root!.unmount()); root = null; endPrerenderedHandoff(); });
 
-async function open(state: { books: any[]; loading: boolean; fresh: boolean }) {
+async function open(state: { books: any[]; loading: boolean; fresh: boolean; loadError?: boolean }) {
   site.seo = [];
   site.data = { settings: { design, policies: {}, info: {} }, pages: [], ...state };
   const el = document.createElement("div");
@@ -87,5 +87,12 @@ describe("landing on a server-rendered book page", () => {
     const el = await open({ books: [], loading: false, fresh: true });
     expect(el.textContent).toContain("Missing-copy");
     expect(site.seo.at(-1)?.keep).toBe(false);
+  });
+
+  it("keeps the served page and its head tags if the live catalog read fails (prevents Soft 404)", async () => {
+    landWithPrerender();
+    const el = await open({ books: [], loading: false, fresh: false, loadError: true });
+    expect(el.textContent).toContain("The Served Book");
+    expect(site.seo.at(-1)?.keep).toBe(true);
   });
 });
