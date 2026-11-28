@@ -331,13 +331,13 @@ describe("runSweep: new books to match", () => {
     expect(state.newMatches).toMatchObject({ at: now.toISOString(), count: 1 });
     expect(state.newMatches.items).toEqual([{ key: "b2|", bookId: "b2", variantId: null, title: "Un fantastico altrove", edition: "", inventoryBookId: "altrove", inventoryTitle: "Altrove (2nd printing)" }]);
 
-    // Within the hour the list stays as it was.
+    // Within the match interval the list stays as it was.
     db.docs["systemStatus/inventoryLink"].data.ignoredMatches = { "b2|": "altrove" };
     now = new Date(now.getTime() + 10 * 60 * 1000);
     await jobs.runSweep(d);
     expect(db.docs["systemStatus/inventoryLink"].data.newMatches.count).toBe(1);
 
-    now = new Date(now.getTime() + 60 * 60 * 1000);
+    now = new Date(now.getTime() + jobs.MATCH_EVERY_MS);
     await jobs.runSweep(d);
     state = db.docs["systemStatus/inventoryLink"].data;
     expect(state.newMatches.count).toBe(0);

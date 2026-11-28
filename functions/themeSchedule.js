@@ -82,7 +82,10 @@ function planThemeSchedule(entries, now = Date.now()) {
   return steps;
 }
 
-async function runThemeSchedule(db, now = new Date()) {
+const HEARTBEAT_EVERY_MS = 25 * 60 * 1000;
+let lastHeartbeatMs = 0;
+
+async function runThemeSchedule(db, now = new Date(), { forceHeartbeat = false } = {}) {
   const nowIso = now.toISOString();
   const snap = await db.collection("themeSchedule").where("status", "in", ACTIVE).get();
   const entries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -139,8 +142,13 @@ async function runThemeSchedule(db, now = new Date()) {
       results.push({ ...step, outcome: "failed" });
     }
   }
-  await db.collection("themes").doc("scheduler").set({ lastRunAt: nowIso, lastResults: results.slice(0, 20) }, { merge: true })
-    .catch(err => console.warn("themeSchedule: could not stamp lastRunAt:", err.message));
+  const nowMs = now.getTime();
+  const heartbeatDue = forceHeartbeat || results.length > 0 || !lastHeartbeatMs || nowMs < lastHeartbeatMs || nowMs - lastHeartbeatMs >= HEARTBEAT_EVERY_MS;
+  if (heartbeatDue) {
+    await db.collection("themes").doc("scheduler").set({ lastRunAt: nowIso, lastResults: results.slice(0, 20) }, { merge: true })
+      .then(() => { lastHeartbeatMs = nowMs; })
+      .catch(err => console.warn("themeSchedule: could not stamp lastRunAt:", err.message));
+  }
   return results;
 }
 

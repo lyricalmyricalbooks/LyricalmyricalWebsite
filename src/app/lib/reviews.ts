@@ -92,13 +92,20 @@ export const reviewsApi = {
   },
 
   /**
-   * Count and average for a shop card's stars: Firestore's aggregate only (one read per book, never the review list),
-   * shared for five minutes so scrolling back and forth reads nothing new.
+   * Count and average for a shop card's stars: reads from the Hosting catalog file when current (0 Firestore reads),
+   * falling back to Firestore's aggregate (one read per book), shared for five minutes.
    */
   cardSummary: (bookId: string): Promise<{ count: number; average: number }> => {
     const hit = cardSummaryCache.get(bookId);
     if (hit && Date.now() - hit.at < 300_000) return hit.promise;
-    const promise = aggregateSummary(bookId);
+    const promise = Promise.all([
+      import("../features/site/storefrontDataFile"),
+      import("./publicApi"),
+    ]).then(([{ currentStorefrontData, fetchStorefrontDataFile, reviewSummariesFrom }, { publicApi }]) =>
+      currentStorefrontData(fetchStorefrontDataFile, publicApi.getCatalogVersion)
+        .then(file => reviewSummariesFrom(file))
+        .catch(() => null),
+    ).then(summaries => (summaries ? (summaries[bookId] || { count: 0, average: 0 }) : aggregateSummary(bookId)));
     cardSummaryCache.set(bookId, { at: Date.now(), promise });
     promise.catch(() => cardSummaryCache.delete(bookId));
     return promise;

@@ -55,6 +55,8 @@ describe("runJsonBackup", () => {
     books: { a: { title: "A" }, b: { title: "B" }, c: { title: "C" } },
     orders: { o1: { total: 5 } },
     "rate-limits": { x: { n: 1 } },
+    "emailLog": { e1: { status: "sent" } },
+    "clientErrors": { err1: { message: "x" } },
     "books/a/private": { admin: { shelfLocation: "S1" } },
   };
   it("copies every collection page by page, sub-collections too, and writes the manifest last", async () => {
@@ -65,6 +67,8 @@ describe("runJsonBackup", () => {
     expect(lines(bucket.files["backups/d/json/books.ndjson.gz"]).map(l => l.path)).toEqual(["books/a", "books/b", "books/c"]);
     expect(lines(bucket.files["backups/d/json/_group_private.ndjson.gz"])).toEqual([{ path: "books/a/private/admin", data: { shelfLocation: "S1" } }]);
     expect(bucket.files["backups/d/json/rate-limits.ndjson.gz"]).toBeUndefined();
+    expect(bucket.files["backups/d/json/emailLog.ndjson.gz"]).toBeUndefined();
+    expect(bucket.files["backups/d/json/clientErrors.ndjson.gz"]).toBeUndefined();
     expect(Object.keys(bucket.files).pop()).toBe("backups/d/json/manifest.json");
     // One downloadable file with every document, named in the manifest.
     const all = JSON.parse(bucket.files["backups/d/json/backup.json"]);

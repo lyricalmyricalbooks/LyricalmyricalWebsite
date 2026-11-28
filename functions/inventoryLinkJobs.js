@@ -26,7 +26,7 @@ const FIRST_CATCH_UP_MS = 2 * 24 * 60 * 60 * 1000;
 const BACKFILL_PAGE = 100;
 const REHEARSAL_MS = 24 * 60 * 60 * 1000;
 // How often the sweep looks for website books it can suggest a match for (new books, mostly).
-const MATCH_EVERY_MS = 60 * 60 * 1000;
+const MATCH_EVERY_MS = 6 * 60 * 60 * 1000;
 // Holds only the owner can clear (adminAlerts.ts inventoryLinkAlerts names the same three).
 const OWNER_HOLDS = new Set(["big-change", "not-derived", "now-has-editions"]);
 // An automatic run may apply these; the owner's confirmed preview also applies "untracked" and "big-change".

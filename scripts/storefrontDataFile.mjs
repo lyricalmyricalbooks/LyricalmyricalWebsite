@@ -67,10 +67,25 @@ async function post(fetchImpl, url, body) {
  */
 export async function readStorefrontData(base, project, fetchImpl = fetch, pageSize = 300) {
   const settingsName = `projects/${project}/databases/(default)/documents/settings/website`;
-  const [first] = await post(fetchImpl, `${base}:batchGet`, { documents: [settingsName] });
+  const ratesName = `projects/${project}/databases/(default)/documents/settings/exchangeRates`;
+  const batchRows = await post(fetchImpl, `${base}:batchGet`, { documents: [settingsName, ratesName] });
+  const first = batchRows.find(r => (r?.found?.name || r?.missing || '').endsWith('/settings/website')) || batchRows[0];
   const readTime = first?.readTime;
   if (!readTime) throw new Error('Firestore gave no read time');
   const settings = first.found ? fieldsOf(first.found) : null;
+
+  let exchangeRates;
+  try {
+    const ratesRow = batchRows.find(r => (r?.found?.name || '').endsWith('/settings/exchangeRates'));
+    if (ratesRow?.found) {
+      const raw = fieldsOf(ratesRow.found);
+      const usd = Number(raw.usd);
+      const eur = Number(raw.eur);
+      if (Number.isFinite(usd) && usd >= 0.4 && usd <= 1.2 && Number.isFinite(eur) && eur >= 0.3 && eur <= 1.1 && typeof raw.fetchedAt === 'string') {
+        exchangeRates = raw;
+      }
+    }
+  } catch { exchangeRates = undefined; }
 
   // Every other read happens at the same snapshot, so the file is one consistent moment of the shop.
   const books = [];
@@ -95,12 +110,58 @@ export async function readStorefrontData(base, project, fetchImpl = fetch, pageS
   // Same shape as publicApi.getPublishedPages before sorting: id first, then the document's fields.
   const pages = (Array.isArray(pageRows) ? pageRows : []).filter(r => r && r.document).map(r => ({ id: docId(r.document), ...fieldsOf(r.document) }));
 
-  // Shipping profiles are optional in the file: if they can't be read or stored exactly, the file is still written
-  // without them and the browser reads the profiles from Firestore as before.
+  // Shipping profiles and review summaries are optional in the file: if they can't be read or stored exactly,
+  // the file is still written without them and the browser reads them from Firestore as before.
   let shippingProfiles;
   try { shippingProfiles = await readShippingProfiles(base, fetchImpl, readTime); } catch { shippingProfiles = undefined; }
+  let reviewSummaries;
+  try { reviewSummaries = await readReviewSummaries(base, fetchImpl, readTime, pageSize); } catch { reviewSummaries = undefined; }
 
-  return { v: STOREFRONT_DATA_VERSION, readTime, builtAt: new Date().toISOString(), settings, books, pages, ...(shippingProfiles ? { shippingProfiles } : {}) };
+  return {
+    v: STOREFRONT_DATA_VERSION, readTime, builtAt: new Date().toISOString(), settings, books, pages,
+    ...(shippingProfiles ? { shippingProfiles } : {}),
+    ...(exchangeRates ? { exchangeRates } : {}),
+    ...(reviewSummaries ? { reviewSummaries } : {}),
+  };
+}
+
+/** Per-book `{ count, average }` for approved reviews at `readTime`, matching reviewsApi.summaryFromCompleteList. */
+export async function readReviewSummaries(base, fetchImpl = fetch, readTime = undefined, pageSize = 300) {
+  const totals = new Map();
+  let after = '';
+  for (;;) {
+    const rows = await post(fetchImpl, `${base}:runQuery`, {
+      ...(readTime ? { readTime } : {}),
+      structuredQuery: {
+        from: [{ collectionId: 'reviews' }],
+        where: { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'approved' } } },
+        select: { fields: [{ fieldPath: 'bookId' }, { fieldPath: 'rating' }] },
+        orderBy: [{ field: { fieldPath: '__name__' }, direction: 'ASCENDING' }],
+        limit: pageSize,
+        ...(after ? { startAt: { values: [{ referenceValue: after }], before: false } } : {}),
+      },
+    });
+    const docs = (Array.isArray(rows) ? rows : []).filter(r => r && r.document).map(r => r.document);
+    for (const d of docs) {
+      const f = fieldsOf(d);
+      const bookId = typeof f.bookId === 'string' ? f.bookId : '';
+      if (!bookId) continue;
+      const entry = totals.get(bookId) || { count: 0, rated: 0, sum: 0 };
+      entry.count += 1;
+      if (typeof f.rating === 'number' && Number.isFinite(f.rating)) {
+        entry.rated += 1;
+        entry.sum += f.rating;
+      }
+      totals.set(bookId, entry);
+    }
+    if (docs.length < pageSize) break;
+    after = docs.at(-1).name;
+  }
+  const out = {};
+  for (const [bookId, entry] of totals.entries()) {
+    out[bookId] = { count: entry.count, average: entry.rated ? entry.sum / entry.rated : 0 };
+  }
+  return out;
 }
 
 /**

@@ -84,6 +84,19 @@ describe("reversal schedule", () => {
     expect(io.fetched).toEqual(["c"]);
   });
 
+  it("skips redundant record writes on quiet 15-minute sweeps until the quiet interval elapses", async () => {
+    const { io } = shop([paid("a", T0 - 2 * DAY)]);
+    let writes = 0;
+    const origWrite = io.writeState;
+    io.writeState = async (r) => { writes++; return origWrite(r); };
+    await run(io, T0);
+    expect(writes).toBe(1);
+    await run(io, T0 + 15 * MIN);
+    expect(writes).toBe(1);
+    await run(io, T0 + 2 * HOUR);
+    expect(writes).toBe(2);
+  });
+
   it("an order the admin synced with Stripe recently waits 6 hours from that sync", async () => {
     const { io, db } = shop([paid("a", T0 - 2 * DAY)]);
     await run(io, T0);

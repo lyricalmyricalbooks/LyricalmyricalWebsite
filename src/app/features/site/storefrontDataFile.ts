@@ -19,6 +19,10 @@ export type StorefrontDataFile = {
   pages: Record<string, unknown>[];
   /** Same shape and order as publicApi.getShippingProfiles; absent in files built before it was added. */
   shippingProfiles?: Record<string, unknown>[];
+  /** Same shape as publicApi.getExchangeRates; absent in older files or when unavailable at build time. */
+  exchangeRates?: Record<string, unknown>;
+  /** Pre-aggregated approved review totals per bookId (`{ count, average }`); absent in older files. */
+  reviewSummaries?: Record<string, { count: number; average: number }>;
 };
 
 /**
@@ -54,6 +58,27 @@ export function fileIsCurrent(file: StorefrontDataFile, marker: unknown): boolea
 export function shippingProfilesFrom(file: StorefrontDataFile | null): any[] | null {
   const profiles = file?.shippingProfiles;
   return Array.isArray(profiles) && profiles.every(p => !!p && typeof p === "object" && typeof (p as any).id === "string") ? profiles : null;
+}
+
+/** The file's exchange rates doc, or null when absent/invalid (caller falls back to Firestore). */
+export function exchangeRatesFrom(file: StorefrontDataFile | null): Record<string, unknown> | null {
+  const r = file?.exchangeRates;
+  if (!r || typeof r !== "object" || Array.isArray(r)) return null;
+  const usd = Number((r as any).usd);
+  const eur = Number((r as any).eur);
+  return Number.isFinite(usd) && Number.isFinite(eur) && typeof (r as any).fetchedAt === "string" ? r : null;
+}
+
+/** The file's per-book approved review summaries, or null when absent/invalid. */
+export function reviewSummariesFrom(file: StorefrontDataFile | null): Record<string, { count: number; average: number }> | null {
+  const s = file?.reviewSummaries;
+  if (!s || typeof s !== "object" || Array.isArray(s)) return null;
+  for (const v of Object.values(s)) {
+    if (!v || typeof v !== "object" || !Number.isFinite(Number((v as any).count)) || !Number.isFinite(Number((v as any).average))) {
+      return null;
+    }
+  }
+  return s;
 }
 
 // Several readers on one page (the shop data, a book page's shipping figure, checkout) share one check of the file

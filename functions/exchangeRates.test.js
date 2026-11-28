@@ -106,7 +106,7 @@ describe("wiring", () => {
   const source = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "index.js"), "utf8");
   it("checkout reads the shared reader and a scheduled job refreshes it", () => {
     expect(source).toContain("const getExchangeRates = createRateReader({ db });");
-    expect(source).toMatch(/exports\.refreshExchangeRates = onSchedule\(\{ schedule: "every 3 hours"/);
+    expect(source).toMatch(/exports\.refreshExchangeRates = onSchedule\(\{ schedule: "every 12 hours"/);
     // No second, private copy of the feed that could disagree with what shoppers are shown.
     expect(source).not.toContain("open.er-api.com");
   });

@@ -18,6 +18,7 @@ const { runInBatches } = require("./sweepLimits");
 
 const STATE_VERSION = 1;
 const RECONCILE_EVERY_MS = 6 * 60 * 60 * 1000; // re-read the full 120-day list this often
+const QUIET_WRITE_INTERVAL_MS = 2 * 60 * 60 * 1000; // skip redundant record writes on quiet 15-min runs
 const SCAN_OVERLAP_MS = 30 * 60 * 1000;         // each short scan reaches back past the previous sweep
 const SCAN_LIMIT = 500;                         // orders per short scan; a full page means "re-read everything next time"
 const MAX_TRACKED = 5000;                       // orders the record (and a full re-read) holds; ~200 KB
@@ -33,6 +34,18 @@ const SCAN_FIELDS = ["paymentStatus", "isTest", "stripePaymentIntentId", "paidAt
 const msOf = (value) => { const ms = Date.parse(value || ""); return Number.isFinite(ms) ? ms : 0; };
 const num = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
 const isoOf = (ms) => new Date(ms).toISOString();
+
+function entriesEqual(a, b) {
+  const keysA = Object.keys(a || {});
+  const keysB = Object.keys(b || {});
+  if (keysA.length !== keysB.length) return false;
+  for (const id of keysA) {
+    const ea = a[id];
+    const eb = b[id];
+    if (!eb || ea[0] !== eb[0] || ea[1] !== eb[1] || ea[2] !== eb[2]) return false;
+  }
+  return true;
+}
 
 // The saved record, or null when there is none or it can't be trusted (then the sweep re-reads everything).
 function readState(raw) {
@@ -255,14 +268,23 @@ async function runReversalChecks(io, { now = Date.now, deadline = Infinity, stop
   } finally {
     // A copy: a check still waiting on Stripe at the stop time must not change what was saved.
     const orders = Object.fromEntries(Object.entries(entries).map(([id, e]) => [id, e.slice()]));
-    const record = { v: STATE_VERSION, orders, ...scanMarks(plan, { scanOk, complete, startedMs, saved }) };
-    try {
-      await io.writeState(record);
-    } catch (err) {
-      // Without the record the next sweep would start again from the orders' own stamps and keep picking
-      // the same oldest 40, so stamp the orders checked now, as sweeps did before the record existed.
-      io.warn(`reversal schedule: could not save the record (${err.message}); stamping the checked orders instead`);
-      await Promise.resolve().then(() => io.stampOrders(checkedIds.slice())).catch((e) => io.warn(`reversal schedule: stamping failed too: ${e.message}`));
+    const marks = scanMarks(plan, { scanOk, complete, startedMs, saved });
+    const prevScannedMs = msOf(saved?.scannedFrom);
+    const quietNoop = Boolean(
+      saved && scanOk && !plan.reconcile && complete && checkedIds.length === 0
+      && startedMs >= prevScannedMs && startedMs - prevScannedMs < QUIET_WRITE_INTERVAL_MS
+      && entriesEqual(saved.orders, entries),
+    );
+    if (!quietNoop) {
+      const record = { v: STATE_VERSION, orders, ...marks };
+      try {
+        await io.writeState(record);
+      } catch (err) {
+        // Without the record the next sweep would start again from the orders' own stamps and keep picking
+        // the same oldest 40, so stamp the orders checked now, as sweeps did before the record existed.
+        io.warn(`reversal schedule: could not save the record (${err.message}); stamping the checked orders instead`);
+        await Promise.resolve().then(() => io.stampOrders(checkedIds.slice())).catch((e) => io.warn(`reversal schedule: stamping failed too: ${e.message}`));
+      }
     }
   }
   return { reconcile: plan.reconcile, scanned: scanned.length, tracked: Object.keys(entries).length, due: dueCount, checked: checkedIds.length };
